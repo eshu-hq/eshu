@@ -6,7 +6,7 @@ import type { VisualizationEdge, VisualizationNode } from "../api/answerVisualiz
 import type { EshuApiClient } from "../api/client";
 import {
   loadServiceEvidenceGraph,
-  type ServiceEvidenceGraphResult
+  type ServiceEvidenceGraphResult,
 } from "../api/serviceEvidenceGraph";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import type { EvidenceSelection } from "../components/EvidenceDrawer";
@@ -28,7 +28,7 @@ type Selection = EvidenceSelection;
 export function ServiceEvidenceGraphPage({
   client,
   model,
-  onOpenService
+  onOpenService,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
@@ -68,7 +68,7 @@ export function ServiceEvidenceGraphPage({
         }
       }
     },
-    [client]
+    [client],
   );
 
   useEffect(() => {
@@ -161,12 +161,14 @@ export function ServiceEvidenceGraphPage({
         ) : null}
       </Panel>
 
-      {result !== null ? <ServiceEvidenceResult
-        onOpenService={onOpenService}
-        onSelect={setSelected}
-        result={result}
-        selected={selected}
-      /> : null}
+      {result !== null ? (
+        <ServiceEvidenceResult
+          onOpenService={onOpenService}
+          onSelect={setSelected}
+          result={result}
+          selected={selected}
+        />
+      ) : null}
     </div>
   );
 }
@@ -175,7 +177,7 @@ function ServiceEvidenceResult({
   onOpenService,
   onSelect,
   result,
-  selected
+  selected,
 }: {
   readonly onOpenService?: (name: string) => void;
   readonly onSelect: (selection: Selection | null) => void;
@@ -188,8 +190,12 @@ function ServiceEvidenceResult({
     return (
       <Panel title={serviceName || "Service"} className="seg-result">
         <div className="seg-state seg-error" role="alert">
-          <strong>{storyError.code}: {storyError.message}</strong>
-          <p>No service-story evidence is shown because the source route did not return a packet.</p>
+          <strong>
+            {storyError.code}: {storyError.message}
+          </strong>
+          <p>
+            No service-story evidence is shown because the source route did not return a packet.
+          </p>
         </div>
       </Panel>
     );
@@ -212,11 +218,13 @@ function ServiceEvidenceResult({
     <Panel
       className="seg-result"
       title={title}
-      action={onOpenService !== undefined && serviceName.length > 0 ? (
-        <button className="btn ghost" onClick={() => onOpenService(serviceName)} type="button">
-          Open service
-        </button>
-      ) : undefined}
+      action={
+        onOpenService !== undefined && serviceName.length > 0 ? (
+          <button className="btn ghost" onClick={() => onOpenService(serviceName)} type="button">
+            Open service
+          </button>
+        ) : undefined
+      }
     >
       <div className="seg-truth">
         {truth === null ? (
@@ -240,7 +248,9 @@ function ServiceEvidenceResult({
       {!packet.supported ? (
         <div className="seg-state" role="status">
           <strong>No renderable subgraph for this service story.</strong>
-          <p>The derive route returned an unsupported packet; nothing is invented to fill the gap.</p>
+          <p>
+            The derive route returned an unsupported packet; nothing is invented to fill the gap.
+          </p>
           <StateList title="Limitations" values={packet.limitations} />
           <NextCalls calls={packet.recommendedNextCalls} />
         </div>
@@ -252,7 +262,9 @@ function ServiceEvidenceResult({
         </div>
       ) : (
         <>
-          <p className="seg-limits">{limitsLine(packet.limits, graph.nodes.length, graph.edges.length)}</p>
+          <p className="seg-limits">
+            {limitsLine(packet.limits, graph.nodes.length, graph.edges.length)}
+          </p>
           <NodeTypeLegend types={nodeTypes} />
           <GraphCanvas
             graph={graph}
@@ -277,7 +289,7 @@ function ServiceEvidenceResult({
 function SelectedEvidence({
   onClose,
   packet,
-  selected
+  selected,
 }: {
   readonly onClose: () => void;
   readonly packet: NonNullable<ServiceEvidenceGraphResult["packet"]>;
@@ -293,7 +305,11 @@ function SelectedEvidence({
   return <EvidencePanel data={panelData} onClose={onClose} />;
 }
 
-function NodeTypeLegend({ types }: { readonly types: readonly string[] }): React.JSX.Element | null {
+function NodeTypeLegend({
+  types,
+}: {
+  readonly types: readonly string[];
+}): React.JSX.Element | null {
   if (types.length === 0) {
     return null;
   }
@@ -301,7 +317,9 @@ function NodeTypeLegend({ types }: { readonly types: readonly string[] }): React
     <div className="seg-legend" aria-label="Node types present">
       <span className="seg-legend-label">Node types:</span>
       {types.map((type) => (
-        <span key={type} className={`seg-kind seg-kind-${type}`}>{type}</span>
+        <span key={type} className={`seg-kind seg-kind-${type}`}>
+          {type}
+        </span>
       ))}
     </div>
   );
@@ -310,7 +328,7 @@ function NodeTypeLegend({ types }: { readonly types: readonly string[] }): React
 function RelationshipList({
   edges,
   onSelect,
-  selected
+  selected,
 }: {
   readonly edges: readonly VisualizationEdge[];
   readonly onSelect: (selection: Selection | null) => void;
@@ -332,9 +350,13 @@ function RelationshipList({
                 onClick={() => onSelect({ kind: "edge", id: edge.id })}
                 type="button"
               >
-                <span className="mono">{edge.source} → {edge.target}</span>
+                <span className="mono">
+                  {edge.source} → {edge.target}
+                </span>
                 <span className="seg-edge-verb">{edge.relationship || "RELATED"}</span>
-                {edge.truthLabel.length > 0 ? <span className="seg-edge-truth">{edge.truthLabel}</span> : null}
+                {edge.truthLabel.length > 0 ? (
+                  <span className="seg-edge-truth">{edge.truthLabel}</span>
+                ) : null}
               </button>
             </li>
           );
@@ -344,7 +366,11 @@ function RelationshipList({
   );
 }
 
-function NextCalls({ calls }: { readonly calls: readonly AnswerNextCall[] }): React.JSX.Element | null {
+function NextCalls({
+  calls,
+}: {
+  readonly calls: readonly AnswerNextCall[];
+}): React.JSX.Element | null {
   if (calls.length === 0) {
     return null;
   }
@@ -363,8 +389,16 @@ function NextCalls({ calls }: { readonly calls: readonly AnswerNextCall[] }): Re
   );
 }
 
-function StateList({ title, values }: { readonly title: string; readonly values: readonly string[] }): React.JSX.Element | null {
-  const unique = [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
+function StateList({
+  title,
+  values,
+}: {
+  readonly title: string;
+  readonly values: readonly string[];
+}): React.JSX.Element | null {
+  const unique = [
+    ...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)),
+  ];
   if (unique.length === 0) {
     return null;
   }
@@ -372,7 +406,9 @@ function StateList({ title, values }: { readonly title: string; readonly values:
     <section className="seg-statelist">
       <h3>{title}</h3>
       <ul>
-        {unique.map((value) => <li key={value}>{value}</li>)}
+        {unique.map((value) => (
+          <li key={value}>{value}</li>
+        ))}
       </ul>
     </section>
   );
@@ -384,7 +420,7 @@ function StateList({ title, values }: { readonly title: string; readonly values:
 function limitsLine(
   limits: NonNullable<ServiceEvidenceGraphResult["packet"]>["limits"],
   nodesShown: number,
-  edgesShown: number
+  edgesShown: number,
 ): string {
   const nodeCount = limits.nodeCount || nodesShown;
   const edgeCount = limits.edgeCount || edgesShown;

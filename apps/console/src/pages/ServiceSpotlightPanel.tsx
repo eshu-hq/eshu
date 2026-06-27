@@ -13,13 +13,13 @@ import type {
   ServiceEndpoint,
   ServiceHostname,
   ServiceDeploymentLane,
-  ServiceSpotlight
+  ServiceSpotlight,
 } from "../api/serviceSpotlight";
 
 type ServiceAtlasTab = "map" | "traffic" | "impact" | "api";
 
 export function ServiceSpotlightPanel({
-  spotlight
+  spotlight,
 }: {
   readonly spotlight: ServiceSpotlight;
 }): React.JSX.Element {
@@ -68,10 +68,7 @@ export function ServiceSpotlightPanel({
           <div className="service-atlas-workbench-main">
             <div className="service-deployment-board">
               <section aria-label="Deployment story" className="service-panel service-map-panel">
-                <PanelHeading
-                  detail={relationshipMapSentence(spotlight)}
-                  title="Service flow"
-                />
+                <PanelHeading detail={relationshipMapSentence(spotlight)} title="Service flow" />
                 <ServiceRelationshipWorkbench spotlight={spotlight} />
               </section>
               <LaneCards lanes={spotlight.lanes} />
@@ -126,14 +123,10 @@ const serviceTabs: readonly {
   { description: "Deployment truth", id: "map", label: "Map" },
   { description: "Entry, traffic, config", id: "traffic", label: "Traffic and config" },
   { description: "Change and code proof", id: "impact", label: "Impact review" },
-  { description: "Endpoints and consumers", id: "api", label: "API and relationships" }
+  { description: "Endpoints and consumers", id: "api", label: "API and relationships" },
 ];
 
-function MetricList({
-  spotlight
-}: {
-  readonly spotlight: ServiceSpotlight;
-}): React.JSX.Element {
+function MetricList({ spotlight }: { readonly spotlight: ServiceSpotlight }): React.JSX.Element {
   const metrics = [
     { label: "API", value: `${spotlight.api.endpointCount} endpoints` },
     { label: "Methods", value: `${spotlight.api.methodCount} methods` },
@@ -141,8 +134,8 @@ function MetricList({
     { label: "References", value: `${spotlight.relationshipCounts.references} references` },
     {
       label: "Typed dependents",
-      value: `${spotlight.relationshipCounts.graphDependents} typed dependents`
-    }
+      value: `${spotlight.relationshipCounts.graphDependents} typed dependents`,
+    },
   ];
   return (
     <dl className="service-metrics" aria-label="Service facts">
@@ -158,7 +151,7 @@ function MetricList({
 
 function StoryPill({
   label,
-  value
+  value,
 }: {
   readonly label: string;
   readonly value: string;
@@ -188,16 +181,13 @@ function deploymentHeadline(spotlight: ServiceSpotlight): string {
 
 function EndpointTable({
   endpointCount,
-  endpoints
+  endpoints,
 }: {
   readonly endpointCount: number;
   readonly endpoints: readonly ServiceEndpoint[];
 }): React.JSX.Element {
   const [query, setQuery] = useState("");
-  const filteredEndpoints = useMemo(
-    () => filterEndpoints(endpoints, query),
-    [endpoints, query]
-  );
+  const filteredEndpoints = useMemo(() => filterEndpoints(endpoints, query), [endpoints, query]);
   return (
     <section aria-label="API endpoints" className="service-panel">
       <PanelHeading
@@ -235,41 +225,35 @@ function endpointKey(endpoint: ServiceEndpoint, index: number): string {
     endpoint.methods.join(","),
     endpoint.operationIds.join(","),
     endpoint.sourcePaths.join(","),
-    index
+    index,
   ].join(":");
 }
 
 function filterEndpoints(
   endpoints: readonly ServiceEndpoint[],
-  query: string
+  query: string,
 ): readonly ServiceEndpoint[] {
   const normalized = query.trim().toLowerCase();
   if (normalized.length === 0) {
     return endpoints;
   }
   return endpoints.filter((endpoint) =>
-    [
-      endpoint.path,
-      ...endpoint.methods,
-      ...endpoint.operationIds,
-      ...endpoint.sourcePaths
-    ].some((value) => value.toLowerCase().includes(normalized))
+    [endpoint.path, ...endpoint.methods, ...endpoint.operationIds, ...endpoint.sourcePaths].some(
+      (value) => value.toLowerCase().includes(normalized),
+    ),
   );
 }
 
 const RelationshipList = ServiceRelationshipExplorer;
 
 function LaneCards({
-  lanes
+  lanes,
 }: {
   readonly lanes: readonly ServiceDeploymentLane[];
 }): React.JSX.Element {
   return (
     <section aria-label="Deployment lane summary" className="service-panel service-lane-cards">
-      <PanelHeading
-        detail={`${lanes.length} observed`}
-        title="Lanes"
-      />
+      <PanelHeading detail={`${lanes.length} observed`} title="Lanes" />
       {lanes.map((lane) => (
         <article key={lane.label}>
           <div>
@@ -290,7 +274,7 @@ function LaneCards({
 }
 
 function EntryPointStrip({
-  hostnames
+  hostnames,
 }: {
   readonly hostnames: readonly ServiceHostname[];
 }): React.JSX.Element | null {
@@ -299,10 +283,7 @@ function EntryPointStrip({
   }
   return (
     <section aria-label="Service entrypoints" className="service-entrypoints">
-      <PanelHeading
-        detail={`${hostnames.length} observed`}
-        title="Entrypoints"
-      />
+      <PanelHeading detail={`${hostnames.length} observed`} title="Entrypoints" />
       <div>
         {hostnames.slice(0, 6).map((hostname) => (
           <article key={`${hostname.hostname}:${hostname.environment}`}>
@@ -318,7 +299,7 @@ function EntryPointStrip({
 
 function PanelHeading({
   detail,
-  title
+  title,
 }: {
   readonly detail: string;
   readonly title: string;

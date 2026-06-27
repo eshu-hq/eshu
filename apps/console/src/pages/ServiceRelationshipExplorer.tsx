@@ -5,7 +5,7 @@ import {
   Hexagon,
   KeyRound,
   ShipWheel,
-  Workflow
+  Workflow,
 } from "lucide-react";
 
 import type {
@@ -15,7 +15,7 @@ import type {
   ServiceRelationshipCluster,
   ServiceRelationshipRepository,
   ServiceSpotlight,
-  ServiceTechnologyKind
+  ServiceTechnologyKind,
 } from "../api/serviceSpotlight";
 
 export function ServiceRelationshipExplorer({
@@ -24,7 +24,7 @@ export function ServiceRelationshipExplorer({
   graphDependents,
   lanes,
   references,
-  totals
+  totals,
 }: {
   readonly clusters: readonly ServiceRelationshipCluster[];
   readonly dependencies: readonly ServiceDependency[];
@@ -60,14 +60,13 @@ export function ServiceRelationshipExplorer({
 
 function LaneSourceList({
   clusters,
-  lanes
+  lanes,
 }: {
   readonly clusters: readonly ServiceRelationshipCluster[];
   readonly lanes: readonly ServiceDeploymentLane[];
 }): React.JSX.Element {
-  const deploymentRepositories = clusters.find((cluster) =>
-    cluster.kind === "deployment"
-  )?.repositories ?? [];
+  const deploymentRepositories =
+    clusters.find((cluster) => cluster.kind === "deployment")?.repositories ?? [];
   return (
     <section
       aria-label="Deployment sources"
@@ -91,7 +90,10 @@ function LaneSourceList({
         ))}
       </div>
       {deploymentRepositories.length > 0 ? (
-        <div className="service-deployment-source-repos" aria-label="Deployment source repositories">
+        <div
+          className="service-deployment-source-repos"
+          aria-label="Deployment source repositories"
+        >
           {deploymentRepositories.slice(0, 8).map((repository) => (
             <RepositoryEvidence key={repository.repository} repository={repository} />
           ))}
@@ -102,7 +104,7 @@ function LaneSourceList({
 }
 
 function RelationshipClusterList({
-  clusters
+  clusters,
 }: {
   readonly clusters: readonly ServiceRelationshipCluster[];
 }): React.JSX.Element {
@@ -140,7 +142,7 @@ function RelationshipClusterList({
 }
 
 function RepositoryEvidence({
-  repository
+  repository,
 }: {
   readonly repository: ServiceRelationshipRepository;
 }): React.JSX.Element {
@@ -150,9 +152,7 @@ function RepositoryEvidence({
         <TechnologyMark technology={repository.technology} />
         <span>{repository.repository}</span>
       </div>
-      <small>
-        {repository.paths[0] ?? repository.evidenceKinds[0] ?? "Evidence observed"}
-      </small>
+      <small>{repository.paths[0] ?? repository.evidenceKinds[0] ?? "Evidence observed"}</small>
     </div>
   );
 }
@@ -160,7 +160,7 @@ function RepositoryEvidence({
 function ConsumerList({
   consumers,
   count,
-  heading
+  heading,
 }: {
   readonly consumers: readonly ServiceConsumer[];
   readonly count: number;
@@ -185,7 +185,7 @@ function ConsumerList({
 
 function DependencyList({
   dependencies,
-  total
+  total,
 }: {
   readonly dependencies: readonly ServiceDependency[];
   readonly total: number;
@@ -208,7 +208,7 @@ function DependencyList({
 }
 
 function TechnologyMark({
-  technology
+  technology,
 }: {
   readonly technology: ServiceTechnologyKind;
 }): React.JSX.Element {
@@ -275,7 +275,7 @@ function technologyLabel(technology: ServiceTechnologyKind): string {
 
 function EvidenceLabels({
   fallback,
-  labels
+  labels,
 }: {
   readonly fallback: string;
   readonly labels: readonly string[];
@@ -300,7 +300,7 @@ function prettyLabel(label: string): string {
 
 function PanelHeading({
   detail,
-  title
+  title,
 }: {
   readonly detail: string;
   readonly title: string;

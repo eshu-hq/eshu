@@ -6,17 +6,31 @@ import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
 import type { RepoListItem } from "../api/repoCatalog";
 import {
   loadSourceBackedSuggestedQuestions,
-  type SuggestedQuestion
+  type SuggestedQuestion,
 } from "../api/suggestedQuestions";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { SuggestedQuestions } from "../components/SuggestedQuestions";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
-import type { ConsoleModel, GraphLayer, GraphModel, GraphNode, RelationshipRow, ServiceRow } from "../console/types";
+import type {
+  ConsoleModel,
+  GraphLayer,
+  GraphModel,
+  GraphNode,
+  RelationshipRow,
+  ServiceRow,
+} from "../console/types";
 import "./dashboardLive.css";
 
-const LANDING_LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
+const LANDING_LAYERS: readonly GraphLayer[] = [
+  "code",
+  "deploy",
+  "infra",
+  "runtime",
+  "security",
+  "ops",
+];
 
 type AtlasState =
   | { readonly kind: "idle" }
@@ -30,7 +44,12 @@ type RelationshipCoverageRow = {
   readonly detail: string;
 };
 
-export function DashboardPage({ model, client, onOpenService, repositories }: {
+export function DashboardPage({
+  model,
+  client,
+  onOpenService,
+  repositories,
+}: {
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
   readonly onOpenService?: (name: string) => void;
@@ -40,17 +59,24 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
   const atlasSeeds = useMemo(() => liveAtlasSeeds(model, repositories), [model, repositories]);
   const atlasSeed = atlasSeeds[0];
   const seededGraph = useMemo<GraphModel>(
-    () => atlasSeed ? { nodes: [atlasSeed], edges: [] } : model.graph,
-    [atlasSeed, model.graph]
+    () => (atlasSeed ? { nodes: [atlasSeed], edges: [] } : model.graph),
+    [atlasSeed, model.graph],
   );
   const [liveGraph, setLiveGraph] = useState<GraphModel | null>(null);
   const [enabledLayers, setEnabledLayers] = useState<Record<GraphLayer, boolean>>(
-    () => Object.fromEntries(LANDING_LAYERS.map((layer) => [layer, true])) as Record<GraphLayer, boolean>
+    () =>
+      Object.fromEntries(LANDING_LAYERS.map((layer) => [layer, true])) as Record<
+        GraphLayer,
+        boolean
+      >,
   );
   const [atlasState, setAtlasState] = useState<AtlasState>({ kind: "idle" });
   const atlasRequestRef = useRef(0);
   const baseGraph = liveGraph ?? seededGraph;
-  const graph = useMemo(() => filterGraphByLayer(baseGraph, enabledLayers), [baseGraph, enabledLayers]);
+  const graph = useMemo(
+    () => filterGraphByLayer(baseGraph, enabledLayers),
+    [baseGraph, enabledLayers],
+  );
   const layerRows = useMemo(() => layerCounts(baseGraph), [baseGraph]);
   const hotEntities = useMemo(() => hotEntityRows(model, atlasSeeds), [atlasSeeds, model]);
   const [sel, setSel] = useState<GraphNode | undefined>(() => initialSelection(graph));
@@ -58,24 +84,39 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
   const graphNodeCount = lastNumber(model.series.graphNodes);
   const relationshipCount = relationshipMetric(model, baseGraph);
   const [suggestedQuestions, setSuggestedQuestions] = useState<readonly SuggestedQuestion[]>([]);
-  const selectedSpotlightName = sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
-  const nodeLabels = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node.label])), [graph.nodes]);
-  const sevTotals = model.vulnerabilities.reduce(
-    (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
-    { critical: 0, high: 0, medium: 0, low: 0 }
+  const selectedSpotlightName =
+    sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
+  const nodeLabels = useMemo(
+    () => new Map(graph.nodes.map((node) => [node.id, node.label])),
+    [graph.nodes],
   );
-  const relRows = useMemo(() => relationshipRowsFor(model.relationships, graph), [model.relationships, graph]);
+  const sevTotals = model.vulnerabilities.reduce(
+    (a, v) => {
+      const k = v.severity as keyof typeof a;
+      if (k in a) a[k] += 1;
+      return a;
+    },
+    { critical: 0, high: 0, medium: 0, low: 0 },
+  );
+  const relRows = useMemo(
+    () => relationshipRowsFor(model.relationships, graph),
+    [model.relationships, graph],
+  );
   const serviceNames = new Set(model.services.map((s) => s.name));
 
   useEffect(() => {
-    setSel((current) => graph.nodes.some((n) => n.id === current?.id) ? current : initialSelection(graph));
+    setSel((current) =>
+      graph.nodes.some((n) => n.id === current?.id) ? current : initialSelection(graph),
+    );
   }, [graph]);
 
   useEffect(() => {
     let cancelled = false;
     if (!client || model.source !== "live") {
       setSuggestedQuestions([]);
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     }
     void loadSourceBackedSuggestedQuestions(client)
       .then((questions) => {
@@ -84,7 +125,9 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
       .catch(() => {
         if (!cancelled) setSuggestedQuestions([]);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [client, model.source]);
 
   useEffect(() => {
@@ -101,7 +144,11 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
     setAtlasState({ kind: "loading", seed: atlasSeeds[0].label });
     async function loadSeed(): Promise<void> {
       try {
-        const next = await selectSeedGraph(liveClient, atlasSeeds, () => cancelled || requestID !== atlasRequestRef.current);
+        const next = await selectSeedGraph(
+          liveClient,
+          atlasSeeds,
+          () => cancelled || requestID !== atlasRequestRef.current,
+        );
         if (cancelled || requestID !== atlasRequestRef.current) return;
         if (!next) {
           setAtlasState({ kind: "idle" });
@@ -116,7 +163,9 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
       }
     }
     void loadSeed();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [atlasSeeds, client, model.source]);
 
   async function expandAtlasNode(node: GraphNode): Promise<void> {
@@ -144,7 +193,13 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
         className="dashboard-atlas-panel flush"
         title="Code-to-cloud topology"
         sub={`${atlasLabel} neighbourhood — click any node or relationship edge to read its evidence`}
-        action={selectedSpotlightName && onOpenService ? <button className="btn-ghost" onClick={() => onOpenService(selectedSpotlightName)}>Open spotlight →</button> : null}
+        action={
+          selectedSpotlightName && onOpenService ? (
+            <button className="btn-ghost" onClick={() => onOpenService(selectedSpotlightName)}>
+              Open spotlight →
+            </button>
+          ) : null
+        }
       >
         <div className="dashboard-atlas-controls">
           <div className="dashboard-layer-toggles" aria-label="Topology layers">
@@ -153,7 +208,12 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
                 aria-pressed={enabledLayers[layer.layer]}
                 className={`layer-toggle ${enabledLayers[layer.layer] ? "on" : "off"}`}
                 key={layer.layer}
-                onClick={() => setEnabledLayers((current) => ({ ...current, [layer.layer]: !current[layer.layer] }))}
+                onClick={() =>
+                  setEnabledLayers((current) => ({
+                    ...current,
+                    [layer.layer]: !current[layer.layer],
+                  }))
+                }
                 style={{ "--lc": LAYER_COLOR[layer.layer] } as React.CSSProperties}
               >
                 <i style={{ background: LAYER_COLOR[layer.layer] }} />
@@ -165,41 +225,91 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
           <div className="dashboard-hot-entities">
             <span>Hot entities</span>
             {hotEntities.map((entity) => (
-              <button disabled={!onOpenService} key={entity.id} onClick={() => onOpenService?.(entity.name)}>{entity.name}</button>
+              <button
+                disabled={!onOpenService}
+                key={entity.id}
+                onClick={() => onOpenService?.(entity.name)}
+              >
+                {entity.name}
+              </button>
             ))}
-            <small>Seeded from the live graph neighbourhood (probes capped at {MAX_SEED_PROBES}).</small>
+            <small>
+              Seeded from the live graph neighbourhood (probes capped at {MAX_SEED_PROBES}).
+            </small>
           </div>
         </div>
         <div className="dashboard-atlas-layout">
           {graph.nodes.length ? (
-            <GraphCanvas graph={graph} height={520} onSelect={(node) => { void expandAtlasNode(node); }} selectedId={sel?.id} />
+            <GraphCanvas
+              graph={graph}
+              height={520}
+              onSelect={(node) => {
+                void expandAtlasNode(node);
+              }}
+              selectedId={sel?.id}
+            />
           ) : (
             <div className="gcanvas" style={{ height: 520, display: "grid", placeItems: "center" }}>
               <p className="empty">No graph entities are available from the live model yet.</p>
             </div>
           )}
-          <aside className="dashboard-atlas-inspector" aria-label="Relationship atlas inspector" tabIndex={0}>
-              {sel ? (
-                <div className="inspector">
-                  <div className="insp-head"><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>
-                  {sel.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{sel.sub}</div> : null}
-                  {sel.truth ? <TruthChip level={sel.truth} /> : null}
-                  {(sel.kind === "service" || sel.kind === "workload") && onOpenService ? <button className="btn-ghost active" style={{ width: "100%", justifyContent: "center" }} onClick={() => onOpenService(sel.label)}>Open spotlight →</button> : null}
-                  {atlasState.kind === "loading" ? <p className="empty">Loading relationships for {atlasState.seed}…</p> : null}
-                  {atlasState.kind === "error" ? <p className="src-err">Relationship atlas unavailable for {atlasState.seed}: {atlasState.message}</p> : null}
-                  <div className="insp-evi">
-                    {graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => {
+          <aside
+            className="dashboard-atlas-inspector"
+            aria-label="Relationship atlas inspector"
+            tabIndex={0}
+          >
+            {sel ? (
+              <div className="inspector">
+                <div className="insp-head">
+                  <div>
+                    <div className="insp-kind">{sel.kind}</div>
+                    <div className="insp-title">{sel.label}</div>
+                  </div>
+                </div>
+                {sel.sub ? (
+                  <div className="t-mut mono" style={{ fontSize: ".82rem" }}>
+                    {sel.sub}
+                  </div>
+                ) : null}
+                {sel.truth ? <TruthChip level={sel.truth} /> : null}
+                {(sel.kind === "service" || sel.kind === "workload") && onOpenService ? (
+                  <button
+                    className="btn-ghost active"
+                    style={{ width: "100%", justifyContent: "center" }}
+                    onClick={() => onOpenService(sel.label)}
+                  >
+                    Open spotlight →
+                  </button>
+                ) : null}
+                {atlasState.kind === "loading" ? (
+                  <p className="empty">Loading relationships for {atlasState.seed}…</p>
+                ) : null}
+                {atlasState.kind === "error" ? (
+                  <p className="src-err">
+                    Relationship atlas unavailable for {atlasState.seed}: {atlasState.message}
+                  </p>
+                ) : null}
+                <div className="insp-evi">
+                  {graph.edges
+                    .filter((e) => e.s === sel.id || e.t === sel.id)
+                    .map((e, i) => {
                       const endpointID = e.s === sel.id ? e.t : e.s;
                       const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
                       return (
-                        <div className="insp-evi-row" key={i} title={endpointLabel === endpointID ? undefined : endpointID}>
+                        <div
+                          className="insp-evi-row"
+                          key={i}
+                          title={endpointLabel === endpointID ? undefined : endpointID}
+                        >
                           {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
                         </div>
                       );
                     })}
-                  </div>
                 </div>
-              ) : <p className="empty">Select a node.</p>}
+              </div>
+            ) : (
+              <p className="empty">Select a node.</p>
+            )}
           </aside>
         </div>
       </Panel>
@@ -210,14 +320,20 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
           value={graphNodeCount === null ? "—" : fmt(graphNodeCount)}
           spark={model.series.graphNodes.length ? model.series.graphNodes : undefined}
           color="var(--teal)"
-          sub={graphNodeCount === null ? "node count metric unavailable" : "NornicDB graph node metric"}
+          sub={
+            graphNodeCount === null ? "node count metric unavailable" : "NornicDB graph node metric"
+          }
         />
         <StatTile
           label="Relationships"
           value={relationshipCount === null ? "—" : fmt(relationshipCount)}
           spark={model.series.graphEdges.length ? model.series.graphEdges : undefined}
           color="var(--ember)"
-          sub={relationshipCount === null ? "relationship count metric unavailable" : `${relRows.length} typed verbs observed`}
+          sub={
+            relationshipCount === null
+              ? "relationship count metric unavailable"
+              : `${relRows.length} typed verbs observed`
+          }
         />
         <StatTile
           label="Indexed repos"
@@ -236,12 +352,30 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
 
       <div className="dashboard-insight-grid grid mt">
         <Panel title="Ingestion throughput" sub="Facts committed per minute">
-          {model.series.ingestRate.length ? <AreaChart data={model.series.ingestRate} color="var(--teal)" h={190} unit=" f/m" /> : <p className="empty" style={{ padding: "48px 12px" }}>Trend history appears when a Prometheus/Mimir metrics source has recent samples. Current queue and runtime numbers are shown above.</p>}
+          {model.series.ingestRate.length ? (
+            <AreaChart data={model.series.ingestRate} color="var(--teal)" h={190} unit=" f/m" />
+          ) : (
+            <p className="empty" style={{ padding: "48px 12px" }}>
+              Trend history appears when a Prometheus/Mimir metrics source has recent samples.
+              Current queue and runtime numbers are shown above.
+            </p>
+          )}
         </Panel>
-        <Panel title="Security posture" sub={`${sevTotals.critical} critical · ${sevTotals.high} high`}>
+        <Panel
+          title="Security posture"
+          sub={`${sevTotals.critical} critical · ${sevTotals.high} high`}
+        >
           <div style={{ display: "grid", placeItems: "center", marginBottom: 12 }}>
-            <Donut size={138} thickness={17} center={{ value: sevTotals.critical + sevTotals.high, label: "crit + high" }}
-              segments={(["critical", "high", "medium", "low"] as const).map((k) => ({ label: k, value: sevTotals[k], color: SEVERITY_COLOR[k] }))} />
+            <Donut
+              size={138}
+              thickness={17}
+              center={{ value: sevTotals.critical + sevTotals.high, label: "crit + high" }}
+              segments={(["critical", "high", "medium", "low"] as const).map((k) => ({
+                label: k,
+                value: sevTotals[k],
+                color: SEVERITY_COLOR[k],
+              }))}
+            />
           </div>
         </Panel>
       </div>
@@ -254,20 +388,40 @@ export function DashboardPage({ model, client, onOpenService, repositories }: {
         <SuggestedQuestions questions={suggestedQuestions} />
       </Panel>
 
-      <Panel className="dashboard-findings-panel mt flush" title="Needs attention" sub="Highest-severity findings with evidence">
+      <Panel
+        className="dashboard-findings-panel mt flush"
+        title="Needs attention"
+        sub="Highest-severity findings with evidence"
+      >
         <table className="tbl">
-          <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Truth</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Finding</th>
+              <th>Type</th>
+              <th>Entity</th>
+              <th>Truth</th>
+            </tr>
+          </thead>
           <tbody>
             {model.findings.map((f) => {
               // Only services/workloads have a spotlight drawer. Findings keyed by
               // a repo or other entity (e.g. dead code) must not open an empty one.
               const canOpen = onOpenService !== undefined && serviceNames.has(f.entity);
               return (
-                <tr key={f.id} onClick={canOpen ? () => onOpenService(f.entity) : undefined} style={canOpen ? { cursor: "pointer" } : undefined}>
-                  <td className="cell-stack"><span style={{ color: "var(--bone)", fontWeight: 600 }}>{f.title}</span><small>{f.detail}</small></td>
+                <tr
+                  key={f.id}
+                  onClick={canOpen ? () => onOpenService(f.entity) : undefined}
+                  style={canOpen ? { cursor: "pointer" } : undefined}
+                >
+                  <td className="cell-stack">
+                    <span style={{ color: "var(--bone)", fontWeight: 600 }}>{f.title}</span>
+                    <small>{f.detail}</small>
+                  </td>
                   <td className="t-mut">{f.type}</td>
                   <td className="t-name">{f.entity}</td>
-                  <td><TruthChip level={uiTruth(f.truth)} /></td>
+                  <td>
+                    <TruthChip level={uiTruth(f.truth)} />
+                  </td>
                 </tr>
               );
             })}
@@ -297,11 +451,19 @@ function relationshipMetric(model: ConsoleModel, graph: GraphModel): number | nu
 
 function relationshipRowsFor(
   rows: readonly RelationshipRow[],
-  graph: GraphModel
+  graph: GraphModel,
 ): readonly RelationshipCoverageRow[] {
   if (rows.length > 0) {
-    return rows.slice().sort((a, b) => b.count - a.count).slice(0, 7)
-      .map((row) => ({ label: row.verb, value: row.count, color: LAYER_COLOR[row.layer], detail: row.detail }));
+    return rows
+      .slice()
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 7)
+      .map((row) => ({
+        label: row.verb,
+        value: row.count,
+        color: LAYER_COLOR[row.layer],
+        detail: row.detail,
+      }));
   }
   const counts = new Map<string, RelationshipRow>();
   for (const edge of graph.edges) {
@@ -311,14 +473,24 @@ function relationshipRowsFor(
       verb: edge.verb,
       layer: edge.layer,
       count: (current?.count ?? 0) + 1,
-      detail: "Live entity-map relationships"
+      detail: "Live entity-map relationships",
     });
   }
-  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 7)
-    .map((row) => ({ label: row.verb, value: row.count, color: LAYER_COLOR[row.layer], detail: row.detail }));
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 7)
+    .map((row) => ({
+      label: row.verb,
+      value: row.count,
+      color: LAYER_COLOR[row.layer],
+      detail: row.detail,
+    }));
 }
 
-function filterGraphByLayer(graph: GraphModel, enabledLayers: Readonly<Record<GraphLayer, boolean>>): GraphModel {
+function filterGraphByLayer(
+  graph: GraphModel,
+  enabledLayers: Readonly<Record<GraphLayer, boolean>>,
+): GraphModel {
   const edges = graph.edges.filter((edge) => enabledLayers[edge.layer]);
   const keep = new Set<string>();
   for (const edge of edges) {
@@ -330,24 +502,27 @@ function filterGraphByLayer(graph: GraphModel, enabledLayers: Readonly<Record<Gr
   }
   return {
     edges,
-    nodes: graph.nodes.filter((node) => keep.has(node.id) || graph.edges.length === 0)
+    nodes: graph.nodes.filter((node) => keep.has(node.id) || graph.edges.length === 0),
   };
 }
 
-function layerCounts(graph: GraphModel): readonly { readonly count: number; readonly layer: GraphLayer }[] {
+function layerCounts(
+  graph: GraphModel,
+): readonly { readonly count: number; readonly layer: GraphLayer }[] {
   return LANDING_LAYERS.map((layer) => ({
     count: graph.edges.filter((edge) => edge.layer === layer).length,
-    layer
+    layer,
   }));
 }
 
 function hotEntityRows(
   model: ConsoleModel,
-  atlasSeeds: readonly GraphNode[]
+  atlasSeeds: readonly GraphNode[],
 ): readonly { readonly id: string; readonly name: string }[] {
-  const services = atlasSeeds.length > 0
-    ? atlasSeeds.map((seed) => ({ id: seed.id, name: seed.label }))
-    : model.services.map((service) => ({ id: service.id, name: service.name }));
+  const services =
+    atlasSeeds.length > 0
+      ? atlasSeeds.map((seed) => ({ id: seed.id, name: seed.label }))
+      : model.services.map((service) => ({ id: service.id, name: service.name }));
   return services.filter((row) => row.name.trim().length > 0).slice(0, MAX_SEED_PROBES);
 }
 
@@ -370,7 +545,7 @@ const MAX_SEED_PROBES = 8;
 // model already carries a graph.
 function liveAtlasSeeds(
   model: ConsoleModel,
-  repositories: readonly RepoListItem[] | undefined
+  repositories: readonly RepoListItem[] | undefined,
 ): readonly GraphNode[] {
   if (model.source !== "live" || model.graph.nodes.length > 0) return [];
   const serviceSeeds = model.services
@@ -391,7 +566,7 @@ function liveAtlasSeeds(
 async function selectSeedGraph(
   client: EshuApiClient,
   seeds: readonly GraphNode[],
-  isCancelled: () => boolean
+  isCancelled: () => boolean,
 ): Promise<{ readonly seed: GraphNode; readonly graph: GraphModel } | undefined> {
   let best: { readonly seed: GraphNode; readonly graph: GraphModel } | undefined;
   for (const seed of seeds.slice(0, MAX_SEED_PROBES)) {
@@ -415,7 +590,7 @@ function serviceSeedNode(service: ServiceRow): GraphNode {
     kind: serviceKind(service.kind),
     label,
     sub: repo || undefined,
-    truth: uiTruth(service.truth)
+    truth: uiTruth(service.truth),
   };
 }
 
@@ -433,7 +608,7 @@ function repoSeedNode(repository: RepoListItem): GraphNode {
     kind: "repo",
     label,
     sub: repository.repoSlug.trim() || undefined,
-    truth: "exact"
+    truth: "exact",
   };
 }
 
