@@ -72,21 +72,31 @@ case "$mode" in
     fi
     ;;
   *)
-    base="${ESHU_AI_ATTRIBUTION_BASE:-}"
-    if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-      git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+    base_ref="${ESHU_AI_ATTRIBUTION_BASE:-}"
+    if [ -z "$base_ref" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
+      # Use the base ref the CI checkout already fetched (fetch-depth: 0). Only
+      # fetch if missing, and NEVER with --depth=1: a shallow base severs
+      # ancestry, so <base>..HEAD balloons to nearly all history and re-flags
+      # pre-existing commits (e.g. legacy "Copilot Autofix" trailers already on
+      # main). That is what failed run 28294038092.
+      if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
+        git -C "$repo_root" fetch --no-tags origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+      fi
       if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-        base="origin/$GITHUB_BASE_REF"
+        base_ref="origin/$GITHUB_BASE_REF"
       fi
     fi
-    if [ -z "$base" ]; then
+    if [ -z "$base_ref" ]; then
       if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
-        base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
+        base_ref="origin/main"
       else
         printf 'verify-no-ai-attribution: no base commit available, skipping\n'
         exit 0
       fi
     fi
+    # Scope to the commits THIS branch adds since it diverged from the base —
+    # the merge-base, never historical commits already on the base.
+    base="$(git -C "$repo_root" merge-base "$base_ref" HEAD 2>/dev/null || echo "$base_ref")"
 
     msg_hits="$(git -C "$repo_root" log --format='%H %s%n%b' "$base..HEAD" 2>/dev/null | rg -i -n -e "$pattern" || true)"
     if [ -n "$msg_hits" ]; then
