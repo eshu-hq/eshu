@@ -137,12 +137,14 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 			Evidence: entry.evidence,
 			Detail:   entry.detail,
 		}
-		breakdown, err := h.relationshipSourceToolBreakdown(ctx, entry)
-		if err != nil {
-			return nil, err
-		}
-		if len(breakdown) > 0 {
-			tile.SourceTools = breakdown
+		if entry.carriesSourceTool {
+			breakdown, err := h.relationshipSourceToolBreakdown(ctx, entry)
+			if err != nil {
+				return nil, err
+			}
+			if len(breakdown) > 0 {
+				tile.SourceTools = breakdown
+			}
 		}
 		tiles = append(tiles, tile)
 	}
