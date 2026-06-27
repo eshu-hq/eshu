@@ -41,6 +41,7 @@ var allEvidenceKinds = []EvidenceKind{
 	EvidenceKindKustomizeImage,
 	EvidenceKindAnsibleRoleReference,
 	EvidenceKindPuppetModuleReference,
+	EvidenceKindChefCookbookDependency,
 	EvidenceKindGCPCloudRelationship,
 }
 

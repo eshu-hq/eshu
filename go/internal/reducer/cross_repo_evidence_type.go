@@ -41,6 +41,7 @@ var evidenceKindToType = map[relationships.EvidenceKind]string{
 	relationships.EvidenceKindKustomizeImage:                       "kustomize_image_reference",
 	relationships.EvidenceKindAnsibleRoleReference:                 "ansible_role_reference",
 	relationships.EvidenceKindPuppetModuleReference:                "puppet_module_reference",
+	relationships.EvidenceKindChefCookbookDependency:               "chef_cookbook_dependency",
 	relationships.EvidenceKindGCPCloudRelationship:                 "gcp_cloud_relationship",
 }
 
