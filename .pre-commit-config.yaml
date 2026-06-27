@@ -138,6 +138,44 @@ repos:
         require_serial: true
         stages: [pre-push]
 
+      # Frontend changed-file Prettier gate (frontend.yml "Prettier format check"):
+      # at commit time, inspect the git index and check only staged frontend
+      # JS/TS files so contributors get the same focused format feedback before
+      # they create the commit. This intentionally avoids repo-wide
+      # `npm run format:check` because existing unrelated drift is noisy.
+      - id: frontend-format-staged
+        name: frontend prettier staged files
+        entry: scripts/verify-frontend-format-changed.sh --staged
+        language: script
+        files: '^(src|apps/console/src)/.*\.(ts|tsx|js|jsx|mjs|cjs)$'
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-commit]
+
+      # Keep the verifier and hook wiring self-tested at commit time when either
+      # the CI mirror, hook config, or verifier scripts change.
+      - id: frontend-format-verifier-tests
+        name: frontend prettier verifier tests
+        entry: scripts/test-verify-frontend-format-changed.sh
+        language: script
+        files: '^(\.pre-commit-config\.yaml|\.github/workflows/frontend\.yml|scripts/(verify-frontend-format-changed|test-verify-frontend-format-changed)\.sh)$'
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-commit]
+
+      # Frontend changed-file Prettier gate (frontend.yml "Prettier format check"):
+      # diffs the branch against origin/main and checks only changed JS/TS files,
+      # so local pushes fail on the same format drift surfaced in CI without
+      # blocking on unrelated repo-wide Prettier drift.
+      - id: frontend-format-changed
+        name: frontend prettier changed files
+        entry: scripts/verify-frontend-format-changed.sh
+        language: script
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]
+
       # Console per-page e2e gate (frontend.yml "Console (apps/console)" job):
       # exercises real route rendering in headless Chromium across all 84 pages.
       # The unit suite (console:test) cannot catch a route that renders blank or
