@@ -84,10 +84,25 @@ fi
 #    or
 #      relationships.EvidenceKindFoo:   "tool",
 #    We want the bare identifier EvidenceKindFoo.
+#
+#    CRITICAL: the classifier file ALSO contains the evidenceKindToType map,
+#    whose keys use the identical `relationships.EvidenceKindFoo:` syntax. A
+#    whole-file scan would treat a kind that is in evidenceKindToType but NOT in
+#    evidenceKindToSourceTool as "covered", silently missing exactly the drift
+#    this gate exists to block (sourceToolForEvidenceKind would return "unknown"
+#    for such a kind). So extract ONLY the evidenceKindToSourceTool map literal —
+#    from its `var evidenceKindToSourceTool = map[...]{` line to the closing `}`
+#    at column 0 — before pulling keys.
 # ---------------------------------------------------------------------------
-rg -o 'relationships\.(EvidenceKind\w+):' "$classifier_file" \
-  --replace '$1' \
+awk '/^var evidenceKindToSourceTool = map\[/{inblock=1} inblock{print} inblock && /^}/{inblock=0}' "$classifier_file" \
+  | rg -o 'relationships\.(EvidenceKind\w+):' \
+    --replace '$1' \
   | sort -u >"$map_keys_tmp" || true
+
+if [ ! -s "$map_keys_tmp" ]; then
+  printf 'verify-edge-source-tool-coverage: no keys found in evidenceKindToSourceTool in %s\n' "$classifier_file" >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 3. Extract family prefixes from sourceToolPrefixFallback in the classifier.

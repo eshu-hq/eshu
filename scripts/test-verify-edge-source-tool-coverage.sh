@@ -146,6 +146,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Section 2b: Regression — a kind present in evidenceKindToType but NOT in
+# evidenceKindToSourceTool must still be reported uncovered. The classifier file
+# holds both maps with identical key syntax; a whole-file key scan would treat
+# such a kind as covered (the false-green Codex caught on #4002). The verifier
+# must scope its key extraction to the evidenceKindToSourceTool map literal.
+# ---------------------------------------------------------------------------
+injected_classifier="${tmp_root}/classifier_injected.go"
+# Insert the fake kind into the evidenceKindToType map ONLY (the first map in the
+# file), leaving evidenceKindToSourceTool untouched. The fake value has no family
+# prefix, so the only way the verifier could pass is by wrongly reading the key
+# out of evidenceKindToType.
+awk '
+  /^var evidenceKindToType = map\[/ && !done {
+    print
+    print "\trelationships.EvidenceKindFakeUnmapped: \"fake_unmapped_tool\","
+    done = 1
+    next
+  }
+  { print }
+' "$classifier_file" >"$injected_classifier"
+
+regression_exit=0
+ESHU_SOURCE_TOOL_MODELS_FILE="$injected_models" \
+  ESHU_SOURCE_TOOL_CLASSIFIER_FILE="$injected_classifier" \
+  "$verifier" >"$out_file" 2>"$err_file" || regression_exit=$?
+
+if [ "$regression_exit" -ne 0 ]; then
+  record_pass "exits nonzero when constant is in evidenceKindToType but not evidenceKindToSourceTool"
+else
+  record_fail "exits nonzero when constant is in evidenceKindToType but not evidenceKindToSourceTool"
+fi
+
+# ---------------------------------------------------------------------------
 # Section 3: Functional real-tree test — real files must pass.
 # ---------------------------------------------------------------------------
 real_exit=0
