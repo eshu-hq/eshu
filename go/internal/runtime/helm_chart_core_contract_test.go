@@ -28,7 +28,7 @@ func TestHelmNornicDBNoSecretPathKeepsBoltCredentials(t *testing.T) {
 					continue
 				}
 				assertHelmLiteralEnv(t, env, "NEO4J_USERNAME", "neo4j")
-				assertHelmLiteralEnv(t, env, "NEO4J_PASSWORD", "change-me")
+				assertHelmLiteralEnv(t, env, "NEO4J_PASSWORD", defaultHelmNeo4jPassword)
 			}
 		}
 	}
