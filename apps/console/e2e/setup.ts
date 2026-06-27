@@ -38,7 +38,7 @@ async function startDevServer(): Promise<DevServer> {
       "--port",
       String(devServerPort),
     ],
-    { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] },
+    { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"], shell: true },
   );
 
   // Pipe stderr so Vite errors are visible in CI logs.
