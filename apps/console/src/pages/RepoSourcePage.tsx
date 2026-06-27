@@ -27,6 +27,7 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   const [repositoryLabel, setRepositoryLabel] = useState(id);
   const [branches, setBranches] = useState<RepoBranches | null>(null);
   const [branchesErr, setBranchesErr] = useState("");
+  const [langFilter, setLangFilter] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -225,34 +226,76 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
               <p>Loading tree…</p>
             </div>
           ) : (
-            <table className="tbl">
-              <tbody>
-                {tree.entries.map((e) => (
-                  <tr
-                    key={e.path}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => (e.type === "dir" ? setPath(e.path) : openFile(e.path))}
-                  >
-                    <td className="t-name">
-                      {e.type === "dir" ? "📁 " : "📄 "}
-                      {e.name}
-                    </td>
-                    <td className="t-mut mono" style={{ fontSize: ".72rem", textAlign: "right" }}>
-                      {e.type === "dir"
-                        ? `${e.childCount ?? 0} files`
-                        : e.size != null
-                          ? `${e.size} lines`
-                          : ""}
-                    </td>
-                  </tr>
-                ))}
-                {tree.entries.length === 0 ? (
-                  <tr>
-                    <td className="empty">Empty directory.</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+            (() => {
+              const fileLanguages = [
+                ...new Set(
+                  tree.entries.flatMap((e) => (e.type === "file" && e.language ? [e.language] : [])),
+                ),
+              ].sort();
+              const visibleEntries = tree.entries.filter(
+                (e) => langFilter === "" || e.type === "dir" || e.language === langFilter,
+              );
+              return (
+                <>
+                  {fileLanguages.length > 0 ? (
+                    <div className="searchbox" style={{ padding: "8px 12px" }}>
+                      <label htmlFor="tree-lang-filter" className="t-mut" style={{ fontSize: ".72rem" }}>
+                        Language
+                      </label>{" "}
+                      <select
+                        id="tree-lang-filter"
+                        aria-label="Filter files by language"
+                        value={langFilter}
+                        onChange={(ev) => setLangFilter(ev.target.value)}
+                      >
+                        <option value="">All</option>
+                        {fileLanguages.map((lang) => (
+                          <option key={lang} value={lang}>
+                            {lang}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                  <table className="tbl">
+                    <tbody>
+                      {visibleEntries.map((e) => (
+                        <tr
+                          key={e.path}
+                          style={{ cursor: "pointer" }}
+                          onClick={() => (e.type === "dir" ? setPath(e.path) : openFile(e.path))}
+                        >
+                          <td className="t-name">
+                            {e.type === "dir" ? "📁 " : "📄 "}
+                            {e.name}
+                            {e.type === "file" && e.language ? (
+                              <>
+                                {" "}
+                                <Badge tone="violet">{e.language}</Badge>
+                              </>
+                            ) : null}
+                          </td>
+                          <td className="t-mut mono" style={{ fontSize: ".72rem", textAlign: "right" }}>
+                            {e.type === "dir"
+                              ? `${e.childCount ?? 0} files`
+                              : e.size != null
+                                ? `${e.size} lines`
+                                : ""}
+                          </td>
+                        </tr>
+                      ))}
+                      {visibleEntries.length === 0 ? (
+                        <tr>
+                          <td className="empty">
+                            {langFilter === "" ? "Empty directory." : `No ${langFilter} files here.`}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </>
+              );
+            })()
           )}
         </Panel>
 
