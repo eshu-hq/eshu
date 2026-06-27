@@ -28,6 +28,8 @@ func TestEdgeEvidenceContainsAll(t *testing.T) {
 		{"nil property", nil, []string{"A"}, false},
 		{"non-list property", "ARGOCD_APPLICATION_SOURCE", []string{"ARGOCD_APPLICATION_SOURCE"}, false},
 		{"non-string element ignored", []any{42, "A"}, []string{"A"}, true},
+		{"empty required matches nothing", []any{"A"}, nil, false},
+		{"empty required on empty list", nil, []string{}, false},
 	}
 	for _, tc := range cases {
 		if got := edgeEvidenceContainsAll(tc.raw, tc.required); got != tc.want {

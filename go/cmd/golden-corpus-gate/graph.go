@@ -143,8 +143,14 @@ func (b *boltGraphCounter) CountCorrelationWithEvidence(ctx context.Context, fro
 
 // edgeEvidenceContainsAll reports whether the edge's evidence_kinds property
 // (a Bolt list value, decoded as []any of strings) contains every required
-// kind. A nil or non-list property contains nothing.
+// kind. A nil or non-list property contains nothing. An empty required set
+// matches nothing (not everything): callers that want an unfiltered count use
+// CountCorrelation, and this conservative contract keeps a future direct caller
+// from silently matching every edge.
 func edgeEvidenceContainsAll(raw any, required []string) bool {
+	if len(required) == 0 {
+		return false
+	}
 	present := make(map[string]struct{})
 	switch kinds := raw.(type) {
 	case []any:
