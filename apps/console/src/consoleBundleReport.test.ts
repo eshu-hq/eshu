@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   evaluateBundleReport,
-  formatBundleReportMarkdown
+  formatBundleReportMarkdown,
 } from "../../../scripts/console-bundle-report.mjs";
 
 describe("evaluateBundleReport", () => {
@@ -18,7 +18,7 @@ describe("evaluateBundleReport", () => {
       { name: "d3-Dd44.js", bytes: 111 * 1024 },
       { name: "icons-Ee55.js", bytes: 20 * 1024 },
       { name: "mermaid.core-Ff66.js", bytes: 300 * 1024 },
-      { name: "index-Gg77.css", bytes: 18 * 1024 }
+      { name: "index-Gg77.css", bytes: 18 * 1024 },
     ]);
 
     expect(report.ok).toBe(true);
@@ -31,15 +31,15 @@ describe("evaluateBundleReport", () => {
         "| icons-Ee55.js | lucide-react | 20.0 | yes |",
         "| mermaid.core-Ff66.js | mermaid | 300.0 | no |",
         "| d3-Dd44.js | d3 | 111.0 | no |",
-        "| WorkspacePage-Bb22.js | app/async | 40.0 | no |"
-      ].join("\n")
+        "| WorkspacePage-Bb22.js | app/async | 40.0 | no |",
+      ].join("\n"),
     );
   });
 
   it("fails when no usable main JavaScript chunk is present", () => {
     const report = evaluateBundleReport([
       { name: "react-vendor-Aa11.js", bytes: 52 * 1024 },
-      { name: "index-Bb22.css", bytes: 18 * 1024 }
+      { name: "index-Bb22.css", bytes: 18 * 1024 },
     ]);
 
     expect(report.ok).toBe(false);

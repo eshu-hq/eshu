@@ -9,10 +9,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  classifyAsset,
-  evaluateBundleBudget
-} from "../../../scripts/console-bundle-budget.mjs";
+import { classifyAsset, evaluateBundleBudget } from "../../../scripts/console-bundle-budget.mjs";
 
 type PackageJson = {
   scripts?: Record<string, string>;
@@ -55,7 +52,7 @@ describe("console build script", () => {
     const scripts = readRootPackageJson().scripts;
 
     expect(scripts?.["console:build"]).toBe(
-      "vite build --config apps/console/vite.config.ts && npm run console:bundle-budget && npm run console:bundle-report"
+      "vite build --config apps/console/vite.config.ts && npm run console:bundle-budget && npm run console:bundle-report",
     );
   });
 });
@@ -65,7 +62,7 @@ describe("evaluateBundleBudget", () => {
     main: 600_000,
     "react-vendor": 200_000,
     mermaid: 900_000,
-    "async-chunk": 700_000
+    "async-chunk": 700_000,
   };
   const defaultBudgetBytes = 700_000;
 
@@ -75,10 +72,10 @@ describe("evaluateBundleBudget", () => {
         { name: "index-aaaa.js", bytes: 480_000 },
         { name: "react-vendor-bbbb.js", bytes: 150_000 },
         { name: "mermaid.core-cccc.js", bytes: 580_000 },
-        { name: "index-dddd.css", bytes: 90_000 }
+        { name: "index-dddd.css", bytes: 90_000 },
       ],
       budgets,
-      defaultBudgetBytes
+      defaultBudgetBytes,
     });
     expect(result.ok).toBe(true);
     expect(result.violations).toEqual([]);
@@ -89,7 +86,7 @@ describe("evaluateBundleBudget", () => {
     const result = evaluateBundleBudget({
       files: [{ name: "index-aaaa.js", bytes: 900_000 }],
       budgets,
-      defaultBudgetBytes
+      defaultBudgetBytes,
     });
     expect(result.ok).toBe(false);
     expect(result.violations).toHaveLength(1);
@@ -97,7 +94,7 @@ describe("evaluateBundleBudget", () => {
       key: "main",
       name: "index-aaaa.js",
       bytes: 900_000,
-      budgetBytes: 600_000
+      budgetBytes: 600_000,
     });
   });
 
@@ -105,12 +102,12 @@ describe("evaluateBundleBudget", () => {
     const result = evaluateBundleBudget({
       files: [{ name: "SomeOtherChunk-eeee.js", bytes: 720_000 }],
       budgets: { main: 600_000 },
-      defaultBudgetBytes
+      defaultBudgetBytes,
     });
     expect(result.ok).toBe(false);
     expect(result.violations[0]).toMatchObject({
       key: "async-chunk",
-      budgetBytes: defaultBudgetBytes
+      budgetBytes: defaultBudgetBytes,
     });
   });
 
@@ -118,7 +115,7 @@ describe("evaluateBundleBudget", () => {
     const result = evaluateBundleBudget({
       files: [{ name: "index-aaaa.js", bytes: 600_000 }],
       budgets,
-      defaultBudgetBytes
+      defaultBudgetBytes,
     });
     expect(result.ok).toBe(true);
   });
@@ -127,10 +124,10 @@ describe("evaluateBundleBudget", () => {
     const result = evaluateBundleBudget({
       files: [
         { name: "index-aaaa.css", bytes: 5_000_000 },
-        { name: "index.html", bytes: 5_000_000 }
+        { name: "index.html", bytes: 5_000_000 },
       ],
       budgets,
-      defaultBudgetBytes
+      defaultBudgetBytes,
     });
     expect(result.ok).toBe(true);
     expect(result.checked).toEqual([]);
@@ -141,7 +138,7 @@ describe("evaluateBundleBudget", () => {
       files: [],
       budgets,
       defaultBudgetBytes,
-      requireAnchor: "main"
+      requireAnchor: "main",
     });
     expect(result.ok).toBe(false);
     expect(result.missingAnchor).toBe("main");
@@ -151,11 +148,11 @@ describe("evaluateBundleBudget", () => {
     const result = evaluateBundleBudget({
       files: [
         { name: "index-aaaa.css", bytes: 90_000 },
-        { name: "index.html", bytes: 400 }
+        { name: "index.html", bytes: 400 },
       ],
       budgets,
       defaultBudgetBytes,
-      requireAnchor: "main"
+      requireAnchor: "main",
     });
     // A build that ships only CSS/HTML must not green-light: the anchor is
     // missing even though there are zero budget violations.
@@ -169,7 +166,7 @@ describe("evaluateBundleBudget", () => {
       files: [{ name: "SomeChunk-eeee.js", bytes: 10_000 }],
       budgets,
       defaultBudgetBytes,
-      requireAnchor: "main"
+      requireAnchor: "main",
     });
     expect(result.ok).toBe(false);
     expect(result.missingAnchor).toBe("main");
@@ -179,7 +176,7 @@ describe("evaluateBundleBudget", () => {
     const result = evaluateBundleBudget({
       files: [{ name: "SomeChunk-eeee.js", bytes: 10_000 }],
       budgets,
-      defaultBudgetBytes
+      defaultBudgetBytes,
     });
     expect(result.ok).toBe(true);
     expect(result.missingAnchor).toBeNull();

@@ -19,7 +19,7 @@ const CHUNK_SEMANTICS = {
   main: { dependency: "app/main", firstLoad: true },
   "react-vendor": {
     dependency: "react/react-dom/react-router-dom",
-    firstLoad: true
+    firstLoad: true,
   },
   icons: { dependency: "lucide-react", firstLoad: true },
   d3: { dependency: "d3", firstLoad: false },
@@ -27,7 +27,7 @@ const CHUNK_SEMANTICS = {
   cytoscape: { dependency: "cytoscape", firstLoad: false },
   wardley: { dependency: "wardley", firstLoad: false },
   katex: { dependency: "katex", firstLoad: false },
-  "async-chunk": { dependency: "app/async", firstLoad: false }
+  "async-chunk": { dependency: "app/async", firstLoad: false },
 };
 
 function semanticsFor(key) {
@@ -62,7 +62,7 @@ export function evaluateBundleReport(files) {
       dependency: semantics.dependency,
       bytes: file.bytes,
       firstLoad: semantics.firstLoad,
-      key
+      key,
     });
   }
   rows.sort(compareReportRows);
@@ -70,18 +70,15 @@ export function evaluateBundleReport(files) {
   return {
     ok: missingAnchor === null,
     rows,
-    missingAnchor
+    missingAnchor,
   };
 }
 
 export function formatBundleReportMarkdown(report) {
-  const lines = [
-    "| chunk | dependency | KB | first-load? |",
-    "| --- | --- | ---: | :---: |"
-  ];
+  const lines = ["| chunk | dependency | KB | first-load? |", "| --- | --- | ---: | :---: |"];
   for (const row of report.rows) {
     lines.push(
-      `| ${row.chunk} | ${row.dependency} | ${formatKb(row.bytes)} | ${row.firstLoad ? "yes" : "no"} |`
+      `| ${row.chunk} | ${row.dependency} | ${formatKb(row.bytes)} | ${row.firstLoad ? "yes" : "no"} |`,
     );
   }
   return lines.join("\n");
@@ -101,7 +98,7 @@ function main(argv) {
     files = readAssetFiles(assetsDir);
   } catch (error) {
     console.error(
-      `console-bundle-report: cannot read ${assetsDir}. Run \`npm run console:build\` first.`
+      `console-bundle-report: cannot read ${assetsDir}. Run \`npm run console:build\` first.`,
     );
     console.error(String(error?.message ?? error));
     process.exit(2);
@@ -113,14 +110,10 @@ function main(argv) {
 
   if (!report.ok) {
     console.error(
-      `\nconsole-bundle-report: no '${report.missingAnchor}' entry chunk found in ${assetsDir}.`
+      `\nconsole-bundle-report: no '${report.missingAnchor}' entry chunk found in ${assetsDir}.`,
     );
-    console.error(
-      "The console build is broken or the Rollup output layout changed. Re-run"
-    );
-    console.error(
-      "`npm run console:build`; if chunk naming changed, update classifyAsset() in"
-    );
+    console.error("The console build is broken or the Rollup output layout changed. Re-run");
+    console.error("`npm run console:build`; if chunk naming changed, update classifyAsset() in");
     console.error("scripts/console-bundle-budget.mjs.");
     process.exit(2);
   }
