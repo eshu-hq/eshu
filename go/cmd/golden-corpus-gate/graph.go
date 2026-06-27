@@ -162,6 +162,14 @@ func (b *boltGraphCounter) ListCorrelationEdgeProperty(ctx context.Context, from
 			return nil, fmt.Errorf("unsafe edge-property identifier %q", id)
 		}
 	}
+	// Reject an empty narrowing kind for parity with CountCorrelationWithEvidence:
+	// an empty kind would silently narrow to nothing and make the edge-property
+	// finding pass vacuously, masking a real misconfiguration.
+	for _, kind := range evidenceKinds {
+		if kind == "" {
+			return nil, fmt.Errorf("empty evidence kind for edge property (:%s)-[:%s]->(:%s)", from, rel, to)
+		}
+	}
 	rows, err := neo4j.ExecuteQuery(ctx, b.driver,
 		fmt.Sprintf("MATCH (:%s)-[r:%s]->(:%s) RETURN r.evidence_kinds AS ek, r.%s AS pv", from, rel, to, prop),
 		nil, neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
