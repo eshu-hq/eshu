@@ -1,0 +1,20 @@
+// CI pipeline for the platform. The pipeline checks out deployment
+// configuration/automation from the in-corpus deployable-source repository, so
+// this repo DISCOVERS_CONFIG_IN deployable-source. Exercises the
+// JENKINS_GITHUB_REPOSITORY evidence path in the B-7 gate.
+pipeline {
+    agent any
+    stages {
+        stage('Checkout config') {
+            steps {
+                // Pull deployment config from the shared config repository.
+                git url: 'https://github.com/acme/deployable-source', branch: 'main'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                sh './deploy.sh'
+            }
+        }
+    }
+}
