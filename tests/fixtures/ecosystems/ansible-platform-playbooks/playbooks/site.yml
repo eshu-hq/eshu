@@ -1,0 +1,21 @@
+---
+# Platform site playbook. It applies the `base` role, sourced from the in-corpus
+# ansible-shared-roles repository via an explicit git `src:` (the role itself is
+# named `base`, matching ansible-shared-roles/roles/base). Resolution runs
+# through the real repo-source path — the src URL tokens match the
+# ansible-shared-roles catalog entry — so this repo DEPENDS_ON
+# ansible-shared-roles. Exercises the ANSIBLE_ROLE_REFERENCE evidence path in
+# the B-7 gate.
+- name: Configure platform base hosts
+  hosts: platform
+  become: true
+  roles:
+    - role: base
+      src: https://github.com/acme/ansible-shared-roles.git
+
+- name: Configure application hosts
+  hosts: app
+  roles:
+    - role: base
+      src: https://github.com/acme/ansible-shared-roles.git
+      tags: [base]
