@@ -1,39 +1,4 @@
-// App.tsx — redesigned dark console shell.
-// Private mode renders only the Eshu API. Demo mode is an explicit prospect
-// fixture source, not a failed-live fallback. main.tsx wraps this in
-// <BrowserRouter>.
-import type { LucideIcon } from "lucide-react";
-import {
-  Bell,
-  Boxes,
-  Cloud,
-  Code2,
-  FileText,
-  FolderGit2,
-  Gauge,
-  GitBranch,
-  Hexagon,
-  History,
-  Images,
-  KeyRound,
-  Layers,
-  LayoutDashboard,
-  ListChecks,
-  Network,
-  PackageSearch,
-  Route as RouteIcon,
-  Search,
-  ServerCog,
-  Share2,
-  Activity,
-  ShieldCheck,
-  TriangleAlert,
-  Workflow,
-  Waves,
-  Waypoints,
-  User,
-  UserCog,
-} from "lucide-react";
+import { Bell, Search, ShieldCheck } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -58,138 +23,20 @@ import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environ
 import { demoModel } from "./console/demoModel";
 import { emptyConsoleModel } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
-import { fmt } from "./console/types";
+import { NAV_GROUPS, NAV_ITEMS, type NavItem } from "./i18n/navigation";
+import { ConsoleI18nProvider, FormattedMessage, useConsoleIntl } from "./i18n/provider";
+import { formatRepositoryCount, shellMessageDescriptors } from "./i18n/shellMessages";
 import { LoginPage } from "./pages/LoginPage";
 import "./styles.css";
 import "./appShell.css";
 
-type NavItem = {
-  readonly to: string;
-  readonly label: string;
-  readonly icon: LucideIcon;
-  readonly count?: (model: ConsoleModel) => number | string | null;
-  readonly alert?: boolean;
-};
-
-const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly NavItem[] }[] = [
-  {
-    label: "Overview",
-    items: [
-      { to: "/status", label: "Status", icon: Gauge },
-      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/ask", label: "Ask Eshu", icon: Search },
-      { to: "/impact", label: "Impact", icon: Network },
-      { to: "/exposure", label: "Exposure Path", icon: RouteIcon },
-      { to: "/changed-since", label: "Changed Since", icon: History },
-      { to: "/explorer", label: "Graph Explorer", icon: GitBranch },
-      { to: "/relationships", label: "Relationships", icon: Share2 },
-      { to: "/service-story", label: "Service Story", icon: Waypoints },
-      { to: "/service-report", label: "Service Report", icon: FileText },
-      { to: "/nodes", label: "Nodes", icon: Hexagon },
-    ],
-  },
-  {
-    label: "Inventory",
-    items: [
-      {
-        to: "/repositories",
-        label: "Repositories",
-        icon: FolderGit2,
-        count: (m) => nonZero(m.runtime.repositories),
-      },
-      {
-        to: "/catalog",
-        label: "Catalog",
-        icon: Boxes,
-        count: (m) => nonZero(m.services?.length ?? 0),
-      },
-      {
-        to: "/findings",
-        label: "Findings",
-        icon: TriangleAlert,
-        count: (m) => nonZero((m.findings?.length ?? 0) + (m.vulnerabilities?.length ?? 0)),
-        alert: true,
-      },
-      {
-        to: "/images",
-        label: "Images",
-        icon: Images,
-        count: (m) => nonZero(m.images?.length ?? 0),
-      },
-      {
-        to: "/iac",
-        label: "IaC",
-        icon: Network,
-        count: (m) => nonZero(m.iacResources?.length ?? 0),
-      },
-      { to: "/replatforming", label: "Replatforming", icon: Network },
-      {
-        to: "/vulnerabilities",
-        label: "Vulnerabilities",
-        icon: ShieldCheck,
-        count: (m) => nonZero(m.vulnerabilities?.length ?? 0),
-        alert: true,
-      },
-    ],
-  },
-  {
-    label: "Code",
-    items: [
-      {
-        to: "/dead-code",
-        label: "Dead code",
-        icon: TriangleAlert,
-        count: (m) => nonZero(m.findings.filter((finding) => finding.type === "Dead code").length),
-      },
-      { to: "/code-graph", label: "Code graph", icon: Code2 },
-    ],
-  },
-  {
-    label: "Cloud & Telemetry",
-    items: [
-      { to: "/topology", label: "Topology", icon: GitBranch },
-      { to: "/cloud", label: "Cloud", icon: Cloud },
-      { to: "/secrets-iam", label: "Secrets/IAM", icon: KeyRound },
-      { to: "/incidents", label: "Incidents", icon: TriangleAlert },
-      { to: "/ci-cd/run-correlations", label: "CI/CD", icon: Workflow },
-      { to: "/cloud-drift", label: "Cloud Drift", icon: TriangleAlert, alert: true },
-      { to: "/observability", label: "Observability", icon: Waves },
-      {
-        to: "/sbom",
-        label: "SBOM",
-        icon: PackageSearch,
-        count: (m) => nonZero(m.sbom?.total ?? 0),
-      },
-      {
-        to: "/dependencies",
-        label: "Dependencies",
-        icon: Boxes,
-        count: (m) => nonZero(m.dependencies?.length ?? 0),
-      },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      { to: "/capabilities", label: "Capabilities", icon: ListChecks },
-      {
-        to: "/collector-readiness",
-        label: "Collector Readiness",
-        icon: ShieldCheck,
-        count: (m) => nonZero(m.collectorReadiness?.length ?? 0),
-      },
-      { to: "/surface-inventory", label: "Surface Inventory", icon: Layers },
-      { to: "/operations", label: "Operations", icon: ServerCog },
-      { to: "/freshness-causality", label: "Freshness", icon: Activity },
-      { to: "/profile", label: "Profile", icon: User },
-      { to: "/admin", label: "Admin", icon: UserCog },
-    ],
-  },
-];
-
-const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
-
-export function App(): React.JSX.Element {
+export const App = (): React.JSX.Element => (
+  <ConsoleI18nProvider>
+    <AppShell />
+  </ConsoleI18nProvider>
+);
+function AppShell(): React.JSX.Element {
+  const intl = useConsoleIntl();
   const location = useLocation();
   const navigate = useNavigate();
   const env = loadConsoleEnvironment();
@@ -216,20 +63,12 @@ export function App(): React.JSX.Element {
   const [drawer, setDrawer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
-  // showLogin: private mode with no session and not yet connecting
   const showLogin = !hasDemoEnv && source.status === "needs-connection";
   const visibleModel = verifiedOnly ? verifiedConsoleModel(model) : model;
-  // Capability-gated nav: UX-only (server enforces). buildAllowedNavSet is
-  // fail-open when session is null or catalog is not enforced.
   const allowedNav = buildAllowedNavSet(session?.auth);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  // Boot guard: React StrictMode runs effects twice in development, which would
-  // otherwise fire two concurrent boot connects whose in-flight fetches abort
-  // each other (issue #1727: ERR_ABORTED -> Catalog blank). The ref dedupes the
-  // boot connect to a single run; user-initiated reconnects from the source
-  // popover stay unguarded.
   const bootedRef = useRef(false);
-
+  const unreachableMessage = intl.formatMessage(shellMessageDescriptors.unreachable);
   function activateDemo(): void {
     saveConsoleEnvironment({ mode: "demo", apiBaseUrl: "", apiKey: "", recentApiBaseUrls: [] });
     setClient(createDemoApiClient());
@@ -245,9 +84,6 @@ export function App(): React.JSX.Element {
     try {
       const result = await bootFromKey(base, key);
       if (result === null) {
-        // No API key and no existing session for this base: route to local
-        // login for the selected base instead of reading data unauthenticated
-        // (those reads 401 -> error and would strand the user). (#3685 P2)
         setClient(undefined);
         setRepositories([]);
         setSession(null);
@@ -263,8 +99,6 @@ export function App(): React.JSX.Element {
       setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
       setOpen(false);
     } catch (e) {
-      // No demo fallback: keep an explicit empty/unavailable model so panels show
-      // "—" / "API not available" rather than invented data.
       setClient(undefined);
       setRepositories([]);
       setSession(null);
@@ -274,14 +108,13 @@ export function App(): React.JSX.Element {
         key,
         mode: "private",
         status: "error",
-        msg: e instanceof Error ? e.message : "unreachable",
+        msg: e instanceof Error ? e.message : unreachableMessage,
       });
     }
   }
 
   function handleLoginSuccess(resp: BrowserSessionResponse): void {
     setSession(resp);
-    // After login, boot with cookie session from the current base URL.
     const base = source.base;
     setSource((s) => ({ ...s, status: "connecting", msg: "" }));
     setModel(emptyConsoleModel("loading"));
@@ -298,7 +131,7 @@ export function App(): React.JSX.Element {
           setSource((s) => ({
             ...s,
             status: "error",
-            msg: "Session established but data unavailable",
+            msg: intl.formatMessage(shellMessageDescriptors.sessionDataUnavailable),
           }));
         }
       })
@@ -307,7 +140,7 @@ export function App(): React.JSX.Element {
         setSource((s) => ({
           ...s,
           status: "error",
-          msg: e instanceof Error ? e.message : "unreachable",
+          msg: e instanceof Error ? e.message : unreachableMessage,
         }));
       });
   }
@@ -322,13 +155,14 @@ export function App(): React.JSX.Element {
         setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
       })
       .catch(() => {
-        // Surface the failure — a silent logout leaves the user half-authenticated.
-        setSource((s) => ({ ...s, msg: "Logout failed — you may still be signed in." }));
+        setSource((s) => ({
+          ...s,
+          msg: intl.formatMessage(shellMessageDescriptors.logoutFailed),
+        }));
       });
   }
 
   const openService = (name: string): void => setDrawer(name);
-
   function runSearch(rawQuery: string): void {
     const query = rawQuery.trim();
     if (query.length === 0) return;
@@ -353,10 +187,6 @@ export function App(): React.JSX.Element {
     navigate(`/explorer?q=${encodeURIComponent(query)}`);
   }
 
-  // Boot straight into private data when a saved private environment exists.
-  // Tries session-first (cookie): if a browser session cookie exists, no key
-  // is needed. Falls back to connect() with saved key (dev/legacy path).
-  // The bootedRef guard makes this StrictMode-safe (issue #1727).
   useEffect(() => {
     if (hasSavedEnv && !bootedRef.current) {
       bootedRef.current = true;
@@ -371,12 +201,10 @@ export function App(): React.JSX.Element {
             setSession(result.session);
             setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
           } else {
-            // No active session — show login page.
             setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
           }
         })
         .catch(() => {
-          // Session probe failed (API unreachable) — fall back to key-based connect.
           void connect(base, env.apiKey || "");
         });
     }
@@ -397,16 +225,24 @@ export function App(): React.JSX.Element {
   const pill =
     source.status === "connected"
       ? source.mode === "demo"
-        ? "Demo fixtures"
-        : "Live"
+        ? intl.formatMessage(shellMessageDescriptors.sourceDemoFixtures)
+        : intl.formatMessage(shellMessageDescriptors.sourceLive)
       : source.status === "connecting"
-        ? "Connecting…"
+        ? intl.formatMessage(shellMessageDescriptors.sourceConnecting)
         : source.status === "error"
-          ? "Live (offline)"
-          : "Not connected";
+          ? intl.formatMessage(shellMessageDescriptors.sourceLiveOffline)
+          : intl.formatMessage(shellMessageDescriptors.sourceNotConnected);
   const activeItem = activeNavItem(location.pathname);
   const pageTitle =
-    location.pathname === "/" ? "Eshu Console" : (activeItem?.label ?? "Eshu Console");
+    location.pathname === "/" || activeItem === undefined
+      ? intl.formatMessage(shellMessageDescriptors.title)
+      : intl.formatMessage({ id: activeItem.messageId });
+  const backendMode =
+    source.status === "connected"
+      ? source.mode === "demo"
+        ? intl.formatMessage(shellMessageDescriptors.sourceDemoShort)
+        : intl.formatMessage(shellMessageDescriptors.sourceLiveShort)
+      : pill.toLocaleLowerCase();
 
   function submitSearch(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -437,26 +273,31 @@ export function App(): React.JSX.Element {
             <span className="brand-name">
               e<b>shu</b>
             </span>
-            <span className="brand-sub">Context Graph</span>
+            <span className="brand-sub">
+              <FormattedMessage {...shellMessageDescriptors.brandSubtitle} />
+            </span>
           </span>
         </a>
         {NAV_GROUPS.map((group) => (
-          <div className="nav-section" key={group.label}>
-            <div className="nav-group-label">{group.label}</div>
+          <div className="nav-section" key={group.messageId}>
+            <div className="nav-group-label">
+              <FormattedMessage id={group.messageId} />
+            </div>
             {group.items
               .filter((n) => allowedNav.has(n.to))
               .map((n) => {
                 const Icon = n.icon;
                 const count = n.count?.(visibleModel) ?? null;
+                const label = intl.formatMessage({ id: n.messageId });
                 return (
                   <NavLink
                     key={n.to}
                     to={n.to}
-                    aria-label={n.label}
+                    aria-label={label}
                     className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
                   >
                     <Icon aria-hidden />
-                    <span className="nav-label">{n.label}</span>
+                    <span className="nav-label">{label}</span>
                     {count !== null ? (
                       <span aria-hidden className={`nav-count${n.alert ? " alert" : ""}`}>
                         {count}
@@ -474,15 +315,11 @@ export function App(): React.JSX.Element {
               {model.runtime.indexStatus}
             </div>
             <div className="bc-meta">
+              <span>{backendMode}</span>
               <span>
                 {source.status === "connected"
-                  ? source.mode === "demo"
-                    ? "demo"
-                    : "live"
-                  : pill.toLowerCase()}
-              </span>
-              <span>
-                {source.status === "connected" ? `${fmt(model.runtime.repositories)} repos` : "—"}
+                  ? formatRepositoryCount(intl, model.runtime.repositories)
+                  : "—"}
               </span>
             </div>
           </div>
@@ -492,49 +329,55 @@ export function App(): React.JSX.Element {
         <header className="topbar">
           <div className="topbar-title">
             <h1>{pageTitle}</h1>
-            <span>Read-only code-to-cloud graph status & evidence</span>
+            <span>
+              <FormattedMessage {...shellMessageDescriptors.subtitle} />
+            </span>
           </div>
           <form className="searchbox" onSubmit={submitSearch}>
             <button
               className="search-submit"
               type="submit"
-              aria-label="Search"
+              aria-label={intl.formatMessage(shellMessageDescriptors.searchButton)}
               onClick={submitSearchButton}
             >
               <Search aria-hidden />
             </button>
             <input
               ref={searchInputRef}
-              aria-label="Search Eshu"
-              placeholder="Search repos, services, CVEs, evidence…"
+              aria-label={intl.formatMessage(shellMessageDescriptors.searchInput)}
+              placeholder={intl.formatMessage(shellMessageDescriptors.searchPlaceholder)}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               onKeyDown={submitSearchKey}
             />
             <kbd>⌘K</kbd>
           </form>
+          {/* aria-label="Show verified evidence only" stays aligned with the prototype shell. */}
           <button
-            aria-label="Show verified evidence only"
+            aria-label={intl.formatMessage(shellMessageDescriptors.verifiedOnlyToggle)}
             aria-pressed={verifiedOnly}
             className={`topbar-btn verify-btn${verifiedOnly ? " on" : ""}`}
-            title="Show verified evidence only"
+            title={intl.formatMessage(shellMessageDescriptors.verifiedOnlyToggle)}
             type="button"
             onClick={() => setVerifiedOnly((value) => !value)}
           >
             <ShieldCheck aria-hidden />
           </button>
-          <span className="topbar-signal" title="No local notifications">
+          <span
+            className="topbar-signal"
+            title={intl.formatMessage(shellMessageDescriptors.noNotifications)}
+          >
             <Bell aria-hidden />
           </span>
           {session !== null ? (
             <button
               className="topbar-btn"
               type="button"
-              title="Sign out"
-              aria-label="Sign out"
+              title={intl.formatMessage(shellMessageDescriptors.signOut)}
+              aria-label={intl.formatMessage(shellMessageDescriptors.signOut)}
               onClick={handleLogout}
             >
-              Sign out
+              <FormattedMessage {...shellMessageDescriptors.signOut} />
             </button>
           ) : null}
           <div className="source-wrap">
@@ -557,22 +400,31 @@ export function App(): React.JSX.Element {
         </header>
         {source.status === "connected" && source.mode === "demo" ? (
           <div className="prov-banner">
-            <strong>Prospect demo</strong>
-            <span>Demo fixtures only; no real workspace or customer data is being queried.</span>
+            <strong>
+              <FormattedMessage {...shellMessageDescriptors.demoBannerTitle} />
+            </strong>
+            <span>
+              <FormattedMessage {...shellMessageDescriptors.demoBannerBody} />
+            </span>
           </div>
         ) : null}
         {verifiedOnly ? (
           <div className="prov-banner">
-            <ShieldCheck aria-hidden size={14} /> Verified evidence only — hiding inferred findings
-            and graph nodes.
+            <ShieldCheck aria-hidden size={14} />
+            <FormattedMessage {...shellMessageDescriptors.verifiedBanner} />
           </div>
         ) : null}
         {source.status === "error" ? (
           <div className="prov-banner warn">
-            Eshu API unavailable at <span className="mono">{source.base}</span>
-            {source.msg ? ` · ${source.msg}` : ""}.{" "}
+            <FormattedMessage
+              {...shellMessageDescriptors.apiUnavailable}
+              values={{
+                base: <span className="mono">{source.base}</span>,
+                detail: source.msg ? ` · ${source.msg}` : "",
+              }}
+            />{" "}
             <button className="link-btn" onClick={() => setOpen(true)}>
-              Edit data source
+              <FormattedMessage {...shellMessageDescriptors.editDataSource} />
             </button>
           </div>
         ) : null}
@@ -644,8 +496,4 @@ function repositorySearchTarget(
     [row.id, row.name, row.repoSlug].some((value) => value.toLowerCase() === needle),
   );
   return exactRepository?.id ?? null;
-}
-
-function nonZero(value: number): number | null {
-  return value > 0 ? value : null;
 }

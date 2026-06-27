@@ -19,6 +19,10 @@ type CanonicalRepoRelationshipParams struct {
 	ResolutionSource string
 	Confidence       float64
 	Rationale        string
+	// SourceTool is the normalized provenance token for the producing tool
+	// (#3997/#3999), derived from the edge's primary evidence kind. Empty when no
+	// tool is derivable; never a guessed value.
+	SourceTool string
 }
 
 // CanonicalRunsOnParams holds the parameters for a repository-scoped RUNS_ON
@@ -45,7 +49,8 @@ SET rel.confidence = $confidence,
     rel.evidence_count = $evidence_count,
     rel.evidence_kinds = $evidence_kinds,
     rel.resolution_source = $resolution_source,
-    rel.rationale = $rationale`
+    rel.rationale = $rationale,
+    rel.source_tool = $source_tool`
 
 const canonicalDiscoversConfigInRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
 ON CREATE SET source_repo.evidence_source = $evidence_source,
@@ -64,7 +69,8 @@ SET rel.confidence = $confidence,
     rel.evidence_count = $evidence_count,
     rel.evidence_kinds = $evidence_kinds,
     rel.resolution_source = $resolution_source,
-    rel.rationale = $rationale`
+    rel.rationale = $rationale,
+    rel.source_tool = $source_tool`
 
 const canonicalProvisionsDependencyForRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
 ON CREATE SET source_repo.evidence_source = $evidence_source,
@@ -83,7 +89,8 @@ SET rel.confidence = $confidence,
     rel.evidence_count = $evidence_count,
     rel.evidence_kinds = $evidence_kinds,
     rel.resolution_source = $resolution_source,
-    rel.rationale = $rationale`
+    rel.rationale = $rationale,
+    rel.source_tool = $source_tool`
 
 const canonicalUsesModuleRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
 ON CREATE SET source_repo.evidence_source = $evidence_source,
@@ -102,7 +109,8 @@ SET rel.confidence = $confidence,
     rel.evidence_count = $evidence_count,
     rel.evidence_kinds = $evidence_kinds,
     rel.resolution_source = $resolution_source,
-    rel.rationale = $rationale`
+    rel.rationale = $rationale,
+    rel.source_tool = $source_tool`
 
 const canonicalReadsConfigFromRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
 ON CREATE SET source_repo.evidence_source = $evidence_source,
@@ -121,7 +129,8 @@ SET rel.confidence = $confidence,
     rel.evidence_count = $evidence_count,
     rel.evidence_kinds = $evidence_kinds,
     rel.resolution_source = $resolution_source,
-    rel.rationale = $rationale`
+    rel.rationale = $rationale,
+    rel.source_tool = $source_tool`
 
 const batchCanonicalDeploysFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
@@ -141,7 +150,8 @@ SET rel.confidence = row.confidence,
     rel.evidence_count = row.evidence_count,
     rel.evidence_kinds = row.evidence_kinds,
     rel.resolution_source = row.resolution_source,
-    rel.rationale = row.rationale`
+    rel.rationale = row.rationale,
+    rel.source_tool = row.source_tool`
 
 const batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
@@ -161,7 +171,8 @@ SET rel.confidence = row.confidence,
     rel.evidence_count = row.evidence_count,
     rel.evidence_kinds = row.evidence_kinds,
     rel.resolution_source = row.resolution_source,
-    rel.rationale = row.rationale`
+    rel.rationale = row.rationale,
+    rel.source_tool = row.source_tool`
 
 const batchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
@@ -181,7 +192,8 @@ SET rel.confidence = row.confidence,
     rel.evidence_count = row.evidence_count,
     rel.evidence_kinds = row.evidence_kinds,
     rel.resolution_source = row.resolution_source,
-    rel.rationale = row.rationale`
+    rel.rationale = row.rationale,
+    rel.source_tool = row.source_tool`
 
 const batchCanonicalUsesModuleRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
@@ -201,7 +213,8 @@ SET rel.confidence = row.confidence,
     rel.evidence_count = row.evidence_count,
     rel.evidence_kinds = row.evidence_kinds,
     rel.resolution_source = row.resolution_source,
-    rel.rationale = row.rationale`
+    rel.rationale = row.rationale,
+    rel.source_tool = row.source_tool`
 
 const batchCanonicalReadsConfigFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
@@ -221,7 +234,8 @@ SET rel.confidence = row.confidence,
     rel.evidence_count = row.evidence_count,
     rel.evidence_kinds = row.evidence_kinds,
     rel.resolution_source = row.resolution_source,
-    rel.rationale = row.rationale`
+    rel.rationale = row.rationale,
+    rel.source_tool = row.source_tool`
 
 const batchCanonicalRepoEvidenceArtifactUpsertCypher = `UNWIND $rows AS row
 MATCH (source_repo:Repository {id: row.repo_id})
@@ -267,7 +281,8 @@ MATCH (p:Platform {id: row.platform_id})
 MERGE (i)-[rel:RUNS_ON]->(p)
 SET rel.confidence = 0.97,
     rel.reason = 'Repository workload instance runs on inferred platform',
-    rel.evidence_source = row.evidence_source`
+    rel.evidence_source = row.evidence_source,
+    rel.source_tool = row.source_tool`
 
 const batchCanonicalRunsOnUpsertCypher = canonicalRunsOnUpsertCypher
 
@@ -304,6 +319,7 @@ func BuildCanonicalRepoRelationshipUpsert(p CanonicalRepoRelationshipParams, evi
 			"resolution_source": p.ResolutionSource,
 			"confidence":        repoRelationshipConfidence(p.Confidence),
 			"rationale":         p.Rationale,
+			"source_tool":       p.SourceTool,
 		},
 	}
 }

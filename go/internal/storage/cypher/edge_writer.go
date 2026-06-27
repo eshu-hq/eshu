@@ -289,6 +289,9 @@ func buildRowMap(
 			if evidenceType := payloadString(row.Payload, "evidence_type"); evidenceType != "" {
 				rowMap["evidence_type"] = evidenceType
 			}
+			if sourceTool := payloadString(row.Payload, "source_tool"); sourceTool != "" {
+				rowMap["source_tool"] = sourceTool
+			}
 			return batchCanonicalRunsOnUpsertCypher, rowMap, true
 		}
 		if targetRepoID == "" {
@@ -303,6 +306,9 @@ func buildRowMap(
 			if evidenceType := payloadString(row.Payload, "evidence_type"); evidenceType != "" {
 				rowMap["evidence_type"] = evidenceType
 			}
+			if sourceTool := payloadString(row.Payload, "source_tool"); sourceTool != "" {
+				rowMap["source_tool"] = sourceTool
+			}
 			copyRepoRelationshipMetadata(rowMap, row.Payload, row.GenerationID)
 			return batchCanonicalRepoDependencyUpsertCypher, rowMap, true
 		}
@@ -314,6 +320,9 @@ func buildRowMap(
 		}
 		if evidenceType := payloadString(row.Payload, "evidence_type"); evidenceType != "" {
 			rowMap["evidence_type"] = evidenceType
+		}
+		if sourceTool := payloadString(row.Payload, "source_tool"); sourceTool != "" {
+			rowMap["source_tool"] = sourceTool
 		}
 		copyRepoRelationshipMetadata(rowMap, row.Payload, row.GenerationID)
 		cypher, ok := batchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType)

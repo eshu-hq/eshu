@@ -326,6 +326,23 @@ var goldenSet = []goldenCase{
 		ID: "chef-cookbook-neg-1", Kind: EvidenceKindChefCookbookDependency, Label: goldenNegative, GoldenConfidence: 0.792,
 		Rationale: "supermarket-only cookbook 'nginx', '~> 12.0' has no git source and no catalog match",
 	},
+	// Helm template-value references. Positive golden score == the registry prior
+	// (0.90); negative == prior x 0.88 (0.792), mirroring the puppet/chef rows. A
+	// chart template `{{ .Values.<path> }}` whose dotted path matches a leaf key in
+	// the same chart's values.yaml resolves to that definition; a path with no
+	// matching leaf (or a value read from a parent/global scope) does not.
+	{
+		ID: "helm-template-value-pos-1", Kind: EvidenceKindHelmTemplateValueReference, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "{{ .Values.image.repository }} resolves to the image.repository leaf in the chart's values.yaml",
+	},
+	{
+		ID: "helm-template-value-pos-2", Kind: EvidenceKindHelmTemplateValueReference, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "{{ .Values.replicaCount }} resolves to the replicaCount leaf in the chart's values.yaml",
+	},
+	{
+		ID: "helm-template-value-neg-1", Kind: EvidenceKindHelmTemplateValueReference, Label: goldenNegative, GoldenConfidence: 0.792,
+		Rationale: "{{ .Values.global.unset }} reads a path with no matching leaf in the chart's values.yaml",
+	},
 
 	// DOCKER_COMPOSE_BUILD_CONTEXT (prior 0.91; neg 0.8008)
 	{

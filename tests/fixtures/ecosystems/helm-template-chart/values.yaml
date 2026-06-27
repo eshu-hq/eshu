@@ -1,0 +1,12 @@
+replicaCount: 2
+image:
+  repository: registry.example.com/webapp
+  tag: "1.27.0"
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 8080
+resources:
+  limits:
+    cpu: "500m"
+    memory: "256Mi"

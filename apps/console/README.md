@@ -83,6 +83,7 @@ From the repository root:
 
 ```bash
 npm run console:test
+npm run console:i18n:check
 npm run console:typecheck
 npm run console:build
 npm run console:bundle-report
@@ -90,6 +91,8 @@ npm run console:bundle-report
 
 `console:build` runs the Vite build and then enforces the documented bundle
 budget against the emitted chunks.
+`console:i18n:check` validates that shell message references resolve against the
+default English catalog.
 `console:bundle-report` prints the post-build bundle composition table used in
 CI logs; `first-load?` marks the main entry and eager vendor chunks as `yes` and
 route/diagram async chunks as `no`.

@@ -90,6 +90,13 @@ var contentEntityBuckets = []entityBucketMapping{
 	// persisted entity row order for existing labels never shifts.
 	{bucket: "gitlab_pipelines", label: "GitlabPipeline"},
 	{bucket: "gitlab_jobs", label: "GitlabJob"},
+	// Helm template-value buckets: a values.yaml leaf key (HelmValueDefinition)
+	// and a `{{ .Values.<path> }}` usage in a templates/*.yaml manifest
+	// (HelmTemplateValueUsage). The projector structural-edge phase links each
+	// usage to its definition with a REFERENCES edge. Appended at the end per the
+	// frozen-table invariant.
+	{bucket: "helm_value_definitions", label: "HelmValueDefinition"},
+	{bucket: "helm_template_value_usages", label: "HelmTemplateValueUsage"},
 }
 
 // sourceFieldContainsCode is the set of entity labels whose Source field holds

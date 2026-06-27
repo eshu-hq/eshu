@@ -86,7 +86,8 @@ SET rel.confidence = $confidence,
     rel.evidence_count = $evidence_count,
     rel.evidence_kinds = $evidence_kinds,
     rel.resolution_source = $resolution_source,
-    rel.rationale = $rationale`
+    rel.rationale = $rationale,
+    rel.source_tool = $source_tool`
 
 const canonicalWorkloadDependencyUpsertCypher = `MATCH (source:Workload {id: $workload_id})
 MATCH (target:Workload {id: $target_workload_id})
@@ -144,7 +145,8 @@ SET rel.confidence = row.confidence,
     rel.evidence_count = row.evidence_count,
     rel.evidence_kinds = row.evidence_kinds,
     rel.resolution_source = row.resolution_source,
-    rel.rationale = row.rationale`
+    rel.rationale = row.rationale,
+    rel.source_tool = row.source_tool`
 
 const batchCanonicalWorkloadDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Workload {id: row.workload_id})
@@ -308,6 +310,10 @@ type CanonicalRepoDependencyParams struct {
 	ResolutionSource string
 	Confidence       float64
 	Rationale        string
+	// SourceTool is the normalized provenance token for the producing tool
+	// (#3997/#3999), derived from the edge's primary evidence kind. Empty when no
+	// tool is derivable; never a guessed value.
+	SourceTool string
 }
 
 // CanonicalWorkloadDependencyParams holds the parameters for a Workload
@@ -414,6 +420,7 @@ func BuildCanonicalRepoDependencyUpsert(p CanonicalRepoDependencyParams, evidenc
 			"resolution_source": p.ResolutionSource,
 			"confidence":        repoRelationshipConfidence(p.Confidence),
 			"rationale":         p.Rationale,
+			"source_tool":       p.SourceTool,
 		},
 	}
 }

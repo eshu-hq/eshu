@@ -177,15 +177,17 @@ var entityTypeLabelMap = map[string]string{
 	"shell_command":           "ShellCommand",
 
 	// Infrastructure entities
-	"k8s_resource":           "K8sResource",
-	"argocd_application":     "ArgoCDApplication",
-	"argocd_application_set": "ArgoCDApplicationSet",
-	"crossplane_xrd":         "CrossplaneXRD",
-	"crossplane_composition": "CrossplaneComposition",
-	"crossplane_claim":       "CrossplaneClaim",
-	"kustomize_overlay":      "KustomizeOverlay",
-	"helm_chart":             "HelmChart",
-	"helm_values":            "HelmValues",
+	"k8s_resource":              "K8sResource",
+	"argocd_application":        "ArgoCDApplication",
+	"argocd_application_set":    "ArgoCDApplicationSet",
+	"crossplane_xrd":            "CrossplaneXRD",
+	"crossplane_composition":    "CrossplaneComposition",
+	"crossplane_claim":          "CrossplaneClaim",
+	"kustomize_overlay":         "KustomizeOverlay",
+	"helm_chart":                "HelmChart",
+	"helm_values":               "HelmValues",
+	"helm_value_definition":     "HelmValueDefinition",
+	"helm_template_value_usage": "HelmTemplateValueUsage",
 
 	// Terraform entities
 	"terraform_resource":      "TerraformResource",
