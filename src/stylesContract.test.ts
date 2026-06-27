@@ -30,27 +30,19 @@ describe("source-to-runtime graph node positioning", () => {
     // rule the node collapses to the canvas origin and the nodes pile up.
     for (const id of nodeIds) {
       const positionedRule = new RegExp(`\\.node-${id}\\s*\\{[^}]*\\bleft\\s*:`);
-      expect(heroGraph, `heroGraph.css must position .node-${id}`).toMatch(
-        positionedRule
-      );
+      expect(heroGraph, `heroGraph.css must position .node-${id}`).toMatch(positionedRule);
     }
   });
 
   it("does not define base node classes for ids absent from the demo data", () => {
     for (const cls of declaredNodeClasses(heroGraph)) {
-      expect(
-        nodeIds,
-        `heroGraph.css .node-${cls} has no matching demo-trace node`
-      ).toContain(cls);
+      expect(nodeIds, `heroGraph.css .node-${cls} has no matching demo-trace node`).toContain(cls);
     }
   });
 
   it("keeps responsive node overrides aligned to real node ids", () => {
     for (const cls of declaredNodeClasses(responsive)) {
-      expect(
-        nodeIds,
-        `responsive.css .node-${cls} has no matching demo-trace node`
-      ).toContain(cls);
+      expect(nodeIds, `responsive.css .node-${cls} has no matching demo-trace node`).toContain(cls);
     }
   });
 });

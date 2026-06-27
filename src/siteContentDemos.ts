@@ -7,7 +7,7 @@ export const terminalCommands = [
   "eshu trace service checkout",
   "mcp: ask",
   "mcp: list_supply_chain_impact_findings",
-  "mcp: compose_replatforming_plan"
+  "mcp: compose_replatforming_plan",
 ] as const;
 
 /** Nodes shown in the source-to-runtime graph illustration. */
@@ -19,8 +19,8 @@ export const demoTrace = {
     { id: "iac", label: "IaC", detail: "Terraform + K8s" },
     { id: "cloud", label: "Cloud", detail: "AWS prod us-east-1" },
     { id: "runtime", label: "Runtime", detail: "checkout-api pods" },
-    { id: "incidents", label: "Incidents", detail: "PagerDuty, Jira" }
-  ] satisfies readonly DemoNode[]
+    { id: "incidents", label: "Incidents", detail: "PagerDuty, Jira" },
+  ] satisfies readonly DemoNode[],
 };
 
 /** Interactive command examples rendered in the "Run the graph" section. */
@@ -30,11 +30,11 @@ export const commandDemos = [
     summary: "Graph ready for organization-wide questions.",
     activeNodeId: "code",
     output: [
-      "\"status\": \"ready\",",
-      "\"succeeded\": 8347,",
-      "\"queue_zero_ms\": 853600,",
-      "\"freshness\": \"current\""
-    ]
+      '"status": "ready",',
+      '"succeeded": 8347,',
+      '"queue_zero_ms": 853600,',
+      '"freshness": "current"',
+    ],
   },
   {
     command: "POST /api/v0/ask",
@@ -47,8 +47,8 @@ export const commandDemos = [
       "Affected workload: checkout-service",
       "Evidence packet: investigation_evidence_packet.v2",
       "Truth: derived from bounded graph and supply-chain reads",
-      "Missing evidence: none for published finding"
-    ]
+      "Missing evidence: none for published finding",
+    ],
   },
   {
     command: "eshu trace service checkout",
@@ -62,8 +62,8 @@ export const commandDemos = [
       "Trace status: partial",
       "- source: exact (2 evidence)",
       "- deployment: derived (3 evidence)",
-      "Missing evidence: runtime"
-    ]
+      "Missing evidence: runtime",
+    ],
   },
   {
     command: "mcp: ask",
@@ -75,8 +75,8 @@ export const commandDemos = [
       "Sandbox: read-only Cypher + SQL",
       "Truth: derived with evidence handles",
       "Provider: configured agent_reasoning profile",
-      "Default-off: unavailable until ESHU_ASK_ENABLED=true"
-    ]
+      "Default-off: unavailable until ESHU_ASK_ENABLED=true",
+    ],
   },
   {
     command: "mcp: list_supply_chain_impact_findings",
@@ -91,8 +91,8 @@ export const commandDemos = [
       "- CVE-2020-8203 prototype pollution",
       "- CVE-2021-23337 command injection",
       "- CVE-2026-4800 command injection",
-      "Promotion: vulnerability_intelligence -> implemented"
-    ]
+      "Promotion: vulnerability_intelligence -> implemented",
+    ],
   },
   {
     command: "mcp: compose_replatforming_plan",
@@ -107,9 +107,9 @@ export const commandDemos = [
       "  Import block: ready",
       "Wave 2 (review): 1 ambiguous owner candidate",
       "Wave 3 (blocked): 1 refused (safety gate)",
-      "Read-only: never runs Terraform or mutates state"
-    ]
-  }
+      "Read-only: never runs Terraform or mutates state",
+    ],
+  },
 ] satisfies readonly CommandDemo[];
 
 /** Cleanup modes rendered in the cleanup investigation section. */
@@ -120,8 +120,8 @@ export const cleanupModes = [
     findings: [
       "services/checkout/internal/legacy_coupon.go",
       "handlers/payment_retry_v1.ts",
-      "jobs/reconcile_old_gateway.py"
-    ]
+      "jobs/reconcile_old_gateway.py",
+    ],
   },
   {
     label: "Dead IaC",
@@ -129,8 +129,8 @@ export const cleanupModes = [
     findings: [
       "terraform/modules/legacy-cache",
       "helm/values/checkout-canary.yaml",
-      "kustomize/overlays/old-payments"
-    ]
+      "kustomize/overlays/old-payments",
+    ],
   },
   {
     label: "Unmanaged resources",
@@ -138,7 +138,7 @@ export const cleanupModes = [
     findings: [
       "aws_s3_bucket.legacy-payment-logs",
       "aws_iam_role.orphan-ci-runner",
-      "aws_lambda_function.old-reporter"
-    ]
-  }
+      "aws_lambda_function.old-reporter",
+    ],
+  },
 ] satisfies readonly CleanupMode[];

@@ -2,8 +2,7 @@
 export const githubHref = "https://github.com/eshu-hq/eshu";
 
 /** Public documentation root for top-level docs links. */
-export const docsHref =
-  "https://github.com/eshu-hq/eshu/tree/main/docs/public";
+export const docsHref = "https://github.com/eshu-hq/eshu/tree/main/docs/public";
 
 /** Internal persona matrix used by the personas and reference sections. */
 export const personaMatrixHref =

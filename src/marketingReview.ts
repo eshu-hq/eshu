@@ -88,7 +88,7 @@ export interface MarketingReviewResult {
 
 function evaluateViewport(
   contract: MarketingReviewContract,
-  observation: ViewportObservation
+  observation: ViewportObservation,
 ): ReviewFinding[] {
   const findings: ReviewFinding[] = [];
   const { viewport } = observation;
@@ -102,13 +102,13 @@ function evaluateViewport(
       severity: present ? "pass" : "fail",
       detail: present
         ? `${anchor.label} section reachable`
-        : `${anchor.label} section (#${anchor.id}) missing`
+        : `${anchor.label} section (#${anchor.id}) missing`,
     });
   }
 
   for (const cta of contract.ctas) {
     const match = observation.ctaLinks.find(
-      (link) => link.text.includes(cta.label) && link.href === cta.href
+      (link) => link.text.includes(cta.label) && link.href === cta.href,
     );
     findings.push({
       viewport,
@@ -116,7 +116,7 @@ function evaluateViewport(
       severity: match ? "pass" : "fail",
       detail: match
         ? `CTA "${cta.label}" -> ${cta.href}`
-        : `CTA "${cta.label}" -> ${cta.href} not found`
+        : `CTA "${cta.label}" -> ${cta.href} not found`,
     });
   }
 
@@ -126,9 +126,7 @@ function evaluateViewport(
       viewport,
       check: `positioning:${phrase}`,
       severity: present ? "pass" : "fail",
-      detail: present
-        ? `positioning present: "${phrase}"`
-        : `positioning missing: "${phrase}"`
+      detail: present ? `positioning present: "${phrase}"` : `positioning missing: "${phrase}"`,
     });
   }
 
@@ -139,7 +137,7 @@ function evaluateViewport(
     detail:
       observation.imagesMissingAlt === 0
         ? "all images expose alt text"
-        : `${observation.imagesMissingAlt} image(s) missing alt text`
+        : `${observation.imagesMissingAlt} image(s) missing alt text`,
   });
 
   findings.push({
@@ -149,7 +147,7 @@ function evaluateViewport(
     detail:
       observation.h1Count === 1
         ? "exactly one <h1> landmark"
-        : `expected 1 <h1>, found ${observation.h1Count}`
+        : `expected 1 <h1>, found ${observation.h1Count}`,
   });
 
   findings.push({
@@ -159,17 +157,14 @@ function evaluateViewport(
     detail:
       observation.unreachableExternalLinks.length === 0
         ? `${observation.reachableExternalLinks.length} external link(s) reachable`
-        : `unreachable: ${observation.unreachableExternalLinks.join(", ")}`
+        : `unreachable: ${observation.unreachableExternalLinks.join(", ")}`,
   });
 
   findings.push({
     viewport,
     check: "perf:dom-content-loaded",
-    severity:
-      observation.domContentLoadedMs <= contract.maxDomContentLoadedMs
-        ? "pass"
-        : "fail",
-    detail: `DOMContentLoaded ${observation.domContentLoadedMs}ms (budget ${contract.maxDomContentLoadedMs}ms)`
+    severity: observation.domContentLoadedMs <= contract.maxDomContentLoadedMs ? "pass" : "fail",
+    detail: `DOMContentLoaded ${observation.domContentLoadedMs}ms (budget ${contract.maxDomContentLoadedMs}ms)`,
   });
 
   return findings;
@@ -182,13 +177,10 @@ function evaluateViewport(
  */
 export function evaluateMarketingReview(
   contract: MarketingReviewContract,
-  observations: readonly ViewportObservation[]
+  observations: readonly ViewportObservation[],
 ): MarketingReviewResult {
-  const findings = observations.flatMap((observation) =>
-    evaluateViewport(contract, observation)
-  );
+  const findings = observations.flatMap((observation) => evaluateViewport(contract, observation));
   const passed =
-    observations.length > 0 &&
-    findings.every((finding) => finding.severity === "pass");
+    observations.length > 0 && findings.every((finding) => finding.severity === "pass");
   return { passed, findings };
 }

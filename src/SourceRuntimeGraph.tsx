@@ -5,7 +5,7 @@ import type { CommandDemo } from "./siteContent";
 
 /** Renders the static source-to-runtime graph beside the hero copy. */
 export function SourceRuntimeGraph({
-  selectedCommand
+  selectedCommand,
 }: {
   readonly selectedCommand: CommandDemo;
 }): React.JSX.Element {

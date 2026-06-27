@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Terminal,
   Workflow,
-  X
+  X,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -28,19 +28,15 @@ const capabilityIcons = [
   Boxes,
   Code,
   Network,
-  Cloud
+  Cloud,
 ] as const;
 
 export function App(): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [selectedCommand, setSelectedCommand] = useState<CommandDemo>(
-    siteContent.commandDemos[0]
-  );
-  const [selectedPersona, setSelectedPersona] = useState<PersonaDemo>(
-    siteContent.personaDemos[0]
-  );
+  const [selectedCommand, setSelectedCommand] = useState<CommandDemo>(siteContent.commandDemos[0]);
+  const [selectedPersona, setSelectedPersona] = useState<PersonaDemo>(siteContent.personaDemos[0]);
   const [selectedCleanupMode, setSelectedCleanupMode] = useState<CleanupMode>(
-    siteContent.cleanupModes[0]
+    siteContent.cleanupModes[0],
   );
 
   return (
@@ -93,17 +89,12 @@ export function App(): React.JSX.Element {
           <SourceRuntimeGraph selectedCommand={selectedCommand} />
         </section>
 
-        <section
-          className="whats-new-section"
-          id="whats-new"
-          aria-labelledby="whats-new-title"
-        >
+        <section className="whats-new-section" id="whats-new" aria-labelledby="whats-new-title">
           <div className="section-heading">
             <h2 id="whats-new-title">What's new</h2>
             <p>
-              The graph now has an answer layer, portable proof artifacts, and
-              CI-backed claim checks. The launch story moved from "context" to
-              evidence-backed action.
+              The graph now has an answer layer, portable proof artifacts, and CI-backed claim
+              checks. The launch story moved from "context" to evidence-backed action.
             </p>
           </div>
           <div className="whats-new-grid">
@@ -117,16 +108,12 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="capabilities-section"
-          id="product"
-          aria-labelledby="capabilities-title"
-        >
+        <section className="capabilities-section" id="product" aria-labelledby="capabilities-title">
           <div className="section-heading">
             <h2 id="capabilities-title">What Eshu does</h2>
             <p>
-              Eight surfaces plus one ask layer, each backed by real MCP tools,
-              each with refusal-on-insufficient-evidence. One graph holds them all.
+              Eight surfaces plus one ask layer, each backed by real MCP tools, each with
+              refusal-on-insufficient-evidence. One graph holds them all.
             </p>
           </div>
           <div className="capability-list">
@@ -143,17 +130,12 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="pipeline-section"
-          id="how-it-works"
-          aria-labelledby="pipeline-title"
-        >
+        <section className="pipeline-section" id="how-it-works" aria-labelledby="pipeline-title">
           <div className="section-heading">
             <h2 id="pipeline-title">How it works</h2>
             <p>
-              Eshu reads from the systems that already describe your stack,
-              then turns their relationships into one graph with reducer-owned
-              truth.
+              Eshu reads from the systems that already describe your stack, then turns their
+              relationships into one graph with reducer-owned truth.
             </p>
           </div>
           <ol className="pipeline-flow">
@@ -166,17 +148,12 @@ export function App(): React.JSX.Element {
           </ol>
         </section>
 
-        <section
-          className="developer-section"
-          id="cli"
-          aria-labelledby="developer-title"
-        >
+        <section className="developer-section" id="cli" aria-labelledby="developer-title">
           <div className="section-heading">
             <h2 id="developer-title">Run the graph</h2>
             <p>
-              Click a CLI command or MCP tool and watch the answer change.
-              Static demo, real output shapes — the workflow is the product
-              shape.
+              Click a CLI command or MCP tool and watch the answer change. Static demo, real output
+              shapes — the workflow is the product shape.
             </p>
           </div>
           <div className="demo-workbench">
@@ -209,10 +186,7 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="coverage-section"
-          aria-labelledby="coverage-title"
-        >
+        <section className="coverage-section" aria-labelledby="coverage-title">
           <div className="section-heading">
             <h2 id="coverage-title">Code-to-cloud means more than code search</h2>
             <p>{siteContent.coverage}</p>
@@ -223,8 +197,8 @@ export function App(): React.JSX.Element {
           <div className="section-heading">
             <h2 id="proof-title">Built for the whole organization</h2>
             <p>
-              Eshu covers the shared engineering estate — not just one repo,
-              not just one team&apos;s local search problem.
+              Eshu covers the shared engineering estate — not just one repo, not just one
+              team&apos;s local search problem.
             </p>
           </div>
           <div className="proof-grid">
@@ -238,15 +212,12 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="surfaces-section"
-          aria-labelledby="surfaces-title"
-        >
+        <section className="surfaces-section" aria-labelledby="surfaces-title">
           <div className="section-heading">
             <h2 id="surfaces-title">Where the graph shows up</h2>
             <p>
-              A graph is only useful if every role in the org can reach it
-              from the tools they already use.
+              A graph is only useful if every role in the org can reach it from the tools they
+              already use.
             </p>
           </div>
           <div className="surface-grid">
@@ -259,18 +230,13 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="personas-section"
-          id="personas"
-          aria-labelledby="personas-title"
-        >
+        <section className="personas-section" id="personas" aria-labelledby="personas-title">
           <div className="section-heading">
             <h2 id="personas-title">Built for every engineering role</h2>
             <p>
-              Same MCP server, same evidence graph, same truth envelope — for
-              engineers, security, platform, leadership, Ask Eshu users, and
-              customer-facing teams. Nine representative personas, full reference in the
-              persona matrix.
+              Same MCP server, same evidence graph, same truth envelope — for engineers, security,
+              platform, leadership, Ask Eshu users, and customer-facing teams. Nine representative
+              personas, full reference in the persona matrix.
             </p>
           </div>
           <div className="persona-tabs" aria-label="Role examples">
@@ -278,9 +244,7 @@ export function App(): React.JSX.Element {
               <button
                 aria-pressed={persona.role === selectedPersona.role}
                 className={
-                  persona.role === selectedPersona.role
-                    ? "persona-tab is-active"
-                    : "persona-tab"
+                  persona.role === selectedPersona.role ? "persona-tab is-active" : "persona-tab"
                 }
                 key={persona.role}
                 onClick={() => setSelectedPersona(persona)}
@@ -305,17 +269,13 @@ export function App(): React.JSX.Element {
           </p>
         </section>
 
-        <section
-          className="cleanup-section"
-          id="cleanup"
-          aria-labelledby="cleanup-title"
-        >
+        <section className="cleanup-section" id="cleanup" aria-labelledby="cleanup-title">
           <div className="section-heading">
             <h2 id="cleanup-title">Dead code, dead IaC, and unmanaged resources</h2>
             <p>
-              The same reachability model that finds unused code paths also
-              finds Terraform that no live workload depends on — and AWS
-              resources that exist without a Terraform module at all.
+              The same reachability model that finds unused code paths also finds Terraform that no
+              live workload depends on — and AWS resources that exist without a Terraform module at
+              all.
             </p>
           </div>
           <div className="cleanup-toggle" aria-label="Cleanup mode">
@@ -345,10 +305,7 @@ export function App(): React.JSX.Element {
           </article>
         </section>
 
-        <section
-          className="difference-section"
-          aria-labelledby="difference-title"
-        >
+        <section className="difference-section" aria-labelledby="difference-title">
           <div className="section-heading">
             <h2 id="difference-title">{siteContent.difference.heading}</h2>
           </div>
@@ -362,11 +319,7 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="tryit-section"
-          id="try-it"
-          aria-labelledby="try-it-title"
-        >
+        <section className="tryit-section" id="try-it" aria-labelledby="try-it-title">
           <div className="section-heading">
             <h2 id="try-it-title">{siteContent.tryIt.heading}</h2>
           </div>
@@ -386,15 +339,12 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="prompts-section"
-          aria-labelledby="prompts-title"
-        >
+        <section className="prompts-section" aria-labelledby="prompts-title">
           <div className="section-heading">
             <h2 id="prompts-title">First prompts by role</h2>
             <p>
-              Drop one of these into Claude Code, Codex, Cursor, or VS Code.
-              Eshu answers with provenance.
+              Drop one of these into Claude Code, Codex, Cursor, or VS Code. Eshu answers with
+              provenance.
             </p>
           </div>
           <div className="prompt-grid">
@@ -407,16 +357,12 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="use-cases-section"
-          id="use-cases"
-          aria-labelledby="use-cases-title"
-        >
+        <section className="use-cases-section" id="use-cases" aria-labelledby="use-cases-title">
           <div className="section-heading">
             <h2 id="use-cases-title">Questions Eshu answers</h2>
             <p>
-              These are the questions teams ask during refactors, incidents,
-              audits, migrations, and customer demos.
+              These are the questions teams ask during refactors, incidents, audits, migrations, and
+              customer demos.
             </p>
           </div>
           <div className="use-case-grid">
@@ -429,10 +375,7 @@ export function App(): React.JSX.Element {
           </div>
         </section>
 
-        <section
-          className="references-section"
-          aria-labelledby="references-title"
-        >
+        <section className="references-section" aria-labelledby="references-title">
           <div className="section-heading">
             <h2 id="references-title">Read more</h2>
           </div>

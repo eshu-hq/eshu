@@ -6,7 +6,7 @@ describe("siteContent", () => {
   it("uses the launch positioning and required developer surfaces", () => {
     expect(siteContent.hero.coreLine).toBe("One Graph. Every Layer. Every Role.");
     expect(siteContent.hero.heading).toBe(
-      "The institutional knowledge layer now has an agentic answer surface."
+      "The institutional knowledge layer now has an agentic answer surface.",
     );
     expect(siteContent.hero.description).toContain("Ask Eshu");
     expect(siteContent.hero.description).toContain("evidence packets");
@@ -14,7 +14,7 @@ describe("siteContent", () => {
     expect(siteContent.hero.primaryCta.href).toBe("#try-it");
     expect(siteContent.hero.secondaryCta.label).toBe("Read the docs");
     expect(siteContent.hero.secondaryCta.href).toBe(
-      "https://github.com/eshu-hq/eshu/tree/main/docs/public"
+      "https://github.com/eshu-hq/eshu/tree/main/docs/public",
     );
     expect(siteContent.terminalCommands).toEqual([
       "eshu scan",
@@ -22,7 +22,7 @@ describe("siteContent", () => {
       "eshu trace service checkout",
       "mcp: ask",
       "mcp: list_supply_chain_impact_findings",
-      "mcp: compose_replatforming_plan"
+      "mcp: compose_replatforming_plan",
     ]);
   });
 
@@ -33,7 +33,7 @@ describe("siteContent", () => {
       "Generated capability matrix",
       "Pre-change developer workflow",
       "Competitive parity gate",
-      "Operator control plane"
+      "Operator control plane",
     ]);
     const allSummaries = siteContent.whatsNew
       .map((item) => `${item.summary} ${item.detail}`)
@@ -56,10 +56,10 @@ describe("siteContent", () => {
       "IaC governance and drift",
       "Code intelligence",
       "AI assistant context",
-      "Institutional knowledge"
+      "Institutional knowledge",
     ]);
     const askCapability = siteContent.capabilities.find(
-      (capability) => capability.title === "Agentic Q&A"
+      (capability) => capability.title === "Agentic Q&A",
     );
     expect(askCapability?.description).toContain("read-only Cypher");
     expect(askCapability?.description).toContain("SQL sandbox");
@@ -67,12 +67,10 @@ describe("siteContent", () => {
 
   it("lists docs navigation and the surfaces section", () => {
     expect(siteContent.nav.find((item) => item.label === "Docs")?.href).toBe(
-      "https://github.com/eshu-hq/eshu/tree/main/docs/public"
+      "https://github.com/eshu-hq/eshu/tree/main/docs/public",
     );
-    expect(
-      siteContent.surfaces.map((surface) => surface.title).sort()
-    ).toEqual(
-      ["HTTP API", "CLI", "Console", "MCP", "SDK"].sort((a, b) => a.localeCompare(b))
+    expect(siteContent.surfaces.map((surface) => surface.title).sort()).toEqual(
+      ["HTTP API", "CLI", "Console", "MCP", "SDK"].sort((a, b) => a.localeCompare(b)),
     );
   });
 
@@ -86,7 +84,7 @@ describe("siteContent", () => {
       "CTO",
       "Developer",
       "Sales engineer",
-      "Data engineer"
+      "Data engineer",
     ]);
     const askPersona = siteContent.personaDemos[0];
     expect(askPersona.primaryTool).toBe("ask");
@@ -109,7 +107,7 @@ describe("siteContent", () => {
       "Migration architect",
       "VP Engineering",
       "CTO",
-      "Sales engineer"
+      "Sales engineer",
     ]);
     const allPrompts = siteContent.rolePrompts.map((p) => p.prompt).join(" ");
     expect(allPrompts).toContain("ask");
@@ -119,23 +117,17 @@ describe("siteContent", () => {
   });
 
   it("names the organization-wide proof points including agentic Q&A", () => {
-    expect(
-      siteContent.proofPoints.map((point) => point.value).sort()
-    ).toEqual(
-      ["Ask Eshu", "Multi-cloud", "Open source", "Personas", "Supply chain"].sort()
+    expect(siteContent.proofPoints.map((point) => point.value).sort()).toEqual(
+      ["Ask Eshu", "Multi-cloud", "Open source", "Personas", "Supply chain"].sort(),
     );
     const askPoint = siteContent.proofPoints.find((p) => p.value === "Ask Eshu");
     expect(askPoint?.description).toContain("self-hosted");
     expect(askPoint?.description).toContain("provider-portable");
     expect(askPoint?.description).toContain("read-only Cypher");
-    const supplyChainPoint = siteContent.proofPoints.find(
-      (p) => p.value === "Supply chain"
-    );
+    const supplyChainPoint = siteContent.proofPoints.find((p) => p.value === "Supply chain");
     expect(supplyChainPoint?.description).toContain("promotion_state");
     expect(supplyChainPoint?.description).toContain("Refuses findings");
-    const multiCloudPoint = siteContent.proofPoints.find(
-      (p) => p.value === "Multi-cloud"
-    );
+    const multiCloudPoint = siteContent.proofPoints.find((p) => p.value === "Multi-cloud");
     expect(multiCloudPoint?.description).toContain("compose_replatforming_plan");
   });
 
@@ -146,7 +138,7 @@ describe("siteContent", () => {
       "IaC",
       "Cloud",
       "Runtime",
-      "Incidents"
+      "Incidents",
     ]);
     expect(siteContent.commandDemos.map((command) => command.command)).toEqual([
       "eshu scan --json",
@@ -154,16 +146,16 @@ describe("siteContent", () => {
       "eshu trace service checkout",
       "mcp: ask",
       "mcp: list_supply_chain_impact_findings",
-      "mcp: compose_replatforming_plan"
+      "mcp: compose_replatforming_plan",
     ]);
-    expect(
-      siteContent.cleanupModes.map((mode) => mode.label).sort()
-    ).toEqual(["Dead IaC", "Dead code", "Unmanaged resources"].sort());
+    expect(siteContent.cleanupModes.map((mode) => mode.label).sort()).toEqual(
+      ["Dead IaC", "Dead code", "Unmanaged resources"].sort(),
+    );
   });
 
   it("keeps demo outputs aligned with shipped command output shapes", () => {
     const demosByCommand = Object.fromEntries(
-      siteContent.commandDemos.map((demo) => [demo.command, demo.output])
+      siteContent.commandDemos.map((demo) => [demo.command, demo.output]),
     );
 
     expect(demosByCommand["eshu scan --json"]).toEqual(
@@ -171,8 +163,8 @@ describe("siteContent", () => {
         '"status": "ready",',
         '"succeeded": 8347,',
         '"queue_zero_ms": 853600,',
-        '"freshness": "current"'
-      ])
+        '"freshness": "current"',
+      ]),
     );
     expect(demosByCommand["eshu scan --json"]).not.toContain("repos: 896 indexed");
     expect(demosByCommand["eshu scan --json"]).not.toContain("elapsed: 14m13.6s");
@@ -183,8 +175,8 @@ describe("siteContent", () => {
         "Question: which services are affected by CVE-2024-3094?",
         "Answer: partial",
         "Evidence packet: investigation_evidence_packet.v2",
-        "Missing evidence: none for published finding"
-      ])
+        "Missing evidence: none for published finding",
+      ]),
     );
 
     expect(demosByCommand["eshu trace service checkout"]).toEqual(
@@ -193,8 +185,8 @@ describe("siteContent", () => {
         "Truth freshness: fresh",
         "Code to runtime:",
         "Trace status: partial",
-        "Missing evidence: runtime"
-      ])
+        "Missing evidence: runtime",
+      ]),
     );
 
     expect(demosByCommand["mcp: list_supply_chain_impact_findings"]).toEqual(
@@ -203,8 +195,8 @@ describe("siteContent", () => {
         "Affected: npm:lodash@4.17.11",
         "Ecosystem: npm",
         "Confidence: exact (affected_exact)",
-        "Promotion: vulnerability_intelligence -> implemented"
-      ])
+        "Promotion: vulnerability_intelligence -> implemented",
+      ]),
     );
 
     expect(demosByCommand["mcp: compose_replatforming_plan"]).toEqual(
@@ -212,8 +204,8 @@ describe("siteContent", () => {
         "Scope: aws/account=123456789012",
         "Plan: 4 items, ordered into migration waves",
         "Wave 1 (early-safe): 2 ready import candidates",
-        "Read-only: never runs Terraform or mutates state"
-      ])
+        "Read-only: never runs Terraform or mutates state",
+      ]),
     );
 
     expect(demosByCommand["mcp: ask"]).toEqual(
@@ -221,8 +213,8 @@ describe("siteContent", () => {
         "Tool: ask",
         "Streaming: SSE",
         "Sandbox: read-only Cypher + SQL",
-        "Truth: derived with evidence handles"
-      ])
+        "Truth: derived with evidence handles",
+      ]),
     );
   });
 
@@ -241,9 +233,7 @@ describe("siteContent", () => {
     // Keep the marketing claim exact and machine-verified.
     const inflatedToolCountPattern = new RegExp("14" + "0\\+");
     const mcpSurface = siteContent.surfaces.find((s) => s.title === "MCP");
-    const aiContext = siteContent.capabilities.find(
-      (c) => c.title === "AI assistant context"
-    );
+    const aiContext = siteContent.capabilities.find((c) => c.title === "AI assistant context");
     for (const text of [mcpSurface?.description, aiContext?.description]) {
       expect(text).toBeDefined();
       expect(text).not.toMatch(inflatedToolCountPattern);
@@ -265,13 +255,11 @@ describe("siteContent", () => {
     expect(siteContent.tryIt.steps.join(" ")).toContain("POST /api/v0/ask");
     expect(siteContent.tryIt.steps.join(" ")).not.toContain("eshu ask");
     expect(siteContent.tryIt.firstQuestion).toContain(
-      "which services are affected by CVE-2024-3094"
+      "which services are affected by CVE-2024-3094",
     );
     expect(siteContent.references.supplyChainDemo).toContain("supply-chain-demo.md");
     expect(siteContent.references.replatformingDemo).toContain("aws-to-azure");
-    expect(siteContent.references.fullPersonaMatrix).toContain(
-      "persona-question-tool-matrix"
-    );
+    expect(siteContent.references.fullPersonaMatrix).toContain("persona-question-tool-matrix");
   });
 
   it("states the competitive difference as machine-verified parity", () => {
