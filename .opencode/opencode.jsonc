@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/internal/agent-guide.md"
+  ],
+  "compaction": {
+    "tail_turns": 50,
+    "auto": true
+  },
+  "references": {
+    "agent-guide": {
+      "path": "docs/internal/agent-guide.md",
+      "description": "Eshu agent engineering rules and ownership boundaries"
+    }
+  },
+  "skills": {
+    "paths": [".agents/skills"]
+  }
+}
