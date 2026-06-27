@@ -50,6 +50,59 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitHubWork
 	}
 }
 
+// TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitlabCI proves
+// the filesystem selector copies a root-level hidden .gitlab-ci.yml into the
+// managed workspace instead of pruning it as a dotfile. The managed-workspace copy
+// drops dot-prefixed entries unless preserveFilesystemHiddenPath allows them; the
+// GitLab CI pipeline file is a root-level hidden file (not a directory prefix like
+// .github/workflows), so the allowlist must match it by exact relative path or the
+// file never reaches discovery, the parser, or the graph.
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitlabCI(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-a")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(
+		t,
+		filepath.Join(sourceRepo, ".gitlab-ci.yml"),
+		"stages:\n  - build\nbuild-app:\n  stage: build\n  script: [\"go build ./...\"]\n",
+	)
+	writeSelectionTestFile(
+		t,
+		filepath.Join(sourceRepo, "nested", ".gitlab-ci.yaml"),
+		"stages: [test]\nunit:\n  stage: test\n  script: [\"go test ./...\"]\n",
+	)
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(batch.Repositories), 1; got != want {
+		t.Fatalf("len(Repositories) = %d, want %d", got, want)
+	}
+
+	for _, rel := range []string{".gitlab-ci.yml", filepath.Join("nested", ".gitlab-ci.yaml")} {
+		wantPath := filepath.Join(reposDir, "eshu-hq", "service-a", rel)
+		if _, err := os.Stat(wantPath); err != nil {
+			t.Fatalf("copied repository missing GitLab CI config %q: %v", wantPath, err)
+		}
+	}
+}
+
 func TestNativeRepositorySelectorSelectRepositoriesFilesystemReturnsEmptyBatchWhenManifestUnchanged(t *testing.T) {
 	t.Parallel()
 

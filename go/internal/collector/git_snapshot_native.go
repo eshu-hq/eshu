@@ -75,6 +75,8 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "cloudformation_outputs", label: "CloudFormationOutput"},
 	{bucket: "atlantis_projects", label: "AtlantisProject"},
 	{bucket: "atlantis_workflows", label: "AtlantisWorkflow"},
+	{bucket: "gitlab_pipelines", label: "GitlabPipeline"},
+	{bucket: "gitlab_jobs", label: "GitlabJob"},
 	{bucket: "sql_tables", label: "SqlTable"},
 	{bucket: "sql_columns", label: "SqlColumn"},
 	{bucket: "sql_views", label: "SqlView"},

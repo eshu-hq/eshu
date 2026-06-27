@@ -44,6 +44,8 @@ var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
 	"ArgoCDApplicationSet":  {},
 	"AtlantisProject":       {},
 	"AtlantisWorkflow":      {},
+	"GitlabPipeline":        {},
+	"GitlabJob":             {},
 	"CrossplaneXRD":         {},
 	"CrossplaneComposition": {},
 	"CrossplaneClaim":       {},

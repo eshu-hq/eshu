@@ -331,6 +331,7 @@ nav:
       - Atlantis: languages/atlantis.md
       - CloudFormation: languages/cloudformation.md
       - Crossplane: languages/crossplane.md
+      - GitLab CI: languages/gitlab-ci.md
       - Helm: languages/helm.md
       - Kubernetes: languages/kubernetes.md
       - Kustomize: languages/kustomize.md

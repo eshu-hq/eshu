@@ -10,7 +10,9 @@
 // Helm values metadata, Pub dependency rows, CloudFormation/SAM template rows,
 // and Atlantis repo-level project rows (one AtlantisProject row per project in
 // atlantis.yaml, dispatched by filename since the config carries no
-// apiVersion/kind). DecodeDocuments and SanitizeTemplating remain available for parent
+// apiVersion/kind). GitLab CI pipelines are likewise dispatched by filename:
+// one GitlabPipeline row per .gitlab-ci.yml plus one GitlabJob row per top-level
+// job (hidden/template jobs and reserved global keywords excluded). DecodeDocuments and SanitizeTemplating remain available for parent
 // compatibility paths that decode YAML-side metadata. Argo CD Application rows preserve the legacy
 // singular source fields while adding positional source tuple fields that keep
 // repo, path, revision, and root values aligned by source index. The package

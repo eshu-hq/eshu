@@ -23,6 +23,8 @@ var canonicalNamePathLineEntityLabels = map[string]struct{}{
 	"CrossplaneXRD":           {},
 	"Enum":                    {},
 	"Function":                {},
+	"GitlabJob":               {},
+	"GitlabPipeline":          {},
 	"Interface":               {},
 	"Macro":                   {},
 	"Property":                {},

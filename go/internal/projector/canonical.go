@@ -210,6 +210,10 @@ var entityTypeLabelMap = map[string]string{
 	"atlantis_project":  "AtlantisProject",
 	"atlantis_workflow": "AtlantisWorkflow",
 
+	// GitLab CI pipeline entities
+	"gitlab_pipeline": "GitlabPipeline",
+	"gitlab_job":      "GitlabJob",
+
 	// CloudFormation entities
 	"cloudformation_resource":  "CloudFormationResource",
 	"cloudformation_parameter": "CloudFormationParameter",

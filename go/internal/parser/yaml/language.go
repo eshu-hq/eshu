@@ -81,6 +81,26 @@ func Parse(
 		}
 		return payload, nil
 	}
+	if isGitlabCIConfig(filename) {
+		// GitLab CI configs are decoded directly from source (not the node-walked
+		// document) so YAML anchors and merge keys in job definitions resolve.
+		pipeline, jobs, err := parseGitlabCIFromSource(source, path)
+		if err != nil {
+			return nil, fmt.Errorf("parse gitlab ci config %q: %w", path, err)
+		}
+		if pipeline != nil {
+			shared.AppendBucket(payload, "gitlab_pipelines", pipeline)
+		}
+		for _, row := range jobs {
+			shared.AppendBucket(payload, "gitlab_jobs", row)
+		}
+		shared.SortNamedBucket(payload, "gitlab_pipelines")
+		shared.SortNamedBucket(payload, "gitlab_jobs")
+		if options.IndexSource {
+			payload["source"] = string(source)
+		}
+		return payload, nil
+	}
 
 	documents, err := DecodeDocuments(SanitizeTemplating(string(source)))
 	if err != nil {
@@ -112,6 +132,8 @@ func Parse(
 		"cloudformation_cross_stack_exports",
 		"atlantis_projects",
 		"atlantis_workflows",
+		"gitlab_pipelines",
+		"gitlab_jobs",
 	} {
 		shared.SortNamedBucket(payload, bucket)
 	}
@@ -141,6 +163,8 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["cloudformation_cross_stack_exports"] = []map[string]any{}
 	payload["atlantis_projects"] = []map[string]any{}
 	payload["atlantis_workflows"] = []map[string]any{}
+	payload["gitlab_pipelines"] = []map[string]any{}
+	payload["gitlab_jobs"] = []map[string]any{}
 	payload["variables"] = []map[string]any{}
 	initObservabilityBuckets(payload)
 	return payload
