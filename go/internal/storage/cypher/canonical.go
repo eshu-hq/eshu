@@ -126,7 +126,6 @@ SET rel.confidence = 0.95,
 
 // --- Batched UNWIND Cypher (shared projection) ---
 
-
 const batchCanonicalRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
 ON CREATE SET source_repo.evidence_source = row.evidence_source,
