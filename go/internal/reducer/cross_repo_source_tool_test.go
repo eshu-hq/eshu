@@ -53,8 +53,17 @@ func TestSourceToolForEvidenceKind(t *testing.T) {
 		}
 	}
 
-	// An unmapped/unknown kind string yields "" so the caller can decide between
-	// absent and the explicit "unknown" token.
+	// Generated/runtime kinds that are not named constants (the Terraform schema
+	// extractor synthesizes TERRAFORM_<resource> at runtime) classify by family
+	// prefix rather than falling through to unknown.
+	for _, generated := range []string{"TERRAFORM_ECS_SERVICE", "TERRAFORM_WAFV2_WEB_ACL", "TERRAFORM_PAGERDUTY_SERVICE"} {
+		if got := sourceToolForEvidenceKind(generated); got != "terraform" {
+			t.Errorf("generated kind %q: got %q, want terraform", generated, got)
+		}
+	}
+
+	// An unmapped kind in no known family still yields "" so the caller can decide
+	// between absent and the explicit "unknown" token.
 	if got := sourceToolForEvidenceKind("SOME_FUTURE_UNMAPPED_KIND"); got != "" {
 		t.Errorf("unmapped kind: got %q, want empty", got)
 	}

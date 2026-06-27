@@ -113,6 +113,13 @@ kind without a `source_tool` classification surfaces as a visible gap (and fails
 the #4002 drift gate) rather than a silent passthrough. An edge with no evidence
 kind at all is left unstamped (absent), distinct from the explicit `unknown`.
 
+Generated/runtime evidence kinds that are not named constants — the Terraform
+schema extractor synthesizes per-resource kinds like `TERRAFORM_ECS_SERVICE` and
+`TERRAFORM_WAFV2_WEB_ACL` at runtime — are classified by their family prefix
+(`TERRAFORM_*`→`terraform`, etc.) after the named-constant lookup, so a real
+Terraform edge is labeled `terraform` rather than `unknown`. The named-constant
+map is consulted first, so the `TERRAGRUNT_*` split is preserved.
+
 The package-ecosystem tokens (`gomod`, `npm`, `pip`, `maven`, `cargo`) and the
 cloud tokens (`aws`, `azure`, `kubernetes`) are **not** carried by any
 `EvidenceKind` constant — they are Tier-1 self-labeling edge types whose tool is

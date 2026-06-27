@@ -108,11 +108,52 @@ var evidenceKindToSourceTool = map[relationships.EvidenceKind]string{
 	relationships.EvidenceKindGCPCloudRelationship:                 "gcp",
 }
 
+// sourceToolPrefixFallback classifies generated/runtime EvidenceKinds that are
+// not named constants by their family prefix. The Terraform schema extractor
+// synthesizes per-resource kinds at runtime (terraform_schema.go:
+// "TERRAFORM_"+resourceType, e.g. TERRAFORM_ECS_SERVICE, TERRAFORM_WAFV2_WEB_ACL,
+// TERRAFORM_PAGERDUTY_SERVICE) that the named-constant map cannot enumerate, so a
+// valid Terraform cross-repo edge would otherwise fall through to "unknown".
+// Prefixes are full family tokens (DOCKER_COMPOSE_ vs DOCKERFILE_) so none nests
+// inside another, and TERRAGRUNT_ is a distinct string from TERRAFORM_ — the
+// named-constant map is consulted first, so the Terragrunt constants keep their
+// terragrunt token and only non-constant kinds reach this fallback.
+var sourceToolPrefixFallback = []struct {
+	prefix string
+	tool   string
+}{
+	{"TERRAGRUNT_", "terragrunt"},
+	{"TERRAFORM_", "terraform"},
+	{"KUSTOMIZE_", "kustomize"},
+	{"HELM_", "helm"},
+	{"ARGOCD_", "argocd"},
+	{"GITHUB_ACTIONS_", "github_actions"},
+	{"JENKINS_", "jenkins"},
+	{"DOCKER_COMPOSE_", "docker_compose"},
+	{"DOCKERFILE_", "docker"},
+	{"ANSIBLE_", "ansible"},
+	{"PUPPET_", "puppet"},
+	{"CHEF_", "chef"},
+	{"GCP_", "gcp"},
+}
+
 // sourceToolForEvidenceKind returns the canonical source_tool token for a single
-// EvidenceKind string, or "" when the kind is unknown/unmapped so the caller can
-// choose between an absent value and the explicit sourceToolUnknown token.
+// EvidenceKind string. It consults the named-constant map first, then the
+// family-prefix fallback for generated/runtime kinds, and finally returns "" when
+// the kind is unknown/unmapped so the caller can choose between an absent value
+// and the explicit sourceToolUnknown token.
 func sourceToolForEvidenceKind(kind string) string {
-	return evidenceKindToSourceTool[relationships.EvidenceKind(strings.TrimSpace(kind))]
+	trimmed := strings.TrimSpace(kind)
+	if mapped, ok := evidenceKindToSourceTool[relationships.EvidenceKind(trimmed)]; ok {
+		return mapped
+	}
+	upper := strings.ToUpper(trimmed)
+	for _, fam := range sourceToolPrefixFallback {
+		if strings.HasPrefix(upper, fam.prefix) {
+			return fam.tool
+		}
+	}
+	return ""
 }
 
 // resolvedRelationshipSourceTool derives the normalized source_tool for a
