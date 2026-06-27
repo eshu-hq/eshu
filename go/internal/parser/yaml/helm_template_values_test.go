@@ -146,6 +146,67 @@ label: {{ .Values.image.tag }}
 	}
 }
 
+// TestParseHelmTemplateNestedDirEmitsValueUsages proves a manifest in a nested
+// templates subdirectory (templates/config/) is still recognized as a Helm
+// template and scanned for .Values references — the chart root is resolved from
+// the matched templates segment, not the file's immediate parent.
+func TestParseHelmTemplateNestedDirEmitsValueUsages(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Chart.yaml"), []byte("name: webapp\nversion: 1.0.0\n"), 0o600); err != nil {
+		t.Fatalf("write Chart.yaml: %v", err)
+	}
+	nested := filepath.Join(dir, "templates", "config")
+	if err := os.MkdirAll(nested, 0o750); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "configmap.yaml"), []byte("data:\n  t: {{ .Values.service.type }}\n"), 0o600); err != nil {
+		t.Fatalf("write nested template: %v", err)
+	}
+
+	payload, err := Parse(filepath.Join(nested, "configmap.yaml"), false, Options{})
+	if err != nil {
+		t.Fatalf("Parse(nested template) error = %v, want nil", err)
+	}
+	rows, ok := payload["helm_template_value_usages"].([]map[string]any)
+	if !ok || len(rows) == 0 {
+		t.Fatalf("nested template produced no value usages; got %T %v", payload["helm_template_value_usages"], payload["helm_template_value_usages"])
+	}
+	if names := namesOfHelmRows(rows); names[0] != "service.type" {
+		t.Fatalf("nested usage names = %v, want [service.type]", names)
+	}
+}
+
+// TestParseHelmOverrideValuesEmitsNoDefinitions proves an environment override
+// (values-prod.yaml) does NOT emit HelmValueDefinition rows; only the base
+// values.yaml defines the chart's canonical values, so a template usage never
+// resolves to an override file.
+func TestParseHelmOverrideValuesEmitsNoDefinitions(t *testing.T) {
+	t.Parallel()
+
+	dir := writeHelmChartFixture(t, "replicaCount: 2\n", "")
+	if err := os.WriteFile(filepath.Join(dir, "values-prod.yaml"), []byte("replicaCount: 5\n"), 0o600); err != nil {
+		t.Fatalf("write values-prod.yaml: %v", err)
+	}
+
+	base, err := Parse(filepath.Join(dir, "values.yaml"), false, Options{})
+	if err != nil {
+		t.Fatalf("Parse(values.yaml) error = %v", err)
+	}
+	if rows, ok := base["helm_value_definitions"].([]map[string]any); !ok || len(rows) == 0 {
+		t.Fatal("base values.yaml must emit helm_value_definitions")
+	}
+
+	override, err := Parse(filepath.Join(dir, "values-prod.yaml"), false, Options{})
+	if err != nil {
+		t.Fatalf("Parse(values-prod.yaml) error = %v", err)
+	}
+	if rows, ok := override["helm_value_definitions"].([]map[string]any); ok && len(rows) > 0 {
+		t.Fatalf("values-prod.yaml must not emit helm_value_definitions, got %v", namesOfHelmRows(rows))
+	}
+}
+
 func namesOfHelmRows(rows []map[string]any) []string {
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {

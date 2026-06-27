@@ -6,6 +6,7 @@ package cypher
 import (
 	"path"
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
@@ -171,11 +172,17 @@ func helmTemplateValueSourceUIDs(rows []map[string]any) []string {
 // `templates` segment it falls back to the file's directory so a malformed
 // layout still resolves within itself rather than silently cross-linking.
 func helmUsageChartDir(filePath string) string {
-	dir := path.Dir(filePath)
-	if path.Base(dir) == "templates" {
-		return path.Dir(dir)
+	// The chart root is everything before the `templates` segment, so a nested
+	// manifest (<chart>/templates/config/cm.yaml) resolves to <chart> — the same
+	// chart root as <chart>/values.yaml — not an intermediate directory. This
+	// agrees with isHelmTemplateManifest's chart-root resolution in the parser.
+	parts := strings.Split(filePath, "/")
+	for i, part := range parts {
+		if part == "templates" && i > 0 {
+			return strings.Join(parts[:i], "/")
+		}
 	}
-	return dir
+	return path.Dir(filePath)
 }
 
 // helmDefinitionChartDir returns the chart root directory for a values.yaml

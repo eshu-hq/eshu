@@ -23,15 +23,23 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			fingerprint: graphSchemaNeo4jFingerprint,
 			// The Helm template-value schema bump only adds
 			// HelmValueDefinition/HelmTemplateValueUsage constraints + uid
-			// constraints; an older writer can safely write against it. Record its
-			// predecessor fingerprint as compatible.
-			compatible: []string{graphSchemaNeo4jPreHelmTemplateValuesFingerprint},
+			// constraints; an older writer can safely write against it. The
+			// additive chain pre-GitLab -> GitLab -> Helm is cumulative, so BOTH
+			// the immediate (GitLab) predecessor and the pre-GitLab predecessor
+			// stay compatible.
+			compatible: []string{
+				graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
+				graphSchemaNeo4jPreGitlabFingerprint,
+			},
 		},
 		{
 			name:        "nornicdb",
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
-			compatible:  []string{graphSchemaNornicDBPreHelmTemplateValuesFingerprint},
+			compatible: []string{
+				graphSchemaNornicDBPreHelmTemplateValuesFingerprint,
+				graphSchemaNornicDBPreGitlabFingerprint,
+			},
 		},
 	}
 

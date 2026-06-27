@@ -22,13 +22,31 @@ func isHelmValuesFile(filename string) bool {
 		(strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml"))
 }
 
+// isHelmBaseValuesFile reports whether the filename is a chart's base values
+// file (values.yaml/values.yml), excluding environment overrides such as
+// values-prod.yaml. Only the base file defines the chart's canonical values, so
+// HelmValueDefinition nodes (and the rc-35 template usage -> definition edge)
+// are derived from it alone; an override file's definitions would otherwise
+// overwrite the base in the chart-keyed resolution index, letting a usage link
+// to an environment override instead of the chart definition.
+func isHelmBaseValuesFile(filename string) bool {
+	lower := strings.ToLower(filename)
+	return lower == "values.yaml" || lower == "values.yml"
+}
+
 func isHelmTemplateManifest(path string) bool {
 	parts := strings.Split(filepath.ToSlash(path), "/")
 	for index, part := range parts {
 		if part != "templates" || index == 0 {
 			continue
 		}
-		chartDir := filepath.Join(filepath.Dir(path), "..")
+		// Resolve the chart root from the matched `templates` segment, not from
+		// the file's immediate parent, so nested manifests
+		// (templates/tests/*.yaml, templates/config/*.yaml) resolve to the chart
+		// root (the directory holding Chart.yaml), not an intermediate dir.
+		// strings.Join (not filepath.Join) preserves a leading slash for absolute
+		// paths, where parts[0] is the empty segment before the root.
+		chartDir := strings.Join(parts[:index], "/")
 		if fileExists(filepath.Join(chartDir, "Chart.yaml")) ||
 			fileExists(filepath.Join(chartDir, "Chart.yml")) {
 			return true

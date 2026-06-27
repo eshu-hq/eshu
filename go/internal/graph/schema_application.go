@@ -37,6 +37,17 @@ const (
 	// predecessors are the GitLab-bump fingerprints (the prior current schema).
 	graphSchemaNeo4jPreHelmTemplateValuesFingerprint    = "5c03985679793d71accf72f200386ce42c44d6876ee11b9aa4911f1f3c0f67fd"
 	graphSchemaNornicDBPreHelmTemplateValuesFingerprint = "96e23958aed519860d44bdabf0e45d9f864c94a76ca6da1e002664892e4b46f1"
+
+	// graphSchemaNeo4jPreGitlabFingerprint and its NornicDB peer are the schema
+	// fingerprints from before the GitLab bump — the additive predecessor of the
+	// PreHelmTemplateValues (GitLab) schema. The additive chain
+	// pre-GitLab -> GitLab -> Helm-template-values is cumulative: a writer on the
+	// pre-GitLab schema creates neither GitLab nor Helm template-value nodes, so
+	// it stays compatible with the current Helm schema and must remain in the
+	// compatible list (dropping it would needlessly reject a pre-GitLab writer
+	// during a rolling deploy).
+	graphSchemaNeo4jPreGitlabFingerprint    = "be5aa2ca69761b9db112d7a45487ef7095b3fd58038de17cb2b3047479b93c0e"
+	graphSchemaNornicDBPreGitlabFingerprint = "b9e6a46df32f87a20b85cc5e8864a5b70bf0aa478edb055d17fc35d50204c3ff"
 )
 
 // graphSchemaCompatibleFingerprints lists additive predecessor schema
@@ -47,10 +58,16 @@ const (
 // must not list predecessors.
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {graphSchemaNeo4jPreHelmTemplateValuesFingerprint},
+		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
+			graphSchemaNeo4jPreGitlabFingerprint,
+		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {graphSchemaNornicDBPreHelmTemplateValuesFingerprint},
+		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreHelmTemplateValuesFingerprint,
+			graphSchemaNornicDBPreGitlabFingerprint,
+		},
 	},
 }
 

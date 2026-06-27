@@ -44,10 +44,15 @@ func Parse(
 		if item := parseHelmValues(path, source); item != nil {
 			shared.AppendBucket(payload, "helm_values", item)
 		}
-		for _, row := range parseHelmValueDefinitions(source) {
-			shared.AppendBucket(payload, "helm_value_definitions", row)
+		// Only the base values.yaml defines the chart's canonical values; emitting
+		// HelmValueDefinition nodes from environment overrides (values-prod.yaml)
+		// would let a template usage resolve to an override instead of the base.
+		if isHelmBaseValuesFile(filename) {
+			for _, row := range parseHelmValueDefinitions(source) {
+				shared.AppendBucket(payload, "helm_value_definitions", row)
+			}
+			shared.SortNamedBucket(payload, "helm_value_definitions")
 		}
-		shared.SortNamedBucket(payload, "helm_value_definitions")
 		appendHelmGrafanaObservability(payload, path, source)
 		sortObservabilityBuckets(payload)
 		if options.IndexSource {

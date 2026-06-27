@@ -1,0 +1,8 @@
+# Production override values. This file overrides a subset of values.yaml for the
+# prod environment. It must NOT produce HelmValueDefinition nodes: only the base
+# values.yaml defines the chart's canonical values, so a template usage resolves
+# to the base definition, never to this override. (Guards the override-exclusion
+# fix.)
+replicaCount: 5
+image:
+  tag: "1.27.0-prod"
