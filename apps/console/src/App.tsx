@@ -404,6 +404,7 @@ export function App(): React.JSX.Element {
             {open ? <SourcePopover source={source} onConnect={connect} onDemo={activateDemo} onClose={() => setOpen(false)} /> : null}
           </div>
         </header>
+        <main>
         {source.status === "connected" && source.mode === "demo" ? (
           <div className="prov-banner"><strong>Prospect demo</strong><span>Demo fixtures only; no real workspace or customer data is being queried.</span></div>
         ) : null}
@@ -420,6 +421,7 @@ export function App(): React.JSX.Element {
         ) : (
           <ConnectionState status={source.status} onConnect={() => setOpen(true)} />
         )}
+        </main>
       </div>
       {drawer && client ? <ServiceDrawer name={drawer} model={visibleModel} client={client} onClose={() => setDrawer(null)} /> : null}
     </div>
