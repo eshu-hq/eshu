@@ -60,6 +60,8 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT kustomize_unique IF NOT EXISTS FOR (ko:KustomizeOverlay) REQUIRE ko.path IS UNIQUE",
 	"CREATE CONSTRAINT helm_chart_unique IF NOT EXISTS FOR (h:HelmChart) REQUIRE (h.name, h.path) IS UNIQUE",
 	"CREATE CONSTRAINT helm_values_unique IF NOT EXISTS FOR (hv:HelmValues) REQUIRE hv.path IS UNIQUE",
+	"CREATE CONSTRAINT helm_value_definition_unique IF NOT EXISTS FOR (hvd:HelmValueDefinition) REQUIRE (hvd.name, hvd.path, hvd.line_number) IS UNIQUE",
+	"CREATE CONSTRAINT helm_template_value_usage_unique IF NOT EXISTS FOR (htvu:HelmTemplateValueUsage) REQUIRE (htvu.name, htvu.path, htvu.line_number) IS UNIQUE",
 
 	// Terraform entity constraints
 	"CREATE CONSTRAINT tf_resource_unique IF NOT EXISTS FOR (r:TerraformResource) REQUIRE (r.name, r.path, r.line_number) IS UNIQUE",
@@ -149,6 +151,8 @@ var uidConstraintLabels = []string{
 	"GitlabPipeline",
 	"HelmChart",
 	"HelmValues",
+	"HelmValueDefinition",
+	"HelmTemplateValueUsage",
 	"ImplBlock",
 	"IncidentRoutingEvidence",
 	"Interface",

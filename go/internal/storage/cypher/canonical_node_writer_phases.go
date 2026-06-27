@@ -230,6 +230,11 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 	// earlier this phase. No-op for non-GitLab repos.
 	stmts = append(stmts, gitlabEdgeStatements(mat)...)
 
+	// Helm template-value REFERENCES (usage -> values.yaml definition) edges,
+	// derived from the HelmTemplateValueUsage / HelmValueDefinition nodes written
+	// earlier this phase. No-op for repos with no Helm charts.
+	stmts = append(stmts, helmTemplateValueEdgeStatements(mat)...)
+
 	// IMPORTS edges
 	if len(mat.Imports) > 0 {
 		rows := make([]map[string]any, len(mat.Imports))

@@ -182,6 +182,10 @@ func newDefaultConfidenceRegistry() *ConfidenceRegistry {
 				Confidence: 0.90, Tier: TierStrongReference,
 				Rationale: "a Berksfile cookbook git source names the cookbook-owning repository",
 			},
+			EvidenceKindHelmTemplateValueReference: {
+				Confidence: 0.90, Tier: TierStrongReference,
+				Rationale: "a chart template `{{ .Values.<path> }}` reads a leaf key defined in the same chart's values.yaml",
+			},
 			EvidenceKindDockerComposeBuildContext: {
 				Confidence: 0.91, Tier: TierStrongReference,
 				Rationale: "a Compose build context path points at a buildable source repository",

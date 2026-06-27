@@ -24,17 +24,28 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "5c03985679793d71accf72f200386ce42c44d6876ee11b9aa4911f1f3c0f67fd"
-	graphSchemaNornicDBFingerprint = "96e23958aed519860d44bdabf0e45d9f864c94a76ca6da1e002664892e4b46f1"
+	graphSchemaNeo4jFingerprint    = "e5d984d669fe8fd4917e2f279fd2ebc5259a3f0a30e4811ee29f8a2767dc2c7b"
+	graphSchemaNornicDBFingerprint = "bbe407e1d1bd45cb80c93cb0f6768d4e078916bb0e1226ffea51e5ecaa6e644a"
 
-	// graphSchemaNeo4jPreGitlabFingerprint and graphSchemaNornicDBPreGitlabFingerprint
-	// are the schema fingerprints immediately before the GitLab CI bump (adding
-	// GitlabPipeline/GitlabJob uniqueness + uid constraints and extending the
-	// IF-NOT-EXISTS infra_search_index label list). That bump is additive — a
-	// writer running the predecessor schema creates no GitLab nodes, so the new
-	// constraints never apply to it, and the fulltext index is the same named
-	// IF-NOT-EXISTS index — so the predecessor is recorded as compatible to
-	// avoid a needless incompatible-schema path during a rolling deploy.
+	// graphSchemaNeo4jPreHelmTemplateValuesFingerprint and its NornicDB peer are
+	// the schema fingerprints immediately before the Helm template-value bump
+	// (adding HelmValueDefinition/HelmTemplateValueUsage uniqueness + uid
+	// constraints). That bump is additive — a writer running the predecessor
+	// schema creates no Helm template-value nodes, so the new constraints never
+	// apply to it — so the predecessor is recorded as compatible to avoid a
+	// needless incompatible-schema path during a rolling deploy. These
+	// predecessors are the GitLab-bump fingerprints (the prior current schema).
+	graphSchemaNeo4jPreHelmTemplateValuesFingerprint    = "5c03985679793d71accf72f200386ce42c44d6876ee11b9aa4911f1f3c0f67fd"
+	graphSchemaNornicDBPreHelmTemplateValuesFingerprint = "96e23958aed519860d44bdabf0e45d9f864c94a76ca6da1e002664892e4b46f1"
+
+	// graphSchemaNeo4jPreGitlabFingerprint and its NornicDB peer are the schema
+	// fingerprints from before the GitLab bump — the additive predecessor of the
+	// PreHelmTemplateValues (GitLab) schema. The additive chain
+	// pre-GitLab -> GitLab -> Helm-template-values is cumulative: a writer on the
+	// pre-GitLab schema creates neither GitLab nor Helm template-value nodes, so
+	// it stays compatible with the current Helm schema and must remain in the
+	// compatible list (dropping it would needlessly reject a pre-GitLab writer
+	// during a rolling deploy).
 	graphSchemaNeo4jPreGitlabFingerprint    = "be5aa2ca69761b9db112d7a45487ef7095b3fd58038de17cb2b3047479b93c0e"
 	graphSchemaNornicDBPreGitlabFingerprint = "b9e6a46df32f87a20b85cc5e8864a5b70bf0aa478edb055d17fc35d50204c3ff"
 )
@@ -47,10 +58,16 @@ const (
 // must not list predecessors.
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {graphSchemaNeo4jPreGitlabFingerprint},
+		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
+			graphSchemaNeo4jPreGitlabFingerprint,
+		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {graphSchemaNornicDBPreGitlabFingerprint},
+		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreHelmTemplateValuesFingerprint,
+			graphSchemaNornicDBPreGitlabFingerprint,
+		},
 	},
 }
 

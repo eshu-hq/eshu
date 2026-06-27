@@ -1,0 +1,11 @@
+apiVersion: v2
+name: webapp
+description: |
+  Single Helm chart that exercises the Helm template-value REFERENCES edge
+  (rc-35, HELM_TEMPLATE_VALUE_REFERENCE). Its templates/deployment.yaml uses
+  {{ .Values.<path> }} expressions that resolve to leaf keys defined in
+  values.yaml, producing intra-chart (HelmTemplateValueUsage)-[:REFERENCES]->
+  (HelmValueDefinition) edges. Synthetic data only.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
