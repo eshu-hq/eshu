@@ -19,10 +19,13 @@ Before making code or documentation changes, agents MUST:
 
 1. Read this file.
 2. Read [Agent Engineering Guide](docs/internal/agent-guide.md).
-3. Read the local docs named under [Read These First](#read-these-first) when
+3. Read [Agent Orchestration Model](docs/internal/agent-orchestration.md) for
+   how work is split across harnesses and models (coordinator/executor/debugger
+   roles, the handoff contract, and the CI gate floor).
+4. Read the local docs named under [Read These First](#read-these-first) when
    the touched surface matches those docs.
-4. Load the applicable project skill from `.agents/skills/`.
-5. Stop and ask if the correct owner, design intent, performance contract, or
+5. Load the applicable project skill from `.agents/skills/`.
+6. Stop and ask if the correct owner, design intent, performance contract, or
    verification gate is unclear.
 
 Skipping any startup step is not acceptable. Treat these rules as active for the
