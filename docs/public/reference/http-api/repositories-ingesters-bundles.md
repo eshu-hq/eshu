@@ -221,8 +221,12 @@ layout from the content-store file index (`content_files`). It resolves the
 selector, verifies repository identity, and lists one directory level by default.
 Use `path` to list a subdirectory, and `recursive=true` to return the full
 subtree. Each entry is `{name, type, path}`; file entries add `size` (line
-count) and `language` when indexed, and directory entries add `child_count` (the
-number of descendant files in that subtree). The response `ref` reports the
+count) and `language` (the detected source type) when indexed, and directory
+entries add `child_count` (the number of descendant files in that subtree). Use
+`language=<value>` to filter the listing to files of one language/source type
+(e.g. `go`, `python`, `hcl`, `yaml`); aliases expand to a family (`typescript`
+also matches `tsx`, `terraform` also matches `hcl`/`tfvars`). Filtering a real
+path down to zero matches returns an empty `entries` array, not a `404`. The response `ref` reports the
 indexed commit SHA the tree was built from, and `truncated=true` signals that
 the file cap was reached for a very large repository. When `ref` is supplied, it
 must match a captured source ref name/head SHA that equals the indexed commit,

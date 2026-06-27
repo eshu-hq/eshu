@@ -43,6 +43,7 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 	requestPath := normalizeTreePath(r.URL.Query().Get("path"))
 	requestedRef := strings.TrimSpace(r.URL.Query().Get("ref"))
 	recursive, _ := strconv.ParseBool(r.URL.Query().Get("recursive"))
+	languageFilter := repositoryTreeLanguageFilter(r.URL.Query().Get("language"))
 
 	var files []FileContent
 	if h.Content != nil {
@@ -65,7 +66,7 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 		files = files[:repositoryTreeFileLimit]
 	}
 
-	entries, matched := buildRepositoryTree(files, requestPath, recursive)
+	entries, matched := buildRepositoryTree(files, requestPath, recursive, languageFilter)
 	if requestPath != "" && !matched {
 		WriteError(w, http.StatusNotFound, "path not found")
 		return
@@ -98,6 +99,24 @@ func normalizeTreePath(raw string) string {
 	return strings.Trim(strings.TrimSpace(raw), "/")
 }
 
+// repositoryTreeLanguageFilter builds the language-match set for a ?language=
+// query param, or nil when the param is empty (no filtering). It reuses
+// repositoryLanguageFamily so the alias expansion matches the by-language
+// inventory endpoint (e.g. ?language=typescript also matches tsx, ?language=
+// terraform also matches hcl/tfvars). Values are lowercased for a
+// case-insensitive match against the stored file language.
+func repositoryTreeLanguageFilter(raw string) map[string]bool {
+	family := repositoryLanguageFamily(raw)
+	if len(family) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(family))
+	for _, lang := range family {
+		set[strings.ToLower(strings.TrimSpace(lang))] = true
+	}
+	return set
+}
+
 // repositoryTreeRef returns the indexed commit SHA shared by the listed files.
 // Only one commit SHA is recorded per indexed file today, so this is the single
 // ref the tree was built from; it is empty when no files carry a SHA.
@@ -117,7 +136,12 @@ func repositoryTreeRef(files []FileContent) string {
 //
 // child_count on a directory entry is the number of descendant files under that
 // directory subtree, in both single-level and recursive modes.
-func buildRepositoryTree(files []FileContent, requestPath string, recursive bool) ([]map[string]any, bool) {
+//
+// languageFilter, when non-nil, restricts the returned files (and the directory
+// child_counts) to files whose language is in the set. It is applied AFTER the
+// path-prefix match so that `matched` still reflects path existence: filtering a
+// real path down to zero language matches yields an empty listing, not a 404.
+func buildRepositoryTree(files []FileContent, requestPath string, recursive bool, languageFilter map[string]bool) ([]map[string]any, bool) {
 	prefix := ""
 	if requestPath != "" {
 		prefix = requestPath + "/"
@@ -133,6 +157,9 @@ func buildRepositoryTree(files []FileContent, requestPath string, recursive bool
 			continue
 		}
 		matched = true
+		if languageFilter != nil && !languageFilter[strings.ToLower(strings.TrimSpace(file.Language))] {
+			continue
+		}
 		remainder := strings.TrimPrefix(relativePath, prefix)
 		if remainder == "" {
 			continue
