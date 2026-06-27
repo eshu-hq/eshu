@@ -20,17 +20,13 @@ import { AdminTokensPanel } from "./admin/AdminTokensPanel";
 import "./liveInventory.css";
 import "./adminPage.css";
 
-export function AdminPage({
-  client
-}: {
-  readonly client?: EshuApiClient;
-}): React.JSX.Element {
+export function AdminPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
   return (
     <section className="page-shell">
       <h2>Admin</h2>
       <p className="admin-subtitle">
-        Capability-aware admin UX. The server enforces authorization on every
-        request; this surface renders metadata only and never exposes secrets.
+        Capability-aware admin UX. The server enforces authorization on every request; this surface
+        renders metadata only and never exposes secrets.
       </p>
       <div className="panel-grid">
         <AdminInvitationsPanel client={client} />

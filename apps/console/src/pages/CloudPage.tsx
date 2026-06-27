@@ -15,7 +15,7 @@ import type {
   CloudResourceCursor,
   CloudResourcePage,
   CloudResourceQuery,
-  CloudResourceRow
+  CloudResourceRow,
 } from "../api/cloudResources";
 import { Panel, TruthChip, FreshDot, StatTile, Badge } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
@@ -42,13 +42,13 @@ function queryFor(filters: Filters, cursor: CloudResourceCursor | null): CloudRe
     resourceType: filters.resourceType.trim() || undefined,
     region: filters.region.trim() || undefined,
     accountId: filters.accountId.trim() || undefined,
-    cursor: cursor ?? undefined
+    cursor: cursor ?? undefined,
   };
 }
 
 export function CloudPage({
   client,
-  sourceLabel = "live"
+  sourceLabel = "live",
 }: {
   readonly client?: EshuApiClient;
   readonly sourceLabel?: string;
@@ -91,7 +91,7 @@ export function CloudPage({
         cancelled = true;
       };
     },
-    [client]
+    [client],
   );
 
   // Load the first page on connect, and reload it whenever applied filters change.
@@ -135,23 +135,61 @@ export function CloudPage({
       <div className="page-intro">
         <h2>Cloud</h2>
         <p>
-          Cloud-provider resource inventory from <span className="mono">GET /api/v0/cloud/resources</span>. Network and table views are derived from the current bounded page of authoritative <span className="mono">CloudResource</span> graph rows.
+          Cloud-provider resource inventory from{" "}
+          <span className="mono">GET /api/v0/cloud/resources</span>. Network and table views are
+          derived from the current bounded page of authoritative{" "}
+          <span className="mono">CloudResource</span> graph rows.
         </p>
       </div>
 
       <div className="grid g-4">
-        <StatTile label="Cloud resources" value={page?.count ?? rows.length} color="var(--blue)" sub={`page ${pageNumber}${page?.truncated ? " · more available" : ""}`} />
-        <StatTile label="Accounts" value={accounts.length} color="var(--ember)" sub="on current page" />
-        <StatTile label="Resource families" value={families.length} color="var(--teal)" sub="typed from resource_type" />
-        <StatTile label="Endpoint" value={sourceLabel} color="var(--violet)" sub="/api/v0/cloud/resources" />
+        <StatTile
+          label="Cloud resources"
+          value={page?.count ?? rows.length}
+          color="var(--blue)"
+          sub={`page ${pageNumber}${page?.truncated ? " · more available" : ""}`}
+        />
+        <StatTile
+          label="Accounts"
+          value={accounts.length}
+          color="var(--ember)"
+          sub="on current page"
+        />
+        <StatTile
+          label="Resource families"
+          value={families.length}
+          color="var(--teal)"
+          sub="typed from resource_type"
+        />
+        <StatTile
+          label="Endpoint"
+          value={sourceLabel}
+          color="var(--violet)"
+          sub="/api/v0/cloud/resources"
+        />
       </div>
 
-      <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "var(--gap)" }}>
+      <div
+        className="grid mt"
+        style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "var(--gap)" }}
+      >
         <Panel title="Resources by family" sub="Current bounded page">
           <div className="kv-list">
             {families.map((family) => (
               <div className="kv" key={family.key}>
-                <span><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: family.color, marginRight: 7 }} />{family.label}</span>
+                <span>
+                  <i
+                    style={{
+                      display: "inline-block",
+                      width: 8,
+                      height: 8,
+                      borderRadius: 2,
+                      background: family.color,
+                      marginRight: 7,
+                    }}
+                  />
+                  {family.label}
+                </span>
                 <strong>{family.count}</strong>
               </div>
             ))}
@@ -161,10 +199,28 @@ export function CloudPage({
         <Panel title="Accounts" sub="Provider · region · resources">
           <div className="acct-list">
             {accounts.map((account) => (
-              <button key={account.id} type="button" className="acct-row" onClick={() => setNetworkAccount(account.id)}>
-                <span className="acct-prov" style={{ "--pc": providerColor(account.provider) } as CSSProperties}><i />{account.provider || "provider"}</span>
-                <span className="cell-stack" style={{ flex: 1, minWidth: 0 }}><span className="t-name" style={{ fontSize: ".84rem" }}>{account.id}</span><small className="mono">{account.region}</small></span>
-                <span className="mono t-mut" style={{ fontSize: ".78rem" }}>{account.count}</span>
+              <button
+                key={account.id}
+                type="button"
+                className="acct-row"
+                onClick={() => setNetworkAccount(account.id)}
+              >
+                <span
+                  className="acct-prov"
+                  style={{ "--pc": providerColor(account.provider) } as CSSProperties}
+                >
+                  <i />
+                  {account.provider || "provider"}
+                </span>
+                <span className="cell-stack" style={{ flex: 1, minWidth: 0 }}>
+                  <span className="t-name" style={{ fontSize: ".84rem" }}>
+                    {account.id}
+                  </span>
+                  <small className="mono">{account.region}</small>
+                </span>
+                <span className="mono t-mut" style={{ fontSize: ".78rem" }}>
+                  {account.count}
+                </span>
               </button>
             ))}
             {accounts.length === 0 ? <p className="empty">No accounts on this page.</p> : null}
@@ -172,17 +228,34 @@ export function CloudPage({
         </Panel>
       </div>
 
-      <CloudInventoryPanel accountId={applied.accountId} client={client} provider={applied.provider} />
+      <CloudInventoryPanel
+        accountId={applied.accountId}
+        client={client}
+        provider={applied.provider}
+      />
 
-      <div className="row mt" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div
+        className="row mt"
+        style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+      >
         <div className="seg" role="group" aria-label="Cloud view">
-          <button className={view === "network" ? "active" : ""} onClick={() => setView("network")}>Network</button>
-          <button className={view === "table" ? "active" : ""} onClick={() => setView("table")}>Table</button>
+          <button className={view === "network" ? "active" : ""} onClick={() => setView("network")}>
+            Network
+          </button>
+          <button className={view === "table" ? "active" : ""} onClick={() => setView("table")}>
+            Table
+          </button>
         </div>
         {view === "network" && accounts.length > 0 ? (
           <div className="seg branch-seg">
             {accounts.map((account) => (
-              <button key={account.id} className={selectedAccount === account.id ? "active" : ""} onClick={() => setNetworkAccount(account.id)}>{account.id}</button>
+              <button
+                key={account.id}
+                className={selectedAccount === account.id ? "active" : ""}
+                onClick={() => setNetworkAccount(account.id)}
+              >
+                {account.id}
+              </button>
             ))}
           </div>
         ) : null}
@@ -228,8 +301,12 @@ export function CloudPage({
           value={draft.accountId}
           onChange={(e) => setDraft((f) => ({ ...f, accountId: e.target.value }))}
         />
-        <button type="submit" className="btn-ghost active">Apply</button>
-        <button type="button" className="btn-ghost" onClick={onReset}>Reset</button>
+        <button type="submit" className="btn-ghost active">
+          Apply
+        </button>
+        <button type="button" className="btn-ghost" onClick={onReset}>
+          Reset
+        </button>
         <span style={{ flex: 1 }} />
         {page ? (
           <>
@@ -240,7 +317,11 @@ export function CloudPage({
       </form>
 
       {view === "network" ? (
-        <Panel className="flush mt" title="Network topology" sub={`Account → region → family → resources · ${selectedAccount || "no account selected"}`}>
+        <Panel
+          className="flush mt"
+          title="Network topology"
+          sub={`Account → region → family → resources · ${selectedAccount || "no account selected"}`}
+        >
           {page === null && busy ? (
             <div className="conn-state" style={{ padding: 40 }}>
               <div className="conn-spinner" aria-hidden />
@@ -249,7 +330,9 @@ export function CloudPage({
           ) : network.nodes.length > 0 ? (
             <GraphCanvas graph={network} layout="layered" height={520} />
           ) : (
-            <p className="empty">{err ? `Failed to load: ${err}` : "No cloud resources match this scope."}</p>
+            <p className="empty">
+              {err ? `Failed to load: ${err}` : "No cloud resources match this scope."}
+            </p>
           )}
         </Panel>
       ) : (
@@ -258,57 +341,73 @@ export function CloudPage({
           title={`Cloud resources · page ${pageNumber}`}
           sub={`Grouped by family · ${sub}`}
         >
-        {page === null && busy ? (
-          <div className="conn-state" style={{ padding: 40 }}>
-            <div className="conn-spinner" aria-hidden />
-            <p>Loading cloud resources…</p>
-          </div>
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Name / ID</th>
-                <th>Region</th>
-                <th>Account</th>
-                <th>Provider</th>
-                <th>State</th>
-                <th>Family</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {families.map((family) => (
-                <CloudFamilyRows key={family.key} family={family} rows={rows.filter((row) => familyFor(row).key === family.key)} />
-              ))}
-              {rows.length === 0 ? (
+          {page === null && busy ? (
+            <div className="conn-state" style={{ padding: 40 }}>
+              <div className="conn-spinner" aria-hidden />
+              <p>Loading cloud resources…</p>
+            </div>
+          ) : (
+            <table className="tbl">
+              <thead>
                 <tr>
-                  <td colSpan={8} className="empty">
-                    {err
-                      ? `Failed to load: ${err}`
-                      : "No cloud resources match this scope."}
-                  </td>
+                  <th>Type</th>
+                  <th>Name / ID</th>
+                  <th>Region</th>
+                  <th>Account</th>
+                  <th>Provider</th>
+                  <th>State</th>
+                  <th>Family</th>
+                  <th aria-label="Actions" />
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        )}
-
-      </Panel>
+              </thead>
+              <tbody>
+                {families.map((family) => (
+                  <CloudFamilyRows
+                    key={family.key}
+                    family={family}
+                    rows={rows.filter((row) => familyFor(row).key === family.key)}
+                  />
+                ))}
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="empty">
+                      {err ? `Failed to load: ${err}` : "No cloud resources match this scope."}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          )}
+        </Panel>
       )}
 
       <div
         className="row"
-        style={{ gap: 10, alignItems: "center", padding: "10px 0", justifyContent: "space-between" }}
+        style={{
+          gap: 10,
+          alignItems: "center",
+          padding: "10px 0",
+          justifyContent: "space-between",
+        }}
       >
         <span className="t-mut" style={{ fontSize: ".76rem" }}>
           {page ? `${page.count} on this page${page.truncated ? " · more available" : ""}` : "—"}
         </span>
         <div className="row" style={{ gap: 8 }}>
-          <button type="button" className="btn-ghost" disabled={busy || pageNumber <= 1} onClick={onPrev}>
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={busy || pageNumber <= 1}
+            onClick={onPrev}
+          >
             ← Prev
           </button>
-          <button type="button" className="btn-ghost active" disabled={busy || !page?.nextCursor} onClick={onNext}>
+          <button
+            type="button"
+            className="btn-ghost active"
+            disabled={busy || !page?.nextCursor}
+            onClick={onNext}
+          >
             Next →
           </button>
         </div>
@@ -325,32 +424,60 @@ function CloudRow({ row }: { readonly row: CloudResourceRow }): React.JSX.Elemen
   const family = familyFor(row);
   return (
     <tr>
-      <td className="mono" style={{ fontSize: ".78rem" }}>{row.resourceType || "—"}</td>
+      <td className="mono" style={{ fontSize: ".78rem" }}>
+        {row.resourceType || "—"}
+      </td>
       <td className="t-name" title={row.arn || row.id}>
         <Link to={`/explorer?q=${encodeURIComponent(row.id)}`}>{label}</Link>
       </td>
       <td className="t-mut">{row.region || "—"}</td>
-      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{row.accountId || "—"}</td>
+      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>
+        {row.accountId || "—"}
+      </td>
       <td className="t-mut">{row.provider || "—"}</td>
       <td className="t-mut">{row.state || "—"}</td>
-      <td><Badge tone="neutral">{family.label}</Badge></td>
-      <td className="t-mut mono" style={{ fontSize: ".7rem", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.id}>
+      <td>
+        <Badge tone="neutral">{family.label}</Badge>
+      </td>
+      <td
+        className="t-mut mono"
+        style={{
+          fontSize: ".7rem",
+          maxWidth: 220,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+        title={row.id}
+      >
         {row.serviceName || ""}
       </td>
     </tr>
   );
 }
 
-function CloudFamilyRows({ family, rows }: { readonly family: CloudFamily; readonly rows: readonly CloudResourceRow[] }): React.JSX.Element {
+function CloudFamilyRows({
+  family,
+  rows,
+}: {
+  readonly family: CloudFamily;
+  readonly rows: readonly CloudResourceRow[];
+}): React.JSX.Element {
   return (
     <>
       <tr className="group-row">
         <td colSpan={8}>
-          <span className="group-label" style={{ color: family.color }}>{family.label}</span>
-          <span className="group-meta">{rows.length} {rows.length === 1 ? "resource" : "resources"}</span>
+          <span className="group-label" style={{ color: family.color }}>
+            {family.label}
+          </span>
+          <span className="group-meta">
+            {rows.length} {rows.length === 1 ? "resource" : "resources"}
+          </span>
         </td>
       </tr>
-      {rows.map((row) => <CloudRow key={row.id} row={row} />)}
+      {rows.map((row) => (
+        <CloudRow key={row.id} row={row} />
+      ))}
     </>
   );
 }
@@ -387,7 +514,7 @@ function accountRollups(rows: readonly CloudResourceRow[]): readonly AccountRoll
       id,
       provider: current?.provider || row.provider,
       region: current?.region || row.region,
-      count: (current?.count ?? 0) + 1
+      count: (current?.count ?? 0) + 1,
     });
   }
   return [...accounts.values()].sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
@@ -395,11 +522,38 @@ function accountRollups(rows: readonly CloudResourceRow[]): readonly AccountRoll
 
 function familyFor(row: CloudResourceRow): CloudFamily {
   const type = row.resourceType.toLowerCase();
-  if (type.includes("iam") || type.includes("role") || type.includes("policy")) return { key: "identity", label: "Identity & access", color: "#ff9d2e", count: 0 };
-  if (type.includes("s3") || type.includes("rds") || type.includes("dynamo") || type.includes("elasticache") || type.includes("opensearch")) return { key: "storage", label: "Storage", color: "#f59e0b", count: 0 };
-  if (type.includes("vpc") || type.includes("subnet") || type.includes("security_group") || type.includes("gateway") || type.includes("route")) return { key: "network", label: "Network", color: "#4f8cff", count: 0 };
-  if (type.includes("eks") || type.includes("ecs") || type.includes("lambda") || type.includes("apigateway")) return { key: "compute", label: "Compute & runtime", color: "#14b8a6", count: 0 };
-  if (type.includes("cloudwatch") || type.includes("grafana") || type.includes("log") || type.includes("alarm")) return { key: "observability", label: "Observability", color: "#22c55e", count: 0 };
+  if (type.includes("iam") || type.includes("role") || type.includes("policy"))
+    return { key: "identity", label: "Identity & access", color: "#ff9d2e", count: 0 };
+  if (
+    type.includes("s3") ||
+    type.includes("rds") ||
+    type.includes("dynamo") ||
+    type.includes("elasticache") ||
+    type.includes("opensearch")
+  )
+    return { key: "storage", label: "Storage", color: "#f59e0b", count: 0 };
+  if (
+    type.includes("vpc") ||
+    type.includes("subnet") ||
+    type.includes("security_group") ||
+    type.includes("gateway") ||
+    type.includes("route")
+  )
+    return { key: "network", label: "Network", color: "#4f8cff", count: 0 };
+  if (
+    type.includes("eks") ||
+    type.includes("ecs") ||
+    type.includes("lambda") ||
+    type.includes("apigateway")
+  )
+    return { key: "compute", label: "Compute & runtime", color: "#14b8a6", count: 0 };
+  if (
+    type.includes("cloudwatch") ||
+    type.includes("grafana") ||
+    type.includes("log") ||
+    type.includes("alarm")
+  )
+    return { key: "observability", label: "Observability", color: "#22c55e", count: 0 };
   return { key: "other", label: "Other", color: "#8b5cf6", count: 0 };
 }
 
@@ -415,14 +569,39 @@ function cloudNetworkGraph(rows: readonly CloudResourceRow[], accountId: string)
   if (accountId === "" || scoped.length === 0) return { nodes: [], edges: [] };
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
-  nodes.set(`account:${accountId}`, { id: `account:${accountId}`, label: accountId, kind: "aws", sub: "account", col: 0, hero: true });
+  nodes.set(`account:${accountId}`, {
+    id: `account:${accountId}`,
+    label: accountId,
+    kind: "aws",
+    sub: "account",
+    col: 0,
+    hero: true,
+  });
   for (const row of scoped) {
     const regionId = `region:${row.region || "unknown"}`;
     const family = familyFor(row);
     const familyId = `family:${family.key}`;
-    nodes.set(regionId, { id: regionId, label: row.region || "unknown", kind: "env", sub: row.provider || "provider", col: 1 });
-    nodes.set(familyId, { id: familyId, label: family.label, kind: kindForFamily(family), sub: "resource family", col: 2 });
-    nodes.set(row.id, { id: row.id, label: row.name || row.resourceType || row.id, kind: kindForFamily(family), sub: row.resourceType, col: 3 });
+    nodes.set(regionId, {
+      id: regionId,
+      label: row.region || "unknown",
+      kind: "env",
+      sub: row.provider || "provider",
+      col: 1,
+    });
+    nodes.set(familyId, {
+      id: familyId,
+      label: family.label,
+      kind: kindForFamily(family),
+      sub: "resource family",
+      col: 2,
+    });
+    nodes.set(row.id, {
+      id: row.id,
+      label: row.name || row.resourceType || row.id,
+      kind: kindForFamily(family),
+      sub: row.resourceType,
+      col: 3,
+    });
     edges.push({ s: `account:${accountId}`, t: regionId, verb: "CONTAINS", layer: "infra" });
     edges.push({ s: regionId, t: familyId, verb: "GROUPS", layer: "infra" });
     edges.push({ s: familyId, t: row.id, verb: "HAS_RESOURCE", layer: "infra" });
@@ -431,5 +610,11 @@ function cloudNetworkGraph(rows: readonly CloudResourceRow[], accountId: string)
 }
 
 function kindForFamily(family: CloudFamily): string {
-  return family.key === "storage" ? "datastore" : family.key === "network" ? "workload" : family.key === "compute" ? "service" : "aws";
+  return family.key === "storage"
+    ? "datastore"
+    : family.key === "network"
+      ? "workload"
+      : family.key === "compute"
+        ? "service"
+        : "aws";
 }

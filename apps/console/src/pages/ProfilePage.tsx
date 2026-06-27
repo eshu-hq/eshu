@@ -8,11 +8,7 @@ import { useEffect, useState } from "react";
 
 import type { EshuApiClient } from "../api/client";
 import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
-import type {
-  ProfileData,
-  BrowserSessionItem,
-  APITokenItem
-} from "../api/userProfile";
+import type { ProfileData, BrowserSessionItem, APITokenItem } from "../api/userProfile";
 import { Panel, Badge } from "../components/atoms";
 import "./liveInventory.css";
 
@@ -48,7 +44,7 @@ function isExpired(iso: string | undefined): boolean {
 
 function IdentitySection({
   profile,
-  unavailable
+  unavailable,
 }: {
   readonly profile: ProfileData | null;
   readonly unavailable: boolean;
@@ -91,7 +87,7 @@ function IdentitySection({
 
 function ContextSection({
   profile,
-  unavailable
+  unavailable,
 }: {
   readonly profile: ProfileData | null;
   readonly unavailable: boolean;
@@ -159,7 +155,7 @@ function ContextSection({
 
 function SessionsSection({
   sessions,
-  unavailable
+  unavailable,
 }: {
   readonly sessions: readonly BrowserSessionItem[];
   readonly unavailable: boolean;
@@ -222,7 +218,7 @@ function SessionsSection({
 
 function TokensSection({
   tokens,
-  unavailable
+  unavailable,
 }: {
   readonly tokens: readonly APITokenItem[];
   readonly unavailable: boolean;
@@ -281,11 +277,7 @@ function TokensSection({
 // ProfilePage
 // ---------------------------------------------------------------------------
 
-export function ProfilePage({
-  client
-}: {
-  readonly client?: EshuApiClient;
-}): React.JSX.Element {
+export function ProfilePage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [profileUnavailable, setProfileUnavailable] = useState(false);
   const [sessions, setSessions] = useState<readonly BrowserSessionItem[]>([]);
@@ -304,20 +296,18 @@ export function ProfilePage({
       return;
     }
 
-    void Promise.all([
-      loadProfile(client),
-      loadSessions(client),
-      loadTokens(client)
-    ]).then(([p, s, t]) => {
-      if (cancelled) return;
-      setProfile(p.data);
-      setProfileUnavailable(p.provenance === "unavailable");
-      setSessions(s.sessions);
-      setSessionsUnavailable(s.provenance === "unavailable");
-      setTokens(t.tokens);
-      setTokensUnavailable(t.provenance === "unavailable");
-      setLoading(false);
-    });
+    void Promise.all([loadProfile(client), loadSessions(client), loadTokens(client)]).then(
+      ([p, s, t]) => {
+        if (cancelled) return;
+        setProfile(p.data);
+        setProfileUnavailable(p.provenance === "unavailable");
+        setSessions(s.sessions);
+        setSessionsUnavailable(s.provenance === "unavailable");
+        setTokens(t.tokens);
+        setTokensUnavailable(t.provenance === "unavailable");
+        setLoading(false);
+      },
+    );
 
     return () => {
       cancelled = true;

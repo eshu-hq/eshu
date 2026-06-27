@@ -32,9 +32,16 @@ import {
   Waves,
   Waypoints,
   User,
-  UserCog
+  UserCog,
 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { logout } from "./api/authSession";
@@ -78,27 +85,64 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/relationships", label: "Relationships", icon: Share2 },
       { to: "/service-story", label: "Service Story", icon: Waypoints },
       { to: "/service-report", label: "Service Report", icon: FileText },
-      { to: "/nodes", label: "Nodes", icon: Hexagon }
-    ]
+      { to: "/nodes", label: "Nodes", icon: Hexagon },
+    ],
   },
   {
     label: "Inventory",
     items: [
-      { to: "/repositories", label: "Repositories", icon: FolderGit2, count: (m) => nonZero(m.runtime.repositories) },
-      { to: "/catalog", label: "Catalog", icon: Boxes, count: (m) => nonZero(m.services?.length ?? 0) },
-      { to: "/findings", label: "Findings", icon: TriangleAlert, count: (m) => nonZero((m.findings?.length ?? 0) + (m.vulnerabilities?.length ?? 0)), alert: true },
-      { to: "/images", label: "Images", icon: Images, count: (m) => nonZero(m.images?.length ?? 0) },
-      { to: "/iac", label: "IaC", icon: Network, count: (m) => nonZero(m.iacResources?.length ?? 0) },
+      {
+        to: "/repositories",
+        label: "Repositories",
+        icon: FolderGit2,
+        count: (m) => nonZero(m.runtime.repositories),
+      },
+      {
+        to: "/catalog",
+        label: "Catalog",
+        icon: Boxes,
+        count: (m) => nonZero(m.services?.length ?? 0),
+      },
+      {
+        to: "/findings",
+        label: "Findings",
+        icon: TriangleAlert,
+        count: (m) => nonZero((m.findings?.length ?? 0) + (m.vulnerabilities?.length ?? 0)),
+        alert: true,
+      },
+      {
+        to: "/images",
+        label: "Images",
+        icon: Images,
+        count: (m) => nonZero(m.images?.length ?? 0),
+      },
+      {
+        to: "/iac",
+        label: "IaC",
+        icon: Network,
+        count: (m) => nonZero(m.iacResources?.length ?? 0),
+      },
       { to: "/replatforming", label: "Replatforming", icon: Network },
-      { to: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldCheck, count: (m) => nonZero(m.vulnerabilities?.length ?? 0), alert: true }
-    ]
+      {
+        to: "/vulnerabilities",
+        label: "Vulnerabilities",
+        icon: ShieldCheck,
+        count: (m) => nonZero(m.vulnerabilities?.length ?? 0),
+        alert: true,
+      },
+    ],
   },
   {
     label: "Code",
     items: [
-      { to: "/dead-code", label: "Dead code", icon: TriangleAlert, count: (m) => nonZero(m.findings.filter((finding) => finding.type === "Dead code").length) },
-      { to: "/code-graph", label: "Code graph", icon: Code2 }
-    ]
+      {
+        to: "/dead-code",
+        label: "Dead code",
+        icon: TriangleAlert,
+        count: (m) => nonZero(m.findings.filter((finding) => finding.type === "Dead code").length),
+      },
+      { to: "/code-graph", label: "Code graph", icon: Code2 },
+    ],
   },
   {
     label: "Cloud & Telemetry",
@@ -110,22 +154,37 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/ci-cd/run-correlations", label: "CI/CD", icon: Workflow },
       { to: "/cloud-drift", label: "Cloud Drift", icon: TriangleAlert, alert: true },
       { to: "/observability", label: "Observability", icon: Waves },
-      { to: "/sbom", label: "SBOM", icon: PackageSearch, count: (m) => nonZero(m.sbom?.total ?? 0) },
-      { to: "/dependencies", label: "Dependencies", icon: Boxes, count: (m) => nonZero(m.dependencies?.length ?? 0) }
-    ]
+      {
+        to: "/sbom",
+        label: "SBOM",
+        icon: PackageSearch,
+        count: (m) => nonZero(m.sbom?.total ?? 0),
+      },
+      {
+        to: "/dependencies",
+        label: "Dependencies",
+        icon: Boxes,
+        count: (m) => nonZero(m.dependencies?.length ?? 0),
+      },
+    ],
   },
   {
     label: "System",
     items: [
       { to: "/capabilities", label: "Capabilities", icon: ListChecks },
-      { to: "/collector-readiness", label: "Collector Readiness", icon: ShieldCheck, count: (m) => nonZero(m.collectorReadiness?.length ?? 0) },
+      {
+        to: "/collector-readiness",
+        label: "Collector Readiness",
+        icon: ShieldCheck,
+        count: (m) => nonZero(m.collectorReadiness?.length ?? 0),
+      },
       { to: "/surface-inventory", label: "Surface Inventory", icon: Layers },
       { to: "/operations", label: "Operations", icon: ServerCog },
       { to: "/freshness-causality", label: "Freshness", icon: Activity },
       { to: "/profile", label: "Profile", icon: User },
-      { to: "/admin", label: "Admin", icon: UserCog }
-    ]
-  }
+      { to: "/admin", label: "Admin", icon: UserCog },
+    ],
+  },
 ];
 
 const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
@@ -136,17 +195,23 @@ export function App(): React.JSX.Element {
   const env = loadConsoleEnvironment();
   const hasDemoEnv = env.mode === "demo";
   const hasSavedEnv = env.mode === "private" && (env.apiBaseUrl || "").length > 0;
-  const [model, setModel] = useState<ConsoleModel>(() => hasDemoEnv ? demoModel : emptyConsoleModel());
+  const [model, setModel] = useState<ConsoleModel>(() =>
+    hasDemoEnv ? demoModel : emptyConsoleModel(),
+  );
   const [source, setSource] = useState<SourceState>({
     base: hasDemoEnv ? demoApiBaseUrl : env.apiBaseUrl || "/eshu-api/",
     key: env.apiKey || "",
     mode: hasDemoEnv ? "demo" : "private",
     status: hasDemoEnv ? "connected" : hasSavedEnv ? "connecting" : "needs-connection",
-    msg: ""
+    msg: "",
   });
   const [open, setOpen] = useState(false);
-  const [client, setClient] = useState<EshuApiClient | undefined>(() => hasDemoEnv ? createDemoApiClient() : undefined);
-  const [repositories, setRepositories] = useState<readonly RepoListItem[]>(() => hasDemoEnv ? demoRepositories : []);
+  const [client, setClient] = useState<EshuApiClient | undefined>(() =>
+    hasDemoEnv ? createDemoApiClient() : undefined,
+  );
+  const [repositories, setRepositories] = useState<readonly RepoListItem[]>(() =>
+    hasDemoEnv ? demoRepositories : [],
+  );
   const [session, setSession] = useState<BrowserSessionResponse | null>(null);
   const [drawer, setDrawer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -204,7 +269,13 @@ export function App(): React.JSX.Element {
       setRepositories([]);
       setSession(null);
       setModel(emptyConsoleModel("unavailable"));
-      setSource({ base, key, mode: "private", status: "error", msg: e instanceof Error ? e.message : "unreachable" });
+      setSource({
+        base,
+        key,
+        mode: "private",
+        status: "error",
+        msg: e instanceof Error ? e.message : "unreachable",
+      });
     }
   }
 
@@ -214,34 +285,46 @@ export function App(): React.JSX.Element {
     const base = source.base;
     setSource((s) => ({ ...s, status: "connecting", msg: "" }));
     setModel(emptyConsoleModel("loading"));
-    bootFromSession(base).then((result) => {
-      if (result !== null) {
-        setClient(result.client);
-        setModel(result.model);
-        setRepositories(result.repositories);
-        setSession(result.session);
-        setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
-      } else {
+    bootFromSession(base)
+      .then((result) => {
+        if (result !== null) {
+          setClient(result.client);
+          setModel(result.model);
+          setRepositories(result.repositories);
+          setSession(result.session);
+          setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
+        } else {
+          setModel(emptyConsoleModel("unavailable"));
+          setSource((s) => ({
+            ...s,
+            status: "error",
+            msg: "Session established but data unavailable",
+          }));
+        }
+      })
+      .catch((e: unknown) => {
         setModel(emptyConsoleModel("unavailable"));
-        setSource((s) => ({ ...s, status: "error", msg: "Session established but data unavailable" }));
-      }
-    }).catch((e: unknown) => {
-      setModel(emptyConsoleModel("unavailable"));
-      setSource((s) => ({ ...s, status: "error", msg: e instanceof Error ? e.message : "unreachable" }));
-    });
+        setSource((s) => ({
+          ...s,
+          status: "error",
+          msg: e instanceof Error ? e.message : "unreachable",
+        }));
+      });
   }
   function handleLogout(): void {
     if (client === undefined) return;
-    logout(client).then(() => {
-      setSession(null);
-      setClient(undefined);
-      setModel(emptyConsoleModel());
-      setRepositories([]);
-      setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
-    }).catch(() => {
-      // Surface the failure — a silent logout leaves the user half-authenticated.
-      setSource((s) => ({ ...s, msg: "Logout failed — you may still be signed in." }));
-    });
+    logout(client)
+      .then(() => {
+        setSession(null);
+        setClient(undefined);
+        setModel(emptyConsoleModel());
+        setRepositories([]);
+        setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
+      })
+      .catch(() => {
+        // Surface the failure — a silent logout leaves the user half-authenticated.
+        setSource((s) => ({ ...s, msg: "Logout failed — you may still be signed in." }));
+      });
   }
 
   const openService = (name: string): void => setDrawer(name);
@@ -256,7 +339,7 @@ export function App(): React.JSX.Element {
       return;
     }
     const service = visibleModel.services.find((row) =>
-      [row.name, row.id, row.repo].some((value) => value.toLowerCase().includes(needle))
+      [row.name, row.id, row.repo].some((value) => value.toLowerCase().includes(needle)),
     );
     if (service) {
       openService(service.name);
@@ -279,38 +362,51 @@ export function App(): React.JSX.Element {
       bootedRef.current = true;
       const base = env.apiBaseUrl;
       setSource((s) => ({ ...s, status: "connecting", msg: "" }));
-      bootFromSession(base).then((result) => {
-        if (result !== null) {
-          setClient(result.client);
-          setModel(result.model);
-          setRepositories(result.repositories);
-          setSession(result.session);
-          setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
-        } else {
-          // No active session — show login page.
-          setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
-        }
-      }).catch(() => {
-        // Session probe failed (API unreachable) — fall back to key-based connect.
-        void connect(base, env.apiKey || "");
-      });
+      bootFromSession(base)
+        .then((result) => {
+          if (result !== null) {
+            setClient(result.client);
+            setModel(result.model);
+            setRepositories(result.repositories);
+            setSession(result.session);
+            setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
+          } else {
+            // No active session — show login page.
+            setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
+          }
+        })
+        .catch(() => {
+          // Session probe failed (API unreachable) — fall back to key-based connect.
+          void connect(base, env.apiKey || "");
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    function onKey(e: globalThis.KeyboardEvent): void { if (e.key === "Escape") { setOpen(false); setDrawer(null); } }
+    function onKey(e: globalThis.KeyboardEvent): void {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setDrawer(null);
+      }
+    }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const pill =
-    source.status === "connected" ? source.mode === "demo" ? "Demo fixtures" : "Live"
-      : source.status === "connecting" ? "Connecting…"
-        : source.status === "error" ? "Live (offline)"
+    source.status === "connected"
+      ? source.mode === "demo"
+        ? "Demo fixtures"
+        : "Live"
+      : source.status === "connecting"
+        ? "Connecting…"
+        : source.status === "error"
+          ? "Live (offline)"
           : "Not connected";
   const activeItem = activeNavItem(location.pathname);
-  const pageTitle = location.pathname === "/" ? "Eshu Console" : activeItem?.label ?? "Eshu Console";
+  const pageTitle =
+    location.pathname === "/" ? "Eshu Console" : (activeItem?.label ?? "Eshu Console");
 
   function submitSearch(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -332,37 +428,79 @@ export function App(): React.JSX.Element {
     <div className="shell">
       <nav className="sidebar">
         <a className="brand" href="/">
-          <span className="brand-mark brand-glyph" aria-hidden><i /><i /><i /></span>
-          <span><span className="brand-name">e<b>shu</b></span><span className="brand-sub">Context Graph</span></span>
+          <span className="brand-mark brand-glyph" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>
+            <span className="brand-name">
+              e<b>shu</b>
+            </span>
+            <span className="brand-sub">Context Graph</span>
+          </span>
         </a>
         {NAV_GROUPS.map((group) => (
           <div className="nav-section" key={group.label}>
             <div className="nav-group-label">{group.label}</div>
-            {group.items.filter((n) => allowedNav.has(n.to)).map((n) => {
-              const Icon = n.icon;
-              const count = n.count?.(visibleModel) ?? null;
-              return (
-                <NavLink key={n.to} to={n.to} aria-label={n.label} className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
-                  <Icon aria-hidden />
-                  <span className="nav-label">{n.label}</span>
-                  {count !== null ? <span aria-hidden className={`nav-count${n.alert ? " alert" : ""}`}>{count}</span> : null}
-                </NavLink>
-              );
-            })}
+            {group.items
+              .filter((n) => allowedNav.has(n.to))
+              .map((n) => {
+                const Icon = n.icon;
+                const count = n.count?.(visibleModel) ?? null;
+                return (
+                  <NavLink
+                    key={n.to}
+                    to={n.to}
+                    aria-label={n.label}
+                    className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
+                  >
+                    <Icon aria-hidden />
+                    <span className="nav-label">{n.label}</span>
+                    {count !== null ? (
+                      <span aria-hidden className={`nav-count${n.alert ? " alert" : ""}`}>
+                        {count}
+                      </span>
+                    ) : null}
+                  </NavLink>
+                );
+              })}
           </div>
         ))}
         <div className="sidebar-foot">
           <div className="backend-card">
-            <div className="bc-top"><i />{model.runtime.indexStatus}</div>
-            <div className="bc-meta"><span>{source.status === "connected" ? source.mode === "demo" ? "demo" : "live" : pill.toLowerCase()}</span><span>{source.status === "connected" ? `${fmt(model.runtime.repositories)} repos` : "—"}</span></div>
+            <div className="bc-top">
+              <i />
+              {model.runtime.indexStatus}
+            </div>
+            <div className="bc-meta">
+              <span>
+                {source.status === "connected"
+                  ? source.mode === "demo"
+                    ? "demo"
+                    : "live"
+                  : pill.toLowerCase()}
+              </span>
+              <span>
+                {source.status === "connected" ? `${fmt(model.runtime.repositories)} repos` : "—"}
+              </span>
+            </div>
           </div>
         </div>
       </nav>
       <div className="main">
         <header className="topbar">
-          <div className="topbar-title"><h1>{pageTitle}</h1><span>Read-only code-to-cloud graph status & evidence</span></div>
+          <div className="topbar-title">
+            <h1>{pageTitle}</h1>
+            <span>Read-only code-to-cloud graph status & evidence</span>
+          </div>
           <form className="searchbox" onSubmit={submitSearch}>
-            <button className="search-submit" type="submit" aria-label="Search" onClick={submitSearchButton}>
+            <button
+              className="search-submit"
+              type="submit"
+              aria-label="Search"
+              onClick={submitSearchButton}
+            >
               <Search aria-hidden />
             </button>
             <input
@@ -385,7 +523,9 @@ export function App(): React.JSX.Element {
           >
             <ShieldCheck aria-hidden />
           </button>
-          <span className="topbar-signal" title="No local notifications"><Bell aria-hidden /></span>
+          <span className="topbar-signal" title="No local notifications">
+            <Bell aria-hidden />
+          </span>
           {session !== null ? (
             <button
               className="topbar-btn"
@@ -398,32 +538,72 @@ export function App(): React.JSX.Element {
             </button>
           ) : null}
           <div className="source-wrap">
-            <button className={`source-pill src-${source.status}`} onClick={() => setOpen((o) => !o)}>
-              <i />{pill}
+            <button
+              className={`source-pill src-${source.status}`}
+              onClick={() => setOpen((o) => !o)}
+            >
+              <i />
+              {pill}
             </button>
-            {open ? <SourcePopover source={source} onConnect={connect} onDemo={activateDemo} onClose={() => setOpen(false)} /> : null}
+            {open ? (
+              <SourcePopover
+                source={source}
+                onConnect={connect}
+                onDemo={activateDemo}
+                onClose={() => setOpen(false)}
+              />
+            ) : null}
           </div>
         </header>
         <main>
-        {source.status === "connected" && source.mode === "demo" ? (
-          <div className="prov-banner"><strong>Prospect demo</strong><span>Demo fixtures only; no real workspace or customer data is being queried.</span></div>
-        ) : null}
-        {verifiedOnly ? (
-          <div className="prov-banner"><ShieldCheck aria-hidden size={14} /> Verified evidence only — hiding inferred findings and graph nodes.</div>
-        ) : null}
-        {source.status === "error" ? (
-          <div className="prov-banner warn">Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? ` · ${source.msg}` : ""}. <button className="link-btn" onClick={() => setOpen(true)}>Edit data source</button></div>
-        ) : null}
-        {showLogin ? (
-          <LoginPage client={new EshuApiClient({ baseUrl: source.base })} onSuccess={handleLoginSuccess} baseUrl={source.base} />
-        ) : source.status === "connected" ? (
-          <AppRoutes model={visibleModel} client={client} source={source} repositories={repositories} onOpenService={openService} />
-        ) : (
-          <ConnectionState status={source.status} onConnect={() => setOpen(true)} />
-        )}
+          {source.status === "connected" && source.mode === "demo" ? (
+            <div className="prov-banner">
+              <strong>Prospect demo</strong>
+              <span>Demo fixtures only; no real workspace or customer data is being queried.</span>
+            </div>
+          ) : null}
+          {verifiedOnly ? (
+            <div className="prov-banner">
+              <ShieldCheck aria-hidden size={14} /> Verified evidence only — hiding inferred
+              findings and graph nodes.
+            </div>
+          ) : null}
+          {source.status === "error" ? (
+            <div className="prov-banner warn">
+              Eshu API unavailable at <span className="mono">{source.base}</span>
+              {source.msg ? ` · ${source.msg}` : ""}.{" "}
+              <button className="link-btn" onClick={() => setOpen(true)}>
+                Edit data source
+              </button>
+            </div>
+          ) : null}
+          {showLogin ? (
+            <LoginPage
+              client={new EshuApiClient({ baseUrl: source.base })}
+              onSuccess={handleLoginSuccess}
+              baseUrl={source.base}
+            />
+          ) : source.status === "connected" ? (
+            <AppRoutes
+              model={visibleModel}
+              client={client}
+              source={source}
+              repositories={repositories}
+              onOpenService={openService}
+            />
+          ) : (
+            <ConnectionState status={source.status} onConnect={() => setOpen(true)} />
+          )}
         </main>
       </div>
-      {drawer && client ? <ServiceDrawer name={drawer} model={visibleModel} client={client} onClose={() => setDrawer(null)} /> : null}
+      {drawer && client ? (
+        <ServiceDrawer
+          name={drawer}
+          model={visibleModel}
+          client={client}
+          onClose={() => setDrawer(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -441,8 +621,8 @@ function verifiedConsoleModel(model: ConsoleModel): ConsoleModel {
     findings: model.findings.filter((finding) => finding.truth !== "fallback"),
     graph: {
       nodes,
-      edges: model.graph.edges.filter((edge) => nodeIds.has(edge.s) && nodeIds.has(edge.t))
-    }
+      edges: model.graph.edges.filter((edge) => nodeIds.has(edge.s) && nodeIds.has(edge.t)),
+    },
   };
 }
 
@@ -450,15 +630,18 @@ function vulnerabilitySearchTarget(model: ConsoleModel, needle: string): string 
   const exactVulnerability = model.vulnerabilities.find((row) => row.id.toLowerCase() === needle);
   if (exactVulnerability) return exactVulnerability.id;
   const exactAdvisory = model.advisories.find((row) =>
-    [row.id, row.cveId, row.ghsaId].some((value) => value.toLowerCase() === needle)
+    [row.id, row.cveId, row.ghsaId].some((value) => value.toLowerCase() === needle),
   );
   if (exactAdvisory) return exactAdvisory.cveId || exactAdvisory.ghsaId || exactAdvisory.id;
   return null;
 }
 
-function repositorySearchTarget(repositories: readonly RepoListItem[], needle: string): string | null {
+function repositorySearchTarget(
+  repositories: readonly RepoListItem[],
+  needle: string,
+): string | null {
   const exactRepository = repositories.find((row) =>
-    [row.id, row.name, row.repoSlug].some((value) => value.toLowerCase() === needle)
+    [row.id, row.name, row.repoSlug].some((value) => value.toLowerCase() === needle),
   );
   return exactRepository?.id ?? null;
 }

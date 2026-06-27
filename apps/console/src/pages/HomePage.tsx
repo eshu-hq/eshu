@@ -10,18 +10,16 @@ import { loadConsoleEnvironment } from "../config/environment";
 export function HomePage(): React.JSX.Element {
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<readonly SearchCandidate[]>([]);
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">(
-    "loading"
-  );
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">("loading");
 
   useEffect(() => {
     const environment = loadConsoleEnvironment();
     const client =
       environment.mode === "private"
         ? new EshuApiClient({
-          apiKey: environment.apiKey,
-          baseUrl: environment.apiBaseUrl
-        })
+            apiKey: environment.apiKey,
+            baseUrl: environment.apiBaseUrl,
+          })
         : undefined;
     void loadSearchCandidates({ client, mode: environment.mode })
       .then((loadedCandidates) => {
@@ -39,9 +37,8 @@ export function HomePage(): React.JSX.Element {
       <div className="page-intro">
         <h2>Story</h2>
         <p>
-        Search for a repository, service, or workload to open a read-only
-        workspace with story, evidence, deployment, code, findings, and
-        freshness.
+          Search for a repository, service, or workload to open a read-only workspace with story,
+          evidence, deployment, code, findings, and freshness.
         </p>
       </div>
       {loadState === "unavailable" ? (

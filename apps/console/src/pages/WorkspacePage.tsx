@@ -12,16 +12,10 @@ import { DeploymentGraphView } from "../visualization/DeploymentGraphView";
 export function WorkspacePage(): React.JSX.Element {
   const { entityId, entityKind } = useParams();
   const [story, setStory] = useState<WorkspaceStory | null>(null);
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">(
-    "loading"
-  );
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">("loading");
 
   useEffect(() => {
-    if (
-      entityKind !== "repositories" &&
-      entityKind !== "services" &&
-      entityKind !== "workloads"
-    ) {
+    if (entityKind !== "repositories" && entityKind !== "services" && entityKind !== "workloads") {
       setLoadState("unavailable");
       return;
     }
@@ -29,15 +23,15 @@ export function WorkspacePage(): React.JSX.Element {
     const client =
       environment.mode === "private"
         ? new EshuApiClient({
-          apiKey: environment.apiKey,
-          baseUrl: environment.apiBaseUrl
-        })
+            apiKey: environment.apiKey,
+            baseUrl: environment.apiBaseUrl,
+          })
         : undefined;
     void loadWorkspaceStory({
       client,
       entityId: entityId ?? "",
       entityKind,
-      mode: environment.mode
+      mode: environment.mode,
     })
       .then((loadedStory) => {
         setStory(loadedStory);
@@ -106,9 +100,7 @@ export function WorkspacePage(): React.JSX.Element {
       ) : null}
 
       <div className="workspace-grid">
-        {hasServiceDossier ? (
-          <ServiceSpotlightPanel spotlight={story.serviceSpotlight} />
-        ) : null}
+        {hasServiceDossier ? <ServiceSpotlightPanel spotlight={story.serviceSpotlight} /> : null}
         <section className="workspace-panel-wide workspace-evidence-graph">
           <WorkspaceSectionHeading
             description={
@@ -119,10 +111,7 @@ export function WorkspacePage(): React.JSX.Element {
             title="Deployment evidence map"
           />
           {story.deploymentGraph.nodes.length > 1 ? (
-            <DeploymentGraphView
-              detailTitle="Evidence index"
-              graph={story.deploymentGraph}
-            />
+            <DeploymentGraphView detailTitle="Evidence index" graph={story.deploymentGraph} />
           ) : (
             <p className="inline-state">No deployment graph is available yet.</p>
           )}
@@ -173,7 +162,7 @@ export function WorkspacePage(): React.JSX.Element {
 
 function WorkspaceSectionHeading({
   description,
-  title
+  title,
 }: {
   readonly description: string;
   readonly title: string;
