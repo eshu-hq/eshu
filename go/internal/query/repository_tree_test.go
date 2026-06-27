@@ -67,6 +67,39 @@ func requestRepositoryTree(t *testing.T, handler *RepositoryHandler, target stri
 	return w
 }
 
+func TestGetRepositoryTreeFiltersByLanguage(t *testing.T) {
+	t.Parallel()
+
+	// Recursive + language=go: only the three Go files, never the markdown README.
+	w := requestRepositoryTree(t, repositoryTreeHandler(), "/api/v0/repositories/repo-1/tree?recursive=true&language=go")
+	entries := repositoryTreeEntries(t, decodeRepositoryTree(t, w))
+	for _, name := range []string{"main.go", "util.go", "db.go"} {
+		if _, ok := entries[name]; !ok {
+			t.Fatalf("language=go listing missing %q; got %v", name, entries)
+		}
+	}
+	if _, ok := entries["README.md"]; ok {
+		t.Fatalf("language=go listing must exclude the markdown README; got %v", entries)
+	}
+
+	// A language with no matching files yields an empty listing, not a 404.
+	w = requestRepositoryTree(t, repositoryTreeHandler(), "/api/v0/repositories/repo-1/tree?recursive=true&language=rust")
+	entries = repositoryTreeEntries(t, decodeRepositoryTree(t, w))
+	if len(entries) != 0 {
+		t.Fatalf("language=rust listing must be empty; got %v", entries)
+	}
+
+	// markdown matches only the README.
+	w = requestRepositoryTree(t, repositoryTreeHandler(), "/api/v0/repositories/repo-1/tree?recursive=true&language=markdown")
+	entries = repositoryTreeEntries(t, decodeRepositoryTree(t, w))
+	if _, ok := entries["README.md"]; !ok {
+		t.Fatalf("language=markdown listing must include README.md; got %v", entries)
+	}
+	if _, ok := entries["main.go"]; ok {
+		t.Fatalf("language=markdown listing must exclude Go files; got %v", entries)
+	}
+}
+
 func TestGetRepositoryTreeListsOneLevelWithDirsAndFiles(t *testing.T) {
 	t.Parallel()
 

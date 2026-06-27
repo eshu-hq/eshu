@@ -324,7 +324,8 @@ const openAPIPathsRepositories = `
           {"$ref": "#/components/parameters/RepoId"},
           {"name": "path", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Directory subpath to list, relative to the repository root."},
           {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Branch name or commit SHA selector. The request succeeds only when the selector resolves to the indexed commit; unavailable or unindexed refs return an error."},
-          {"name": "recursive", "in": "query", "required": false, "schema": {"type": "boolean"}, "description": "When true, return the full subtree instead of a single directory level."}
+          {"name": "recursive", "in": "query", "required": false, "schema": {"type": "boolean"}, "description": "When true, return the full subtree instead of a single directory level."},
+          {"name": "language", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Filter the listing to files of this language/source-type (e.g. go, python, hcl, yaml). Aliases expand to a family: typescript also matches tsx; terraform also matches hcl/tfvars. A path with no matching files returns an empty listing, not 404."}
         ],
         "responses": {
           "200": {
