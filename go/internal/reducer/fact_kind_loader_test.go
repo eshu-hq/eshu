@@ -221,23 +221,18 @@ func TestPlatformMaterializationHandlerUsesKindFilteredFactLoaderForInfrastructu
 			{FactKind: "content_entity"},
 		},
 	}
-	handler := PlatformMaterializationHandler{
-		Writer: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{CanonicalWrites: 1},
-		},
+	handler := PlatformInfraMaterializationHandler{
 		FactLoader:                 loader,
 		InfrastructureMaterializer: NewInfrastructurePlatformMaterializer(&recordingCypherExecutor{}),
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-platform-kind-filter",
-		ScopeID:         "scope-1",
-		GenerationID:    "generation-1",
-		Domain:          DomainDeploymentMapping,
-		EntityKeys:      []string{"repo:repo-1"},
-		RelatedScopeIDs: []string{"scope-1"},
-		EnqueuedAt:      time.Now(),
-		AvailableAt:     time.Now(),
+		IntentID:     "intent-platform-kind-filter",
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+		Domain:       DomainPlatformInfraMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)

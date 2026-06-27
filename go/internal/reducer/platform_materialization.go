@@ -62,9 +62,6 @@ type WorkloadMaterializationReplayer interface {
 // persisted evidence facts after platform materialization completes.
 type PlatformMaterializationHandler struct {
 	Writer                          PlatformMaterializationWriter
-	FactLoader                      FactLoader
-	InfrastructureMaterializer      *InfrastructurePlatformMaterializer
-	PlatformGraphLocker             PlatformGraphLocker
 	CrossRepoResolver               *CrossRepoRelationshipHandler
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
 	PhasePublisher                  GraphProjectionPhasePublisher
@@ -74,9 +71,6 @@ type PlatformMaterializationHandler struct {
 // deployment_mapping reducer domain without affecting reducer ordering.
 type platformMaterializationTiming struct {
 	platformWriteDuration       time.Duration
-	factLoadDuration            time.Duration
-	infrastructureExtract       time.Duration
-	infrastructureGraphWrite    time.Duration
 	crossRepoResolutionDuration time.Duration
 	workloadReplayDuration      time.Duration
 	phasePublishDuration        time.Duration
@@ -113,40 +107,12 @@ func (h PlatformMaterializationHandler) Handle(
 		return Result{}, err
 	}
 
+	// PROVISIONS_PLATFORM (Repository-[:PROVISIONS_PLATFORM]->Platform) edges from
+	// Terraform/terragrunt IaC are materialized by the dedicated
+	// platform_infra_materialization domain (PlatformInfraMaterializationHandler),
+	// not here. This handler owns the deployment_mapping canonical fact write and
+	// cross-repo resolution only.
 	canonicalWrites := writeResult.CanonicalWrites
-	infraRows := 0
-	infraWrites := 0
-
-	// When both FactLoader and InfrastructureMaterializer are provided,
-	// also write PROVISIONS_PLATFORM edges to the canonical graph.
-	if h.FactLoader != nil && h.InfrastructureMaterializer != nil {
-		factLoadStarted := time.Now()
-		facts, err := loadFactsForKinds(
-			ctx,
-			h.FactLoader,
-			intent.ScopeID,
-			intent.GenerationID,
-			[]string{factKindRepository, factKindFile, factKindParsedFile},
-		)
-		timing.factLoadDuration = time.Since(factLoadStarted)
-		if err != nil {
-			return Result{}, fmt.Errorf("load facts for infrastructure platform materialization: %w", err)
-		}
-		extractStarted := time.Now()
-		rows := ExtractInfrastructurePlatformRows(facts)
-		timing.infrastructureExtract = time.Since(extractStarted)
-		infraRows = len(rows)
-		if len(rows) > 0 {
-			infraStarted := time.Now()
-			infraResult, err := h.materializeInfrastructurePlatforms(ctx, rows)
-			timing.infrastructureGraphWrite = time.Since(infraStarted)
-			if err != nil {
-				return Result{}, fmt.Errorf("materialize infrastructure platforms: %w", err)
-			}
-			infraWrites = infraResult.PlatformEdgesWritten
-			canonicalWrites += infraResult.PlatformEdgesWritten
-		}
-	}
 
 	crossRepoWrites := 0
 	workloadReplayCount := 0
@@ -205,8 +171,6 @@ func (h PlatformMaterializationHandler) Handle(
 		intent,
 		request,
 		canonicalWrites,
-		infraRows,
-		infraWrites,
 		crossRepoWrites,
 		workloadReplayCount,
 		timing,
@@ -239,9 +203,6 @@ func (h PlatformMaterializationHandler) Handle(
 func platformMaterializationSubDurations(t platformMaterializationTiming) map[string]float64 {
 	return map[string]float64{
 		"platform_write":     t.platformWriteDuration.Seconds(),
-		"load_facts":         t.factLoadDuration.Seconds(),
-		"infra_extract":      t.infrastructureExtract.Seconds(),
-		"infra_graph_write":  t.infrastructureGraphWrite.Seconds(),
 		"cross_repo_resolve": t.crossRepoResolutionDuration.Seconds(),
 		"workload_replay":    t.workloadReplayDuration.Seconds(),
 		"phase_publish":      t.phasePublishDuration.Seconds(),
@@ -249,48 +210,11 @@ func platformMaterializationSubDurations(t platformMaterializationTiming) map[st
 	}
 }
 
-func (h PlatformMaterializationHandler) materializeInfrastructurePlatforms(
-	ctx context.Context,
-	rows []InfrastructurePlatformRow,
-) (InfrastructurePlatformResult, error) {
-	if h.PlatformGraphLocker == nil {
-		result, err := h.InfrastructureMaterializer.Materialize(ctx, rows)
-		return result, err
-	}
-
-	var result InfrastructurePlatformResult
-	err := h.PlatformGraphLocker.WithPlatformLocks(
-		ctx,
-		infrastructurePlatformLockIDs(rows),
-		func(lockCtx context.Context) error {
-			var writeErr error
-			result, writeErr = h.InfrastructureMaterializer.Materialize(lockCtx, rows)
-			return writeErr
-		},
-	)
-	if err != nil {
-		return InfrastructurePlatformResult{}, err
-	}
-	return result, nil
-}
-
-func infrastructurePlatformLockIDs(rows []InfrastructurePlatformRow) []string {
-	keys := make([]string, 0, len(rows))
-	for _, row := range rows {
-		if key := strings.TrimSpace(row.PlatformID); key != "" {
-			keys = append(keys, key)
-		}
-	}
-	return uniqueSortedStrings(keys)
-}
-
 func logPlatformMaterializationCompleted(
 	ctx context.Context,
 	intent Intent,
 	request PlatformMaterializationWrite,
 	canonicalWrites int,
-	infraRows int,
-	infraWrites int,
 	crossRepoWrites int,
 	workloadReplayCount int,
 	timing platformMaterializationTiming,
@@ -303,14 +227,9 @@ func logPlatformMaterializationCompleted(
 		slog.Int("entity_key_count", len(request.EntityKeys)),
 		slog.Int("related_scope_count", len(request.RelatedScopeIDs)),
 		slog.Int("canonical_write_count", canonicalWrites),
-		slog.Int("infrastructure_row_count", infraRows),
-		slog.Int("infrastructure_write_count", infraWrites),
 		slog.Int("cross_repo_write_count", crossRepoWrites),
 		slog.Int("workload_replay_count", workloadReplayCount),
 		slog.Float64("platform_write_duration_seconds", timing.platformWriteDuration.Seconds()),
-		slog.Float64("fact_load_duration_seconds", timing.factLoadDuration.Seconds()),
-		slog.Float64("infrastructure_extract_duration_seconds", timing.infrastructureExtract.Seconds()),
-		slog.Float64("infrastructure_graph_write_duration_seconds", timing.infrastructureGraphWrite.Seconds()),
 		slog.Float64("cross_repo_resolution_duration_seconds", timing.crossRepoResolutionDuration.Seconds()),
 		slog.Float64("workload_replay_duration_seconds", timing.workloadReplayDuration.Seconds()),
 		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),

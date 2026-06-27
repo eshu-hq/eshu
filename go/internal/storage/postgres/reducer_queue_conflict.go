@@ -178,20 +178,26 @@ func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 		reducer.DomainInheritanceMaterialization:
 		return reducerConflictDomainCodeGraph, scopeKey
 	case reducer.DomainWorkloadMaterialization,
-		reducer.DomainDeploymentMapping:
+		reducer.DomainPlatformInfraMaterialization:
 		// Both MERGE (p:Platform {id}) over the same platform_id namespace and
 		// WorkloadMaterialization holds no advisory lock, so they must serialize
 		// against each other. Share one conflict key keyed only by scope.
+		// (PlatformInfraMaterialization replaced DeploymentMapping here when the
+		// Repository-[:PROVISIONS_PLATFORM]->Platform write moved to its own
+		// dedicated domain; DeploymentMapping no longer MERGEs Platform nodes.)
 		return reducerConflictDomainPlatformGraph, reducerPlatformNodeWriterConflictKey(scopeKey)
 	case reducer.DomainWorkloadIdentity,
 		reducer.DomainDeployableUnitCorrelation,
+		reducer.DomainDeploymentMapping,
 		reducer.DomainCloudAssetResolution:
 		// None of these MERGE a :Platform node: WorkloadIdentity and
 		// CloudAssetResolution upsert Postgres fact_records keyed by intent id
-		// (idempotent), and DeployableUnitCorrelation MERGEs only
-		// (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) edges. They do
-		// not conflict with the Platform-node writers or with each other, so each
-		// gets its own per-domain key and drains concurrently.
+		// (idempotent), DeployableUnitCorrelation MERGEs only
+		// (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) edges, and
+		// DeploymentMapping upserts a Postgres canonical fact plus cross-repo
+		// repository-repository edges. They do not conflict with the Platform-node
+		// writers or with each other, so each gets its own per-domain key and
+		// drains concurrently.
 		return reducerConflictDomainPlatformGraph, reducerPlatformGraphConflictKey(intent.Domain, scopeKey)
 	default:
 		return reducerConflictDomainScope, scopeKey
@@ -200,12 +206,13 @@ func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
 
 // reducerPlatformNodeWriterConflictKey returns the shared conflict key for the
 // two reducer domains that MERGE (p:Platform {id}) over the same platform_id
-// namespace: WorkloadMaterialization and DeploymentMapping. The key is keyed
-// only by scope (not by domain) so both domains produce the IDENTICAL key for a
-// scope and the queue fence keeps them serialized. WorkloadMaterialization does
-// not hold the PlatformGraphLocker advisory lock that DeploymentMapping uses, so
-// this queue-level fence is the only thing preventing concurrent unprotected
-// MERGE on the same Platform node (#3672 review P1).
+// namespace: WorkloadMaterialization and PlatformInfraMaterialization. The key is
+// keyed only by scope (not by domain) so both domains produce the IDENTICAL key
+// for a scope and the queue fence keeps them serialized. WorkloadMaterialization
+// does not hold the PlatformGraphLocker advisory lock that
+// PlatformInfraMaterialization uses, so this queue-level fence is the only thing
+// preventing concurrent unprotected MERGE on the same Platform node (#3672
+// review P1).
 func reducerPlatformNodeWriterConflictKey(scopeKey string) string {
 	return reducerHashedConflictKey(
 		reducerConflictKeyPrefixPlatformGraph,

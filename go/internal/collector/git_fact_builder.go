@@ -69,7 +69,7 @@ func buildStreamingGenerationWithContext(
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
-	followupFactCount := 9
+	followupFactCount := 10
 	if snapshot.Delta {
 		followupFactCount = 1
 	}
@@ -349,6 +349,7 @@ func streamFacts(
 	ch <- deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- codeCallMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+	ch <- platformInfraMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- deploymentMappingFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)

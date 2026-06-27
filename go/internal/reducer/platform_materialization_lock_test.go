@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func TestPlatformMaterializationHandlerLocksInfrastructurePlatformIDs(t *testing.T) {
+func TestPlatformInfraMaterializationHandlerLocksInfrastructurePlatformIDs(t *testing.T) {
 	t.Parallel()
 
 	loader := &recordingKindFactLoader{
@@ -41,24 +41,19 @@ func TestPlatformMaterializationHandlerLocksInfrastructurePlatformIDs(t *testing
 	}
 	graphExecutor := &recordingCypherExecutor{}
 	locker := &recordingPlatformGraphLocker{}
-	handler := PlatformMaterializationHandler{
-		Writer: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{CanonicalWrites: 1},
-		},
+	handler := PlatformInfraMaterializationHandler{
 		FactLoader:                 loader,
 		InfrastructureMaterializer: NewInfrastructurePlatformMaterializer(graphExecutor),
 		PlatformGraphLocker:        locker,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
-		IntentID:        "intent-platform-lock",
-		ScopeID:         "scope-1",
-		GenerationID:    "generation-1",
-		Domain:          DomainDeploymentMapping,
-		EntityKeys:      []string{"deployment:infra"},
-		RelatedScopeIDs: []string{"scope-1"},
-		EnqueuedAt:      time.Now(),
-		AvailableAt:     time.Now(),
+		IntentID:     "intent-platform-lock",
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+		Domain:       DomainPlatformInfraMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)

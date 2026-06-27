@@ -49,38 +49,44 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 	}
 
 	domainWM, keyWM := reducerConflictDomainKey(intentFor(reducer.DomainWorkloadMaterialization))
+	domainPIM, keyPIM := reducerConflictDomainKey(intentFor(reducer.DomainPlatformInfraMaterialization))
 	domainDM, keyDM := reducerConflictDomainKey(intentFor(reducer.DomainDeploymentMapping))
 	domainWI, keyWI := reducerConflictDomainKey(intentFor(reducer.DomainWorkloadIdentity))
 	domainDUC, keyDUC := reducerConflictDomainKey(intentFor(reducer.DomainDeployableUnitCorrelation))
 	domainCAR, keyCAR := reducerConflictDomainKey(intentFor(reducer.DomainCloudAssetResolution))
 
-	// All five domains must still classify under platform_graph conflict domain.
-	for _, got := range []string{domainWM, domainDM, domainWI, domainDUC, domainCAR} {
+	// All domains must still classify under the platform_graph conflict domain.
+	for _, got := range []string{domainWM, domainPIM, domainDM, domainWI, domainDUC, domainCAR} {
 		if got != reducerConflictDomainPlatformGraph {
 			t.Errorf("conflict domain = %q, want %q", got, reducerConflictDomainPlatformGraph)
 		}
 	}
 
-	// The two Platform-node writers (WorkloadMaterialization, DeploymentMapping)
-	// both MERGE (p:Platform {id}); WorkloadMaterialization holds no advisory lock,
-	// so they MUST share one conflict key and stay serialized (#3672 review P1).
-	if keyWM != keyDM {
+	// The two Platform-node writers (WorkloadMaterialization,
+	// PlatformInfraMaterialization) both MERGE (p:Platform {id});
+	// WorkloadMaterialization holds no advisory lock, so they MUST share one
+	// conflict key and stay serialized (#3672 review P1). DeploymentMapping no
+	// longer MERGEs Platform, so it is a non-Platform-writing domain now.
+	if keyWM != keyPIM {
 		t.Errorf(
-			"workload_materialization key %q != deployment_mapping key %q; "+
+			"workload_materialization key %q != platform_infra_materialization key %q; "+
 				"both MERGE the same (p:Platform {id}) node and must serialize via one shared key (#3672 P1)",
-			keyWM, keyDM,
+			keyWM, keyPIM,
 		)
 	}
 
-	// The three non-Platform-writing domains MUST get distinct keys from each
-	// other and from the Platform-node-writer pair, so they drain concurrently.
+	// The non-Platform-writing domains MUST get distinct keys from each other and
+	// from the Platform-node-writer pair, so they drain concurrently.
 	distinctPairs := []struct {
 		nameA, nameB string
 		keyA, keyB   string
 	}{
+		{"platform_node_writers", "deployment_mapping", keyWM, keyDM},
 		{"platform_node_writers", "workload_identity", keyWM, keyWI},
 		{"platform_node_writers", "deployable_unit_correlation", keyWM, keyDUC},
 		{"platform_node_writers", "cloud_asset_resolution", keyWM, keyCAR},
+		{"deployment_mapping", "workload_identity", keyDM, keyWI},
+		{"deployment_mapping", "cloud_asset_resolution", keyDM, keyCAR},
 		{"workload_identity", "deployable_unit_correlation", keyWI, keyDUC},
 		{"workload_identity", "cloud_asset_resolution", keyWI, keyCAR},
 		{"deployable_unit_correlation", "cloud_asset_resolution", keyDUC, keyCAR},
@@ -97,16 +103,16 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 }
 
 // TestPlatformNodeWritersShareConflictKeyForSameScope is the #3672 review-P1
-// regression guard. WorkloadMaterialization and DeploymentMapping both run
-// MERGE (p:Platform {id: row.platform_id}) over the same platform_id namespace
-// (workload_materializer.go batchRuntimePlatformNodeUpsertCypher and
+// regression guard. WorkloadMaterialization and PlatformInfraMaterialization both
+// run MERGE (p:Platform {id: row.platform_id}) over the same platform_id
+// namespace (workload_materializer.go batchRuntimePlatformNodeUpsertCypher and
 // infrastructure_platform_materializer.go batchInfraPlatformUpsertCypher).
-// DeploymentMapping wraps its MERGE in the PlatformGraphLocker advisory lock;
-// WorkloadMaterialization does NOT. The queue conflict fence is therefore the
-// only mechanism keeping the two unprotected same-Platform-node MERGEs from
-// running concurrently. They MUST produce the IDENTICAL conflict key for a given
-// scope, or concurrent claim would race two writers on the same Platform node
-// (commit-time uniqueness conflict / retry / dead-letter).
+// PlatformInfraMaterialization wraps its MERGE in the PlatformGraphLocker
+// advisory lock; WorkloadMaterialization does NOT. The queue conflict fence is
+// therefore the only mechanism keeping the two unprotected same-Platform-node
+// MERGEs from running concurrently. They MUST produce the IDENTICAL conflict key
+// for a given scope, or concurrent claim would race two writers on the same
+// Platform node (commit-time uniqueness conflict / retry / dead-letter).
 func TestPlatformNodeWritersShareConflictKeyForSameScope(t *testing.T) {
 	t.Parallel()
 
@@ -120,20 +126,20 @@ func TestPlatformNodeWritersShareConflictKeyForSameScope(t *testing.T) {
 			ScopeID: scope,
 			Domain:  reducer.DomainWorkloadMaterialization,
 		})
-		domDM, keyDM := reducerConflictDomainKey(projector.ReducerIntent{
+		domPIM, keyPIM := reducerConflictDomainKey(projector.ReducerIntent{
 			ScopeID: scope,
-			Domain:  reducer.DomainDeploymentMapping,
+			Domain:  reducer.DomainPlatformInfraMaterialization,
 		})
-		if domWM != reducerConflictDomainPlatformGraph || domDM != reducerConflictDomainPlatformGraph {
+		if domWM != reducerConflictDomainPlatformGraph || domPIM != reducerConflictDomainPlatformGraph {
 			t.Fatalf("scope %q: conflict domains = %q/%q, want both %q",
-				scope, domWM, domDM, reducerConflictDomainPlatformGraph)
+				scope, domWM, domPIM, reducerConflictDomainPlatformGraph)
 		}
-		if keyWM != keyDM {
+		if keyWM != keyPIM {
 			t.Fatalf(
-				"scope %q: workload_materialization key %q != deployment_mapping key %q; "+
+				"scope %q: workload_materialization key %q != platform_infra_materialization key %q; "+
 					"both MERGE the same (p:Platform {id}) node without a shared advisory lock, "+
 					"so they must share a conflict key to serialize (#3672 review P1)",
-				scope, keyWM, keyDM,
+				scope, keyWM, keyPIM,
 			)
 		}
 	}
@@ -146,7 +152,7 @@ func TestPlatformNodeWritersShareConflictKeyForSameScope(t *testing.T) {
 	})
 	_, keyB := reducerConflictDomainKey(projector.ReducerIntent{
 		ScopeID: "scope:repo:acme:frontend",
-		Domain:  reducer.DomainDeploymentMapping,
+		Domain:  reducer.DomainPlatformInfraMaterialization,
 	})
 	if keyA == keyB {
 		t.Fatalf("distinct scopes produced the same platform-node-writer key %q; "+

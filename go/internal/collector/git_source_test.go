@@ -122,16 +122,16 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 	var fullFacts []facts.Envelope
 	var emptyFacts []facts.Envelope
 	switch {
-	case len(facts1) == 13 && len(facts2) == 10:
+	case len(facts1) == 14 && len(facts2) == 11:
 		fullCollected = collected1
 		fullFacts = facts1
 		emptyFacts = facts2
-	case len(facts1) == 10 && len(facts2) == 13:
+	case len(facts1) == 11 && len(facts2) == 14:
 		fullCollected = collected2
 		fullFacts = facts2
 		emptyFacts = facts1
 	default:
-		t.Fatalf("unexpected fact counts: %d and %d, want 13 and 10", len(facts1), len(facts2))
+		t.Fatalf("unexpected fact counts: %d and %d, want 14 and 11", len(facts1), len(facts2))
 	}
 
 	// Validate common scope/generation fields on the full repo.
@@ -219,6 +219,7 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 		"deployable_unit_correlation",
 		"workload_materialization",
 		"code_call_materialization",
+		"platform_infra_materialization",
 		"deployment_mapping",
 		"sql_relationship_materialization",
 		"shell_exec_materialization",
@@ -230,8 +231,8 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 		}
 	}
 
-	// Validate empty repo has repo + 9 followups.
-	if got, want := len(emptyFacts), 10; got != want {
+	// Validate empty repo has repo + 10 followups.
+	if got, want := len(emptyFacts), 11; got != want {
 		t.Fatalf("len(empty facts) = %d, want %d", got, want)
 	}
 
