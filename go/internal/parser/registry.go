@@ -191,6 +191,36 @@ func (r Registry) Extensions() []string {
 	return extensions
 }
 
+// Languages returns the set of recognized language values in deterministic
+// order. Each value matches the Language field of one or more registered
+// definitions. Duplicate language values (multiple parsers sharing a language
+// name) appear only once.
+func (r Registry) Languages() []string {
+	seen := make(map[string]struct{}, len(r.definitions))
+	langs := make([]string, 0, len(r.definitions))
+	for _, def := range r.definitions {
+		if _, ok := seen[def.Language]; ok {
+			continue
+		}
+		seen[def.Language] = struct{}{}
+		langs = append(langs, def.Language)
+	}
+	slices.Sort(langs)
+	return langs
+}
+
+// IsRegisteredLanguage reports whether lang is a recognized language value in
+// this registry. The check is case-sensitive; callers should normalize to
+// lowercase before calling.
+func (r Registry) IsRegisteredLanguage(lang string) bool {
+	for _, def := range r.definitions {
+		if def.Language == lang {
+			return true
+		}
+	}
+	return false
+}
+
 func normalizeDefinition(definition Definition) (Definition, error) {
 	definition.ParserKey = strings.TrimSpace(definition.ParserKey)
 	definition.Language = strings.TrimSpace(definition.Language)

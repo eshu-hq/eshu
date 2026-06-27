@@ -126,6 +126,49 @@ func TestEshuSearchDocumentStoreRequiresDatabase(t *testing.T) {
 	}
 }
 
+func TestEshuSearchDocumentStoreLanguageFilterAppendsLabelPredicate(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildEshuSearchDocumentQuery(EshuSearchDocumentFilter{
+		ScopeID:   "scope-1",
+		Languages: []string{"go", "python"},
+		Limit:     25,
+	})
+	if !strings.Contains(query, "jsonb_array_elements_text") {
+		t.Errorf("query missing jsonb_array_elements_text for language filter:\n%s", query)
+	}
+	// Language values must arrive as parameterised args, not interpolated into SQL.
+	if strings.Contains(query, "language:go") {
+		t.Errorf("language value was interpolated into SQL instead of parameterised:\n%s", query)
+	}
+	found := false
+	for _, arg := range args {
+		if langs, ok := arg.([]string); ok {
+			for _, l := range langs {
+				if strings.HasPrefix(l, "language:") {
+					found = true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected a []string arg containing language: prefixed values; args = %#v", args)
+	}
+}
+
+func TestEshuSearchDocumentStoreNoLanguageFilterOmitsLabelPredicate(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildEshuSearchDocumentQuery(EshuSearchDocumentFilter{
+		ScopeID: "scope-1",
+		Limit:   25,
+	})
+	if strings.Contains(query, "jsonb_array_elements_text") {
+		t.Errorf("query unexpectedly contains language filter when no languages requested:\n%s", query)
+	}
+}
+
 func TestEshuSearchDocumentFilterCapsLimit(t *testing.T) {
 	t.Parallel()
 

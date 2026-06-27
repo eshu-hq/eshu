@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
@@ -32,7 +33,10 @@ type semanticSearchDocumentQuery struct {
 	ScopeID     string
 	RepoID      string
 	SourceKinds []searchdocs.SourceKind
-	Limit       int
+	// Languages restricts the candidate set to documents whose Labels include
+	// "language:<lang>" for one of the listed values. Empty means no filter.
+	Languages []string
+	Limit     int
 }
 
 type semanticSearchDocumentRow struct {
@@ -64,6 +68,7 @@ func (h *LocalSemanticSearchHybrid) Search(
 		ScopeID:     query.ScopeID,
 		RepoID:      query.RepoID,
 		SourceKinds: query.SourceKinds,
+		Languages:   query.Languages,
 		Limit:       semanticSearchLocalHybridCorpusLimit,
 	})
 	if err != nil {
@@ -71,6 +76,9 @@ func (h *LocalSemanticSearchHybrid) Search(
 	}
 	docs := make([]searchdocs.Document, 0, len(rows))
 	for _, row := range rows {
+		if !semanticSearchDocumentMatchesLanguages(row.Document, query.Languages) {
+			continue
+		}
 		docs = append(docs, row.Document)
 	}
 	embedder, err := searchembed.NewHashEmbedder(searchembed.DefaultDimensions)
@@ -95,6 +103,27 @@ func (h *LocalSemanticSearchHybrid) Search(
 		CorpusMayBeTruncated: index.Overflow() > 0 || len(rows) >= semanticSearchLocalHybridCorpusLimit,
 		RetrievalState:       semanticSearchActiveRetrievalState(query.Request.Mode, candidates),
 	}, nil
+}
+
+// semanticSearchDocumentMatchesLanguages reports whether doc carries at least
+// one "language:<lang>" label matching a value in langs. When langs is empty
+// the document always matches (no filter).
+func semanticSearchDocumentMatchesLanguages(doc searchdocs.Document, langs []string) bool {
+	if len(langs) == 0 {
+		return true
+	}
+	want := make(map[string]struct{}, len(langs))
+	for _, l := range langs {
+		want[l] = struct{}{}
+	}
+	for _, label := range doc.Labels {
+		if lang, ok := strings.CutPrefix(label, "language:"); ok {
+			if _, match := want[lang]; match {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func defaultSemanticSearchRetrievalState(mode searchbench.Mode) string {

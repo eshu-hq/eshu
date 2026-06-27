@@ -98,6 +98,55 @@ func TestSemanticSearchToolPassesRerankFlag(t *testing.T) {
 	}
 }
 
+func TestSemanticSearchToolPassesLanguagesFilter(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("search_semantic_context", map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "payment runbook",
+		"mode":       "keyword",
+		"limit":      5,
+		"timeout_ms": 250,
+		"languages":  []any{"go", "typescript"},
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute error = %v, want nil", err)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	langs, ok := body["languages"].([]any)
+	if !ok {
+		t.Fatalf("body[languages] = %T (%v), want []any", body["languages"], body["languages"])
+	}
+	if got, want := len(langs), 2; got != want {
+		t.Fatalf("len(languages) = %d, want %d", got, want)
+	}
+	if got, want := langs[0], "go"; got != want {
+		t.Fatalf("languages[0] = %#v, want %q", got, want)
+	}
+	if got, want := langs[1], "typescript"; got != want {
+		t.Fatalf("languages[1] = %#v, want %q", got, want)
+	}
+
+	// languages defaults to nil/empty when caller omits it.
+	defaultRoute, err := resolveRoute("search_semantic_context", map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "payment runbook",
+		"mode":       "keyword",
+		"limit":      5,
+		"timeout_ms": 250,
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute(default) error = %v, want nil", err)
+	}
+	defaultLangs := defaultRoute.body.(map[string]any)["languages"]
+	if asSlice, ok := defaultLangs.([]any); ok && len(asSlice) > 0 {
+		t.Fatalf("default body[languages] = %#v, want nil or empty", defaultLangs)
+	}
+}
+
 func containsRequired(fields []any, want string) bool {
 	for _, field := range fields {
 		if field == want {

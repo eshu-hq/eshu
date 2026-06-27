@@ -29,7 +29,7 @@ func TestOpenAPISpecIncludesSemanticSearchRoute(t *testing.T) {
 		}
 	}
 	properties := mustMapField(t, schema, "properties")
-	for _, want := range []string{"source_kinds", "service_id", "workload_id", "environment", "rerank"} {
+	for _, want := range []string{"source_kinds", "service_id", "workload_id", "environment", "rerank", "languages"} {
 		if _, ok := properties[want]; !ok {
 			t.Fatalf("semantic search request schema missing %q", want)
 		}
@@ -48,6 +48,7 @@ func TestOpenAPISpecIncludesSemanticSearchRoute(t *testing.T) {
 		"indexed_document_count",
 		"retrieval_state",
 		"corpus_may_be_truncated",
+		"facets",
 		"results",
 		"rerank",
 		"recommended_next_calls",

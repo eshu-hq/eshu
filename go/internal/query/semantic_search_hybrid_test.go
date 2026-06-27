@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
@@ -169,6 +171,123 @@ func TestSemanticSearchHandlerConfiguredHybridPreservesRepoScopeAndSourceKinds(t
 	}
 	if got, want := documents.query.SourceKinds[0], searchdocs.SourceKindRuntimeSummary; got != want {
 		t.Fatalf("source kind = %q, want %q", got, want)
+	}
+}
+
+// TestLocalSemanticSearchHybridLanguageFilterExcludesNonMatchingDocs drives the
+// REAL LocalSemanticSearchHybrid.Search with a mixed-language document store
+// and asserts only Go documents are returned when Languages=["go"]. The test
+// MUST fail if the in-memory filter in Search is removed.
+func TestLocalSemanticSearchHybridLanguageFilterExcludesNonMatchingDocs(t *testing.T) {
+	t.Parallel()
+
+	goDoc := semanticSearchDocumentWithLanguageFixture("doc:go-svc", "repo-1", "go")
+	pyDoc := semanticSearchDocumentWithLanguageFixture("doc:py-svc", "repo-1", "python")
+	documents := &fakeSemanticSearchDocumentStore{
+		rows: []semanticSearchDocumentRow{
+			{Document: goDoc},
+			{Document: pyDoc},
+		},
+	}
+	hybrid := NewLocalSemanticSearchHybrid(documents)
+
+	result, err := hybrid.Search(context.Background(), semanticSearchIndexQuery{
+		ScopeID:   "repo-1",
+		RepoID:    "repo-1",
+		Languages: []string{"go"},
+		Request:   semanticSearchRequestFixture("go service", 10),
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	// All returned candidates must be from the go document.
+	for _, c := range result.Candidates {
+		if c.Document.ID == pyDoc.ID {
+			t.Fatalf("python document %q included in results; language filter did not exclude it", pyDoc.ID)
+		}
+	}
+	// At least the go doc must be indexed (corpus is non-empty).
+	if result.IndexedDocumentCount == 0 {
+		t.Fatal("IndexedDocumentCount = 0, want at least 1 from go document")
+	}
+}
+
+// TestLocalSemanticSearchHybridEmptyLanguageFilterReturnsAllDocs verifies that
+// an empty Languages slice disables the filter and all documents are eligible.
+func TestLocalSemanticSearchHybridEmptyLanguageFilterReturnsAllDocs(t *testing.T) {
+	t.Parallel()
+
+	goDoc := semanticSearchDocumentWithLanguageFixture("doc:go-svc", "repo-1", "go")
+	pyDoc := semanticSearchDocumentWithLanguageFixture("doc:py-svc", "repo-1", "python")
+	documents := &fakeSemanticSearchDocumentStore{
+		rows: []semanticSearchDocumentRow{
+			{Document: goDoc},
+			{Document: pyDoc},
+		},
+	}
+	hybrid := NewLocalSemanticSearchHybrid(documents)
+
+	result, err := hybrid.Search(context.Background(), semanticSearchIndexQuery{
+		ScopeID: "repo-1",
+		RepoID:  "repo-1",
+		// Languages is empty — no filter.
+		Request: semanticSearchRequestFixture("service", 10),
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if result.IndexedDocumentCount < 2 {
+		t.Fatalf("IndexedDocumentCount = %d, want at least 2 (both docs eligible)", result.IndexedDocumentCount)
+	}
+}
+
+// TestSemanticSearchDocumentsFilteredMatchesLanguageCaseInsensitive directly
+// unit-tests the semanticSearchDocumentsFiltered helper with case-folding
+// and the empty-filter no-op. The test MUST fail if the filter is removed.
+func TestSemanticSearchDocumentsFilteredMatchesLanguageCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	goDoc := semanticSearchDocumentWithLanguageFixture("doc:go", "repo-1", "go")
+	pyDoc := semanticSearchDocumentWithLanguageFixture("doc:py", "repo-1", "python")
+	rows := []semanticSearchDocumentRow{
+		{Document: goDoc},
+		{Document: pyDoc},
+	}
+
+	// Filter to go only.
+	got := semanticSearchDocumentsFiltered(rows, []string{"go"})
+	if len(got) != 1 || got[0].ID != goDoc.ID {
+		t.Fatalf("filtered = %v, want [%q]", documentIDs(got), goDoc.ID)
+	}
+
+	// Empty filter returns all.
+	all := semanticSearchDocumentsFiltered(rows, nil)
+	if len(all) != 2 {
+		t.Fatalf("empty filter = %d docs, want 2", len(all))
+	}
+
+	// No-match language returns empty.
+	none := semanticSearchDocumentsFiltered(rows, []string{"rust"})
+	if len(none) != 0 {
+		t.Fatalf("no-match filter = %d docs, want 0", len(none))
+	}
+}
+
+func documentIDs(docs []searchdocs.Document) []string {
+	ids := make([]string, len(docs))
+	for i, d := range docs {
+		ids[i] = d.ID
+	}
+	return ids
+}
+
+func semanticSearchRequestFixture(query string, limit int) searchretrieval.Request {
+	return searchretrieval.Request{
+		Query:   query,
+		Limit:   limit,
+		Mode:    searchbench.ModeKeyword,
+		Timeout: 250 * time.Millisecond,
+		Scope:   searchretrieval.Scope{RepoID: "repo-1"},
 	}
 }
 

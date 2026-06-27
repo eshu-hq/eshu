@@ -18,6 +18,9 @@ import (
 // reports the reranking state and recommended next calls. Reranking is purely a
 // reordering of the already-retrieved set, so the truth labels, scores, and
 // scope of every result are unchanged.
+//
+// Facet counts are derived from the post-filter result set — the documents
+// already returned by the bounded index query — so no second scan is issued.
 func semanticSearchResponseFromRetrieval(
 	req searchretrieval.Request,
 	retrieval searchretrieval.Response,
@@ -26,13 +29,15 @@ func semanticSearchResponseFromRetrieval(
 ) semanticSearchResponse {
 	ordered, rerankInfo, nextCalls := semanticSearchRerankResults(req, retrieval, rerank)
 	results := make([]semanticSearchResult, 0, len(ordered))
+	langCounts := make(map[string]int)
 	for _, item := range ordered {
 		result := item.result
+		doc := semanticSearchDocumentFromSearchDoc(result.Document)
 		results = append(results, semanticSearchResult{
 			Rank:         item.rank,
 			Score:        result.Score,
 			SearchMethod: semanticSearchMethod(result.Metadata, retrieval.Mode),
-			Document:     semanticSearchDocumentFromSearchDoc(result.Document),
+			Document:     doc,
 			GraphHandles: semanticSearchGraphHandles(result.Handles),
 			TruthScope:   semanticSearchTruthScope(result.TruthScope),
 			Freshness:    semanticSearchFreshness(result.Freshness),
@@ -40,6 +45,11 @@ func semanticSearchResponseFromRetrieval(
 			Metadata:     cloneSemanticSearchMetadata(result.Metadata),
 			RankingBasis: item.basis,
 		})
+		for _, label := range doc.Labels {
+			if lang, ok := strings.CutPrefix(label, "language:"); ok && lang != "" {
+				langCounts[lang]++
+			}
+		}
 	}
 	return semanticSearchResponse{
 		Query:                    retrieval.Query,
@@ -56,6 +66,7 @@ func semanticSearchResponseFromRetrieval(
 		CorpusLimit:              indexResult.CorpusLimit,
 		CorpusMayBeTruncated:     indexResult.CorpusMayBeTruncated,
 		RetrievalState:           indexResult.RetrievalState,
+		Facets:                   semanticSearchFacets{Languages: langCounts},
 		Rerank:                   rerankInfo,
 		RecommendedNextCalls:     nextCalls,
 	}

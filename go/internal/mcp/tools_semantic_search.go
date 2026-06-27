@@ -59,6 +59,16 @@ func semanticSearchTools() []ToolDefinition {
 					},
 					"description": "Optional curated document source-kind filter.",
 				},
+				"languages": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "string",
+					},
+					"description": "Optional language filter. Documents are included only when their Labels array " +
+						"contains language:<lang> for one of the listed values. " +
+						"Use recognized parser-registry language values (e.g. go, python, typescript). " +
+						"An empty array means no filter. Unknown values are rejected with HTTP 400.",
+				},
 				"rerank": map[string]any{
 					"type": "boolean",
 					"description": "Opt into graph-neighborhood reranking over the in-scope results. " +

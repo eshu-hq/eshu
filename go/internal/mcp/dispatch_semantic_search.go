@@ -20,6 +20,7 @@ func semanticSearchRoute(toolName string, args map[string]any) (*route, bool) {
 			"workload_id":  str(args, "workload_id"),
 			"environment":  str(args, "environment"),
 			"source_kinds": stringSlice(args, "source_kinds"),
+			"languages":    stringSlice(args, "languages"),
 			"rerank":       boolOr(args, "rerank", false),
 		},
 	}, true

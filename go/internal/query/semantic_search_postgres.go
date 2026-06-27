@@ -39,6 +39,7 @@ func (s PostgresSemanticSearchIndexStore) Search(
 			Query:       query.Request.Query,
 			Anchor:      query.Request.Scope.Anchor(),
 			SourceKinds: query.SourceKinds,
+			Languages:   query.Languages,
 			Limit:       query.Request.Limit + 1,
 		},
 	)
@@ -67,6 +68,7 @@ func (s PostgresSemanticSearchIndexStore) ListActiveDocuments(
 			ScopeID:     query.ScopeID,
 			RepoID:      query.RepoID,
 			SourceKinds: query.SourceKinds,
+			Languages:   query.Languages,
 			Limit:       query.Limit,
 		},
 	)
