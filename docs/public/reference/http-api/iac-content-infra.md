@@ -600,3 +600,99 @@ inventing an attachment.
 `/compare/environments` requires `workload_id`, `left`, and `right`; optional
 `limit` defaults to 50 and caps at 200. Config and runtime-setting drift are
 reported as limitations when not materialized by the route.
+
+## Relationships Catalog
+
+`POST /api/v0/relationships/catalog` returns the fixed, code-to-cloud
+typed-edge verb catalog with a bounded whole-graph count per verb. Each verb
+tile now also carries a `source_tools` breakdown.
+
+`POST /api/v0/relationships/edges` returns a bounded, source-label-anchored
+slice of concrete edges for one catalog verb. Edges now surface a `source_tool`
+field, and the request accepts a `source_tool` filter.
+
+Both routes require the local-authoritative profile or higher; lower profiles
+receive `501 unsupported_capability`. When the graph backend is not wired the
+routes return `503`.
+
+Performance Evidence: the `source_tool` projection on the edge slice is a scalar
+read off the already-bound relationship and keeps the existing
+source-label-anchored, index-ordered, `LIMIT`-bounded plan shape (no new scan).
+The optional `source_tool` filter adds a `WHERE r.source_tool = $source_tool`
+post-expand predicate on the same bounded plan. The per-verb `source_tools`
+breakdown is the same relationship-type-index-served shape as the existing whole-
+graph count (`MATCH ()-[r:VERB]->() RETURN r.source_tool, count(r)`), and it runs
+only for the seven Tier-2 verbs that stamp `source_tool`, so the catalog endpoint
+adds at most seven bounded round-trips, not one per verb.
+No-Regression Evidence: `go test ./internal/query ./internal/sourcetool -count=1`
+green; the query-plan guard tests assert the edge slice keeps its source anchor +
+`ORDER BY` and the breakdown stays type-indexed.
+No-Observability-Change: these reads reuse the shared query-handler
+instrumentation; no new metric is introduced.
+
+### source_tool field (per edge)
+
+Each edge in the `edges` array now carries an optional `source_tool` string
+field. It is present when the edge was stamped by the Tier-2 resolver
+(epic [#3999](https://github.com/eshu-hq/eshu/issues/3999)) and absent or
+empty for Tier-3 code edges and structural edges whose tool is not tracked at
+the edge level. Forward-compatibility rule: consumers must treat an absent or
+empty `source_tool` as "not yet stamped", not as an error.
+
+The canonical vocabulary is defined in
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md).
+`source_tool` values are always one of the 24 canonical tokens listed there
+(`terraform`, `helm`, `kubernetes`, `unknown`, …).
+
+### source_tools breakdown (per verb tile)
+
+The catalog tile for each verb now carries an optional `source_tools` map:
+
+```json
+{
+  "verb": "DEPENDS_ON",
+  "layer": "runtime",
+  "count": 1240,
+  "evidence": "Runtime dependency",
+  "detail": "Workload depends on another workload",
+  "source_tools": {
+    "ansible": 312,
+    "puppet": 88,
+    "helm": 840
+  }
+}
+```
+
+The map is only present when the verb has at least one edge whose `source_tool`
+property is set. Tier-3 code verbs (`CALLS`, `IMPORTS`, …) and Tier-1
+self-labeling types that carry no per-edge property will have no `source_tools`
+key.
+
+The breakdown is **whole-graph** (every edge of that type, all source labels),
+matching the tile `count`, while the `edges` slice is anchored on the catalog
+entry's single `source_label`. So a tile's `source_tools` count for a tool can
+exceed the number of edges the `edges` endpoint returns when filtered by that
+same tool, because the slice covers only one source label while the breakdown
+covers all of them — the same whole-graph-vs-slice distinction that already
+applies to `count`.
+
+### source_tool filter (edges request)
+
+`POST /api/v0/relationships/edges` accepts an optional `source_tool` field in
+the request body:
+
+```json
+{"verb": "DEPENDS_ON", "source_tool": "ansible", "limit": 50}
+```
+
+When present, only edges whose `r.source_tool` property equals the requested
+token are returned. The token must be one of the 24 canonical values; an
+unrecognized value returns `400 Bad Request`. When absent, all edges for the
+verb are returned regardless of their source tool.
+
+The canonical vocabulary is the closed enum in
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md):
+`terraform`, `terragrunt`, `helm`, `kustomize`, `argocd`, `ansible`, `puppet`,
+`chef`, `jenkins`, `github_actions`, `docker`, `docker_compose`, `gcp`,
+`atlantis`, `gitlab`, `gomod`, `npm`, `pip`, `maven`, `cargo`, `aws`, `azure`,
+`kubernetes`, `unknown`.

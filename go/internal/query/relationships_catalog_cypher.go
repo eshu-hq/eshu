@@ -29,6 +29,13 @@ type relationshipVerbEntry struct {
 	evidence string
 	// detail is a one-line description of what the edge means.
 	detail string
+	// carriesSourceTool is true for the Tier-2 shared verbs whose cross-repo edges
+	// are stamped with a source_tool token (#3999). Only those verbs run the
+	// per-verb source_tool breakdown query; Tier-1 self-labeling and Tier-3
+	// code/structural verbs never carry source_tool, so running the breakdown for
+	// them would be guaranteed-empty work that needlessly doubles the catalog's
+	// sequential round-trips (the count path is already budget-tuned).
+	carriesSourceTool bool
 }
 
 // relationshipVerbCatalog is the fixed set of typed-edge verbs the relationships
@@ -46,19 +53,19 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	{verb: "OVERRIDES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Method overrides a base method"},
 	{verb: "QUERIES_TABLE", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Data access", detail: "Function queries a database table"},
 	// deploy layer
-	{verb: "DEPLOYS_FROM", layer: "deploy", sourceLabel: "Repository", sourceProperty: "id", evidence: "Deployment evidence", detail: "Repository deploys from a source"},
+	{verb: "DEPLOYS_FROM", layer: "deploy", sourceLabel: "Repository", sourceProperty: "id", evidence: "Deployment evidence", detail: "Repository deploys from a source", carriesSourceTool: true},
 	{verb: "INSTANCE_OF", layer: "deploy", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Workload model", detail: "Instance realizes a workload definition"},
 	// infra layer
-	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target"},
-	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository"},
-	{verb: "DISCOVERS_CONFIG_IN", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config discovery", detail: "Repository discovers configuration in a target"},
+	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true},
+	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository", carriesSourceTool: true},
+	{verb: "DISCOVERS_CONFIG_IN", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config discovery", detail: "Repository discovers configuration in a target", carriesSourceTool: true},
 	// runtime layer
-	{verb: "RUNS_ON", layer: "runtime", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Runtime placement", detail: "Workload instance runs on a platform"},
-	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload"},
+	{verb: "RUNS_ON", layer: "runtime", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Runtime placement", detail: "Workload instance runs on a platform", carriesSourceTool: true},
+	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true},
 	// security layer
 	{verb: "INVOKES_CLOUD_ACTION", layer: "security", sourceLabel: "Function", sourceProperty: "uid", evidence: "IAM call analysis", detail: "Function invokes a cloud action"},
 	// ops layer
-	{verb: "READS_CONFIG_FROM", layer: "ops", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config access", detail: "Repository reads configuration from a target"},
+	{verb: "READS_CONFIG_FROM", layer: "ops", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config access", detail: "Repository reads configuration from a target", carriesSourceTool: true},
 	{verb: "TAINT_FLOWS_TO", layer: "ops", sourceLabel: "Function", sourceProperty: "uid", evidence: "Taint analysis", detail: "Tainted data flows to a sink"},
 }
 
@@ -135,7 +142,43 @@ func relationshipEdgesCypher(entry relationshipVerbEntry) string {
 		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
 		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
 		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
-		"       r.rationale AS evidence\n" +
+		"       r.rationale AS evidence,\n" +
+		"       r.source_tool AS source_tool\n" +
 		"ORDER BY s." + entry.sourceProperty + ", coalesce(t.id, t.uid)\n" +
 		"LIMIT $limit"
+}
+
+// relationshipEdgesCypherFiltered is the source_tool-filtered variant of
+// relationshipEdgesCypher. It inserts a WHERE clause after the MATCH line that
+// binds $source_tool to r.source_tool, so the index-ordered scan and LIMIT
+// short-circuit are preserved. The $source_tool param must always be provided
+// by the caller; the unfiltered path must NOT call this function.
+//
+// The verb, label, and property are taken from the fixed catalog, never from
+// request input, so the interpolation cannot inject arbitrary patterns.
+func relationshipEdgesCypherFiltered(entry relationshipVerbEntry) string {
+	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
+		"WHERE r.source_tool = $source_tool\n" +
+		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
+		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
+		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
+		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
+		"       r.rationale AS evidence,\n" +
+		"       r.source_tool AS source_tool\n" +
+		"ORDER BY s." + entry.sourceProperty + ", coalesce(t.id, t.uid)\n" +
+		"LIMIT $limit"
+}
+
+// relationshipSourceToolBreakdownCypher builds the whole-graph source_tool
+// distribution query for a verb. It matches only edges where source_tool IS NOT
+// NULL (so Tier-3 code edges and unstamped Tier-1 edges that carry no property
+// are excluded) and returns a per-tool count. The shape is
+// `MATCH ()-[r:VERB]->() WHERE ... RETURN source_tool, count`, which is
+// answered by the relationship-type index like relationshipCountCypher.
+//
+// The verb is taken from the fixed catalog only.
+func relationshipSourceToolBreakdownCypher(entry relationshipVerbEntry) string {
+	return "MATCH ()-[r:" + entry.verb + "]->()\n" +
+		"WHERE r.source_tool IS NOT NULL\n" +
+		"RETURN r.source_tool AS source_tool, count(r) AS count"
 }

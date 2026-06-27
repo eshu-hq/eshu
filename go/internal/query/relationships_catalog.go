@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
 
 const (
@@ -19,27 +21,32 @@ const (
 )
 
 // relationshipVerbTile is one entry in the relationships catalog: a typed-edge
-// verb with its layer, whole-graph edge count, and evidence/source label.
+// verb with its layer, whole-graph edge count, evidence/source label, and an
+// optional per-source-tool breakdown for Tier-2 verbs that carry source_tool.
 type relationshipVerbTile struct {
-	Verb     string `json:"verb"`
-	Layer    string `json:"layer"`
-	Count    int    `json:"count"`
-	Evidence string `json:"evidence"`
-	Detail   string `json:"detail"`
+	Verb        string         `json:"verb"`
+	Layer       string         `json:"layer"`
+	Count       int            `json:"count"`
+	Evidence    string         `json:"evidence"`
+	Detail      string         `json:"detail"`
+	SourceTools map[string]int `json:"source_tools,omitempty"`
 }
 
-// relationshipEdge is one concrete typed edge with its endpoints and evidence.
+// relationshipEdge is one concrete typed edge with its endpoints, evidence,
+// and the optional source_tool property stamped by the Tier-2 resolver.
 type relationshipEdge struct {
 	SourceID   string `json:"source_id"`
 	SourceName string `json:"source_name"`
 	TargetID   string `json:"target_id"`
 	TargetName string `json:"target_name"`
 	Evidence   string `json:"evidence,omitempty"`
+	SourceTool string `json:"source_tool,omitempty"`
 }
 
 type relationshipEdgesRequest struct {
-	Verb  string `json:"verb"`
-	Limit *int   `json:"limit"`
+	Verb       string `json:"verb"`
+	SourceTool string `json:"source_tool"`
+	Limit      *int   `json:"limit"`
 }
 
 // limit clamps the requested edge page size into the bounded range. The edge
@@ -113,7 +120,9 @@ func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Re
 }
 
 // relationshipVerbTiles runs one bounded, source-anchored count per catalog
-// verb and returns the verb tiles in catalog order.
+// verb and returns the verb tiles in catalog order. For each verb it also runs
+// the source_tool breakdown query; the breakdown map is omitted when the verb
+// has no stamped edges (Tier-3 code verbs or verbs not yet stamped).
 func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshipVerbTile, error) {
 	tiles := make([]relationshipVerbTile, 0, len(relationshipVerbCatalog))
 	for _, entry := range relationshipVerbCatalog {
@@ -121,15 +130,45 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 		if err != nil {
 			return nil, err
 		}
-		tiles = append(tiles, relationshipVerbTile{
+		tile := relationshipVerbTile{
 			Verb:     entry.verb,
 			Layer:    entry.layer,
 			Count:    IntVal(row, "count"),
 			Evidence: entry.evidence,
 			Detail:   entry.detail,
-		})
+		}
+		if entry.carriesSourceTool {
+			breakdown, err := h.relationshipSourceToolBreakdown(ctx, entry)
+			if err != nil {
+				return nil, err
+			}
+			if len(breakdown) > 0 {
+				tile.SourceTools = breakdown
+			}
+		}
+		tiles = append(tiles, tile)
 	}
 	return tiles, nil
+}
+
+// relationshipSourceToolBreakdown queries the whole-graph source_tool
+// distribution for a single verb. It excludes edges that have no source_tool
+// property (Tier-1 self-labeling types and Tier-3 code edges), so the map
+// only contains tools that have actually stamped edges for that verb.
+func (h *InfraHandler) relationshipSourceToolBreakdown(ctx context.Context, entry relationshipVerbEntry) (map[string]int, error) {
+	rows, err := h.Neo4j.Run(ctx, relationshipSourceToolBreakdownCypher(entry), nil)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]int, len(rows))
+	for _, row := range rows {
+		tool := StringVal(row, "source_tool")
+		if tool == "" {
+			continue
+		}
+		result[tool] = IntVal(row, "count")
+	}
+	return result, nil
 }
 
 // getRelationshipEdges returns a bounded slice of concrete edges for one verb,
@@ -175,14 +214,35 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	limit := req.limit()
-	edges, truncated, err := h.relationshipEdges(r.Context(), entry, limit)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+	tool := strings.ToLower(strings.TrimSpace(req.SourceTool))
+	if tool != "" && !sourcetool.IsValid(tool) {
+		WriteError(w, http.StatusBadRequest, "unknown source_tool")
 		return
 	}
 
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	limit := req.limit()
+	var (
+		edges     []relationshipEdge
+		truncated bool
+	)
+	// Short-circuit a source_tool filter on a verb that never stamps it (Tier-1
+	// self-labeling and Tier-3 code/structural verbs): no edge can match by this
+	// package's own contract, and running the filtered slice would still scan the
+	// verb's source label — e.g. the IMPORTS slice scans the large File label at
+	// ~9.9s even for zero edges (docs/public/reference/cypher-performance.md). An
+	// empty page is the correct, immediate answer.
+	if tool != "" && !entry.carriesSourceTool {
+		edges = []relationshipEdge{}
+	} else {
+		var err error
+		edges, truncated, err = h.relationshipEdges(r.Context(), entry, tool, limit)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
+	resp := map[string]any{
 		"verb":      entry.verb,
 		"layer":     entry.layer,
 		"evidence":  entry.evidence,
@@ -190,7 +250,11 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 		"edges":     edges,
 		"truncated": truncated,
 		"limit":     limit,
-	}, BuildTruthEnvelope(
+	}
+	if tool != "" {
+		resp["source_tool"] = tool
+	}
+	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
 		h.profile(),
 		relationshipsCatalogCapability,
 		TruthBasisAuthoritativeGraph,
@@ -201,8 +265,23 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 // relationshipEdges runs the source-anchored edge slice for a verb. It probes
 // limit+1 rows to set the truncation flag deterministically without a second
 // scan, the established pattern from graphSummaryHotEntities.
-func (h *InfraHandler) relationshipEdges(ctx context.Context, entry relationshipVerbEntry, limit int) ([]relationshipEdge, bool, error) {
-	rows, err := h.Neo4j.Run(ctx, relationshipEdgesCypher(entry), map[string]any{"limit": limit + 1})
+//
+// When tool is non-empty the filtered Cypher variant is used, which adds a
+// WHERE clause on r.source_tool. When tool is empty the unfiltered path is
+// used and the $source_tool param is never sent.
+func (h *InfraHandler) relationshipEdges(ctx context.Context, entry relationshipVerbEntry, tool string, limit int) ([]relationshipEdge, bool, error) {
+	var (
+		cypher string
+		params map[string]any
+	)
+	if tool != "" {
+		cypher = relationshipEdgesCypherFiltered(entry)
+		params = map[string]any{"limit": limit + 1, "source_tool": tool}
+	} else {
+		cypher = relationshipEdgesCypher(entry)
+		params = map[string]any{"limit": limit + 1}
+	}
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, false, err
 	}
@@ -218,6 +297,7 @@ func (h *InfraHandler) relationshipEdges(ctx context.Context, entry relationship
 			TargetID:   StringVal(row, "target_id"),
 			TargetName: StringVal(row, "target_name"),
 			Evidence:   StringVal(row, "evidence"),
+			SourceTool: StringVal(row, "source_tool"),
 		})
 	}
 	return edges, truncated, nil

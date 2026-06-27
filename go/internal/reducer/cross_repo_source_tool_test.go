@@ -7,7 +7,33 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
+
+// TestSourceToolValuesAreCanonical enforces the single source of truth across the
+// write and read sides: every token the reducer can stamp on an edge (the
+// named-constant map values plus the family-prefix fallback values) must be a
+// member of sourcetool.Canonical, the closed vocabulary the read surfaces
+// (#4000/#4005/#4007) filter against. A new tool added to the write side without
+// adding it to the canonical set — or vice versa — fails here rather than
+// shipping an edge whose source_tool a filter would reject.
+func TestSourceToolValuesAreCanonical(t *testing.T) {
+	t.Parallel()
+
+	for kind, tool := range evidenceKindToSourceTool {
+		if !sourcetool.IsValid(tool) {
+			t.Errorf("evidenceKindToSourceTool[%q] = %q is not in sourcetool.Canonical", kind, tool)
+		}
+	}
+	for _, fam := range sourceToolPrefixFallback {
+		if !sourcetool.IsValid(fam.tool) {
+			t.Errorf("sourceToolPrefixFallback %q -> %q is not in sourcetool.Canonical", fam.prefix, fam.tool)
+		}
+	}
+	if !sourcetool.IsValid(sourceToolUnknown) {
+		t.Errorf("sourceToolUnknown %q is not in sourcetool.Canonical", sourceToolUnknown)
+	}
+}
 
 // TestSourceToolForEvidenceKind locks the EvidenceKind -> source_tool family
 // collapse defined in docs/public/reference/edge-source-tool-provenance.md
