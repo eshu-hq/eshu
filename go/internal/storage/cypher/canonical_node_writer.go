@@ -181,17 +181,33 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	defer packageRegistryLock.unlock()
 	recordPackageRegistryIdentityLock(ctx, writeSpan, mat, packageRegistryLock)
 
-	// Atomic path: single transaction for all phases.
+	// Atomic path: single transaction for all node phases, then a deferred
+	// second transaction for the package_registry edge phases. The deferred
+	// edges MATCH multi-label nodes (Package, PackageVersion, PackageDependency)
+	// that are MERGE'd in the main group; NornicDB does not make those nodes
+	// visible to a same-transaction UNWIND-driven MATCH, so the edges must run
+	// after the node group commits.
 	if ge, ok := w.executor.(GroupExecutor); ok {
+		mainStatements, edgeStatements := partitionDeferredPackageRegistryEdgePhases(phases)
 		start := time.Now()
-		if err := ge.ExecuteGroup(ctx, allStatements); err != nil {
+		if err := ge.ExecuteGroup(ctx, mainStatements); err != nil {
 			writeSpan.RecordError(err)
 			writeSpan.SetStatus(codes.Error, err.Error())
 			return WrapRetryableNeo4jError(fmt.Errorf("canonical atomic write: %w", err))
 		}
+		if len(edgeStatements) > 0 {
+			if err := ge.ExecuteGroup(ctx, edgeStatements); err != nil {
+				writeSpan.RecordError(err)
+				writeSpan.SetStatus(codes.Error, err.Error())
+				return WrapRetryableNeo4jError(fmt.Errorf("canonical atomic edge write: %w", err))
+			}
+		}
 		dur := time.Since(start).Seconds()
 		slog.Info("canonical atomic write completed",
-			"scope_id", mat.ScopeID, "statements", len(allStatements), "duration_s", dur)
+			"scope_id", mat.ScopeID,
+			"statements", len(mainStatements),
+			"edge_statements", len(edgeStatements),
+			"duration_s", dur)
 		w.recordAtomicWrite(ctx, "atomic_group", dur, mat)
 		return nil
 	}
@@ -346,7 +362,44 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 		{name: canonicalPhasePackageRegistryDependencies, statements: w.buildPackageRegistryDependencyStatements(mat)},
 		{name: "modules", statements: w.buildModuleStatements(mat)},
 		{name: "structural_edges", statements: w.buildStructuralEdgeStatements(mat)},
+		// Deferred package_registry edge phases. These MUST run after the
+		// package_registry node phases (packages, versions, dependency targets,
+		// dependencies) commit, because NornicDB does not make a multi-label
+		// node visible to a later same-transaction UNWIND-driven MATCH. In the
+		// atomic GroupExecutor path, Write dispatches these as a second
+		// ExecuteGroup after the node group commits; in the per-phase paths they
+		// run last, after every node phase has committed.
+		{name: canonicalPhasePackageRegistryVersionEdges, statements: w.buildPackageRegistryVersionEdgeStatements(mat)},
+		{name: canonicalPhasePackageRegistryDependencyEdges, statements: w.buildPackageRegistryDependencyEdgeStatements(mat)},
 	}
+}
+
+// isDeferredPackageRegistryEdgePhase reports whether a phase name belongs to the
+// deferred package_registry edge phases that must execute in a second atomic
+// write group, after the node phases they MATCH have committed.
+func isDeferredPackageRegistryEdgePhase(name string) bool {
+	switch name {
+	case canonicalPhasePackageRegistryVersionEdges, canonicalPhasePackageRegistryDependencyEdges:
+		return true
+	default:
+		return false
+	}
+}
+
+// partitionDeferredPackageRegistryEdgePhases splits flattened phase statements
+// into the main atomic group and the deferred package_registry edge group,
+// preserving order within each group.
+func partitionDeferredPackageRegistryEdgePhases(
+	phases []canonicalWritePhase,
+) (mainStatements []Statement, edgeStatements []Statement) {
+	for _, phase := range phases {
+		if isDeferredPackageRegistryEdgePhase(phase.name) {
+			edgeStatements = append(edgeStatements, phase.statements...)
+			continue
+		}
+		mainStatements = append(mainStatements, phase.statements...)
+	}
+	return mainStatements, edgeStatements
 }
 
 func flattenCanonicalWritePhases(phases []canonicalWritePhase) []Statement {
@@ -375,116 +428,4 @@ func annotateCanonicalWritePhases(phases []canonicalWritePhase) []canonicalWrite
 		}
 	}
 	return phases
-}
-
-// --- Phase A: Retract stale nodes ---
-
-const (
-	canonicalNodeRefreshFilePathBatchSize          = 100
-	canonicalNodeRefreshEntityContainmentBatchSize = 50
-)
-
-var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
-	"Function":               {},
-	"Class":                  {},
-	"Variable":               {},
-	"Interface":              {},
-	"Trait":                  {},
-	"Struct":                 {},
-	"Enum":                   {},
-	"Macro":                  {},
-	"Union":                  {},
-	"Record":                 {},
-	"Property":               {},
-	"Annotation":             {},
-	"Typedef":                {},
-	"TypeAlias":              {},
-	"TypeAnnotation":         {},
-	"Component":              {},
-	"ImplBlock":              {},
-	"Protocol":               {},
-	"ProtocolImplementation": {},
-	"ShellCommand":           {},
-}
-
-var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
-	"K8sResource":           {},
-	"ArgoCDApplication":     {},
-	"ArgoCDApplicationSet":  {},
-	"AtlantisProject":       {},
-	"AtlantisWorkflow":      {},
-	"CrossplaneXRD":         {},
-	"CrossplaneComposition": {},
-	"CrossplaneClaim":       {},
-	"KustomizeOverlay":      {},
-	"HelmChart":             {},
-	"HelmValues":            {},
-}
-
-var canonicalNodeRetractTerraformEntityLabels = map[string]struct{}{
-	"TerraformResource":     {},
-	"TerraformModule":       {},
-	"TerraformVariable":     {},
-	"TerraformOutput":       {},
-	"TerraformDataSource":   {},
-	"TerraformProvider":     {},
-	"TerraformLocal":        {},
-	"TerraformBackend":      {},
-	"TerraformImport":       {},
-	"TerraformMovedBlock":   {},
-	"TerraformRemovedBlock": {},
-	"TerraformCheck":        {},
-	"TerraformLockProvider": {},
-	"TerragruntConfig":      {},
-	"TerragruntDependency":  {},
-	"TerragruntInput":       {},
-	"TerragruntLocal":       {},
-}
-
-var canonicalNodeRetractCloudFormationEntityLabels = map[string]struct{}{
-	"CloudFormationResource":  {},
-	"CloudFormationParameter": {},
-	"CloudFormationOutput":    {},
-}
-
-var canonicalNodeRetractSQLEntityLabels = map[string]struct{}{
-	"SqlTable":    {},
-	"SqlView":     {},
-	"SqlFunction": {},
-	"SqlTrigger":  {},
-	"SqlIndex":    {},
-	"SqlColumn":   {},
-}
-
-var canonicalNodeRetractDataEntityLabels = map[string]struct{}{
-	"DataAsset":        {},
-	"DataColumn":       {},
-	"AnalyticsModel":   {},
-	"DashboardAsset":   {},
-	"DataQualityCheck": {},
-	"QueryExecution":   {},
-	"DataContract":     {},
-	"DataOwner":        {},
-}
-
-var canonicalNodeRetractOCIEntityLabels = map[string]struct{}{
-	"ContainerImage":               {},
-	"ContainerImageDescriptor":     {},
-	"ContainerImageIndex":          {},
-	"ContainerImageTagObservation": {},
-	"OciImageDescriptor":           {},
-	"OciImageIndex":                {},
-	"OciImageManifest":             {},
-	"OciImageReferrer":             {},
-	"OciImageTagObservation":       {},
-	"OciRegistryRepository":        {},
-}
-
-var canonicalNodeRetractPackageRegistryEntityLabels = map[string]struct{}{
-	"Package":                          {},
-	"PackageDependency":                {},
-	"PackageRegistryPackage":           {},
-	"PackageRegistryPackageDependency": {},
-	"PackageRegistryPackageVersion":    {},
-	"PackageVersion":                   {},
 }

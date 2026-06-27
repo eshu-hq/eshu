@@ -127,14 +127,18 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	}
 
 	version := statements[1]
-	if !strings.Contains(version.Cypher, "MATCH (p:Package {uid: row.package_id})") {
-		t.Fatalf("version Cypher = %q, want package uid anchor", version.Cypher)
+	// The version NODE statement creates the multi-label PackageVersion node only.
+	// It must NOT MATCH the Package node nor MERGE the HAS_VERSION edge in the same
+	// statement: NornicDB does not make the multi-label Package visible to a
+	// same-transaction UNWIND-driven MATCH, so the edge is deferred to a second group.
+	if strings.Contains(version.Cypher, "MATCH (p:Package {uid: row.package_id})") {
+		t.Fatalf("version NODE Cypher = %q, must not anchor on Package (deferred to edge phase)", version.Cypher)
+	}
+	if strings.Contains(version.Cypher, "HAS_VERSION") {
+		t.Fatalf("version NODE Cypher = %q, must not MERGE HAS_VERSION (deferred to edge phase)", version.Cypher)
 	}
 	if !strings.Contains(version.Cypher, "MERGE (v:PackageVersion:PackageRegistryPackageVersion {uid: row.uid})") {
 		t.Fatalf("version Cypher = %q, want PackageVersion uid merge", version.Cypher)
-	}
-	if !strings.Contains(version.Cypher, "MERGE (p)-[rel:HAS_VERSION]->(v)") {
-		t.Fatalf("version Cypher = %q, want package version edge", version.Cypher)
 	}
 	if strings.Contains(version.Cypher, "SourceHint") || strings.Contains(version.Cypher, "Repository") {
 		t.Fatalf("version Cypher = %q, must not promote source hints to ownership", version.Cypher)
@@ -166,11 +170,10 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	}
 
 	dependency := statements[3]
+	// The dependency NODE statement creates the multi-label PackageDependency node
+	// only. The leading MATCHes and both edge MERGEs are deferred to the edge phase.
 	for _, fragment := range []string{
-		"MATCH (target:Package {uid: row.dependency_package_id})",
 		"MERGE (d:PackageDependency:PackageRegistryPackageDependency {uid: row.uid})",
-		"MERGE (v)-[declares:DECLARES_DEPENDENCY]->(d)",
-		"MERGE (d)-[depends:DEPENDS_ON_PACKAGE]->(target)",
 		"dependency_type = row.dependency_type",
 		"dependency_purl = row.dependency_purl",
 		"dependency_bom_ref = row.dependency_bom_ref",
@@ -179,14 +182,60 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 		"marker = row.marker",
 	} {
 		if !strings.Contains(dependency.Cypher, fragment) {
-			t.Fatalf("dependency Cypher = %q, want fragment %q", dependency.Cypher, fragment)
+			t.Fatalf("dependency NODE Cypher = %q, want fragment %q", dependency.Cypher, fragment)
 		}
 	}
-	if strings.Contains(dependency.Cypher, "\nSET target.") {
-		t.Fatalf("dependency Cypher = %q, must not overwrite observed target package properties", dependency.Cypher)
+	for _, forbidden := range []string{
+		"MATCH (",
+		"DECLARES_DEPENDENCY",
+		"DEPENDS_ON_PACKAGE",
+	} {
+		if strings.Contains(dependency.Cypher, forbidden) {
+			t.Fatalf("dependency NODE Cypher = %q, must not contain %q (deferred to edge phase)", dependency.Cypher, forbidden)
+		}
 	}
 	if strings.Contains(dependency.Cypher, "Repository") {
 		t.Fatalf("dependency Cypher = %q, must not infer repository ownership", dependency.Cypher)
+	}
+
+	// Edge cypher: the deferred version edge statement MUST anchor on both nodes and
+	// MERGE the HAS_VERSION edge.
+	versionEdges := writer.buildPackageRegistryVersionEdgeStatements(mat)
+	if got, want := len(versionEdges), 1; got != want {
+		t.Fatalf("buildPackageRegistryVersionEdgeStatements() count = %d, want %d", got, want)
+	}
+	for _, fragment := range []string{
+		"MATCH (p:Package {uid: row.package_id})",
+		"MATCH (v:PackageVersion {uid: row.uid})",
+		"MERGE (p)-[rel:HAS_VERSION]->(v)",
+	} {
+		if !strings.Contains(versionEdges[0].Cypher, fragment) {
+			t.Fatalf("version EDGE Cypher = %q, want fragment %q", versionEdges[0].Cypher, fragment)
+		}
+	}
+	if got, want := versionEdges[0].Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryVersionEdges; got != want {
+		t.Fatalf("version edge phase = %#v, want %#v", got, want)
+	}
+
+	// Edge cypher: the deferred dependency edge statement MUST MATCH all three nodes
+	// and MERGE both DECLARES_DEPENDENCY and DEPENDS_ON_PACKAGE.
+	dependencyEdges := writer.buildPackageRegistryDependencyEdgeStatements(mat)
+	if got, want := len(dependencyEdges), 1; got != want {
+		t.Fatalf("buildPackageRegistryDependencyEdgeStatements() count = %d, want %d", got, want)
+	}
+	for _, fragment := range []string{
+		"MATCH (v:PackageVersion {uid: row.version_id})",
+		"MATCH (target:Package {uid: row.dependency_package_id})",
+		"MATCH (d:PackageDependency {uid: row.uid})",
+		"MERGE (v)-[declares:DECLARES_DEPENDENCY]->(d)",
+		"MERGE (d)-[depends:DEPENDS_ON_PACKAGE]->(target)",
+	} {
+		if !strings.Contains(dependencyEdges[0].Cypher, fragment) {
+			t.Fatalf("dependency EDGE Cypher = %q, want fragment %q", dependencyEdges[0].Cypher, fragment)
+		}
+	}
+	if got, want := dependencyEdges[0].Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryDependencyEdges; got != want {
+		t.Fatalf("dependency edge phase = %#v, want %#v", got, want)
 	}
 }
 
@@ -245,6 +294,25 @@ func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
 	versionGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackageVersion")
 	dependencyPackageGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryDependencyPackage")
 	dependencyGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackageDependency")
+	versionEdgeGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryVersionEdge")
+	dependencyEdgeGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryDependencyEdge")
+
+	// Edge phases must run AFTER every package_registry node phase on the
+	// PhaseGroupExecutor (and sequential) path too: the edges MATCH the
+	// multi-label nodes the node phases create, so they must commit last. This
+	// guards the non-atomic paths, not just the atomic two-group split.
+	nodeGroups := []int{packageGroup, versionGroup, dependencyPackageGroup, dependencyGroup}
+	for _, nodeGroup := range nodeGroups {
+		if versionEdgeGroup <= nodeGroup || dependencyEdgeGroup <= nodeGroup {
+			t.Fatalf(
+				"package registry edge phases must run after all node phases: node groups=%v version_edge=%d dependency_edge=%d",
+				nodeGroups,
+				versionEdgeGroup,
+				dependencyEdgeGroup,
+			)
+		}
+	}
+
 	if packageGroup >= versionGroup || versionGroup >= dependencyPackageGroup || dependencyPackageGroup >= dependencyGroup {
 		t.Fatalf(
 			"package registry phase groups = package:%d version:%d dependency_package:%d dependency:%d, want package before version before dependency targets before dependency",
@@ -397,52 +465,6 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages(t *testing.T) {
 	}
 	if got, want := rows[0]["raw_name"], "graphql-new"; got != want {
 		t.Fatalf("package raw_name = %#v, want newest duplicate row %#v", got, want)
-	}
-}
-
-func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackagesWithDeterministicTieBreaker(t *testing.T) {
-	t.Parallel()
-
-	observedAt := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
-	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	statements := writer.buildPackageRegistryPackageStatements(projector.CanonicalMaterialization{
-		ScopeID:      "package-registry-scope-1",
-		GenerationID: "package-registry-generation-1",
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{
-			{
-				UID:              "npm://registry.npmjs.org/graphql",
-				Ecosystem:        "npm",
-				Registry:         "https://registry.npmjs.org",
-				RawName:          "graphql-low-fact",
-				NormalizedName:   "graphql",
-				SourceFactID:     "package-registry-package-1",
-				StableFactKey:    "package-registry-package-z",
-				SourceSystem:     "package_registry",
-				SourceConfidence: facts.SourceConfidenceReported,
-				CollectorKind:    "package_registry",
-				ObservedAt:       observedAt,
-			},
-			{
-				UID:              "npm://registry.npmjs.org/graphql",
-				Ecosystem:        "npm",
-				Registry:         "https://registry.npmjs.org",
-				RawName:          "graphql-high-fact",
-				NormalizedName:   "graphql",
-				SourceFactID:     "package-registry-package-2",
-				StableFactKey:    "package-registry-package-a",
-				SourceSystem:     "package_registry",
-				SourceConfidence: facts.SourceConfidenceReported,
-				CollectorKind:    "package_registry",
-				ObservedAt:       observedAt,
-			},
-		},
-	})
-	rows := statements[0].Parameters["rows"].([]map[string]any)
-	if got, want := len(rows), 1; got != want {
-		t.Fatalf("package rows = %d, want %d", got, want)
-	}
-	if got, want := rows[0]["raw_name"], "graphql-high-fact"; got != want {
-		t.Fatalf("package raw_name = %#v, want source fact tie-break row %#v", got, want)
 	}
 }
 

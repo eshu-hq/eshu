@@ -22,10 +22,28 @@
 - **Phase order** — `CanonicalNodeWriter.Write` phases run strictly in order:
   retract → repository_cleanup → repository → directories → files → entities →
   entity_retract → entity_containment → terraform_state → oci_registry →
-  modules → structural_edges. Parent nodes must exist before child MATCH
+  package_registry_packages → package_registry_versions →
+  package_registry_dependency_targets → package_registry_dependencies →
+  modules → structural_edges → package_registry_version_edges →
+  package_registry_dependency_edges. Parent nodes must exist before child MATCH
   statements run, repository cleanup must commit before the repository MERGE,
   and stale entity cleanup must run after current entity upserts so it can avoid
-  giant `uid IN` exclusion filters.
+  giant `uid IN` exclusion filters. The two `package_registry_*_edges` phases run
+  LAST, after every package_registry node phase, because they MATCH the
+  multi-label `Package`/`PackageVersion`/`PackageDependency` nodes those node
+  phases create.
+- **package_registry edges dispatch in a SECOND ExecuteGroup** — on the atomic
+  `GroupExecutor` projector path, `CanonicalNodeWriter.Write` partitions the
+  two deferred `package_registry_*_edges` phases out of the main group and
+  dispatches them as a separate, second `ExecuteGroup` that runs only after the
+  node group commits. This is required for NornicDB read-your-writes: a node
+  MERGE'd with multiple labels in one statement is invisible to a later
+  same-transaction `UNWIND $rows … MATCH` against one of those labels, so an
+  inline edge MATCH+MERGE in the same atomic transaction finds nothing and the
+  `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE` edges never
+  materialize. Deferring the edges to a second committed-node group fixes this.
+  The phase-group and sequential paths need no special handling because they
+  already commit per phase and the edge phases run last.
 - **No GraphWrite type** — this package does not export a GraphWrite port.
   The backend seam is `Executor`. Every caller in `internal/projector` and
   `internal/reducer` uses the projector CanonicalWriter or
@@ -65,9 +83,11 @@
   MERGE image manifest or index identity from tag text.
 - **Package source hints are weak evidence** —
   `package_registry_canonical_writer.go` writes package identity, package
-  version identity, package-native dependency identity, `HAS_VERSION`,
-  `DECLARES_DEPENDENCY`, and `DEPENDS_ON_PACKAGE`. Do not join to `Repository`
-  or create ownership/publication edges from registry source URLs.
+  version identity, and package-native dependency identity (the node-only
+  upserts). The `HAS_VERSION`, `DECLARES_DEPENDENCY`, and `DEPENDS_ON_PACKAGE`
+  edge writers live in `package_registry_edge_writer.go` and run as the deferred
+  second ExecuteGroup (see the phase-order invariant above). Do not join to
+  `Repository` or create ownership/publication edges from registry source URLs.
 - **Identity cleanup** — repository upserts must keep cleanup before MERGE and
   in a separate phase group for non-first-generation scopes. First-generation
   scopes skip repository cleanup because there is no prior repository identity

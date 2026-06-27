@@ -48,7 +48,6 @@ SET p.id = row.uid,
     p.evidence_source = 'projector/package_registry'`
 
 const canonicalPackageRegistryVersionUpsertCypher = `UNWIND $rows AS row
-MATCH (p:Package {uid: row.package_id})
 MERGE (v:PackageVersion:PackageRegistryPackageVersion {uid: row.uid})
 SET v.id = row.uid,
     v.name = row.version,
@@ -76,10 +75,7 @@ SET v.id = row.uid,
     v.correlation_anchors = row.correlation_anchors,
     v.scope_id = row.scope_id,
     v.generation_id = row.generation_id,
-    v.evidence_source = 'projector/package_registry'
-MERGE (p)-[rel:HAS_VERSION]->(v)
-SET rel.generation_id = row.generation_id,
-    rel.evidence_source = 'projector/package_registry'`
+    v.evidence_source = 'projector/package_registry'`
 
 const canonicalPackageRegistryDependencyTargetUpsertCypher = `UNWIND $rows AS row
 MERGE (target:Package:PackageRegistryPackage {uid: row.dependency_package_id})
@@ -97,8 +93,6 @@ ON CREATE SET target.id = row.dependency_package_id,
     target.evidence_source = 'projector/package_registry'`
 
 const canonicalPackageRegistryDependencyUpsertCypher = `UNWIND $rows AS row
-MATCH (v:PackageVersion {uid: row.version_id})
-MATCH (target:Package {uid: row.dependency_package_id})
 MERGE (d:PackageDependency:PackageRegistryPackageDependency {uid: row.uid})
 SET d.id = row.uid,
     d.package_id = row.package_id,
@@ -128,13 +122,7 @@ SET d.id = row.uid,
     d.correlation_anchors = row.correlation_anchors,
     d.scope_id = row.scope_id,
     d.generation_id = row.generation_id,
-    d.evidence_source = 'projector/package_registry'
-MERGE (v)-[declares:DECLARES_DEPENDENCY]->(d)
-SET declares.generation_id = row.generation_id,
-    declares.evidence_source = 'projector/package_registry'
-MERGE (d)-[depends:DEPENDS_ON_PACKAGE]->(target)
-SET depends.generation_id = row.generation_id,
-    depends.evidence_source = 'projector/package_registry'`
+    d.evidence_source = 'projector/package_registry'`
 
 func (w *CanonicalNodeWriter) buildPackageRegistryStatements(mat projector.CanonicalMaterialization) []Statement {
 	var statements []Statement
