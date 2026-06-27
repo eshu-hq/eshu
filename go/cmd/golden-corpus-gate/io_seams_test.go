@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -106,7 +107,11 @@ type fakeCounter struct {
 	nodes map[string]int64
 	edges map[string]int64
 	corr  map[string]int64 // key "from|rel|to"
-	err   error
+	// corrEv keys "from|rel|to|kind1,kind2" for evidence-filtered correlation
+	// counts. A miss returns 0, modelling a shared edge that exists (corr > 0)
+	// but carries no edge produced by the requested verb's evidence kind.
+	corrEv map[string]int64
+	err    error
 }
 
 func (f fakeCounter) CountNodes(_ context.Context, label string) (int64, error) {
@@ -119,6 +124,10 @@ func (f fakeCounter) CountEdges(_ context.Context, rel string) (int64, error) {
 
 func (f fakeCounter) CountCorrelation(_ context.Context, from, rel, to string) (int64, error) {
 	return f.corr[from+"|"+rel+"|"+to], f.err
+}
+
+func (f fakeCounter) CountCorrelationWithEvidence(_ context.Context, from, rel, to string, kinds []string) (int64, error) {
+	return f.corrEv[from+"|"+rel+"|"+to+"|"+strings.Join(kinds, ",")], f.err
 }
 
 func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
