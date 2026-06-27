@@ -155,7 +155,10 @@ async function auditAllPages(page: Page, tests: readonly PageTest[]): Promise<Au
 
   for (const test of tests) {
     try {
-      await page.goto(routeUrl(test.path), { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+      await page.goto(routeUrl(test.path), {
+        waitUntil: "domcontentloaded",
+        timeout: navTimeoutMs,
+      });
       await page.waitForTimeout(settleMs);
 
       const builder = new AxeBuilder({ page });
@@ -228,9 +231,7 @@ function printBaseline(violations: StructuredViolation[]): void {
   }
 
   process.stdout.write("\n## Top Rules by Violation Count\n\n");
-  const sorted = [...byRule.entries()]
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 10);
+  const sorted = [...byRule.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 10);
 
   for (const [rule, info] of sorted) {
     process.stdout.write(`- **${rule}** (${info.count} node(s)): ${info.description}\n`);
@@ -301,10 +302,7 @@ async function main(): Promise<void> {
     // Single atomic pass: navigate each page once, collect both per-page
     // counts and structured violations. This prevents a false-green gate
     // when the dev server or browser dies between separate passes.
-    const { pageResults, structuredViolations, skippedPages } = await auditAllPages(
-      page,
-      allTests,
-    );
+    const { pageResults, structuredViolations, skippedPages } = await auditAllPages(page, allTests);
 
     printPageResults(pageResults);
     printBaseline(structuredViolations);
