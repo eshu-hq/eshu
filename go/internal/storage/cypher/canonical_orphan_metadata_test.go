@@ -37,25 +37,6 @@ func TestBuildCanonicalRelationshipTargetsStampOrphanSweepMetadata(t *testing.T)
 			},
 		},
 		{
-			name: "infrastructure platform",
-			stmt: BuildCanonicalInfrastructurePlatformUpsert(CanonicalInfrastructurePlatformParams{
-				RepoID:              "repo-1",
-				PlatformID:          "platform:eks:aws:infra-cluster:staging:us-west-2",
-				PlatformName:        "infra-cluster",
-				PlatformKind:        "eks",
-				PlatformProvider:    "aws",
-				PlatformEnvironment: "staging",
-				PlatformRegion:      "us-west-2",
-				PlatformLocator:     "arn:aws:eks:us-west-2:123:cluster/infra-cluster",
-				GenerationID:        "gen-infra-platform",
-			}, "finalization/workloads"),
-			wantGeneration: "gen-infra-platform",
-			wantFragments: []string{
-				"p.evidence_source = $evidence_source",
-				"p.generation_id = $generation_id",
-			},
-		},
-		{
 			name: "repo dependency",
 			stmt: BuildCanonicalRepoDependencyUpsert(CanonicalRepoDependencyParams{
 				RepoID:       "repo-a",

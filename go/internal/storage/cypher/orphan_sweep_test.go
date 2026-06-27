@@ -304,17 +304,6 @@ func TestRepoRelationshipUpsertStampsTargetRepositoryForFutureSweeps(t *testing.
 	}
 }
 
-func TestInfrastructurePlatformUpsertStampsGenerationForFutureSweeps(t *testing.T) {
-	t.Parallel()
-
-	if !strings.Contains(canonicalInfrastructurePlatformUpsertCypher, "p.generation_id = $generation_id") {
-		t.Fatalf("platform single-row Cypher missing generation_id create metadata:\n%s", canonicalInfrastructurePlatformUpsertCypher)
-	}
-	if !strings.Contains(batchCanonicalInfrastructurePlatformUpsertCypher, "p.generation_id = row.generation_id") {
-		t.Fatalf("platform batch Cypher missing generation_id create metadata:\n%s", batchCanonicalInfrastructurePlatformUpsertCypher)
-	}
-}
-
 func TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches(t *testing.T) {
 	t.Parallel()
 

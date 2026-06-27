@@ -173,8 +173,6 @@ func buildRetractStatement(
 	evidenceSource string,
 ) (Statement, error) {
 	switch domain {
-	case reducer.DomainPlatformInfra:
-		return BuildRetractInfrastructurePlatformEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainRepoDependency:
 		return Statement{
 			Operation: OperationCanonicalRetract,

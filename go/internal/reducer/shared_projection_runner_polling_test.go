@@ -162,7 +162,7 @@ func TestSharedProjectionRunnerBackoffResetsOnWork(t *testing.T) {
 				reader.mu.Lock()
 				reader.intents = append(reader.intents, SharedProjectionIntentRow{
 					IntentID:         "intent-reset",
-					ProjectionDomain: DomainPlatformInfra,
+					ProjectionDomain: DomainWorkloadDependency,
 					PartitionKey:     "platform:test",
 					ScopeID:          "scope-b",
 					AcceptanceUnitID: "repo-b",

@@ -2685,7 +2685,7 @@
     },
     {
       "category": "reducer_domain",
-      "name": "platform_infra",
+      "name": "platform_infra_materialization",
       "readiness": "implemented"
     },
     {

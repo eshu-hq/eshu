@@ -161,59 +161,6 @@ func TestBatchedWriteEdgesAllRowsInvalidIsNoop(t *testing.T) {
 	}
 }
 
-func TestBatchedWriteEdgesParameterFidelity(t *testing.T) {
-	t.Parallel()
-
-	executor := &recordingExecutor{}
-	writer := NewEdgeWriter(executor, 0)
-
-	rows := []reducer.SharedProjectionIntentRow{
-		{
-			IntentID:     "i1",
-			RepositoryID: "repo-1",
-			GenerationID: "gen-platform-1",
-			Payload: map[string]any{
-				"repo_id":              "repo-1",
-				"platform_id":          "platform:eks:aws:cluster-1:prod:us-east-1",
-				"platform_name":        "cluster-1",
-				"platform_kind":        "eks",
-				"platform_provider":    "aws",
-				"platform_environment": "prod",
-				"platform_region":      "us-east-1",
-				"platform_locator":     "arn:aws:eks:us-east-1:123:cluster/cluster-1",
-			},
-		},
-	}
-
-	err := writer.WriteEdges(context.Background(), reducer.DomainPlatformInfra, rows, "test-evidence")
-	if err != nil {
-		t.Fatalf("WriteEdges() error = %v", err)
-	}
-
-	batchRows := executor.calls[0].Parameters["rows"].([]map[string]any)
-	row := batchRows[0]
-
-	expectedKeys := []string{
-		"repo_id", "platform_id", "platform_name", "platform_kind",
-		"platform_provider", "platform_environment", "platform_region",
-		"platform_locator", "generation_id", "evidence_source",
-	}
-	for _, key := range expectedKeys {
-		if _, ok := row[key]; !ok {
-			t.Errorf("missing key %q in row map", key)
-		}
-	}
-	if got, want := row["evidence_source"], "test-evidence"; got != want {
-		t.Errorf("evidence_source = %v, want %v", got, want)
-	}
-	if got, want := row["generation_id"], "gen-platform-1"; got != want {
-		t.Errorf("generation_id = %v, want %v", got, want)
-	}
-	if got, want := row["platform_name"], "cluster-1"; got != want {
-		t.Errorf("platform_name = %v, want %v", got, want)
-	}
-}
-
 func TestEdgeWriterWriteEdgesCodeCallsChunkManagedGroups(t *testing.T) {
 	t.Parallel()
 

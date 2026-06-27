@@ -284,7 +284,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 		pending: []SharedProjectionIntentRow{
 			{
 				IntentID:         "other-partition-1",
-				ProjectionDomain: DomainPlatformInfra,
+				ProjectionDomain: DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-a"),
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -295,7 +295,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "other-partition-2",
-				ProjectionDomain: DomainPlatformInfra,
+				ProjectionDomain: DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-b"),
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-b",
@@ -306,7 +306,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "other-partition-3",
-				ProjectionDomain: DomainPlatformInfra,
+				ProjectionDomain: DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-c"),
 				ScopeID:          "scope-c",
 				AcceptanceUnitID: "repo-c",
@@ -317,7 +317,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "other-partition-4",
-				ProjectionDomain: DomainPlatformInfra,
+				ProjectionDomain: DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-d"),
 				ScopeID:          "scope-d",
 				AcceptanceUnitID: "repo-d",
@@ -328,7 +328,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "target-partition-1",
-				ProjectionDomain: DomainPlatformInfra,
+				ProjectionDomain: DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, targetPartition, partitionCount, "tail"),
 				ScopeID:          "scope-target",
 				AcceptanceUnitID: "repo-target",
@@ -343,7 +343,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 	batch, err := SelectPartitionBatch(
 		context.Background(),
 		reader,
-		DomainPlatformInfra,
+		DomainWorkloadDependency,
 		targetPartition,
 		partitionCount,
 		1,
@@ -373,7 +373,7 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 			for i := range rows {
 				rows[i] = SharedProjectionIntentRow{
 					IntentID:         "head-intent",
-					ProjectionDomain: DomainPlatformInfra,
+					ProjectionDomain: DomainWorkloadDependency,
 					PartitionKey:     partitionKeyForTestPartition(t, 0, 2, "cap"),
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -389,7 +389,7 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 	_, err := SelectPartitionBatch(
 		context.Background(),
 		reader,
-		DomainPlatformInfra,
+		DomainWorkloadDependency,
 		1,
 		2,
 		1,

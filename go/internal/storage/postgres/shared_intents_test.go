@@ -26,7 +26,7 @@ func TestSharedIntentStoreUpsertAndList(t *testing.T) {
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			IntentID:         "si-1",
-			ProjectionDomain: reducer.DomainPlatformInfra,
+			ProjectionDomain: reducer.DomainWorkloadDependency,
 			PartitionKey:     "pk-1",
 			RepositoryID:     "repository:r_payments",
 			SourceRunID:      "run-001",
@@ -58,7 +58,7 @@ func TestSharedIntentStoreUpsertAndList(t *testing.T) {
 	if got[0].IntentID != "si-1" {
 		t.Errorf("IntentID = %q", got[0].IntentID)
 	}
-	if got[0].ProjectionDomain != reducer.DomainPlatformInfra {
+	if got[0].ProjectionDomain != reducer.DomainWorkloadDependency {
 		t.Errorf("ProjectionDomain = %q", got[0].ProjectionDomain)
 	}
 }
@@ -74,7 +74,7 @@ func TestSharedIntentStoreUpsertOverwrites(t *testing.T) {
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			IntentID:         "si-upsert",
-			ProjectionDomain: reducer.DomainPlatformInfra,
+			ProjectionDomain: reducer.DomainWorkloadDependency,
 			PartitionKey:     "pk-1",
 			RepositoryID:     "repository:r_api",
 			SourceRunID:      "run-002",
@@ -172,7 +172,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 
 	pending := reducer.SharedProjectionIntentRow{
 		IntentID:         "si-pending",
-		ProjectionDomain: reducer.DomainPlatformInfra,
+		ProjectionDomain: reducer.DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repository:r_pending",
 		SourceRunID:      "run-p",
@@ -183,7 +183,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 	}
 	done := reducer.SharedProjectionIntentRow{
 		IntentID:         "si-done",
-		ProjectionDomain: reducer.DomainPlatformInfra,
+		ProjectionDomain: reducer.DomainWorkloadDependency,
 		PartitionKey:     "pk-2",
 		RepositoryID:     "repository:r_done",
 		SourceRunID:      "run-d",
@@ -197,7 +197,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
-	got, err := store.ListPendingDomainIntents(ctx, reducer.DomainPlatformInfra, 100)
+	got, err := store.ListPendingDomainIntents(ctx, reducer.DomainWorkloadDependency, 100)
 	if err != nil {
 		t.Fatalf("ListPendingDomainIntents: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			IntentID:         "si-mark-1",
-			ProjectionDomain: reducer.DomainPlatformInfra,
+			ProjectionDomain: reducer.DomainWorkloadDependency,
 			PartitionKey:     "pk-1",
 			RepositoryID:     "repository:r_mark",
 			SourceRunID:      "run-m",
@@ -240,7 +240,7 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	}
 
 	// Verify it no longer appears in pending.
-	got, err := store.ListPendingDomainIntents(ctx, reducer.DomainPlatformInfra, 100)
+	got, err := store.ListPendingDomainIntents(ctx, reducer.DomainWorkloadDependency, 100)
 	if err != nil {
 		t.Fatalf("ListPendingDomainIntents: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 	for i := 0; i < 1200; i++ {
 		rows[i] = reducer.SharedProjectionIntentRow{
 			IntentID:         fmt.Sprintf("si-batch-%d", i),
-			ProjectionDomain: reducer.DomainPlatformInfra,
+			ProjectionDomain: reducer.DomainWorkloadDependency,
 			PartitionKey:     fmt.Sprintf("pk-%d", i%10),
 			RepositoryID:     "repository:r_batch_test",
 			SourceRunID:      "run-batch",
@@ -393,7 +393,7 @@ func TestSharedIntentStorePersistsAcceptanceIdentity(t *testing.T) {
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			IntentID:         "si-identity",
-			ProjectionDomain: reducer.DomainPlatformInfra,
+			ProjectionDomain: reducer.DomainWorkloadDependency,
 			PartitionKey:     "pk-identity",
 			RepositoryID:     "repository:r_identity",
 			SourceRunID:      "run-identity",

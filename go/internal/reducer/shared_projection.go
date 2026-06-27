@@ -13,7 +13,6 @@ import (
 
 // SharedProjectionDomain constants for the shared projection domains.
 const (
-	DomainPlatformInfra       = "platform_infra"
 	DomainRepoDependency      = "repo_dependency"
 	DomainWorkloadDependency  = "workload_dependency"
 	DomainCodeCalls           = "code_calls"
@@ -53,7 +52,6 @@ const (
 // are driven by dedicated projection runners but are still reducer-owned domains
 // that must appear in the inventory.
 var allProjectionDomains = []Domain{
-	DomainPlatformInfra,
 	DomainRepoDependency,
 	DomainWorkloadDependency,
 	DomainCodeCalls,

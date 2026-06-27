@@ -13,7 +13,7 @@ func TestBuildSharedProjectionIntentDeterministicID(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	input := SharedProjectionIntentInput{
-		ProjectionDomain: DomainPlatformInfra,
+		ProjectionDomain: DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repo-1",
 		SourceRunID:      "run-1",
@@ -35,7 +35,7 @@ func TestBuildSharedProjectionIntentDifferentInputsDifferentIDs(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	base := SharedProjectionIntentInput{
-		ProjectionDomain: DomainPlatformInfra,
+		ProjectionDomain: DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repo-1",
 		SourceRunID:      "run-1",
@@ -198,35 +198,6 @@ func TestSharedProjectionIntentRowAcceptanceKeyPrefersExplicitFields(t *testing.
 	}
 	if got, want := key.SourceRunID, "run-1"; got != want {
 		t.Fatalf("key.SourceRunID = %q, want %q", got, want)
-	}
-}
-
-func TestBuildSharedProjectionIntentCrossLanguageParity(t *testing.T) {
-	t.Parallel()
-
-	// Verified against Python:
-	// build_shared_projection_intent(
-	//   projection_domain="platform_infra", partition_key="pk-1",
-	//   repository_id="repo-1", source_run_id="run-1",
-	//   generation_id="gen-1", scope_id="", acceptance_unit_id="repo-1",
-	//   payload={}, created_at=...)
-	// produces intent_id = "0200325eedd43adccebc04f7f0711824935c1cf9f1f09dee568e9b80ea194cbe"
-	now := time.Now().UTC()
-	input := SharedProjectionIntentInput{
-		ProjectionDomain: DomainPlatformInfra,
-		PartitionKey:     "pk-1",
-		RepositoryID:     "repo-1",
-		SourceRunID:      "run-1",
-		GenerationID:     "gen-1",
-		Payload:          map[string]any{},
-		CreatedAt:        now,
-	}
-
-	row := BuildSharedProjectionIntent(input)
-
-	want := "0200325eedd43adccebc04f7f0711824935c1cf9f1f09dee568e9b80ea194cbe"
-	if row.IntentID != want {
-		t.Errorf("IntentID = %q, want %q (Python parity)", row.IntentID, want)
 	}
 }
 

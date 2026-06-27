@@ -20,7 +20,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 		{DomainInheritanceEdges, inheritanceEvidenceSource},
 		{DomainHandlesRoute, fallback},
 		{DomainRunsIn, fallback},
-		{DomainPlatformInfra, fallback},
+		{DomainWorkloadDependency, fallback},
 	}
 	for _, tc := range cases {
 		tc := tc
