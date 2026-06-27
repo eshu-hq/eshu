@@ -43,6 +43,7 @@ var allEvidenceKinds = []EvidenceKind{
 	EvidenceKindPuppetModuleReference,
 	EvidenceKindChefCookbookDependency,
 	EvidenceKindGCPCloudRelationship,
+	EvidenceKindHelmTemplateValueReference,
 }
 
 // TestConfidenceRegistryCoversEveryEvidenceKind pins the contract that no

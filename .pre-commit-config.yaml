@@ -27,6 +27,12 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
         args: ["--allow-multiple-documents"]
+        # Exclude the fixture/golden corpora: Helm chart templates/*.yaml carry
+        # Go-template syntax ({{ .Values.x }}) that is not valid YAML by design
+        # (the parser scans them as templates, not via a YAML decode), so a strict
+        # YAML check rejects them. Mirrors the trailing-whitespace/EOF excludes
+        # above so contributors are not pushed to `git commit --no-verify`.
+        exclude: '^tests/fixtures/|/testdata/|^testdata/'
       - id: check-added-large-files
         # Catches an accidentally-committed Go build artifact (e.g. a bare
         # `go build ./cmd/...` dropping a ~28MB binary).

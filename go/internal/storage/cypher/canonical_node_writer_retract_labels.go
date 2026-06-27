@@ -39,19 +39,21 @@ var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
 }
 
 var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
-	"K8sResource":           {},
-	"ArgoCDApplication":     {},
-	"ArgoCDApplicationSet":  {},
-	"AtlantisProject":       {},
-	"AtlantisWorkflow":      {},
-	"GitlabPipeline":        {},
-	"GitlabJob":             {},
-	"CrossplaneXRD":         {},
-	"CrossplaneComposition": {},
-	"CrossplaneClaim":       {},
-	"KustomizeOverlay":      {},
-	"HelmChart":             {},
-	"HelmValues":            {},
+	"K8sResource":            {},
+	"ArgoCDApplication":      {},
+	"ArgoCDApplicationSet":   {},
+	"AtlantisProject":        {},
+	"AtlantisWorkflow":       {},
+	"GitlabPipeline":         {},
+	"GitlabJob":              {},
+	"CrossplaneXRD":          {},
+	"CrossplaneComposition":  {},
+	"CrossplaneClaim":        {},
+	"KustomizeOverlay":       {},
+	"HelmChart":              {},
+	"HelmValues":             {},
+	"HelmValueDefinition":    {},
+	"HelmTemplateValueUsage": {},
 }
 
 var canonicalNodeRetractTerraformEntityLabels = map[string]struct{}{

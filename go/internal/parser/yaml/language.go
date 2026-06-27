@@ -44,6 +44,10 @@ func Parse(
 		if item := parseHelmValues(path, source); item != nil {
 			shared.AppendBucket(payload, "helm_values", item)
 		}
+		for _, row := range parseHelmValueDefinitions(source) {
+			shared.AppendBucket(payload, "helm_value_definitions", row)
+		}
+		shared.SortNamedBucket(payload, "helm_value_definitions")
 		appendHelmGrafanaObservability(payload, path, source)
 		sortObservabilityBuckets(payload)
 		if options.IndexSource {
@@ -52,6 +56,10 @@ func Parse(
 		return payload, nil
 	}
 	if isHelmTemplateManifest(path) {
+		for _, row := range parseHelmTemplateValueUsages(source) {
+			shared.AppendBucket(payload, "helm_template_value_usages", row)
+		}
+		shared.SortNamedBucket(payload, "helm_template_value_usages")
 		if options.IndexSource {
 			payload["source"] = string(source)
 		}
@@ -124,6 +132,8 @@ func Parse(
 		"kustomize_overlays",
 		"helm_charts",
 		"helm_values",
+		"helm_value_definitions",
+		"helm_template_value_usages",
 		"cloudformation_resources",
 		"cloudformation_parameters",
 		"cloudformation_outputs",
@@ -155,6 +165,8 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["kustomize_overlays"] = []map[string]any{}
 	payload["helm_charts"] = []map[string]any{}
 	payload["helm_values"] = []map[string]any{}
+	payload["helm_value_definitions"] = []map[string]any{}
+	payload["helm_template_value_usages"] = []map[string]any{}
 	payload["cloudformation_resources"] = []map[string]any{}
 	payload["cloudformation_parameters"] = []map[string]any{}
 	payload["cloudformation_outputs"] = []map[string]any{}

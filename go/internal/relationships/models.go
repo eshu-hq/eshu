@@ -88,6 +88,12 @@ const (
 	// whose source and target resource identities each resolve to one catalog
 	// repository.
 	EvidenceKindGCPCloudRelationship EvidenceKind = "GCP_CLOUD_RELATIONSHIP"
+	// EvidenceKindHelmTemplateValueReference is a Helm chart template `.Values.<path>`
+	// reference: a `{{ .Values.<dotted.path> }}` usage in a templates/*.yaml
+	// manifest resolves to the matching leaf key defined in the chart's
+	// values.yaml. It isolates the intra-chart usage->definition REFERENCES edge
+	// from the code-symbol REFERENCES edges that share the edge type.
+	EvidenceKindHelmTemplateValueReference EvidenceKind = "HELM_TEMPLATE_VALUE_REFERENCE"
 )
 
 // RelationshipType classifies the kind of link between two entities.

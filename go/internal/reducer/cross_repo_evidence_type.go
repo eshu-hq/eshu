@@ -43,6 +43,7 @@ var evidenceKindToType = map[relationships.EvidenceKind]string{
 	relationships.EvidenceKindPuppetModuleReference:                "puppet_module_reference",
 	relationships.EvidenceKindChefCookbookDependency:               "chef_cookbook_dependency",
 	relationships.EvidenceKindGCPCloudRelationship:                 "gcp_cloud_relationship",
+	relationships.EvidenceKindHelmTemplateValueReference:           "helm_template_value_reference",
 }
 
 func resolvedRelationshipEvidenceType(r relationships.ResolvedRelationship) string {
