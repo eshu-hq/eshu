@@ -7,6 +7,11 @@ permission:
   edit: deny
   write: deny
   bash: allow
+  task:
+    "*": deny
+    "develop-eshu": allow
+    "debug-eshu": allow
+    "perf-eshu": allow
 ---
 
 # Eshu Coordinator (`plan-eshu`)
@@ -41,6 +46,29 @@ For each request:
    (the relevant subset of `AGENTS.md` Verification Defaults).
 4. **Out of scope** — explicit boundaries.
 5. **Parallel-work note** — other active surfaces, read live (not hard-coded).
+
+## Dispatching subagents
+
+You delegate execution through the **Task tool**; you never implement. Route a
+fully-formed handoff contract (above) to the right leaf agent:
+
+- **`develop-eshu`** — implementation (feature, fix, refactor). Pass the full
+  task spec; one surface per dispatch.
+- **`debug-eshu`** — diagnosis when a failure's cause is unknown. It returns a
+  root cause + proposed fix; you then dispatch `develop-eshu` to implement it.
+- **`perf-eshu`** — bottlenecks, regressions, tuning. It returns measurements +
+  a recommendation; route any resulting code change to `develop-eshu`.
+
+Rules:
+
+- One surface per dispatch — never hand two surfaces to one agent.
+- Every dispatch carries the full handoff contract; a vague task makes a
+  cheaper executor flail.
+- Leaf agents cannot dispatch further (their `task` permission is denied).
+  Aggregation and sequencing are your job: collect each result, dispatch the
+  next step.
+- Sequence by the life motto — prove accuracy (develop/debug) before
+  performance (perf).
 
 ## Rules that bind you
 

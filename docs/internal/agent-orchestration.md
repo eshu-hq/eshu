@@ -55,6 +55,7 @@ Under that test, the roster is:
 | **Coordinator** (`plan-eshu`) | Codex-class | read + run, **no code edits** | Decompose, design, and emit a scoped task spec (see [Handoff Contract](#the-handoff-contract)). Never assigns work it cannot define a gate for. |
 | **Executor** (`develop-eshu`) | MiniMax / DeepSeek-class | full write, **one surface at a time** | Implement one scoped task, TDD-first, run and paste the gates. |
 | **Debugger** (`debug-eshu`) | any (cheap acceptable) | **read + run, no write** | Diagnose to root cause. The no-write boxing physically prevents the "fix before you understand" failure mode. |
+| **Performance engineer** (`perf-eshu`) | Frontier / strong | **read + run + measure, no write** | Find bottlenecks and regressions, tune the graph/storage stack. Measures and recommends; routes code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
 | **Reviewer** | Frontier (Claude) | full | Design review and PR review — judgment work. Token-expensive, used sparingly, after the cheap gates are green. |
 
 `ask-eshu` (read-only Q&A) is intentionally **deferred**: it overlaps
@@ -86,6 +87,24 @@ Every coordinator → executor handoff MUST contain:
 The raw material already exists: the `writing-plans` / `executing-plans`
 skills and `eshu-issue-driver`. The coordinator's job is to render that spec
 format on every handoff.
+
+## Dispatch
+
+The coordinator delegates through the harness's subagent mechanism (in
+opencode, the **Task tool**). The executor, debugger, and performance engineer
+are leaf agents — they run as `mode: all` (both directly selectable and
+dispatchable) and their own `task` permission is denied, so they cannot
+dispatch further. Aggregation and sequencing stay with the coordinator.
+
+Routing: implementation → `develop-eshu`; unknown-cause failure → `debug-eshu`
+(returns a root cause, then the coordinator dispatches `develop-eshu` to fix);
+bottleneck / regression / tuning → `perf-eshu` (returns measurements, then any
+code change routes to `develop-eshu`). One surface per dispatch, always with the
+full handoff contract, sequenced accuracy-before-performance per the Life Motto.
+
+In opencode the coordinator's reach is pinned with `permission.task` (allowlist
+the three leaf agents, deny the rest). Other harnesses use their own delegation
+primitive over the same canon.
 
 ## The gate floor
 

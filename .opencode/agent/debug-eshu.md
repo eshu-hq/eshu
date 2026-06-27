@@ -1,12 +1,14 @@
 ---
 description: Eshu debugger — diagnoses to root cause, read + run only, cannot edit (prevents fixing before understanding)
-mode: primary
+mode: all
 # Pin to any tier; diagnosis tolerates a cheaper model:
 # model: deepseek/deepseek-chat
 permission:
   edit: deny
   write: deny
   bash: allow
+  task:
+    "*": deny
 ---
 
 # Eshu Debugger (`debug-eshu`)
