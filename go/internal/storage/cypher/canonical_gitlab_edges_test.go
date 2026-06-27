@@ -10,6 +10,24 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
+// mergeStatementContaining returns the single OperationCanonicalUpsert statement
+// whose cypher contains marker, failing if none or more than one matches. It lets
+// tests locate a MERGE upsert by its edge clause regardless of the retract
+// statements now interleaved ahead of it.
+func mergeStatementContaining(t *testing.T, stmts []Statement, marker string) Statement {
+	t.Helper()
+	var found []Statement
+	for _, stmt := range stmts {
+		if stmt.Operation == OperationCanonicalUpsert && strings.Contains(stmt.Cypher, marker) {
+			found = append(found, stmt)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("want exactly 1 upsert statement containing %q, got %d", marker, len(found))
+	}
+	return found[0]
+}
+
 func gitlabPipelineEntityRow(uid, filePath string) projector.EntityRow {
 	return projector.EntityRow{
 		Label:    "GitlabPipeline",
@@ -52,11 +70,12 @@ func TestGitlabEdgeStatementsResolvesDefinesJobAndNeeds(t *testing.T) {
 	}
 
 	stmts := gitlabEdgeStatements(mat)
-	if len(stmts) != 2 {
-		t.Fatalf("gitlabEdgeStatements() returned %d statements, want 2 (DEFINES_JOB + NEEDS)", len(stmts))
+	// 2 generation-scoped retracts (DEFINES_JOB, NEEDS) precede the 2 MERGE upserts.
+	if len(stmts) != 4 {
+		t.Fatalf("gitlabEdgeStatements() returned %d statements, want 4 (2 retract + DEFINES_JOB + NEEDS)", len(stmts))
 	}
 
-	definesJob := stmts[0]
+	definesJob := mergeStatementContaining(t, stmts, "MERGE (p)-[r:DEFINES_JOB]->(j)")
 	if !strings.Contains(definesJob.Cypher, "DEFINES_JOB") || !strings.Contains(definesJob.Cypher, "GitlabPipeline {uid:") || !strings.Contains(definesJob.Cypher, "GitlabJob {uid:") {
 		t.Fatalf("DEFINES_JOB cypher should match by uid: %s", definesJob.Cypher)
 	}
@@ -74,7 +93,7 @@ func TestGitlabEdgeStatementsResolvesDefinesJobAndNeeds(t *testing.T) {
 		}
 	}
 
-	needs := stmts[1]
+	needs := mergeStatementContaining(t, stmts, "MERGE (a)-[r:NEEDS]->(b)")
 	if !strings.Contains(needs.Cypher, "[r:NEEDS]") {
 		t.Fatalf("NEEDS cypher missing NEEDS edge type: %s", needs.Cypher)
 	}
@@ -92,6 +111,100 @@ func TestGitlabEdgeStatementsResolvesDefinesJobAndNeeds(t *testing.T) {
 		if row["generation_id"] != "gen-1" {
 			t.Fatalf("row %+v missing generation_id=gen-1", row)
 		}
+	}
+}
+
+// TestGitlabEdgeStatementsRetractsStaleEdgesBeforeMerge proves the builder emits
+// generation-scoped retraction for NEEDS and DEFINES_JOB BEFORE the MERGE
+// statements, so a re-projection where a job's needs change (but both endpoints
+// survive into the current generation) removes the stale job-to-job NEEDS and
+// pipeline-to-job DEFINES_JOB edges that repository_cleanup / entity_retract do
+// not touch. The retracts are scoped to THIS materialization's source uids and
+// delete only projector/canonical edges whose generation_id differs from the
+// current one; the subsequent MERGE rewrites the current edges.
+func TestGitlabEdgeStatementsRetractsStaleEdgesBeforeMerge(t *testing.T) {
+	t.Parallel()
+
+	const file = "/repo/.gitlab-ci.yml"
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-2",
+		RepoPath:     "/repo",
+		Entities: []projector.EntityRow{
+			gitlabPipelineEntityRow("uid-pipeline", file),
+			gitlabJobEntityRow("uid-build", "build", file, ""),
+			gitlabJobEntityRow("uid-test", "test", file, "build"),
+		},
+	}
+
+	stmts := gitlabEdgeStatements(mat)
+	if len(stmts) != 4 {
+		t.Fatalf("gitlabEdgeStatements() returned %d statements, want 4 (2 retract + 2 merge)", len(stmts))
+	}
+
+	// First two statements must be the retracts, in DEFINES_JOB then NEEDS order,
+	// each an OperationCanonicalRetract.
+	definesRetract := stmts[0]
+	needsRetract := stmts[1]
+	for i, rt := range []Statement{definesRetract, needsRetract} {
+		if rt.Operation != OperationCanonicalRetract {
+			t.Fatalf("statement %d Operation = %q, want %q (retract must precede merge)", i, rt.Operation, OperationCanonicalRetract)
+		}
+	}
+
+	// DEFINES_JOB retract: scoped to pipeline source uids, generation-guarded.
+	if !strings.Contains(definesRetract.Cypher, "GitlabPipeline {uid: uid}") ||
+		!strings.Contains(definesRetract.Cypher, "[r:DEFINES_JOB]") ||
+		!strings.Contains(definesRetract.Cypher, "r.generation_id <> $generation_id") ||
+		!strings.Contains(definesRetract.Cypher, "r.evidence_source = 'projector/canonical'") ||
+		!strings.Contains(definesRetract.Cypher, "DELETE r") {
+		t.Fatalf("DEFINES_JOB retract cypher wrong shape: %s", definesRetract.Cypher)
+	}
+	if strings.Contains(definesRetract.Cypher, "NEEDS") {
+		t.Fatalf("DEFINES_JOB retract must be per-label, not multi-type: %s", definesRetract.Cypher)
+	}
+	definesSources, ok := definesRetract.Parameters["source_uids"].([]string)
+	if !ok || len(definesSources) != 1 || definesSources[0] != "uid-pipeline" {
+		t.Fatalf("DEFINES_JOB retract source_uids = %#v, want [uid-pipeline]", definesRetract.Parameters["source_uids"])
+	}
+	if definesRetract.Parameters["generation_id"] != "gen-2" {
+		t.Fatalf("DEFINES_JOB retract generation_id = %v, want gen-2", definesRetract.Parameters["generation_id"])
+	}
+
+	// NEEDS retract: scoped to job source uids, generation-guarded.
+	if !strings.Contains(needsRetract.Cypher, "GitlabJob {uid: uid}") ||
+		!strings.Contains(needsRetract.Cypher, "[r:NEEDS]") ||
+		!strings.Contains(needsRetract.Cypher, "r.generation_id <> $generation_id") ||
+		!strings.Contains(needsRetract.Cypher, "r.evidence_source = 'projector/canonical'") ||
+		!strings.Contains(needsRetract.Cypher, "DELETE r") {
+		t.Fatalf("NEEDS retract cypher wrong shape: %s", needsRetract.Cypher)
+	}
+	if strings.Contains(needsRetract.Cypher, "DEFINES_JOB") {
+		t.Fatalf("NEEDS retract must be per-label, not multi-type: %s", needsRetract.Cypher)
+	}
+	needsSources, ok := needsRetract.Parameters["source_uids"].([]string)
+	if !ok {
+		t.Fatalf("NEEDS retract source_uids missing/wrong type: %#v", needsRetract.Parameters["source_uids"])
+	}
+	// Every GitlabJob uid in the materialization is a potential NEEDS source.
+	wantNeedsSources := map[string]bool{"uid-build": true, "uid-test": true}
+	if len(needsSources) != len(wantNeedsSources) {
+		t.Fatalf("NEEDS retract source_uids = %#v, want both job uids", needsSources)
+	}
+	for _, uid := range needsSources {
+		if !wantNeedsSources[uid] {
+			t.Fatalf("NEEDS retract unexpected source uid %q", uid)
+		}
+	}
+	if needsRetract.Parameters["generation_id"] != "gen-2" {
+		t.Fatalf("NEEDS retract generation_id = %v, want gen-2", needsRetract.Parameters["generation_id"])
+	}
+
+	// The trailing two statements remain the MERGE upserts.
+	if stmts[2].Operation != OperationCanonicalUpsert || !strings.Contains(stmts[2].Cypher, "MERGE (p)-[r:DEFINES_JOB]->(j)") {
+		t.Fatalf("statement 2 should be the DEFINES_JOB merge: op=%q cypher=%s", stmts[2].Operation, stmts[2].Cypher)
+	}
+	if stmts[3].Operation != OperationCanonicalUpsert || !strings.Contains(stmts[3].Cypher, "MERGE (a)-[r:NEEDS]->(b)") {
+		t.Fatalf("statement 3 should be the NEEDS merge: op=%q cypher=%s", stmts[3].Operation, stmts[3].Cypher)
 	}
 }
 
@@ -116,12 +229,8 @@ func TestGitlabEdgeStatementsScopesNeedsPerFile(t *testing.T) {
 	}
 
 	stmts := gitlabEdgeStatements(mat)
-	var needsRows []map[string]any
-	for _, stmt := range stmts {
-		if strings.Contains(stmt.Cypher, "[r:NEEDS]") {
-			needsRows = stmt.Parameters["rows"].([]map[string]any)
-		}
-	}
+	needsMerge := mergeStatementContaining(t, stmts, "MERGE (a)-[r:NEEDS]->(b)")
+	needsRows := needsMerge.Parameters["rows"].([]map[string]any)
 	if len(needsRows) != 1 {
 		t.Fatalf("NEEDS rows = %d, want 1 (only in-file fileA test->build); %+v", len(needsRows), needsRows)
 	}

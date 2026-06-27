@@ -34,6 +34,34 @@ MATCH (b:GitlabJob {uid: row.target_uid})
 MERGE (a)-[r:NEEDS]->(b)
 SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id`
 
+// retractGitlabDefinesJobEdgesCypher deletes stale DEFINES_JOB edges from this
+// materialization's GitlabPipeline source nodes. DEFINES_JOB / NEEDS are MERGE-only
+// edges between surviving nodes, so neither repository_cleanup (DETACH DELETE of
+// the Repository node only) nor entity_retract (edges of DELETED nodes only)
+// removes a stale edge when both endpoints are refreshed to the current
+// generation but the relationship changed. Scoping by the projecting source uids
+// and deleting only projector/canonical edges whose generation_id differs from
+// the current one drops the stale edge; the subsequent MERGE re-writes the
+// current edge with the current generation_id. The retract is bounded by the
+// pipeline count in one .gitlab-ci.yml (one pipeline per file). It is emitted as
+// its own per-label statement (not a multi-type [r:NEEDS|DEFINES_JOB] match,
+// which is less reliable on the graph backend).
+const retractGitlabDefinesJobEdgesCypher = `UNWIND $source_uids AS uid
+MATCH (p:GitlabPipeline {uid: uid})-[r:DEFINES_JOB]->(:GitlabJob)
+WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
+DELETE r`
+
+// retractGitlabNeedsEdgesCypher deletes stale NEEDS edges from this
+// materialization's GitlabJob source nodes, mirroring
+// retractGitlabDefinesJobEdgesCypher. A job whose needs change while both
+// endpoint jobs survive would otherwise keep the old (GitlabJob)-[:NEEDS]->(GitlabJob)
+// edge. Scoped by job source uid and generation-guarded; the MERGE re-writes the
+// current edges. Bounded by the job count in one .gitlab-ci.yml.
+const retractGitlabNeedsEdgesCypher = `UNWIND $source_uids AS uid
+MATCH (a:GitlabJob {uid: uid})-[r:NEEDS]->(:GitlabJob)
+WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
+DELETE r`
+
 // gitlabPipelineEntity is one GitlabPipeline content entity reduced to the fields
 // the DEFINES_JOB edge needs.
 type gitlabPipelineEntity struct {
@@ -99,6 +127,37 @@ func gitlabEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
 	}
 
 	var stmts []Statement
+
+	// Retract stale edges BEFORE the MERGE so a re-projection with a changed
+	// needs/defines set, where both endpoint nodes survive into the current
+	// generation, drops the old generation's edge that repository_cleanup and
+	// entity_retract leave behind. The retracts are scoped to THIS
+	// materialization's source uids and only touch projector/canonical edges of a
+	// prior generation. When there are no source uids the retract is a no-op and
+	// is skipped. Statement order within a phase is preserved by the writer, so
+	// emitting the retracts first guarantees they execute before the MERGE in the
+	// same structural_edges phase.
+	if pipelineSourceUIDs := gitlabPipelineSourceUIDs(definesJob); len(pipelineSourceUIDs) > 0 {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractGitlabDefinesJobEdgesCypher,
+			Parameters: map[string]any{
+				"source_uids":   pipelineSourceUIDs,
+				"generation_id": mat.GenerationID,
+			},
+		})
+	}
+	if jobSourceUIDs := gitlabJobSourceUIDs(jobs); len(jobSourceUIDs) > 0 {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractGitlabNeedsEdgesCypher,
+			Parameters: map[string]any{
+				"source_uids":   jobSourceUIDs,
+				"generation_id": mat.GenerationID,
+			},
+		})
+	}
+
 	if len(definesJob) > 0 {
 		stmts = append(stmts, Statement{
 			Operation:  OperationCanonicalUpsert,
@@ -114,6 +173,40 @@ func gitlabEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
 		})
 	}
 	return stmts
+}
+
+// gitlabPipelineSourceUIDs returns the distinct DEFINES_JOB source (pipeline)
+// uids from the resolved definesJob rows, so the DEFINES_JOB retract is scoped to
+// exactly the pipelines this materialization re-projects.
+func gitlabPipelineSourceUIDs(definesJob []map[string]any) []string {
+	seen := make(map[string]struct{}, len(definesJob))
+	uids := make([]string, 0, len(definesJob))
+	for _, row := range definesJob {
+		uid, _ := row["source_uid"].(string)
+		if uid == "" {
+			continue
+		}
+		if _, dup := seen[uid]; dup {
+			continue
+		}
+		seen[uid] = struct{}{}
+		uids = append(uids, uid)
+	}
+	return uids
+}
+
+// gitlabJobSourceUIDs returns every GitlabJob uid in the materialization. Any job
+// is a potential NEEDS source, so the NEEDS retract must scope to all of them —
+// including a job that lost its last need this generation, whose stale NEEDS edge
+// would otherwise persist because it produces no MERGE row.
+func gitlabJobSourceUIDs(jobs []gitlabJobEntity) []string {
+	uids := make([]string, 0, len(jobs))
+	for _, job := range jobs {
+		if job.uid != "" {
+			uids = append(uids, job.uid)
+		}
+	}
+	return uids
 }
 
 // collectGitlabPipelineEntities extracts GitlabPipeline entities from the
