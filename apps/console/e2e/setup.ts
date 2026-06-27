@@ -25,7 +25,9 @@ const navTimeoutMs = 30000;
 const devServerReadyTimeoutMs = 120000;
 
 async function startDevServer(): Promise<DevServer> {
+  const baseUrl = `http://127.0.0.1:${devServerPort}`;
   const viteEntry = resolve(repoRoot, "node_modules", "vite", "bin", "vite.js");
+
   const child = spawn(
     process.execPath,
     [
@@ -38,34 +40,54 @@ async function startDevServer(): Promise<DevServer> {
       "--port",
       String(devServerPort),
     ],
-    { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"], shell: true },
+    { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] },
   );
 
-  // Pipe stderr so Vite errors are visible in CI logs.
+  // Drain stderr so Vite error output is visible in CI logs and the pipe
+  // doesn't fill up and block the process.
   child.stderr.on("data", (chunk: Buffer) => {
     process.stderr.write(`[vite-err] ${chunk.toString()}`);
   });
 
-  const baseUrl = await new Promise<string>((resolvePromise, rejectPromise) => {
-    const timer = setTimeout(
-      () => rejectPromise(new Error("dev server did not become ready")),
-      devServerReadyTimeoutMs,
-    );
-    const onData = (chunk: Buffer): void => {
-      const text = chunk.toString();
-      const m = text.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+)\/?/);
-      if (m) {
-        clearTimeout(timer);
-        resolvePromise(m[1]);
-      }
-    };
-    child.stdout.on("data", onData);
-    child.on("exit", (code) => {
-      clearTimeout(timer);
-      rejectPromise(new Error(`dev server exited with code ${String(code)}`));
-    });
+  // Drain stdout so the pipe doesn't block Vite.
+  child.stdout.on("data", () => {
+    // intentionally no-op; we poll the HTTP port instead of parsing stdout
   });
-  return { process: child, baseUrl };
+
+  // Poll the HTTP port until Vite responds (bypasses pipe-buffering issues).
+  const baseUrlResolved = await new Promise<string>((resolvePromise, rejectPromise) => {
+    const deadline = Date.now() + devServerReadyTimeoutMs;
+    let settled = false;
+
+    const done = (err: Error | null, url?: string): void => {
+      if (settled) return;
+      settled = true;
+      if (err) rejectPromise(err);
+      else resolvePromise(url!);
+    };
+
+    child.on("exit", (code) => {
+      done(new Error(`dev server exited with code ${String(code)}`));
+    });
+
+    const poll = (): void => {
+      if (Date.now() >= deadline) {
+        done(new Error("dev server did not become ready"));
+        return;
+      }
+      fetch(baseUrl, { method: "HEAD", signal: AbortSignal.timeout(2000) })
+        .then((res) => {
+          if (res.ok) done(null, baseUrl);
+          else setTimeout(poll, 200);
+        })
+        .catch(() => {
+          setTimeout(poll, 200);
+        });
+    };
+    poll();
+  });
+
+  return { process: child, baseUrl: baseUrlResolved };
 }
 
 async function stopDevServer(server: DevServer): Promise<void> {
