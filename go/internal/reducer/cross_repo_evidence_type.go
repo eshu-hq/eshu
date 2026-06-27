@@ -56,6 +56,130 @@ func resolvedRelationshipEvidenceType(r relationships.ResolvedRelationship) stri
 	return ""
 }
 
+// sourceToolUnknown is the explicit token stamped when a Tier-2 edge carries an
+// evidence kind that is not classified into a tool. It is preferred over an
+// absent value so a coverage gap is visible in the graph (and fails the #4002
+// drift gate) rather than silently passing.
+const sourceToolUnknown = "unknown"
+
+// evidenceKindToSourceTool collapses each persisted EvidenceKind to its canonical
+// lowercase source_tool token, per
+// docs/public/reference/edge-source-tool-provenance.md (#3998). Unlike
+// evidenceKindToType (which keeps each sub-kind distinct, e.g. terraform_app_repo
+// vs terraform_config_path), this map folds a tool's whole family to one token
+// (terraform). It is additive: EvidenceKind constants are persisted and never
+// renamed; source_tool is derived from them at write time.
+var evidenceKindToSourceTool = map[relationships.EvidenceKind]string{
+	relationships.EvidenceKindTerraformAppRepo:       "terraform",
+	relationships.EvidenceKindTerraformAppName:       "terraform",
+	relationships.EvidenceKindTerraformGitHubRepo:    "terraform",
+	relationships.EvidenceKindTerraformGitHubActions: "terraform",
+	relationships.EvidenceKindTerraformConfigPath:    "terraform",
+	relationships.EvidenceKindTerraformIAMPermission: "terraform",
+	// TERRAFORM_MODULE_SOURCE is shared by Terraform and Terragrunt module
+	// sources (models.go); the kind alone cannot distinguish them, so it defaults
+	// to terraform (#3998 note 1). Splitting it needs a second discriminator,
+	// tracked as a precision follow-up.
+	relationships.EvidenceKindTerraformModuleSource:                "terraform",
+	relationships.EvidenceKindTerragruntDependencyConfigPath:       "terragrunt",
+	relationships.EvidenceKindTerragruntConfigAssetPath:            "terragrunt",
+	relationships.EvidenceKindHelmChart:                            "helm",
+	relationships.EvidenceKindHelmValues:                           "helm",
+	relationships.EvidenceKindKustomizeResource:                    "kustomize",
+	relationships.EvidenceKindKustomizeHelmChart:                   "kustomize",
+	relationships.EvidenceKindKustomizeImage:                       "kustomize",
+	relationships.EvidenceKindArgoCDAppSource:                      "argocd",
+	relationships.EvidenceKindArgoCDApplicationSetDiscovery:        "argocd",
+	relationships.EvidenceKindArgoCDApplicationSetDeploySource:     "argocd",
+	relationships.EvidenceKindArgoCDDestinationPlatform:            "argocd",
+	relationships.EvidenceKindGitHubActionsReusableWorkflow:        "github_actions",
+	relationships.EvidenceKindGitHubActionsLocalReusableWorkflow:   "github_actions",
+	relationships.EvidenceKindGitHubActionsCheckoutRepository:      "github_actions",
+	relationships.EvidenceKindGitHubActionsWorkflowInputRepository: "github_actions",
+	relationships.EvidenceKindGitHubActionsActionRepository:        "github_actions",
+	relationships.EvidenceKindJenkinsSharedLibrary:                 "jenkins",
+	relationships.EvidenceKindJenkinsGitHubRepository:              "jenkins",
+	relationships.EvidenceKindDockerComposeBuildContext:            "docker_compose",
+	relationships.EvidenceKindDockerComposeImage:                   "docker_compose",
+	relationships.EvidenceKindDockerComposeDependsOn:               "docker_compose",
+	relationships.EvidenceKindDockerfileSourceLabel:                "docker",
+	relationships.EvidenceKindAnsibleRoleReference:                 "ansible",
+	relationships.EvidenceKindPuppetModuleReference:                "puppet",
+	relationships.EvidenceKindChefCookbookDependency:               "chef",
+	relationships.EvidenceKindGCPCloudRelationship:                 "gcp",
+}
+
+// sourceToolPrefixFallback classifies generated/runtime EvidenceKinds that are
+// not named constants by their family prefix. The Terraform schema extractor
+// synthesizes per-resource kinds at runtime (terraform_schema.go:
+// "TERRAFORM_"+resourceType, e.g. TERRAFORM_ECS_SERVICE, TERRAFORM_WAFV2_WEB_ACL,
+// TERRAFORM_PAGERDUTY_SERVICE) that the named-constant map cannot enumerate, so a
+// valid Terraform cross-repo edge would otherwise fall through to "unknown".
+// Prefixes are full family tokens (DOCKER_COMPOSE_ vs DOCKERFILE_) so none nests
+// inside another, and TERRAGRUNT_ is a distinct string from TERRAFORM_ — the
+// named-constant map is consulted first, so the Terragrunt constants keep their
+// terragrunt token and only non-constant kinds reach this fallback.
+var sourceToolPrefixFallback = []struct {
+	prefix string
+	tool   string
+}{
+	{"TERRAGRUNT_", "terragrunt"},
+	{"TERRAFORM_", "terraform"},
+	{"KUSTOMIZE_", "kustomize"},
+	{"HELM_", "helm"},
+	{"ARGOCD_", "argocd"},
+	{"GITHUB_ACTIONS_", "github_actions"},
+	{"JENKINS_", "jenkins"},
+	{"DOCKER_COMPOSE_", "docker_compose"},
+	{"DOCKERFILE_", "docker"},
+	{"ANSIBLE_", "ansible"},
+	{"PUPPET_", "puppet"},
+	{"CHEF_", "chef"},
+	{"GCP_", "gcp"},
+}
+
+// sourceToolForEvidenceKind returns the canonical source_tool token for a single
+// EvidenceKind string. It consults the named-constant map first, then the
+// family-prefix fallback for generated/runtime kinds, and finally returns "" when
+// the kind is unknown/unmapped so the caller can choose between an absent value
+// and the explicit sourceToolUnknown token.
+func sourceToolForEvidenceKind(kind string) string {
+	trimmed := strings.TrimSpace(kind)
+	if mapped, ok := evidenceKindToSourceTool[relationships.EvidenceKind(trimmed)]; ok {
+		return mapped
+	}
+	upper := strings.ToUpper(trimmed)
+	for _, fam := range sourceToolPrefixFallback {
+		if strings.HasPrefix(upper, fam.prefix) {
+			return fam.tool
+		}
+	}
+	return ""
+}
+
+// resolvedRelationshipSourceTool derives the normalized source_tool for a
+// resolved Tier-2 edge. It selects the same primary evidence kind as
+// resolvedRelationshipEvidenceType (the preview kind first, then the first
+// evidence_kinds entry) so source_tool and evidence_type always describe the
+// same evidence. A present-but-unmapped primary kind yields the explicit
+// sourceToolUnknown token; an edge with no evidence kind at all yields "" and is
+// not stamped.
+func resolvedRelationshipSourceTool(r relationships.ResolvedRelationship) string {
+	primary := firstEvidenceKindFromPreview(r.Details)
+	if primary == "" {
+		if kinds := stringSliceDetail(r.Details, "evidence_kinds"); len(kinds) > 0 {
+			primary = kinds[0]
+		}
+	}
+	if primary == "" {
+		return ""
+	}
+	if tool := sourceToolForEvidenceKind(primary); tool != "" {
+		return tool
+	}
+	return sourceToolUnknown
+}
+
 func firstEvidenceKindFromPreview(details map[string]any) string {
 	if len(details) == 0 {
 		return ""
