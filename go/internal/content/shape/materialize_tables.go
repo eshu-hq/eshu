@@ -69,8 +69,6 @@ var contentEntityBuckets = []entityBucketMapping{
 	{bucket: "cloudformation_cross_stack_exports", label: "CloudFormationExport"},
 	{bucket: "atlantis_projects", label: "AtlantisProject"},
 	{bucket: "atlantis_workflows", label: "AtlantisWorkflow"},
-	{bucket: "gitlab_pipelines", label: "GitlabPipeline"},
-	{bucket: "gitlab_jobs", label: "GitlabJob"},
 	{bucket: "sql_tables", label: "SqlTable"},
 	{bucket: "sql_columns", label: "SqlColumn"},
 	{bucket: "sql_views", label: "SqlView"},
@@ -87,6 +85,11 @@ var contentEntityBuckets = []entityBucketMapping{
 	{bucket: "data_contracts", label: "DataContract"},
 	{bucket: "impl_blocks", label: "ImplBlock"},
 	{bucket: "pagerduty_declarations", label: "PagerDutyDeclaration"},
+	// GitLab CI buckets are the most recent addition; per the frozen-table
+	// invariant (AGENTS.md), new buckets MUST be appended at the end so the
+	// persisted entity row order for existing labels never shifts.
+	{bucket: "gitlab_pipelines", label: "GitlabPipeline"},
+	{bucket: "gitlab_jobs", label: "GitlabJob"},
 }
 
 // sourceFieldContainsCode is the set of entity labels whose Source field holds
