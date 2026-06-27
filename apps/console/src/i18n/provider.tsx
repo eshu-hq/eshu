@@ -1,4 +1,4 @@
-import { Fragment, createContext, useContext, type ReactNode } from "react";
+import { Fragment, createContext, useContext, useMemo, type ReactNode } from "react";
 
 import { defaultMessages, type MessageId } from "./messages";
 
@@ -23,18 +23,23 @@ export function createConsoleIntl(
 ): ConsoleIntl {
   return {
     formatMessage: (descriptor, values) =>
-      interpolateString(messages[descriptor.id] ?? descriptor.defaultMessage ?? descriptor.id, values),
+      interpolateString(
+        messages[descriptor.id] ?? descriptor.defaultMessage ?? descriptor.id,
+        values,
+      ),
   };
 }
 
-const defaultIntl = createConsoleIntl();
-
 export function ConsoleI18nProvider({
   children,
+  messages = defaultMessages,
 }: {
   readonly children: ReactNode;
+  readonly messages?: Readonly<Record<MessageId, string>>;
 }): React.JSX.Element {
-  return <ConsoleI18nContext.Provider value={defaultIntl}>{children}</ConsoleI18nContext.Provider>;
+  const intl = useMemo(() => createConsoleIntl(messages), [messages]);
+
+  return <ConsoleI18nContext.Provider value={intl}>{children}</ConsoleI18nContext.Provider>;
 }
 
 export function useConsoleIntl(): ConsoleIntl {
@@ -50,7 +55,8 @@ export function FormattedMessage({
 }: ConsoleMessageDescriptor & {
   readonly values?: Readonly<Record<string, RichMessageValue>>;
 }): React.JSX.Element {
-  return <>{interpolateRich(defaultMessages[id] ?? defaultMessage ?? id, values)}</>;
+  const intl = useConsoleIntl();
+  return <>{interpolateRich(intl.formatMessage({ id, defaultMessage }), values)}</>;
 }
 
 function interpolateString(

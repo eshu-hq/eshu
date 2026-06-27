@@ -23,14 +23,18 @@ import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environ
 import { demoModel } from "./console/demoModel";
 import { emptyConsoleModel } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
-import { LoginPage } from "./pages/LoginPage";
 import { NAV_GROUPS, NAV_ITEMS, type NavItem } from "./i18n/navigation";
 import { ConsoleI18nProvider, FormattedMessage, useConsoleIntl } from "./i18n/provider";
 import { formatRepositoryCount, shellMessageDescriptors } from "./i18n/shellMessages";
+import { LoginPage } from "./pages/LoginPage";
 import "./styles.css";
 import "./appShell.css";
 
-export const App = (): React.JSX.Element => <ConsoleI18nProvider><AppShell /></ConsoleI18nProvider>;
+export const App = (): React.JSX.Element => (
+  <ConsoleI18nProvider>
+    <AppShell />
+  </ConsoleI18nProvider>
+);
 function AppShell(): React.JSX.Element {
   const intl = useConsoleIntl();
   const location = useLocation();
@@ -64,7 +68,7 @@ function AppShell(): React.JSX.Element {
   const allowedNav = buildAllowedNavSet(session?.auth);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const bootedRef = useRef(false);
-
+  const unreachableMessage = intl.formatMessage(shellMessageDescriptors.unreachable);
   function activateDemo(): void {
     saveConsoleEnvironment({ mode: "demo", apiBaseUrl: "", apiKey: "", recentApiBaseUrls: [] });
     setClient(createDemoApiClient());
@@ -104,7 +108,7 @@ function AppShell(): React.JSX.Element {
         key,
         mode: "private",
         status: "error",
-        msg: e instanceof Error ? e.message : intl.formatMessage(shellMessageDescriptors.unreachable),
+        msg: e instanceof Error ? e.message : unreachableMessage,
       });
     }
   }
@@ -136,7 +140,7 @@ function AppShell(): React.JSX.Element {
         setSource((s) => ({
           ...s,
           status: "error",
-          msg: e instanceof Error ? e.message : intl.formatMessage(shellMessageDescriptors.unreachable),
+          msg: e instanceof Error ? e.message : unreachableMessage,
         }));
       });
   }
@@ -159,7 +163,6 @@ function AppShell(): React.JSX.Element {
   }
 
   const openService = (name: string): void => setDrawer(name);
-
   function runSearch(rawQuery: string): void {
     const query = rawQuery.trim();
     if (query.length === 0) return;

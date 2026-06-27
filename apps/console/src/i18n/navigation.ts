@@ -30,8 +30,8 @@ import {
   Workflow,
 } from "lucide-react";
 
-import type { ConsoleModel } from "../console/types";
 import type { MessageId } from "./messages";
+import type { ConsoleModel } from "../console/types";
 
 export type NavItem = {
   readonly to: string;

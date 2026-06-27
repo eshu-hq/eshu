@@ -1,8 +1,9 @@
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { defaultLocale, defaultMessages, type MessageId } from "./messages";
 import { NAV_GROUPS } from "./navigation";
-import { createConsoleIntl } from "./provider";
+import { ConsoleI18nProvider, FormattedMessage, createConsoleIntl } from "./provider";
 import { formatApiUnavailableMessage, shellMessageDescriptors } from "./shellMessages";
 
 const intl = createConsoleIntl(defaultMessages);
@@ -54,6 +55,30 @@ describe("console i18n framework", () => {
     expect(formatApiUnavailableMessage(intl, { base: "/eshu-api/", detail: "" })).toBe(
       "Eshu API unavailable at /eshu-api/.",
     );
+  });
+
+  it("renders rich formatted messages through the active provider catalog", () => {
+    const translatedMessages = {
+      ...defaultMessages,
+      "app.shell.error.apiUnavailable": "API no disponible en {base}{detail}.",
+    } satisfies Readonly<Record<MessageId, string>>;
+
+    const { container } = render(
+      <ConsoleI18nProvider messages={translatedMessages}>
+        <FormattedMessage
+          {...shellMessageDescriptors.apiUnavailable}
+          values={{
+            base: <strong>servicio privado</strong>,
+            detail: " · revise la conexión",
+          }}
+        />
+      </ConsoleI18nProvider>,
+    );
+
+    expect(container.textContent).toBe(
+      "API no disponible en servicio privado · revise la conexión.",
+    );
+    expect(screen.getByText("servicio privado").tagName).toBe("STRONG");
   });
 
   it("keeps referenced message IDs present in the default catalog", () => {

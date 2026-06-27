@@ -63,8 +63,7 @@ export const defaultMessages = {
   "app.shell.demoBanner.title": "Prospect demo",
   "app.shell.demoBanner.body":
     "Demo fixtures only; no real workspace or customer data is being queried.",
-  "app.shell.verifiedBanner":
-    "Verified evidence only — hiding inferred findings and graph nodes.",
+  "app.shell.verifiedBanner": "Verified evidence only — hiding inferred findings and graph nodes.",
   "app.shell.error.apiUnavailable": "Eshu API unavailable at {base}{detail}.",
   "app.shell.error.sessionDataUnavailable": "Session established but data unavailable",
   "app.shell.error.unreachable": "unreachable",
