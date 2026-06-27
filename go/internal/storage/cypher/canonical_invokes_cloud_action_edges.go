@@ -48,7 +48,11 @@ func buildInvokesCloudActionRowMap(
 	evidenceSource string,
 ) (string, map[string]any, bool) {
 	functionID := payloadString(payload, "function_id")
-	action := payloadString(payload, "action")
+	// The cloud action is carried under "cloud_action" (not "action"), so it does
+	// not collide with the shared-projection upsert/refresh discriminator that
+	// filterUpsertRows reads from payload["action"]. The Cypher param stays
+	// "action" because it sets the CloudAction node + edge action property.
+	action := payloadString(payload, "cloud_action")
 	actionID := payloadString(payload, "action_id")
 	if functionID == "" || action == "" || actionID == "" {
 		return "", nil, false

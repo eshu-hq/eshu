@@ -405,8 +405,8 @@ gate_status=0
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-graph-required-only=true \
-	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow" \
-	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8,rc-11,rc-12,rc-13,rc-14,rc-15,rc-16,rc-17,rc-18,rc-19,rc-20,rc-21,rc-22,rc-23" \
+	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,CloudAction" \
+	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8,rc-11,rc-12,rc-13,rc-14,rc-15,rc-16,rc-17,rc-18,rc-19,rc-20,rc-21,rc-22,rc-23,rc-10" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?

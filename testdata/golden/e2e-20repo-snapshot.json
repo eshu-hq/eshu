@@ -168,9 +168,9 @@
         "note": "Function -[:HANDLES_ROUTE]-> Endpoint from the api-svc Flask route handlers; required as rc-8 (>=1, one per bound handler)"
       },
       "INVOKES_CLOUD_ACTION": {
-        "min": 0,
+        "min": 1,
         "max": 1000,
-        "note": "code-to-cloud reachability edges"
+        "note": "Function -[:INVOKES_CLOUD_ACTION]-> CloudAction from the go_comprehensive cloud_actions.go AWS-SDK call site; required as rc-10"
       },
       "USES": {
         "min": 0,
@@ -315,7 +315,8 @@
       { "id": "rc-20", "description": "A WorkloadInstance DEPLOYMENT_SOURCE a Repository; runtime-to-source correlation (workload materialization).", "relationship": "DEPLOYMENT_SOURCE", "from_label": "WorkloadInstance", "to_label": "Repository", "minimum_count": 1 },
       { "id": "rc-21", "description": "A Repository HAS_DEPLOYMENT_EVIDENCE an EvidenceArtifact; deployment evidence correlation.", "relationship": "HAS_DEPLOYMENT_EVIDENCE", "from_label": "Repository", "to_label": "EvidenceArtifact", "minimum_count": 1 },
       { "id": "rc-22", "description": "An EvidenceArtifact EVIDENCES_REPOSITORY_RELATIONSHIP a Repository; evidence provenance edge.", "relationship": "EVIDENCES_REPOSITORY_RELATIONSHIP", "from_label": "EvidenceArtifact", "to_label": "Repository", "minimum_count": 1 },
-      { "id": "rc-23", "description": "A Class USES_METACLASS another Class; Python metaclass edge projected from the python fixtures.", "relationship": "USES_METACLASS", "from_label": "Class", "to_label": "Class", "minimum_count": 1 }
+      { "id": "rc-23", "description": "A Class USES_METACLASS another Class; Python metaclass edge projected from the python fixtures.", "relationship": "USES_METACLASS", "from_label": "Class", "to_label": "Class", "minimum_count": 1 },
+      { "id": "rc-10", "description": "A Function INVOKES_CLOUD_ACTION a CloudAction; the go_comprehensive cloud_actions.go AWS-SDK call site (s3.PutObject) resolves to the s3:putobject CAN_PERFORM catalog action. Regression guard for the filterUpsertRows action-field collision that previously dropped every such upsert.", "relationship": "INVOKES_CLOUD_ACTION", "from_label": "Function", "to_label": "CloudAction", "minimum_count": 1 }
     ]
   },
   "drain_assertions": {

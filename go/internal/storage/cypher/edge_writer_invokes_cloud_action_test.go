@@ -24,7 +24,7 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionDispatch(t *testing.T) {
 			Payload: map[string]any{
 				"function_id":       "content-entity:handler",
 				"repo_id":           "repo-a",
-				"action":            "s3:putobject",
+				"cloud_action":      "s3:putobject",
 				"action_id":         "cloud-action:s3:putobject",
 				"resolution_method": "import_binding",
 				"confidence":        0.90,
@@ -85,9 +85,9 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionSkipsRowsMissingMatchFields(t *te
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"function_id": "", "action": "s3:putobject", "action_id": "cloud-action:s3:putobject"}},
-		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "action": "", "action_id": "cloud-action:s3:putobject"}},
-		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "action": "s3:putobject", "action_id": ""}},
+		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"function_id": "", "cloud_action": "s3:putobject", "action_id": "cloud-action:s3:putobject"}},
+		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "cloud_action": "", "action_id": "cloud-action:s3:putobject"}},
+		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "cloud_action": "s3:putobject", "action_id": ""}},
 	}
 
 	if err := writer.WriteEdges(context.Background(), reducer.DomainInvokesCloudAction, rows, "parser/aws-sdk-call"); err != nil {
