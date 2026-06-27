@@ -101,8 +101,11 @@ func TestBuildInvokesCloudActionIntentRowsEmitsCatalogAction(t *testing.T) {
 	if got, want := payloadStr(intent.Payload, "function_id"), "content-entity:handler"; got != want {
 		t.Fatalf("function_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "action"), "s3:putobject"; got != want {
-		t.Fatalf("action = %q, want %q", got, want)
+	if got, want := payloadStr(intent.Payload, "cloud_action"), "s3:putobject"; got != want {
+		t.Fatalf("cloud_action = %q, want %q", got, want)
+	}
+	if got := payloadStr(intent.Payload, "action"); got != "" {
+		t.Fatalf("payload must not set \"action\" (collides with the upsert discriminator); got %q", got)
 	}
 	if got, want := payloadStr(intent.Payload, "action_id"), "cloud-action:s3:putobject"; got != want {
 		t.Fatalf("action_id = %q, want %q", got, want)
@@ -116,6 +119,42 @@ func TestBuildInvokesCloudActionIntentRowsEmitsCatalogAction(t *testing.T) {
 	}
 	if method != codeprovenance.MethodImportBinding {
 		t.Fatalf("resolution_method = %q, want import_binding for an import-proven SDK call", method)
+	}
+}
+
+// TestInvokesCloudActionUpsertIntentSurvivesFilterUpsertRows is the regression
+// for the rc-10 root cause: the per-edge upsert intent must survive
+// filterUpsertRows. The intent originally stored the cloud action under the
+// payload "action" key (e.g. "s3:putobject"), but filterUpsertRows treats
+// payload["action"] as the upsert/refresh/delete discriminator and skips any row
+// whose action is not "upsert". That silently dropped every INVOKES_CLOUD_ACTION
+// upsert (the intent still completed, no edge ever wrote), so the edge never
+// materialized end to end.
+func TestInvokesCloudActionUpsertIntentSurvivesFilterUpsertRows(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		invokesCloudActionRepoEnvelope("repo-1"),
+		invokesCloudActionFileEnvelope(
+			"repo-1",
+			"main.go",
+			callerFunction("content-entity:handler"),
+			[]map[string]any{
+				{"name": "PutObject", "receiver_sdk_service": "s3", "line_number": 10},
+			},
+		),
+	}
+
+	intents := buildInvokesCloudActionIntentsForTest(t, envelopes)
+	if len(intents) != 1 {
+		t.Fatalf("expected exactly 1 INVOKES_CLOUD_ACTION intent, got %d", len(intents))
+	}
+
+	rows := []SharedProjectionIntentRow{{Payload: intents[0].Payload}}
+	kept := filterUpsertRows(rows)
+	if len(kept) != 1 {
+		t.Fatalf("filterUpsertRows dropped the invokes_cloud_action upsert intent (payload action=%q); the cloud action must not collide with the upsert discriminator",
+			payloadStr(intents[0].Payload, "action"))
 	}
 }
 
