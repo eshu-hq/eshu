@@ -135,7 +135,43 @@ func relationshipEdgesCypher(entry relationshipVerbEntry) string {
 		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
 		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
 		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
-		"       r.rationale AS evidence\n" +
+		"       r.rationale AS evidence,\n" +
+		"       r.source_tool AS source_tool\n" +
 		"ORDER BY s." + entry.sourceProperty + ", coalesce(t.id, t.uid)\n" +
 		"LIMIT $limit"
+}
+
+// relationshipEdgesCypherFiltered is the source_tool-filtered variant of
+// relationshipEdgesCypher. It inserts a WHERE clause after the MATCH line that
+// binds $source_tool to r.source_tool, so the index-ordered scan and LIMIT
+// short-circuit are preserved. The $source_tool param must always be provided
+// by the caller; the unfiltered path must NOT call this function.
+//
+// The verb, label, and property are taken from the fixed catalog, never from
+// request input, so the interpolation cannot inject arbitrary patterns.
+func relationshipEdgesCypherFiltered(entry relationshipVerbEntry) string {
+	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
+		"WHERE r.source_tool = $source_tool\n" +
+		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
+		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
+		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
+		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
+		"       r.rationale AS evidence,\n" +
+		"       r.source_tool AS source_tool\n" +
+		"ORDER BY s." + entry.sourceProperty + ", coalesce(t.id, t.uid)\n" +
+		"LIMIT $limit"
+}
+
+// relationshipSourceToolBreakdownCypher builds the whole-graph source_tool
+// distribution query for a verb. It matches only edges where source_tool IS NOT
+// NULL (so Tier-3 code edges and unstamped Tier-1 edges that carry no property
+// are excluded) and returns a per-tool count. The shape is
+// `MATCH ()-[r:VERB]->() WHERE ... RETURN source_tool, count`, which is
+// answered by the relationship-type index like relationshipCountCypher.
+//
+// The verb is taken from the fixed catalog only.
+func relationshipSourceToolBreakdownCypher(entry relationshipVerbEntry) string {
+	return "MATCH ()-[r:" + entry.verb + "]->()\n" +
+		"WHERE r.source_tool IS NOT NULL\n" +
+		"RETURN r.source_tool AS source_tool, count(r) AS count"
 }
