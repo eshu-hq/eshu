@@ -33,6 +33,20 @@ boundaries. If any of those four are missing, **ask for them — do not guess.**
    "Looks good" is not evidence; pasted output is.
 4. Open a PR. Do not request a frontier review until CI is green.
 
+## Changed-file formatting gates
+
+For frontend, JavaScript, TypeScript, MJS, CJS, Markdown, or YAML changes, run
+the actual changed-file Prettier check before claiming done or pushing:
+
+```bash
+npx prettier --check <changed JS/TS/MJS/CJS/MD/YAML files>
+```
+
+If formatting is needed, run `npx prettier --write <changed files>` and then
+rerun the check. `scripts/verify-eslint-config.sh`, `git diff --check`, and
+pre-commit do **not** substitute for `npx prettier --check` when CI has a
+changed-file Prettier gate.
+
 ## Non-negotiables CI does NOT catch (inline because nothing else will)
 
 CI already enforces tests, race, lint, the 500-line cap, formatting, and the
