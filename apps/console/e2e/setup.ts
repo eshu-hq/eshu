@@ -23,7 +23,7 @@ const repoRoot = resolve(consoleDir, "..", "..");
 const viteBin = resolve(repoRoot, "node_modules", ".bin", "vite");
 const devServerPort = 5190;
 const navTimeoutMs = 30000;
-const devServerReadyTimeoutMs = 60000;
+const devServerReadyTimeoutMs = 120000;
 
 async function startDevServer(): Promise<DevServer> {
   const child = spawn(

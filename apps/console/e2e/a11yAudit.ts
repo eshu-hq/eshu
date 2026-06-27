@@ -27,7 +27,7 @@ const devServerPort = 5190;
 const devServerBaseUrl = `http://127.0.0.1:${devServerPort}`;
 const navTimeoutMs = 30000;
 const settleMs = 1500;
-const devServerReadyTimeoutMs = 60000;
+const devServerReadyTimeoutMs = 120000;
 
 interface DevServer {
   process: ChildProcessByStdio<null, Readable, Readable>;
