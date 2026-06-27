@@ -21,13 +21,17 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
-			compatible:  []string{},
+			// The GitLab schema bump only adds GitlabPipeline/GitlabJob
+			// constraints + uid constraints and extends the IF-NOT-EXISTS
+			// infra_search_index label list; an older writer can safely write
+			// against it. Record its predecessor fingerprint as compatible.
+			compatible: []string{graphSchemaNeo4jPreGitlabFingerprint},
 		},
 		{
 			name:        "nornicdb",
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
-			compatible:  []string{},
+			compatible:  []string{graphSchemaNornicDBPreGitlabFingerprint},
 		},
 	}
 

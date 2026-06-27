@@ -26,13 +26,33 @@ type SchemaApplication struct {
 const (
 	graphSchemaNeo4jFingerprint    = "5c03985679793d71accf72f200386ce42c44d6876ee11b9aa4911f1f3c0f67fd"
 	graphSchemaNornicDBFingerprint = "96e23958aed519860d44bdabf0e45d9f864c94a76ca6da1e002664892e4b46f1"
+
+	// graphSchemaNeo4jPreGitlabFingerprint and graphSchemaNornicDBPreGitlabFingerprint
+	// are the schema fingerprints immediately before the GitLab CI bump (adding
+	// GitlabPipeline/GitlabJob uniqueness + uid constraints and extending the
+	// IF-NOT-EXISTS infra_search_index label list). That bump is additive — a
+	// writer running the predecessor schema creates no GitLab nodes, so the new
+	// constraints never apply to it, and the fulltext index is the same named
+	// IF-NOT-EXISTS index — so the predecessor is recorded as compatible to
+	// avoid a needless incompatible-schema path during a rolling deploy.
+	graphSchemaNeo4jPreGitlabFingerprint    = "be5aa2ca69761b9db112d7a45487ef7095b3fd58038de17cb2b3047479b93c0e"
+	graphSchemaNornicDBPreGitlabFingerprint = "b9e6a46df32f87a20b85cc5e8864a5b70bf0aa478edb055d17fc35d50204c3ff"
 )
 
 // graphSchemaCompatibleFingerprints lists additive predecessor schema
 // fingerprints that older graph writers may safely use after bootstrap records
-// the current marker. Destructive schema changes and schema changes coupled to
-// new reducer domains must not list predecessors.
-var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{}
+// the current marker. The key is the current (latest) schema fingerprint; the
+// value lists predecessor fingerprints whose writers stay compatible.
+// Destructive schema changes and schema changes coupled to new reducer domains
+// must not list predecessors.
+var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
+	SchemaBackendNeo4j: {
+		graphSchemaNeo4jFingerprint: {graphSchemaNeo4jPreGitlabFingerprint},
+	},
+	SchemaBackendNornicDB: {
+		graphSchemaNornicDBFingerprint: {graphSchemaNornicDBPreGitlabFingerprint},
+	},
+}
 
 // SchemaApplicationForBackend returns the graph schema fingerprint and
 // compatibility set for backend.
