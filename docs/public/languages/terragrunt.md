@@ -58,6 +58,18 @@ Not claimed today:
   graph selection, workspace and variable selection, and dynamic Terraform block
   expansion are not modeled as source-code reachability.
 
+## Graph Coverage
+
+The reducer infrastructure-platform extractor recognises the cluster/platform
+resource families declared in the Terraform/Terragrunt HCL (for example the
+EKS/VPC/RDS module families) and the `InfrastructurePlatformMaterializer`
+projects a `Platform` node plus a `(Repository)-[:PROVISIONS_PLATFORM]->(Platform)`
+edge. The B-7 golden-corpus gate asserts this edge (`rc-26`) and the `Platform`
+node label against the `terragrunt_comprehensive` fixture
+(`scripts/verify-golden-corpus-gate.sh`); the base `terraform_comprehensive`
+fixture alone does not emit it, so the assertion specifically locks in the
+IaC platform-provisioning verb.
+
 ## Known Limitations
 - `read_terragrunt_config()` calls remain opaque expression text.
 - HCL function calls within `locals` are not evaluated; values are captured as raw text.
