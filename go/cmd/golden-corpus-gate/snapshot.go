@@ -46,13 +46,25 @@ func (r CountRange) Contains(n int64) bool {
 // RequiredCorrelation is an existence assertion: at least MinimumCount edges of
 // Relationship must connect a From node to a To node. These hold regardless of
 // corpus size and are the backbone of the minimal 5-repo gate (rc-1, rc-3).
+//
+// EvidenceKinds, when non-empty, narrows the assertion to edges whose
+// evidence_kinds relationship property contains every listed kind. Tool-agnostic
+// relationships such as DEPLOYS_FROM and DEPENDS_ON are emitted by several verbs
+// (ArgoCD, kustomize, ansible, ...) that all share one edge type; the bare
+// (From)-[Rel]->(To) count cannot tell them apart, so an unfiltered rc for
+// "kustomize DEPLOYS_FROM" would pass on an ArgoCD-only graph (a false green).
+// Filtering on the verb's signature evidence kind (e.g.
+// KUSTOMIZE_RESOURCE_REFERENCE) makes the count provably zero without that
+// verb's fixture, isolating the verb inside the golden gate without fragmenting
+// the shared, semantically-correct edge type into per-tool relationships.
 type RequiredCorrelation struct {
-	ID           string `json:"id"`
-	Description  string `json:"description"`
-	Relationship string `json:"relationship"`
-	FromLabel    string `json:"from_label"`
-	ToLabel      string `json:"to_label"`
-	MinimumCount int64  `json:"minimum_count"`
+	ID            string   `json:"id"`
+	Description   string   `json:"description"`
+	Relationship  string   `json:"relationship"`
+	FromLabel     string   `json:"from_label"`
+	ToLabel       string   `json:"to_label"`
+	MinimumCount  int64    `json:"minimum_count"`
+	EvidenceKinds []string `json:"evidence_kinds,omitempty"`
 }
 
 // DrainAssertions captures the B-7(a) queue-drain gate: both queues must reach a

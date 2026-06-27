@@ -97,13 +97,17 @@ func evaluateRequiredCorrelation(rc RequiredCorrelation, count int64, required b
 	if want < 1 {
 		want = 1
 	}
+	evidence := ""
+	if len(rc.EvidenceKinds) > 0 {
+		evidence = fmt.Sprintf(" evidence_kinds⊇%v", rc.EvidenceKinds)
+	}
 	return Finding{
 		Phase:    "graph",
 		Check:    rc.ID,
 		OK:       count >= want,
 		Required: required,
-		Detail: fmt.Sprintf("(%s)-[:%s]->(%s) count=%d, want >= %d [%s]",
-			rc.FromLabel, rc.Relationship, rc.ToLabel, count, want, rc.Relationship),
+		Detail: fmt.Sprintf("(%s)-[:%s]->(%s)%s count=%d, want >= %d [%s]",
+			rc.FromLabel, rc.Relationship, rc.ToLabel, evidence, count, want, rc.Relationship),
 	}
 }
 

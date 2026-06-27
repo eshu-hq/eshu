@@ -31,6 +31,11 @@ type graphCounter interface {
 	CountEdges(ctx context.Context, relationship string) (int64, error)
 	// CountCorrelation returns the number of (from)-[rel]->(to) paths.
 	CountCorrelation(ctx context.Context, from, rel, to string) (int64, error)
+	// CountCorrelationWithEvidence returns the number of (from)-[rel]->(to) paths
+	// whose rel.evidence_kinds property contains every kind in evidenceKinds. It
+	// isolates a single verb on a shared, tool-agnostic edge type (see
+	// RequiredCorrelation.EvidenceKinds).
+	CountCorrelationWithEvidence(ctx context.Context, from, rel, to string, evidenceKinds []string) (int64, error)
 }
 
 // boltGraphCounter runs counts over the shared Bolt driver used by every Eshu
@@ -98,6 +103,77 @@ func (b *boltGraphCounter) CountCorrelation(ctx context.Context, from, rel, to s
 		"MATCH (:%s)-[r:%s]->(:%s) RETURN count(r) AS c", from, rel, to))
 }
 
+func (b *boltGraphCounter) CountCorrelationWithEvidence(ctx context.Context, from, rel, to string, evidenceKinds []string) (int64, error) {
+	for _, id := range []string{from, rel, to} {
+		if !identRE.MatchString(id) {
+			return 0, fmt.Errorf("unsafe correlation identifier %q", id)
+		}
+	}
+	if len(evidenceKinds) == 0 {
+		return b.CountCorrelation(ctx, from, rel, to)
+	}
+	for _, kind := range evidenceKinds {
+		if kind == "" {
+			return 0, fmt.Errorf("empty evidence kind for correlation (:%s)-[:%s]->(:%s)", from, rel, to)
+		}
+	}
+	// The filter is applied in Go, NOT in Cypher, because NornicDB does not
+	// evaluate a WHERE clause on this relationship-count shape: a probe against
+	// the pinned binary showed `MATCH (:L)-[r:T]->(:L) WHERE false RETURN count(r)`
+	// still returns the full count, and `ANY(x IN r.evidence_kinds WHERE ...)`
+	// returns empty. Both `$k IN r.evidence_kinds` and `'lit' IN r.evidence_kinds`
+	// therefore match every edge (a false green). Returning each edge's
+	// evidence_kinds and counting matches in Go is backend-neutral and correct;
+	// the gate corpus has at most a handful of edges per relationship type.
+	rows, err := neo4j.ExecuteQuery(ctx, b.driver,
+		fmt.Sprintf("MATCH (:%s)-[r:%s]->(:%s) RETURN r.evidence_kinds AS ek", from, rel, to),
+		nil, neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
+	if err != nil {
+		return 0, fmt.Errorf("list correlation evidence: %w", err)
+	}
+	var count int64
+	for _, rec := range rows.Records {
+		raw, _ := rec.Get("ek")
+		if edgeEvidenceContainsAll(raw, evidenceKinds) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// edgeEvidenceContainsAll reports whether the edge's evidence_kinds property
+// (a Bolt list value, decoded as []any of strings) contains every required
+// kind. A nil or non-list property contains nothing. An empty required set
+// matches nothing (not everything): callers that want an unfiltered count use
+// CountCorrelation, and this conservative contract keeps a future direct caller
+// from silently matching every edge.
+func edgeEvidenceContainsAll(raw any, required []string) bool {
+	if len(required) == 0 {
+		return false
+	}
+	present := make(map[string]struct{})
+	switch kinds := raw.(type) {
+	case []any:
+		for _, k := range kinds {
+			if s, ok := k.(string); ok {
+				present[s] = struct{}{}
+			}
+		}
+	case []string:
+		for _, s := range kinds {
+			present[s] = struct{}{}
+		}
+	default:
+		return false
+	}
+	for _, want := range required {
+		if _, ok := present[want]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // checkRequiredNodes asserts each label in requiredLabels has at least one node.
 // This is the minimal required graph smoke check: it proves the pipeline
 // projected the corpus into the graph, and holds for any non-empty corpus.
@@ -119,7 +195,15 @@ func checkRequiredNodes(ctx context.Context, c graphCounter, requiredLabels []st
 // do not apply.
 func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly bool, blockingCorrelations map[string]bool, r *Report) error {
 	for _, rc := range snap.Graph.RequiredCorrelations {
-		count, err := c.CountCorrelation(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel)
+		var (
+			count int64
+			err   error
+		)
+		if len(rc.EvidenceKinds) > 0 {
+			count, err = c.CountCorrelationWithEvidence(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel, rc.EvidenceKinds)
+		} else {
+			count, err = c.CountCorrelation(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel)
+		}
 		if err != nil {
 			return fmt.Errorf("count correlation %s: %w", rc.ID, err)
 		}
