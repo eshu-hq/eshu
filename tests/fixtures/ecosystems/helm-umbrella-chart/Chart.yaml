@@ -1,0 +1,15 @@
+apiVersion: v2
+name: platform-umbrella
+description: Umbrella chart aggregating the platform subcharts.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+# The base subchart is sourced from the in-corpus deployable-source repository,
+# which makes this repo DEPLOYS_FROM deployable-source. This exercises the
+# HELM_CHART_REFERENCE evidence path in the B-7 gate (the Helm chart-dependency
+# deployment-source verb, distinct from the Kustomize/ArgoCD DEPLOYS_FROM edges
+# the gate isolates by evidence kind).
+dependencies:
+  - name: base
+    version: "1.0.0"
+    repository: "https://github.com/acme/deployable-source"
