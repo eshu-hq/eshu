@@ -7,7 +7,7 @@
 // Run via: npx tsx apps/console/e2e/runPerPageE2E.ts
 
 import type { Page } from "playwright";
-import { getPage, cleanup } from "./setup.js";
+import { getPage, getBaseUrl, cleanup } from "./setup.js";
 import type { PageTest, PageTestResult } from "./types.js";
 import { allTests } from "./allPageTests.js";
 
@@ -26,7 +26,7 @@ async function runOneTest(page: Page, test: PageTest): Promise<PageTestResult> {
   page.on("console", onConsole);
 
   try {
-    await page.goto(test.path, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+    await page.goto(`${getBaseUrl()}${test.path}`, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
     await page.waitForTimeout(settleMs);
     await test.assert(page);
 
