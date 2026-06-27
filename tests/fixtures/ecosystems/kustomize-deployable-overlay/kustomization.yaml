@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production overlay for the deployable workload. The base manifests are sourced
+# from the deployable-source repository (a remote Kustomize base), which makes
+# this repo DEPLOYS_FROM deployable-source. This mirrors the ArgoCD
+# deployable-config -> deployable-source mapping but expressed through Kustomize,
+# exercising the KUSTOMIZE_RESOURCE_REFERENCE evidence path in the B-7 gate.
+namespace: production
+
+resources:
+  - github.com/acme/deployable-source//k8s?ref=v1.4.0
+
+patches:
+  - path: replica-count.yaml
+    target:
+      kind: Deployment
+      name: deployable-app
+
+images:
+  - name: deployable-app
+    newTag: v1.4.0
