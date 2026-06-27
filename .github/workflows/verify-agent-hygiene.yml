@@ -1,0 +1,62 @@
+name: Verify Agent Hygiene
+
+# The non-bypassable gate for two repo rules that previously had no CI check:
+#   1. AGENTS.md and CLAUDE.md must stay byte-identical (the shared agent canon).
+#   2. No AI attribution in commit messages or added content.
+# Local pre-commit hooks mirror these for fast feedback, but they are bypassable
+# with --no-verify; this workflow is the enforcement.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-verify:
+    name: Agent hygiene test mirror
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run test mirror
+        run: scripts/test-verify-agent-hygiene.sh
+
+  verify:
+    name: Agent hygiene gate
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    needs: test-verify
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Full history so commit-message scanning over <base>..HEAD sees every
+          # commit in the PR, not a shallow tip.
+          fetch-depth: 0
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: AGENTS.md / CLAUDE.md lockstep
+        run: scripts/verify-agent-canon.sh
+
+      - name: No AI attribution
+        shell: bash
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -o pipefail
+          scripts/verify-no-ai-attribution.sh

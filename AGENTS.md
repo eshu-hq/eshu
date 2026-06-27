@@ -53,6 +53,11 @@ fixture corpora or offline tooling.
 - MUST apply TDD when writing or modifying code.
 - MUST keep files under 500 lines; split before they approach the limit.
 - MUST NOT add AI attribution to commits, PRs, or docs.
+- MUST install the repo's pre-commit hooks once per clone
+  (`scripts/dev/bootstrap-hooks.sh`; idempotent, shared across worktrees) and
+  MUST NOT `--no-verify` a commit. The commit-stage gates are fast; `--no-verify`
+  is for push only (the pre-push gosec/e2e gates are slow). CI re-checks every
+  gate regardless and is the non-bypassable source of truth.
 - MUST NOT push to `main` or `master`.
 - MUST create git worktrees before executing plans or PRDs.
 - MUST verify `pwd` matches the intended feature worktree before any Edit or

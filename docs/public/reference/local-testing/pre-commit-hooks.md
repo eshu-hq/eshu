@@ -7,12 +7,25 @@ on GitHub.
 
 ## Setup
 
+One idempotent command, safe to re-run from any worktree:
+
 ```bash
 pip install pre-commit            # or: brew install pre-commit
-cd <repo root>
-pre-commit install --install-hooks   # commit-stage hooks
-pre-commit install --hook-type pre-push   # gosec runs at push time
+scripts/dev/bootstrap-hooks.sh    # installs commit + pre-push + commit-msg hooks
 ```
+
+`bootstrap-hooks.sh` wraps the `pre-commit install` invocations below. Worktrees
+share the clone's `.git/hooks`, so running it once per clone covers every
+worktree. Equivalent manual form:
+
+```bash
+pre-commit install --install-hooks         # commit-stage hooks
+pre-commit install --hook-type pre-push    # gosec / perf / e2e run at push time
+pre-commit install --hook-type commit-msg  # AI-attribution check on the message
+```
+
+Git cannot run hooks on a fresh clone without this one install step, and any
+hook is bypassable with `--no-verify`. The non-bypassable enforcement is CI.
 
 The Go hooks bootstrap `golangci-lint` and `gosec` at the **exact versions CI
 uses**, built with the repo's local `go` toolchain, on first run (cached under
@@ -24,6 +37,9 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 
 | Hook | Stage | Mirrors CI gate |
 | --- | --- | --- |
+| `agent-canon` | commit | `verify-agent-hygiene.yml` — AGENTS.md and CLAUDE.md must stay byte-identical |
+| `no-ai-attribution-content` | commit | `verify-agent-hygiene.yml` — no AI-attribution markers in staged content |
+| `no-ai-attribution-message` | commit-msg | `verify-agent-hygiene.yml` — no AI-attribution markers in the commit message |
 | trailing-whitespace, end-of-file-fixer, merge-conflict, check-yaml | commit | `git diff --check`, basic hygiene |
 | check-added-large-files (≤1 MB) | commit | catches a stray committed Go build artifact |
 | `go-fmt` (`golangci-lint fmt --diff`) | commit | the gofumpt formatting gate |
@@ -43,8 +59,10 @@ the hooks never depend on the plugin's exact-toolchain build.
 
 ## Notes
 
-- Bypass in an emergency with `git commit --no-verify` / `git push --no-verify`;
-  CI is still the source of truth.
+- The commit-stage gates are fast — do **not** `git commit --no-verify`. The
+  slow gates (gosec, perf-evidence, telemetry, console-e2e) run at **push**, so
+  `git push --no-verify` is the intended bypass. Either way CI re-checks every
+  gate and is the non-bypassable source of truth.
 - Versions track CI automatically: the wrapper reads the `golangci-lint` and
   `gosec` pins from `.github/workflows/test.yml` and `security-scan.yml`.
 - Implementation: `scripts/dev/precommit-go.sh` and `.pre-commit-config.yaml`.
