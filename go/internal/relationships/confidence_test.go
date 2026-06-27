@@ -40,6 +40,7 @@ var allEvidenceKinds = []EvidenceKind{
 	EvidenceKindKustomizeHelmChart,
 	EvidenceKindKustomizeImage,
 	EvidenceKindAnsibleRoleReference,
+	EvidenceKindPuppetModuleReference,
 	EvidenceKindGCPCloudRelationship,
 }
 

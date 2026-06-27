@@ -1,0 +1,19 @@
+# r10k Puppetfile for the platform module set. Each `mod` with an explicit
+# `:git` source names the module-owning repository. The acme-base module is
+# sourced from the in-corpus deployable-source repository, which makes this repo
+# DEPENDS_ON deployable-source. This mirrors the package-consumption (rc-3) and
+# Ansible role (rc-30) DEPENDS_ON edges but expressed through Puppet module
+# resolution, exercising the PUPPET_MODULE_REFERENCE evidence path in the B-7
+# gate.
+
+forge 'https://forge.puppet.com'
+
+# A forge-only module (no git source) must NOT produce a repository edge: the
+# emitter only resolves modules with an explicit git URL. It is placed before the
+# git-backed module on purpose, so the per-declaration parser is exercised — a
+# naive cross-line match would mis-attribute acme-base's git source to it.
+mod 'puppetlabs-stdlib', '9.4.0'
+
+mod 'acme-base',
+  :git => 'https://github.com/acme/deployable-source',
+  :ref => 'v1.0.0'

@@ -149,6 +149,11 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "raw_text",
 			Language:   "raw_text",
 			Extensions: []string{".cnf", ".cfg", ".conf", ".j2", ".jinja", ".jinja2", ".tpl", ".tftpl"},
+			// Puppetfile (r10k) has no tree-sitter grammar; the raw_text engine
+			// captures its content_body so the relationships engine can extract
+			// PUPPET_MODULE_REFERENCE evidence from its `mod ... :git => ...`
+			// declarations without a dedicated .pp parser.
+			ExactNames: []string{"Puppetfile"},
 		},
 		{
 			ParserKey:  "ruby",
