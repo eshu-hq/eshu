@@ -221,10 +221,25 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 	}
 
 	limit := req.limit()
-	edges, truncated, err := h.relationshipEdges(r.Context(), entry, tool, limit)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+	var (
+		edges     []relationshipEdge
+		truncated bool
+	)
+	// Short-circuit a source_tool filter on a verb that never stamps it (Tier-1
+	// self-labeling and Tier-3 code/structural verbs): no edge can match by this
+	// package's own contract, and running the filtered slice would still scan the
+	// verb's source label — e.g. the IMPORTS slice scans the large File label at
+	// ~9.9s even for zero edges (docs/public/reference/cypher-performance.md). An
+	// empty page is the correct, immediate answer.
+	if tool != "" && !entry.carriesSourceTool {
+		edges = []relationshipEdge{}
+	} else {
+		var err error
+		edges, truncated, err = h.relationshipEdges(r.Context(), entry, tool, limit)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	resp := map[string]any{

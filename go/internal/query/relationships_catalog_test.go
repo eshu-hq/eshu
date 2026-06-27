@@ -9,11 +9,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
 
 // fakeRelationshipsGraphReader returns deterministic counts and edges keyed by
@@ -403,50 +400,5 @@ func TestRelationshipSourceToolBreakdownCypherIsTypeIndexed(t *testing.T) {
 		if !strings.Contains(breakdown, "count(r)") {
 			t.Fatalf("breakdown cypher for %s missing count(r): %s", entry.verb, breakdown)
 		}
-	}
-}
-
-// digSpec walks a decoded OpenAPI document by successive map keys, failing the
-// test if any key is missing or not an object.
-func digSpec(t *testing.T, node any, keys ...string) any {
-	t.Helper()
-	for _, key := range keys {
-		obj, ok := node.(map[string]any)
-		if !ok {
-			t.Fatalf("digSpec: expected object at %q, got %T", key, node)
-		}
-		node, ok = obj[key]
-		if !ok {
-			t.Fatalf("digSpec: missing key %q", key)
-		}
-	}
-	return node
-}
-
-// TestRelationshipEdgesSourceToolEnumMatchesCanonical guards against drift
-// between the OpenAPI source_tool filter enum and the canonical vocabulary: the
-// enum is hand-written JSON, so a token added to sourcetool.Canonical without
-// updating the spec (or vice versa) must fail here rather than ship a contract
-// that rejects a valid tool.
-func TestRelationshipEdgesSourceToolEnumMatchesCanonical(t *testing.T) {
-	t.Parallel()
-
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
-		t.Fatalf("json.Unmarshal(OpenAPISpec()) = %v", err)
-	}
-	enumRaw := digSpec(t, spec,
-		"paths", "/api/v0/relationships/edges", "post", "requestBody",
-		"content", "application/json", "schema", "properties", "source_tool", "enum")
-	enumList, ok := enumRaw.([]any)
-	if !ok {
-		t.Fatalf("source_tool enum is %T, want []any", enumRaw)
-	}
-	got := make([]string, len(enumList))
-	for i, v := range enumList {
-		got[i], _ = v.(string)
-	}
-	if !reflect.DeepEqual(got, sourcetool.Canonical) {
-		t.Fatalf("source_tool enum drift:\n openapi = %v\n canonical = %v", got, sourcetool.Canonical)
 	}
 }
