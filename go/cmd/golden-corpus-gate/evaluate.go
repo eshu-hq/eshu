@@ -111,6 +111,94 @@ func evaluateRequiredCorrelation(rc RequiredCorrelation, count int64, required b
 	}
 }
 
+// valueAllowed reports whether v is one of allowed. An empty allowed set matches
+// nothing (callers that want no value pinning pass nil and skip the check).
+func valueAllowed(v string, allowed []string) bool {
+	for _, a := range allowed {
+		if a == v {
+			return true
+		}
+	}
+	return false
+}
+
+// evaluateEdgeProperty produces a required finding for one RequiredEdgeProperties
+// entry of a correlation. values holds the property value of every matching
+// (evidence-narrowed) edge ("" = absent/non-string). An edge is offending when
+// its value is empty or, when allowed is non-empty, not in the allowed set; any
+// offending edge fails the finding. With no matching edges the finding passes
+// vacuously — the companion MinimumCount finding guards existence — so the two
+// together mean "the verb's edges exist and every one of them is stamped". The
+// required flag mirrors the parent correlation's blocking status.
+func evaluateEdgeProperty(rc RequiredCorrelation, prop string, values, allowed []string, required bool) Finding {
+	offending := 0
+	for _, v := range values {
+		if v == "" || (len(allowed) > 0 && !valueAllowed(v, allowed)) {
+			offending++
+		}
+	}
+	constraint := "non-empty"
+	if len(allowed) > 0 {
+		constraint = fmt.Sprintf("in %v", allowed)
+	}
+	return Finding{
+		Phase:    "graph",
+		Check:    rc.ID + "_edge_prop_" + prop,
+		OK:       offending == 0,
+		Required: required,
+		Detail: fmt.Sprintf("(%s)-[:%s]->(%s) edge property %q must be %s: %d/%d matching edges offending",
+			rc.FromLabel, rc.Relationship, rc.ToLabel, prop, constraint, offending, len(values)),
+	}
+}
+
+// evaluateNodeProperty produces a required finding for one RequiredNodeProperties
+// entry. values holds the property value of every node carrying the label ("" =
+// absent). The check is presence-positive: at least MinimumCount nodes must carry
+// a non-empty value (in the allowed set when pinned). This catches a property
+// regressing to never-set without false-failing on legitimately property-less
+// nodes (see RequiredNode).
+func evaluateNodeProperty(rn RequiredNode, prop string, values, allowed []string) Finding {
+	present := 0
+	for _, v := range values {
+		if v != "" && (len(allowed) == 0 || valueAllowed(v, allowed)) {
+			present++
+		}
+	}
+	want := rn.MinimumCount
+	if want < 1 {
+		want = 1
+	}
+	constraint := "non-empty"
+	if len(allowed) > 0 {
+		constraint = fmt.Sprintf("in %v", allowed)
+	}
+	return Finding{
+		Phase:    "graph",
+		Check:    rn.ID + "_node_prop_" + prop,
+		OK:       int64(present) >= want,
+		Required: true,
+		Detail: fmt.Sprintf("(%s) node property %q (%s) present on %d node(s), want >= %d",
+			rn.Label, prop, constraint, present, want),
+	}
+}
+
+// evaluateRequiredNode produces a required finding asserting at least
+// MinimumCount nodes carry the label. It is the node-axis counterpart to
+// evaluateRequiredCorrelation: corpus-size independent and always blocking.
+func evaluateRequiredNode(rn RequiredNode, count int64) Finding {
+	want := rn.MinimumCount
+	if want < 1 {
+		want = 1
+	}
+	return Finding{
+		Phase:    "graph",
+		Check:    rn.ID,
+		OK:       count >= want,
+		Required: true,
+		Detail:   fmt.Sprintf("(%s) count=%d, want >= %d", rn.Label, count, want),
+	}
+}
+
 // evaluateNodePresent produces a required finding asserting at least one node of
 // label exists. This is the minimal "the pipeline projected something to the
 // graph" smoke check — it holds for any non-empty corpus while the richer

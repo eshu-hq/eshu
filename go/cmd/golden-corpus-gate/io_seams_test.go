@@ -111,7 +111,11 @@ type fakeCounter struct {
 	// counts. A miss returns 0, modelling a shared edge that exists (corr > 0)
 	// but carries no edge produced by the requested verb's evidence kind.
 	corrEv map[string]int64
-	err    error
+	// edgeProp keys "from|rel|to|kind1,kind2|prop" -> the property value of each
+	// matching (evidence-narrowed) edge ("" = absent). nodeProp keys "label|prop".
+	edgeProp map[string][]string
+	nodeProp map[string][]string
+	err      error
 }
 
 func (f fakeCounter) CountNodes(_ context.Context, label string) (int64, error) {
@@ -128,6 +132,14 @@ func (f fakeCounter) CountCorrelation(_ context.Context, from, rel, to string) (
 
 func (f fakeCounter) CountCorrelationWithEvidence(_ context.Context, from, rel, to string, kinds []string) (int64, error) {
 	return f.corrEv[from+"|"+rel+"|"+to+"|"+strings.Join(kinds, ",")], f.err
+}
+
+func (f fakeCounter) ListCorrelationEdgeProperty(_ context.Context, from, rel, to string, kinds []string, prop string) ([]string, error) {
+	return f.edgeProp[from+"|"+rel+"|"+to+"|"+strings.Join(kinds, ",")+"|"+prop], f.err
+}
+
+func (f fakeCounter) ListNodeProperty(_ context.Context, label, prop string) ([]string, error) {
+	return f.nodeProp[label+"|"+prop], f.err
 }
 
 func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {

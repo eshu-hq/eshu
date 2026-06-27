@@ -23,11 +23,16 @@ type Snapshot struct {
 }
 
 // GraphSnapshot holds the per-label node and per-relationship edge count
-// tolerances plus the existence-style required correlations.
+// tolerances plus the existence-style required correlations and required nodes.
 type GraphSnapshot struct {
 	NodeCounts           map[string]CountRange `json:"node_counts"`
 	EdgeCounts           map[string]CountRange `json:"edge_counts"`
 	RequiredCorrelations []RequiredCorrelation `json:"required_correlations"`
+	// RequiredNodes are existence-plus-property node assertions (the node-axis
+	// counterpart to RequiredCorrelations). Optional and additive: an empty list
+	// preserves the historical behaviour where node presence came only from the
+	// -required-node-labels flag.
+	RequiredNodes []RequiredNode `json:"required_nodes,omitempty"`
 }
 
 // CountRange is an inclusive [Min, Max] tolerance for a node label or edge type.
@@ -65,6 +70,51 @@ type RequiredCorrelation struct {
 	ToLabel       string   `json:"to_label"`
 	MinimumCount  int64    `json:"minimum_count"`
 	EvidenceKinds []string `json:"evidence_kinds,omitempty"`
+
+	// RequiredEdgeProperties, when non-empty, asserts that every matching edge
+	// (after EvidenceKinds narrowing) carries each listed relationship property
+	// with a non-empty value. It is how the gate enforces edge source-tool
+	// provenance (#3997/#3999): a Tier-2 shared-verb emitter that forgets to stamp
+	// source_tool leaves matching edges with the property null, and the assertion
+	// fails naming the verb, property, and offending count. The check is
+	// absence-zero over the (evidence-narrowed) matching set — every matching edge
+	// must carry it — because the narrowing already isolates exactly the verb whose
+	// edges are required to be stamped. The companion MinimumCount finding
+	// independently guards that the matching set is non-empty, so a property
+	// assertion never passes vacuously on a verb that produced no edges. Default
+	// empty = no property check (existing entries stay valid).
+	RequiredEdgeProperties []string `json:"required_edge_properties,omitempty"`
+	// AllowedEdgePropertyValues, keyed by property name, additionally pins each
+	// matching edge's value for that property to the listed canonical vocabulary.
+	// A value outside the set (or a non-string/absent value) is an offending edge.
+	// Use it to pin source_tool to its normalized tokens (e.g. ansible, kustomize)
+	// so an un-normalized or mistyped token fails the gate, not just a missing one.
+	AllowedEdgePropertyValues map[string][]string `json:"allowed_edge_property_values,omitempty"`
+}
+
+// RequiredNode is a node-presence assertion that can also require a property.
+// At least MinimumCount nodes carrying Label must exist; when
+// RequiredNodeProperties is non-empty, at least MinimumCount nodes must carry
+// each listed property with a non-empty value (and a value in the pinned set when
+// AllowedNodePropertyValues names that property). It is the node-axis counterpart
+// to RequiredCorrelation and is how the gate enforces the language/source_type
+// axis (#4003): if language extraction regresses, the count of File nodes
+// carrying a non-empty language drops below the floor and the gate fails.
+//
+// The property semantics are presence-positive (>= MinimumCount nodes carry the
+// property), not absence-zero (no node lacks it): a label like File legitimately
+// contains nodes with no detected language (LICENSE, .gitignore), so requiring
+// every File to carry one would false-fail. Asserting a floor of correctly-tagged
+// nodes proves the property is populated without lying about legitimately-untagged
+// ones. (Edges differ — see RequiredEdgeProperties — because their evidence-kind
+// narrowing isolates exactly the set that must all be stamped.)
+type RequiredNode struct {
+	ID                        string              `json:"id"`
+	Description               string              `json:"description"`
+	Label                     string              `json:"label"`
+	MinimumCount              int64               `json:"minimum_count"`
+	RequiredNodeProperties    []string            `json:"required_node_properties,omitempty"`
+	AllowedNodePropertyValues map[string][]string `json:"allowed_node_property_values,omitempty"`
 }
 
 // DrainAssertions captures the B-7(a) queue-drain gate: both queues must reach a
