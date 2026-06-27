@@ -5,10 +5,15 @@ labeled by the source tool that produced them, how, and which cannot** — and i
 defines the canonical `source_tool` vocabulary the rest of
 [epic #3997](https://github.com/eshu-hq/eshu/issues/3997) targets.
 
-It is a **design baseline**: it documents today's truth and the agreed enum. It
-does not, by itself, change any production behaviour. Stamping a normalized
-`source_tool` token onto Tier-2 edges is [#3999](https://github.com/eshu-hq/eshu/issues/3999);
-surfacing it in the API/console is [#4000](https://github.com/eshu-hq/eshu/issues/4000)/[#4001](https://github.com/eshu-hq/eshu/issues/4001).
+It began as a **design baseline** (the agreed enum + classification). As of
+[#3999](https://github.com/eshu-hq/eshu/issues/3999) the normalized `source_tool`
+token is **stamped at write time** on every Tier-2 (shared-verb) cross-repo edge
+(`go/internal/reducer/cross_repo_evidence_type.go` derives it; the canonical edge
+writers in `go/internal/storage/cypher` persist it). Surfacing it in the
+API/console is [#4000](https://github.com/eshu-hq/eshu/issues/4000)/[#4001](https://github.com/eshu-hq/eshu/issues/4001).
+The golden-corpus gate enforces it: each evidence-narrowed Tier-2 correlation
+(rc-29…rc-34) asserts `source_tool` is present and equals its canonical token, so
+a regression fails CI.
 
 Two questions this doc answers for any edge:
 
@@ -101,11 +106,12 @@ addition, never by free-form values.
 | `unknown` | explicit fallback when no tool is provable | — |
 
 **`unknown` rule.** An edge whose tool cannot be proven from its evidence gets
-the explicit `unknown` token, never a guess. (Today the
-`normalizeEvidenceKind` default branch lower-cases an unmapped kind rather than
-emitting `unknown` — `go/internal/reducer/cross_repo_evidence_type.go:115`; the
-`source_tool` normalizer in #3999 should emit `unknown` instead, so an
-un-mapped kind is visible as a gap rather than a silent passthrough.)
+the explicit `unknown` token, never a guess. `resolvedRelationshipSourceTool`
+(`go/internal/reducer/cross_repo_evidence_type.go`) emits `unknown` for a
+present-but-unmapped primary evidence kind — so a new tool that ships an evidence
+kind without a `source_tool` classification surfaces as a visible gap (and fails
+the #4002 drift gate) rather than a silent passthrough. An edge with no evidence
+kind at all is left unstamped (absent), distinct from the explicit `unknown`.
 
 The package-ecosystem tokens (`gomod`, `npm`, `pip`, `maven`, `cargo`) and the
 cloud tokens (`aws`, `azure`, `kubernetes`) are **not** carried by any
