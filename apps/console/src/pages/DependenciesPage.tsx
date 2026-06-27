@@ -38,7 +38,7 @@ function uiFresh(truth: EshuTruth | null): UiFresh {
 
 export function DependenciesPage({
   client,
-  sourceLabel = "live"
+  sourceLabel = "live",
 }: {
   readonly client?: EshuApiClient;
   readonly sourceLabel?: string;
@@ -46,14 +46,16 @@ export function DependenciesPage({
   const [searchParams] = useSearchParams();
   const repoAnchor = searchParams.get("repo")?.trim() ?? "";
   if (repoAnchor !== "") {
-    return <RepoDependencyChains client={client} repository={repoAnchor} sourceLabel={sourceLabel} />;
+    return (
+      <RepoDependencyChains client={client} repository={repoAnchor} sourceLabel={sourceLabel} />
+    );
   }
   return <PackageDependencyBrowser client={client} sourceLabel={sourceLabel} />;
 }
 
 function PackageDependencyBrowser({
   client,
-  sourceLabel = "live"
+  sourceLabel = "live",
 }: {
   readonly client?: EshuApiClient;
   readonly sourceLabel?: string;
@@ -70,15 +72,26 @@ function PackageDependencyBrowser({
 
   const run = useCallback(
     async (dir: Direction, pkg: string, eco: string, cursor: DependencyPage["nextCursor"]) => {
-      if (!client) { setSource("unavailable"); setPage(null); setRows([]); return; }
+      if (!client) {
+        setSource("unavailable");
+        setPage(null);
+        setRows([]);
+        return;
+      }
       setErr("");
       if (dir === "reverse" && pkg === "") {
         // Reverse needs a target anchor; show the empty-state guidance without
         // issuing a request that the API would reject with 400.
-        setSource("empty"); setPage(null); setRows([]);
+        setSource("empty");
+        setPage(null);
+        setRows([]);
         return;
       }
-      if (cursor === null) { setSource("loading"); setRows([]); setPage(null); }
+      if (cursor === null) {
+        setSource("loading");
+        setRows([]);
+        setPage(null);
+      }
       try {
         const result = await loadDependencies(client, {
           direction: dir,
@@ -86,18 +99,19 @@ function PackageDependencyBrowser({
           ecosystem: eco || undefined,
           afterName: cursor?.afterName,
           afterEdge: cursor?.afterEdge,
-          limit: PAGE_LIMIT
+          limit: PAGE_LIMIT,
         });
         setPage(result);
         setRows((prev) => (cursor === null ? result.rows : [...prev, ...result.rows]));
         setSource(result.rows.length === 0 && cursor === null ? "empty" : "live");
       } catch (e) {
         setErr(e instanceof Error ? e.message : "failed");
-        setSource("unavailable"); setPage(null);
+        setSource("unavailable");
+        setPage(null);
         if (cursor === null) setRows([]);
       }
     },
-    [client]
+    [client],
   );
 
   // Initial load and reloads when the committed anchor or direction changes.
@@ -110,11 +124,12 @@ function PackageDependencyBrowser({
     setAnchor({ pkg: pkgInput.trim(), ecosystem: ecosystem.trim() });
   };
 
-  const visible = rows.filter((r) =>
-    filter === "" ||
-    `${r.relatedPackage} ${r.relatedPackageId} ${r.anchorPackage} ${r.range} ${r.dependencyType}`
-      .toLowerCase()
-      .includes(filter.toLowerCase())
+  const visible = rows.filter(
+    (r) =>
+      filter === "" ||
+      `${r.relatedPackage} ${r.relatedPackageId} ${r.anchorPackage} ${r.range} ${r.dependencyType}`
+        .toLowerCase()
+        .includes(filter.toLowerCase()),
   );
   const optionalCount = rows.filter((r) => r.optional).length;
   const relatedHeader = direction === "forward" ? "Depends on" : "Dependent";
@@ -125,56 +140,163 @@ function PackageDependencyBrowser({
     <div className="page">
       <div className="page-intro">
         <h2>Dependencies</h2>
-        <p>Package dependency inventory - <span className="mono">GET /api/v0/dependencies</span>. Forward lists what a package depends on; reverse lists who depends on it.</p>
+        <p>
+          Package dependency inventory - <span className="mono">GET /api/v0/dependencies</span>.
+          Forward lists what a package depends on; reverse lists who depends on it.
+        </p>
       </div>
 
       <form className="evidence-toolbar" onSubmit={submit}>
         <div className="seg" role="group" aria-label="Direction">
-          <button type="button" className={`btn-ghost${direction === "forward" ? " active" : ""}`} onClick={() => setDirection("forward")} aria-pressed={direction === "forward"}>Depends on</button>
-          <button type="button" className={`btn-ghost${direction === "reverse" ? " active" : ""}`} onClick={() => setDirection("reverse")} aria-pressed={direction === "reverse"}>Dependents of</button>
+          <button
+            type="button"
+            className={`btn-ghost${direction === "forward" ? " active" : ""}`}
+            onClick={() => setDirection("forward")}
+            aria-pressed={direction === "forward"}
+          >
+            Depends on
+          </button>
+          <button
+            type="button"
+            className={`btn-ghost${direction === "reverse" ? " active" : ""}`}
+            onClick={() => setDirection("reverse")}
+            aria-pressed={direction === "reverse"}
+          >
+            Dependents of
+          </button>
         </div>
-        <input className="popover-input mono" style={{ minWidth: 240 }} placeholder={direction === "reverse" ? "package name (required)" : "package name (optional)"} value={pkgInput} onChange={(e) => setPkgInput(e.target.value)} aria-label="Package name" />
-        <input className="popover-input mono" style={{ minWidth: 120 }} placeholder="ecosystem" value={ecosystem} onChange={(e) => setEcosystem(e.target.value)} aria-label="Ecosystem" />
-        <button type="submit" className="btn-ghost active">Look up</button>
+        <input
+          className="popover-input mono"
+          style={{ minWidth: 240 }}
+          placeholder={
+            direction === "reverse" ? "package name (required)" : "package name (optional)"
+          }
+          value={pkgInput}
+          onChange={(e) => setPkgInput(e.target.value)}
+          aria-label="Package name"
+        />
+        <input
+          className="popover-input mono"
+          style={{ minWidth: 120 }}
+          placeholder="ecosystem"
+          value={ecosystem}
+          onChange={(e) => setEcosystem(e.target.value)}
+          aria-label="Ecosystem"
+        />
+        <button type="submit" className="btn-ghost active">
+          Look up
+        </button>
       </form>
 
       <div className="grid g-4">
-        <StatTile label="Edges" value={rows.length} color="var(--blue)" sub={page?.truncated ? "page truncated" : "complete page"} />
-        <StatTile label="Direction" value={direction === "forward" ? "depends on" : "dependents of"} color="var(--teal)" sub={anchorLabel} />
-        <StatTile label="Optional" value={optionalCount} color="var(--ember)" sub="optional edges" />
-        <StatTile label="Source" value={sourceDisplay} color="var(--ember)" sub="dependency inventory" />
+        <StatTile
+          label="Edges"
+          value={rows.length}
+          color="var(--blue)"
+          sub={page?.truncated ? "page truncated" : "complete page"}
+        />
+        <StatTile
+          label="Direction"
+          value={direction === "forward" ? "depends on" : "dependents of"}
+          color="var(--teal)"
+          sub={anchorLabel}
+        />
+        <StatTile
+          label="Optional"
+          value={optionalCount}
+          color="var(--ember)"
+          sub="optional edges"
+        />
+        <StatTile
+          label="Source"
+          value={sourceDisplay}
+          color="var(--ember)"
+          sub="dependency inventory"
+        />
       </div>
 
-      <div className="evidence-workbench evidence-workbench-rail mt" aria-label="Package graph workbench">
-        <Panel className="flush" title={direction === "forward" ? "Forward dependencies" : "Reverse dependents"}
+      <div
+        className="evidence-workbench evidence-workbench-rail mt"
+        aria-label="Package graph workbench"
+      >
+        <Panel
+          className="flush"
+          title={direction === "forward" ? "Forward dependencies" : "Reverse dependents"}
           sub={sourceDisplay}
           action={
             <div className="panel-action-stack">
               {page?.truth ? <TruthChip level={uiTruth(page.truth.level)} /> : null}
               {page?.truth ? <FreshDot state={uiFresh(page.truth)} /> : null}
-              <div className="searchbox compact"><input placeholder="Filter rows…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter rows" /></div>
+              <div className="searchbox compact">
+                <input
+                  placeholder="Filter rows…"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  aria-label="Filter rows"
+                />
+              </div>
             </div>
-          }>
+          }
+        >
           {source === "loading" ? (
-            <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading dependencies...</p></div>
+            <div className="conn-state compact">
+              <div className="conn-spinner" aria-hidden />
+              <p>Loading dependencies...</p>
+            </div>
           ) : (
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table className="tbl wide">
-                <thead><tr><th>Anchor</th><th>Version</th><th>{relatedHeader}</th><th>Ecosystem</th><th>Range</th><th>Type</th><th>Optional</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Anchor</th>
+                    <th>Version</th>
+                    <th>{relatedHeader}</th>
+                    <th>Ecosystem</th>
+                    <th>Range</th>
+                    <th>Type</th>
+                    <th>Optional</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {visible.map((r) => (
                     <tr key={r.edgeId}>
                       <td className="t-name">{r.anchorPackage || "—"}</td>
-                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.declaringVersion || "—"}</td>
-                      <td className="t-name mono" style={{ fontSize: ".82rem" }} title={r.relatedPackageId}>{r.relatedPackage}</td>
-                      <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.ecosystem || "—"}</td>
-                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.range || "—"}</td>
-                      <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.dependencyType || "—"}</td>
-                      <td>{r.optional ? <Badge tone="warn">optional</Badge> : <span className="t-mut">no</span>}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>
+                        {r.declaringVersion || "—"}
+                      </td>
+                      <td
+                        className="t-name mono"
+                        style={{ fontSize: ".82rem" }}
+                        title={r.relatedPackageId}
+                      >
+                        {r.relatedPackage}
+                      </td>
+                      <td className="t-mut" style={{ fontSize: ".78rem" }}>
+                        {r.ecosystem || "—"}
+                      </td>
+                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>
+                        {r.range || "—"}
+                      </td>
+                      <td className="t-mut" style={{ fontSize: ".78rem" }}>
+                        {r.dependencyType || "—"}
+                      </td>
+                      <td>
+                        {r.optional ? (
+                          <Badge tone="warn">optional</Badge>
+                        ) : (
+                          <span className="t-mut">no</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {visible.length === 0 ? (
-                    <tr><td colSpan={7} className="empty">{err ? `Failed to load: ${err}` : dependencyEmptyMessage(direction, anchor?.pkg ?? "")}</td></tr>
+                    <tr>
+                      <td colSpan={7} className="empty">
+                        {err
+                          ? `Failed to load: ${err}`
+                          : dependencyEmptyMessage(direction, anchor?.pkg ?? "")}
+                      </td>
+                    </tr>
                   ) : null}
                 </tbody>
               </table>
@@ -182,16 +304,35 @@ function PackageDependencyBrowser({
           )}
           {page?.truncated && page.nextCursor ? (
             <div className="pager-row">
-              <button className="btn-ghost" onClick={() => void run(direction, anchor?.pkg ?? "", anchor?.ecosystem ?? "", page.nextCursor)}>Load more</button>
+              <button
+                className="btn-ghost"
+                onClick={() =>
+                  void run(direction, anchor?.pkg ?? "", anchor?.ecosystem ?? "", page.nextCursor)
+                }
+              >
+                Load more
+              </button>
             </div>
           ) : null}
         </Panel>
         <Panel title="Query context" sub="bounded package graph read">
           <dl className="surface-dl">
-            <div><dt>Anchor</dt><dd className="mono">{anchorLabel}</dd></div>
-            <div><dt>Rows loaded</dt><dd>{rows.length}</dd></div>
-            <div><dt>Filtered rows</dt><dd>{visible.length}</dd></div>
-            <div><dt>Page state</dt><dd>{page?.truncated ? "truncated" : source}</dd></div>
+            <div>
+              <dt>Anchor</dt>
+              <dd className="mono">{anchorLabel}</dd>
+            </div>
+            <div>
+              <dt>Rows loaded</dt>
+              <dd>{rows.length}</dd>
+            </div>
+            <div>
+              <dt>Filtered rows</dt>
+              <dd>{visible.length}</dd>
+            </div>
+            <div>
+              <dt>Page state</dt>
+              <dd>{page?.truncated ? "truncated" : source}</dd>
+            </div>
           </dl>
         </Panel>
       </div>
@@ -207,7 +348,7 @@ function PackageDependencyBrowser({
 function RepoDependencyChains({
   client,
   repository,
-  sourceLabel = "live"
+  sourceLabel = "live",
 }: {
   readonly client?: EshuApiClient;
   readonly repository: string;
@@ -219,8 +360,13 @@ function RepoDependencyChains({
 
   useEffect(() => {
     let cancelled = false;
-    if (!client) { setSource("unavailable"); setPage(null); return; }
-    setSource("loading"); setErr("");
+    if (!client) {
+      setSource("unavailable");
+      setPage(null);
+      return;
+    }
+    setSource("loading");
+    setErr("");
     void loadDependencyChains(client, repository)
       .then((result) => {
         if (cancelled) return;
@@ -230,9 +376,12 @@ function RepoDependencyChains({
       .catch((e) => {
         if (cancelled) return;
         setErr(e instanceof Error ? e.message : "failed");
-        setSource("unavailable"); setPage(null);
+        setSource("unavailable");
+        setPage(null);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [client, repository]);
 
   const chains = page?.chains ?? [];
@@ -244,37 +393,87 @@ function RepoDependencyChains({
     <div className="page">
       <div className="page-intro">
         <h2>Dependency chains</h2>
-        <p>Package-evidenced repo-to-repo chains for <span className="mono">{repository}</span> - <span className="mono">GET /api/v0/package-registry/dependency-chains</span>. The consumption leg is canonical; publisher legs are inferred provenance-only links, not asserted repository edges.</p>
+        <p>
+          Package-evidenced repo-to-repo chains for <span className="mono">{repository}</span> -{" "}
+          <span className="mono">GET /api/v0/package-registry/dependency-chains</span>. The
+          consumption leg is canonical; publisher legs are inferred provenance-only links, not
+          asserted repository edges.
+        </p>
       </div>
 
       <div className="grid g-4">
-        <StatTile label="Consumed packages" value={chains.length} color="var(--blue)" sub="canonical consumption" />
-        <StatTile label="Inferred publishers" value={inferredPublishers} color="var(--ember)" sub="provenance-only links" />
-        <StatTile label="Ambiguous" value={ambiguousCount} color="var(--violet)" sub="multiple candidate publishers" />
-        <StatTile label="Source" value={sourceDisplay} color="var(--ember)" sub="dependency chains" />
+        <StatTile
+          label="Consumed packages"
+          value={chains.length}
+          color="var(--blue)"
+          sub="canonical consumption"
+        />
+        <StatTile
+          label="Inferred publishers"
+          value={inferredPublishers}
+          color="var(--ember)"
+          sub="provenance-only links"
+        />
+        <StatTile
+          label="Ambiguous"
+          value={ambiguousCount}
+          color="var(--violet)"
+          sub="multiple candidate publishers"
+        />
+        <StatTile
+          label="Source"
+          value={sourceDisplay}
+          color="var(--ember)"
+          sub="dependency chains"
+        />
       </div>
 
-      <div className="evidence-workbench evidence-workbench-rail mt" aria-label="Dependency chain workbench">
-        <Panel className="flush" title="Consumer → package → publisher"
+      <div
+        className="evidence-workbench evidence-workbench-rail mt"
+        aria-label="Dependency chain workbench"
+      >
+        <Panel
+          className="flush"
+          title="Consumer → package → publisher"
           sub={sourceDisplay}
           action={
             <div className="panel-action-stack">
               {page?.truth ? <TruthChip level={uiTruth(page.truth.level)} /> : null}
               {page?.truth ? <FreshDot state={uiFresh(page.truth)} /> : null}
             </div>
-          }>
+          }
+        >
           {source === "loading" ? (
-            <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading dependency chains...</p></div>
+            <div className="conn-state compact">
+              <div className="conn-spinner" aria-hidden />
+              <p>Loading dependency chains...</p>
+            </div>
           ) : (
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table className="tbl wide">
-                <thead><tr><th>Package</th><th>Ecosystem</th><th>Range</th><th>Publisher repo (inferred)</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Package</th>
+                    <th>Ecosystem</th>
+                    <th>Range</th>
+                    <th>Publisher repo (inferred)</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {chains.map((chain) => (
-                    <ChainRows key={chain.consumptionCorrelationId || chain.packageId} chain={chain} />
+                    <ChainRows
+                      key={chain.consumptionCorrelationId || chain.packageId}
+                      chain={chain}
+                    />
                   ))}
                   {chains.length === 0 ? (
-                    <tr><td colSpan={4} className="empty">{err ? `Failed to load: ${err}` : `No package-evidenced dependency chains for ${repository}. Requires admitted consumption correlations and package publisher hints.`}</td></tr>
+                    <tr>
+                      <td colSpan={4} className="empty">
+                        {err
+                          ? `Failed to load: ${err}`
+                          : `No package-evidenced dependency chains for ${repository}. Requires admitted consumption correlations and package publisher hints.`}
+                      </td>
+                    </tr>
                   ) : null}
                 </tbody>
               </table>
@@ -283,10 +482,22 @@ function RepoDependencyChains({
         </Panel>
         <Panel title="Truth model" sub="bounded read-side join">
           <dl className="surface-dl">
-            <div><dt>Repository</dt><dd className="mono">{page?.repositoryId ?? repository}</dd></div>
-            <div><dt>Consumption</dt><dd>canonical (manifest-backed)</dd></div>
-            <div><dt>Publisher</dt><dd>inferred / provenance-only</dd></div>
-            <div><dt>Page state</dt><dd>{page?.truncated ? "truncated" : source}</dd></div>
+            <div>
+              <dt>Repository</dt>
+              <dd className="mono">{page?.repositoryId ?? repository}</dd>
+            </div>
+            <div>
+              <dt>Consumption</dt>
+              <dd>canonical (manifest-backed)</dd>
+            </div>
+            <div>
+              <dt>Publisher</dt>
+              <dd>inferred / provenance-only</dd>
+            </div>
+            <div>
+              <dt>Page state</dt>
+              <dd>{page?.truncated ? "truncated" : source}</dd>
+            </div>
           </dl>
         </Panel>
       </div>
@@ -302,9 +513,15 @@ function ChainRows({ chain }: { readonly chain: DependencyChain }): React.JSX.El
   if (chain.publishers.length === 0) {
     return (
       <tr>
-        <td className="t-name mono" style={{ fontSize: ".82rem" }} title={chain.packageId}>{chain.packageName || chain.packageId || "—"}</td>
-        <td className="t-mut" style={{ fontSize: ".78rem" }}>{chain.ecosystem || "—"}</td>
-        <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{chain.dependencyRange || "—"}</td>
+        <td className="t-name mono" style={{ fontSize: ".82rem" }} title={chain.packageId}>
+          {chain.packageName || chain.packageId || "—"}
+        </td>
+        <td className="t-mut" style={{ fontSize: ".78rem" }}>
+          {chain.ecosystem || "—"}
+        </td>
+        <td className="t-mut mono" style={{ fontSize: ".76rem" }}>
+          {chain.dependencyRange || "—"}
+        </td>
         <td className="t-mut">no publisher correlation</td>
       </tr>
     );
@@ -313,9 +530,15 @@ function ChainRows({ chain }: { readonly chain: DependencyChain }): React.JSX.El
     <>
       {chain.publishers.map((publisher, index) => (
         <tr key={publisher.correlationId || `${chain.packageId}-${index}`}>
-          <td className="t-name mono" style={{ fontSize: ".82rem" }} title={chain.packageId}>{index === 0 ? (chain.packageName || chain.packageId || "—") : ""}</td>
-          <td className="t-mut" style={{ fontSize: ".78rem" }}>{index === 0 ? (chain.ecosystem || "—") : ""}</td>
-          <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{index === 0 ? (chain.dependencyRange || "—") : ""}</td>
+          <td className="t-name mono" style={{ fontSize: ".82rem" }} title={chain.packageId}>
+            {index === 0 ? chain.packageName || chain.packageId || "—" : ""}
+          </td>
+          <td className="t-mut" style={{ fontSize: ".78rem" }}>
+            {index === 0 ? chain.ecosystem || "—" : ""}
+          </td>
+          <td className="t-mut mono" style={{ fontSize: ".76rem" }}>
+            {index === 0 ? chain.dependencyRange || "—" : ""}
+          </td>
           <td>
             <span className="row" style={{ gap: 6, alignItems: "center" }}>
               <span className="t-name">{publisher.repositoryName || publisher.repositoryId}</span>

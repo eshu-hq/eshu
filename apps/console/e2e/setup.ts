@@ -20,15 +20,18 @@ export interface DevServer {
 
 const consoleDir = resolve(fileURLToPath(import.meta.url), "..", "..");
 const repoRoot = resolve(consoleDir, "..", "..");
-const viteBin = resolve(repoRoot, "node_modules", ".bin", "vite");
 const devServerPort = 5190;
 const navTimeoutMs = 30000;
-const devServerReadyTimeoutMs = 60000;
+const devServerReadyTimeoutMs = 120000;
 
 async function startDevServer(): Promise<DevServer> {
+  const baseUrl = `http://127.0.0.1:${devServerPort}`;
+  const viteEntry = resolve(repoRoot, "node_modules", "vite", "bin", "vite.js");
+
   const child = spawn(
-    viteBin,
+    process.execPath,
     [
+      viteEntry,
       "--config",
       "apps/console/vite.config.ts",
       "--host",
@@ -40,26 +43,51 @@ async function startDevServer(): Promise<DevServer> {
     { cwd: repoRoot, env: { ...process.env }, stdio: ["ignore", "pipe", "pipe"] },
   );
 
-  const baseUrl = await new Promise<string>((resolvePromise, rejectPromise) => {
-    const timer = setTimeout(
-      () => rejectPromise(new Error("dev server did not become ready")),
-      devServerReadyTimeoutMs,
-    );
-    const onData = (chunk: Buffer): void => {
-      const text = chunk.toString();
-      const m = text.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+)\/?/);
-      if (m) {
-        clearTimeout(timer);
-        resolvePromise(m[1]);
-      }
-    };
-    child.stdout.on("data", onData);
-    child.on("exit", (code) => {
-      clearTimeout(timer);
-      rejectPromise(new Error(`dev server exited with code ${String(code)}`));
-    });
+  // Drain stderr so Vite error output is visible in CI logs and the pipe
+  // doesn't fill up and block the process.
+  child.stderr.on("data", (chunk: Buffer) => {
+    process.stderr.write(`[vite-err] ${chunk.toString()}`);
   });
-  return { process: child, baseUrl };
+
+  // Drain stdout so the pipe doesn't block Vite.
+  child.stdout.on("data", () => {
+    // intentionally no-op; we poll the HTTP port instead of parsing stdout
+  });
+
+  // Poll the HTTP port until Vite responds (bypasses pipe-buffering issues).
+  const baseUrlResolved = await new Promise<string>((resolvePromise, rejectPromise) => {
+    const deadline = Date.now() + devServerReadyTimeoutMs;
+    let settled = false;
+
+    const done = (err: Error | null, url?: string): void => {
+      if (settled) return;
+      settled = true;
+      if (err) rejectPromise(err);
+      else resolvePromise(url!);
+    };
+
+    child.on("exit", (code) => {
+      done(new Error(`dev server exited with code ${String(code)}`));
+    });
+
+    const poll = (): void => {
+      if (Date.now() >= deadline) {
+        done(new Error("dev server did not become ready"));
+        return;
+      }
+      fetch(baseUrl, { method: "HEAD", signal: AbortSignal.timeout(2000) })
+        .then((res) => {
+          if (res.ok) done(null, baseUrl);
+          else setTimeout(poll, 200);
+        })
+        .catch(() => {
+          setTimeout(poll, 200);
+        });
+    };
+    poll();
+  });
+
+  return { process: child, baseUrl: baseUrlResolved };
 }
 
 async function stopDevServer(server: DevServer): Promise<void> {

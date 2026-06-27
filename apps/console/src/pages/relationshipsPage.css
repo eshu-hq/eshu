@@ -37,7 +37,7 @@
 .rel-layer-count {
   margin-left: 6px;
   font-size: 0.72rem;
-  opacity: 0.7;
+  color: var(--muted);
 }
 
 .rel-layout {

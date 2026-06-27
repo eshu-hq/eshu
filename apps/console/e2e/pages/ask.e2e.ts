@@ -6,9 +6,9 @@ export const pageTest: PageTest = {
   label: "Ask Eshu",
   area: "ask",
   async assert(page: Page): Promise<void> {
-    await page.waitForSelector(".chat-panel", { timeout: 10000 });
+    await page.waitForSelector(".ask-page", { timeout: 10000 });
     const len = await page.evaluate(
-      () => document.querySelector(".chat-panel")?.textContent?.trim().length ?? 0,
+      () => document.querySelector(".ask-page")?.textContent?.trim().length ?? 0,
     );
     if (len < 40) throw new Error(`page rendered only ${len} chars`);
   },

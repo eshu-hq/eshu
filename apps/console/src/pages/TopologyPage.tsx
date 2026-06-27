@@ -8,7 +8,7 @@ import {
   type ServiceTopology,
   type TopologyEdge,
   type TopologyKind,
-  type TopologyNode
+  type TopologyNode,
 } from "../api/serviceTopology";
 import { Badge, Panel, StatTile } from "../components/atoms";
 import type { ConsoleModel, ServiceRow } from "../console/types";
@@ -23,13 +23,13 @@ const KIND_COLOR: Record<TopologyKind, string> = {
   repo: "#f3ebdd",
   runtime: "#4f8cff",
   service: "#ff8a00",
-  workload: "#14b8a6"
+  workload: "#14b8a6",
 };
 
 export function TopologyPage({
   client,
   model,
-  onOpenService
+  onOpenService,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
@@ -40,7 +40,7 @@ export function TopologyPage({
   // repositories rather than promoted service/workload nodes).
   const snapshotServices = useMemo(
     () => model.services.filter((row) => row.name.length > 0),
-    [model]
+    [model],
   );
   const [catalogServices, setCatalogServices] = useState<readonly ServiceRow[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
@@ -57,7 +57,9 @@ export function TopologyPage({
       setCatalogServices(rows);
       setPickerLoading(false);
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [client, snapshotServices.length]);
 
   const services = snapshotServices.length > 0 ? snapshotServices : catalogServices;
@@ -82,12 +84,16 @@ export function TopologyPage({
     if (!selected) {
       setGraph(null);
       setLoadState(isPickerReady ? "unavailable" : "loading");
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
     if (!client) {
       setGraph(buildServiceTopology({ service: selected, trafficPaths: [] }));
       setLoadState("unavailable");
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
     setLoadState("loading");
     void loadServiceTopology(client, selected)
@@ -101,10 +107,13 @@ export function TopologyPage({
         setGraph(buildServiceTopology({ service: selected, trafficPaths: [] }));
         setLoadState("unavailable");
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [client, isPickerReady, selected]);
 
-  const topology = graph ?? (selected ? buildServiceTopology({ service: selected, trafficPaths: [] }) : null);
+  const topology =
+    graph ?? (selected ? buildServiceTopology({ service: selected, trafficPaths: [] }) : null);
 
   return (
     <div className="page topology-page" style={{ maxWidth: "none" }}>
@@ -112,10 +121,9 @@ export function TopologyPage({
         <h2>Topology</h2>
         <p>
           Service-level code-to-cloud topology from{" "}
-          <span className="mono">GET /api/v0/services/{"{name}"}/story</span>{" "}
-          and{" "}
-          <span className="mono">GET /api/v0/services/{"{name}"}/context</span>.
-          Missing cloud-resource segments stay explicit instead of being invented.
+          <span className="mono">GET /api/v0/services/{"{name}"}/story</span> and{" "}
+          <span className="mono">GET /api/v0/services/{"{name}"}/context</span>. Missing
+          cloud-resource segments stay explicit instead of being invented.
         </p>
       </div>
 
@@ -205,38 +213,57 @@ export function TopologyPage({
 function TopologyCanvas({
   graph,
   onSelect,
-  selectedId
+  selectedId,
 }: {
   readonly graph: ServiceTopology;
   readonly onSelect: (node: TopologyNode) => void;
   readonly selectedId?: string;
 }): React.JSX.Element {
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
-  const activeEdges = selectedId === undefined
-    ? new Set<string>()
-    : new Set(
-      graph.edges
-        .filter((edge) => edge.s === selectedId || edge.t === selectedId)
-        .flatMap((edge) => [edge.s, edge.t])
-    );
+  const activeEdges =
+    selectedId === undefined
+      ? new Set<string>()
+      : new Set(
+          graph.edges
+            .filter((edge) => edge.s === selectedId || edge.t === selectedId)
+            .flatMap((edge) => [edge.s, edge.t]),
+        );
 
   return (
-    <div className="topology-canvas">
-      <svg aria-label={`${graph.meta.serviceName} topology`} role="img" viewBox="0 0 1360 560">
+    <div className="topology-canvas" tabIndex={0}>
+      <svg aria-label={`${graph.meta.serviceName} topology`} viewBox="0 0 1360 560">
         <defs>
-          <marker id="topology-arrow" markerHeight="9" markerWidth="9" orient="auto" refX="7.5" refY="4">
+          <marker
+            id="topology-arrow"
+            markerHeight="9"
+            markerWidth="9"
+            orient="auto"
+            refX="7.5"
+            refY="4"
+          >
             <path d="M0 0 L8 4 L0 8 Z" fill="var(--edge)" />
           </marker>
         </defs>
-        <text className="topology-lane" x="40" y="46">TRAFFIC PATH</text>
+        <text className="topology-lane" x="40" y="46">
+          TRAFFIC PATH
+        </text>
         <line className="topology-lane-line" x1="40" x2="1240" y1="60" y2="60" />
-        <text className="topology-lane" x="40" y="332">SUPPLY CHAIN</text>
+        <text className="topology-lane" x="40" y="332">
+          SUPPLY CHAIN
+        </text>
         <line className="topology-lane-line" x1="40" x2="1240" y1="346" y2="346" />
         {graph.edges.map((edge) => {
           const source = byId.get(edge.s);
           const target = byId.get(edge.t);
           if (source === undefined || target === undefined) return null;
-          return <TopologyEdgePath edge={edge} key={`${edge.s}:${edge.t}:${edge.verb}`} source={source} target={target} />;
+          return (
+            <TopologyEdgePath
+              edge={edge}
+              key={`${edge.s}:${edge.t}:${edge.verb}`}
+              source={source}
+              target={target}
+            />
+          );
         })}
         {graph.nodes.map((node) => (
           <TopologyNodeView
@@ -250,7 +277,10 @@ function TopologyCanvas({
       </svg>
       <div className="topology-legend">
         {(["infra", "runtime", "deploy", "code"] as const).map((layer) => (
-          <span key={layer}><i style={{ background: LAYER_COLOR[layer] }} />{layer}</span>
+          <span key={layer}>
+            <i style={{ background: LAYER_COLOR[layer] }} />
+            {layer}
+          </span>
         ))}
       </div>
     </div>
@@ -260,7 +290,7 @@ function TopologyCanvas({
 function TopologyEdgePath({
   edge,
   source,
-  target
+  target,
 }: {
   readonly edge: TopologyEdge;
   readonly source: TopologyNode;
@@ -273,8 +303,19 @@ function TopologyEdgePath({
   const color = LAYER_COLOR[edge.layer];
   return (
     <g className="topology-edge">
-      <path d={path} markerEnd="url(#topology-arrow)" style={{ "--edge-color": color } as React.CSSProperties} />
-      <text className="topology-edge-label" style={{ fill: color }} x={(source.x + target.x) / 2} y={(source.y + target.y) / 2 - 10}>{edge.verb}</text>
+      <path
+        d={path}
+        markerEnd="url(#topology-arrow)"
+        style={{ "--edge-color": color } as React.CSSProperties}
+      />
+      <text
+        className="topology-edge-label"
+        style={{ fill: color }}
+        x={(source.x + target.x) / 2}
+        y={(source.y + target.y) / 2 - 10}
+      >
+        {edge.verb}
+      </text>
     </g>
   );
 }
@@ -283,7 +324,7 @@ function TopologyNodeView({
   active,
   node,
   onSelect,
-  selected
+  selected,
 }: {
   readonly active: boolean;
   readonly node: TopologyNode;
@@ -303,13 +344,30 @@ function TopologyNodeView({
     >
       <rect className="topology-node-box" height={node.h} rx="12" width={node.w} />
       <rect className="topology-node-accent" height={node.h} rx="2" width="4" />
-      <clipPath id={clipId}><rect height={node.h} width={node.w - 18} x="0" y="0" /></clipPath>
-      <circle className="topology-node-dot" cx="22" cy={node.h / 2 - (node.hero ? 10 : 0)} r="5.5" />
+      <clipPath id={clipId}>
+        <rect height={node.h} width={node.w - 18} x="0" y="0" />
+      </clipPath>
+      <circle
+        className="topology-node-dot"
+        cx="22"
+        cy={node.h / 2 - (node.hero ? 10 : 0)}
+        r="5.5"
+      />
       <g clipPath={`url(#${clipId})`}>
-        <text className="topology-node-label" x="40" y={node.h / 2 - (node.sub ? 4 : -4) - (node.hero ? 10 : 0)}>{node.label}</text>
-        <text className="topology-node-sub" x="40" y={node.h / 2 + 14 - (node.hero ? 10 : 0)}>{node.sub}</text>
+        <text
+          className="topology-node-label"
+          x="40"
+          y={node.h / 2 - (node.sub ? 4 : -4) - (node.hero ? 10 : 0)}
+        >
+          {node.label}
+        </text>
+        <text className="topology-node-sub" x="40" y={node.h / 2 + 14 - (node.hero ? 10 : 0)}>
+          {node.sub}
+        </text>
       </g>
-      <text className="topology-node-provenance" x={node.w - 14} y={node.h - 12}>{node.provenance}</text>
+      <text className="topology-node-provenance" x={node.w - 14} y={node.h - 12}>
+        {node.provenance}
+      </text>
     </g>
   );
 }
@@ -317,7 +375,7 @@ function TopologyNodeView({
 function TopologyInspector({
   graph,
   node,
-  onClose
+  onClose,
 }: {
   readonly graph: ServiceTopology;
   readonly node: TopologyNode;
@@ -327,15 +385,33 @@ function TopologyInspector({
   const outbound = graph.edges.filter((edge) => edge.s === node.id);
   const byId = new Map(graph.nodes.map((item) => [item.id, item]));
   return (
-    <aside className="topology-inspector" style={{ "--node-color": KIND_COLOR[node.kind] } as React.CSSProperties}>
-      <button aria-label="Close topology inspector" className="topology-inspector-close" onClick={onClose}>×</button>
+    <aside
+      className="topology-inspector"
+      style={{ "--node-color": KIND_COLOR[node.kind] } as React.CSSProperties}
+    >
+      <button
+        aria-label="Close topology inspector"
+        className="topology-inspector-close"
+        onClick={onClose}
+      >
+        ×
+      </button>
       <span className="topology-inspector-kind">{node.kind}</span>
       <h3>{node.label}</h3>
       <p>{node.sub}</p>
       <dl>
-        <div><dt>Provenance</dt><dd>{node.provenance}</dd></div>
-        <div><dt>Inbound</dt><dd>{inbound.length}</dd></div>
-        <div><dt>Outbound</dt><dd>{outbound.length}</dd></div>
+        <div>
+          <dt>Provenance</dt>
+          <dd>{node.provenance}</dd>
+        </div>
+        <div>
+          <dt>Inbound</dt>
+          <dd>{inbound.length}</dd>
+        </div>
+        <div>
+          <dt>Outbound</dt>
+          <dd>{outbound.length}</dd>
+        </div>
       </dl>
       {[...inbound, ...outbound].length > 0 ? (
         <div className="topology-inspector-edges">

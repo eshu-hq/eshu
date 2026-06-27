@@ -60,7 +60,7 @@ const apiBase = (process.env.ESHU_E2E_API_BASE ?? "http://127.0.0.1:9080").trim(
 const consoleApiBaseUrl = "/eshu-api/";
 const perRouteSettleMs = 1500;
 const navTimeoutMs = 30000;
-const devServerReadyTimeoutMs = 60000;
+const devServerReadyTimeoutMs = 120000;
 
 interface DevServer {
   readonly process: ChildProcessByStdio<null, Readable, Readable>;
