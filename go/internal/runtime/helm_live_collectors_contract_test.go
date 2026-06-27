@@ -39,9 +39,9 @@ contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 neo4j:
   auth:
-    secretName: ""
+    secretName: "neo4j-secrets"
     username: example-user
-    password: example-pass
+    password: Example-Pass1
 observability:
   prometheus:
     enabled: true
@@ -175,9 +175,9 @@ contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 neo4j:
   auth:
-    secretName: ""
+    secretName: "neo4j-secrets"
     username: example-user
-    password: example-pass
+    password: Example-Pass1
 kubernetesLiveCollector:
   enabled: true
   instanceId: kubernetes-live-primary
@@ -219,9 +219,9 @@ contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 neo4j:
   auth:
-    secretName: ""
+    secretName: "neo4j-secrets"
     username: example-user
-    password: example-pass
+    password: Example-Pass1
 kubernetesLiveCollector:
   enabled: true
   instanceId: kubernetes-live-primary
@@ -257,9 +257,9 @@ contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 neo4j:
   auth:
-    secretName: ""
+    secretName: "neo4j-secrets"
     username: example-user
-    password: example-pass
+    password: Example-Pass1
 workflowCoordinator:
   enabled: true
   deploymentMode: active

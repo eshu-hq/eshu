@@ -25,7 +25,7 @@ contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 neo4j:
   auth:
-    secretName: ""
+    secretName: "neo4j-secrets"
 observability:
   prometheus:
     enabled: true
@@ -225,7 +225,7 @@ func componentExtensionCollectorValuesWithAllowlist(trustMode string, mountCoord
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 neo4j:
   auth:
-    secretName: ""
+    secretName: "neo4j-secrets"
 workflowCoordinator:
   enabled: true
   deploymentMode: active

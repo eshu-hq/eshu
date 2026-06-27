@@ -13,7 +13,7 @@ import (
 func TestHelmNornicDBNoSecretPathKeepsBoltCredentials(t *testing.T) {
 	t.Parallel()
 
-	manifests := renderHelmChart(t, "--set-string", "neo4j.auth.secretName=")
+	manifests := renderHelmChart(t, "--set-string", "neo4j.auth.secretName=", "--set-string", "neo4j.auth.password=Change-Me-123")
 	for _, manifest := range manifests {
 		kind, _ := manifest["kind"].(string)
 		if kind != "Deployment" && kind != "StatefulSet" {
@@ -28,7 +28,7 @@ func TestHelmNornicDBNoSecretPathKeepsBoltCredentials(t *testing.T) {
 					continue
 				}
 				assertHelmLiteralEnv(t, env, "NEO4J_USERNAME", "neo4j")
-				assertHelmLiteralEnv(t, env, "NEO4J_PASSWORD", "change-me")
+				assertHelmLiteralEnv(t, env, "NEO4J_PASSWORD", "Change-Me-123")
 			}
 		}
 	}
@@ -80,7 +80,7 @@ contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 neo4j:
   auth:
-    secretName: ""
+    secretName: "neo4j-secrets"
 observability:
   prometheus:
     enabled: true
