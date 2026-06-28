@@ -6,7 +6,9 @@ package inputtape
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -35,8 +37,13 @@ func ParseTape(data []byte) (Tape, error) {
 	if err := dec.Decode(&tape); err != nil {
 		return Tape{}, fmt.Errorf("decode tape: %w", err)
 	}
-	if dec.More() {
-		return Tape{}, fmt.Errorf("decode tape: unexpected trailing content")
+	// Require EOF after the first value. dec.More reports false outside an array
+	// or object, so a second top-level value (appended or corrupted trailing
+	// JSON) slips past More; decoding again and requiring io.EOF rejects it
+	// instead of silently dropping the tail.
+	var trailing json.RawMessage
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return Tape{}, fmt.Errorf("decode tape: unexpected trailing data after JSON document")
 	}
 	if err := tape.validate(); err != nil {
 		return Tape{}, err

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -81,8 +82,18 @@ func keyDocument(method, path string, query map[string][]string, body RecordedBo
 	for _, k := range keys {
 		b.WriteString(k)
 		b.WriteByte('=')
-		// query values are already sorted by redactQuery.
-		b.WriteString(strings.Join(query[k], ","))
+		// Encode each value length-prefixed (e.g. "1:a3:b,c") rather than joining
+		// with a separator: a separator like "," is ambiguous when values
+		// themselves contain it, so ?match=a,b&match=c and ?match=a&match=b,c
+		// would otherwise collapse to the same key and one interaction would
+		// overwrite the other. Repeated params with comma-bearing selectors
+		// (PromQL/LogQL match[]) hit this exactly. Values are already sorted by
+		// redactQuery, so equal value sets in any source order still hash equally.
+		for _, v := range query[k] {
+			b.WriteString(strconv.Itoa(len(v)))
+			b.WriteByte(':')
+			b.WriteString(v)
+		}
 		b.WriteByte('\n')
 	}
 

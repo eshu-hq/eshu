@@ -266,6 +266,61 @@ func TestParseTapeRejectsBadSchema(t *testing.T) {
 	}
 }
 
+func TestRepeatedQueryValuesAreUnambiguous(t *testing.T) {
+	// ?match=a,b&match=c and ?match=a&match=b,c carry distinct value groupings
+	// and MUST hash to distinct request keys, or one recorded interaction would
+	// overwrite the other and replay could serve the wrong response. PromQL and
+	// LogQL match[] selectors contain commas, so this is a real collision.
+	server, _ := newFakeServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"q":"`+r.URL.RawQuery+`"}`)
+	})
+	recorder := New(Config{})
+	recClient := &http.Client{Transport: recorder}
+
+	for _, raw := range []string{"match=a,b&match=c", "match=a&match=b,c"} {
+		req, _ := http.NewRequest(http.MethodGet, server.URL+"/series?"+raw, nil)
+		if _, err := recClient.Do(req); err != nil {
+			t.Fatalf("record %q: %v", raw, err)
+		}
+	}
+	tape := recorder.Tape("test")
+	if len(tape.Interactions) != 2 {
+		t.Fatalf("want 2 distinct interactions, got %d (key collision)", len(tape.Interactions))
+	}
+	server.Close()
+
+	// A genuine reordering of the SAME value grouping must still match, so
+	// order-independence within a key is preserved.
+	replayer, _ := NewReplayer(tape, Config{})
+	replayClient := &http.Client{Transport: replayer}
+	rreq, _ := http.NewRequest(http.MethodGet, server.URL+"/series?match=c&match=a,b", nil)
+	resp, err := replayClient.Do(rreq)
+	if err != nil {
+		t.Fatalf("reordered same values should match: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}
+
+func TestParseTapeRejectsTrailingJSON(t *testing.T) {
+	valid := `{"schema_version":"1","interactions":[{"request_key":"k",` +
+		`"request":{"method":"GET","path":"/"},"response":{"status_code":200}}]}`
+	// A second top-level JSON value appended after the document must be rejected.
+	_, err := ParseTape([]byte(valid + "\n{}"))
+	if err == nil {
+		t.Fatalf("want error for trailing JSON, got nil")
+	}
+	if !strings.Contains(err.Error(), "trailing data") {
+		t.Fatalf("want trailing-data error, got %v", err)
+	}
+	// The clean document must still parse.
+	if _, err := ParseTape([]byte(valid)); err != nil {
+		t.Fatalf("clean tape should parse: %v", err)
+	}
+}
+
 func TestConcurrentRecordIsRaceFree(t *testing.T) {
 	server, _ := newFakeServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `{"path":"`+r.URL.Path+`"}`)
