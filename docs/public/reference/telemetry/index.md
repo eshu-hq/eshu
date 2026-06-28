@@ -254,6 +254,62 @@ files, no row sampling). No-Regression Evidence: callbacks read through
 `ProvenanceCountStore` using relationship-type-index and File-label-anchored
 aggregates and perform no graph mutations.
 
+## Search hybrid-degradation signal
+
+`eshu_dp_search_hybrid_degraded_total` is a counter the `POST /api/v0/search/semantic`
+handler increments when a request asked for semantic ranking but was served
+without it. Hybrid search degrades to deterministic BM25 (keyword) ranking when
+no embedder/vector ranking is available, and semantic-only requests are refused
+in that mode. The metric makes that degradation visible to operators; the
+response itself already reports the served mode in its `retrieval_state` field
+(`hybrid_active`, `hybrid_degraded`, `semantic_active`, `semantic_unavailable`,
+`keyword_only`).
+
+The two labels are bounded:
+
+- `query_type` — the requested ranking family: `hybrid` or `semantic`. A plain
+  `keyword` request is never counted (it is not a degradation).
+- `reason` — why semantic ranking was unavailable: `no_embedder` (no embedder is
+  configured, so hybrid is served by BM25 and semantic is refused) or
+  `index_unready` (vectors are configured but the persisted vector index is not
+  ready yet, so the request fell back to keyword).
+
+An explicit `keyword` request and a fully active `hybrid_active` /
+`semantic_active` run do **not** increment the counter — only genuine
+degradations do. The handler also stamps `search.retrieval_state`,
+`search.degraded`, and (when degraded) `search.degraded_reason` span attributes on
+every request span, so a single trace shows the served mode.
+
+**Degraded search is expected, not an error, in no-provider mode.** Eshu runs
+deterministic keyword search with no embedder configured by design (the
+no-provider invariant); this counter is how an operator confirms semantic ranking
+is or is not active, not an alarm by itself. A sudden rise after an embedder was
+expected to be configured is the actionable signal.
+
+Degradation rate over a 5-minute window:
+
+```promql
+sum(rate(eshu_dp_search_hybrid_degraded_total[5m])) by (query_type, reason)
+```
+
+Fraction of semantic-search traffic served degraded (the denominator is the
+per-endpoint request-duration histogram count for the route):
+
+```promql
+sum(rate(eshu_dp_search_hybrid_degraded_total[5m]))
+  /
+sum(rate(eshu_dp_api_request_duration_seconds_count{route="POST /api/v0/search/semantic"}[5m]))
+```
+
+Observability Evidence: `TestSemanticSearchHandlerEmitsDegradedCounterOnHybridFallback`
+and `TestSemanticSearchHandlerEmitsDegradedOnSemanticNoEmbedder` prove the counter
+increments on the hybrid-degraded and semantic-no-embedder paths;
+`TestSemanticSearchHandlerDoesNotEmitDegradedOnActiveHybrid` proves an active
+hybrid run does not; `TestSemanticSearchDegradation` proves the bounded
+state-to-label classification. No-Regression Evidence: the counter is recorded at
+the handler chokepoint only; the pure `searchhybrid` and `searchretrieval`
+packages keep their no-telemetry, no-I/O contract.
+
 ## Generation-liveness signals
 
 The reducer's generation-liveness sweep publishes one observable gauge and three

@@ -807,8 +807,16 @@ type Instruments struct {
 	// counts server-side (5xx) failures per route. Together they give operators
 	// uniform latency and error-rate signal across all read endpoints, not only
 	// the handful with bespoke instruments.
-	APIRequestDuration                 metric.Float64Histogram
-	APIRequestErrors                   metric.Int64Counter
+	APIRequestDuration metric.Float64Histogram
+	APIRequestErrors   metric.Int64Counter
+	// SearchHybridDegraded counts POST /api/v0/search/semantic requests served
+	// without semantic ranking (hybrid degraded to BM25, or semantic refused) by
+	// query_type and reason. Like APIRequestDuration it is recorded from the query
+	// package through the global meter (see
+	// go/internal/query/semantic_search_telemetry.go); it is declared here so the
+	// metric is registered on the API and MCP providers and tracked by the
+	// telemetry-coverage contract. Degraded search is expected in no-embedder mode.
+	SearchHybridDegraded               metric.Int64Counter
 	OIDCLoginThrottled                 metric.Int64Counter
 	SharedAcceptanceUpsertDuration     metric.Float64Histogram
 	SharedAcceptanceLookupDuration     metric.Float64Histogram
@@ -3108,6 +3116,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register APIRequestErrors counter: %w", err)
+	}
+
+	inst.SearchHybridDegraded, err = meter.Int64Counter(
+		"eshu_dp_search_hybrid_degraded_total",
+		metric.WithDescription("Semantic/hybrid search requests served without semantic ranking (degraded to BM25, or refused) by query_type and reason. Expected, not an error, in no-embedder mode."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SearchHybridDegraded counter: %w", err)
 	}
 
 	inst.OIDCLoginThrottled, err = meter.Int64Counter(

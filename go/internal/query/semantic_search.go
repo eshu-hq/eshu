@@ -262,10 +262,13 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		Backend: backend,
 	}).Retrieve(r.Context(), req)
 	if err != nil {
+		annotateSemanticSearchDegradedError(r.Context(), span, err)
 		status, code := semanticSearchRetrievalError(err)
 		writeSemanticSearchError(w, r, status, code, err.Error())
 		return
 	}
+
+	annotateSemanticSearchDegraded(r.Context(), span, req.Mode, indexResult.RetrievalState)
 
 	WriteSuccess(
 		w,
