@@ -139,6 +139,41 @@ func (o CanonicalOptions) WithRedactedKeys(keys ...string) CanonicalOptions {
 	return o
 }
 
+// Clone returns a deep copy of o: the returned value owns independent copies of
+// every map field, so a caller that mutates the returned maps cannot corrupt
+// the receiver's (or any shared parent's) state. A by-value return alone copies
+// only the struct header — the map fields would stay aliased to the receiver's
+// maps, so this method is the safe way to hand a CanonicalOptions to a caller
+// that may extend or mutate its maps. nil map fields stay nil so the clone is
+// behaviorally identical to the receiver.
+func (o CanonicalOptions) Clone() CanonicalOptions {
+	o.VolatileKeys = cloneStringMap(o.VolatileKeys)
+	o.DerivedKeys = cloneStringMap(o.DerivedKeys)
+	o.SecretKeys = cloneStringMap(o.SecretKeys)
+	o.SortArrays = cloneStringMap(o.SortArrays)
+	if o.OpaqueValueKeys != nil {
+		opaque := make(map[string]struct{}, len(o.OpaqueValueKeys))
+		for k := range o.OpaqueValueKeys {
+			opaque[k] = struct{}{}
+		}
+		o.OpaqueValueKeys = opaque
+	}
+	return o
+}
+
+// cloneStringMap returns an independent copy of m, preserving nil so a cloned
+// option set is behaviorally identical to its source.
+func cloneStringMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
 // Canonicalize decodes data as JSON and returns its canonical serialization
 // under opts. It is the shared core every replay recorder and validator uses so
 // recorded fixtures are stable, reviewable, and byte-identical when re-derived
