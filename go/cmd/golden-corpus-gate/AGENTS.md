@@ -16,10 +16,17 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 
 ## Invariants
 
-- **The pure evaluators in `evaluate.go` must stay I/O-free.** They are the
-  unit-tested correctness core; every assertion rule is tested there without a
-  database, graph, or HTTP server. Do not reach into Postgres / Bolt / net from
-  `evaluate.go`.
+- **The pure assertion core lives in `go/internal/goldengate`, not here.** The
+  snapshot contract (`snapshot.go`), the `Finding`/`Report` accumulator
+  (`report.go`), and every `Evaluate*` function (`evaluate.go`) moved into that
+  importable package (#4112 / R-10) so the out-of-tree contributor conformance
+  suite (`go/conformance`) asserts against the *same* logic with no forked copy.
+  `shared.go` re-exports those symbols under the original package-local names via
+  aliases, so the gate's call sites read unchanged. Edit the assertion rules in
+  `internal/goldengate`, and keep them I/O-free there (no Postgres / Bolt / net).
+  This command package keeps only the I/O-and-orchestration layer
+  (`graph.go`, `drains.go`, `query.go`, `mcp.go`, `runner.go`, `timing.go`,
+  `main.go`).
 - **Drain semantics are a contract, not a style choice.** `fact_work_items`
   residual = `status NOT IN ('succeeded','superseded')`; nonterminal
   `shared_projection_intents` = `completed_at IS NULL`. The `repo_dependency`
@@ -73,12 +80,15 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 
 ## Tests
 
-- `*_test.go` cover the pure evaluators, the snapshot loader against the real
-  committed snapshot, the drain poll loop (fake querier), the graph checker (fake
-  counter), and the query client (httptest). Run:
-  `cd go && go test ./cmd/golden-corpus-gate/ -count=1`.
-- When you add a phase or assertion, add a focused test for its pure evaluator
-  before wiring the I/O.
+- The pure evaluators are unit-tested in their new home,
+  `go/internal/goldengate` (`evaluate_test.go`, `report_test.go`,
+  `property_test.go`, `snapshot_test.go`). The gate's own `*_test.go` cover the
+  snapshot loader against the real committed snapshot, the drain poll loop (fake
+  querier), the graph checker (fake counter), and the query client (httptest).
+  Run both:
+  `cd go && go test ./internal/goldengate/... ./cmd/golden-corpus-gate/ -count=1`.
+- When you add a phase or assertion, add a focused test for its pure evaluator in
+  `internal/goldengate` before wiring the I/O here.
 
 ## Out of scope here
 
