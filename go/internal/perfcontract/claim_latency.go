@@ -6,10 +6,15 @@ package perfcontract
 import "time"
 
 // ClaimLatencyContract is the reducer queue claim-latency budget from
-// reducer-claim-latency-gate.md. The check is relative to a same-shape baseline:
-// p95 must stay within P95MaxMultiplier of the baseline, and the absolute p95
-// must not increase by more than MaxAbsoluteIncrease. Both require a live
-// Postgres benchmark at the documented depths, so the contract is operator-gated.
+// reducer-claim-latency-gate.md. It is two distinct requirements against a
+// same-shape baseline, on two different statistics:
+//
+//   - the p95 claim latency must stay within P95MaxMultiplier of the baseline p95;
+//   - the max claim latency must not increase by more than MaxAbsoluteIncrease
+//     over the baseline max.
+//
+// Both require a live Postgres benchmark at the documented depths, so the
+// contract is operator-gated.
 type ClaimLatencyContract struct {
 	P95MaxMultiplier    float64
 	MaxAbsoluteIncrease time.Duration
@@ -23,14 +28,18 @@ func ReducerClaimLatency() ClaimLatencyContract {
 	}
 }
 
-// WithinBudget reports whether a measured p95 is within budget versus a
-// baseline p95. It is the executable form of the documented rule, for the
-// operator/remote run that has real measurements to feed it.
-func (c ClaimLatencyContract) WithinBudget(baselineP95, measuredP95 time.Duration) bool {
+// WithinBudget reports whether a measured run is within budget versus its
+// same-shape baseline. It enforces BOTH documented rules on their own statistic:
+// the p95 multiplier against the baseline p95, and the absolute max-latency
+// increase against the baseline max. A run whose p95 is fine but whose max grew
+// by more than MaxAbsoluteIncrease fails — the doc requires both to hold. It is
+// the executable form of the contract for the operator/remote run that has real
+// p95 and max measurements to feed it.
+func (c ClaimLatencyContract) WithinBudget(baselineP95, measuredP95, baselineMax, measuredMax time.Duration) bool {
 	if measuredP95 > time.Duration(float64(baselineP95)*c.P95MaxMultiplier) {
 		return false
 	}
-	return measuredP95-baselineP95 <= c.MaxAbsoluteIncrease
+	return measuredMax-baselineMax <= c.MaxAbsoluteIncrease
 }
 
 func reducerClaimLatencyThresholds() []Threshold {

@@ -114,21 +114,28 @@ func TestClaimLatencyWithinBudget(t *testing.T) {
 	c := ReducerClaimLatency()
 
 	cases := []struct {
-		name               string
-		baseline, measured float64 // seconds
-		want               bool
+		name                               string
+		baseP95, measP95, baseMax, measMax float64 // seconds
+		want                               bool
 	}{
-		{"unchanged", 100, 100, true},
-		{"within 10%", 100, 109, true},
-		{"exactly 10%", 100, 110, true},
-		{"over 10% multiplier", 100, 111, false},
-		{"small base, absolute cap dominates", 1, 50, false}, // 50x multiplier fails
+		{"both unchanged", 100, 100, 200, 200, true},
+		{"p95 within 10%, max flat", 100, 109, 200, 200, true},
+		{"p95 exactly 10%, max flat", 100, 110, 200, 200, true},
+		{"p95 over 10% multiplier", 100, 111, 200, 200, false},
+		// The bug codex caught: p95 fine, but max grew beyond +60s must fail.
+		{"p95 fine, max +59s passes", 100, 100, 200, 259, true},
+		{"p95 fine, max +60s passes", 100, 100, 200, 260, true},
+		{"p95 fine, max +61s fails", 100, 100, 200, 261, false},
+		{"p95 over and max over", 100, 200, 200, 400, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := c.WithinBudget(durSeconds(tc.baseline), durSeconds(tc.measured))
+			got := c.WithinBudget(
+				durSeconds(tc.baseP95), durSeconds(tc.measP95),
+				durSeconds(tc.baseMax), durSeconds(tc.measMax))
 			if got != tc.want {
-				t.Errorf("WithinBudget(%vs, %vs) = %v, want %v", tc.baseline, tc.measured, got, tc.want)
+				t.Errorf("WithinBudget(p95 %vs->%vs, max %vs->%vs) = %v, want %v",
+					tc.baseP95, tc.measP95, tc.baseMax, tc.measMax, got, tc.want)
 			}
 		})
 	}
