@@ -95,9 +95,14 @@ func LoadSpec(path string) (goldengate.Snapshot, error) {
 // spec snapshot and returns the accumulated report. It is the contributor
 // analogue of the in-repo gate's checkGraph: it feeds in-memory observed values
 // into the SAME Evaluate* functions instead of values read from a live graph, so
-// there is no forked assertion logic. Node and edge count tolerances are
-// asserted as required; required correlations and required nodes (with any
-// property floor) carry their own blocking status.
+// there is no forked assertion logic. It mirrors checkGraph's qualifier handling
+// exactly — a required correlation is narrowed by its evidence_kinds and each of
+// its required_edge_properties is checked over the narrowed edges — so a
+// contributor spec using those shared snapshot fields is asserted the same way
+// offline as the live gate, never passing here on an edge the gate would reject.
+// Node and edge count tolerances are asserted as required; required correlations
+// and required nodes (with any property floor) are all blocking (no advisory
+// tier offline).
 func Evaluate(obs Observation, snap goldengate.Snapshot) goldengate.Report {
 	var r goldengate.Report
 	g := snap.Graph
@@ -109,8 +114,14 @@ func Evaluate(obs Observation, snap goldengate.Snapshot) goldengate.Report {
 		r.Add(goldengate.EvaluateEdgeCount(rel, g.EdgeCounts[rel], obs.EdgeCounts[rel], true))
 	}
 	for _, rc := range g.RequiredCorrelations {
-		count := obs.CorrelationCount(rc.FromLabel, rc.Relationship, rc.ToLabel)
-		r.Add(goldengate.EvaluateRequiredCorrelation(rc, count, true))
+		// Narrow by evidence_kinds (when present) before counting and before
+		// reading edge properties — the same edges the gate would count.
+		matches := obs.matchingCorrelationEdges(rc)
+		r.Add(goldengate.EvaluateRequiredCorrelation(rc, int64(len(matches)), true))
+		for _, prop := range rc.RequiredEdgeProperties {
+			values := edgePropertyValues(matches, prop)
+			r.Add(goldengate.EvaluateEdgeProperty(rc, prop, values, rc.AllowedEdgePropertyValues[prop], true))
+		}
 	}
 	for _, rn := range g.RequiredNodes {
 		r.Add(goldengate.EvaluateRequiredNode(rn, obs.NodeCounts[rn.Label]))

@@ -45,9 +45,10 @@ func TestConformance(t *testing.T) {
 }
 
 // TestObserveDerivesStarterCounts locks the offline observation: the starter
-// tape must project exactly one repository, two directories, three files, five
-// CONTAINS edges, one repository->directory top-level correlation, and two
-// language-carrying files.
+// tape must project exactly one repository, two directories, three files, one
+// package, five CONTAINS edges, one DEPENDS_ON edge, one repository->directory
+// top-level correlation, two language-carrying files, and a DEPENDS_ON edge
+// carrying its evidence kind and source_tool.
 func TestObserveDerivesStarterCounts(t *testing.T) {
 	envs := replayStarterFacts(t)
 	obs, err := Observe(envs)
@@ -55,14 +56,17 @@ func TestObserveDerivesStarterCounts(t *testing.T) {
 		t.Fatalf("Observe: %v", err)
 	}
 
-	wantNodes := map[string]int64{"Repository": 1, "Directory": 2, "File": 3}
+	wantNodes := map[string]int64{"Repository": 1, "Directory": 2, "File": 3, "Package": 1}
 	for label, want := range wantNodes {
 		if got := obs.NodeCounts[label]; got != want {
 			t.Errorf("node %s = %d, want %d", label, got, want)
 		}
 	}
-	if got := obs.EdgeCounts["CONTAINS"]; got != 5 {
-		t.Errorf("CONTAINS edges = %d, want 5", got)
+	wantEdges := map[string]int64{"CONTAINS": 5, "DEPENDS_ON": 1}
+	for rel, want := range wantEdges {
+		if got := obs.EdgeCounts[rel]; got != want {
+			t.Errorf("%s edges = %d, want %d", rel, got, want)
+		}
 	}
 	if got := obs.CorrelationCount("Repository", "CONTAINS", "Directory"); got != 1 {
 		t.Errorf("Repository-CONTAINS-Directory (top level) = %d, want 1", got)
@@ -77,6 +81,38 @@ func TestObserveDerivesStarterCounts(t *testing.T) {
 	if carriers != 2 {
 		t.Errorf("language-carrying files = %d, want 2 (values %v)", carriers, langs)
 	}
+
+	// The DEPENDS_ON edge must carry the evidence kind and source_tool so the
+	// evidence-narrowed correlation and edge-property assertions can run.
+	depEdges := obs.CorrelationEdges[correlationKey("Repository", "DEPENDS_ON", "Package")]
+	if len(depEdges) != 1 {
+		t.Fatalf("Repository-DEPENDS_ON-Package edges = %d, want 1", len(depEdges))
+	}
+	if got := depEdges[0].Properties["source_tool"]; got != "starter" {
+		t.Errorf("DEPENDS_ON source_tool = %q, want starter", got)
+	}
+	if !evidenceContainsAll(depEdges[0].EvidenceKinds, []string{"starter_manifest_reference"}) {
+		t.Errorf("DEPENDS_ON evidence_kinds = %v, want to contain starter_manifest_reference", depEdges[0].EvidenceKinds)
+	}
+}
+
+// healthyStarterObservation is the in-memory observation that exactly satisfies
+// the committed starter spec. Tests mutate a copy to prove an assertion bites.
+func healthyStarterObservation() Observation {
+	return Observation{
+		NodeCounts: map[string]int64{"Repository": 1, "Directory": 2, "File": 3, "Package": 1},
+		EdgeCounts: map[string]int64{"CONTAINS": 5, "DEPENDS_ON": 1},
+		CorrelationEdges: map[string][]EdgeObservation{
+			correlationKey("Repository", "CONTAINS", "Directory"): {{}},
+			correlationKey("Repository", "DEPENDS_ON", "Package"): {{
+				EvidenceKinds: []string{"starter_manifest_reference"},
+				Properties:    map[string]string{"source_tool": "starter"},
+			}},
+		},
+		NodeProps: map[string]map[string][]string{
+			"File": {"language": {"", "go", "go"}},
+		},
+	}
 }
 
 // TestEvaluateFailsWhenADirectoryIsDropped proves the shared assertions actually
@@ -89,17 +125,7 @@ func TestEvaluateFailsWhenADirectoryIsDropped(t *testing.T) {
 		t.Fatalf("LoadSpec: %v", err)
 	}
 
-	// Healthy observation passes.
-	healthy := Observation{
-		NodeCounts: map[string]int64{"Repository": 1, "Directory": 2, "File": 3},
-		EdgeCounts: map[string]int64{"CONTAINS": 5},
-		Correlations: map[string]int64{
-			correlationKey("Repository", "CONTAINS", "Directory"): 1,
-		},
-		NodeProps: map[string]map[string][]string{
-			"File": {"language": {"", "go", "go"}},
-		},
-	}
+	healthy := healthyStarterObservation()
 	if r := Evaluate(healthy, snap); r.Failed() {
 		var buf bytes.Buffer
 		r.Write(&buf)
@@ -109,13 +135,54 @@ func TestEvaluateFailsWhenADirectoryIsDropped(t *testing.T) {
 	// Drop one directory (and its CONTAINS edge): the Directory floor [2,2] and
 	// the CONTAINS floor [5,5] must now fail.
 	dropped := healthy
-	dropped.NodeCounts = map[string]int64{"Repository": 1, "Directory": 1, "File": 3}
-	dropped.EdgeCounts = map[string]int64{"CONTAINS": 4}
+	dropped.NodeCounts = map[string]int64{"Repository": 1, "Directory": 1, "File": 3, "Package": 1}
+	dropped.EdgeCounts = map[string]int64{"CONTAINS": 4, "DEPENDS_ON": 1}
 	r := Evaluate(dropped, snap)
 	if !r.Failed() {
 		var buf bytes.Buffer
 		r.Write(&buf)
 		t.Fatalf("dropped-directory observation should fail the gate but passed:\n%s", buf.String())
+	}
+}
+
+// TestEvaluateHonorsEvidenceAndEdgeProperty is the regression guard for the
+// false-green class codex flagged: the driver must apply a correlation's
+// evidence_kinds narrowing and its required_edge_properties, not just count the
+// bare triple. Both an unrelated-evidence edge and a wrong-source_tool edge must
+// fail, exactly as the in-repo gate would reject them.
+func TestEvaluateHonorsEvidenceAndEdgeProperty(t *testing.T) {
+	snap, err := LoadSpec(starterSpec)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+
+	depKey := correlationKey("Repository", "DEPENDS_ON", "Package")
+
+	// (a) A DEPENDS_ON edge that does NOT carry the required evidence kind must
+	// not satisfy the evidence-narrowed correlation (count narrows to 0), even
+	// though the bare triple exists and the edge counts/node counts are right.
+	wrongEvidence := healthyStarterObservation()
+	wrongEvidence.CorrelationEdges[depKey] = []EdgeObservation{{
+		EvidenceKinds: []string{"some_other_tool_reference"},
+		Properties:    map[string]string{"source_tool": "starter"},
+	}}
+	if r := Evaluate(wrongEvidence, snap); !r.Failed() {
+		var buf bytes.Buffer
+		r.Write(&buf)
+		t.Fatalf("edge with unrelated evidence kind should fail the narrowed correlation but passed:\n%s", buf.String())
+	}
+
+	// (b) A DEPENDS_ON edge with the right evidence kind but a source_tool
+	// outside the allowed set must fail the edge-property assertion.
+	wrongTool := healthyStarterObservation()
+	wrongTool.CorrelationEdges[depKey] = []EdgeObservation{{
+		EvidenceKinds: []string{"starter_manifest_reference"},
+		Properties:    map[string]string{"source_tool": "argocd"},
+	}}
+	if r := Evaluate(wrongTool, snap); !r.Failed() {
+		var buf bytes.Buffer
+		r.Write(&buf)
+		t.Fatalf("edge stamped with a disallowed source_tool should fail the edge-property check but passed:\n%s", buf.String())
 	}
 }
 

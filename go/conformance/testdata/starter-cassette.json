@@ -103,6 +103,20 @@
             "repo_id": "hello-eshu",
             "language": "go"
           }
+        },
+        {
+          "fact_kind": "starter.dependency",
+          "stable_fact_key": "starter:repository:hello-eshu:dependency:left-pad",
+          "schema_version": "1.0.0",
+          "collector_kind": "starter",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "hello-eshu",
+            "package_name": "left-pad",
+            "evidence_kinds": ["starter_manifest_reference"],
+            "source_tool": "starter"
+          }
         }
       ]
     }

@@ -23,8 +23,13 @@
 // reproducibly, without a live pipeline.
 //
 // The starter schema (Observe) maps neutral starter.* fact kinds — a repository,
-// its directories, and its files — to Repository/Directory/File nodes and
-// CONTAINS edges. A contributor swaps the cassette, the spec, and the Observe
-// mapping for their own collector's fact kinds; the replay primitive, the spec
-// contract, and the Evaluate* assertions stay shared and unchanged.
+// its directories, its files, and a package dependency — to
+// Repository/Directory/File/Package nodes, CONTAINS edges, and a DEPENDS_ON edge
+// carrying evidence_kinds and a source_tool property. The dependency edge
+// exercises the evidence-narrowed correlation and edge-property qualifier path
+// the in-repo gate uses for tool-agnostic shared edge types, so the offline
+// driver asserts those shared snapshot fields the same way the live gate does. A
+// contributor swaps the cassette, the spec, and the Observe mapping for their own
+// collector's fact kinds; the replay primitive, the spec contract, and the
+// Evaluate* assertions stay shared and unchanged.
 package conformance

@@ -27,8 +27,11 @@ starter cassette ─(replay, offline)→ facts ─(Observe)→ graph observation
 - **Replay** uses `internal/replay/cassette.Source` — the same credential-free
   replay primitive the in-repo replay tiers use.
 - **Observe** (`observe.go`) maps the starter `starter.*` fact kinds to
-  `Repository` / `Directory` / `File` nodes and `CONTAINS` edges. This is the one
-  piece you replace for your own collector.
+  `Repository` / `Directory` / `File` / `Package` nodes, `CONTAINS` edges, and a
+  `DEPENDS_ON` edge that carries `evidence_kinds` and a `source_tool` property —
+  so the suite exercises the evidence-narrowed correlation and edge-property
+  qualifier path, not just bare triple counts. This is the one piece you replace
+  for your own collector.
 - **Evaluate** (`conformance.go`) feeds the in-memory observation into
   `internal/goldengate.Evaluate*` — the identical functions
   `cmd/golden-corpus-gate` runs against a live graph. **No forked assertion
@@ -71,8 +74,8 @@ If you change the starter fact kinds, also update the `Observe` mapping in
 |------|---------|
 | `conformance.go` | `Run`, `replayFacts`, `LoadSpec`, and `Evaluate` (the shared-assertion driver). |
 | `observe.go` | `Observe` — the collector-specific fact → graph-observation seam. |
-| `conformance_test.go` | `TestConformance` (the headline) plus observation, regression-bites, malformed-input, schema-validity, and determinism tests. |
-| `testdata/starter-cassette.json` | The starter tape: a `hello-eshu` repo with two directories and three files. Schema-valid against the R-3 cassette JSON Schema. |
+| `conformance_test.go` | `TestConformance` (the headline) plus observation, regression-bites, evidence/edge-property, malformed-input, schema-validity, and determinism tests. |
+| `testdata/starter-cassette.json` | The starter tape: a `hello-eshu` repo with two directories, three files, and one package dependency. Schema-valid against the R-3 cassette JSON Schema. |
 | `testdata/starter-spec.yaml` | The starter spec: the contributor-facing twin of the B-12 golden snapshot, parsed into `goldengate.Snapshot`. |
 
 ## Why offline / what it does not cover
