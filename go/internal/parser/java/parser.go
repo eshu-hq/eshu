@@ -95,7 +95,7 @@ func Parse(
 	sortNamedBucket(payload, "imports")
 	sortNamedBucket(payload, "function_calls")
 	emitJavaValueFlowBuckets(payload, root, source, options, callInference)
-	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
+	payload["framework_semantics"] = buildJavaSpringFrameworkSemantics(root, source)
 
 	return payload, nil
 }

@@ -161,14 +161,14 @@ language_features:
     docs_claim: docs/public/languages/java.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [source-entities, call-metadata, annotation-metadata, dead-code-roots]
-    partial_features: [spring-route-entries, outbound-contracts, broad-reflection]
+    supported_features: [source-entities, call-metadata, annotation-metadata, dead-code-roots, spring-mvc-route-truth]
+    partial_features: [spring-composed-route-truth, jax-rs-route-truth, micronaut-route-truth, outbound-contracts, broad-reflection]
     derived_features: []
-    source_files: [go/internal/parser/java_language.go, go/internal/parser/java/parser.go]
-    test_files: [go/internal/parser/engine_managed_oo_test.go, go/internal/parser/java_dead_code_framework_roots_test.go]
+    source_files: [go/internal/parser/java_language.go, go/internal/parser/java/parser.go, go/internal/parser/java/spring_routes.go]
+    test_files: [go/internal/parser/engine_managed_oo_test.go, go/internal/parser/java_dead_code_framework_roots_test.go, go/internal/parser/java_kotlin_spring_route_semantics_test.go]
     docs: [docs/public/languages/java.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
-    tracking_issues: [4040]
+    tracking_issues: [4040, 4097]
   - language: javascript
     docs_claim: docs/public/languages/javascript.md
     parser_backing: tree-sitter-backed
@@ -196,14 +196,14 @@ language_features:
     docs_claim: docs/public/languages/kotlin.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [core-declarations, extension-receiver-tracking, suspend-function-semantics, receiver-inference, smart-casts-and-safe-calls, scope-function-preservation, delegated-lazy-properties, same-file-function-return-aliasing, cross-file-function-return-chaining, constructor-root-receiver-chains, class-context-on-functions, secondary-constructors, dead-code-derived-roots]
-    partial_features: [spring-route-entries, outbound-contracts]
+    supported_features: [core-declarations, extension-receiver-tracking, suspend-function-semantics, receiver-inference, smart-casts-and-safe-calls, scope-function-preservation, delegated-lazy-properties, same-file-function-return-aliasing, cross-file-function-return-chaining, constructor-root-receiver-chains, class-context-on-functions, secondary-constructors, dead-code-derived-roots, spring-mvc-route-truth]
+    partial_features: [spring-composed-route-truth, ktor-route-truth, micronaut-route-truth, jax-rs-route-truth, outbound-contracts]
     derived_features: []
-    source_files: [go/internal/parser/kotlin_language.go, go/internal/parser/kotlin/parser.go]
-    test_files: [go/internal/parser/engine_kotlin_ast_test.go, go/internal/parser/kotlin_dead_code_roots_test.go]
+    source_files: [go/internal/parser/kotlin_language.go, go/internal/parser/kotlin/parser.go, go/internal/parser/kotlin/spring_routes.go]
+    test_files: [go/internal/parser/engine_kotlin_ast_test.go, go/internal/parser/kotlin_dead_code_roots_test.go, go/internal/parser/java_kotlin_spring_route_semantics_test.go]
     docs: [docs/public/languages/kotlin.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
-    tracking_issues: [4040]
+    tracking_issues: [4040, 4097]
   - language: kubernetes
     docs_claim: docs/public/languages/kubernetes.md
     parser_backing: structured-parser-backed-exception

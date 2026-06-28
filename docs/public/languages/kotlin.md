@@ -34,6 +34,7 @@ Canonical implementation:
 | Class and interface context | `class-context-on-functions` | supported | `go/internal/parser/engine_kotlin_interface_test.go::TestDefaultEngineParsePathKotlinInterfaceMembersCarryTypeContext`, `go/internal/reducer/code_call_materialization_kotlin_interface_test.go::TestExtractCodeCallRowsResolvesKotlinInterfaceTypedReceiverCallsUsingInferredObjectType` | Class and interface methods carry `class_context`, which keeps interface-typed receiver calls resolvable on the normal reducer/query path. |
 | Secondary constructors | `secondary-constructors` | supported | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathKotlinSecondaryConstructors`, `go/internal/query/entity_story_kotlin_test.go::TestAttachSemanticSummaryAddsKotlinSecondaryConstructorStory` | Secondary constructors keep `constructor_kind` metadata through semantic summaries and stories. |
 | Dead-code roots | `dead-code-derived-roots` | supported | `go/internal/parser/kotlin_dead_code_roots_test.go::TestDefaultEngineParsePathKotlinEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_kotlin_roots_test.go::TestHandleDeadCodeExcludesKotlinRootKindsFromMetadata` | Parser metadata marks top-level `main`, secondary constructors, interface methods, same-file interface implementations, overrides, Gradle plugin/task callbacks, Spring component and method callbacks, lifecycle callbacks, and JUnit methods as `kotlin.*` dead-code roots. The query layer suppresses those parser-backed roots before returning cleanup candidates. |
+| Spring route entries | `spring-mvc-route-truth` | supported | `go/internal/parser/java_kotlin_spring_route_semantics_test.go::TestDefaultEngineParsePathKotlinSpringRouteSemantics` | Literal Spring MVC/WebFlux annotations emit exact `framework_semantics.spring.route_entries` with handler function names. `HANDLES_ROUTE` projection remains exact-only and skips ambiguous or unknown handlers. |
 
 ## Current Truth
 
@@ -66,6 +67,11 @@ Supported today:
 - Spring component and method callbacks, Gradle plugin/task callbacks, JUnit
   methods, lifecycle callbacks, and secondary constructors are modeled as
   derived roots.
+- Literal Spring MVC/WebFlux `@RequestMapping`, `@GetMapping`, `@PostMapping`,
+  `@PutMapping`, `@PatchMapping`, and `@DeleteMapping` annotations emit exact
+  route entries when the path is source-literal. Class `@RequestMapping`
+  literal prefixes and path variables are preserved; dynamic paths are not
+  guessed.
 - Interfaces, same-file interface implementations, overrides, and top-level
   `main` are modeled as root evidence.
 - Maven/Gradle vulnerability reachability can use Kotlin imports, calls, and
@@ -77,3 +83,6 @@ Not claimed today:
 - Reflection, dependency injection, annotation processing, compiler plugins,
   Gradle source-set selection, multiplatform targets, and dynamic dispatch
   remain exactness blockers.
+- Spring composed/meta-annotations, non-literal route paths, multi-route
+  expansion policy, Ktor, Micronaut, JAX-RS, and other JVM web frameworks are
+  tracked by [#4097](https://github.com/eshu-hq/eshu/issues/4097).
