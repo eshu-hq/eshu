@@ -1,0 +1,170 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git:repository:replay-delta-tombstone",
+      "source_system": "git",
+      "scope_kind": "repository",
+      "collector_kind": "git",
+      "partition_key": "git:repository:replay-delta-tombstone",
+      "metadata": {
+        "repo_name": "replay-delta-tombstone",
+        "purpose": "R-17 delta/multi-generation/tombstone correctness — generation 1 baseline"
+      },
+      "generation_id": "cassette-replay-delta-tombstone-gen1",
+      "observed_at": "2026-06-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "git.repository",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:repo",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "replay-delta-tombstone",
+            "name": "replay-delta-tombstone",
+            "path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:alpha",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/alpha",
+            "name": "alpha",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:beta",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/beta",
+            "name": "beta",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:gamma",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/gamma",
+            "name": "gamma",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "git:repository:replay-delta-tombstone",
+      "source_system": "git",
+      "scope_kind": "repository",
+      "collector_kind": "git",
+      "partition_key": "git:repository:replay-delta-tombstone",
+      "metadata": {
+        "repo_name": "replay-delta-tombstone",
+        "purpose": "R-17 delta/multi-generation/tombstone correctness — generation 2: adds delta, removes gamma (tombstone), supersedes repo name"
+      },
+      "generation_id": "cassette-replay-delta-tombstone-gen2",
+      "observed_at": "2026-06-28T01:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "git.repository",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:repo",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "replay-delta-tombstone",
+            "name": "replay-delta-tombstone-v2",
+            "path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:alpha",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/alpha",
+            "name": "alpha",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:beta",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/beta",
+            "name": "beta",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:gamma",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/gamma",
+            "name": "gamma",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:delta",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/delta",
+            "name": "delta",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        }
+      ]
+    }
+  ]
+}

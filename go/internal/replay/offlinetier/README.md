@@ -74,10 +74,36 @@ This tier is the fast, credential-free, single-container backend check. The full
 Compose B-7 golden-corpus gate (`scripts/verify-golden-corpus-gate.sh`) is
 unchanged and remains the belt-and-suspenders full-corpus assertion.
 
+## Delta / multi-generation / tombstone (R-17, #4126)
+
+`delta.go` extends the tier to multi-generation scenarios. A two-generation
+cassette (`testdata/cassettes/replaydelta/multi-generation-tombstone.json`)
+records gen1 (alpha, beta, gamma) then gen2 that adds `delta`, supersedes the
+repository name, and **tombstones** `gamma` (`is_tombstone: true`).
+
+`DeltaMaterializationFromGenerations` builds the gen2
+`CanonicalMaterialization` from the **surviving** (non-tombstoned) facts and
+sets `FirstGeneration=false`, so the production retract phase fires and removes
+entities absent from gen2 — it never resurrects a tombstoned node by writing it.
+
+- **Offline (every PR):** `delta_tier_test.go` asserts the structural inputs
+  that drive retraction — gamma filtered out of the surviving rows, the
+  tombstoned-path list, `FirstGeneration=false`, and the superseded repo name.
+- **Live (`ESHU_REPLAY_TIER_LIVE=1`):** `delta_tier_live_test.go` writes gen1
+  then gen2 against real NornicDB and asserts gamma is **gone** (count=0),
+  survivors present, the repo name superseded, and idempotency (gen2 twice).
+  Its negative control forces `FirstGeneration=true` and asserts gamma **stays**
+  — the #3859 held-pending-retract bug class — then proves the correct gen2
+  removes it. This is the retraction proof; the offline half cannot delete a
+  node without a backend.
+
 ## Files
 
 - `materialization.go` — the cassette `fact` -> `CanonicalMaterialization` seam
   (the only production-facing code in the package).
+- `delta.go` — the multi-generation/tombstone delta materialization seam (R-17).
 - `offline_tier_test.go` — the offline mapping test plus the env-gated live tier.
+- `delta_tier_test.go` / `delta_tier_live_test.go` — the R-17 offline structural
+  checks and the env-gated real-backend retraction/supersession/idempotency tests.
 - `executor_test.go` — the driver-backed executor adapters (singleton + the
   phase-group write path that mirrors production NornicDB).

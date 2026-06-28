@@ -29,6 +29,14 @@
   The depth-2 CONTAINS edge is the regression guard.
 - Do NOT touch `scripts/verify-golden-corpus-gate.sh`; the Compose B-7 gate
   stays as the full-corpus belt-and-suspenders check.
+- For the R-17 delta/tombstone scenarios (`delta.go`): a tombstoned fact MUST be
+  removed by the production retract phase (driven by `FirstGeneration=false`),
+  NEVER written into the gen2 materialization as a surviving row (that would
+  resurrect it). Retraction MUST be proven on the REAL backend
+  (`delta_tier_live_test.go` reads back count=0 for tombstoned nodes); the
+  offline structural test cannot delete a node and must not claim it does. Keep
+  the broken-retraction negative control (`FirstGeneration=true` leaves the node
+  present — the #3859 class) intact and honest.
 
 ## Skill routing
 
