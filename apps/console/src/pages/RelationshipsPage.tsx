@@ -236,7 +236,7 @@ export function RelationshipsPage({
         ))}
       </div>
 
-      {availableTools.length > 0 ? (
+      {availableTools.length > 0 || !!sourceTool ? (
         <ToolFilter available={availableTools} selected={sourceTool} onChange={applyToolFilter} />
       ) : null}
 
@@ -344,6 +344,11 @@ export function RelationshipsPage({
 
 // ToolFilter renders a row of chips letting the user filter the edge slice by
 // source_tool. Selecting the active tool again clears the filter.
+//
+// When the active tool is not in the available list (e.g. the user landed via a
+// stale shared link and the current graph has no tool-stamped edges), the chip
+// is still rendered so the user can see and clear the active filter. The chip is
+// user-supplied state, not an invented catalog entry.
 function ToolFilter({
   available,
   selected,
@@ -353,6 +358,10 @@ function ToolFilter({
   readonly selected: string;
   readonly onChange: (tool: string) => void;
 }): React.JSX.Element {
+  // Render the active tool chip even when the catalog doesn't list it, so the
+  // user can always see and clear an active URL filter.
+  const extraChips = selected && !available.includes(selected) ? [selected] : [];
+
   return (
     <div className="rel-tool-filter" aria-label="Filter edges by source tool">
       <span className="rel-tool-filter-label t-mut">Tool:</span>
@@ -369,6 +378,16 @@ function ToolFilter({
           className={`rel-tool-chip${selected === tool ? " active" : ""}`}
           onClick={() => onChange(selected === tool ? "" : tool)}
           aria-pressed={selected === tool}
+        >
+          {tool}
+        </button>
+      ))}
+      {extraChips.map((tool) => (
+        <button
+          key={tool}
+          className="rel-tool-chip active"
+          onClick={() => onChange("")}
+          aria-pressed={true}
         >
           {tool}
         </button>

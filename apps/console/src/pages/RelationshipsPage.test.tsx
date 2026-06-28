@@ -264,4 +264,58 @@ describe("RelationshipsPage", () => {
 
     expect(await screen.findByText(/Relationships unavailable/)).toBeInTheDocument();
   });
+
+  it("renders tool filter with active terraform chip when URL has source_tool=terraform but catalog has no source_tools", async () => {
+    // Catalog with no source_tools on any verb — simulates a fresh graph,
+    // a different workspace, or a stale shared link.
+    const noToolsCatalog = {
+      data: {
+        verbs: [
+          {
+            verb: "IMPORTS",
+            layer: "code",
+            count: 500,
+            evidence: "npm Registry",
+            detail: "File imports a module",
+          },
+        ],
+        verb_count: 1,
+        total_edges: 500,
+        layer_count: 1,
+      },
+      error: null,
+      truth: { level: "exact", basis: "authoritative_graph", freshness: { state: "fresh" } },
+    };
+
+    const client = {
+      post: async () => noToolsCatalog,
+    } as unknown as EshuApiClient;
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/relationships?source_tool=terraform"]}>
+        <RelationshipsPage model={liveModel()} client={client} />
+      </MemoryRouter>,
+    );
+
+    // Wait for catalog to load so availableTools is computed.
+    await screen.findByText("IMPORTS");
+
+    // The filter region must be present even though no verb carries source_tools.
+    const filterRegion = container.querySelector(".rel-tool-filter") as HTMLElement;
+    expect(filterRegion).not.toBeNull();
+
+    // The "All" chip lets the user clear the filter.
+    expect(within(filterRegion).getByRole("button", { name: /^All$/i })).toBeInTheDocument();
+
+    // The active terraform chip must be visible and clearable (pressed=true).
+    const terraformChip = within(filterRegion).getByRole("button", { name: /^terraform$/i });
+    expect(terraformChip).toBeInTheDocument();
+    expect(terraformChip).toHaveAttribute("aria-pressed", "true");
+
+    // Clicking the terraform chip must clear the filter. With no catalog tools and
+    // no active tool left, the filter container disappears (condition: availableTools > 0
+    // || !!sourceTool — both become false after clear).
+    fireEvent.click(terraformChip);
+    expect(container.querySelector(".rel-tool-filter")).toBeNull();
+  });
 });
