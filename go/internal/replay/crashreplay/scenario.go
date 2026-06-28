@@ -99,6 +99,18 @@ func RunWithCrash(ctx context.Context, cfg Config, crash CrashPoint) (Outcome, e
 	if err != nil {
 		return Outcome{}, err
 	}
+	// After counts durably-completed items, so a crash at or past the final
+	// completion does not interrupt any in-flight work — it would report
+	// Crashed=true with RecoveryAcks=0 and pass without exercising recovery. In
+	// particular a CrashBeforeClaim with After==len fires on the reducer's
+	// post-drain poll after every item is already acked. Reject it up front so a
+	// vacuous crash point fails loudly rather than masquerading as a green run.
+	if total := h.store.total(); crash.After >= total {
+		return Outcome{}, fmt.Errorf(
+			"crashreplay: crash point After=%d does not exercise recovery for a %d-item schedule (After must be < %d); a crash at or past the final completion is vacuous",
+			crash.After, total, total,
+		)
+	}
 
 	ctrl := &crashController{kind: crash.Kind, after: crash.After}
 	crashed, err := h.drain(ctx, ctrl)

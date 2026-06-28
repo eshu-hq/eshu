@@ -212,6 +212,39 @@ func TestRunWithCrashFailsWhenCrashNeverTriggers(t *testing.T) {
 	}
 }
 
+// TestRunWithCrashRejectsVacuousCrashPoint proves the harness rejects a crash
+// point at or past the final completion (After >= len(items)) for BOTH kinds.
+// A CrashBeforeClaim with After==len would otherwise fire on the reducer's
+// post-drain poll after every item is acked — Crashed=true but RecoveryAcks=0,
+// a vacuous pass that never exercises recovery. Both must fail loudly.
+func TestRunWithCrashRejectsVacuousCrashPoint(t *testing.T) {
+	t.Parallel()
+
+	items := loadItems(t)
+	n := len(items)
+	cases := []struct {
+		name  string
+		crash crashreplay.CrashPoint
+	}{
+		{"before-claim@len", crashreplay.CrashPoint{Kind: crashreplay.CrashBeforeClaim, After: n}},
+		{"after-apply@len", crashreplay.CrashPoint{Kind: crashreplay.CrashAfterApply, After: n}},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			out, err := crashreplay.RunWithCrash(ctx,
+				crashreplay.Config{Items: schedulereplay.ScheduleInOrder(items)}, tc.crash)
+			if err == nil {
+				t.Fatalf("expected an error for a vacuous crash point %s, got crashed=%v recoveryAcks=%d",
+					tc.name, out.Report.Crashed, out.Report.RecoveryAcks)
+			}
+		})
+	}
+}
+
 // newCountingApplier returns a deliberately non-idempotent applier: it upserts
 // each work item's real nodes and edges, then records a unique marker node per
 // application of an item. Applying an item once yields one marker; a recovery
