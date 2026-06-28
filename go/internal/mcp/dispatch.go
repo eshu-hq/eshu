@@ -218,6 +218,16 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":       intOr(args, "limit", 25),
 			"offset":      intOr(args, "offset", 0),
 		}}, nil
+	case "trace_route_callers":
+		return &route{method: "POST", path: "/api/v0/code/routes/callers", body: map[string]any{
+			"repo_id":      str(args, "repo_id"),
+			"service_id":   str(args, "service_id"),
+			"service_name": str(args, "service_name"),
+			"method":       str(args, "method"),
+			"path":         str(args, "path"),
+			"max_depth":    intOr(args, "max_depth", 2),
+			"limit":        intOr(args, "limit", 25),
+		}}, nil
 	case "investigate_code_topic":
 		return &route{method: "POST", path: "/api/v0/code/topics/investigate", body: map[string]any{
 			"topic":    str(args, "topic"),

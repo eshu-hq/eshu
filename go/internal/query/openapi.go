@@ -59,6 +59,7 @@ func OpenAPISpec() string {
 			openAPIPathsInvestigations+
 			openAPIPathsServiceIntelligenceReport+
 			openAPIPathsCode+
+			openAPIPathsCodeRouteToCaller+
 			openAPIPathsCodeGraph+
 			openAPIPathsCodeQuality+
 			openAPIPathsCodeSecurity+
