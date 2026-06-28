@@ -136,7 +136,7 @@ func (s *Source) buildEnvelope(sc Scope, fct Fact) (facts.Envelope, error) {
 			GenerationID:   sc.GenerationID,
 			FactKey:        fct.StableFactKey,
 			SourceURI:      strings.TrimSpace(fct.SourceURI),
-			SourceRecordID: fct.StableFactKey,
+			SourceRecordID: fct.sourceRecordID(),
 		},
 	}, nil
 }

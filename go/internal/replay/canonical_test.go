@@ -239,3 +239,62 @@ func TestCanonicalizeRejectsInvalidJSON(t *testing.T) {
 		t.Fatal("Canonicalize accepted malformed JSON, want error")
 	}
 }
+
+// TestCanonicalizePreservesOpaquePayload proves volatile/derived normalization
+// is confined to the cassette envelope: a fact payload that happens to carry
+// observed_at or generation_id keeps the collector's real values verbatim
+// (the recorder's verbatim-payload contract), while the scope-level observed_at
+// and generation_id are still collapsed/derived. Secret redaction still reaches
+// into the payload.
+func TestCanonicalizePreservesOpaquePayload(t *testing.T) {
+	doc := `{
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "s1",
+      "observed_at": "2026-06-25T12:00:00Z",
+      "generation_id": "gen-run-specific-123",
+      "facts": [
+        {
+          "stable_fact_key": "k1",
+          "payload": {
+            "observed_at": "2026-06-25T09:30:00Z",
+            "generation_id": "deployment-gen-42",
+            "api_token": "SECRET"
+          }
+        }
+      ]
+    }
+  ]
+}`
+	opts := replay.DefaultCanonicalOptions().WithRedactedKeys("api_token")
+	out, err := replay.Canonicalize([]byte(doc), opts)
+	if err != nil {
+		t.Fatalf("Canonicalize() error = %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatalf("unmarshal canonical: %v", err)
+	}
+	scope := got["scopes"].([]any)[0].(map[string]any)
+	// Scope-level volatile/derived ARE normalized.
+	if scope["observed_at"] != replay.SentinelObservedAt {
+		t.Errorf("scope observed_at = %v, want sentinel %q", scope["observed_at"], replay.SentinelObservedAt)
+	}
+	if gen, _ := scope["generation_id"].(string); !strings.HasPrefix(gen, replay.GenerationIDPrefix) {
+		t.Errorf("scope generation_id = %v, want derived (prefix %q)", scope["generation_id"], replay.GenerationIDPrefix)
+	}
+	// Payload-level keys of the same name are preserved VERBATIM.
+	payload := scope["facts"].([]any)[0].(map[string]any)["payload"].(map[string]any)
+	if payload["observed_at"] != "2026-06-25T09:30:00Z" {
+		t.Errorf("payload observed_at = %v, want verbatim 2026-06-25T09:30:00Z", payload["observed_at"])
+	}
+	if payload["generation_id"] != "deployment-gen-42" {
+		t.Errorf("payload generation_id = %v, want verbatim deployment-gen-42", payload["generation_id"])
+	}
+	// Redaction still reaches into the payload.
+	if payload["api_token"] != replay.RedactedSentinel {
+		t.Errorf("payload api_token = %v, want redacted %q", payload["api_token"], replay.RedactedSentinel)
+	}
+}

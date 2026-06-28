@@ -105,6 +105,7 @@ func factSchema() map[string]any {
 			"payload":           map[string]any{"type": "object"},
 			"is_tombstone":      map[string]any{"type": "boolean"},
 			"source_uri":        map[string]any{"type": "string"},
+			"source_record_id":  map[string]any{"type": "string"},
 		},
 	)
 }

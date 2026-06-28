@@ -27,6 +27,9 @@
         "source_confidence": {
           "type": "string"
         },
+        "source_record_id": {
+          "type": "string"
+        },
         "source_uri": {
           "type": "string"
         },
