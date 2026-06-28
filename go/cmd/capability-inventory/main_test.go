@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // repoRootDir resolves the repository root from this test file.
@@ -102,9 +104,15 @@ func TestDocsFreshnessAgainstRealDocs(t *testing.T) {
 // cloneLiveSurfaces returns a deep copy of a live-surface set so a test can
 // mutate one category without affecting the original.
 func cloneLiveSurfaces(live capabilitycatalog.LiveSurfaces) capabilitycatalog.LiveSurfaces {
-	out := capabilitycatalog.LiveSurfaces{Surfaces: map[capabilitycatalog.SurfaceCategory][]string{}}
+	out := capabilitycatalog.LiveSurfaces{
+		Surfaces:           map[capabilitycatalog.SurfaceCategory][]string{},
+		CollectorFactKinds: map[string][]string{},
+	}
 	for cat, names := range live.Surfaces {
 		out.Surfaces[cat] = append([]string(nil), names...)
+	}
+	for name, factKinds := range live.CollectorFactKinds {
+		out.CollectorFactKinds[name] = append([]string(nil), factKinds...)
 	}
 	return out
 }
@@ -127,6 +135,31 @@ func TestSurfaceInventoryDriftAgainstRealCode(t *testing.T) {
 	}
 	if !bytes.Equal(payload, capabilitycatalog.RawSurfaceArtifact()) {
 		t.Fatal("committed surface inventory artifact is stale; run: go run ./cmd/capability-inventory -mode generate")
+	}
+}
+
+func TestCollectorFactKindsCoversFactEmittingCollectors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		collector scope.CollectorKind
+		factKinds []string
+	}{
+		{collector: scope.CollectorSBOMAttestation, factKinds: facts.SBOMAttestationFactKinds()},
+		{collector: scope.CollectorSecurityAlert, factKinds: facts.SecurityAlertFactKinds()},
+		{collector: scope.CollectorCICDRun, factKinds: facts.CICDRunFactKinds()},
+		{collector: scope.CollectorScannerWorker, factKinds: facts.ScannerWorkerFactKinds()},
+	}
+
+	got := collectorFactKinds()
+	for _, tt := range tests {
+		t.Run(string(tt.collector), func(t *testing.T) {
+			t.Parallel()
+			gotKinds := got[string(tt.collector)]
+			if strings.Join(gotKinds, "\x00") != strings.Join(tt.factKinds, "\x00") {
+				t.Fatalf("collectorFactKinds()[%q] = %#v, want %#v", tt.collector, gotKinds, tt.factKinds)
+			}
+		})
 	}
 }
 

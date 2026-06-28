@@ -140,7 +140,7 @@ func runtimeTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_surface_inventory",
-			Description: "Return the generated Eshu surface inventory: every platform surface across six categories (command, collector, reducer_domain, api_route, mcp_tool, console_page) with its readiness lane (implemented, partial, gated, foundation_only, fixture_only, research_only, not_implemented, unsupported), owner, promotion proof, docs, and notes. Use it to summarize what surfaces exist and how production-ready each is. Supports optional category and readiness filters with bounded paging.",
+			Description: "Return the generated Eshu surface inventory: every platform surface across six categories (command, collector, reducer_domain, api_route, mcp_tool, console_page) with its readiness lane (implemented, partial, gated, foundation_only, fixture_only, research_only, not_implemented, unsupported), owner, promotion proof, docs, notes, and collector-only source provenance contracts. Collector contracts map emitted fact kinds to projection/read surfaces, proof gates, fixtures, and a truth profile that distinguishes deterministic, provider-gated, and optional semantic output. Use it to summarize what surfaces exist, how production-ready each is, and which read surfaces consume collector facts. Supports optional category and readiness filters with bounded paging.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

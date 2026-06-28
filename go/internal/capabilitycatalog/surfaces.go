@@ -64,6 +64,9 @@ type SurfaceRecord struct {
 	Docs []string `json:"docs,omitempty"`
 	// Notes is optional editorial context.
 	Notes string `json:"notes,omitempty"`
+	// CollectorContract records the source-to-read-surface provenance contract
+	// for collector surfaces. It is omitted for non-collector surfaces.
+	CollectorContract *CollectorContract `json:"collector_contract,omitempty"`
 }
 
 // SurfaceInventory is the generated, reconciled inventory of every platform
@@ -83,6 +86,9 @@ type SurfaceInventory struct {
 type LiveSurfaces struct {
 	// Surfaces maps a category to the live surface names in that category.
 	Surfaces map[SurfaceCategory][]string
+	// CollectorFactKinds maps collector kind to live core fact kinds that the
+	// generated inventory must cover with a collector contract.
+	CollectorFactKinds map[string][]string
 }
 
 // SurfaceOverlay is the editorial overlay for the surface inventory. It carries
@@ -112,6 +118,33 @@ type SurfaceOverlayRecord struct {
 	Docs []string
 	// Notes is optional editorial context.
 	Notes string
+	// CollectorContract is the source-to-read-surface contract for collector
+	// records, when the surface is a collector.
+	CollectorContract CollectorContract
+}
+
+// CollectorContract maps one collector family to the facts it emits and the
+// projection/read surfaces that consume those facts. The inventory uses this to
+// make collector extraction and API/MCP provenance reviewable before any
+// collector leaves the monorepo.
+type CollectorContract struct {
+	// FactKinds are the core fact kinds this collector family emits.
+	FactKinds []string `json:"fact_kinds,omitempty"`
+	// ProjectionSurfaces names reducer domains, projectors, writers, or read
+	// models that consume the fact kinds.
+	ProjectionSurfaces []string `json:"projection_surfaces,omitempty"`
+	// ReadSurfaces names API routes, MCP tools, or console pages that expose the
+	// resulting truth or source evidence.
+	ReadSurfaces []string `json:"read_surfaces,omitempty"`
+	// ProofGates lists tests, verifiers, or generated-artifact gates required
+	// for this collector contract.
+	ProofGates []string `json:"proof_gates,omitempty"`
+	// FixtureRefs lists cassettes, golden fixtures, or fixture directories that
+	// prove the contract.
+	FixtureRefs []string `json:"fixture_refs,omitempty"`
+	// TruthProfile distinguishes deterministic evidence from optional semantic
+	// or provider-gated output.
+	TruthProfile string `json:"truth_profile,omitempty"`
 }
 
 // FindingUnclassifiedCollector is a live collector with no declared readiness
@@ -136,6 +169,10 @@ const FindingInvalidReadinessLane FindingKind = "invalid_readiness_lane"
 // category and name. Duplicates are dangerous because the second silently wins,
 // which could downgrade a collector's readiness without any signal.
 const FindingDuplicateOverlayRow FindingKind = "duplicate_overlay_row"
+
+// FindingCollectorFactKindUnmapped is a live collector fact kind that has no
+// matching entry in that collector's manifest contract.
+const FindingCollectorFactKindUnmapped FindingKind = "collector_fact_kind_unmapped"
 
 // defaultReadiness returns the readiness lane assigned to a surface in the given
 // category when no overlay row classifies it. Commands, API routes, MCP tools,
@@ -179,7 +216,7 @@ func BuildSurfaceInventory(live LiveSurfaces, overlay SurfaceOverlay) (SurfaceIn
 		for _, name := range names {
 			key := surfaceKey(category, name)
 			liveKeys[key] = struct{}{}
-			rec, recFindings := buildSurfaceRecord(category, name, overlayByKey[key])
+			rec, recFindings := buildSurfaceRecord(category, name, overlayByKey[key], live.CollectorFactKinds[name])
 			records = append(records, rec)
 			findings = append(findings, recFindings...)
 		}
@@ -200,7 +237,7 @@ func BuildSurfaceInventory(live LiveSurfaces, overlay SurfaceOverlay) (SurfaceIn
 // buildSurfaceRecord reconciles one live surface against its optional overlay row
 // and returns the record plus any findings (unclassified collector, invalid
 // lane, implemented-without-proof).
-func buildSurfaceRecord(category SurfaceCategory, name string, overlay SurfaceOverlayRecord) (SurfaceRecord, []Finding) {
+func buildSurfaceRecord(category SurfaceCategory, name string, overlay SurfaceOverlayRecord, liveFactKinds []string) (SurfaceRecord, []Finding) {
 	rec := SurfaceRecord{Category: category, Name: name}
 	var findings []Finding
 
@@ -232,6 +269,10 @@ func buildSurfaceRecord(category SurfaceCategory, name string, overlay SurfaceOv
 		rec.Proof = overlay.Proof
 		rec.Docs = append([]string(nil), overlay.Docs...)
 		rec.Notes = overlay.Notes
+		if category == SurfaceCollector && !overlay.CollectorContract.empty() {
+			contract := overlay.CollectorContract.normalized()
+			rec.CollectorContract = &contract
+		}
 	}
 
 	// An implemented collector asserts production readiness and must link proof.
@@ -242,7 +283,79 @@ func buildSurfaceRecord(category SurfaceCategory, name string, overlay SurfaceOv
 			Detail:  fmt.Sprintf("collector %q is declared implemented but links no promotion proof", name),
 		})
 	}
+	if category == SurfaceCollector {
+		findings = append(findings, collectorFactKindFindings(name, liveFactKinds, rec.CollectorContract)...)
+	}
 	return rec, findings
+}
+
+func collectorFactKindFindings(name string, liveFactKinds []string, contract *CollectorContract) []Finding {
+	if len(liveFactKinds) == 0 {
+		return nil
+	}
+	mapped := map[string]struct{}{}
+	if contract != nil {
+		for _, kind := range contract.FactKinds {
+			mapped[kind] = struct{}{}
+		}
+	}
+	live := append([]string(nil), liveFactKinds...)
+	sort.Strings(live)
+	live = compactStrings(live)
+	var findings []Finding
+	for _, kind := range live {
+		if _, ok := mapped[kind]; ok {
+			continue
+		}
+		findings = append(findings, Finding{
+			Kind:    FindingCollectorFactKindUnmapped,
+			Subject: name + ":" + kind,
+			Detail:  fmt.Sprintf("collector %q emits fact kind %q but its collector_contract.fact_kinds omits it", name, kind),
+		})
+	}
+	return findings
+}
+
+func (c CollectorContract) empty() bool {
+	return len(c.FactKinds) == 0 &&
+		len(c.ProjectionSurfaces) == 0 &&
+		len(c.ReadSurfaces) == 0 &&
+		len(c.ProofGates) == 0 &&
+		len(c.FixtureRefs) == 0 &&
+		c.TruthProfile == ""
+}
+
+func (c CollectorContract) normalized() CollectorContract {
+	return CollectorContract{
+		FactKinds:          sortedStrings(c.FactKinds),
+		ProjectionSurfaces: sortedStrings(c.ProjectionSurfaces),
+		ReadSurfaces:       sortedStrings(c.ReadSurfaces),
+		ProofGates:         sortedStrings(c.ProofGates),
+		FixtureRefs:        sortedStrings(c.FixtureRefs),
+		TruthProfile:       c.TruthProfile,
+	}
+}
+
+func sortedStrings(values []string) []string {
+	out := append([]string(nil), values...)
+	sort.Strings(out)
+	return compactStrings(out)
+}
+
+func compactStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := values[:0]
+	var previous string
+	for i, value := range values {
+		if value == "" || (i > 0 && value == previous) {
+			continue
+		}
+		out = append(out, value)
+		previous = value
+	}
+	return out
 }
 
 // staleOverlayFindings reports overlay records whose surface is absent from live

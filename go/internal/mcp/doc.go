@@ -30,6 +30,10 @@
 // The get_capability_catalog tool forwards to /api/v0/capabilities and
 // preserves the embedded role, grant, data-class, permission-family, and
 // per-capability authorization metadata from the query response.
+// The get_surface_inventory tool forwards to /api/v0/surface-inventory and
+// preserves collector source-to-read-surface contracts so MCP callers see the
+// same fact-kind provenance, proof gates, fixture refs, and truth profiles as
+// HTTP and console callers.
 // Package-registry and supply-chain tools follow the same rule and keep their
 // route builders in dedicated dispatch files, so bounded package, version,
 // dependency, correlation, source-only advisory evidence, vulnerability

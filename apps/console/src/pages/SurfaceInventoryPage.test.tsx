@@ -34,7 +34,8 @@ describe("SurfaceInventoryPage", () => {
               owner: "internal/query",
               proof: "go test ./internal/query",
               docs: ["docs/public/reference/http-api.md"],
-              notes: "reconciled catalog endpoint"
+              notes: "reconciled catalog endpoint",
+              collector_contract: undefined,
             },
             {
               category: "collector",
@@ -43,7 +44,15 @@ describe("SurfaceInventoryPage", () => {
               owner: "internal/collector/azure",
               proof: "fixture replay",
               docs: [],
-              notes: "live transport behind flag"
+              notes: "live transport behind flag",
+              collector_contract: {
+                fact_kinds: ["azure_cloud_resource", "azure_cloud_relationship"],
+                projection_surfaces: ["cloud_asset_resolution"],
+                read_surfaces: ["GET /api/v0/cloud/inventory"],
+                proof_gates: ["go test ./internal/collector/azurecloud"],
+                fixture_refs: ["go/internal/collector/azurecloud/testdata"],
+                truth_profile: "provider_gated",
+              },
             },
             {
               category: "reducer_domain",
@@ -52,13 +61,18 @@ describe("SurfaceInventoryPage", () => {
               owner: "cmd/reducer",
               proof: "",
               docs: [],
-              notes: "loader seam, unwired"
-            }
-          ]
+              notes: "loader seam, unwired",
+            },
+          ],
         },
         error: null,
-        truth: { profile: "production", level: "exact", capability: "surface_inventory.list", freshness: { state: "fresh" } }
-      })
+        truth: {
+          profile: "production",
+          level: "exact",
+          capability: "surface_inventory.list",
+          freshness: { state: "fresh" },
+        },
+      }),
     } as unknown as EshuApiClient;
 
     render(<SurfaceInventoryPage client={client} />);
@@ -69,8 +83,13 @@ describe("SurfaceInventoryPage", () => {
     // Each readiness lane renders as a Badge with its honest label. "implemented"
     // also appears in the page intro and StatTile, so assert on the badge element
     // (a span carrying the badge class) to prove the lane is shown truthfully.
-    const isBadge = (content: string) => (text: string, node: Element | null): boolean =>
-      text === content && node !== null && node.tagName === "SPAN" && node.className.includes("badge");
+    const isBadge =
+      (content: string) =>
+      (text: string, node: Element | null): boolean =>
+        text === content &&
+        node !== null &&
+        node.tagName === "SPAN" &&
+        node.className.includes("badge");
     expect(screen.getByText(isBadge("implemented"))).toBeInTheDocument();
     expect(screen.getByText(isBadge("gated"))).toBeInTheDocument();
     expect(screen.getByText(isBadge("foundation only"))).toBeInTheDocument();
@@ -79,10 +98,16 @@ describe("SurfaceInventoryPage", () => {
   });
 
   it("renders an explicit unavailable state when the endpoint fails", async () => {
-    const client = { get: async () => { throw new Error("HTTP 503"); } } as unknown as EshuApiClient;
+    const client = {
+      get: async () => {
+        throw new Error("HTTP 503");
+      },
+    } as unknown as EshuApiClient;
     render(<SurfaceInventoryPage client={client} />);
     await waitFor(() =>
-      expect(screen.getByText("Surface inventory unavailable from this source.")).toBeInTheDocument()
+      expect(
+        screen.getByText("Surface inventory unavailable from this source."),
+      ).toBeInTheDocument(),
     );
   });
 });

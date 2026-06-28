@@ -77,6 +77,31 @@ func TestSurfaceInventoryHandlerFiltersByCategoryAndReadiness(t *testing.T) {
 	}
 }
 
+func TestSurfaceInventoryHandlerReturnsCollectorContracts(t *testing.T) {
+	t.Parallel()
+
+	envelope := surfaceInventoryRequest(t, "/api/v0/surface-inventory?category=collector&limit=1000")
+	rows := envelope.Data.(map[string]any)["surfaces"].([]any)
+	for _, raw := range rows {
+		rec := raw.(map[string]any)
+		if rec["name"].(string) != "git" {
+			continue
+		}
+		contract := rec["collector_contract"].(map[string]any)
+		if got, want := contract["truth_profile"].(string), "deterministic"; got != want {
+			t.Fatalf("git truth_profile = %q, want %q", got, want)
+		}
+		if got := len(contract["fact_kinds"].([]any)); got == 0 {
+			t.Fatal("git collector_contract fact_kinds is empty")
+		}
+		if got := len(contract["read_surfaces"].([]any)); got == 0 {
+			t.Fatal("git collector_contract read_surfaces is empty")
+		}
+		return
+	}
+	t.Fatal("git collector row not found")
+}
+
 func TestSurfaceInventoryHandlerRejectsBadLimit(t *testing.T) {
 	t.Parallel()
 

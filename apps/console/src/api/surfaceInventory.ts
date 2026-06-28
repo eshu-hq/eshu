@@ -18,6 +18,18 @@ export interface SurfaceRow {
   readonly proof: string;
   readonly docs: readonly string[];
   readonly notes: string;
+  readonly collectorContract: SurfaceCollectorContract | null;
+}
+
+// SurfaceCollectorContract is the collector-only provenance contract that links
+// emitted fact kinds to projection and read surfaces.
+export interface SurfaceCollectorContract {
+  readonly fact_kinds?: readonly string[];
+  readonly projection_surfaces?: readonly string[];
+  readonly read_surfaces?: readonly string[];
+  readonly proof_gates?: readonly string[];
+  readonly fixture_refs?: readonly string[];
+  readonly truth_profile?: string;
 }
 
 // SurfaceInventoryPage is one loaded page of the inventory plus its truth and
@@ -37,6 +49,7 @@ interface SurfaceWireEntry {
   readonly proof?: string;
   readonly docs?: readonly string[];
   readonly notes?: string;
+  readonly collector_contract?: SurfaceCollectorContract;
 }
 
 interface SurfaceListResponse {
@@ -56,7 +69,8 @@ function rowFromEntry(entry: SurfaceWireEntry): SurfaceRow {
     owner: entry.owner ?? "",
     proof: entry.proof ?? "",
     docs: entry.docs ?? [],
-    notes: entry.notes ?? ""
+    notes: entry.notes ?? "",
+    collectorContract: entry.collector_contract ?? null,
   };
 }
 
@@ -64,7 +78,7 @@ function rowFromEntry(entry: SurfaceWireEntry): SurfaceRow {
 // filters narrow by category or readiness; paging is bounded by limit/offset.
 export async function loadSurfaceInventory(
   client: EshuApiClient,
-  opts: { category?: string; readiness?: string; limit?: number; offset?: number } = {}
+  opts: { category?: string; readiness?: string; limit?: number; offset?: number } = {},
 ): Promise<SurfaceInventoryPage> {
   const params = new URLSearchParams();
   if (opts.category) params.set("category", opts.category);
@@ -81,7 +95,7 @@ export async function loadSurfaceInventory(
       rows,
       total: env.data?.total ?? rows.length,
       truth: env.truth ?? null,
-      provenance: rows.length > 0 ? "live" : "empty"
+      provenance: rows.length > 0 ? "live" : "empty",
     };
   } catch {
     return { rows: [], total: 0, truth: null, provenance: "unavailable" };

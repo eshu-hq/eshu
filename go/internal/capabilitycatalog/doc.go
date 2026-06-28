@@ -49,10 +49,13 @@
 // Findings. Each surface carries a ReadinessLane (implemented, partial, gated,
 // foundation_only, fixture_only, research_only, not_implemented, unsupported);
 // only the implemented lane asserts production readiness and therefore requires
-// linked promotion proof. A non-empty Findings slice means a collector is
-// unclassified, an implemented collector links no proof, an overlay row is
-// stale, or a lane is invalid. LoadSurfaceInventory returns the committed
-// artifact embedded from data/surface-inventory.generated.json, and a drift test
-// keeps it in lockstep with live code so no surface can appear or disappear
-// silently.
+// linked promotion proof. Collector rows may also carry a CollectorContract that
+// maps live fact kinds to projection/read consumers, proof gates, fixture refs,
+// and deterministic/provider-gated/optional-semantic truth profile. A non-empty
+// Findings slice means a collector is unclassified, an implemented collector
+// links no proof, an overlay row is stale, a lane is invalid, or a live
+// collector fact kind is missing from its contract. LoadSurfaceInventory returns
+// the committed artifact embedded from data/surface-inventory.generated.json,
+// and a drift test keeps it in lockstep with live code so no surface can appear
+// or disappear silently.
 package capabilitycatalog

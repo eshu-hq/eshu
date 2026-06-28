@@ -1089,7 +1089,54 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "aws_dns_record",
+          "aws_iam_access_analyzer_finding",
+          "aws_iam_instance_profile",
+          "aws_iam_permission",
+          "aws_iam_permission_boundary",
+          "aws_iam_permission_policy",
+          "aws_iam_policy_attachment",
+          "aws_iam_principal",
+          "aws_iam_trust_policy",
+          "aws_image_reference",
+          "aws_relationship",
+          "aws_resource",
+          "aws_resource_policy_permission",
+          "aws_security_group_rule",
+          "aws_tag_observation",
+          "aws_warning",
+          "ec2_instance_posture",
+          "eks_irsa_annotation",
+          "eks_pod_identity_association",
+          "rds_instance_posture",
+          "s3_bucket_posture",
+          "s3_external_principal_grant"
+        ],
+        "projection_surfaces": [
+          "aws_cloud_runtime_drift",
+          "cloud_asset_resolution",
+          "secrets_iam_trust_chain",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/cloud/inventory",
+          "GET /api/v0/cloud/resources",
+          "GET /api/v0/secrets-iam/posture-summary",
+          "list_aws_runtime_drift_findings",
+          "list_secrets_iam_identity_trust_chains"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-aws-cloud ./internal/collector/awscloud ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "go/cmd/collector-aws-cloud/testdata",
+          "go/internal/collector/awscloud/services"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1100,7 +1147,36 @@
         "reference/collector-reducer-readiness.md",
         "reference/azure-cloud-collector-contract.md"
       ],
-      "notes": "Fixture-driven with claimed-live wiring; gated for live tenant smoke proof (issue"
+      "notes": "Fixture-driven with claimed-live wiring; gated for live tenant smoke proof (issue #3024).",
+      "collector_contract": {
+        "fact_kinds": [
+          "azure_cloud_relationship",
+          "azure_cloud_resource",
+          "azure_collection_warning",
+          "azure_dns_record",
+          "azure_identity_observation",
+          "azure_image_reference",
+          "azure_resource_change",
+          "azure_tag_observation"
+        ],
+        "projection_surfaces": [
+          "cloud_asset_resolution",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/cloud/inventory",
+          "GET /api/v0/cloud/resources",
+          "get_cloud_inventory"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-azure-cloud ./internal/collector/azurecloud ./internal/reducer ./internal/query -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/azure-cloud-collector-contract.md",
+          "go/internal/collector/azurecloud/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1110,7 +1186,41 @@
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
-      "notes": "Fixture normalizer, reducer correlation, hosted binary, and chart values exist; live target proof for the deployed chart shape is pending."
+      "notes": "Fixture normalizer, reducer correlation, hosted binary, and chart values exist; live target proof for the deployed chart shape is pending.",
+      "collector_contract": {
+        "fact_kinds": [
+          "ci.artifact",
+          "ci.environment_observation",
+          "ci.job",
+          "ci.pipeline_definition",
+          "ci.run",
+          "ci.step",
+          "ci.trigger_edge",
+          "ci.warning",
+          "ci.workflow_image_evidence"
+        ],
+        "projection_surfaces": [
+          "ci_cd_run_correlation",
+          "container_image_identity",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/ci-cd/run-correlations",
+          "GET /api/v0/ci-cd/run-correlations/count",
+          "GET /api/v0/ci-cd/run-correlations/inventory",
+          "count_ci_cd_run_correlations",
+          "get_ci_cd_run_correlation_inventory",
+          "list_ci_cd_run_correlations"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-cicd-run ./internal/collector/cicdrun ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/collector-reducer-readiness.md",
+          "go/internal/collector/cicdrun/testdata"
+        ],
+        "truth_profile": "fixture_gated"
+      }
     },
     {
       "category": "collector",
@@ -1120,7 +1230,37 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "documentation_claim_candidate",
+          "documentation_document",
+          "documentation_entity_mention",
+          "documentation_evidence_packet",
+          "documentation_finding",
+          "documentation_link",
+          "documentation_section",
+          "documentation_source"
+        ],
+        "projection_surfaces": [
+          "documentation_evidence",
+          "documentation_truth_read_model"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/documentation/facts",
+          "GET /api/v0/documentation/findings",
+          "get_documentation_target",
+          "list_documentation_findings"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-confluence ./internal/collector ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "go/cmd/collector-confluence/service_test.go",
+          "go/internal/collector/git_documentation_facts_test.go"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1131,7 +1271,39 @@
         "reference/collector-reducer-readiness.md",
         "reference/gcp-cloud-collector-contract.md"
       ],
-      "notes": "Fixture-driven with claimed-live wiring; gated for sanitized live smoke proof."
+      "notes": "Fixture-driven with claimed-live wiring; gated for sanitized live smoke proof.",
+      "collector_contract": {
+        "fact_kinds": [
+          "gcp_cloud_relationship",
+          "gcp_cloud_resource",
+          "gcp_collection_warning",
+          "gcp_dns_record",
+          "gcp_iam_permission_policy",
+          "gcp_iam_policy_observation",
+          "gcp_iam_principal",
+          "gcp_iam_trust_policy",
+          "gcp_image_reference",
+          "gcp_tag_observation"
+        ],
+        "projection_surfaces": [
+          "cloud_asset_resolution",
+          "secrets_iam_trust_chain",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/cloud/inventory",
+          "GET /api/v0/cloud/resources",
+          "get_cloud_inventory"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-gcp-cloud ./internal/collector/gcpcloud ./internal/reducer ./internal/query -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/gcp-cloud-collector-contract.md",
+          "go/internal/collector/gcpcloud/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1141,7 +1313,50 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "documentation_claim_candidate",
+          "documentation_document",
+          "documentation_entity_mention",
+          "documentation_evidence_packet",
+          "documentation_finding",
+          "documentation_link",
+          "documentation_section",
+          "documentation_source",
+          "service_catalog.api_link",
+          "service_catalog.dependency",
+          "service_catalog.entity",
+          "service_catalog.operational_link",
+          "service_catalog.ownership",
+          "service_catalog.repository_link",
+          "service_catalog.scorecard_definition",
+          "service_catalog.scorecard_result",
+          "service_catalog.warning"
+        ],
+        "projection_surfaces": [
+          "content_projection",
+          "documentation_evidence",
+          "service_catalog_correlation"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/catalog",
+          "GET /api/v0/documentation/facts",
+          "GET /api/v0/documentation/findings",
+          "GET /api/v0/service-catalog/correlations",
+          "SurfaceInventoryPage",
+          "list_service_catalog_correlations"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./internal/collector ./internal/query ./internal/mcp -count=1",
+          "scripts/verify-parser-relationship-kit.sh"
+        ],
+        "fixture_refs": [
+          "go/internal/collector/testdata",
+          "go/internal/query/service-catalog-read-model.md"
+        ],
+        "truth_profile": "deterministic"
+      }
     },
     {
       "category": "collector",
@@ -1151,7 +1366,44 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "observability.applied_resource",
+          "observability.applied_sync_state",
+          "observability.coverage_warning",
+          "observability.declared_alert_rule",
+          "observability.declared_dashboard",
+          "observability.declared_datasource",
+          "observability.declared_folder",
+          "observability.declared_log_route",
+          "observability.declared_metric_route",
+          "observability.declared_metric_rule",
+          "observability.declared_scrape_config",
+          "observability.declared_trace_route",
+          "observability.observed_dashboard",
+          "observability.observed_log_signal",
+          "observability.observed_rule",
+          "observability.observed_target",
+          "observability.observed_trace_signal",
+          "observability.source_instance"
+        ],
+        "projection_surfaces": [
+          "observability_coverage_correlation"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/observability/coverage",
+          "list_observability_coverage"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-grafana ./internal/collector/grafana ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/observability-evidence.md",
+          "go/internal/collector/grafana/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1162,7 +1414,36 @@
       "docs": [
         "reference/collector-reducer-readiness.md",
         "reference/jira-evidence.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "work_item.external_link",
+          "work_item.field_metadata",
+          "work_item.issue_type_metadata",
+          "work_item.metadata_warning",
+          "work_item.project_metadata",
+          "work_item.record",
+          "work_item.status_metadata",
+          "work_item.transition",
+          "work_item.workflow_metadata"
+        ],
+        "projection_surfaces": [
+          "incident_context_read_model",
+          "work_item_evidence_read_model"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/work-items/evidence",
+          "list_work_item_evidence"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-jira ./internal/collector/jira ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/jira-evidence.md",
+          "go/internal/collector/jira/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1172,7 +1453,38 @@
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
-      "notes": "Read-only core resource listing, source facts, and the kubernetesLiveCollector chart workload with in-cluster RBAC exist; no claim-driven runtime, watch mode, reducer projection, or drift read model yet."
+      "notes": "Read-only core resource listing, source facts, and the kubernetesLiveCollector chart workload with in-cluster RBAC exist; no claim-driven runtime, watch mode, reducer projection, or drift read model yet.",
+      "collector_contract": {
+        "fact_kinds": [
+          "eks_irsa_annotation",
+          "eks_pod_identity_association",
+          "k8s_gcp_workload_identity_binding",
+          "k8s_rbac_binding",
+          "k8s_rbac_role",
+          "k8s_service_account",
+          "k8s_service_account_token_posture",
+          "k8s_workload_identity_use",
+          "kubernetes_live.pod_template",
+          "kubernetes_live.relationship",
+          "kubernetes_live.warning"
+        ],
+        "projection_surfaces": [
+          "kubernetes_correlation",
+          "secrets_iam_trust_chain"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/kubernetes/correlations",
+          "list_kubernetes_correlations"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-kubernetes-live ./internal/collector/kuberneteslive ./internal/reducer ./internal/query -count=1"
+        ],
+        "fixture_refs": [
+          "docs/internal/design/388-kubernetes-live-collector.md",
+          "go/internal/collector/kuberneteslive/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1182,7 +1494,44 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "observability.applied_resource",
+          "observability.applied_sync_state",
+          "observability.coverage_warning",
+          "observability.declared_alert_rule",
+          "observability.declared_dashboard",
+          "observability.declared_datasource",
+          "observability.declared_folder",
+          "observability.declared_log_route",
+          "observability.declared_metric_route",
+          "observability.declared_metric_rule",
+          "observability.declared_scrape_config",
+          "observability.declared_trace_route",
+          "observability.observed_dashboard",
+          "observability.observed_log_signal",
+          "observability.observed_rule",
+          "observability.observed_target",
+          "observability.observed_trace_signal",
+          "observability.source_instance"
+        ],
+        "projection_surfaces": [
+          "observability_coverage_correlation"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/observability/coverage",
+          "list_observability_coverage"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-loki ./internal/collector/loki ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/observability-evidence.md",
+          "go/internal/collector/loki/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1192,7 +1541,37 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "oci_registry.image_descriptor",
+          "oci_registry.image_index",
+          "oci_registry.image_manifest",
+          "oci_registry.image_referrer",
+          "oci_registry.image_tag_observation",
+          "oci_registry.repository",
+          "oci_registry.warning"
+        ],
+        "projection_surfaces": [
+          "container_image_identity",
+          "sbom_attestation_attachment",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/images",
+          "GET /api/v0/supply-chain/container-images/identities",
+          "get_container_image_identity_inventory",
+          "list_container_image_identities"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./internal/collector/ociregistry ./internal/reducer ./internal/query ./internal/mcp -count=1",
+          "scripts/verify_oci_registry_collector_helm.sh"
+        ],
+        "fixture_refs": [
+          "go/internal/collector/ociregistry/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1202,7 +1581,37 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "package_registry.package",
+          "package_registry.package_artifact",
+          "package_registry.package_dependency",
+          "package_registry.package_version",
+          "package_registry.registry_event",
+          "package_registry.repository_hosting",
+          "package_registry.source_hint",
+          "package_registry.vulnerability_hint",
+          "package_registry.warning"
+        ],
+        "projection_surfaces": [
+          "package_source_correlation",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/package-registry/correlations",
+          "GET /api/v0/package-registry/packages",
+          "list_package_registry_correlations",
+          "list_package_registry_packages"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./internal/collector/packageregistry ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "go/internal/collector/packageregistry/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1213,7 +1622,35 @@
       "docs": [
         "reference/collector-reducer-readiness.md",
         "reference/pagerduty-evidence.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "change.record",
+          "incident.lifecycle_event",
+          "incident.record",
+          "incident_routing.applied_alert_route",
+          "incident_routing.applied_pagerduty_resource",
+          "incident_routing.coverage_warning",
+          "incident_routing.observed_pagerduty_integration",
+          "incident_routing.observed_pagerduty_service"
+        ],
+        "projection_surfaces": [
+          "incident_context_read_model",
+          "incident_routing_materialization"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/incidents/{incident_id}/context",
+          "get_incident_context"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-pagerduty ./internal/collector/pagerduty ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/pagerduty-evidence.md",
+          "go/internal/collector/pagerduty/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1223,7 +1660,44 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "observability.applied_resource",
+          "observability.applied_sync_state",
+          "observability.coverage_warning",
+          "observability.declared_alert_rule",
+          "observability.declared_dashboard",
+          "observability.declared_datasource",
+          "observability.declared_folder",
+          "observability.declared_log_route",
+          "observability.declared_metric_route",
+          "observability.declared_metric_rule",
+          "observability.declared_scrape_config",
+          "observability.declared_trace_route",
+          "observability.observed_dashboard",
+          "observability.observed_log_signal",
+          "observability.observed_rule",
+          "observability.observed_target",
+          "observability.observed_trace_signal",
+          "observability.source_instance"
+        ],
+        "projection_surfaces": [
+          "observability_coverage_correlation"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/observability/coverage",
+          "list_observability_coverage"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-prometheus-mimir ./internal/collector/prometheusmimir ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/observability-evidence.md",
+          "go/internal/collector/prometheusmimir/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1233,7 +1707,39 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "attestation.signature_verification",
+          "attestation.slsa_provenance",
+          "attestation.statement",
+          "sbom.component",
+          "sbom.dependency_relationship",
+          "sbom.document",
+          "sbom.external_reference",
+          "sbom.warning"
+        ],
+        "projection_surfaces": [
+          "sbom_attestation_attachment",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/supply-chain/sbom-attestations/attachments",
+          "GET /api/v0/supply-chain/sbom-attestations/attachments/count",
+          "GET /api/v0/supply-chain/sbom-attestations/attachments/inventory",
+          "count_sbom_attestation_attachments",
+          "get_sbom_attestation_attachment_inventory",
+          "list_sbom_attestation_attachments"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-sbom-attestation ./internal/collector/sbomdocument ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/security-intelligence.md#sbom-and-attestation-collection",
+          "go/internal/collector/sbomdocument/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1244,7 +1750,30 @@
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
-      "notes": "The worker runtime and warning analyzer are implemented and charted; concrete secret/license/source/misconfiguration analyzers stay fixture-proven and off by default until live proof."
+      "notes": "The worker runtime and warning analyzer are implemented and charted; concrete secret/license/source/misconfiguration analyzers stay fixture-proven and off by default until live proof.",
+      "collector_contract": {
+        "fact_kinds": [
+          "scanner_worker.analysis",
+          "scanner_worker.warning"
+        ],
+        "projection_surfaces": [
+          "sbom_attestation_attachment",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/supply-chain/impact/findings",
+          "GET /api/v0/supply-chain/vulnerability-scanner/contract",
+          "list_supply_chain_impact_findings"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/scanner-worker ./internal/collector/scannerworker ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/security-intelligence.md#scanner-worker",
+          "go/internal/collector/scannerworker/testdata"
+        ],
+        "truth_profile": "fixture_gated"
+      }
     },
     {
       "category": "collector",
@@ -1254,7 +1783,32 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "security_alert.repository_alert"
+        ],
+        "projection_surfaces": [
+          "security_alert_reconciliation",
+          "supply_chain_impact"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/supply-chain/security-alerts/reconciliations",
+          "GET /api/v0/supply-chain/security-alerts/reconciliations/count",
+          "GET /api/v0/supply-chain/security-alerts/reconciliations/inventory",
+          "count_security_alert_reconciliations",
+          "get_security_alert_reconciliation_inventory",
+          "list_security_alert_reconciliations"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-security-alerts ./internal/collector/securityalerts ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/security-intelligence.md#provider-security-alerts",
+          "go/internal/collector/securityalerts/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1264,7 +1818,29 @@
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
-      "notes": "Optional, policy-gated model-assisted observations emitted as provenance only."
+      "notes": "Optional, policy-gated model-assisted observations emitted as provenance only.",
+      "collector_contract": {
+        "fact_kinds": [
+          "semantic.code_hint",
+          "semantic.documentation_observation"
+        ],
+        "projection_surfaces": [
+          "semantic_evidence_read_model"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/search/semantic",
+          "GET /api/v0/semantic-evidence",
+          "list_semantic_evidence",
+          "search_semantic_context"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./internal/collector/extensionhost ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "go/internal/query/documentation-semantic-observations-readback.md"
+        ],
+        "truth_profile": "optional_semantic"
+      }
     },
     {
       "category": "collector",
@@ -1274,7 +1850,44 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "observability.applied_resource",
+          "observability.applied_sync_state",
+          "observability.coverage_warning",
+          "observability.declared_alert_rule",
+          "observability.declared_dashboard",
+          "observability.declared_datasource",
+          "observability.declared_folder",
+          "observability.declared_log_route",
+          "observability.declared_metric_route",
+          "observability.declared_metric_rule",
+          "observability.declared_scrape_config",
+          "observability.declared_trace_route",
+          "observability.observed_dashboard",
+          "observability.observed_log_signal",
+          "observability.observed_rule",
+          "observability.observed_target",
+          "observability.observed_trace_signal",
+          "observability.source_instance"
+        ],
+        "projection_surfaces": [
+          "observability_coverage_correlation"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/observability/coverage",
+          "list_observability_coverage"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-tempo ./internal/collector/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/observability-evidence.md",
+          "go/internal/collector/tempo/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1284,7 +1897,39 @@
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "terraform_state_candidate",
+          "terraform_state_module",
+          "terraform_state_output",
+          "terraform_state_provider_binding",
+          "terraform_state_resource",
+          "terraform_state_snapshot",
+          "terraform_state_tag_observation",
+          "terraform_state_warning"
+        ],
+        "projection_surfaces": [
+          "cloud_asset_resolution",
+          "config_state_drift",
+          "incident_routing_materialization",
+          "terraform_relationship_projection"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/iac/resources",
+          "GET /api/v0/incidents/{incident_id}/context",
+          "find_unmanaged_resources",
+          "get_iac_management_status"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./internal/collector/terraformstate ./internal/relationships ./internal/reducer ./internal/query -count=1"
+        ],
+        "fixture_refs": [
+          "go/internal/collector/terraformstate/testdata",
+          "go/internal/relationships/testdata"
+        ],
+        "truth_profile": "deterministic"
+      }
     },
     {
       "category": "collector",
@@ -1295,7 +1940,34 @@
         "reference/collector-reducer-readiness.md",
         "reference/secrets-iam-posture-collector-contract.md"
       ],
-      "notes": "Secrets/IAM posture lane; source facts exist, graph promotion gated for issue"
+      "notes": "Secrets/IAM posture lane; source facts exist, graph promotion gated for issue #25.",
+      "collector_contract": {
+        "fact_kinds": [
+          "secrets_iam_coverage_warning",
+          "vault_acl_policy",
+          "vault_auth_mount",
+          "vault_auth_role",
+          "vault_identity_alias",
+          "vault_identity_entity",
+          "vault_kv_metadata",
+          "vault_secret_engine_mount"
+        ],
+        "projection_surfaces": [
+          "secrets_iam_trust_chain"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/secrets-iam/posture-summary",
+          "list_secrets_iam_identity_trust_chains"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./cmd/collector-vault-live ./internal/collector/vaultlive ./internal/reducer ./internal/query -count=1"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/secrets-iam-posture-collector-contract.md",
+          "go/internal/collector/vaultlive/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",
@@ -1306,7 +1978,41 @@
       "docs": [
         "reference/collector-reducer-readiness.md",
         "reference/security-intelligence.md"
-      ]
+      ],
+      "collector_contract": {
+        "fact_kinds": [
+          "vulnerability.affected_package",
+          "vulnerability.affected_product",
+          "vulnerability.cve",
+          "vulnerability.epss_score",
+          "vulnerability.go_call_reachability",
+          "vulnerability.go_module_evidence",
+          "vulnerability.known_exploited",
+          "vulnerability.os_package",
+          "vulnerability.reference",
+          "vulnerability.source_snapshot",
+          "vulnerability.warning"
+        ],
+        "projection_surfaces": [
+          "supply_chain_impact",
+          "vulnerability_source_state"
+        ],
+        "read_surfaces": [
+          "GET /api/v0/supply-chain/impact/findings",
+          "GET /api/v0/supply-chain/vulnerabilities/{id}",
+          "explain_supply_chain_impact",
+          "list_supply_chain_impact_findings"
+        ],
+        "proof_gates": [
+          "cd go \u0026\u0026 go test ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/query ./internal/mcp -count=1",
+          "scripts/verify_vulnerability_intelligence_collector_helm.sh"
+        ],
+        "fixture_refs": [
+          "docs/public/reference/collector-reducer-readiness.md#vulnerability-intelligence-promotion-proof",
+          "go/internal/collector/vulnerabilityintelligence/testdata"
+        ],
+        "truth_profile": "provider_gated"
+      }
     },
     {
       "category": "collector",

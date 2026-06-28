@@ -17,13 +17,43 @@ func minimalLive() LiveSurfaces {
 		SurfaceAPIRoute:      {"GET /api/v0/capabilities"},
 		SurfaceMCPTool:       {"find_code"},
 		SurfaceConsolePage:   {"CapabilityMatrixPage"},
+	}, CollectorFactKinds: map[string][]string{
+		"git":             {"documentation_document", "documentation_section"},
+		"kubernetes_live": {"kubernetes_live.pod_template"},
 	}}
 }
 
 func cleanOverlay() SurfaceOverlay {
 	return SurfaceOverlay{Version: "v1", Surfaces: []SurfaceOverlayRecord{
-		{Category: SurfaceCollector, Name: "git", Readiness: ReadinessImplemented, Owner: "internal/collector", Proof: "docs/public/reference/collector-reducer-readiness.md#promotion-proof"},
-		{Category: SurfaceCollector, Name: "kubernetes_live", Readiness: ReadinessFoundationOnly, Owner: "internal/collector/kuberneteslive"},
+		{
+			Category:  SurfaceCollector,
+			Name:      "git",
+			Readiness: ReadinessImplemented,
+			Owner:     "internal/collector",
+			Proof:     "docs/public/reference/collector-reducer-readiness.md#promotion-proof",
+			CollectorContract: CollectorContract{
+				FactKinds:          []string{"documentation_document", "documentation_section"},
+				ProjectionSurfaces: []string{"content_projection", "documentation_evidence"},
+				ReadSurfaces:       []string{"GET /api/v0/documentation/facts", "search_documentation"},
+				ProofGates:         []string{"go test ./internal/collector ./internal/query -count=1"},
+				FixtureRefs:        []string{"go/internal/collector/testdata"},
+				TruthProfile:       "deterministic",
+			},
+		},
+		{
+			Category:  SurfaceCollector,
+			Name:      "kubernetes_live",
+			Readiness: ReadinessFoundationOnly,
+			Owner:     "internal/collector/kuberneteslive",
+			CollectorContract: CollectorContract{
+				FactKinds:          []string{"kubernetes_live.pod_template"},
+				ProjectionSurfaces: []string{"kubernetes_correlation"},
+				ReadSurfaces:       []string{"list_kubernetes_correlations"},
+				ProofGates:         []string{"go test ./internal/collector/kuberneteslive ./internal/reducer -count=1"},
+				FixtureRefs:        []string{"go/internal/collector/kuberneteslive/testdata"},
+				TruthProfile:       "deterministic",
+			},
+		},
 	}}
 }
 
@@ -53,6 +83,24 @@ func TestBuildSurfaceInventoryAppliesOverlayLane(t *testing.T) {
 	k8s := findRecord(t, inv, SurfaceCollector, "kubernetes_live")
 	if k8s.Readiness != ReadinessFoundationOnly {
 		t.Errorf("kubernetes_live readiness = %q, want foundation_only", k8s.Readiness)
+	}
+}
+
+func TestBuildSurfaceInventoryCarriesCollectorContract(t *testing.T) {
+	t.Parallel()
+	inv, findings := BuildSurfaceInventory(minimalLive(), cleanOverlay())
+	if len(findings) != 0 {
+		t.Fatalf("unexpected findings: %+v", findings)
+	}
+	git := findRecord(t, inv, SurfaceCollector, "git")
+	if git.CollectorContract == nil {
+		t.Fatal("git CollectorContract = nil, want manifest contract")
+	}
+	if got, want := strings.Join(git.CollectorContract.FactKinds, ","), "documentation_document,documentation_section"; got != want {
+		t.Fatalf("git fact kinds = %q, want %q", got, want)
+	}
+	if got, want := git.CollectorContract.TruthProfile, "deterministic"; got != want {
+		t.Fatalf("git truth profile = %q, want %q", got, want)
 	}
 }
 
@@ -125,6 +173,17 @@ func TestBuildSurfaceInventoryFlagsDuplicateOverlayRow(t *testing.T) {
 	_, findings := BuildSurfaceInventory(minimalLive(), overlay)
 	if !hasFinding(findings, FindingDuplicateOverlayRow, "git") {
 		t.Fatalf("expected duplicate_overlay_row finding for git, got %+v", findings)
+	}
+}
+
+func TestBuildSurfaceInventoryFlagsUnmappedCollectorFactKind(t *testing.T) {
+	t.Parallel()
+	live := minimalLive()
+	live.CollectorFactKinds["git"] = append(live.CollectorFactKinds["git"], "documentation_new_fact")
+
+	_, findings := BuildSurfaceInventory(live, cleanOverlay())
+	if !hasFinding(findings, FindingCollectorFactKindUnmapped, "git:documentation_new_fact") {
+		t.Fatalf("expected collector_fact_kind_unmapped finding for new git fact kind, got %+v", findings)
 	}
 }
 

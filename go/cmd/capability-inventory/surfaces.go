@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -50,7 +51,10 @@ func liveSurfaces(root string) (capabilitycatalog.LiveSurfaces, error) {
 		capabilitycatalog.SurfaceMCPTool:       enumerateMCPTools(),
 		capabilitycatalog.SurfaceConsolePage:   pages,
 	}
-	return capabilitycatalog.LiveSurfaces{Surfaces: surfaces}, nil
+	return capabilitycatalog.LiveSurfaces{
+		Surfaces:           surfaces,
+		CollectorFactKinds: collectorFactKinds(),
+	}, nil
 }
 
 // enumerateCommandBinaries returns the command binary names under go/cmd: one
@@ -208,6 +212,95 @@ func enumerateMCPTools() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// collectorFactKinds maps each first-party collector kind to the core fact
+// families it can emit. capabilitycatalog reconciles this live map against the
+// surface-inventory overlay so a newly registered fact kind cannot ship without
+// source-to-read-surface provenance.
+func collectorFactKinds() map[string][]string {
+	return map[string][]string{
+		string(scope.CollectorGit): appendFactKinds(
+			facts.DocumentationFactKinds(),
+			facts.ServiceCatalogFactKinds(),
+		),
+		string(scope.CollectorAWS): appendFactKinds(
+			facts.AWSFactKinds(),
+			facts.EC2InstancePostureFactKinds(),
+			facts.RDSPostureFactKinds(),
+			facts.S3BucketPostureFactKinds(),
+			facts.S3ExternalPrincipalGrantFactKinds(),
+			filterFactKinds(facts.SecretsIAMFactKinds(), "aws_", "eks_"),
+		),
+		string(scope.CollectorAzure): facts.AzureFactKinds(),
+		string(scope.CollectorGCP): appendFactKinds(
+			facts.GCPFactKinds(),
+			filterFactKinds(facts.SecretsIAMFactKinds(), "gcp_"),
+		),
+		string(scope.CollectorTerraformState):            facts.TerraformStateFactKinds(),
+		string(scope.CollectorDocumentation):             facts.DocumentationFactKinds(),
+		string(scope.CollectorOCIRegistry):               facts.OCIRegistryFactKinds(),
+		string(scope.CollectorPackageRegistry):           facts.PackageRegistryFactKinds(),
+		string(scope.CollectorVulnerabilityIntelligence): facts.VulnerabilityIntelligenceFactKinds(),
+		string(scope.CollectorSBOMAttestation):           facts.SBOMAttestationFactKinds(),
+		string(scope.CollectorSecurityAlert):             facts.SecurityAlertFactKinds(),
+		string(scope.CollectorCICDRun):                   facts.CICDRunFactKinds(),
+		string(scope.CollectorPagerDuty): appendFactKinds(
+			facts.IncidentContextFactKinds(),
+			facts.IncidentRoutingFactKinds(),
+		),
+		string(scope.CollectorJira):               facts.WorkItemFactKinds(),
+		string(scope.CollectorScannerWorker):      facts.ScannerWorkerFactKinds(),
+		string(scope.CollectorSemanticExtraction): facts.SemanticFactKinds(),
+		string(scope.CollectorKubernetesLive): appendFactKinds(
+			facts.KubernetesLiveFactKinds(),
+			filterFactKinds(facts.SecretsIAMFactKinds(), "k8s_", "eks_"),
+		),
+		string(scope.CollectorVaultLive):       filterFactKinds(facts.SecretsIAMFactKinds(), "vault_", "secrets_iam_"),
+		string(scope.CollectorPrometheusMimir): facts.ObservabilityFactKinds(),
+		string(scope.CollectorTempo):           facts.ObservabilityFactKinds(),
+		string(scope.CollectorGrafana):         facts.ObservabilityFactKinds(),
+		string(scope.CollectorLoki):            facts.ObservabilityFactKinds(),
+	}
+}
+
+func appendFactKinds(groups ...[]string) []string {
+	var out []string
+	for _, group := range groups {
+		out = append(out, group...)
+	}
+	sort.Strings(out)
+	return compactFactKinds(out)
+}
+
+func filterFactKinds(kinds []string, prefixes ...string) []string {
+	var out []string
+	for _, kind := range kinds {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(kind, prefix) {
+				out = append(out, kind)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return compactFactKinds(out)
+}
+
+func compactFactKinds(kinds []string) []string {
+	if len(kinds) == 0 {
+		return nil
+	}
+	out := kinds[:0]
+	var previous string
+	for i, kind := range kinds {
+		if kind == "" || (i > 0 && kind == previous) {
+			continue
+		}
+		out = append(out, kind)
+		previous = kind
+	}
+	return out
 }
 
 // buildSurfaceInventory enumerates live surfaces under root, loads the editorial
