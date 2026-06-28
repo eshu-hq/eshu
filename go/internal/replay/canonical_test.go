@@ -150,6 +150,41 @@ func TestCanonicalizeNormalizesVolatileFields(t *testing.T) {
 	}
 }
 
+// TestDerivedGenerationIDMatchesCanonicalization proves the exported
+// DerivedGenerationID returns exactly the generation_id Canonicalize derives for
+// a scope from its scope_id, so a recorder that stamps it makes its run's
+// generation_id already canonical (record is a no-op on the field). A drift
+// between the two would silently rewrite a stamped generation_id on record.
+func TestDerivedGenerationIDMatchesCanonicalization(t *testing.T) {
+	t.Parallel()
+
+	const scopeID = "kubernetes_live:cluster:zeta"
+	want := replay.DerivedGenerationID(scopeID)
+	if !strings.HasPrefix(want, replay.GenerationIDPrefix+"-") {
+		t.Fatalf("DerivedGenerationID = %q, want %q-prefixed", want, replay.GenerationIDPrefix)
+	}
+
+	out, err := replay.Canonicalize([]byte(rawRecording), canonicalOpts())
+	if err != nil {
+		t.Fatalf("Canonicalize: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	scopes := doc["scopes"].([]any)
+	var got string
+	for _, raw := range scopes {
+		sc := raw.(map[string]any)
+		if sc["scope_id"] == scopeID {
+			got = sc["generation_id"].(string)
+		}
+	}
+	if got != want {
+		t.Errorf("canonicalized generation_id = %q, DerivedGenerationID = %q; must match", got, want)
+	}
+}
+
 // TestCanonicalizeRejectsTrailingContent proves a valid first JSON value
 // followed by a stray delimiter or second value is rejected, not silently
 // normalized into a clean fixture (a corrupted recording must fail loudly).
