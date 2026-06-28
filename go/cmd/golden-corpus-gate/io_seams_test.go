@@ -147,12 +147,16 @@ func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := fakeCounter{corr: map[string]int64{
-		"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 2,
-		"Function|RUNS_IN|Workload":                        1,
-		"Repository|DEPENDS_ON|Repository":                 7,
-		"KubernetesWorkload|RUNS_IMAGE|OciImageManifest":   1,
-	}}
+	c := fakeCounter{
+		corr: map[string]int64{
+			"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 2,
+			"Function|RUNS_IN|Workload":                        1,
+			"Repository|DEPENDS_ON|Repository":                 7,
+			"KubernetesWorkload|RUNS_IMAGE|OciImageManifest":   1,
+		},
+		nodes:    map[string]int64{"File": 12},
+		nodeProp: map[string][]string{"File|language": fileLanguageSamples(12)},
+	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
@@ -162,16 +166,32 @@ func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 	}
 }
 
+// fileLanguageSamples returns n non-empty language values so the snapshot's
+// required File.language node assertion (rn-file-language, #4003) is satisfied in
+// the hermetic checkGraph unit tests, which would otherwise fail on the
+// required-node property the same way the live gate would on an unprojected graph.
+func fileLanguageSamples(n int) []string {
+	langs := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		langs = append(langs, "go")
+	}
+	return langs
+}
+
 func TestCheckGraphAdvisoryCorrelationDoesNotBlock(t *testing.T) {
 	snap, err := LoadSnapshot(goldenSnapshotPath())
 	if err != nil {
 		t.Fatal(err)
 	}
 	// rc-1 and rc-3 present; rc-2 and rc-4 absent but advisory (not in blocking set).
-	c := fakeCounter{corr: map[string]int64{
-		"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 1,
-		"Repository|DEPENDS_ON|Repository":                 1,
-	}}
+	c := fakeCounter{
+		corr: map[string]int64{
+			"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 1,
+			"Repository|DEPENDS_ON|Repository":                 1,
+		},
+		nodes:    map[string]int64{"File": 12},
+		nodeProp: map[string][]string{"File|language": fileLanguageSamples(12)},
+	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
