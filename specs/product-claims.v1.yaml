@@ -228,7 +228,7 @@ claims:
   - id: docs.capability-catalog.surface-parity
     source:
       path: docs/public/reference/capability-catalog.md
-      line: 65
+      line: 66
       quote: "The same embedded artifact is exposed through three surfaces, so they report the same catalog state: <!-- product-claim: id=docs.capability-catalog.surface-parity -->"
     claim_text: "HTTP API, MCP, and console capability surfaces report the same embedded catalog state."
     capabilities:
