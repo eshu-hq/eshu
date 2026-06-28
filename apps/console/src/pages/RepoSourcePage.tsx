@@ -128,6 +128,9 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   function openFile(filePath: string): void {
     const params = new URLSearchParams({ path: filePath });
     if (selectedRef) params.set("ref", selectedRef);
+    // Preserve the active language filter so returning to the tree from a file
+    // view keeps the selected scope (parity with selectRef).
+    if (langFilter) params.set("language", langFilter);
     navigate(`/repositories/${encodeURIComponent(id)}/source?${params.toString()}`);
   }
 
@@ -254,7 +257,7 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
             </div>
           ) : (
             <>
-              {repoLanguages.length > 0 ? (
+              {repoLanguages.length > 0 || langFilter !== "" ? (
                 <div className="searchbox" style={{ padding: "8px 12px" }}>
                   <label
                     htmlFor="tree-lang-filter"
@@ -270,7 +273,13 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
                     onChange={(ev) => selectLanguage(ev.target.value)}
                   >
                     <option value="">All</option>
-                    {repoLanguages.map((lang) => (
+                    {/* Include the active filter even if it is not in the repo-wide
+                        list (e.g. facet load failed), so it always renders and can
+                        be cleared rather than stranding the URL param. */}
+                    {(langFilter !== "" && !repoLanguages.includes(langFilter)
+                      ? [langFilter, ...repoLanguages]
+                      : repoLanguages
+                    ).map((lang) => (
                       <option key={lang} value={lang}>
                         {lang}
                       </option>

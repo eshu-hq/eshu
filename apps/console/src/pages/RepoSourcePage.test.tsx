@@ -468,6 +468,62 @@ describe("RepoSourcePage", () => {
       expect(calls.some((c) => c.includes("language=go"))).toBe(true);
     });
   });
+
+  it("preserves the language filter in the URL when opening a file from the tree", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/stats")) {
+          return { data: { languages: ["go", "typescript"] }, error: null, truth: null };
+        }
+        if (path.includes("/content")) {
+          return {
+            data: { path: "main.go", ref: "main", content: "package main", size: 10 },
+            error: null,
+            truth: null,
+          };
+        }
+        return {
+          data: {
+            ref: "main",
+            path: "",
+            entries: [{ name: "main.go", type: "file", path: "main.go", size: 10, language: "go" }],
+          },
+          error: null,
+          truth: null,
+        };
+      },
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/repositories/repository%3Ar_1/source?language=go"]}>
+        <Routes>
+          <Route
+            path="/repositories/:id/source"
+            element={
+              <>
+                <RepoSourcePage client={client} />
+                <LocationProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Open the file from the tree.
+    fireEvent.click(
+      await screen.findByText(
+        (_, element) =>
+          element?.className === "t-name" && (element.textContent ?? "").includes("main.go"),
+      ),
+    );
+
+    // The language scope must survive the navigation to the file view.
+    await waitFor(() => {
+      const loc = screen.getByTestId("source-location").textContent ?? "";
+      expect(loc).toContain("language=go");
+    });
+  });
 });
 
 function LocationProbe(): React.JSX.Element {

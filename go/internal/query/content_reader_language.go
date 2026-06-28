@@ -91,7 +91,10 @@ func (cr *ContentReader) RepoFilePathContext(ctx context.Context, repoID, reques
 	defer span.End()
 
 	// strpos(relative_path, $2 || '/') = 1 is a literal prefix test (no LIKE
-	// wildcards), so a path containing % or _ cannot widen the match.
+	// wildcards), so a path containing % or _ cannot widen the match. The ref
+	// subquery is ORDER BY relative_path so it returns the same commit_sha as the
+	// fallback repositoryTreeRef (first file by path), keeping the two paths'
+	// `ref` deterministic and identical.
 	var (
 		exists bool
 		ref    string
@@ -106,6 +109,7 @@ func (cr *ContentReader) RepoFilePathContext(ctx context.Context, repoID, reques
 		  coalesce((
 		    SELECT commit_sha FROM content_files
 		    WHERE repo_id = $1 AND commit_sha IS NOT NULL AND commit_sha <> ''
+		    ORDER BY relative_path
 		    LIMIT 1
 		  ), '')
 	`, repoID, requestPath).Scan(&exists, &ref)
