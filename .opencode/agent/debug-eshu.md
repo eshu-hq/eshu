@@ -1,8 +1,8 @@
 ---
 description: Eshu debugger — diagnoses to root cause, read + run only, cannot edit (prevents fixing before understanding)
 mode: all
-# Pin to any tier; diagnosis tolerates a cheaper model:
-# model: deepseek/deepseek-chat
+model: openai/gpt-5.5
+variant: high
 permission:
   edit: deny
   write: deny

@@ -1,8 +1,8 @@
 ---
 description: Eshu coordinator — decomposes work and emits machine-followable task specs; does not edit code
 mode: primary
-# Pin to your coordinator-tier model, e.g.:
-# model: openai/gpt-5.5-codex
+model: openai/gpt-5.5
+variant: high
 permission:
   edit: deny
   write: deny
@@ -11,8 +11,6 @@ permission:
     "*": deny
     "develop-eshu": allow
     "develop-eshu-deepseek": allow
-    "develop-eshu-gpt55-high": allow
-    "develop-eshu-gpt55-medium": allow
     "develop-eshu-minimax": allow
     "debug-eshu": allow
     "perf-eshu": allow
@@ -62,10 +60,6 @@ fully-formed handoff contract (above) to the right leaf agent:
 - **`develop-eshu-deepseek`** / **`develop-eshu-minimax`** — cheap
   executor-tier implementation work when the handoff is narrow and the gate is
   clear.
-- **`develop-eshu-gpt55-medium`** — moderate-complexity implementation when
-  frontier quality is useful but high effort is wasteful.
-- **`develop-eshu-gpt55-high`** — high-risk implementation only after accuracy
-  requirements demand it.
 - **`debug-eshu`** — diagnosis when a failure's cause is unknown. It returns a
   root cause + proposed fix; you then dispatch `develop-eshu` to implement it.
 - **`perf-eshu`** — bottlenecks, regressions, tuning. It returns measurements +
