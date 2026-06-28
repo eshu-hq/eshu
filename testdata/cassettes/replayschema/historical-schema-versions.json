@@ -1,0 +1,47 @@
+{
+  "collector": "replay_schema_compat",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "replay-schema-compat",
+      "source_system": "replay_schema_compat",
+      "scope_kind": "compatibility_corpus",
+      "collector_kind": "replay_schema_compat",
+      "generation_id": "frozen-historical-versions",
+      "observed_at": "2026-06-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws_resource@1.0.0",
+          "schema_version": "1.0.0",
+          "payload": { "resource_id": "synthetic-resource-current" }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws_resource@0.9.0",
+          "schema_version": "0.9.0",
+          "payload": { "resource_id": "synthetic-resource-old-major" }
+        },
+        {
+          "fact_kind": "replay.unknown_legacy_kind",
+          "stable_fact_key": "replay.unknown_legacy_kind@1.0.0",
+          "schema_version": "1.0.0",
+          "payload": { "note": "core owns no versioned schema for this kind" }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws_resource@1.2.0",
+          "schema_version": "1.2.0",
+          "payload": { "resource_id": "synthetic-resource-newer-minor" }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws_resource@legacy-2019",
+          "schema_version": "legacy-2019",
+          "payload": { "resource_id": "synthetic-resource-pre-semver" }
+        }
+      ]
+    }
+  ]
+}
