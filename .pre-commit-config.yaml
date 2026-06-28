@@ -32,7 +32,14 @@ repos:
         # (the parser scans them as templates, not via a YAML decode), so a strict
         # YAML check rejects them. Mirrors the trailing-whitespace/EOF excludes
         # above so contributors are not pushed to `git commit --no-verify`.
-        exclude: '^tests/fixtures/|/testdata/|^testdata/'
+        #
+        # docs/mkdocs.yml is also excluded: MkDocs Material configures emoji via
+        # `!!python/name:material.extensions.emoji.twemoji` custom tags, which the
+        # generic check-yaml SafeLoader cannot construct. The authoritative gate
+        # for that file is `mkdocs build --strict`, which loads the custom tags
+        # correctly; a plain YAML decode would reject a valid config and force
+        # `--no-verify` on any nav edit.
+        exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$'
       - id: check-added-large-files
         # Catches an accidentally-committed Go build artifact (e.g. a bare
         # `go build ./cmd/...` dropping a ~28MB binary).
