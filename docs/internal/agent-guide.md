@@ -117,6 +117,28 @@ Do not use `git stash`, `git stash pop`, or `git stash apply` in this
 repository when more than one worktree may be active. To compare against a clean
 tree, use `git diff`, `git show <ref>:<path>`, or a throwaway worktree instead.
 
+### Rebasing a sibling branch after a squash-merge
+
+PRs land via squash-merge, so a merged PR's commits are not ancestors of a
+sibling branch that shares files with it. When PR A merges and sibling PR B
+still touches some of the same files, rebase B onto fresh `origin/main`:
+
+1. `git fetch origin main` first. Worktrees here are often shallow clones; a
+   stale or shallow `origin/main` can make `git rebase` explode into hundreds of
+   spurious conflicts (empty merge-base). If that happens, abort, confirm the
+   real divergence (`git log --oneline origin/main..HEAD`, or a `gh` compare),
+   `git fetch --deepen=25`, then rebase.
+2. `git rebase origin/main`. The true merge-base stays clean, so conflicts
+   appear only in files BOTH PRs edited — resolve them keeping **both** sides
+   (e.g. PR A's new flag AND PR B's new flag), then `git rebase --continue`.
+3. Validate the COMBINED result — run the relevant gate before pushing. The
+   rebase merged two independent changes that were each only proven alone, so a
+   green result on either branch in isolation does not prove the merge.
+4. Force-push the rebased branch. When pushing through an ad-hoc credential-helper
+   URL (no configured remote, so no remote-tracking ref) `--force-with-lease`
+   fails with "stale info"; confirm the remote tip with
+   `git ls-remote <url> <branch>` first, then push with plain `--force`.
+
 ## Performance And Evidence
 
 Performance work needs a written impact declaration before implementation:

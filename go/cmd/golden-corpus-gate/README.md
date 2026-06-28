@@ -15,12 +15,17 @@ buckets.
 | query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields / minimum results | — |
 | timing | B-7(d)    | pipeline wall time ≤ `budget-multiplier` × baseline | — |
 
-**Why node/edge counts are advisory:** the snapshot ranges are calibrated for
-the full 20-repo corpus with all nine credentialed collectors. The first landing
-of the gate runs a **minimal corpus** (`-graph-required-only`, the default), so
-the existence-style required correlations — which hold at any corpus size — are
-the blocking graph assertions. Widening the gate to assert the full count
-tolerances on the full corpus is tracked as a follow-up.
+**Node/edge count tolerances are required (#3866):** the gate runs the full
+20-repo corpus with `-graph-required-only=false`, so every snapshot
+`node_counts`/`edge_counts` range is a blocking assertion. The ranges are
+calibrated to the **real deterministic corpus output** (not aspirational
+projections) — floors catch a major projection drop (e.g. the #4019 nested-file
+loss) and ceilings stay wide for parser growth. Families the corpus must not
+produce assert `max: 0`: the SecretsIAM graph projection is governance-gated OFF
+by `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` (ADR #1314), so any nonzero
+SecretsIAM count would mean the gate enabled a governed feature — which it must
+not. The existence-style required correlations (corpus-size-independent) remain
+the backbone; the count tolerances lock cardinality on top of them.
 
 ## How it fits the gate
 
