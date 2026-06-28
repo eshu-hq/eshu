@@ -1,0 +1,46 @@
+# reducer-handler-budgets.txt — B-9 (#3802): per-materialization-handler latency
+# budgets for the credential-free reducer micro-benchmarks.
+#
+# Each row is the absolute ns/op ceiling for one reducer materialization or
+# correlation handler benchmark. scripts/verify-reducer-perf-gate.sh runs each
+# benchmark credential-free (no Postgres/NornicDB), takes the median ns/op across
+# samples, and fails (or warns) when the median exceeds the budget.
+#
+# This is an ABSOLUTE-ceiling gate, complementary to the benchstat-relative
+# bench-regression gate (B-2 / #3795). It answers the #3802 acceptance directly:
+# "CI asserts main meets per-handler budgets." Splitting files (Epic D) does not
+# make materialization faster, so these handler budgets hold regardless of the
+# repo/monorepo layout.
+#
+# Budget = round(median_baseline * 1.50). The 1.50x headroom (wider than the
+# benchstat gate's 1.10x) is deliberate: this is a single-run absolute ceiling
+# evaluated on a shared CI runner of a DIFFERENT class than where the baseline
+# was captured (darwin/arm64 Apple M4 Pro, count=6, benchtime=100ms), so it must
+# absorb both cross-class CPU difference and per-run noise without flaking. The
+# baseline column records the measured median that the ceiling was derived from.
+#
+# Baseline source: locally measured on darwin/arm64 (Apple M4 Pro), go test
+# ./internal/reducer -benchtime=100ms -count=6, 2026-06-28, branch
+# claude/b9-reducer-gate-3802. Because that is NOT the CI ubuntu-latest runner
+# class, the CI gate runs ADVISORY (REDUCER_PERF_ENFORCE=false) until a CI-class
+# baseline is recaptured — the same shared-runner-variance reasoning the B-2
+# bench-regression gate documents. Refresh via
+# scripts/refresh-reducer-handler-budgets.sh on the enforcement runner, review
+# the diff, then flip the workflow to REDUCER_PERF_ENFORCE=true.
+#
+# #3710/#3725 baseline win locked separately in
+# docs/public/reference/reducer-claim-latency-gate.md (the deferred relationship
+# fact-LOAD long pole, measured 4.3x/3.9x handler + ~2.4x full-corpus wall-clock).
+#
+# Columns: benchmark<TAB>budget_ns<TAB>baseline_ns
+# Lines beginning with '#' and blank lines are ignored.
+BenchmarkExtractCloudResourceNodeRows	16100000	10741623
+BenchmarkExtractGCPCloudResourceNodeRows	15800000	10550352
+BenchmarkExtractKubernetesWorkloadNodeRows	8100000	5413844
+BenchmarkExtractAWSRelationshipEdgeRows	37000000	24690270
+BenchmarkExtractGCPRelationshipEdgeRows	41500000	27680020
+BenchmarkExtractKubernetesCorrelationEdgeRows	13800000	9174514
+BenchmarkSecretsIAMGCPGrantObservations	8300000	5546848
+BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout	9200000	6120469
+BenchmarkValueFlowFixpointFull	30600000	20427691
+BenchmarkValueFlowFixpointIncrementalCached	18000000	11982886

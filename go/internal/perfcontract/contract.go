@@ -47,6 +47,7 @@ func ContractThresholds() []Threshold {
 	var out []Threshold
 	out = append(out, localEnvelopeThresholds()...)
 	out = append(out, reducerClaimLatencyThresholds()...)
+	out = append(out, reducerHandlerBudgetThresholds()...)
 	out = append(out, hybridRetrievalThresholds()...)
 	return out
 }
