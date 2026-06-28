@@ -25,8 +25,14 @@ Given a JSON document and a `CanonicalOptions`, `Canonicalize`:
    re-encoded, so `encoding/json` emits keys in sorted order at every depth.
 2. **Collapses volatile fields to fixed sentinels.** `observed_at` →
    `SentinelObservedAt` (a valid RFC3339 instant so the fixture still parses as a
-   timestamped document), `generation_id` → `SentinelGenerationID`. Configurable
-   per flavor via `CanonicalOptions.VolatileKeys`.
+   timestamped document). Configurable per flavor via
+   `CanonicalOptions.VolatileKeys`.
+3. **Normalizes run-specific unique ids deterministically.** `generation_id` is
+   not collapsed to one constant — it is the `scope_generations` primary key, so
+   a single sentinel would collide multiple scopes. Instead each scope's
+   `generation_id` is derived as `canonical-generation-<hash(scope_id)>`: stable
+   across re-records (the seed is the stable `scope_id`, not the run-specific
+   value) yet unique per scope. Configurable via `CanonicalOptions.DerivedKeys`.
 3. **Stably orders recorded arrays.** `scopes` by `scope_id`, `facts` by
    `stable_fact_key`, with the element's canonical bytes as a total-order
    tiebreaker. Configurable via `CanonicalOptions.SortArrays`.

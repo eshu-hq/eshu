@@ -5,8 +5,12 @@ package replay
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 )
 
@@ -17,12 +21,17 @@ const (
 	// SentinelObservedAt replaces observed_at timestamps. It is a valid RFC3339
 	// instant so a canonicalized cassette still parses as a timestamped document.
 	SentinelObservedAt = "2000-01-01T00:00:00Z"
-	// SentinelGenerationID replaces run-specific generation identifiers.
-	SentinelGenerationID = "canonical-generation"
+	// GenerationIDPrefix prefixes the deterministic per-scope generation id that
+	// replaces a run-specific generation_id. See DerivedKeys: the suffix is a
+	// stable hash of the scope's own identity, so the value is unique per scope
+	// (generation_id is a primary key) yet does not churn on re-record.
+	GenerationIDPrefix = "canonical-generation"
 	// RedactedSentinel replaces the value of any configured secret key.
 	RedactedSentinel = "<redacted>"
 	// defaultIndent is the JSON indent used when CanonicalOptions.Indent is empty.
 	defaultIndent = "  "
+	// derivedHashLen is the hex width of the stable suffix on a derived value.
+	derivedHashLen = 16
 )
 
 // CanonicalOptions configures the canonical serialization of recorded replay
@@ -33,8 +42,24 @@ const (
 // importing any flavor.
 type CanonicalOptions struct {
 	// VolatileKeys maps an object key to the fixed sentinel its value is replaced
-	// with wherever that key appears in the document tree.
+	// with wherever that key appears in the document tree. Use this only for
+	// fields that are genuinely run-specific AND not required to stay unique; a
+	// field that is a primary key (generation_id) must use DerivedKeys instead,
+	// or two records would collapse to the same id and collide on commit.
 	VolatileKeys map[string]string
+	// DerivedKeys maps an object key whose value is run-specific but must stay
+	// unique to the sibling key whose (stable) value seeds its deterministic
+	// replacement. The value becomes "<key-prefix>-<hash(sibling value)>", which
+	// is stable across re-records (the sibling is stable) yet unique per distinct
+	// sibling. The canonical default derives generation_id from scope_id so a
+	// multi-scope cassette keeps one generation id per scope — generation_id is
+	// the scope_generations primary key, so a single fixed sentinel would make
+	// later scope commits collide with or overwrite earlier scope truth. Note:
+	// this keys generation_id off scope identity, so a cassette that records
+	// multiple generations of the SAME scope_id (delta/multi-generation, a future
+	// flavor) needs an extended derivation; the current corpus is one generation
+	// per scope.
+	DerivedKeys map[string]string
 	// SecretKeys maps an object key to the redaction sentinel its value is
 	// replaced with wherever that key appears. Matching is by key name at any
 	// depth so a secret cannot leak by being nested differently than expected.
@@ -52,15 +77,19 @@ type CanonicalOptions struct {
 }
 
 // DefaultCanonicalOptions returns the canonical defaults for fact-envelope
-// recordings (cassettes): observed_at and generation_id collapse to fixed
-// sentinels, scopes order by scope_id, and facts order by stable_fact_key. No
-// secret keys are configured by default; a recorder adds them with
-// WithRedactedKeys for the fields its source is known to carry.
+// recordings (cassettes): observed_at collapses to a fixed sentinel,
+// generation_id is derived deterministically from each scope's scope_id (so it
+// stays unique per scope without churning on re-record), scopes order by
+// scope_id, and facts order by stable_fact_key. No secret keys are configured by
+// default; a recorder adds them with WithRedactedKeys for the fields its source
+// is known to carry.
 func DefaultCanonicalOptions() CanonicalOptions {
 	return CanonicalOptions{
 		VolatileKeys: map[string]string{
-			"observed_at":   SentinelObservedAt,
-			"generation_id": SentinelGenerationID,
+			"observed_at": SentinelObservedAt,
+		},
+		DerivedKeys: map[string]string{
+			"generation_id": "scope_id",
 		},
 		SecretKeys: map[string]string{},
 		SortArrays: map[string]string{
@@ -100,8 +129,12 @@ func Canonicalize(data []byte, opts CanonicalOptions) ([]byte, error) {
 	if err := dec.Decode(&value); err != nil {
 		return nil, fmt.Errorf("decode replay document: %w", err)
 	}
-	if dec.More() {
-		return nil, fmt.Errorf("decode replay document: unexpected trailing content")
+	// Require EOF after the first value. dec.More reports false outside an array
+	// or object, so a stray trailing token (a second value, or a bare `]`/`}`
+	// after a corrupted recording) would slip through More; reading the next
+	// token and requiring io.EOF rejects it instead of silently dropping the tail.
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("decode replay document: unexpected trailing content after JSON value")
 	}
 	return CanonicalizeValue(value, opts)
 }
@@ -135,7 +168,7 @@ func transform(value any, opts CanonicalOptions) any {
 	case map[string]any:
 		out := make(map[string]any, len(typed))
 		for key, child := range typed {
-			out[key] = transformChild(key, child, opts)
+			out[key] = transformChild(typed, key, child, opts)
 		}
 		return out
 	case []any:
@@ -149,13 +182,17 @@ func transform(value any, opts CanonicalOptions) any {
 	}
 }
 
-// transformChild resolves one object key/value: secret redaction and volatile
-// normalization win over recursion (the value is replaced, not descended into);
-// otherwise the child is transformed and, when the key names a configured
-// sortable array, stably ordered.
-func transformChild(key string, child any, opts CanonicalOptions) any {
+// transformChild resolves one object key/value within parent: secret redaction,
+// deterministic derivation, and volatile normalization each replace the value
+// outright (no descent); otherwise the child is transformed and, when the key
+// names a configured sortable array, stably ordered. Derivation reads a sibling
+// from parent, so it must run on the original (pre-transform) parent map.
+func transformChild(parent map[string]any, key string, child any, opts CanonicalOptions) any {
 	if sentinel, ok := opts.SecretKeys[key]; ok {
 		return sentinel
+	}
+	if sibling, ok := opts.DerivedKeys[key]; ok {
+		return deriveValue(key, parent[sibling])
 	}
 	if sentinel, ok := opts.VolatileKeys[key]; ok {
 		return sentinel
@@ -167,6 +204,27 @@ func transformChild(key string, child any, opts CanonicalOptions) any {
 		}
 	}
 	return transformed
+}
+
+// deriveValue returns a deterministic replacement for a run-specific key whose
+// value must stay unique. The result is "<prefix>-<hash(seed)>", stable across
+// re-records because seed is a stable sibling (scope_id) rather than the
+// run-specific value being replaced — so re-canonicalizing yields the same
+// value (idempotent) while distinct seeds yield distinct values (no collision
+// on a primary-key field). A missing or non-string seed falls back to the bare
+// prefix; that only collapses uniqueness for malformed input that lacks the
+// seed key entirely.
+func deriveValue(key string, seed any) string {
+	prefix := GenerationIDPrefix
+	if key != "generation_id" {
+		prefix = "canonical-" + key
+	}
+	s, ok := seed.(string)
+	if !ok || s == "" {
+		return prefix
+	}
+	sum := sha256.Sum256([]byte(s))
+	return prefix + "-" + hex.EncodeToString(sum[:])[:derivedHashLen]
 }
 
 // sortArray stably orders arr by each element's string field, breaking ties on

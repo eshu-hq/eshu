@@ -107,8 +107,11 @@ func TestCanonicalizeSortsObjectKeys(t *testing.T) {
 	}
 }
 
-// TestCanonicalizeNormalizesVolatileFields proves observed_at and generation_id
-// collapse to their fixed sentinels so a re-record does not churn them.
+// TestCanonicalizeNormalizesVolatileFields proves observed_at collapses to its
+// fixed sentinel, while generation_id is normalized to a deterministic per-scope
+// value: stable across re-records, but UNIQUE per scope. A single fixed sentinel
+// would collide multiple scopes on the generation_id primary key — this test
+// guards that regression directly.
 func TestCanonicalizeNormalizesVolatileFields(t *testing.T) {
 	t.Parallel()
 
@@ -124,13 +127,38 @@ func TestCanonicalizeNormalizesVolatileFields(t *testing.T) {
 	if !ok || len(scopes) != 2 {
 		t.Fatalf("scopes = %#v, want 2-element array", doc["scopes"])
 	}
+	seenGen := map[string]bool{}
 	for i, raw := range scopes {
 		sc := raw.(map[string]any)
 		if got := sc["observed_at"]; got != replay.SentinelObservedAt {
 			t.Errorf("scope[%d].observed_at = %v, want sentinel %q", i, got, replay.SentinelObservedAt)
 		}
-		if got := sc["generation_id"]; got != replay.SentinelGenerationID {
-			t.Errorf("scope[%d].generation_id = %v, want sentinel %q", i, got, replay.SentinelGenerationID)
+		gen, _ := sc["generation_id"].(string)
+		if !strings.HasPrefix(gen, replay.GenerationIDPrefix+"-") {
+			t.Errorf("scope[%d].generation_id = %q, want %q-prefixed derived value", i, gen, replay.GenerationIDPrefix)
+		}
+		// The original run-specific id must be gone.
+		for _, raw := range []string{"run-9f3c-zeta", "run-1a2b-alpha"} {
+			if gen == raw {
+				t.Errorf("scope[%d].generation_id still carries run-specific value %q", i, raw)
+			}
+		}
+		if seenGen[gen] {
+			t.Errorf("scope[%d].generation_id %q collides with another scope (primary-key violation)", i, gen)
+		}
+		seenGen[gen] = true
+	}
+}
+
+// TestCanonicalizeRejectsTrailingContent proves a valid first JSON value
+// followed by a stray delimiter or second value is rejected, not silently
+// normalized into a clean fixture (a corrupted recording must fail loudly).
+func TestCanonicalizeRejectsTrailingContent(t *testing.T) {
+	t.Parallel()
+
+	for _, in := range []string{`{"a":1}]`, `{"a":1} {"b":2}`, `{"a":1}}`, `[1,2] 3`} {
+		if _, err := replay.Canonicalize([]byte(in), replay.DefaultCanonicalOptions()); err == nil {
+			t.Errorf("Canonicalize(%q) accepted trailing content, want error", in)
 		}
 	}
 }
