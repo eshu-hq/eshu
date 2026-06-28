@@ -28,6 +28,9 @@ until the proof clauses in the DONE section all hold.
 - **gh auth**: ensure `gh` is authenticated to an account that can push to the
   repo and open PRs before any push/PR step. Do not hard-code an account; use
   whatever the local setup requires (switch with `gh auth switch` if needed).
+  If `gh` auth is broken but the active harness exposes a GitHub connector with
+  equivalent PR/issue/review-thread operations, use that connector as an
+  explicit fallback and report the fallback in the proof notes.
 - **fresh base**: before opening or updating a PR, `git fetch origin`, rebase on
   `origin/main`, rerun focused gates, and push the rebased head before creating
   or updating the PR. Use `--force-with-lease` when the rebase rewrites an
@@ -145,15 +148,17 @@ current turn, stop and ask — do not self-approve and proceed.
 - Check GHA on every PR. Enumerate **every** check's state, not just the green
   rollup; on red, root-cause (no symptom patch), fix, rerun. While checks are
   pending, poll the PR about every 60 seconds for merge conflicts and new review
-  threads instead of staring only at the check watcher. A clean PR *diff* can
-  still inherit pre-existing red: this repo has no required-status-check
-  enforcement, so whole-module Lint Go / Go tests that an earlier sequential gate
-  masked (e.g. a failing "Verify hot-path evidence" step that aborts the job
-  before Lint Go) surface only on the first PR to pass those earlier gates. Fix
-  the inherited debt in that PR — do not merge through red because "it is not my
-  diff." The only red you may carry is a check on a documented advisory allowlist
-  (state it explicitly, e.g. the Docker `verify-reproducibility` build-determinism
-  job); treat every other red as blocking.
+  threads instead of staring only at the check watcher. If the rollup is stale
+  or empty after a push, poll the underlying workflow runs for the head SHA
+  before treating CI as absent. A clean PR *diff* can still inherit pre-existing
+  red: this repo has no required-status-check enforcement, so whole-module Lint
+  Go / Go tests that an earlier sequential gate masked (e.g. a failing "Verify
+  hot-path evidence" step that aborts the job before Lint Go) surface only on
+  the first PR to pass those earlier gates. Fix the inherited debt in that PR —
+  do not merge through red because "it is not my diff." The only red you may
+  carry is a check on a documented advisory allowlist (state it explicitly, e.g.
+  the Docker `verify-reproducibility` build-determinism job); treat every other
+  red as blocking.
 
 ## Step 5 — Per-PR gate (no skip)
 
@@ -212,8 +217,9 @@ current turn, stop and ask — do not self-approve and proceed.
    self-review mode and list the evidence inspected.
 5. Ensure `gh` auth can push, then `git fetch origin`, rebase on `origin/main`,
    rerun the focused gates affected by the rebase, confirm
-   `git status --short` is clean, and push the rebased head. Use
-   `git push --force-with-lease` when rebasing an already-pushed branch.
+   `git status --short` is clean, inspect `git diff --stat origin/main..HEAD`
+   for unrelated reversions or sibling-PR rollback, and push the rebased head.
+   Use `git push --force-with-lease` when rebasing an already-pushed branch.
 6. Open or update the PR only after the rebased head is on GitHub. Use a
    humanized description and update affected docs in the same PR. Immediately
    check `gh pr view <n> --json mergeable,statusCheckRollup` and fix conflicts

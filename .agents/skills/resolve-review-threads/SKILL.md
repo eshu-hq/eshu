@@ -71,7 +71,9 @@ thread on a fix the agent has not actually verified.
 
 ## Prerequisites
 
-- `gh` is authenticated and can call `gh api graphql` on the repo.
+- `gh` is authenticated and can call `gh api graphql` on the repo, or the
+  active harness exposes an authenticated GitHub connector that can read PR
+  metadata, list PR review threads, and resolve a review thread by ID.
 - The current working tree is the PR's head branch, or the PR's head commit
   SHA is reachable locally so file-state lookups are accurate.
 - The repo `owner` and `name` are known. Use `gh repo view --json owner,name`
@@ -86,6 +88,10 @@ If any prerequisite fails, stop and report — do not guess.
 ```bash
 gh pr view <pr-number> --json url,number,headRefOid,headRefName,baseRefName,state
 ```
+
+If `gh` is not usable, use the GitHub connector's equivalent PR metadata
+operation. Do not continue unless the fallback returns the same head SHA,
+head branch, base branch, and PR state fields.
 
 Capture:
 
@@ -119,6 +125,9 @@ query($owner:String!,$repo:String!,$num:Int!) {
 ```
 
 Run with `gh api graphql -F owner=... -F repo=... -F num=... -f query='...'`.
+If `gh` is not usable and a GitHub connector is available, use its equivalent
+review-thread listing operation, preserving the same fields (`id`, resolution
+state, outdated state, path, line/originalLine, author, and body).
 Filter to `isResolved == false`. Keep `isOutdated == true` in the working set
 — the anchored line moved, but the concern usually still stands.
 
@@ -165,6 +174,10 @@ Confirm the response shows `isResolved: true` before counting the thread as
 resolved. A 200 with `isResolved: false` means the mutation silently failed
 (permissions, stale ID, race with the reviewer) — report it, do not retry in
 a loop.
+
+When using a GitHub connector fallback, call its equivalent resolve operation
+once per `fixed` thread and verify the post-mutation thread state before
+counting it as resolved.
 
 ### 5. Report
 
@@ -221,7 +234,7 @@ the lists. Do not bury the answer.
 
 | Failure | What to do |
 | --- | --- |
-| `gh` not authenticated | Stop. Print the `gh auth status` output verbatim. |
+| `gh` not authenticated | If a GitHub connector fallback is available, use it and report that fallback; otherwise stop and print the `gh auth status` output verbatim. |
 | PR is closed or merged | Stop. Print the PR state and exit. |
 | GraphQL list truncated past 100 | Stop. Print the page count and exit; do not classify a partial set. |
 | Mutation returns `isResolved: false` | Report the thread ID and response body. Do not retry. |
