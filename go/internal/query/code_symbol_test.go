@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestCodeHandlerFindSymbolReturnsBoundedContentDefinitions(t *testing.T) {
+func TestCodeHandlerSymbolSearchReturnsBoundedContentDefinitions(t *testing.T) {
 	t.Parallel()
 
 	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{
