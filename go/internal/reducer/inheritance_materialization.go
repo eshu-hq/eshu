@@ -107,6 +107,15 @@ func (h InheritanceMaterializationHandler) Handle(
 	repoIDs, rows := ExtractInheritanceRows(envelopes)
 	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+
+	// Diagnostic inputs for the rc-12 (INHERITS) gate flake: an intermittent
+	// rc-12=0 on loaded CI must be root-caused from logs alone (it does not
+	// reproduce locally or on a single remote host; #3873). content_entity_facts
+	// vs inheritable_entities vs edge_count distinguish the failure mode: a low
+	// content-entity count signals the handler ran against a partial fact set
+	// (upstream ordering), while inheritable_entities > 0 with edge_count = 0
+	// signals declared parents that resolved to no in-corpus entity.
+	contentEntityFacts, inheritableEntities := countInheritanceFactInputs(envelopes)
 	if len(contextByRepoID) == 0 {
 		timing.totalDuration = time.Since(totalStarted)
 		// No projection context built from the loaded facts: the handler ran
@@ -161,6 +170,8 @@ func (h InheritanceMaterializationHandler) Handle(
 		slog.Int("intent_count", len(intentRows)),
 		slog.Int("edge_count", len(rows)),
 		slog.Int("repo_count", len(repoIDs)),
+		slog.Int("content_entity_facts", contentEntityFacts),
+		slog.Int("inheritable_entities", inheritableEntities),
 		slog.Float64("load_facts_duration_seconds", timing.loadFactsDuration.Seconds()),
 		slog.Float64("build_intents_duration_seconds", timing.buildIntentsDuration.Seconds()),
 		slog.Float64("upsert_intents_duration_seconds", timing.upsertDuration.Seconds()),
@@ -458,31 +469,6 @@ func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMeth
 	return index
 }
 
-// collectInheritanceRepoIDs returns sorted, deduplicated repository IDs from
-// content entity envelopes.
-func collectInheritanceRepoIDs(envelopes []facts.Envelope) []string {
-	seen := make(map[string]struct{})
-	repoIDs := make([]string, 0)
-	for _, env := range envelopes {
-		if env.FactKind != "content_entity" {
-			continue
-		}
-		repoID := semanticPayloadString(env.Payload, "repo_id")
-		if repoID == "" {
-			continue
-		}
-		if _, ok := seen[repoID]; ok {
-			continue
-		}
-		seen[repoID] = struct{}{}
-		repoIDs = append(repoIDs, repoID)
-	}
-	sort.Strings(repoIDs)
-	return repoIDs
-}
-
-// inheritancePayloadBases extracts the bases string slice from the entity
-// metadata in a content_entity fact payload.
-func inheritancePayloadBases(payload map[string]any) []string {
-	return semanticPayloadMetadataStringSlice(payload, "bases")
-}
+// collectInheritanceRepoIDs and inheritancePayloadBases live in
+// inheritance_materialization_diagnostics.go alongside countInheritanceFactInputs
+// to keep this file under the 500-line cap.
