@@ -6,7 +6,6 @@ package query
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -67,12 +66,21 @@ func TestSemanticSearchHandlerLanguageFilterNarrowsResults(t *testing.T) {
 	}
 }
 
-// TestSemanticSearchHandlerUnknownLanguageReturns400 verifies that an
-// unrecognised language value is rejected before any index read.
-func TestSemanticSearchHandlerUnknownLanguageReturns400(t *testing.T) {
+// TestSemanticSearchHandlerUnknownLanguageReturnsEmptyResult verifies that an
+// unrecognised language value is accepted (not rejected with 400) and that the
+// index is queried with the normalised token. Since the index returns no
+// candidates for an unknown language, the response is a 200 with an empty
+// result set. The index is the source of truth for language values; the handler
+// no longer validates against the parser registry.
+func TestSemanticSearchHandlerUnknownLanguageReturnsEmptyResult(t *testing.T) {
 	t.Parallel()
 
-	index := &fakeSemanticSearchIndexStore{}
+	index := &fakeSemanticSearchIndexStore{
+		result: semanticSearchIndexResult{
+			IndexedDocumentCount: 0,
+			Candidates:           nil,
+		},
+	}
 	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
 	req := semanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-1",
@@ -86,14 +94,26 @@ func TestSemanticSearchHandlerUnknownLanguageReturns400(t *testing.T) {
 
 	handler.search(rec, req)
 
-	if got, want := rec.Code, http.StatusBadRequest; got != want {
+	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if index.calls != 0 {
-		t.Fatalf("index calls = %d, want 0 for unknown language", index.calls)
+	if index.calls == 0 {
+		t.Fatal("index was not called; unknown language should still reach the index")
 	}
-	if !strings.Contains(rec.Body.String(), "languages") {
-		t.Fatalf("body = %s, want error mentioning languages", rec.Body.String())
+	if got, want := len(index.query.Languages), 1; got != want {
+		t.Fatalf("query.Languages len = %d, want %d", got, want)
+	}
+	if got, want := index.query.Languages[0], "not_a_real_language_xyz"; got != want {
+		t.Fatalf("query.Languages[0] = %q, want %q", got, want)
+	}
+
+	data := semanticSearchEnvelopeData(t, rec)
+	results, ok := data["results"].([]any)
+	if !ok {
+		t.Fatalf("results field missing or wrong type: %T", data["results"])
+	}
+	if got := len(results); got != 0 {
+		t.Fatalf("results len = %d, want 0 for unmatched language", got)
 	}
 }
 

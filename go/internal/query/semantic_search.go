@@ -59,8 +59,9 @@ type semanticSearchRequest struct {
 	SourceKinds []string `json:"source_kinds,omitempty"`
 	// Languages filters the corpus to documents whose Labels contain
 	// "language:<lang>" for one of the requested languages. An empty slice
-	// means no language filter. Unknown language values are rejected with
-	// HTTP 400.
+	// means no language filter. Any non-empty lowercased token is accepted;
+	// an unmatched language returns an empty result set rather than an error.
+	// The index is the source of truth for which language values exist.
 	Languages []string `json:"languages,omitempty"`
 	// Rerank opts the request into graph-neighborhood reranking over the
 	// retrieved in-scope results. Off by default; when on, the response reports
@@ -228,11 +229,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		writeSemanticSearchError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
 		return
 	}
-	languages, err := semanticSearchLanguages(body.Languages)
-	if err != nil {
-		writeSemanticSearchError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
-		return
-	}
+	languages := semanticSearchLanguages(body.Languages)
 	req, err := semanticSearchRetrievalRequest(body)
 	if err != nil {
 		writeSemanticSearchError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())

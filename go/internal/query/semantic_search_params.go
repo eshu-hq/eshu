@@ -8,35 +8,32 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
 
-// semanticSearchLanguages parses, normalises, and validates a raw languages
-// slice from the request. Each value is lowercased and trimmed; empty entries
-// are dropped. An unknown language key (not in the default parser registry)
-// is rejected with a descriptive error so the caller can return HTTP 400.
+// semanticSearchLanguages parses and normalises a raw languages slice from the
+// request. Each value is lowercased and trimmed; empty entries are dropped. No
+// registry validation is performed: the index is the source of truth for which
+// language values exist. An unmatched language simply produces an empty result
+// set instead of an error, keeping the filter open to content-store-derived
+// labels that are not in the parser registry.
 //
 // An empty input returns a nil slice meaning "no language filter".
-func semanticSearchLanguages(raw []string) ([]string, error) {
+func semanticSearchLanguages(raw []string) []string {
 	if len(raw) == 0 {
-		return nil, nil
+		return nil
 	}
-	registry := parser.DefaultRegistry()
 	langs := make([]string, 0, len(raw))
 	for _, value := range raw {
 		lang := strings.ToLower(strings.TrimSpace(value))
 		if lang == "" {
 			continue
 		}
-		if !registry.IsRegisteredLanguage(lang) {
-			return nil, fmt.Errorf("languages contains unknown value %q", value)
-		}
 		langs = append(langs, lang)
 	}
-	return langs, nil
+	return langs
 }
 
 func normalizeSemanticSearchRequest(req semanticSearchRequest) semanticSearchRequest {

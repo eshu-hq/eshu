@@ -24,7 +24,7 @@ Optional request fields:
 | `workload_id` | Smaller workload anchor inside the repository corpus. |
 | `environment` | Environment anchor inside the repository corpus. |
 | `source_kinds` | Optional filter over `code_entity`, `repository_file`, `runtime_summary`, and `semantic_context`. |
-| `languages` | Optional filter over recognized parser-registry language values (e.g. `go`, `python`, `typescript`). Documents are included only when their `Labels` array contains `language:<lang>` for one of the requested values. An empty array means no language filter. Unknown values are rejected with HTTP 400. |
+| `languages` | Optional filter over language values (e.g. `go`, `python`, `typescript`). Documents are included only when their `Labels` array contains `language:<lang>` for one of the requested values. An empty array means no language filter. Any non-empty token is accepted; an unmatched language returns an empty result set rather than an error. The index is the source of truth for which language values exist. |
 | `rerank` | Opt into graph-neighborhood reranking over the in-scope results. Off by default. |
 
 The route reads the active generation from the persisted curated search index.
@@ -159,13 +159,16 @@ covers required fields, bounds, scoped-token no-grant and not-found behavior,
 OpenAPI shape, MCP schema, route mapping, graph-neighborhood reranking
 (promotion of the service-anchored result, ranking basis, recommended next
 calls, and the rerank-off default), language filter narrowing, unknown language
-rejection (HTTP 400), facet count accuracy, and no-filter no-op behaviour.
+open-pass (200 with empty result set), facet count accuracy, and no-filter
+no-op behaviour.
 
 Language Filter and Facet Evidence: `go test ./internal/query/ -run 'TestSemanticSearchHandler(Language|Facets|Passes)' -count=1`
 and `go test ./internal/storage/postgres/ -run 'TestEshuSearchIndexStore(Language|NoLanguage)' -count=1`
 verify the SQL predicate is present when languages are requested, absent when
 not, and that label values arrive as parameterised args (no interpolation).
-Parser registry: `go test ./internal/parser/ -run 'TestRegistry(Languages|IsRegistered)' -count=1`.
+The unknown-language open-pass behaviour (200 with empty result set, index
+reached) is verified by
+`TestSemanticSearchHandlerUnknownLanguageReturnsEmptyResult`.
 
 Benchmark Evidence: `go test ./internal/searchrerank -run Benchmark -v -count=1`
 scores baseline vs reranked nDCG@3 over a labeled fixture suite and gates the
