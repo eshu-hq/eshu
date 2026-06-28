@@ -69,6 +69,17 @@ func TestDeltaMaterializationGen1Baseline(t *testing.T) {
 	if dm.Gen2.FirstGeneration {
 		t.Fatal("gen2 FirstGeneration = true, want false — retraction would be skipped")
 	}
+
+	// Gen1 baseline must be materialized from a single drain (alpha, beta, gamma).
+	// This guards the double-drain regression: a CollectedGeneration's fact
+	// channel is closed after one range, so the caller must use dm.Gen1 rather
+	// than re-materializing gen1 (which would yield an empty generation).
+	if dm.Gen1.Repository == nil {
+		t.Fatal("dm.Gen1.Repository is nil — gen1 baseline not materialized (double-drain regression?)")
+	}
+	if got, want := len(dm.Gen1.Directories), 3; got != want {
+		t.Fatalf("gen1 baseline directory rows = %d, want %d", got, want)
+	}
 }
 
 // TestDeltaMaterializationGen2RetainsSupersededRepo verifies that gen2 carries

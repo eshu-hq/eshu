@@ -59,16 +59,15 @@ func TestDeltaTombstoneGraphTruth(t *testing.T) {
 		t.Fatalf("read gen2: err=%v ok=%v", err, ok)
 	}
 
-	gen1Mat, err := offlinetier.MaterializationFromGeneration(gen1)
-	if err != nil {
-		t.Fatalf("gen1 MaterializationFromGeneration: %v", err)
-	}
+	// One call drains gen1 and gen2 exactly once; dm.Gen1 is the baseline
+	// materialization to write first (re-deriving it would drain gen1's already
+	// closed fact channel a second time and yield an empty generation).
 	dm, err := offlinetier.DeltaMaterializationFromGenerations(gen1, gen2)
 	if err != nil {
 		t.Fatalf("DeltaMaterializationFromGenerations: %v", err)
 	}
 
-	if err := writer.Write(ctx, gen1Mat); err != nil {
+	if err := writer.Write(ctx, dm.Gen1); err != nil {
 		t.Fatalf("write gen1: %v", err)
 	}
 
@@ -130,17 +129,13 @@ func TestDeltaTombstoneNegativeControlBrokenRetraction(t *testing.T) {
 		t.Fatalf("read gen2: err=%v ok=%v", err, ok)
 	}
 
-	gen1Mat, err := offlinetier.MaterializationFromGeneration(gen1)
-	if err != nil {
-		t.Fatalf("gen1 MaterializationFromGeneration: %v", err)
-	}
-	if err := writer.Write(ctx, gen1Mat); err != nil {
-		t.Fatalf("write gen1: %v", err)
-	}
-
+	// Single drain of gen1/gen2; write the baseline via dm.Gen1.
 	dm, err := offlinetier.DeltaMaterializationFromGenerations(gen1, gen2)
 	if err != nil {
 		t.Fatalf("DeltaMaterializationFromGenerations: %v", err)
+	}
+	if err := writer.Write(ctx, dm.Gen1); err != nil {
+		t.Fatalf("write gen1: %v", err)
 	}
 
 	// BROKEN retraction: force FirstGeneration=true on gen2. This suppresses the
@@ -172,17 +167,12 @@ func TestDeltaTombstoneNegativeControlBrokenRetraction(t *testing.T) {
 	gen1c, _, _ := src2.Next(context.Background())
 	gen2c, _, _ := src2.Next(context.Background())
 
-	gen1MatC, err := offlinetier.MaterializationFromGeneration(gen1c)
-	if err != nil {
-		t.Fatalf("gen1 MaterializationFromGeneration (re-run): %v", err)
-	}
-	if err := writer.Write(ctx, gen1MatC); err != nil {
-		t.Fatalf("write gen1 (re-run): %v", err)
-	}
-
 	dmC, err := offlinetier.DeltaMaterializationFromGenerations(gen1c, gen2c)
 	if err != nil {
 		t.Fatalf("DeltaMaterializationFromGenerations (re-run): %v", err)
+	}
+	if err := writer.Write(ctx, dmC.Gen1); err != nil {
+		t.Fatalf("write gen1 (re-run): %v", err)
 	}
 	if err := writer.Write(ctx, dmC.Gen2); err != nil {
 		t.Fatalf("write correct gen2 (re-run): %v", err)

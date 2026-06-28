@@ -16,6 +16,12 @@ import (
 // retract logic will fire because FirstGeneration=false) plus the set of directory
 // paths that gen2 removes (tombstoned) so callers can assert post-delta graph truth.
 type DeltaMaterialization struct {
+	// Gen1 is the canonical materialization for the baseline (first) generation.
+	// The caller writes it first to establish graph state before gen2 retracts.
+	// It is returned here (rather than re-derived by the caller) so gen1's fact
+	// stream is drained exactly once — a CollectedGeneration's fact channel is
+	// closed after a single range, so draining it twice yields an empty stream.
+	Gen1 projector.CanonicalMaterialization
 	// Gen2 is the canonical materialization for the second generation. Its
 	// FirstGeneration field is false, which enables the production retract
 	// statements (canonicalNodeRetractDirectoriesCypher etc.) to fire and
@@ -96,12 +102,24 @@ func DeltaMaterializationFromGenerations(
 	if err != nil {
 		return DeltaMaterialization{}, fmt.Errorf("gen2 materialization: %w", err)
 	}
+
+	// Guard against a cassette that silently drops everything: a gen2 with a
+	// repository but zero surviving directories would, once written with
+	// FirstGeneration=false, retract every directory in the graph (the retract
+	// Cypher deletes all repo directories not in an empty path list). Fail loudly
+	// rather than silently full-wipe.
+	if gen2Mat.Repository != nil && len(gen2Mat.Directories) == 0 {
+		return DeltaMaterialization{}, fmt.Errorf(
+			"gen2 has a repository but no surviving directories — refusing to build a delta that would retract every directory")
+	}
+
 	// Mark gen2 as a subsequent generation so the production retract phase fires.
 	// FirstGeneration=true would skip all retraction, which is the broken-retraction
 	// control tested by TestDeltaTombstoneNegativeControlBrokenRetraction.
 	gen2Mat.FirstGeneration = false
 
 	return DeltaMaterialization{
+		Gen1:                     gen1Mat,
 		Gen2:                     gen2Mat,
 		TombstonedDirectoryPaths: tombstonedDirPaths,
 	}, nil
