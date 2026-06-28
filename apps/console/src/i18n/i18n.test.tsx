@@ -2,6 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { defaultLocale, defaultMessages, type MessageId } from "./messages";
+import {
+  createLocaleMessages,
+  localeCatalogs,
+  supportedLocales,
+  translatedMessageIds,
+} from "./locales";
 import { NAV_GROUPS } from "./navigation";
 import { ConsoleI18nProvider, FormattedMessage, createConsoleIntl } from "./provider";
 import { formatApiUnavailableMessage, shellMessageDescriptors } from "./shellMessages";
@@ -94,5 +100,28 @@ describe("console i18n framework", () => {
     );
 
     expect(missingMessageIds).toEqual([]);
+  });
+
+  it("declares exactly five supported locale catalogs", () => {
+    expect(supportedLocales).toEqual(["en", "zh", "ja", "de", "es"]);
+    expect(Object.keys(localeCatalogs).sort()).toEqual([...supportedLocales].sort());
+  });
+
+  it("keeps top translated shell and nav message keys in parity for every locale", () => {
+    expect(translatedMessageIds).toHaveLength(20);
+
+    for (const locale of supportedLocales) {
+      expect(Object.keys(localeCatalogs[locale]).sort()).toEqual([...translatedMessageIds].sort());
+    }
+  });
+
+  it("formats a translated nav message through the provider catalog", () => {
+    const { container } = render(
+      <ConsoleI18nProvider messages={createLocaleMessages("de")}>
+        <FormattedMessage id="app.nav.group.overview" />
+      </ConsoleI18nProvider>,
+    );
+
+    expect(container.textContent).toBe("Übersicht");
   });
 });
