@@ -21,13 +21,15 @@ type fakeLanguageListerContentStore struct {
 	indexedRef    string
 	pathCtxErr    error
 	gotLanguages  []string
+	gotPath       string
 	gotLimit      int
 }
 
 func (f *fakeLanguageListerContentStore) ListRepoFilesByLanguage(
-	_ context.Context, _ string, languages []string, limit int,
+	_ context.Context, _ string, languages []string, pathPrefix string, limit int,
 ) ([]FileContent, error) {
 	f.gotLanguages = languages
+	f.gotPath = pathPrefix
 	f.gotLimit = limit
 	return f.byLanguage, f.byLanguageErr
 }
@@ -90,6 +92,11 @@ func TestGetRepositoryTreeLanguageFilterRealPathZeroMatchesEmptyNot404(t *testin
 	entries := repositoryTreeEntries(t, resp)
 	if len(entries) != 0 {
 		t.Fatalf("zero-match listing must be empty; got %v", entries)
+	}
+	// The path scope must be pushed into the read (applied before the cap), not
+	// just in Go after fetching the whole repo.
+	if store.gotPath != "cmd/app" {
+		t.Fatalf("path scope not pushed down; gotPath = %q, want cmd/app", store.gotPath)
 	}
 }
 

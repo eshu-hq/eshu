@@ -24,7 +24,7 @@ const repositoryTreeFileLimit = 50000
 // ContentReader implements it; content stores that do not are served by the in-Go
 // post-cap filter fallback (correct for repositories within the cap).
 type repoFileLanguageLister interface {
-	ListRepoFilesByLanguage(ctx context.Context, repoID string, languages []string, limit int) ([]FileContent, error)
+	ListRepoFilesByLanguage(ctx context.Context, repoID string, languages []string, pathPrefix string, limit int) ([]FileContent, error)
 	RepoFilePathContext(ctx context.Context, repoID, requestPath string) (bool, string, error)
 }
 
@@ -82,7 +82,7 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 		indexedRef = ref
 		matched = requestPath == "" || exists
 		matchedKnown = true
-		files, err = lister.ListRepoFilesByLanguage(ctx, repoID, languageList, repositoryTreeFileLimit+1)
+		files, err = lister.ListRepoFilesByLanguage(ctx, repoID, languageList, requestPath, repositoryTreeFileLimit+1)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
 			return

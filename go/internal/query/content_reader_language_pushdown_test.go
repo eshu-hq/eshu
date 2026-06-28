@@ -29,7 +29,7 @@ func TestContentReaderListRepoFilesByLanguagePushesPredicate(t *testing.T) {
 	})
 
 	reader := NewContentReader(db)
-	results, err := reader.ListRepoFilesByLanguage(context.Background(), "repo-1", []string{"python"}, 10)
+	results, err := reader.ListRepoFilesByLanguage(context.Background(), "repo-1", []string{"python"}, "src", 10)
 	if err != nil {
 		t.Fatalf("ListRepoFilesByLanguage() error = %v", err)
 	}
@@ -38,13 +38,20 @@ func TestContentReaderListRepoFilesByLanguagePushesPredicate(t *testing.T) {
 	}
 	query := recorder.queries[0]
 	for _, want := range []string{
-		"lower(coalesce(language, '')) = ANY($2::text[])",
+		// Bare normalized column (uses content_files_language_repo_idx), matching
+		// the by-language inventory reads — not a function-wrapped column.
+		"language = ANY($2::text[])",
+		// Path scope pushed in before the LIMIT.
+		"strpos(relative_path, $3 || '/') = 1",
 		"ORDER BY relative_path",
-		"LIMIT $3",
+		"LIMIT $4",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)
 		}
+	}
+	if strings.Contains(query, "lower(") {
+		t.Fatalf("language match must use the bare indexed column, not lower():\n%s", query)
 	}
 }
 
@@ -67,7 +74,7 @@ func TestContentReaderListRepoFilesByLanguageEmptyFallsBack(t *testing.T) {
 	})
 
 	reader := NewContentReader(db)
-	if _, err := reader.ListRepoFilesByLanguage(context.Background(), "repo-1", nil, 10); err != nil {
+	if _, err := reader.ListRepoFilesByLanguage(context.Background(), "repo-1", nil, "", 10); err != nil {
 		t.Fatalf("ListRepoFilesByLanguage(nil) error = %v", err)
 	}
 	if strings.Contains(recorder.queries[0], "ANY($2::text[])") {

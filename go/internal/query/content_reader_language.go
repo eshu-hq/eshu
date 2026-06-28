@@ -13,13 +13,17 @@ import (
 )
 
 // ListRepoFilesByLanguage returns indexed files for one repository whose language
-// is in the provided set (already alias-expanded and lowercased by the caller),
-// ordered by path and capped at limit. Pushing the language predicate into the
-// read means the cap applies to the matching set, so a language whose files sort
-// beyond the repository file cap is still returned for large repositories — the
-// scale fix the in-Go post-cap filter could not provide. An empty language set
-// delegates to ListRepoFiles.
-func (cr *ContentReader) ListRepoFilesByLanguage(ctx context.Context, repoID string, languages []string, limit int) ([]FileContent, error) {
+// is in the provided set (already alias-expanded and lowercased by the caller)
+// and that fall under pathPrefix (a directory subtree, or "" for the whole repo),
+// ordered by path and capped at limit. Pushing BOTH the language and the path
+// predicate into the read means the cap applies to the matching+scoped set, so a
+// language (or a deep subdirectory) whose files sort beyond the repository file
+// cap is still returned for large repositories — the scale fix the in-Go post-cap
+// filter could not provide. The language match is the bare normalized column
+// (`language = ANY(...)`), identical to the by-language inventory reads, so it
+// uses content_files_language_repo_idx; stored language is already normalized.
+// An empty language set delegates to ListRepoFiles.
+func (cr *ContentReader) ListRepoFilesByLanguage(ctx context.Context, repoID string, languages []string, pathPrefix string, limit int) ([]FileContent, error) {
 	if len(languages) == 0 {
 		return cr.ListRepoFiles(ctx, repoID, limit)
 	}
@@ -38,16 +42,21 @@ func (cr *ContentReader) ListRepoFilesByLanguage(ctx context.Context, repoID str
 		limit = 500
 	}
 
+	// strpos(relative_path, $3 || '/') = 1 is a literal prefix test (no LIKE
+	// wildcards); combined with relative_path = $3 it scopes to the requested
+	// subtree before the LIMIT, so a path with matching files beyond the cap in
+	// the full repository is still returned.
 	rows, err := cr.db.QueryContext(ctx, `
 		SELECT repo_id, relative_path, coalesce(commit_sha, ''),
 		       '', content_hash, line_count, coalesce(language, ''),
 		       coalesce(artifact_type, '')
 		FROM content_files
 		WHERE repo_id = $1
-		  AND lower(coalesce(language, '')) = ANY($2::text[])
+		  AND language = ANY($2::text[])
+		  AND ($3 = '' OR relative_path = $3 OR strpos(relative_path, $3 || '/') = 1)
 		ORDER BY relative_path
-		LIMIT $3
-	`, repoID, pq.Array(languages), limit)
+		LIMIT $4
+	`, repoID, pq.Array(languages), pathPrefix, limit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repo files by language: %w", err)
