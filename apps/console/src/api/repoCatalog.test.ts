@@ -1,27 +1,36 @@
 import { describe, expect, it } from "vitest";
 
 import type { EshuApiClient } from "./client";
-import { loadRepositories, loadRepositoryDetail, loadRepositoryNameMap } from "./repoCatalog";
+import {
+  loadRepoLanguages,
+  loadRepositories,
+  loadRepositoryDetail,
+  loadRepositoryNameMap,
+} from "./repoCatalog";
 
 describe("repoCatalog", () => {
   it("maps the repository list and drops entries without an id", async () => {
     const client = {
       get: async () => ({
-        data: { repositories: [
-          {
-            id: "repo-1",
-            name: "checkout",
-            repo_slug: "org/checkout",
-            is_dependency: false,
-            group_key: "Checkout",
-            group_source: "repo_slug_namespace",
-            group_truth: "derived",
-            group_kind: "source",
-            group_reason: "derived from repository slug namespace"
-          },
-          { name: "", id: "" }
-        ] }, error: null, truth: null
-      })
+        data: {
+          repositories: [
+            {
+              id: "repo-1",
+              name: "checkout",
+              repo_slug: "org/checkout",
+              is_dependency: false,
+              group_key: "Checkout",
+              group_source: "repo_slug_namespace",
+              group_truth: "derived",
+              group_kind: "source",
+              group_reason: "derived from repository slug namespace",
+            },
+            { name: "", id: "" },
+          ],
+        },
+        error: null,
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
     const repos = await loadRepositories(client);
     expect(repos).toHaveLength(1);
@@ -34,7 +43,7 @@ describe("repoCatalog", () => {
       groupSource: "repo_slug_namespace",
       groupTruth: "derived",
       groupKind: "source",
-      groupReason: "derived from repository slug namespace"
+      groupReason: "derived from repository slug namespace",
     });
   });
 
@@ -46,7 +55,7 @@ describe("repoCatalog", () => {
     const wireRepos = Array.from({ length: total }, (_, index) => ({
       id: `repository:r_${index}`,
       name: `repo-${index}`,
-      repo_slug: `org/repo-${index}`
+      repo_slug: `org/repo-${index}`,
     }));
     const requested: { limit: string | null; offset: string | null }[] = [];
     const client = {
@@ -54,14 +63,23 @@ describe("repoCatalog", () => {
         const url = new URL(path, "http://console.test");
         const limit = Number(url.searchParams.get("limit") ?? "0");
         const offset = Number(url.searchParams.get("offset") ?? "0");
-        requested.push({ limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+        requested.push({
+          limit: url.searchParams.get("limit"),
+          offset: url.searchParams.get("offset"),
+        });
         const page = wireRepos.slice(offset, offset + limit);
         return {
-          data: { repositories: page, count: page.length, limit, offset, truncated: offset + limit < total },
+          data: {
+            repositories: page,
+            count: page.length,
+            limit,
+            offset,
+            truncated: offset + limit < total,
+          },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     const repos = await loadRepositories(client);
@@ -71,7 +89,7 @@ describe("repoCatalog", () => {
     expect(repos[total - 1]?.id).toBe(`repository:r_${total - 1}`);
     expect(requested).toEqual([
       { limit: String(pageLimit), offset: "0" },
-      { limit: String(pageLimit), offset: String(pageLimit) }
+      { limit: String(pageLimit), offset: String(pageLimit) },
     ]);
   });
 
@@ -82,16 +100,21 @@ describe("repoCatalog", () => {
     let calls = 0;
     const warnMessages: string[] = [];
     const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => { warnMessages.push(String(args[0])); };
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(String(args[0]));
+    };
     const client = {
       get: async (path: string) => {
         calls += 1;
         const url = new URL(path, "http://console.test");
         const offset = Number(url.searchParams.get("offset") ?? "0");
         const limit = Number(url.searchParams.get("limit") ?? "0");
-        const page = Array.from({ length: limit }, (_, i) => ({ id: `repository:r_${offset + i}`, name: `repo-${offset + i}` }));
+        const page = Array.from({ length: limit }, (_, i) => ({
+          id: `repository:r_${offset + i}`,
+          name: `repo-${offset + i}`,
+        }));
         return { data: { repositories: page, truncated: true, offset }, error: null, truth: null };
-      }
+      },
     } as unknown as EshuApiClient;
     try {
       const repos = await loadRepositories(client);
@@ -113,7 +136,7 @@ describe("repoCatalog", () => {
       get: async () => {
         calls += 1;
         return { data: { repositories: [], truncated: true }, error: null, truth: null };
-      }
+      },
     } as unknown as EshuApiClient;
 
     const repos = await loadRepositories(client);
@@ -130,7 +153,9 @@ describe("repoCatalog", () => {
     const stalledOffset = 10000;
     const warnMessages: string[] = [];
     const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => { warnMessages.push(String(args[0])); };
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(String(args[0]));
+    };
     const client = {
       get: async (path: string) => {
         calls += 1;
@@ -139,9 +164,16 @@ describe("repoCatalog", () => {
         // Server clamps: once requested offset exceeds stalledOffset the
         // echoed offset stays at stalledOffset no matter what we request.
         const echoedOffset = Math.min(requestedOffset, stalledOffset);
-        const page = Array.from({ length: 500 }, (_, i) => ({ id: `repository:r_${echoedOffset + i}`, name: `repo-${echoedOffset + i}` }));
-        return { data: { repositories: page, truncated: true, offset: echoedOffset }, error: null, truth: null };
-      }
+        const page = Array.from({ length: 500 }, (_, i) => ({
+          id: `repository:r_${echoedOffset + i}`,
+          name: `repo-${echoedOffset + i}`,
+        }));
+        return {
+          data: { repositories: page, truncated: true, offset: echoedOffset },
+          error: null,
+          truth: null,
+        };
+      },
     } as unknown as EshuApiClient;
 
     try {
@@ -169,10 +201,12 @@ describe("repoCatalog", () => {
     // or short terminal page) must be silent.
     const warnMessages: string[] = [];
     const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => { warnMessages.push(String(args[0])); };
+    console.warn = (...args: unknown[]) => {
+      warnMessages.push(String(args[0]));
+    };
     const wireRepos = Array.from({ length: 906 }, (_, index) => ({
       id: `repository:r_${index}`,
-      name: `repo-${index}`
+      name: `repo-${index}`,
     }));
     const client = {
       get: async (path: string) => {
@@ -183,9 +217,9 @@ describe("repoCatalog", () => {
         return {
           data: { repositories: page, truncated: offset + limit < 906, offset },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     try {
@@ -200,7 +234,10 @@ describe("repoCatalog", () => {
   it("stops paging when a short final page returns fewer rows than the page limit", async () => {
     // truncated is the authoritative paging signal, but a short page (fewer than
     // limit rows) is also a terminal page; the loader must not request again.
-    const wireRepos = Array.from({ length: 120 }, (_, index) => ({ id: `repository:r_${index}`, name: `repo-${index}` }));
+    const wireRepos = Array.from({ length: 120 }, (_, index) => ({
+      id: `repository:r_${index}`,
+      name: `repo-${index}`,
+    }));
     let calls = 0;
     const client = {
       get: async (path: string) => {
@@ -211,7 +248,7 @@ describe("repoCatalog", () => {
         const page = wireRepos.slice(offset, offset + limit);
         // The fixture API omits truncated here; the short page is the stop signal.
         return { data: { repositories: page }, error: null, truth: null };
-      }
+      },
     } as unknown as EshuApiClient;
 
     const repos = await loadRepositories(client);
@@ -223,11 +260,15 @@ describe("repoCatalog", () => {
   it("builds a repository id to name map from the live repository list", async () => {
     const client = {
       get: async () => ({
-        data: { repositories: [
-          { id: "repository:r1", name: "svc-platform" },
-          { id: "repository:r2", name: "helm-charts" }
-        ] }, error: null, truth: null
-      })
+        data: {
+          repositories: [
+            { id: "repository:r1", name: "svc-platform" },
+            { id: "repository:r2", name: "helm-charts" },
+          ],
+        },
+        error: null,
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     const names = await loadRepositoryNameMap(client);
@@ -239,11 +280,19 @@ describe("repoCatalog", () => {
   it("uses the repository slug leaf instead of an opaque id when name is missing", async () => {
     const client = {
       get: async () => ({
-        data: { repositories: [
-          { id: "repository:r_078043f1", repo_slug: "platform/svc-platform" },
-          { id: "repository:r_dd626fe7", name: "repository:r_dd626fe7", repo_slug: "platform/iac-eks-argocd" }
-        ] }, error: null, truth: null
-      })
+        data: {
+          repositories: [
+            { id: "repository:r_078043f1", repo_slug: "platform/svc-platform" },
+            {
+              id: "repository:r_dd626fe7",
+              name: "repository:r_dd626fe7",
+              repo_slug: "platform/iac-eks-argocd",
+            },
+          ],
+        },
+        error: null,
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     const repos = await loadRepositories(client);
@@ -258,23 +307,82 @@ describe("repoCatalog", () => {
         error: {
           code: "unsupported_runtime_profile",
           message: "repository list unavailable",
-          capability: "repository.list"
+          capability: "repository.list",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     await expect(loadRepositories(client)).rejects.toThrow("unsupported_runtime_profile");
+  });
+
+  it("loadRepoLanguages returns sorted language list from repo stats", async () => {
+    const client = {
+      get: async (path: string) => {
+        expect(path).toBe("/api/v0/repositories/repo-1/stats");
+        return {
+          data: { languages: ["typescript", "go", "python"] },
+          error: null,
+          truth: null,
+        };
+      },
+    } as unknown as EshuApiClient;
+
+    const langs = await loadRepoLanguages(client, "repo-1");
+    expect(langs).toEqual(["go", "python", "typescript"]);
+  });
+
+  it("loadRepoLanguages returns empty array when stats errors", async () => {
+    const client = {
+      get: async () => {
+        throw new Error("network error");
+      },
+    } as unknown as EshuApiClient;
+
+    const langs = await loadRepoLanguages(client, "repo-1");
+    expect(langs).toEqual([]);
+  });
+
+  it("loadRepoLanguages returns empty array when stats returns an Eshu error envelope", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "unavailable",
+          capability: "repository.stats",
+        },
+        truth: null,
+      }),
+    } as unknown as EshuApiClient;
+
+    const langs = await loadRepoLanguages(client, "repo-1");
+    expect(langs).toEqual([]);
   });
 
   it("maps repo detail from stats + story, preserving null counts (no fabrication)", async () => {
     const client = {
       get: async (path: string) => {
         if (path.includes("/stats")) {
-          return { data: { repository: { name: "checkout" }, file_count: 42, entity_count: null, languages: ["go"], entity_types: ["function"], coverage: { source_backend: "content_store" } }, error: null, truth: null };
+          return {
+            data: {
+              repository: { name: "checkout" },
+              file_count: 42,
+              entity_count: null,
+              languages: ["go"],
+              entity_types: ["function"],
+              coverage: { source_backend: "content_store" },
+            },
+            error: null,
+            truth: null,
+          };
         }
-        return { data: { highlights: ["Primary service", { title: "Deploys to prod" }] }, error: null, truth: null };
-      }
+        return {
+          data: { highlights: ["Primary service", { title: "Deploys to prod" }] },
+          error: null,
+          truth: null,
+        };
+      },
     } as unknown as EshuApiClient;
     const detail = await loadRepositoryDetail(client, "repo-1");
     expect(detail.name).toBe("checkout");
@@ -286,7 +394,11 @@ describe("repoCatalog", () => {
   });
 
   it("returns an unavailable detail when stats errors", async () => {
-    const client = { get: async () => { throw new Error("401"); } } as unknown as EshuApiClient;
+    const client = {
+      get: async () => {
+        throw new Error("401");
+      },
+    } as unknown as EshuApiClient;
     const detail = await loadRepositoryDetail(client, "repo-1");
     expect(detail.provenance).toBe("unavailable");
     expect(detail.stats.fileCount).toBeNull();
@@ -299,10 +411,10 @@ describe("repoCatalog", () => {
         error: {
           code: "unsupported_runtime_profile",
           message: "repository stats unavailable",
-          capability: "repository.stats"
+          capability: "repository.stats",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     const detail = await loadRepositoryDetail(client, "repo-1");
