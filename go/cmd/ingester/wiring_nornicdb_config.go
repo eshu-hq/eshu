@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -150,8 +151,21 @@ func canonicalExecutorForGraphBackend(
 			Timeout:     nornicDBTimeout,
 			TimeoutHint: canonicalWriteTimeoutEnv,
 		}
+		// NOTE (#4027): nornicDBGroupedWrites is intentionally NOT routed to the
+		// bare grouped GroupExecutor here. Whole-materialization atomic canonical
+		// writes are unsupported on NornicDB — an UNWIND-driven MATCH does not see a
+		// node MERGE'd earlier in the same transaction, so the
+		// directory-edge/file/entity/containment phases (which MATCH the nodes the
+		// node phases MERGE) resolve nothing and the whole tree is silently dropped
+		// (observed as 0 File nodes corpus-wide). Both toggle states use the
+		// per-dependency-phase executor below so each MATCH sees the prior committed
+		// phase; the toggle's intent is logged at the routing decision just below.
+		// Whole-materialization atomic remains valid only for a same-transaction
+		// read-your-writes backend (Neo4j), via the canonical writer's GroupExecutor.
 		if nornicDBGroupedWrites {
-			return bounded
+			slog.Warn("NornicDB canonical grouped writes requested; committing per dependency phase — whole-materialization atomic is unsupported on NornicDB (#4027)",
+				"graph_backend", string(graphBackend),
+				"env_var", nornicDBCanonicalGroupedWritesEnv)
 		}
 		return nornicDBPhaseGroupExecutor{
 			inner:                    bounded,

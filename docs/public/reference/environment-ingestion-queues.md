@@ -158,7 +158,7 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE` | `1` | reducer code-call edge writer | Statements per grouped code-call edge execution. |
 | `ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE` | `1` | reducer shared edge writer | Grouped statements for inheritance edges. |
 | `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | reducer shared edge writer | Grouped statements for SQL relationship edges. |
-| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | graph writer | Conformance switch for Neo4j-style grouped writes on NornicDB. |
+| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | graph writer | Conformance switch. On NornicDB, honored as per-dependency-phase commits, not a single grouped transaction (whole-materialization atomic is unsupported and would drop nested files, #4027). |
 | `ESHU_NORNICDB_REQUIRE_GROUPED_ROLLBACK` | `false` | NornicDB tests | Makes grouped rollback conformance mandatory. |
 | `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | unset / `true` | graph writer | Cross-file batched entity containment for NornicDB canonical entity writes. |
 | `ESHU_NORNICDB_RUNTIME` | `embedded` | local Eshu service | Local NornicDB runtime: `embedded` or `process`. |

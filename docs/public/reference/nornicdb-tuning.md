@@ -237,7 +237,7 @@ raising the batch again.
 
 | Variable | Default | Use |
 | --- | --- | --- |
-| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | unset / `false` | Conformance-only switch for Neo4j-style grouped canonical writes on NornicDB. Leave unset for normal runs. |
+| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | unset / `false` | Conformance-only switch. On NornicDB it is honored as per-dependency-phase commits, not a single grouped transaction: whole-materialization atomic canonical writes are unsupported because an `UNWIND`-driven `MATCH` cannot see a same-transaction `MERGE`, which silently drops nested files (#4027). Leave unset for normal runs. |
 | `ESHU_NORNICDB_REQUIRE_GROUPED_ROLLBACK` | unset / `false` | Test gate that requires grouped-write rollback conformance. |
 | `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | unset / `true` | Cross-file batched entity containment. Set `false` only for measured fallback comparisons against the older file-scoped shape. |
 
