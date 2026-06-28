@@ -57,16 +57,6 @@ jobs:
           set -o pipefail
           go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-docs.log
 
-      - name: Run live issue-state verify for pull requests
-        if: github.event_name == 'pull_request'
-        working-directory: go
-        shell: bash
-        env:
-          ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE: "1"
-        run: |
-          set -o pipefail
-          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-live-issues.log
-
       - name: Run live issue-state verify for trusted events
         if: github.event_name != 'pull_request'
         working-directory: go
