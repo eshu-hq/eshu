@@ -131,17 +131,20 @@ jobs:
        github.event.label.name == 'refresh-cassettes')
     env:
       # Each collector binary reads its provider credentials from the
-      # environment. The names follow the ESHU_* convention used by the
-      # rest of the operator toolchain. Only the credentials required by the
-      # collectors that actually have committed cassettes are listed here;
-      # add a new entry when a new credentialed collector is onboarded.
+      # environment. These names must match the collector's documented config
+      # contract. Only the credentials required by collectors that actually
+      # have committed cassettes are listed here; add a new entry when a new
+      # credentialed collector is onboarded.
       #
-      # Secrets are injected as env vars, never echoed, never written to
-      # disk by the workflow steps themselves — the recorder writes only the
-      # canonical redacted cassette bytes to testdata/cassettes/.
-      ESHU_K8S_KUBECONFIG: ${{ secrets.ESHU_K8S_KUBECONFIG }}
-      ESHU_K8S_CLUSTER_URL: ${{ secrets.ESHU_K8S_CLUSTER_URL }}
-      ESHU_K8S_TOKEN: ${{ secrets.ESHU_K8S_TOKEN }}
+      # Secrets are injected as env vars and never echoed. Temporary
+      # kubeconfig materialization stays outside the repo; the recorder writes
+      # only canonical redacted cassette bytes to testdata/cassettes/.
+      ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID: ${{ secrets.ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID }}
+      ESHU_KUBERNETES_LIVE_CLUSTERS_JSON: ${{ secrets.ESHU_KUBERNETES_LIVE_CLUSTERS_JSON }}
+      # Optional base64-encoded kubeconfig. When set, the workflow writes it to
+      # /tmp/eshu-kubernetes-live/kubeconfig; kubeconfig-backed cluster entries
+      # in ESHU_KUBERNETES_LIVE_CLUSTERS_JSON must reference that path.
+      ESHU_KUBERNETES_LIVE_KUBECONFIG_B64: ${{ secrets.ESHU_KUBERNETES_LIVE_KUBECONFIG_B64 }}
       # GITHUB_TOKEN is the standard Actions token — used only for git push
       # and gh pr create, not as a provider credential.
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -169,6 +172,14 @@ jobs:
           # support -mode=record (pilot: kubernetes_live).
           go build -o /tmp/collector-kubernetes-live ./cmd/collector-kubernetes-live
 
+      - name: Materialize kubernetes_live kubeconfig
+        if: ${{ env.ESHU_KUBERNETES_LIVE_KUBECONFIG_B64 != '' }}
+        run: |
+          kubeconfig="/tmp/eshu-kubernetes-live/kubeconfig"
+          install -d -m 0700 "$(dirname "${kubeconfig}")"
+          base64 --decode <<<"${ESHU_KUBERNETES_LIVE_KUBECONFIG_B64}" > "${kubeconfig}"
+          chmod 0600 "${kubeconfig}"
+
       - name: Record kubernetes_live cassette
         # Only run when no specific collector was requested, or when the
         # requested collector matches.
@@ -178,7 +189,7 @@ jobs:
         run: |
           /tmp/collector-kubernetes-live \
             -mode=record \
-            -cassette-file=testdata/cassettes/kuberneteslive/live.cassette.json
+            -cassette-file=testdata/cassettes/kuberneteslive/supply-chain-demo.json
 
       - name: Open or update the diff PR
         # SECURITY: all GitHub context values that flow into shell commands are

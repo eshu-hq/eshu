@@ -15,8 +15,8 @@
 #      workflow writes to GITHUB_OUTPUT or env, not to cassette files.
 #   4. The canonical-diff and redaction Go tests exist and the package
 #      compiles offline (no credentials, no network, no Docker).
-#   5. The workflow references the correct secret names and they follow the
-#      ESHU_* naming convention used by the repo's other credentialed runners.
+#   5. The workflow references the collector's documented credential names and
+#      overwrites the tracked cassette instead of creating an untracked sibling.
 #
 # This script runs without Docker, without live credentials, and without a
 # running Go toolchain for the YAML/shell structural checks. The Go
@@ -88,7 +88,7 @@ fi
 # attacker who controls a context value can shell-escape if it is interpolated
 # directly by the GHA expression evaluator into the run: script body.
 # Note: this check covers the interpolation risk, not all possible secret
-# exposure paths (e.g. `echo $ESHU_K8S_TOKEN` is caught below, separately).
+# exposure paths (e.g. echoing an ESHU_* token is caught below, separately).
 if rg --quiet -- 'echo.*\${{.*secrets\.' "${workflow}" 2>/dev/null; then
   fail "workflow has an echo of a secret expression — secrets must not be interpolated into run: via \${{ secrets.X }}"
 else
@@ -97,9 +97,9 @@ fi
 
 # Case 6b: secrets must not be echoed via their env-var names either.
 # Provider credentials are bound to ESHU_* env vars in the record job; an
-# accidental `echo $ESHU_K8S_TOKEN` in a run: block would expose the value
-# in the Actions log (GitHub's automatic masking only covers the exact secret
-# value, not truncations or encodings).
+# accidental direct print in a run: block would expose the value in the Actions
+# log (GitHub's automatic masking only covers the exact secret value, not
+# truncations or encodings).
 if rg --quiet -- 'echo.*\$\{ESHU_' "${workflow}" 2>/dev/null \
    || rg --quiet -- 'printf.*\$\{ESHU_' "${workflow}" 2>/dev/null \
    || rg --quiet -- 'printenv.*ESHU_' "${workflow}" 2>/dev/null; then
@@ -130,17 +130,51 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 7: cassette-file flag — workflow must write to testdata/cassettes/
+# Case 7: collector config contract — workflow must wire the collector's real
+# environment names and must not retain the old placeholder ESHU_K8S_* names.
 # ---------------------------------------------------------------------------
-if rg --fixed-strings --quiet -- 'testdata/cassettes' "${workflow}" 2>/dev/null \
-    || rg --fixed-strings --quiet -- 'cassette-file' "${workflow}" 2>/dev/null; then
-  pass "workflow writes to testdata/cassettes (cassette-file)"
+if rg --fixed-strings --quiet -- 'ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID' "${workflow}" 2>/dev/null; then
+  pass "workflow wires kubernetes_live collector instance id"
 else
-  fail "workflow does not reference testdata/cassettes or cassette-file flag"
+  fail "workflow does not wire ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID"
+fi
+
+if rg --fixed-strings --quiet -- 'ESHU_KUBERNETES_LIVE_CLUSTERS_JSON' "${workflow}" 2>/dev/null; then
+  pass "workflow wires kubernetes_live clusters JSON"
+else
+  fail "workflow does not wire ESHU_KUBERNETES_LIVE_CLUSTERS_JSON"
+fi
+
+if rg --fixed-strings --quiet -- 'ESHU_KUBERNETES_LIVE_KUBECONFIG_B64' "${workflow}" 2>/dev/null \
+    && rg --fixed-strings --quiet -- '/tmp/eshu-kubernetes-live/kubeconfig' "${workflow}" 2>/dev/null; then
+  pass "workflow materializes kubernetes_live kubeconfig at the documented path"
+else
+  fail "workflow does not materialize the kubernetes_live kubeconfig contract"
+fi
+
+if rg --fixed-strings --quiet -- 'ESHU_K8S_' "${workflow}" 2>/dev/null; then
+  fail "workflow still references stale ESHU_K8S_* placeholder names"
+else
+  pass "workflow does not reference stale ESHU_K8S_* placeholder names"
 fi
 
 # ---------------------------------------------------------------------------
-# Case 8: contents: write permission — required for git push and gh pr create
+# Case 8: cassette-file flag — workflow must overwrite the tracked corpus file.
+# ---------------------------------------------------------------------------
+if rg --fixed-strings --quiet -- 'testdata/cassettes/kuberneteslive/supply-chain-demo.json' "${workflow}" 2>/dev/null; then
+  pass "workflow overwrites the tracked kubernetes_live cassette"
+else
+  fail "workflow does not overwrite testdata/cassettes/kuberneteslive/supply-chain-demo.json"
+fi
+
+if rg --fixed-strings --quiet -- 'live.cassette.json' "${workflow}" 2>/dev/null; then
+  fail "workflow still writes the untracked kubernetes_live live.cassette.json"
+else
+  pass "workflow does not write an untracked kubernetes_live cassette sibling"
+fi
+
+# ---------------------------------------------------------------------------
+# Case 9: contents: write permission — required for git push and gh pr create
 # ---------------------------------------------------------------------------
 if rg --fixed-strings --quiet -- 'contents: write' "${workflow}" 2>/dev/null; then
   pass "workflow declares contents: write permission for PR creation"
@@ -149,7 +183,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 9: pull-requests: write permission — required for gh pr create/edit
+# Case 10: pull-requests: write permission — required for gh pr create/edit
 # ---------------------------------------------------------------------------
 if rg --fixed-strings --quiet -- 'pull-requests: write' "${workflow}" 2>/dev/null; then
   pass "workflow declares pull-requests: write permission"
@@ -158,7 +192,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Case 10: Go refreshworkflow package exists and compiles offline
+# Case 11: Go refreshworkflow package exists and compiles offline
 # ---------------------------------------------------------------------------
 if [[ -d "${go_pkg}" ]]; then
   pass "go/internal/replay/refreshworkflow package directory exists"
