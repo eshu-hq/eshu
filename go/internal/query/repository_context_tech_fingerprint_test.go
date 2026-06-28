@@ -173,6 +173,12 @@ func TestQueryRepoSourceToolBreakdownCypherIsAnchored(t *testing.T) {
 	if strings.Contains(capturedCypher, "MATCH ()-[") {
 		t.Errorf("source_tool breakdown query uses all-node scan pattern:\n%s", capturedCypher)
 	}
+	// Must type the expansion to the source_tool-bearing Tier-2 verbs so it does
+	// not fan out across REPO_CONTAINS (every File) before filtering. A regression
+	// to an untyped `-[rel]->()` would drop the type list and fail this.
+	if !strings.Contains(capturedCypher, "DEPENDS_ON|") {
+		t.Errorf("source_tool breakdown query must restrict to typed Tier-2 verbs:\n%s", capturedCypher)
+	}
 }
 
 // TestBuildLanguageBreakdownFromRows covers the helper that converts the
