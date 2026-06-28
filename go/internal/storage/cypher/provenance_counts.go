@@ -68,15 +68,20 @@ func (s *ProvenanceCountStore) EdgesBySourceTool(ctx context.Context) (map[strin
 	if s == nil || s.Reader == nil {
 		return nil, fmt.Errorf("provenance count reader is required")
 	}
+	limit := s.groupLimit()
 	result := make(map[string]int64)
 	for _, verb := range sourceToolEdgeVerbs {
 		// verb is from the fixed sourceToolEdgeVerbs allowlist (never request
 		// input), so interpolation is injection-safe; relationship types cannot be
-		// parameterized in Cypher.
+		// parameterized in Cypher. LIMIT bounds the distinct source_tool groups
+		// returned per type — applied after grouping so per-tool counts stay exact
+		// — a safety valve against stale or non-canonical tokens bloating a scrape.
 		cypher := fmt.Sprintf(`MATCH ()-[r:%s]->()
 WHERE r.source_tool IS NOT NULL
-RETURN r.source_tool AS source_tool, count(r) AS cnt`, verb)
-		rows, err := s.Reader.Run(ctx, cypher, nil)
+RETURN r.source_tool AS source_tool, count(r) AS cnt
+ORDER BY cnt DESC
+LIMIT $limit`, verb)
+		rows, err := s.Reader.Run(ctx, cypher, map[string]any{"limit": limit})
 		if err != nil {
 			return nil, fmt.Errorf("count %s edges by source_tool: %w", verb, err)
 		}

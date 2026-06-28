@@ -125,9 +125,11 @@ func TestEdgesBySourceToolMergesAcrossVerbs(t *testing.T) {
 	}
 }
 
-// TestEdgesBySourceToolCypherIsTypeAnchored is the bounded-read guard: the edge
-// query must be relationship-type anchored (index-answered) and must NOT use the
-// forbidden unanchored all-edge scan or a row-sampling LIMIT.
+// TestEdgesBySourceToolCypherIsTypeAnchored is the bounded-read guard: each edge
+// query must be relationship-type anchored (index-answered), must NOT use the
+// forbidden unanchored all-edge scan, and must apply its group cap AFTER grouping
+// (post-RETURN LIMIT) — never as a pre-aggregation row sample — so per-tool
+// counts stay exact while the distinct-group count is bounded.
 func TestEdgesBySourceToolCypherIsTypeAnchored(t *testing.T) {
 	t.Parallel()
 	reader := &cypherAwareReader{}
@@ -142,11 +144,13 @@ func TestEdgesBySourceToolCypherIsTypeAnchored(t *testing.T) {
 		if strings.Contains(q, "MATCH ()-[r]->") {
 			t.Errorf("edge query uses the forbidden unanchored all-edge scan:\n%s", q)
 		}
-		if strings.Contains(q, "LIMIT") {
-			t.Errorf("edge query must not row-sample with LIMIT (counts must be exact):\n%s", q)
-		}
 		if !strings.Contains(q, "[r:") {
 			t.Errorf("edge query must be relationship-type anchored:\n%s", q)
+		}
+		// Group cap must be applied after grouping (cap returned groups, not the
+		// rows counted), exactly like the file query.
+		if !strings.Contains(q, "count(r) AS cnt\nORDER BY cnt DESC\nLIMIT $limit") {
+			t.Errorf("edge query must group-then-LIMIT (cap returned groups, not rows):\n%s", q)
 		}
 	}
 }

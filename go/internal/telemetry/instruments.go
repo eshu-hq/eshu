@@ -4618,12 +4618,20 @@ func RegisterEdgesBySourceToolObservableGauge(inst *Instruments, meter metric.Me
 			if err != nil {
 				return err
 			}
+			// Coalesce before observing: multiple out-of-vocabulary tokens (or a
+			// real "unknown" plus a stale token) all coerce to source_tool="unknown",
+			// and an observable gauge must emit exactly one observation per distinct
+			// label set per callback — duplicate sets corrupt the series.
+			coalesced := make(map[string]int64, len(counts))
 			for tool, count := range counts {
-				coerced := tool
+				label := tool
 				if !sourcetool.IsValid(tool) {
-					coerced = "unknown"
+					label = "unknown"
 				}
-				o.Observe(count, metric.WithAttributes(AttrSourceTool(coerced)))
+				coalesced[label] += count
+			}
+			for label, count := range coalesced {
+				o.Observe(count, metric.WithAttributes(AttrSourceTool(label)))
 			}
 			return nil
 		}),

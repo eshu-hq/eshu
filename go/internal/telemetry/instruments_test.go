@@ -743,6 +743,41 @@ func TestRegisterEdgesBySourceToolObservableGauge_UnknownCoercion(t *testing.T) 
 	}
 }
 
+// TestRegisterEdgesBySourceToolObservableGauge_UnknownCoalesced proves multiple
+// out-of-vocabulary tokens (plus a real "unknown") sum into a single "unknown"
+// observation — an observable gauge must emit one datapoint per distinct label
+// set per callback, so duplicate coerced labels must be coalesced first.
+func TestRegisterEdgesBySourceToolObservableGauge_UnknownCoalesced(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst := &Instruments{}
+	observer := &fakeEdgesBySourceToolObserver{
+		counts: map[string]int64{
+			"stale_tool_a": 3,
+			"stale_tool_b": 4,
+			"unknown":      5,
+			"terraform":    10,
+		},
+	}
+
+	if err := RegisterEdgesBySourceToolObservableGauge(inst, provider.Meter("test"), observer); err != nil {
+		t.Fatalf("RegisterEdgesBySourceToolObservableGauge() error = %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	// 3 + 4 + 5 must coalesce into a single unknown=12 datapoint.
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_edges_by_source_tool", map[string]string{"source_tool": "unknown"}); got != 12 {
+		t.Fatalf("coalesced unknown gauge = %d, want 12", got)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_edges_by_source_tool", map[string]string{"source_tool": "terraform"}); got != 10 {
+		t.Fatalf("terraform gauge = %d, want 10", got)
+	}
+}
+
 func TestRegisterFilesByLanguageObservableGauge_NilObserver(t *testing.T) {
 	t.Parallel()
 	inst := &Instruments{}
