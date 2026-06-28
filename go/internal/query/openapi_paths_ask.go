@@ -90,6 +90,24 @@ const openAPIPathsAsk = `
                       "type": "boolean",
                       "description": "True when the answer is usable but incomplete, including when runtime answer guardrails suppress narrated prose."
                     },
+                    "applied_facets": {
+                      "type": "object",
+                      "description": "Deterministic question-scoping metadata detected before the LLM loop. Present only when the question names a recognized source_tool or programming language. The actual server-side filter is applied inside the tool handlers when the LLM passes the corresponding arguments; this field records what was detected so callers can surface scoping chips in the UI.",
+                      "properties": {
+                        "source_tool": {
+                          "type": "string",
+                          "description": "Canonical source_tool token the LLM was steered toward (e.g. 'helm', 'terraform'). Empty when no canonical tool was detected."
+                        },
+                        "language": {
+                          "type": "string",
+                          "description": "Programming language name the LLM was steered toward (e.g. 'go', 'python'). Empty when none was detected."
+                        },
+                        "unknown_tool_note": {
+                          "type": "string",
+                          "description": "Human-readable note when the question appeared to name a specific tool that is not in the canonical source_tool vocabulary. Empty when no unknown tool was detected."
+                        }
+                      }
+                    },
                     "limitations": {
                       "type": "array",
                       "items": {"type": "string"},

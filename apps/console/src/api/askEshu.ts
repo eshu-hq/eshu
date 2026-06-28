@@ -67,6 +67,14 @@ export interface AskEvidenceHandle {
   readonly [key: string]: unknown;
 }
 
+/** Deterministic question-scoping metadata. Present only when a recognizable
+ *  tool or language was detected in the question. */
+export interface AskAppliedFacets {
+  readonly source_tool?: string;
+  readonly language?: string;
+  readonly unknown_tool_note?: string;
+}
+
 /** Full answer packet from POST /api/v0/ask, normalized for the UI. */
 export interface AskAnswer {
   readonly answer_prose: string;
@@ -76,6 +84,7 @@ export interface AskAnswer {
   readonly partial: boolean;
   readonly limitations: readonly string[];
   readonly evidence_handles: readonly AskEvidenceHandle[];
+  readonly applied_facets?: AskAppliedFacets;
 }
 
 /** Terminal error states the Ask surface can present. */

@@ -223,11 +223,24 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
   "truth_class":      "deterministic|derived|fallback|semantic_observation|code_hint|unsupported",
   "evidence_handles": [...],
   "citation_ref":     "string (citation packet that hydrates the evidence handles; coverage anchor for derived prose)",
+  "applied_facets":   {
+    "source_tool":      "string (canonical tool token, e.g. 'helm'; omitted when not detected)",
+    "language":         "string (language name, e.g. 'go'; omitted when not detected)",
+    "unknown_tool_note":"string (human note when question names a non-canonical tool; omitted when absent)"
+  },
   "query_trace":      [{"tool":"string","args":{},"supported":bool,"truth_class":"string","err":"string"}],
   "partial":          false,
   "limitations":      ["string"]
 }
 ```
+
+`applied_facets` is omitted when the question has no detectable tool or language scope. When
+present, it records what was detected before the agent loop ran: `source_tool` and `language`
+are used to steer the LLM toward passing those values as `source_tool`/`languages` arguments
+to `list_relationship_edges` and `search_semantic_context`; the actual server-side filter
+executes deterministically inside those tool handlers. `unknown_tool_note` is set when the
+question appears to name a specific tool that is not in the canonical vocabulary; the answer
+is then returned without a tool filter and the note also appears in `limitations`.
 
 Narrated prose and rendered artifacts pass through runtime answer guardrails
 before they are returned. A guardrail failure for citation coverage or
