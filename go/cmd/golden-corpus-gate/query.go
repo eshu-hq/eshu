@@ -95,7 +95,7 @@ func checkQuery(ctx context.Context, c *queryClient, snap Snapshot, r *Report) e
 				fmt.Sprintf("HTTP %d from %s", status, path))
 			continue
 		}
-		f := evaluateQueryShape(key, shape, body)
+		f := EvaluateQueryShape(key, shape, body)
 		r.Add(f)
 	}
 	return nil

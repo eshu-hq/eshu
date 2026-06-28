@@ -43,7 +43,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	}
 	if phases["timing"] {
 		if o.budgetSeconds > 0 {
-			evaluateTiming(
+			EvaluateTiming(
 				time.Duration(o.elapsedSeconds*float64(time.Second)),
 				time.Duration(o.budgetSeconds*float64(time.Second)),
 				o.budgetMultiplier, &r)
@@ -93,7 +93,7 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 			o.drainTimeout, counts.FactWorkItemsResidual, counts.SharedIntentsRequiredNonterminal,
 			counts.PopulatedDomainsPresent, len(populatedDomains))
 	}
-	evaluateDrains(counts, snap.DrainAssertions, len(populatedDomains), r)
+	EvaluateDrains(counts, snap.DrainAssertions, len(populatedDomains), r)
 	return nil
 }
 

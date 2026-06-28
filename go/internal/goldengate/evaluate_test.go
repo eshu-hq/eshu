@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package goldengate
 
 import (
 	"testing"
@@ -21,14 +21,14 @@ func TestEvaluateDrains(t *testing.T) {
 	a := strictDrainAssertions()
 	t.Run("drained", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{}, a, 0, &r)
+		EvaluateDrains(DrainCounts{}, a, 0, &r)
 		if r.Failed() {
 			t.Errorf("clean drain must pass; findings: %+v", r.Findings)
 		}
 	})
 	t.Run("fact residual reports dead_letter subset", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{FactWorkItemsResidual: 3, FactWorkItemsDeadLetter: 2}, a, 0, &r)
+		EvaluateDrains(DrainCounts{FactWorkItemsResidual: 3, FactWorkItemsDeadLetter: 2}, a, 0, &r)
 		if !r.Failed() {
 			t.Error("nonzero fact_work_items residual must fail")
 		}
@@ -47,7 +47,7 @@ func TestEvaluateDrains(t *testing.T) {
 	})
 	t.Run("required intent nonterminal includes repo_dependency detail", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 2, SharedIntentsRequiredNonterminal: 2, RepoDependencyNonterminal: 2}, a, 0, &r)
+		EvaluateDrains(DrainCounts{SharedIntentsNonterminal: 2, SharedIntentsRequiredNonterminal: 2, RepoDependencyNonterminal: 2}, a, 0, &r)
 		if !r.Failed() {
 			t.Error("nonterminal required shared intents must fail (B-13 gate)")
 		}
@@ -67,21 +67,21 @@ func TestEvaluateDrains(t *testing.T) {
 	t.Run("unpopulated pipeline fails the populated-then-drained guard", func(t *testing.T) {
 		var r Report
 		// Queues read empty but the reducer emitted nothing — must fail.
-		evaluateDrains(DrainCounts{PopulatedDomainsPresent: 0}, a, 1, &r)
+		EvaluateDrains(DrainCounts{PopulatedDomainsPresent: 0}, a, 1, &r)
 		if !r.Failed() {
 			t.Error("a drained-but-unreduced pipeline must fail the population guard")
 		}
 	})
 	t.Run("populated and drained passes the guard", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{PopulatedDomainsPresent: 1}, a, 1, &r)
+		EvaluateDrains(DrainCounts{PopulatedDomainsPresent: 1}, a, 1, &r)
 		if r.Failed() {
 			t.Errorf("populated + drained must pass; findings: %+v", r.Findings)
 		}
 	})
 	t.Run("advisory-domain nonterminal does not block", func(t *testing.T) {
 		var r Report
-		evaluateDrains(DrainCounts{SharedIntentsNonterminal: 6, SharedIntentsRequiredNonterminal: 0, SharedIntentsAdvisoryNonterminal: 6}, a, 0, &r)
+		EvaluateDrains(DrainCounts{SharedIntentsNonterminal: 6, SharedIntentsRequiredNonterminal: 0, SharedIntentsAdvisoryNonterminal: 6}, a, 0, &r)
 		if r.Failed() {
 			t.Errorf("advisory-domain nonterminal must not fail the gate; findings: %+v", r.Findings)
 		}
@@ -101,10 +101,10 @@ func TestEvaluateDrains(t *testing.T) {
 }
 
 func TestEvaluateNodePresent(t *testing.T) {
-	if f := evaluateNodePresent("Repository", 0); f.OK || !f.Required {
+	if f := EvaluateNodePresent("Repository", 0); f.OK || !f.Required {
 		t.Errorf("0 nodes must fail required smoke: %+v", f)
 	}
-	if f := evaluateNodePresent("Repository", 5); !f.OK || !f.Required {
+	if f := EvaluateNodePresent("Repository", 5); !f.OK || !f.Required {
 		t.Errorf("5 nodes must pass required smoke: %+v", f)
 	}
 }
@@ -128,19 +128,19 @@ func TestDrainCountsDrained(t *testing.T) {
 
 func TestEvaluateRequiredCorrelation(t *testing.T) {
 	rc := RequiredCorrelation{ID: "rc-1", Relationship: "CORRELATES_DEPLOYABLE_UNIT", FromLabel: "Repository", ToLabel: "Repository", MinimumCount: 1}
-	if f := evaluateRequiredCorrelation(rc, 0, true); f.OK || !f.Required {
+	if f := EvaluateRequiredCorrelation(rc, 0, true); f.OK || !f.Required {
 		t.Errorf("count 0 must fail and be required: %+v", f)
 	}
-	if f := evaluateRequiredCorrelation(rc, 1, true); !f.OK {
+	if f := EvaluateRequiredCorrelation(rc, 1, true); !f.OK {
 		t.Errorf("count 1 must pass: %+v", f)
 	}
 	// An advisory correlation that falls short warns but does not block.
-	if f := evaluateRequiredCorrelation(rc, 0, false); f.OK || f.Required {
+	if f := EvaluateRequiredCorrelation(rc, 0, false); f.OK || f.Required {
 		t.Errorf("advisory shortfall must warn, not block: %+v", f)
 	}
 	// minimum_count of 0 is clamped to 1 — an existence assertion is never vacuous.
 	rc0 := RequiredCorrelation{ID: "rc-x", Relationship: "X", MinimumCount: 0}
-	if f := evaluateRequiredCorrelation(rc0, 0, true); f.OK {
+	if f := EvaluateRequiredCorrelation(rc0, 0, true); f.OK {
 		t.Errorf("clamped minimum must require >= 1: %+v", f)
 	}
 }
@@ -148,20 +148,20 @@ func TestEvaluateRequiredCorrelation(t *testing.T) {
 func TestEvaluateNodeAndEdgeCountAdvisory(t *testing.T) {
 	rng := CountRange{Min: 15, Max: 30}
 	// Advisory variant (required=false): out-of-range warns without blocking.
-	if f := evaluateNodeCount("Repository", rng, 5, false); f.OK || f.Required {
+	if f := EvaluateNodeCount("Repository", rng, 5, false); f.OK || f.Required {
 		t.Errorf("out-of-range advisory node count must warn without blocking: %+v", f)
 	}
-	if f := evaluateNodeCount("Repository", rng, 20, false); !f.OK {
+	if f := EvaluateNodeCount("Repository", rng, 20, false); !f.OK {
 		t.Errorf("in-range node count must pass: %+v", f)
 	}
-	if f := evaluateEdgeCount("DEPENDS_ON", rng, 100, false); f.OK || f.Required {
+	if f := EvaluateEdgeCount("DEPENDS_ON", rng, 100, false); f.OK || f.Required {
 		t.Errorf("out-of-range advisory edge count must warn without blocking: %+v", f)
 	}
 	// Required variant (required=true, #3866 full-corpus mode): out-of-range blocks.
-	if f := evaluateNodeCount("Repository", rng, 5, true); f.OK || !f.Required {
+	if f := EvaluateNodeCount("Repository", rng, 5, true); f.OK || !f.Required {
 		t.Errorf("out-of-range required node count must block: %+v", f)
 	}
-	if f := evaluateEdgeCount("DEPENDS_ON", rng, 100, true); f.OK || !f.Required {
+	if f := EvaluateEdgeCount("DEPENDS_ON", rng, 100, true); f.OK || !f.Required {
 		t.Errorf("out-of-range required edge count must block: %+v", f)
 	}
 }
@@ -185,7 +185,7 @@ func TestEvaluateQueryShape(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			f := evaluateQueryShape("list_indexed_repositories", shape, []byte(c.body))
+			f := EvaluateQueryShape("list_indexed_repositories", shape, []byte(c.body))
 			if f.OK != c.want {
 				t.Errorf("OK=%v, want %v (detail: %s)", f.OK, c.want, f.Detail)
 			}
@@ -198,7 +198,7 @@ func TestEvaluateQueryShape(t *testing.T) {
 	t.Run("no array result field", func(t *testing.T) {
 		// operator-control-plane: required fields, no array, no minimum.
 		shape := QueryShape{RequiredResponseFields: []string{"version", "health"}}
-		f := evaluateQueryShape("operator-control-plane", shape, []byte(`{"version":"1","health":"ok"}`))
+		f := EvaluateQueryShape("operator-control-plane", shape, []byte(`{"version":"1","health":"ok"}`))
 		if !f.OK {
 			t.Errorf("object-shaped response with all fields must pass: %s", f.Detail)
 		}
@@ -209,14 +209,14 @@ func TestEvaluateTiming(t *testing.T) {
 	baseline := 100 * time.Second
 	t.Run("within 2x", func(t *testing.T) {
 		var r Report
-		evaluateTiming(150*time.Second, baseline, 2.0, &r)
+		EvaluateTiming(150*time.Second, baseline, 2.0, &r)
 		if r.Failed() {
 			t.Error("150s within 2x of 100s baseline must pass")
 		}
 	})
 	t.Run("over 2x", func(t *testing.T) {
 		var r Report
-		evaluateTiming(250*time.Second, baseline, 2.0, &r)
+		EvaluateTiming(250*time.Second, baseline, 2.0, &r)
 		if !r.Failed() {
 			t.Error("250s over 2x of 100s baseline must fail")
 		}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package goldengate
 
 import (
 	"encoding/json"
@@ -55,10 +55,10 @@ func (d DrainCounts) Drained(a DrainAssertions) bool {
 		d.SharedIntentsRequiredNonterminal <= a.SharedProjectionIntents.Limit()
 }
 
-// evaluateDrains turns observed drain counts into required findings.
+// EvaluateDrains turns observed drain counts into required findings.
 // expectedPopulatedDomains is the number of domains the reducer must be proven to
 // have emitted (the populated-then-drained guard); 0 disables the check.
-func evaluateDrains(d DrainCounts, a DrainAssertions, expectedPopulatedDomains int, r *Report) {
+func EvaluateDrains(d DrainCounts, a DrainAssertions, expectedPopulatedDomains int, r *Report) {
 	if expectedPopulatedDomains > 0 {
 		r.AddCheck("drains", "reducer_emitted_required_domains",
 			d.PopulatedDomainsPresent >= int64(expectedPopulatedDomains), true,
@@ -87,12 +87,12 @@ func evaluateDrains(d DrainCounts, a DrainAssertions, expectedPopulatedDomains i
 	}
 }
 
-// evaluateRequiredCorrelation produces an existence-style correlation finding
+// EvaluateRequiredCorrelation produces an existence-style correlation finding
 // (rc-N). These assertions are corpus-size independent. required controls
 // whether a shortfall fails the gate: the minimal gate blocks only on a
 // configured subset (rc-1, rc-3) and reports the rest as advisory so latent
 // cassette↔code binding gaps surface without blocking until they are fixed.
-func evaluateRequiredCorrelation(rc RequiredCorrelation, count int64, required bool) Finding {
+func EvaluateRequiredCorrelation(rc RequiredCorrelation, count int64, required bool) Finding {
 	want := rc.MinimumCount
 	if want < 1 {
 		want = 1
@@ -122,7 +122,7 @@ func valueAllowed(v string, allowed []string) bool {
 	return false
 }
 
-// evaluateEdgeProperty produces a required finding for one RequiredEdgeProperties
+// EvaluateEdgeProperty produces a required finding for one RequiredEdgeProperties
 // entry of a correlation. values holds the property value of every matching
 // (evidence-narrowed) edge ("" = absent/non-string). An edge is offending when
 // its value is empty or, when allowed is non-empty, not in the allowed set; any
@@ -130,7 +130,7 @@ func valueAllowed(v string, allowed []string) bool {
 // vacuously — the companion MinimumCount finding guards existence — so the two
 // together mean "the verb's edges exist and every one of them is stamped". The
 // required flag mirrors the parent correlation's blocking status.
-func evaluateEdgeProperty(rc RequiredCorrelation, prop string, values, allowed []string, required bool) Finding {
+func EvaluateEdgeProperty(rc RequiredCorrelation, prop string, values, allowed []string, required bool) Finding {
 	offending := 0
 	for _, v := range values {
 		if v == "" || (len(allowed) > 0 && !valueAllowed(v, allowed)) {
@@ -151,13 +151,13 @@ func evaluateEdgeProperty(rc RequiredCorrelation, prop string, values, allowed [
 	}
 }
 
-// evaluateNodeProperty produces a required finding for one RequiredNodeProperties
+// EvaluateNodeProperty produces a required finding for one RequiredNodeProperties
 // entry. values holds the property value of every node carrying the label ("" =
 // absent). The check is presence-positive: at least MinimumCount nodes must carry
 // a non-empty value (in the allowed set when pinned). This catches a property
 // regressing to never-set without false-failing on legitimately property-less
 // nodes (see RequiredNode).
-func evaluateNodeProperty(rn RequiredNode, prop string, values, allowed []string) Finding {
+func EvaluateNodeProperty(rn RequiredNode, prop string, values, allowed []string) Finding {
 	present := 0
 	for _, v := range values {
 		if v != "" && (len(allowed) == 0 || valueAllowed(v, allowed)) {
@@ -182,10 +182,10 @@ func evaluateNodeProperty(rn RequiredNode, prop string, values, allowed []string
 	}
 }
 
-// evaluateRequiredNode produces a required finding asserting at least
+// EvaluateRequiredNode produces a required finding asserting at least
 // MinimumCount nodes carry the label. It is the node-axis counterpart to
-// evaluateRequiredCorrelation: corpus-size independent and always blocking.
-func evaluateRequiredNode(rn RequiredNode, count int64) Finding {
+// EvaluateRequiredCorrelation: corpus-size independent and always blocking.
+func EvaluateRequiredNode(rn RequiredNode, count int64) Finding {
 	want := rn.MinimumCount
 	if want < 1 {
 		want = 1
@@ -199,11 +199,11 @@ func evaluateRequiredNode(rn RequiredNode, count int64) Finding {
 	}
 }
 
-// evaluateNodePresent produces a required finding asserting at least one node of
+// EvaluateNodePresent produces a required finding asserting at least one node of
 // label exists. This is the minimal "the pipeline projected something to the
 // graph" smoke check — it holds for any non-empty corpus while the richer
 // correlation assertions grow as the corpus and cassettes mature.
-func evaluateNodePresent(label string, count int64) Finding {
+func EvaluateNodePresent(label string, count int64) Finding {
 	return Finding{
 		Phase:    "graph",
 		Check:    "node_present_" + label,
@@ -213,14 +213,14 @@ func evaluateNodePresent(label string, count int64) Finding {
 	}
 }
 
-// evaluateNodeCount compares an observed node-label count to its snapshot
+// EvaluateNodeCount compares an observed node-label count to its snapshot
 // tolerance. required controls whether a shortfall blocks the gate: the
 // full-corpus mode (-graph-required-only=false) runs all 20 repos and promotes
 // these tolerances to required (#3866 criterion 3) so a regression that drops a
 // node count out of range fails the gate (a required File-count floor would have
 // caught the #4019 nested-file drop). The minimal/required-only mode never
 // reaches this check.
-func evaluateNodeCount(label string, rng CountRange, count int64, required bool) Finding {
+func EvaluateNodeCount(label string, rng CountRange, count int64, required bool) Finding {
 	return Finding{
 		Phase:    "graph",
 		Check:    "node_count_" + label,
@@ -230,10 +230,10 @@ func evaluateNodeCount(label string, rng CountRange, count int64, required bool)
 	}
 }
 
-// evaluateEdgeCount compares an observed edge-type count to its snapshot
-// tolerance. required mirrors evaluateNodeCount: blocking in the full-corpus
+// EvaluateEdgeCount compares an observed edge-type count to its snapshot
+// tolerance. required mirrors EvaluateNodeCount: blocking in the full-corpus
 // mode, where the ranges are calibrated for the 20-repo corpus.
-func evaluateEdgeCount(rel string, rng CountRange, count int64, required bool) Finding {
+func EvaluateEdgeCount(rel string, rng CountRange, count int64, required bool) Finding {
 	return Finding{
 		Phase:    "graph",
 		Check:    "edge_count_" + rel,
@@ -243,12 +243,12 @@ func evaluateEdgeCount(rel string, rng CountRange, count int64, required bool) F
 	}
 }
 
-// evaluateQueryShape validates a raw JSON response body against a query shape:
+// EvaluateQueryShape validates a raw JSON response body against a query shape:
 // required top-level fields must be present, the first array-valued required
 // field must have at least MinimumResults elements, and each element must carry
 // ResultItemRequiredFields. The returned finding is required: query truth is a
 // first-class B-7(c) gate.
-func evaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
+func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 	mk := func(ok bool, detail string) Finding {
 		return Finding{Phase: "query", Check: name, OK: ok, Required: true, Detail: detail}
 	}
@@ -308,10 +308,10 @@ func evaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 	return mk(true, detail)
 }
 
-// evaluateTiming produces a required finding asserting the live pipeline wall
+// EvaluateTiming produces a required finding asserting the live pipeline wall
 // time stayed within budgetMultiplier × baseline. The baseline is the committed
 // budget; the multiplier is the headroom factor (2x for the minimal gate).
-func evaluateTiming(elapsed, baseline time.Duration, budgetMultiplier float64, r *Report) {
+func EvaluateTiming(elapsed, baseline time.Duration, budgetMultiplier float64, r *Report) {
 	ceiling := time.Duration(float64(baseline) * budgetMultiplier)
 	r.AddCheck("timing", "pipeline_wall_time",
 		elapsed <= ceiling, true,

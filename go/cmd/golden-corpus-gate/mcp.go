@@ -169,7 +169,7 @@ func checkMCPQuery(ctx context.Context, c *mcpClient, snap Snapshot, r *Report) 
 			r.AddCheck("query", "mcp:"+key, false, true, err.Error())
 			continue
 		}
-		f := evaluateQueryShape("mcp:"+key, shape, body)
+		f := EvaluateQueryShape("mcp:"+key, shape, body)
 		r.Add(f)
 	}
 	return nil
