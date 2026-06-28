@@ -255,6 +255,7 @@ nav:
       - Local Data Root Spec: reference/local-data-root-spec.md
       - Local Host Lifecycle: reference/local-host-lifecycle.md
       - Local Performance Envelope: reference/local-performance-envelope.md
+      - Collector Performance Envelope: reference/collector-performance-envelope.md
       - Parse Scale Evidence: reference/parse-scale-evidence.md
       - Dead Code Reachability Spec: reference/dead-code-reachability-spec.md
       - Dead Code Language Maturity: reference/dead-code-language-maturity.md
