@@ -198,7 +198,14 @@ Layered Deterministic Simulation Testing for Eshu:
   path so ordering races are reproducible. By construction this stops exercising
   the real SQL claim path (see §10.1).
 - **R-14 (#4123) — crash-point replay (Layer 3).** Scripted mid-run crash
-  points prove idempotent restart and recovery.
+  points prove idempotent restart and recovery. Implemented in
+  `go/internal/replay/crashreplay/`: a `DurableStore` (the Postgres
+  `fact_work_items` + lease analog) survives a recovered-panic crash injected at
+  a clean boundary (`CrashBeforeClaim`) or the dirty post-lease-pre-complete
+  window (`CrashAfterApply`); recovery lapses the held lease on the R-12 clock,
+  reclaims under a higher fencing token, and replays the remainder, asserting the
+  recovered canonical snapshot equals the no-crash snapshot with zero
+  double-completions.
 
 ### 10.1 The irreducible remainder (R-15, #4124)
 
