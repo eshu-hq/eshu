@@ -11,6 +11,10 @@ documentation.
   the matrix and the live MCP registry by `go/cmd/capability-inventory` into
   `go/internal/capabilitycatalog/data/catalog.generated.json`. See
   `docs/public/reference/capability-catalog.md`.
+- `evidence-continuity.v1.yaml` maps the roster of GA and gated
+  evidence-centric public capabilities to source fact, projection/read-model,
+  API, MCP, empty-state, and negative evidence-loss proof. It is enforced by
+  `scripts/verify-evidence-continuity.sh`.
 - `authorization-catalog.v1.yaml` defines the v1 built-in roles, explicit
   action grants, data classes, permission families, bootstrap-owner posture, and
   custom-policy deferral that enrich every generated capability catalog entry.

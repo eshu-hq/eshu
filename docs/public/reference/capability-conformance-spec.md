@@ -10,6 +10,12 @@ Do not copy the full capability list into prose. The YAML matrix and
 fragments plus `go/internal/query/contract_matrix_test.go` are the contract and
 drift gate.
 
+Evidence-centric public capabilities also need continuity proof from source
+facts through projection/read-models to API and MCP answers. Keep those rows in
+`specs/evidence-continuity.v1.yaml`; the verifier fails when a rostered
+capability, required domain, public route/tool, empty state, or evidence-loss
+negative case is missing.
+
 ## Matrix Fields
 
 Each capability row defines:
@@ -99,6 +105,8 @@ For capability or backend conformance edits:
 cd go
 go test ./internal/query -run TestCapabilityMatrixMatchesYAMLContract -count=1
 go test ./internal/backendconformance -count=1
+go test ./internal/evidencecontinuity -count=1
+../scripts/verify-evidence-continuity.sh
 go run ./cmd/eshu docs verify ../docs/public/reference/capability-conformance-spec.md --limit 1200 --fail-on contradicted,missing_evidence
 ```
 

@@ -1,0 +1,256 @@
+version: v1
+required_domains:
+  - code_to_cloud
+  - supply_chain
+  - vulnerability_reachability
+  - iam_secrets
+  - change_risk
+  - iac_replatforming
+  - observability
+  - documentation_evidence
+  - capability_catalog_proof
+  - citation_packet
+required_capabilities:
+  - platform_impact.deployment_chain
+  - supply_chain.impact_findings.list
+  - reachability.go.govulncheck
+  - secrets_iam.identity_trust_chains.list
+  - platform_impact.developer_change_plan
+  - replatforming.plan.readiness
+  - observability.coverage.correlations.list
+  - documentation_evidence_packet.read
+  - capability_catalog.list
+  - evidence_citation.packet
+capability_api_routes:
+  platform_impact.deployment_chain: ["POST /api/v0/impact/trace-deployment-chain"]
+  supply_chain.impact_findings.list: ["GET /api/v0/supply-chain/impact/findings"]
+  reachability.go.govulncheck: ["GET /api/v0/supply-chain/impact/explain"]
+  secrets_iam.identity_trust_chains.list: ["GET /api/v0/secrets-iam/identity-trust-chains"]
+  platform_impact.developer_change_plan: ["POST /api/v0/impact/developer-change-plan"]
+  replatforming.plan.readiness: ["POST /api/v0/replatforming/plans"]
+  observability.coverage.correlations.list: ["GET /api/v0/observability/coverage/correlations"]
+  documentation_evidence_packet.read: ["GET /api/v0/documentation/findings/{finding_id}/evidence-packet"]
+  capability_catalog.list: ["GET /api/v0/capabilities"]
+  evidence_citation.packet: ["POST /api/v0/evidence/citations"]
+rows:
+  - id: code-to-cloud-deployment-chain
+    domain: code_to_cloud
+    capability: platform_impact.deployment_chain
+    api_routes: ["POST /api/v0/impact/trace-deployment-chain"]
+    mcp_tools: ["trace_deployment_chain"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestBuildDeploymentTraceResponsePromotesWorkflowAndControllerProvenance|TestBuildDeploymentTraceArtifactLineageUsesExplicitWorkflowAndControllerEvidence)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestBuildDeploymentTraceArtifactLineageSkipsImplicitOnlyEvidence|TestTraceDeploymentChainSkipsIndirectEvidenceWhenDirectOnly)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestTraceDeploymentChain_LocalLightweightReturnsStructuredUnsupportedCapability|TestBuildDeploymentTraceResponseIncludesOCIRegistryTruthInOverview)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsTraceDeploymentChain|TestEcosystemTraceDeploymentChainSchema)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestTraceDeploymentChain_LocalLightweightReturnsStructuredUnsupportedCapability)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestTraceDeploymentChainSkipsIndirectEvidenceWhenDirectOnly)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestBuildDeploymentTraceResponseDoesNotEmitStructurallyEmptyDeliveryPaths)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestBuildDeploymentTraceResponseDoesNotEmitStructurallyEmptyDeliveryPaths)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestTraceDeploymentChain_LocalLightweightReturnsStructuredUnsupportedCapability)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestBuildDeploymentTraceResponseIncludesArtifactBackedDeliveryPaths)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestTraceDeploymentChain_LocalLightweightReturnsStructuredUnsupportedCapability)$' -count=1"}
+    properties: &required_properties
+      provider_key_independent: "true"
+      deterministic_truth: "required"
+
+  - id: supply-chain-impact-findings
+    domain: supply_chain
+    capability: supply_chain.impact_findings.list
+    api_routes: ["GET /api/v0/supply-chain/impact/findings"]
+    mcp_tools: ["list_supply_chain_impact_findings"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact|TestBuildSupplyChainImpactReadinessDistinguishesSourceStates)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestPostgresSupplyChainImpactReadinessScopesAdvisoryFacts|TestSupplyChainListImpactFindingsDefaultsToPreciseProfile)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestSupplyChainExplainImpactFindingIncludesEvidenceChain|TestSupplyChainListImpactFindingsDefaultsExcludeOperatorSuppressions)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery|TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestSupplyChainListImpactFindingsReadinessSurfacesNotConfigured)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestSupplyChainListImpactFindingsReadinessWithoutStore)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestSupplyChainListImpactFindingsAttachesReadinessForZeroFindings)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainListImpactFindingsAttachesReadinessForZeroFindings)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestBuildSupplyChainImpactReadinessClassifiesMissingSBOMOrImageEvidence)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestBuildSupplyChainImpactReadinessFailsClosedForStalePackageMetadata)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainImpactAggregateInventoryReportsTruncated)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainImpactScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRead)$' -count=1"}
+    properties: *required_properties
+
+  - id: vulnerability-reachability-go
+    domain: vulnerability_reachability
+    capability: reachability.go.govulncheck
+    api_routes: ["GET /api/v0/supply-chain/impact/explain"]
+    mcp_tools: ["explain_supply_chain_impact"]
+    source_fact: {ref: "go test ./cmd/eshu ./internal/query -run '^(TestBuildVulnScanReportPreservesReachabilityEnvelope|TestDecodeSupplyChainImpactFindingRowPreservesReachabilityEnvelope)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact|TestDecodeSupplyChainImpactFindingRowPreservesJSTSReachabilitySeparatelyFromImpact)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForMissingEvidence|TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestSupplyChainImpactToolDescriptionAdvertisesReachabilityEnvelope|TestDispatchToolSupplyChainImpactExplainReturnsEnvelope)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./cmd/eshu -run '^(TestRunVulnScanRepoSurfacesServerNotConfiguredReadiness)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestSupplyChainExplainImpactNoEvidenceSurfacesUnsupportedEcosystem)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestSupplyChainExplainImpactNoEvidenceResponse)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainExplainImpactNoEvidenceResponse)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForMissingEvidence)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./cmd/eshu -run '^(TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainExplainImpactRequiresBoundedInput)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestSupplyChainExplainImpactNoEvidenceSurfacesPermissionHiddenSourceState)$' -count=1"}
+    properties: *required_properties
+
+  - id: iam-secrets-trust-chains
+    domain: iam_secrets
+    capability: secrets_iam.identity_trust_chains.list
+    api_routes: ["GET /api/v0/secrets-iam/identity-trust-chains"]
+    mcp_tools: ["list_secrets_iam_identity_trust_chains"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainQueryUsesActiveFactReadModel|TestSecretsIAMIdentityTrustChainsTruthLabel)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsUsesBoundedStore|TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit|TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestSecretsIAMToolsRegisteredAndRoutable)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestSecretsIAMEndpointsUnsupportedOnLocalLightweight)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsUsesBoundedStore)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
+    properties: *required_properties
+
+  - id: change-risk-developer-plan
+    domain: change_risk
+    capability: platform_impact.developer_change_plan
+    api_routes: ["POST /api/v0/impact/developer-change-plan"]
+    mcp_tools: ["plan_developer_change"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestOpenAPIDeveloperChangePlanDocumentsWorkflow)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestDeveloperChangePlanToolContract|TestResolveRouteMapsDeveloperChangePlanToBoundedBody)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestDeveloperChangePlanBuildsReadOnlyActions)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsDeveloperChangePlanToBoundedBody)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsDeveloperChangePlanToBoundedBody)$' -count=1"}
+    properties: *required_properties
+
+  - id: iac-replatforming-plan
+    domain: iac_replatforming
+    capability: replatforming.plan.readiness
+    api_routes: ["POST /api/v0/replatforming/plans"]
+    mcp_tools: ["compose_replatforming_plan"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestReplatformingSourceStateForManagementStatusIsDeterministic|TestReplatformingPlanReadinessCapabilityProfileGate)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestResolveReplatformingSourceStateAppliesRejectedGate|TestAllReplatformingSourceStatesAreValidAndStable)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanOrdersWavesAndBlastRadius)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsComposeReplatformingPlan|TestReplatformingPlanAnswerParity|TestReplatformingUnsupportedProfileParity)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanUnsupportedProfile)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanEmptyEvidenceIsBoundedAnswer)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanEmptyEvidenceIsBoundedAnswer)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanEmptyEvidenceIsBoundedAnswer)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanEmptyEvidenceIsBoundedAnswer)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestReplatformingRollupsPreservesSourceStateAndReadiness)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanTruncatesAndPaginates)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestComposeReplatformingPlanRequiresBoundedScope)$' -count=1"}
+    properties: *required_properties
+
+  - id: observability-coverage-correlations
+    domain: observability
+    capability: observability.coverage.correlations.list
+    api_routes: ["GET /api/v0/observability/coverage/correlations"]
+    mcp_tools: ["list_observability_coverage_correlations"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageCorrelationQueryUsesActiveFactReadModel)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsUsesBoundedStore|TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit|TestOpenAPISpecIncludesObservabilityCoverageCorrelations)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsObservabilityCoverageCorrelationsToBoundedQuery|TestObservabilityCoverageToolIsRegistered)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsUsesBoundedStore)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageCorrelationQueryUsesActiveFactReadModel)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsObservabilityCoverageCorrelationsToBoundedQuery)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestObservabilityCoverageListCorrelationsRequiresScopeAndLimit)$' -count=1"}
+    properties: *required_properties
+
+  - id: documentation-evidence-packet
+    domain: documentation_evidence
+    capability: documentation_evidence_packet.read
+    api_routes: ["GET /api/v0/documentation/findings/{finding_id}/evidence-packet"]
+    mcp_tools: ["get_documentation_evidence_packet"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestDocumentationEvidencePacketEnforcement|TestContentReaderDocumentationEvidencePacketFreshnessComparesSavedVersion)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestDocumentationEvidencePacketSQLAppliesScopedAuthorizationBeforeOrder|TestContentReaderDocumentationEvidencePacketDeniesUnknownVisibility)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestDocumentationEvidencePacketScopedEmptyGrantReturnsNotFoundWithoutRead|TestDocumentationEvidencePacketHandlerPassesScopedGrants)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestDispatchToolDocumentationEvidencePacketsAllowScopedRoutes)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestDocumentationHandlerReportsUnsupportedProfileWithStableError)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestDocumentationHandlerReportsUnavailableReadModelWithStableError)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestDocumentationEvidencePacketScopedEmptyGrantReturnsNotFoundWithoutRead)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestDocumentationEvidencePacketScopedEmptyGrantReturnsNotFoundWithoutRead)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestDocumentationEvidencePacketScopedEmptyGrantReturnsNotFoundWithoutRead)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestContentReaderDocumentationEvidencePacketFreshnessComparesSavedVersion)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestDocumentationEvidencePacketSQLAppliesScopedAuthorizationBeforeOrder)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestContentReaderDocumentationEvidencePacketDeniesUnknownVisibility)$' -count=1"}
+    properties: *required_properties
+
+  - id: capability-catalog-proof
+    domain: capability_catalog_proof
+    capability: capability_catalog.list
+    api_routes: ["GET /api/v0/capabilities"]
+    mcp_tools: ["get_capability_catalog"]
+    source_fact: {ref: "go test ./internal/capabilitycatalog -run '^(TestBuildDerivesEntriesAndSurfaces|TestRealSpecsResolveIssue2743ToolMappings)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/capabilitycatalog -run '^(TestBuildSurfaceInventoryCleanHasNoFindings)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestCapabilitiesHandlerListsCatalogWithExactTruth)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestCapabilityCatalogRuntimeToolRoutesToCapabilities|TestCapabilityCatalogRuntimeToolOmitsEmptyFilters)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestCapabilitiesHandlerListsCatalogWithExactTruth)$' -count=1"}
+      no_collector: {ref: "go test ./internal/capabilitycatalog -run '^(TestBuildSurfaceInventoryCleanHasNoFindings)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestCapabilitiesHandlerPagesDeterministically)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestCapabilitiesHandlerPagesDeterministically)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/capabilitycatalog -run '^(TestBuildFlagsOrphanAndUnmatched)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/capabilitycatalog -run '^(TestBuildFlagsStaleOverlayAndMissingReason)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestCapabilitiesHandlerPagesDeterministically)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestCapabilitiesHandlerRejectsBadLimit)$' -count=1"}
+    properties: *required_properties
+
+  - id: evidence-citation-packet
+    domain: citation_packet
+    capability: evidence_citation.packet
+    api_routes: ["POST /api/v0/evidence/citations"]
+    mcp_tools: ["build_evidence_citation_packet"]
+    source_fact: {ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationDeterministicOrdering|TestEvidenceCitationVisualizationPrivacyInvariant)$' -count=1"}
+    continuity:
+      projection: {ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationTruncates|TestEvidenceCitationVisualizationUnsupported)$' -count=1"}
+      api: {ref: "go test ./internal/query -run '^(TestAuthMiddlewareWithScopedTokensAllowsEvidenceCitationRouteWithEmptyGrant)$' -count=1"}
+      mcp: {ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsEvidenceCitationPacketToBoundedBody|TestDispatchToolEvidenceCitationAllowsScopedCitationRoute)$' -count=1"}
+    empty_states:
+      no_provider: {ref: "go test ./internal/query -run '^(TestEvidenceHandlerScopedCitationPacketEmptyGrantDoesNotHydrate)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query -run '^(TestEvidenceHandlerCitationPacketReportsMissingAndTruncatedHandles)$' -count=1"}
+      empty: {ref: "go test ./internal/query -run '^(TestEvidenceHandlerCitationPacketRejectsEmptyHandles)$' -count=1"}
+    negative_cases:
+      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestEvidenceHandlerCitationPacketRejectsEmptyHandles)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestEvidenceHandlerCitationPacketReportsMissingAndTruncatedHandles)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationUnsupported)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationTruncates)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestEvidenceHandlerScopedCitationPacketFiltersOutOfScopeHandles)$' -count=1"}
+    properties: *required_properties
