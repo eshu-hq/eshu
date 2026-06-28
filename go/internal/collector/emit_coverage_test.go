@@ -6,7 +6,7 @@ package collector_test
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/cassette"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
