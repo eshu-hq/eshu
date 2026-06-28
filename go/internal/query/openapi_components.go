@@ -401,6 +401,8 @@ const openAPIComponents = `  "components": {
           "dependents": {"type": "array", "items": {"type": "object"}},
           "consumer_repositories": {"type": "array", "items": {"type": "object"}},
           "provisioning_source_chains": {"type": "array", "items": {"type": "object"}},
+          "language_breakdown": {"type": "object", "description": "Per-language file counts for the service's primary repository, derived from indexed File nodes. Present only when language data is available. Keys are language names; values are integer file counts.", "additionalProperties": {"type": "integer"}},
+          "source_tool_breakdown": {"type": "object", "description": "Per-source_tool outgoing relationship-edge counts for the service's primary repository. Present only when edges carry a source_tool property. Keys are canonical source_tool tokens; values are integer edge counts.", "additionalProperties": {"type": "integer"}},
           "result_limits": {"type": "object", "description": "Additive drilldown block: bounded limit, deterministic ordering, fan-out counts, truncation flag, and the next prompt tool plus context path.", "additionalProperties": true},
           "partial_reasons": {"type": "array", "description": "Explicit limitations or unsupported-evidence reasons for the context read; always present so the envelope shape is stable across complete and partial reads.", "items": {"type": "string"}},
           "instances": {

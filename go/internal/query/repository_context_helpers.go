@@ -173,6 +173,37 @@ func queryRepoRelationshipOverviewDirection(ctx context.Context, reader GraphQue
 	return result
 }
 
+// queryRepoSourceToolBreakdown returns a per-source_tool edge count for the
+// repository, anchored on the repository's id. It matches all outgoing edges
+// from the repository node that carry a non-null source_tool property and
+// returns a (source_tool, edge_count) aggregate. The anchor
+// `(r:Repository {id: $repo_id})` is repository-id-indexed, and the expand is
+// restricted to the six Tier-2 repo-outgoing verbs that actually carry
+// source_tool (#3997/#3999). Typing the relationship is deliberate: a bare
+// `-[rel]->()` would also traverse REPO_CONTAINS to every File node in the
+// repository (a large fanout) only to discard them on the source_tool IS NOT
+// NULL filter; the type list keeps the expand to the stamped edges.
+func queryRepoSourceToolBreakdown(ctx context.Context, reader GraphQuery, params map[string]any) []map[string]any {
+	rows, err := reader.Run(ctx, `
+		MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|DEPLOYS_FROM|USES_MODULE|READS_CONFIG_FROM|PROVISIONS_DEPENDENCY_FOR|DISCOVERS_CONFIG_IN]->()
+		WHERE rel.source_tool IS NOT NULL
+		RETURN rel.source_tool AS source_tool, count(rel) AS edge_count
+		ORDER BY edge_count DESC, source_tool
+	`, params)
+	if err != nil || len(rows) == 0 {
+		return make([]map[string]any, 0)
+	}
+
+	result := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, map[string]any{
+			"source_tool": StringVal(row, "source_tool"),
+			"edge_count":  IntVal(row, "edge_count"),
+		})
+	}
+	return result
+}
+
 func queryRepoConsumers(ctx context.Context, reader GraphQuery, params map[string]any) []map[string]any {
 	rows, err := reader.Run(ctx, `
 		MATCH (consumer:Repository)-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(r:Repository {id: $repo_id})

@@ -77,6 +77,31 @@ graph edge has that data. `relationships` includes outgoing rows; the
 `relationship_overview.relationships` section includes both incoming and
 outgoing rows plus the same compact evidence pointers.
 
+### Tech Fingerprint Rollup
+
+Repository context (`GET /api/v0/repositories/{repo_id}/context`) and service
+context (`GET /api/v0/services/{service_name}/context`) include two additive
+tech-fingerprint fields when data is available:
+
+- **`language_breakdown`** — a `{language: file_count}` map derived from
+  indexed `File` nodes in the repository. It collapses the existing `languages`
+  array into a compact rollup for dashboards and rollup queries. Omitted when no
+  language data exists for the repository.
+- **`source_tool_breakdown`** — a `{source_tool: edge_count}` map counting
+  outgoing relationship edges from the repository that carry a `source_tool`
+  property. The canonical `source_tool` vocabulary is defined in
+  `go/internal/sourcetool` (terraform, helm, ansible, etc.). Omitted when no
+  edges carry `source_tool`.
+
+Both fields are read-only aggregates — no new capture, parser, or migration.
+The underlying queries are bounded and anchored on the repository node's `id`
+index (`MATCH (r:Repository {id: $repo_id})-[rel]->() WHERE rel.source_tool IS
+NOT NULL`), satisfying the cypher-performance.md bounded-read contract.
+
+For service context the breakdown is anchored on the service's primary
+`repo_id` resolved from the workload context. When `repo_id` is absent
+(identity-only path) both fields are omitted.
+
 No-Regression Evidence:
 
 ```bash

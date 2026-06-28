@@ -261,6 +261,16 @@ const openAPIPathsRepositories = `
                       "type": "array",
                       "description": "Repositories with incoming relationships to this repository.",
                       "items": {"type": "object"}
+                    },
+                    "language_breakdown": {
+                      "type": "object",
+                      "description": "Per-language file counts for this repository, derived from indexed File nodes. Omitted when no language data is available. Keys are language names (e.g. go, python, yaml); values are integer file counts.",
+                      "additionalProperties": {"type": "integer"}
+                    },
+                    "source_tool_breakdown": {
+                      "type": "object",
+                      "description": "Per-source_tool outgoing relationship-edge counts for this repository. Omitted when no edges carry a source_tool property. Keys are canonical source_tool tokens (e.g. terraform, helm, ansible); values are integer edge counts.",
+                      "additionalProperties": {"type": "integer"}
                     }
                   }
                 }
