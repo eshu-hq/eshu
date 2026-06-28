@@ -151,5 +151,19 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	}
 	timer.Done(ctx, slog.Int("row_count", len(result["languages"].([]map[string]any))))
 
+	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "tech_fingerprint")
+	languageBreakdown := buildLanguageBreakdownFromRows(result["languages"].([]map[string]any))
+	if len(languageBreakdown) > 0 {
+		result["language_breakdown"] = languageBreakdown
+	}
+	sourceToolBreakdown := buildSourceToolBreakdownFromRows(queryRepoSourceToolBreakdown(ctx, h.Neo4j, params))
+	if len(sourceToolBreakdown) > 0 {
+		result["source_tool_breakdown"] = sourceToolBreakdown
+	}
+	timer.Done(ctx,
+		slog.Int("language_count", len(languageBreakdown)),
+		slog.Int("source_tool_count", len(sourceToolBreakdown)),
+	)
+
 	WriteSuccess(w, r, http.StatusOK, result, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisHybrid, "resolved from repository context and platform evidence"))
 }
