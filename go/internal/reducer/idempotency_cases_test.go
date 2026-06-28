@@ -43,9 +43,14 @@ var idempotencyExemptDomains = map[Domain]string{
 
 // idempotencyReplayCases returns one replay case per covered reducer domain.
 //
-// The covered set is the 10 of 12 DefaultDomainDefinitions() domains whose emit
-// path is drivable with an in-memory recording fake and a static fact fixture.
-// The two graph-read-back domains are exempted above with cited coverage.
+// The covered set is the 10 of 12 DefaultDomainDefinitions() base-catalog domains
+// whose emit path is drivable with an in-memory recording fake and a static fact
+// fixture. The two base graph-read-back domains are exempted above with cited
+// coverage. The additive, adapter-gated domains registered by
+// appendAdditiveDomainDefinitions are held to the same coverage bar by
+// TestReducerIdempotencyCoverageGuard and exempted in
+// idempotencyAdditiveExemptDomains (idempotency_additive_test.go), each citing
+// the dedicated suite that proves its reprojection idempotency.
 func idempotencyReplayCases() []idempotencyReplayCase {
 	return []idempotencyReplayCase{
 		workloadIdentityReplayCase(),

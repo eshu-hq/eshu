@@ -15,9 +15,12 @@ import (
 //
 // The retry path historically had far fewer tests than the lease path. This
 // suite closes that gap with a registry-driven proof: for every reducer domain
-// in DefaultDomainDefinitions() we either replay its emit path twice with the
+// the production registry can register — the DefaultDomainDefinitions() base
+// catalog PLUS every additive, adapter-gated domain registered by
+// appendAdditiveDomainDefinitions — we either replay its emit path twice with the
 // same input (same FencingToken on the loaded facts) and assert the projection
-// does not duplicate, or we record an explicit, documented exemption.
+// does not duplicate, or we record an explicit, documented exemption. The full
+// guarded set is derived in registrableReducerDomains() (idempotency_additive_test.go).
 //
 // "No duplicate projection" is modeled faithfully. Reducer idempotency is
 // enforced by MERGE semantics on stable keys, not by an explicit fencing-token
@@ -126,11 +129,19 @@ func TestReducerEmitPathsAreIdempotentUnderReplay(t *testing.T) {
 	}
 }
 
-// TestReducerIdempotencyCoverageGuard fails if any DefaultDomainDefinitions()
-// domain is neither covered by a replay case nor explicitly exempted. This is
-// the drift guard: a newly registered reducer domain forces an author to either
-// add an idempotency replay case or record a documented exemption, so "each
-// reducer" coverage cannot silently erode.
+// TestReducerIdempotencyCoverageGuard fails if any reducer domain that the
+// production registry can register is neither covered by a replay case nor
+// explicitly exempted. This is the drift guard: a newly registered reducer
+// domain forces an author to either add an idempotency replay case or record a
+// documented exemption, so "each reducer" coverage cannot silently erode.
+//
+// The guarded set is the FULL production-registrable superset, not just the
+// fixed DefaultDomainDefinitions() base catalog. Additive, adapter-gated domains
+// registered by appendAdditiveDomainDefinitions (config_state_drift,
+// container_image_identity, the cloud-resource materializers, …) are included
+// too: registrableReducerDomains() derives them from knownDomains, which
+// Registry.Register requires every domain to be in via Domain.Validate(), so an
+// additive domain cannot ship without being guarded here.
 func TestReducerIdempotencyCoverageGuard(t *testing.T) {
 	t.Parallel()
 
@@ -142,42 +153,64 @@ func TestReducerIdempotencyCoverageGuard(t *testing.T) {
 		covered[c.domain] = struct{}{}
 	}
 
+	guarded := registrableReducerDomains()
+
 	var missing []string
-	for _, def := range DefaultDomainDefinitions() {
-		if _, ok := covered[def.Domain]; ok {
+	for _, domain := range guarded {
+		if _, ok := covered[domain]; ok {
 			continue
 		}
-		if _, exempt := idempotencyExemptDomains[def.Domain]; exempt {
+		if _, exempt := idempotencyExemptDomain(domain); exempt {
 			continue
 		}
-		missing = append(missing, string(def.Domain))
+		missing = append(missing, string(domain))
 	}
 	sort.Strings(missing)
 
 	if len(missing) > 0 {
 		t.Fatalf(
 			"reducer domain(s) lack an idempotency replay case and are not exempted: %v\n"+
-				"add a case to idempotencyReplayCases() or an entry to idempotencyExemptDomains with a reason",
+				"add a case to idempotencyReplayCases() or an entry to idempotencyExemptDomains "+
+				"(base) / idempotencyAdditiveExemptDomains (additive) with a reason",
 			missing,
 		)
 	}
 
-	// Every exemption must name a real DefaultDomainDefinitions() domain and carry
-	// a non-empty reason, so the exemption set cannot rot into stale or blank
-	// entries.
-	defined := make(map[Domain]struct{})
-	for _, def := range DefaultDomainDefinitions() {
-		defined[def.Domain] = struct{}{}
+	assertIdempotencyExemptionsAreClean(t, covered, guarded)
+}
+
+// assertIdempotencyExemptionsAreClean verifies both exemption sets cannot rot:
+// every exemption must name a real registrable reducer domain, must not also be
+// covered by a replay case, and must carry a non-empty reason.
+func assertIdempotencyExemptionsAreClean(t *testing.T, covered map[Domain]struct{}, guarded []Domain) {
+	t.Helper()
+
+	registrable := make(map[Domain]struct{}, len(guarded))
+	for _, domain := range guarded {
+		registrable[domain] = struct{}{}
 	}
-	for domain, reason := range idempotencyExemptDomains {
-		if _, ok := defined[domain]; !ok {
-			t.Errorf("exempt domain %q is not in DefaultDomainDefinitions(); remove the stale exemption", domain)
+
+	check := func(setName string, set map[Domain]string) {
+		for domain, reason := range set {
+			if _, ok := registrable[domain]; !ok {
+				t.Errorf("%s domain %q is not a registrable reducer domain; remove the stale exemption", setName, domain)
+			}
+			if _, ok := covered[domain]; ok {
+				t.Errorf("domain %q is both covered and exempted in %s; drop the exemption", domain, setName)
+			}
+			if reason == "" {
+				t.Errorf("%s domain %q has a blank reason; document why it cannot be unit-replayed", setName, domain)
+			}
 		}
-		if _, ok := covered[domain]; ok {
-			t.Errorf("domain %q is both covered and exempted; drop the exemption", domain)
-		}
-		if reason == "" {
-			t.Errorf("exempt domain %q has a blank reason; document why it cannot be unit-replayed", domain)
+	}
+	check("idempotencyExemptDomains", idempotencyExemptDomains)
+	check("idempotencyAdditiveExemptDomains", idempotencyAdditiveExemptDomains)
+
+	// A domain must not be exempted in both sets, which would let one rot
+	// undetected behind the other.
+	for domain := range idempotencyExemptDomains {
+		if _, ok := idempotencyAdditiveExemptDomains[domain]; ok {
+			t.Errorf("domain %q is exempted in both exemption sets; keep exactly one entry", domain)
 		}
 	}
 }
