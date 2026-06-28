@@ -131,7 +131,45 @@ replay).
 
 ## 8. Phase 3 — contributor packaging
 
-R-10 (contributor conformance packaging — the 5-command flow).
+R-10 (contributor conformance packaging — the 5-command flow), issue #4112.
+
+The framework ships as an out-of-tree onboarding surface so a contributor can
+prove a collector's extraction **with zero provider credentials and zero
+Docker** before it is ever a candidate for the monorepo split:
+
+- **Starter spec** (`go/conformance/testdata/starter-spec.yaml`) — the
+  contributor-facing twin of the B-12 golden snapshot, parsed via
+  `sigs.k8s.io/yaml` into the same `goldengate.Snapshot` struct, so one contract
+  serves both the in-repo JSON snapshot and the contributor YAML spec.
+- **Starter tape** (`go/conformance/testdata/starter-cassette.json`) — a small
+  `hello-eshu` cassette, schema-valid against the R-3 cassette JSON Schema,
+  regenerated via `replay record` (`-mode=record`).
+- **Conformance suite** (`go/conformance`) — `go test ./conformance -count=1`
+  replays the tape offline, derives the projected graph observation in memory,
+  and asserts it against the spec.
+- **5-command README** (`go/conformance/README.md`) — clone → run → edit spec →
+  record tape → re-run.
+
+**Shared assertion core, no forked logic.** The pure assertion layer (the
+`Snapshot` contract, the `Finding`/`Report` accumulator, and every `Evaluate*`
+function) was extracted out of `cmd/golden-corpus-gate`'s `package main` into the
+importable `go/internal/goldengate` package. Both the in-repo gate (via
+`shared.go` aliases) and the conformance suite import it, so the contributor's
+credential-free proof and the in-repo gate assert against the identical logic and
+cannot drift.
+
+**#4047 readiness proof.** The conformance suite is the automated proof the
+#4047 collector-extraction readiness checklist points to for the "deterministic
+local and CI proof passes without provider keys" criterion: a green
+`go test ./conformance` run shows a collector's facts project the
+node/edge/correlation truth the spec demands, reproducibly, with nothing
+installed but Go. The in-repo `golden-corpus-gate` and the
+`internal/replay/offlinetier` real-NornicDB tier remain the live-pipeline and
+real-backend halves of the same proof.
+
+Convergence scenarios (R-11..R-18) fold into the same shared core as they land:
+each is a cassette/spec the conformance suite can carry without new assertion
+code.
 
 ## 9. Sequencing
 

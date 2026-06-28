@@ -1,0 +1,40 @@
+# Starter conformance spec (#4112 / R-10).
+#
+# This YAML is the contributor-facing twin of the in-repo B-12 golden snapshot
+# (testdata/golden/e2e-20repo-snapshot.json). It is parsed via sigs.k8s.io/yaml
+# into the SAME goldengate.Snapshot struct the in-repo gate uses, so the same
+# Evaluate* assertions run against it — only the corpus is smaller and the
+# observed values come from an offline cassette replay instead of a live graph.
+#
+# Edit this file to describe what YOUR collector's facts must project. The
+# fields below mirror the golden snapshot's `graph` block: per-label node count
+# tolerances, per-edge count tolerances, existence-style required correlations,
+# and required nodes (with an optional property floor).
+#
+# The starter ranges are pinned exactly (min == max) to the deterministic
+# hello-eshu starter tape so a regression is obvious. For a growing corpus,
+# widen the ceilings (keep the floors meaningful so a projection drop fails).
+schema_version: "1"
+corpus_id: starter-hello-eshu
+
+graph:
+  node_counts:
+    Repository: { min: 1, max: 1, note: "exactly one repository per scope" }
+    Directory: { min: 2, max: 2, note: "src, src/util" }
+    File: { min: 3, max: 3, note: "README.md, src/main.go, src/util/util.go" }
+  edge_counts:
+    CONTAINS: { min: 5, max: 5, note: "2 directory parents + 3 file parents" }
+  required_correlations:
+    - id: rc-repo-contains-dir
+      description: a repository directly contains its top-level directories
+      relationship: CONTAINS
+      from_label: Repository
+      to_label: Directory
+      minimum_count: 1
+  required_nodes:
+    - id: rn-file-language
+      description: at least two files carry a detected language
+      label: File
+      minimum_count: 2
+      required_node_properties:
+        - language

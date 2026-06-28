@@ -1,0 +1,110 @@
+{
+  "collector": "starter",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "starter:repository:hello-eshu",
+      "source_system": "starter",
+      "scope_kind": "repository",
+      "collector_kind": "starter",
+      "partition_key": "starter:repository:hello-eshu",
+      "metadata": {
+        "repo_name": "hello-eshu",
+        "purpose": "R-10 contributor conformance starter tape (#4112)"
+      },
+      "generation_id": "starter-hello-eshu-gen1",
+      "observed_at": "2026-06-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "starter.repository",
+          "stable_fact_key": "starter:repository:hello-eshu:repo",
+          "schema_version": "1.0.0",
+          "collector_kind": "starter",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "hello-eshu",
+            "name": "hello-eshu",
+            "path": "/repos/hello-eshu"
+          }
+        },
+        {
+          "fact_kind": "starter.directory",
+          "stable_fact_key": "starter:repository:hello-eshu:dir:src",
+          "schema_version": "1.0.0",
+          "collector_kind": "starter",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/hello-eshu/src",
+            "name": "src",
+            "parent_path": "/repos/hello-eshu",
+            "repo_id": "hello-eshu",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "starter.directory",
+          "stable_fact_key": "starter:repository:hello-eshu:dir:src/util",
+          "schema_version": "1.0.0",
+          "collector_kind": "starter",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/hello-eshu/src/util",
+            "name": "util",
+            "parent_path": "/repos/hello-eshu/src",
+            "repo_id": "hello-eshu",
+            "depth": 1
+          }
+        },
+        {
+          "fact_kind": "starter.file",
+          "stable_fact_key": "starter:repository:hello-eshu:file:README.md",
+          "schema_version": "1.0.0",
+          "collector_kind": "starter",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/hello-eshu/README.md",
+            "name": "README.md",
+            "dir_path": "/repos/hello-eshu",
+            "repo_id": "hello-eshu",
+            "language": ""
+          }
+        },
+        {
+          "fact_kind": "starter.file",
+          "stable_fact_key": "starter:repository:hello-eshu:file:src/main.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "starter",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/hello-eshu/src/main.go",
+            "name": "main.go",
+            "dir_path": "/repos/hello-eshu/src",
+            "repo_id": "hello-eshu",
+            "language": "go"
+          }
+        },
+        {
+          "fact_kind": "starter.file",
+          "stable_fact_key": "starter:repository:hello-eshu:file:src/util/util.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "starter",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/hello-eshu/src/util/util.go",
+            "name": "util.go",
+            "dir_path": "/repos/hello-eshu/src/util",
+            "repo_id": "hello-eshu",
+            "language": "go"
+          }
+        }
+      ]
+    }
+  ]
+}
