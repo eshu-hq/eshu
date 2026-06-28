@@ -139,16 +139,32 @@ absorb cross-class CPU difference and per-run noise without flaking.
 
 | Handler benchmark | Baseline (ns/op, median) | Budget (ns/op) |
 | --- | --- | --- |
-| `BenchmarkExtractCloudResourceNodeRows` (AWS node) | 10,741,623 | 16,100,000 |
-| `BenchmarkExtractGCPCloudResourceNodeRows` (GCP node) | 10,550,352 | 15,800,000 |
-| `BenchmarkExtractKubernetesWorkloadNodeRows` (k8s workload node) | 5,413,844 | 8,100,000 |
-| `BenchmarkExtractAWSRelationshipEdgeRows` (AWS edge) | 24,690,270 | 37,000,000 |
-| `BenchmarkExtractGCPRelationshipEdgeRows` (GCP edge) | 27,680,020 | 41,500,000 |
-| `BenchmarkExtractKubernetesCorrelationEdgeRows` (k8s correlation edge) | 9,174,514 | 13,800,000 |
-| `BenchmarkSecretsIAMGCPGrantObservations` (secrets/IAM trust chain) | 5,546,848 | 8,300,000 |
-| `BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout` (service-catalog correlation) | 6,120,469 | 9,200,000 |
-| `BenchmarkValueFlowFixpointFull` (value-flow fixpoint, cold) | 20,427,691 | 30,600,000 |
-| `BenchmarkValueFlowFixpointIncrementalCached` (value-flow fixpoint, cached) | 11,982,886 | 18,000,000 |
+| `BenchmarkExtractCloudResourceNodeRows` (AWS node) | 10741623 | 16100000 |
+| `BenchmarkExtractGCPCloudResourceNodeRows` (GCP node) | 10550352 | 15800000 |
+| `BenchmarkExtractKubernetesWorkloadNodeRows` (k8s workload node) | 5413844 | 8100000 |
+| `BenchmarkExtractAWSRelationshipEdgeRows` (AWS edge) | 24690270 | 37000000 |
+| `BenchmarkExtractGCPRelationshipEdgeRows` (GCP edge) | 27680020 | 41500000 |
+| `BenchmarkExtractKubernetesCorrelationEdgeRows` (k8s correlation edge) | 9174514 | 13800000 |
+| `BenchmarkSecretsIAMGCPGrantObservations` (secrets/IAM trust chain) | 5546848 | 8300000 |
+| `BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout` (service-catalog correlation) | 6120469 | 9200000 |
+| `BenchmarkValueFlowFixpointFull` (value-flow fixpoint, cold) | 20427691 | 30600000 |
+| `BenchmarkValueFlowFixpointIncrementalCached` (value-flow fixpoint, cached) | 11982886 | 18000000 |
+
+The ns/op values are written without comma grouping so they are a single source
+of truth shared verbatim by the budget artifact and the lockstep contract
+(`go/internal/perfcontract`, `TestPerformanceContractMatchesDocs`). Each ceiling
+is lockstep-bound to its `Threshold` value:
+
+- the `BenchmarkExtractCloudResourceNodeRows` AWS node materialization handler stays under 16100000 ns/op;
+- the `BenchmarkExtractGCPCloudResourceNodeRows` GCP node materialization handler stays under 15800000 ns/op;
+- the `BenchmarkExtractKubernetesWorkloadNodeRows` Kubernetes workload node materialization handler stays under 8100000 ns/op;
+- the `BenchmarkExtractAWSRelationshipEdgeRows` AWS relationship edge handler stays under 37000000 ns/op;
+- the `BenchmarkExtractGCPRelationshipEdgeRows` GCP relationship edge handler stays under 41500000 ns/op;
+- the `BenchmarkExtractKubernetesCorrelationEdgeRows` Kubernetes correlation edge handler stays under 13800000 ns/op;
+- the `BenchmarkSecretsIAMGCPGrantObservations` secrets/IAM trust-chain handler stays under 8300000 ns/op;
+- the `BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout` service-catalog correlation handler stays under 9200000 ns/op;
+- the `BenchmarkValueFlowFixpointFull` value-flow fixpoint cold handler stays under 30600000 ns/op;
+- the `BenchmarkValueFlowFixpointIncrementalCached` value-flow fixpoint cached handler stays under 18000000 ns/op.
 
 `scripts/verify-reducer-perf-gate.sh` runs exactly these benchmarks
 credential-free, takes the median `ns/op` across samples (the same statistic the
