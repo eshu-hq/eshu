@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -74,14 +75,18 @@ func reducerGraphDrainFor(enabled bool, queryer postgres.Queryer) reducer.Reduce
 // shared-acceptance read-model gauge (eshu_dp_shared_acceptance_rows). The queue
 // and acceptance observers read cheap, bounded queries; the worker observer
 // reads an in-memory atomic counter. The graph orphan observer runs static-label
-// capped counts. None add unbounded scan cost per metrics scrape. It lives here
-// rather than in main.go to keep that file within the file-size budget.
+// capped counts. The provenance observers (eshu_dp_edges_by_source_tool,
+// eshu_dp_files_by_language) run bounded LIMIT-capped aggregation queries
+// through the graph read port. None add unbounded scan cost per metrics scrape.
+// It lives here rather than in main.go to keep that file within the file-size
+// budget.
 func registerReducerObservableGauges(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	db *sql.DB,
 	activeWorkers *atomic.Int64,
 	graphOrphanObserver telemetry.GraphOrphanObserver,
+	graphReader query.GraphQuery,
 	getenv func(string) string,
 ) error {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
@@ -106,6 +111,10 @@ func registerReducerObservableGauges(
 	activeGenerationObserver := activeGenerationAgeObserverFor(postgres.SQLDB{DB: db}, loadGenerationLivenessConfig(getenv))
 	if err := telemetry.RegisterActiveGenerationAgeObservableGauge(instruments, meter, activeGenerationObserver); err != nil {
 		return fmt.Errorf("register active generation age observable gauge: %w", err)
+	}
+
+	if err := registerProvenanceCoverageGauges(instruments, meter, graphReader, getenv); err != nil {
+		return err
 	}
 	return nil
 }

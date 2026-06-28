@@ -657,6 +657,170 @@ func TestRegisterWorkflowFamilyQueueDepthObservableGauge_WithObserver(t *testing
 	}
 }
 
+type fakeEdgesBySourceToolObserver struct {
+	counts map[string]int64
+}
+
+func (f *fakeEdgesBySourceToolObserver) EdgesBySourceTool(_ context.Context) (map[string]int64, error) {
+	return f.counts, nil
+}
+
+type fakeFilesByLanguageObserver struct {
+	counts map[string]int64
+}
+
+func (f *fakeFilesByLanguageObserver) FilesByLanguage(_ context.Context) (map[string]int64, error) {
+	return f.counts, nil
+}
+
+func TestRegisterEdgesBySourceToolObservableGauge_NilObserver(t *testing.T) {
+	t.Parallel()
+	inst := &Instruments{}
+	meter := sdkmetric.NewMeterProvider().Meter("test")
+	if err := RegisterEdgesBySourceToolObservableGauge(inst, meter, nil); err != nil {
+		t.Fatalf("RegisterEdgesBySourceToolObservableGauge(nil observer) error = %v", err)
+	}
+	if inst.EdgesBySourceTool != nil {
+		t.Fatal("gauge should not be registered for a nil observer")
+	}
+}
+
+func TestRegisterEdgesBySourceToolObservableGauge_WithObserver(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst := &Instruments{}
+	observer := &fakeEdgesBySourceToolObserver{
+		counts: map[string]int64{
+			"terraform": 50,
+			"ansible":   12,
+		},
+	}
+
+	if err := RegisterEdgesBySourceToolObservableGauge(inst, provider.Meter("test"), observer); err != nil {
+		t.Fatalf("RegisterEdgesBySourceToolObservableGauge() error = %v", err)
+	}
+	if inst.EdgesBySourceTool == nil {
+		t.Fatal("EdgesBySourceTool gauge was not registered")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_edges_by_source_tool", map[string]string{"source_tool": "terraform"}); got != 50 {
+		t.Fatalf("terraform edge gauge = %d, want 50", got)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_edges_by_source_tool", map[string]string{"source_tool": "ansible"}); got != 12 {
+		t.Fatalf("ansible edge gauge = %d, want 12", got)
+	}
+}
+
+func TestRegisterEdgesBySourceToolObservableGauge_UnknownCoercion(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst := &Instruments{}
+	// "notavalid_tool" is not in sourcetool.Canonical and must be coerced to
+	// "unknown" before the label reaches the metric.
+	observer := &fakeEdgesBySourceToolObserver{
+		counts: map[string]int64{
+			"notavalid_tool": 7,
+		},
+	}
+
+	if err := RegisterEdgesBySourceToolObservableGauge(inst, provider.Meter("test"), observer); err != nil {
+		t.Fatalf("RegisterEdgesBySourceToolObservableGauge() error = %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	// The out-of-vocabulary token must be coerced to "unknown".
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_edges_by_source_tool", map[string]string{"source_tool": "unknown"}); got != 7 {
+		t.Fatalf("unknown coercion gauge = %d, want 7", got)
+	}
+}
+
+// TestRegisterEdgesBySourceToolObservableGauge_UnknownCoalesced proves multiple
+// out-of-vocabulary tokens (plus a real "unknown") sum into a single "unknown"
+// observation — an observable gauge must emit one datapoint per distinct label
+// set per callback, so duplicate coerced labels must be coalesced first.
+func TestRegisterEdgesBySourceToolObservableGauge_UnknownCoalesced(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst := &Instruments{}
+	observer := &fakeEdgesBySourceToolObserver{
+		counts: map[string]int64{
+			"stale_tool_a": 3,
+			"stale_tool_b": 4,
+			"unknown":      5,
+			"terraform":    10,
+		},
+	}
+
+	if err := RegisterEdgesBySourceToolObservableGauge(inst, provider.Meter("test"), observer); err != nil {
+		t.Fatalf("RegisterEdgesBySourceToolObservableGauge() error = %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	// 3 + 4 + 5 must coalesce into a single unknown=12 datapoint.
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_edges_by_source_tool", map[string]string{"source_tool": "unknown"}); got != 12 {
+		t.Fatalf("coalesced unknown gauge = %d, want 12", got)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_edges_by_source_tool", map[string]string{"source_tool": "terraform"}); got != 10 {
+		t.Fatalf("terraform gauge = %d, want 10", got)
+	}
+}
+
+func TestRegisterFilesByLanguageObservableGauge_NilObserver(t *testing.T) {
+	t.Parallel()
+	inst := &Instruments{}
+	meter := sdkmetric.NewMeterProvider().Meter("test")
+	if err := RegisterFilesByLanguageObservableGauge(inst, meter, nil); err != nil {
+		t.Fatalf("RegisterFilesByLanguageObservableGauge(nil observer) error = %v", err)
+	}
+	if inst.FilesByLanguage != nil {
+		t.Fatal("gauge should not be registered for a nil observer")
+	}
+}
+
+func TestRegisterFilesByLanguageObservableGauge_WithObserver(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst := &Instruments{}
+	observer := &fakeFilesByLanguageObserver{
+		counts: map[string]int64{
+			"go":     200,
+			"python": 45,
+		},
+	}
+
+	if err := RegisterFilesByLanguageObservableGauge(inst, provider.Meter("test"), observer); err != nil {
+		t.Fatalf("RegisterFilesByLanguageObservableGauge() error = %v", err)
+	}
+	if inst.FilesByLanguage == nil {
+		t.Fatal("FilesByLanguage gauge was not registered")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_files_by_language", map[string]string{"language": "go"}); got != 200 {
+		t.Fatalf("go file gauge = %d, want 200", got)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_files_by_language", map[string]string{"language": "python"}); got != 45 {
+		t.Fatalf("python file gauge = %d, want 45", got)
+	}
+}
+
 func TestReconciliationDriftRetractionsCounterRecordsBoundedLabels(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))

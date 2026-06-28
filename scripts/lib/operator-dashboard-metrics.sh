@@ -23,6 +23,10 @@ SHARED_ACCEPTANCE_ROWS='eshu_dp_shared_acceptance_rows'
 GRAPH_ORPHAN_NODES='eshu_dp_graph_orphan_nodes'
 CROSS_REPO_FENCED='eshu_dp_cross_repo_activation_fenced_total'
 
+# Extraction-provenance drift.
+EDGES_BY_SOURCE_TOOL='eshu_dp_edges_by_source_tool'
+FILES_BY_LANGUAGE='eshu_dp_files_by_language'
+
 # API surface.
 API_REQUEST_DURATION='eshu_dp_api_request_duration_seconds_bucket'
 API_REQUEST_ERRORS='eshu_dp_api_request_errors_total'

@@ -12,6 +12,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
 
 // QueueObserver provides queue depth and age readings for observable gauges.
@@ -67,6 +69,27 @@ type ActiveGenerationAgeObserver interface {
 type AWSClaimConcurrencyObserver interface {
 	// AWSClaimConcurrency returns active claim counts keyed by AWS account ID.
 	AWSClaimConcurrency(ctx context.Context) (map[string]int64, error)
+}
+
+// EdgesBySourceToolObserver provides bounded edge counts keyed by source_tool.
+// Implementations must never include raw property values that are not members
+// of the sourcetool canonical vocabulary; values outside the set are coerced
+// to "unknown" before the label reaches the metric.
+type EdgesBySourceToolObserver interface {
+	// EdgesBySourceTool returns current graph edge counts keyed by the
+	// bounded source_tool label. Only edges where source_tool IS NOT NULL
+	// are counted. The returned map must have a cardinality bounded by the
+	// closed sourcetool.Canonical set plus "unknown".
+	EdgesBySourceTool(ctx context.Context) (map[string]int64, error)
+}
+
+// FilesByLanguageObserver provides bounded File node counts keyed by language.
+// Implementations must only include non-empty language values; the language
+// property is written by the parser registry, which is already bounded.
+type FilesByLanguageObserver interface {
+	// FilesByLanguage returns current File node counts keyed by language.
+	// Only File nodes where language IS NOT NULL are counted.
+	FilesByLanguage(ctx context.Context) (map[string]int64, error)
 }
 
 // Instruments holds all pre-registered OTEL metric instruments for the Go
@@ -963,6 +986,14 @@ type Instruments struct {
 	// WorkflowFamilyQueueDepth reports outstanding claim-aware collector queue
 	// depth by collector_kind, source_system, and status (issue #2699/#2857).
 	WorkflowFamilyQueueDepth metric.Int64ObservableGauge
+	// EdgesBySourceTool reports bounded graph edge counts by source_tool. The
+	// only metric label is source_tool; values not in the sourcetool.Canonical
+	// set are coerced to "unknown" before the label reaches the metric (#3997).
+	EdgesBySourceTool metric.Int64ObservableGauge
+	// FilesByLanguage reports bounded File node counts by language. The only
+	// metric label is language; values are bounded by the parser registry
+	// (#4003).
+	FilesByLanguage metric.Int64ObservableGauge
 	// APIShutdownDuration records the graceful shutdown duration of the API HTTP
 	// server. Recorded from the shutdown goroutine once per process exit. Labeled
 	// by result (success, error, timeout) to let operators distinguish clean
@@ -4558,4 +4589,95 @@ func RecordGOMEMLIMIT(meter metric.Meter, limitBytes int64) error {
 		}),
 	)
 	return err
+}
+
+// RegisterEdgesBySourceToolObservableGauge registers the extraction-provenance
+// edge count gauge. The callback runs read-only on the meter collection
+// goroutine and is a no-op when observer is nil. It is a no-op when observer
+// is nil so binaries without a graph read port skip it. The source_tool label
+// is bounded by sourcetool.Canonical; any value not in that set is coerced to
+// "unknown" so the time series set stays closed even if the graph holds a
+// stale or unrecognised token.
+func RegisterEdgesBySourceToolObservableGauge(inst *Instruments, meter metric.Meter, observer EdgesBySourceToolObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.EdgesBySourceTool, err = meter.Int64ObservableGauge(
+		"eshu_dp_edges_by_source_tool",
+		metric.WithDescription("Current exact graph edge count by closed source_tool label, summed across the Tier-2 relationship types that carry source_tool (relationship-type-index answered, no row sampling)"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			counts, err := observer.EdgesBySourceTool(ctx)
+			if err != nil {
+				return err
+			}
+			// Coalesce before observing: multiple out-of-vocabulary tokens (or a
+			// real "unknown" plus a stale token) all coerce to source_tool="unknown",
+			// and an observable gauge must emit exactly one observation per distinct
+			// label set per callback — duplicate sets corrupt the series.
+			coalesced := make(map[string]int64, len(counts))
+			for tool, count := range counts {
+				label := tool
+				if !sourcetool.IsValid(tool) {
+					label = "unknown"
+				}
+				coalesced[label] += count
+			}
+			for label, count := range coalesced {
+				o.Observe(count, metric.WithAttributes(AttrSourceTool(label)))
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register EdgesBySourceTool gauge: %w", err)
+	}
+	return nil
+}
+
+// RegisterFilesByLanguageObservableGauge registers the extraction-provenance
+// file count gauge. The callback runs read-only on the meter collection
+// goroutine and is a no-op when observer is nil so binaries without a graph
+// read port skip it. The language label is bounded by the parser registry
+// (set at ingest time); empty strings are skipped.
+func RegisterFilesByLanguageObservableGauge(inst *Instruments, meter metric.Meter, observer FilesByLanguageObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.FilesByLanguage, err = meter.Int64ObservableGauge(
+		"eshu_dp_files_by_language",
+		metric.WithDescription("Current exact File node count by language (File-label-anchored group; ESHU_GRAPH_COUNT_LIMIT bounds the returned language groups, not the rows counted)"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			counts, err := observer.FilesByLanguage(ctx)
+			if err != nil {
+				return err
+			}
+			for lang, count := range counts {
+				if lang == "" {
+					continue
+				}
+				o.Observe(count, metric.WithAttributes(AttrLanguage(lang)))
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register FilesByLanguage gauge: %w", err)
+	}
+	return nil
 }

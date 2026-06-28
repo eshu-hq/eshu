@@ -94,6 +94,8 @@ or marker that already diagnoses it.
 | generation liveness sweep | go/internal/reducer/generation_liveness_runner.go:157 | `eshu_dp_generation_liveness_recovered_total`, `eshu_dp_generation_liveness_superseded_total`, `eshu_dp_generation_liveness_failures_total`, `eshu_dp_active_generations` | reducer liveness |
 | reducer run duration | go/internal/reducer/service.go:358 | `eshu_dp_reducer_run_duration_seconds`, `eshu_dp_reducer_executions_total` | reducer runtime |
 | graph orphan sweep | go/internal/telemetry/instruments.go:3690 | `eshu_dp_graph_orphan_nodes` | reducer graph |
+| extraction provenance — edges by source tool | go/internal/telemetry/instruments.go (RegisterEdgesBySourceToolObservableGauge) | `eshu_dp_edges_by_source_tool` | reducer graph |
+| extraction provenance — files by language | go/internal/telemetry/instruments.go (RegisterFilesByLanguageObservableGauge) | `eshu_dp_files_by_language` | reducer graph |
 | search decay scoring | go/internal/searchdecaytelemetry/observer.go:31 | `eshu_dp_search_decay_policy_applications_total` | reducer search |
 | shared acceptance read model | go/internal/storage/postgres/code_call_intent_writer.go:37 | `eshu_dp_shared_acceptance_rows`, `eshu_dp_shared_acceptance_upserts_total`, `eshu_dp_shared_acceptance_lookup_errors_total`, `eshu_dp_shared_acceptance_upsert_duration_seconds`, `eshu_dp_shared_acceptance_lookup_duration_seconds`, `eshu_dp_shared_acceptance_prefetch_size` | reducer shared acceptance |
 
