@@ -87,6 +87,11 @@ jobs:
       - name: Verify accuracy golden gate
         run: scripts/verify_accuracy_golden_gate.sh
 
+      - name: Verify parser relationship and language ledger
+        run: |
+          scripts/test-verify-parser-relationship-kit.sh
+          scripts/verify-parser-relationship-kit.sh
+
       # The code-quality block below runs with `if: ${{ !cancelled() }}` so a
       # failure in any earlier verify-* gate (e.g. "Verify hot-path evidence")
       # cannot silently skip whole-module Lint Go, gofumpt, build, and tests.

@@ -15,6 +15,10 @@ documentation.
   evidence-centric public capabilities to source fact, projection/read-model,
   API, MCP, empty-state, and negative evidence-loss proof. It is enforced by
   `scripts/verify-evidence-continuity.sh`.
+- `language-feature-parity-ledger.v1.yaml` maps public language/config parser
+  feature claims to implementation files, test files, docs, parser-backing
+  class, deterministic no-provider posture, read surfaces, and gap-tracking
+  issues. It is enforced by `scripts/verify-parser-relationship-kit.sh`.
 - `authorization-catalog.v1.yaml` defines the v1 built-in roles, explicit
   action grants, data classes, permission families, bootstrap-owner posture, and
   custom-policy deferral that enrich every generated capability catalog entry.

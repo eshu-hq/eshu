@@ -85,6 +85,13 @@ See `specs/parser-backing-ledger.v1.yaml`.
 | yaml | `structured-parser-backed-exception` | YAML v3 document decoding is the canonical declarative-data parser. | `specs/parser-backing-ledger.v1.yaml` |
 MD
 
+  cat >>"${dir}/docs/public/languages/support-maturity.md" <<'MD'
+
+## Language Feature Parity Ledger
+
+See `specs/language-feature-parity-ledger.v1.yaml`.
+MD
+
   cat >"${dir}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
 version: 1
 parser_backing:
@@ -126,6 +133,26 @@ parser_backing:
       - docs/public/languages/kubernetes.md
 YAML
 
+  cat >"${dir}/specs/language-feature-parity-ledger.v1.yaml" <<'YAML'
+version: 1
+language_features:
+  - language: python
+    docs_claim: docs/public/languages/python.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions]
+    partial_features: []
+    derived_features: []
+    source_files:
+      - go/internal/parser/python_language.go
+    test_files:
+      - go/internal/parser/python_language_test.go
+    docs:
+      - docs/public/languages/python.md
+    read_surfaces:
+      - execute_language_query
+YAML
+
   cat >"${dir}/docs/public/languages/python.md" <<'MD'
 # Python Parser
 
@@ -142,7 +169,9 @@ MD
     go/internal/parser/hcl/parser.go \
     go/internal/parser/hcl/parser_test.go \
     go/internal/parser/yaml/language.go \
-    go/internal/parser/yaml/language_test.go
+    go/internal/parser/yaml/language_test.go \
+    go/internal/parser/python_language.go \
+    go/internal/parser/python_language_test.go
   do
     printf 'package placeholder\n' >"${dir}/${path}"
   done
@@ -374,6 +403,26 @@ git -C "${parser_backing_bad_path_repo}" add .
 git -C "${parser_backing_bad_path_repo}" commit -q -m 'stale parser backing ledger path'
 expect_fail "${parser_backing_bad_path_repo}"
 
+language_ledger_missing_repo="$(init_repo language-ledger-missing)"
+rm -f "${language_ledger_missing_repo}/specs/language-feature-parity-ledger.v1.yaml"
+git -C "${language_ledger_missing_repo}" add .
+git -C "${language_ledger_missing_repo}" commit -q -m 'missing language feature ledger'
+expect_fail "${language_ledger_missing_repo}"
+
+language_ledger_missing_feature_repo="$(init_repo language-ledger-missing-feature)"
+printf '| Classes | `classes` | supported | `classes` | `name, line_number` | `node:Class` | `go/internal/parser/python_language_test.go::TestPythonClasses` | Compose-backed fixture verification | - |\n' \
+  >>"${language_ledger_missing_feature_repo}/docs/public/languages/python.md"
+git -C "${language_ledger_missing_feature_repo}" add .
+git -C "${language_ledger_missing_feature_repo}" commit -q -m 'language docs claim missing ledger feature'
+expect_fail "${language_ledger_missing_feature_repo}"
+
+language_ledger_bad_path_repo="$(init_repo language-ledger-bad-path)"
+perl -0pi -e 's#go/internal/parser/python_language.go#go/internal/parser/does_not_exist.go#' \
+  "${language_ledger_bad_path_repo}/specs/language-feature-parity-ledger.v1.yaml"
+git -C "${language_ledger_bad_path_repo}" add .
+git -C "${language_ledger_bad_path_repo}" commit -q -m 'language ledger stale path'
+expect_fail "${language_ledger_bad_path_repo}"
+
 parser_backing_complete_repo="$(init_repo parser-backing-complete)"
 mkdir -p "${parser_backing_complete_repo}/specs"
 cat >"${parser_backing_complete_repo}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
@@ -436,6 +485,10 @@ See `specs/parser-backing-ledger.v1.yaml`.
 | dockerfile | `structured-parser-backed-exception` | Dockerfile instruction scanning is the canonical build-manifest parser. | `specs/parser-backing-ledger.v1.yaml` |
 | hcl | `structured-parser-backed-exception` | HashiCorp HCL v2 is the canonical Terraform/Terragrunt parser. | `specs/parser-backing-ledger.v1.yaml` |
 | yaml | `structured-parser-backed-exception` | YAML v3 document decoding is the canonical declarative-data parser. | `specs/parser-backing-ledger.v1.yaml` |
+
+## Language Feature Parity Ledger
+
+See `specs/language-feature-parity-ledger.v1.yaml`.
 MD
 git -C "${parser_backing_complete_repo}" add .
 git -C "${parser_backing_complete_repo}" commit -q -m 'complete parser backing ledger'

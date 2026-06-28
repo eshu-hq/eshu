@@ -2,9 +2,10 @@
 set -euo pipefail
 
 repo_root="${ESHU_PARSER_RELATIONSHIP_KIT_REPO_ROOT:-}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 if [ -z "$repo_root" ]; then
-  repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null \
-    || (cd "$(dirname "$0")/.." && pwd))"
+  repo_root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null \
+    || (cd "$script_dir/.." && pwd))"
 fi
 
 base="${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-}"
@@ -54,6 +55,9 @@ is_blank_cell() {
   value="$(lower_cell "$1")"
   [ -z "$value" ] || [ "$value" = "-" ]
 }
+
+# shellcheck source=scripts/lib/parser_relationship_language_ledger.sh
+. "$script_dir/lib/parser_relationship_language_ledger.sh"
 
 has_changed_file() {
   local matcher="$1"
@@ -455,6 +459,7 @@ validate_diff_contracts() {
 issues=0
 validate_required_docs || issues=1
 validate_parser_backing_ledger || issues=1
+validate_language_feature_ledger || issues=1
 validate_support_maturity_matrix || issues=1
 validate_language_pages || issues=1
 validate_diff_contracts || issues=1
