@@ -26,6 +26,27 @@ Prefer summary/count/handle calls before payload-heavy drilldowns. MUST NOT fetc
 large source bodies, relationship expansions, or whole-graph result sets until a
 cheap first call proves they are needed.
 
+## Response Shape (truth envelope)
+
+Eshu MCP tool results wrap the payload in a truth envelope: the `tools/call`
+result's `structuredContent` (and the JSON in the first text content entry) is
+`{data, truth, error}`. The canonical query payload lives under **`data`**
+(e.g. `data.repositories`, `data.correlations`, `data.resources`), NOT at the top
+level — the `truth`/`error` siblings carry the envelope metadata from the Call
+Contract. When parsing or asserting a tool response, read `data`; treating the
+envelope as the payload (looking for `repositories` at the top level) is a common
+mistake.
+
+The http transport serves JSON-RPC at `POST /mcp/message` **standalone** — no SSE
+session is required; `handleHTTPMessage` returns the response synchronously, so a
+plain HTTP client can `tools/call` directly. A tool registered in `tools/list`
+can still fail with an `isError` result wrapping `HTTP 404` when its route is not
+mounted on the MCP server's router — advertised is not the same as servable. Fix
+the route (mirror `cmd/api/wiring.go` in `cmd/mcp-server/wiring.go`); do not
+assume a registered tool works. Tools that need a selector take it in
+`arguments` (`get_repo_summary` → `repo_name`/`repo_id`;
+`list_kubernetes_correlations` → `cluster_id`/`scope_id`/...).
+
 ## Local MCP Preflight
 
 Before blaming Eshu query truth, prove the local transport is reading the

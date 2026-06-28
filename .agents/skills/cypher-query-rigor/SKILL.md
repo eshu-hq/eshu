@@ -72,6 +72,17 @@ Evidence:` or `No-Observability-Change:`). Name the exact query shape, backend,
 input cardinality, index/constraint state, before/after timing, and metrics or
 logs that prove the path can be diagnosed.
 
+The verifier is **content-based, not only path-based**: a file that *contains*
+Cypher (`MATCH`/`MERGE`/`UNWIND`/...) is flagged even when your diff only touched
+a comment or a non-query line. Add an `evidence-*.md`
+(`No-Regression Evidence:` + `No-Observability-Change:` is correct when nothing
+perf/telemetry actually changed) rather than fighting the flag. It diffs `HEAD~1`
+**locally** but `origin/$GITHUB_BASE_REF` **in CI**, so a multi-commit PR whose
+last commit is innocuous can pass locally and fail in CI — reproduce the CI
+result with
+`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main scripts/verify-performance-evidence.sh`
+before pushing.
+
 ## Workflow
 
 1. Understand the model first.

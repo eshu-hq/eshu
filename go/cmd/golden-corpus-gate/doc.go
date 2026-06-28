@@ -18,9 +18,9 @@
 //     source_tool provenance token on Tier-2 shared-verb edges and a non-empty
 //     language on File nodes (#3997) — so a provenance regression fails the gate
 //     instead of passing silently. Per-label node and per-relationship edge
-//     counts are reported against the snapshot tolerances as advisory findings,
-//     because those ranges are calibrated for the full 20-repo corpus, not the
-//     minimal gate.
+//     counts are asserted as required against the snapshot tolerances in the full
+//     20-repo mode (-graph-required-only=false, #3866); the ranges are calibrated
+//     to the real deterministic corpus output, not aspirational values.
 //   - query: canonical HTTP responses carry their required shape.
 //   - timing: pipeline wall time stays within a budget multiplier.
 //

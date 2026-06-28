@@ -5,7 +5,8 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 
 ## Read first
 
-- `README.md` — what the four phases assert and why node/edge counts are advisory.
+- `README.md` — what the four phases assert and how node/edge counts + query
+  shapes are asserted.
 - `doc.go` — the godoc contract.
 - `testdata/golden/e2e-20repo-snapshot.json` (repo root) — the B-12 contract this
   command diffs against. Its keys drive the typed structs in `snapshot.go`.
@@ -26,9 +27,38 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   the queue contract changes in `go/internal/storage/postgres`, update the SQL in
   `drains.go` and its rationale comment.
 - **Required vs advisory is the safety boundary.** Required findings fail the
-  gate; advisory findings only warn. Node/edge count tolerances are advisory
-  while the gate runs a minimal corpus. Do not promote them to required without
-  also running the full 20-repo corpus, or the gate will flake.
+  gate; advisory findings only warn. Node/edge count tolerances are now **required**
+  (`-graph-required-only=false`, #3866) because the orchestrator runs the full
+  20-repo corpus. An advisory tier is never actually validated — promoting it to
+  required is what surfaces drift, so prefer required once the corpus produces the
+  value.
+- **Calibrate count ranges to the real deterministic corpus, not aspirations.**
+  The corpus is fixed (same fixtures + cassettes), so each count is deterministic.
+  Set floors that catch a major drop (e.g. the #4019 nested-file loss) and keep
+  ceilings wide for parser growth; do not copy an idealized range the corpus does
+  not actually produce, or the required gate fails. When a count legitimately
+  changes, update the snapshot range under review — that is the golden standard
+  working, not a nuisance.
+- **Governance-gated families assert `max: 0`.** The SecretsIAM graph projection
+  is OFF by default (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, ADR
+  #1314); enabling it without a target-deployment activation record is a rule
+  violation, not a config choice. So the SecretsIAM* node/edge counts are pinned
+  to `max: 0` — a nonzero count means the gate enabled a governed feature. Never
+  enable the toggle just to satisfy a count.
+- **MCP query shapes are asserted live through the tool layer.** `checkMCPQuery`
+  invokes each tool via `POST /mcp/message` (served standalone, no SSE) and
+  unwraps the MCP truth envelope `{data, truth, error}` — the payload is under
+  `data`, so the shape is asserted against `data`, not the envelope. A tool whose
+  route the MCP server does not mount returns `isError`+`HTTP 404` even though it
+  is advertised; fix the route (mirror `cmd/api/wiring.go`), do not drop the
+  assertion. Tools needing a selector pass it in `arguments` (`get_repo_summary`
+  → `repo_name`; `list_kubernetes_correlations` → `cluster_id`).
+- **`graph.go` is content-flagged by the perf-evidence gate** (it holds the
+  scalar-count Cypher). Any edit to it — even a comment — needs a tracked
+  `evidence-*.md` (No-Regression + No-Observability-Change is fine when no
+  Cypher/perf/telemetry changed). The verifier diffs `HEAD~1` locally but
+  `origin/main` in CI, so reproduce a CI failure with
+  `ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main scripts/verify-performance-evidence.sh`.
 - **Labels and relationship types are interpolated into Cypher** (they cannot be
   parameterized). `graph.go` validates them against `identRE` first. Keep that
   guard on any new graph query.
