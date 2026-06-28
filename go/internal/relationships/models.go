@@ -84,6 +84,9 @@ const (
 	// EvidenceKindChefCookbookDependency is a Berksfile cookbook git-source
 	// dependency; the named cookbook is owned by the target repository.
 	EvidenceKindChefCookbookDependency EvidenceKind = "CHEF_COOKBOOK_DEPENDENCY"
+	// EvidenceKindSaltFormulaReference is a Salt gitfs_remotes formula git-source
+	// reference; the named formula repository is owned by the target repository.
+	EvidenceKindSaltFormulaReference EvidenceKind = "SALT_FORMULA_REFERENCE"
 	// EvidenceKindGCPCloudRelationship is a supported GCP provider relationship
 	// whose source and target resource identities each resolve to one catalog
 	// repository.

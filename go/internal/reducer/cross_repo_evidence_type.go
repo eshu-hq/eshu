@@ -42,6 +42,7 @@ var evidenceKindToType = map[relationships.EvidenceKind]string{
 	relationships.EvidenceKindAnsibleRoleReference:                 "ansible_role_reference",
 	relationships.EvidenceKindPuppetModuleReference:                "puppet_module_reference",
 	relationships.EvidenceKindChefCookbookDependency:               "chef_cookbook_dependency",
+	relationships.EvidenceKindSaltFormulaReference:                 "salt_formula_reference",
 	relationships.EvidenceKindGCPCloudRelationship:                 "gcp_cloud_relationship",
 	relationships.EvidenceKindHelmTemplateValueReference:           "helm_template_value_reference",
 }
@@ -106,6 +107,7 @@ var evidenceKindToSourceTool = map[relationships.EvidenceKind]string{
 	relationships.EvidenceKindAnsibleRoleReference:                 "ansible",
 	relationships.EvidenceKindPuppetModuleReference:                "puppet",
 	relationships.EvidenceKindChefCookbookDependency:               "chef",
+	relationships.EvidenceKindSaltFormulaReference:                 "salt",
 	relationships.EvidenceKindGCPCloudRelationship:                 "gcp",
 }
 

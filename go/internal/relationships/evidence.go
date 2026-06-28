@@ -143,6 +143,14 @@ func discoverFromEnvelopeWithIndex(
 		evidence = append(evidence, discoverGitHubActionsEvidence(
 			sourceRepoID, filePath, content, matcher, seen,
 		)...)
+	case isSaltGitfsArtifact(content):
+		// Content-based fallback: runs only after every artifact-type-specific
+		// case above, so a known YAML artifact (Compose, GitHub Actions, …) is
+		// never preempted by a file that merely contains a top-level
+		// gitfs_remotes key. A genuine Salt config matches no other case.
+		evidence = append(evidence, discoverSaltEvidence(
+			sourceRepoID, filePath, content, matcher, seen,
+		)...)
 	}
 
 	return evidence

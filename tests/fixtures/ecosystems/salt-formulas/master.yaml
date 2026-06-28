@@ -1,0 +1,23 @@
+# Salt master configuration. gitfs is enabled as a fileserver backend and the
+# gitfs_remotes list names the formula git repositories Salt serves. Each remote
+# names a formula-owning repository; the acme deployable-source formula is sourced
+# from the in-corpus deployable-source repository, which makes this repo
+# DEPENDS_ON deployable-source. This mirrors the package-consumption (rc-3),
+# Ansible role (rc-30), Puppet module (rc-32) and Chef cookbook (rc-33)
+# DEPENDS_ON edges but expressed through Salt gitfs formula resolution,
+# exercising the SALT_FORMULA_REFERENCE evidence path in the B-7 gate.
+
+fileserver_backend:
+  - gitfs
+
+gitfs_provider: pygit2
+
+gitfs_remotes:
+  # Plain-URL form: the simplest gitfs remote, a bare repository URL.
+  - https://github.com/acme/deployable-source
+  # Single-key map form (URL as the first key) with per-remote options. Salt
+  # writes per-remote gitfs settings nested under the URL key. The emitter reads
+  # the map key as the formula repository URL.
+  - https://github.com/acme/network-formulas:
+      - root: salt
+      - base: main
