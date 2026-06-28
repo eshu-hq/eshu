@@ -107,6 +107,66 @@ func TestParseFrameworkSemanticsSurfacesRouteHandlerSymbol(t *testing.T) {
 	}
 }
 
+func TestParseFrameworkSemanticsExtractsGoFrameworkRoutes(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["net_http", "gin", "echo", "chi", "fiber"],
+		"net_http": {
+			"route_methods": ["GET"],
+			"route_paths": ["/net"],
+			"route_entries": [{"method": "GET", "path": "/net", "handler": "NetHTTP"}]
+		},
+		"gin": {
+			"route_methods": ["GET"],
+			"route_paths": ["/gin"],
+			"route_entries": [{"method": "GET", "path": "/gin", "handler": "Gin"}]
+		},
+		"echo": {
+			"route_methods": ["GET"],
+			"route_paths": ["/echo"],
+			"route_entries": [{"method": "GET", "path": "/echo", "handler": "Echo"}]
+		},
+		"chi": {
+			"route_methods": ["PATCH"],
+			"route_paths": ["/chi/{id}"],
+			"route_entries": [{"method": "PATCH", "path": "/chi/{id}", "handler": "Chi"}]
+		},
+		"fiber": {
+			"route_methods": ["POST"],
+			"route_paths": ["/fiber"],
+			"route_entries": [{"method": "POST", "path": "/fiber", "handler": "Fiber"}]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("cmd/server/routes.go", raw)
+	if len(results) != 5 {
+		t.Fatalf("len(results) = %d, want 5", len(results))
+	}
+	wantHandlers := map[string]string{
+		"net_http": "NetHTTP",
+		"gin":      "Gin",
+		"echo":     "Echo",
+		"chi":      "Chi",
+		"fiber":    "Fiber",
+	}
+	for _, route := range results {
+		if route.RelativePath != "cmd/server/routes.go" {
+			t.Fatalf("RelativePath = %q, want cmd/server/routes.go", route.RelativePath)
+		}
+		if len(route.RouteEntries) != 1 {
+			t.Fatalf("%s RouteEntries = %#v, want exactly one entry", route.Framework, route.RouteEntries)
+		}
+		want, ok := wantHandlers[route.Framework]
+		if !ok {
+			t.Fatalf("unexpected framework %q in results %#v", route.Framework, results)
+		}
+		if got := route.RouteEntries[0].Handler; got != want {
+			t.Fatalf("%s handler = %q, want %q", route.Framework, got, want)
+		}
+	}
+}
+
 func TestParseFrameworkSemanticsExtractsNextJSRouteModules(t *testing.T) {
 	t.Parallel()
 

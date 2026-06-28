@@ -118,14 +118,14 @@ language_features:
     docs_claim: docs/public/languages/go.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [functions, structs, interfaces, imports, function-calls, variables, methods-receivers, generics, embedded-sql-queries, net-http-route-truth]
-    partial_features: [third-party-router-route-truth, outbound-contracts]
+    supported_features: [functions, structs, interfaces, imports, function-calls, variables, methods-receivers, generics, embedded-sql-queries, net-http-route-truth, third-party-router-route-truth]
+    partial_features: [outbound-contracts]
     derived_features: []
     source_files: [go/internal/parser/go_language.go, go/internal/parser/golang/language.go, go/internal/parser/golang/dead_code_registrations.go, go/internal/parser/golang/framework_routes.go]
     test_files: [go/internal/parser/engine_test.go, go/internal/parser/go_embedded_sql_test.go, go/internal/parser/go_dead_code_registrations_test.go, go/internal/reducer/handles_route_intents_test.go]
     docs: [docs/public/languages/go.md]
     read_surfaces: [execute_language_query, get_code_relationship_story]
-    tracking_issues: [4041, 4096]
+    tracking_issues: [4041]
   - language: groovy
     docs_claim: docs/public/languages/groovy.md
     parser_backing: tree-sitter-backed

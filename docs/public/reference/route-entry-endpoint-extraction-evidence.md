@@ -35,3 +35,33 @@ domain, worker, runtime knob, metric instrument, metric label, span, or log line
 Operators continue to diagnose endpoint and `HANDLES_ROUTE` projection through
 the existing reducer run spans, execution counters, projection intent payloads,
 and shared projection status/readiness surfaces.
+
+## Go Third-Party Route Parity (#4096)
+
+No-Regression Evidence: `go test ./internal/parser -run
+'TestDefaultEngineParsePathGo(EmitsThirdPartyRouteEntries|SkipsAmbiguousThirdPartyRoutes|EmitsDeadCodeRegistrationRoots|EmitsMixedCaseServeMuxRouteEntry|IgnoresUnknownHandleFuncReceivers)'
+-count=1` proves Gin, Echo, Chi, Fiber, and `net/http` route entries emit only
+constructor-proven, literal path/method, identifier-handler registrations, while
+dynamic paths, unknown receivers, closures, method values, middleware chains,
+and adapter wrappers stay non-emitting. `go test ./internal/reducer -run
+'TestBuildHandlesRouteIntentRows(EmitsGoFrameworkRouteMatches|EmitsExactSameFileMatch|SkipsUnknownHandler|SkipsAmbiguousHandler|SkipsEntryWithoutHandler|SkipsFrameworkWithoutRouteEntries)|TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs'
+-count=1` proves the parser-owned route entries produce exact
+`HANDLES_ROUTE` intents only when the handler resolves to one Function entity.
+`go test ./internal/query -run
+'TestParseFrameworkSemantics(ExtractsGoFrameworkRoutes|SurfacesRouteHandlerSymbol|ExtractsHapiAndExpressRoutes)'
+-count=1` proves the API/query readback path surfaces the persisted framework
+route entries and handler symbols for all supported Go route buckets.
+
+No-Regression Evidence: this route-parity slice is no-provider-required. It
+uses local Go source bytes, tree-sitter AST nodes, import aliases, literal
+constructor/group calls, and identifier handlers only. It adds no semantic
+provider call, embedder, collector credential, external network dependency, or
+provider-key-gated fact family.
+
+No-Observability-Change: Gin, Echo, Chi, and Fiber route extraction is a pure
+parser payload addition consumed by the existing endpoint and `HANDLES_ROUTE`
+projection paths. It adds no route, graph query, graph write shape, queue
+domain, worker, lease, runtime knob, metric instrument, metric label, span, or
+log line. Operators continue to diagnose route projection through existing file
+fact payloads, reducer run spans, reducer execution counters, projection intent
+payloads, shared projection status/readiness surfaces, and API/MCP query spans.
