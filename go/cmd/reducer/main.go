@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 503 lines: main(), signal handling, telemetry bootstrap, and buildReducerService. The wiring into internal/reducer is single-purpose and reviewed as one entry point.
+package main //nolint:filelength // 504 lines: main(), signal handling, telemetry bootstrap, and buildReducerService (incl. the #4121 clock injection at the composition root). The wiring into internal/reducer is single-purpose and reviewed as one entry point.
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/clock"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -84,7 +85,8 @@ func buildReducerService(
 	repoDependencyIntentWriter := postgres.NewSharedIntentAcceptanceWriterWithInstruments(database, instruments)
 	acceptedGenerationPrefetch := postgres.NewAcceptedGenerationPrefetch(database)
 	graphProjectionStateStore := postgres.NewGraphProjectionPhaseStateStore(database)
-	graphProjectionRepairQueue := postgres.NewGraphProjectionPhaseRepairQueueStore(database)
+	clk := clock.System() // injected queue/lease/reap clock (#4121); == time.Now() in prod
+	graphProjectionRepairQueue := configureGraphProjectionRepairQueue(database, clk)
 	graphProjectionReadinessLookup := postgres.NewGraphProjectionReadinessLookup(database)
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
 	generationRetentionRunner := generationRetentionRunnerFor(database, generationRetentionCfg)
@@ -164,7 +166,7 @@ func buildReducerService(
 			"domains", reducerDomainStrings(claimDomains),
 		)
 	}
-	workQueue := configureReducerQueue(database, retryCfg, claimDomains, projectorDrainGate, getenv, graphBackend, logger)
+	workQueue := configureReducerQueue(database, retryCfg, claimDomains, projectorDrainGate, getenv, graphBackend, clk, logger)
 
 	executor, err := reducer.NewDefaultRuntime(reducer.DefaultHandlers{
 		DeployableUnitCorrelationHandler: reducer.DeployableUnitCorrelationHandler{
@@ -482,15 +484,9 @@ func buildReducerService(
 			Logger:      logger,
 		},
 		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, logger),
-		GraphProjectionPhaseRepairer: &reducer.GraphProjectionPhaseRepairer{
-			Queue:       graphProjectionRepairQueue,
-			AcceptedGen: postgres.NewAcceptedGenerationLookup(database),
-			StateLookup: graphProjectionStateStore,
-			Publisher:   graphProjectionStateStore,
-			Config:      repairCfg,
-			Instruments: instruments,
-			Logger:      logger,
-		},
+		GraphProjectionPhaseRepairer: graphProjectionPhaseRepairerFor(
+			graphProjectionRepairQueue, database, graphProjectionStateStore, repairCfg, clk, instruments, logger,
+		),
 		GenerationRetentionRunner:       generationRetentionRunner,
 		GenerationLivenessRunner:        generationLivenessRunner,
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,

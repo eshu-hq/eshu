@@ -91,6 +91,22 @@ WHERE scope_id = $4
 // that must be retried after a durable graph write succeeded.
 type GraphProjectionPhaseRepairQueueStore struct {
 	db ExecQueryer
+
+	// Now is the injectable clock for the bookkeeping timestamps this store
+	// writes (the enqueue committed/enqueued fallback and the MarkFailed
+	// updated_at). Nil falls back to the real wall clock, so production behavior
+	// is unchanged; replay and tests inject a controllable clock. See
+	// internal/clock.
+	Now func() time.Time
+}
+
+// now returns the current time from the injected clock, or the real wall clock
+// when unset, UTC-normalized to match the queue's TIMESTAMPTZ columns.
+func (s *GraphProjectionPhaseRepairQueueStore) now() time.Time {
+	if s.Now != nil {
+		return s.Now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 // NewGraphProjectionPhaseRepairQueueStore constructs a repair queue store.
@@ -121,7 +137,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) Enqueue(ctx context.Context, repa
 		if end > len(repairs) {
 			end = len(repairs)
 		}
-		if err := enqueueGraphProjectionPhaseRepairBatch(ctx, s.db, repairs[i:end]); err != nil {
+		if err := enqueueGraphProjectionPhaseRepairBatch(ctx, s.db, repairs[i:end], s.now()); err != nil {
 			return err
 		}
 	}
@@ -198,7 +214,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) MarkFailed(
 		return fmt.Errorf("validate graph projection repair: %w", err)
 	}
 
-	updatedAt := time.Now().UTC()
+	updatedAt := s.now()
 	_, err := s.db.ExecContext(
 		ctx,
 		markFailedGraphProjectionPhaseRepairSQL,
@@ -218,7 +234,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) MarkFailed(
 	return nil
 }
 
-func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, batch []reducer.GraphProjectionPhaseRepair) error {
+func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, batch []reducer.GraphProjectionPhaseRepair, now time.Time) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -233,7 +249,7 @@ func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer,
 
 		committedAt := repair.CommittedAt.UTC()
 		if committedAt.IsZero() {
-			committedAt = time.Now().UTC()
+			committedAt = now
 		}
 		enqueuedAt := repair.EnqueuedAt.UTC()
 		if enqueuedAt.IsZero() {

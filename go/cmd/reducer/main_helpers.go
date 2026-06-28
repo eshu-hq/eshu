@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/clock"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -34,9 +35,13 @@ func configureReducerQueue(
 	projectorDrainGate bool,
 	getenv func(string) string,
 	graphBackend runtimecfg.GraphBackend,
+	clk clock.Clock,
 	logger *slog.Logger,
 ) postgres.ReducerQueue {
 	workQueue := postgres.NewReducerQueue(database, "reducer", time.Minute)
+	// Injected clock for lease TTL / claim visibility / retry timing (#4121);
+	// clock.System().Now() == time.Now() in production, swappable for replay.
+	workQueue.Now = clk.Now
 	workQueue.RetryDelay = retryCfg.RetryDelay
 	workQueue.MaxAttempts = retryCfg.MaxAttempts
 	workQueue.ClaimDomains = claimDomains
@@ -56,6 +61,44 @@ func configureReducerQueue(
 		)
 	}
 	return workQueue
+}
+
+// configureGraphProjectionRepairQueue builds the readiness repair queue with the
+// injected clock so its bookkeeping timestamps share the queue/lease time source
+// (#4121). Extracted from buildReducerService to keep the entrypoint within the
+// repo file-size budget.
+func configureGraphProjectionRepairQueue(
+	database postgres.ExecQueryer,
+	clk clock.Clock,
+) *postgres.GraphProjectionPhaseRepairQueueStore {
+	queue := postgres.NewGraphProjectionPhaseRepairQueueStore(database)
+	queue.Now = clk.Now
+	return queue
+}
+
+// graphProjectionPhaseRepairerFor builds the readiness repair runner with the
+// injected clock (#4121) so its due-time selection and retry backoff use the
+// same time source as the reducer queue. Extracted from buildReducerService to
+// keep the entrypoint within the repo file-size budget.
+func graphProjectionPhaseRepairerFor(
+	queue reducer.GraphProjectionPhaseRepairQueue,
+	database postgres.ExecQueryer,
+	stateStore *postgres.GraphProjectionPhaseStateStore,
+	config reducer.GraphProjectionPhaseRepairerConfig,
+	clk clock.Clock,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) *reducer.GraphProjectionPhaseRepairer {
+	return &reducer.GraphProjectionPhaseRepairer{
+		Queue:       queue,
+		AcceptedGen: postgres.NewAcceptedGenerationLookup(database),
+		StateLookup: stateStore,
+		Publisher:   stateStore,
+		Config:      config,
+		Now:         clk.Now,
+		Instruments: instruments,
+		Logger:      logger,
+	}
 }
 
 // reducerGraphDrainFor returns a ReducerGraphDrain when the projector drain gate
@@ -90,6 +133,7 @@ func registerReducerObservableGauges(
 	getenv func(string) string,
 ) error {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
+	queueObserver.Now = clock.System().Now // explicit seam (#4121); == time.Now()
 	workerObserver := reducerWorkerObserver{active: activeWorkers}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, workerObserver); err != nil {
 		return fmt.Errorf("register observable gauges: %w", err)
