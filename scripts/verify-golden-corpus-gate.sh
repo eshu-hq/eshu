@@ -20,6 +20,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
+# B-11 (#3804) per-phase timing/baseline helper (defines emit_phase_timings_and_flags).
+# shellcheck source=scripts/lib/golden-corpus-phase-timings.sh
+. "${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
+
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
 # ----------------------------------------------------------------------------
@@ -451,41 +455,11 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # regression. (rc-9 DEPENDS_ON_PACKAGE / rc-10 INVOKES_CLOUD_ACTION reserved —
 # those need fixture/projection work before promotion.)
 # Promote each by adding its ID to -required-correlations.
-# B-11 (#3804): emit the observed per-phase wall-clock. The graph_query phase is
-# bounded here (API + MCP startup), deliberately excluding the gate's own
-# assertion time below — that is gate overhead, not pipeline work.
-phase_graph_query_end="$(date +%s)"
-phase_timings_file="${log_dir}/phase-timings.json"
-cat >"${phase_timings_file}" <<JSON
-{
-  "schema_version": "1",
-  "phases": {
-    "bootstrap": $(( phase_bootstrap_end - phase_bootstrap_start )),
-    "collect": $(( phase_collect_end - phase_collect_start )),
-    "first_drain": $(( phase_first_drain_end - phase_first_drain_start )),
-    "maintenance_drains": $(( phase_maintenance_end - phase_maintenance_start )),
-    "graph_query": $(( phase_graph_query_end - phase_graph_query_start ))
-  }
-}
-JSON
-log "per-phase timings: $(tr -d '\n ' <"${phase_timings_file}")"
-
-# Wire the macro per-phase regression check only when the baseline exists. The
-# first capture run (no baseline yet) still emits phase-timings.json above so the
-# baseline can be seeded from it; LoadPhaseBaseline would otherwise fail the gate.
-# Default to advisory because the default runner here is shared CI, whose hardware
-# variance exceeds the band; a controlled validation host sets
-# GATE_PHASE_REGRESSION_ADVISORY=false to make the per-phase check blocking.
-phase_baseline="${GATE_PHASE_BASELINE:-testdata/golden/e2e-baseline.json}"
-phase_flags=()
-if [[ -f "${repo_root}/${phase_baseline}" || -f "${phase_baseline}" ]]; then
-	phase_flags+=(-phase-timings-file="${phase_timings_file}" -phase-baseline-file="${phase_baseline}")
-	if [[ "${GATE_PHASE_REGRESSION_ADVISORY:-true}" == "true" ]]; then
-		phase_flags+=(-phase-regression-advisory)
-	fi
-else
-	log "no phase baseline at ${phase_baseline}; emitted phase-timings.json for seeding (per-phase check skipped)"
-fi
+# B-11 (#3804): emit the observed per-phase wall-clock and decide the per-phase
+# regression flags. Extracted to scripts/lib/golden-corpus-phase-timings.sh to
+# keep this orchestrator under the 500-line cap; it sets phase_timings_file and
+# the phase_flags array from the phase_* epochs captured inline above.
+emit_phase_timings_and_flags
 
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \

@@ -48,14 +48,25 @@ require "drains phase" "-phase=drains"
 require "graph+query+timing phase" "-phase=graph,query,timing"
 require "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
 require "timing budget" "-budget-multiplier"
-# B-11 (#3804) macro per-phase wall-clock: the orchestrator must emit
-# phase-timings.json and wire it into the gate against the committed baseline.
-require "phase-timings emission" "phase-timings.json"
-require "phase baseline default" "e2e-baseline.json"
-require "per-phase gate flag" "-phase-timings-file="
+# B-11 (#3804) macro per-phase wall-clock: the orchestrator sources the timing
+# helper lib and invokes it; the emission + gate wiring live in that lib chunk
+# (extracted to keep this orchestrator under the 500-line cap).
+require "phase-timing lib source" "golden-corpus-phase-timings.sh"
+require "phase-timing invocation" "emit_phase_timings_and_flags"
+require "passes phase flags to gate" "phase_flags"
+
+timing_lib="${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
+[[ -f "${timing_lib}" ]] || fail "missing phase-timing lib: ${timing_lib}"
+bash -n "${timing_lib}" || fail "phase-timing lib has a syntax error"
+require_lib() {
+	rg --fixed-strings --quiet -- "$2" "${timing_lib}" || fail "missing $1 in phase-timing lib: $2"
+}
+require_lib "phase-timings emission" "phase-timings.json"
+require_lib "phase baseline default" "e2e-baseline.json"
+require_lib "per-phase gate flag" "-phase-timings-file="
 # The per-phase check must default to advisory on shared CI runners (hardware
 # variance exceeds the band); a controlled host flips it blocking.
-require "per-phase advisory default" "-phase-regression-advisory"
+require_lib "per-phase advisory default" "-phase-regression-advisory"
 # Minimal-corpus posture: graph-populated smoke is required. Every
 # shared_projection_intents domain (incl. code_calls, #3865) must drain — no
 # domain is quarantined as advisory.
