@@ -15,6 +15,13 @@ documentation.
   action grants, data classes, permission families, bootstrap-owner posture, and
   custom-policy deferral that enrich every generated capability catalog entry.
   See `docs/public/reference/authorization-catalog.md`.
+- `product-claims.v1.yaml` is the public claim-to-proof ledger for broad README
+  and docs prose that a single capability marker cannot prove. It binds source
+  `product-claim` markers and whole-line quotes to capabilities, owner paths,
+  generated surfaces, deterministic proof, catalog proof signals, semantic
+  posture, generated surface counts, and issue state, and is checked by
+  `go/cmd/capability-inventory -mode docs`. Live issue-state verification runs
+  in `.github/workflows/product-claim-ledger.yml`.
 - `backend-conformance.v1.yaml` defines graph-backend capability classes for
   official adapters.
 - `scale-lab-corpus.v1.yaml` defines the representative scale-lab corpus,

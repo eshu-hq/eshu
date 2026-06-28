@@ -5,10 +5,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
@@ -19,6 +22,9 @@ const (
 	defaultDocsDir     = "../docs/public"
 	defaultRoot        = ".."
 	defaultArtifactOut = "internal/capabilitycatalog/data/catalog.generated.json"
+	envVerifyIssues    = "ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE"
+	// #nosec G101 -- this is the public environment variable name; the token value is read at runtime.
+	envGitHubToken = "GITHUB_TOKEN"
 )
 
 func main() {
@@ -50,10 +56,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	// Docs freshness checks only the capability catalog and never enumerates the
-	// source tree, so it does not need (and must not require) a repo root.
 	if *mode == "docs" {
-		return checkDocs(stdout, catalog, *docsDir)
+		ledgerPath := filepath.Join(*specsDir, capabilitycatalog.ProductClaimLedgerFileName)
+		return checkDocs(stdout, catalog, *docsDir, ledgerPath, *root)
 	}
 
 	surfaceInventory, surfaceFindings, err := buildSurfaceInventory(*specsDir, *root)
@@ -103,12 +108,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-// checkDocs runs both docs guards: the capability-state freshness guard against
-// the catalog, and the collector-state readiness guard against the generated
-// surface inventory. A collector readiness claim cannot contradict the inventory
-// lane or claim implemented without linked promotion proof. Both guards run so
-// the failure report is complete, and the command fails if either finds drift.
-func checkDocs(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir string) error {
+// checkDocs runs the docs guards: capability-state freshness, collector-state
+// readiness, and the product claim-to-proof ledger.
+func checkDocs(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir, ledgerPath, root string) error {
 	claims, err := capabilitycatalog.ParseDocClaims(docsDir)
 	if err != nil {
 		return err
@@ -129,12 +131,57 @@ func checkDocs(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir stri
 		return err
 	}
 
-	total := len(docFindings) + len(collectorFindings)
+	productFindings, err := checkProductClaims(stdout, catalog, ledgerPath, docsDir, root)
+	if err != nil {
+		return err
+	}
+
+	total := len(docFindings) + len(collectorFindings) + len(productFindings)
 	if total > 0 {
-		return fmt.Errorf("docs freshness check failed: %d capability findings, %d collector findings",
-			len(docFindings), len(collectorFindings))
+		return fmt.Errorf("docs freshness check failed: %d capability findings, %d collector findings, %d product claim findings",
+			len(docFindings), len(collectorFindings), len(productFindings))
 	}
 	return nil
+}
+
+func checkProductClaims(stdout io.Writer, catalog capabilitycatalog.Catalog, ledgerPath, docsDir, root string) ([]capabilitycatalog.ProductClaimFinding, error) {
+	ledger, err := capabilitycatalog.LoadProductClaimLedger(ledgerPath)
+	if err != nil {
+		return nil, err
+	}
+	inventory, err := capabilitycatalog.LoadSurfaceInventory()
+	if err != nil {
+		return nil, err
+	}
+	findings := capabilitycatalog.CheckProductClaims(root, catalog, inventory, ledger)
+	markers, err := capabilitycatalog.ParseProductClaimMarkers(root, docsDir)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, capabilitycatalog.CheckProductClaimMarkers(ledger, markers)...)
+	if os.Getenv(envVerifyIssues) == "1" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		issueFindings := capabilitycatalog.CheckProductClaimIssueStates(
+			ctx,
+			nil,
+			"",
+			"eshu-hq/eshu",
+			os.Getenv(envGitHubToken),
+			ledger,
+		)
+		findings = append(findings, issueFindings...)
+	}
+	if len(findings) == 0 {
+		_, _ = fmt.Fprintf(stdout, "checked %d product claims; no ledger findings\n", len(ledger.Claims))
+		return nil, nil
+	}
+	_, _ = fmt.Fprintf(stdout, "%d product claim ledger findings:\n", len(findings))
+	for _, finding := range findings {
+		_, _ = fmt.Fprintf(stdout, "  %s:%d [%s] %s: %s\n",
+			finding.Path, finding.Line, finding.ID, finding.Kind, finding.Detail)
+	}
+	return findings, nil
 }
 
 // checkCollectorDocs runs the collector readiness guard against the embedded

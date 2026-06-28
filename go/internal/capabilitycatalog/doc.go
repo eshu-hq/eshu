@@ -33,6 +33,11 @@
 // may override maturity with the operational states the matrix cannot express
 // (gated, degraded), and the entry records both the effective and the derived
 // maturity so drift between them stays visible.
+// LoadProductClaimLedger, ParseProductClaimMarkers, and CheckProductClaims extend
+// the same reconciliation discipline to broad public prose by binding guarded
+// source markers and whole-line quotes to capability ids, owner paths, generated
+// public surfaces, deterministic proof, generated surface counts, catalog proof
+// signals, semantic-output posture, and tracking issue state.
 //
 // Load returns the committed, generated artifact embedded from
 // data/catalog.generated.json. It is the runtime entry point for the API, MCP,
