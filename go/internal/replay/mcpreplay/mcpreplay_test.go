@@ -152,6 +152,42 @@ func TestMCPAssertCatchesDeliberateShapeChange(t *testing.T) {
 	t.Logf("correctly caught shape change: %v", err)
 }
 
+// TestMCPAssertCatchesIsErrorFlip proves the gate catches error-classification
+// drift, not only payload-shape drift: flipping the recorded isError flag on the
+// refusal exchange (without touching the envelope body) MUST fail AssertToolCalls
+// against the live handler. MCP clients branch on isError to tell a tool error
+// from a successful payload, so a regression that returns the same
+// {data:null,error:{...}} envelope but mislabels it isError:false has to be
+// caught. The refusal golden records isError:true; flipping it to false and
+// re-asserting proves the gate is watching the flag.
+func TestMCPAssertCatchesIsErrorFlip(t *testing.T) {
+	handler := mcpMessageHandler()
+	opts := mcpreplay.DefaultOptions()
+
+	golden, err := apirecording.LoadFile(mcpGoldenPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) error = %v", mcpGoldenPath, err)
+	}
+
+	// Baseline must match so the failure below is attributable to the flip.
+	if err := mcpreplay.AssertToolCalls(handler, golden, opts); err != nil {
+		t.Fatalf("baseline golden must match live handler before mutation: %v", err)
+	}
+
+	// Confirm the refusal exchange genuinely records isError:true before the
+	// flip, so flipping it to false is a real change the live handler contradicts.
+	if got := recordedIsError(t, golden, "resolve-playbook-unknown-refusal"); got != true {
+		t.Fatalf("refusal exchange records is_error=%v, want true; the golden does not encode the refusal classification", got)
+	}
+
+	flipped := flipIsError(t, golden, "resolve-playbook-unknown-refusal")
+	if err := mcpreplay.AssertToolCalls(handler, flipped, opts); err == nil {
+		t.Fatal("AssertToolCalls() = nil after flipping is_error on the refusal golden; the gate does not catch error-classification drift")
+	} else {
+		t.Logf("correctly caught is_error flip: %v", err)
+	}
+}
+
 // TestMCPAnswerParity proves that the MCP list_query_playbooks tool and the
 // HTTP GET /api/v0/query-playbooks endpoint return the same substantive data.
 // Both exchange sets are recorded from the same in-process handler; this test
@@ -273,6 +309,55 @@ func injectPhantomField(t *testing.T, r apirecording.Recording, name string) api
 			t.Fatalf("exchange %q body is %T, want map", name, out.Exchanges[i].Response.Body)
 		}
 		body["__phantom_field__"] = "not-emitted-by-handler"
+		out.Exchanges[i].Response.Body = body
+		return out
+	}
+	t.Fatalf("exchange %q not found to mutate", name)
+	return out
+}
+
+// recordedIsError returns the recorded is_error flag for the named exchange.
+// It is used to confirm the refusal golden genuinely encodes isError:true
+// before the flip test mutates it, so the flip is a real change.
+func recordedIsError(t *testing.T, r apirecording.Recording, name string) bool {
+	t.Helper()
+	for _, ex := range r.Exchanges {
+		if ex.Request.Name != name {
+			continue
+		}
+		body, ok := ex.Response.Body.(map[string]any)
+		if !ok {
+			t.Fatalf("exchange %q body is %T, want map", name, ex.Response.Body)
+		}
+		v, ok := body["is_error"].(bool)
+		if !ok {
+			t.Fatalf("exchange %q body has no bool is_error field; got %T", name, body["is_error"])
+		}
+		return v
+	}
+	t.Fatalf("exchange %q not found", name)
+	return false
+}
+
+// flipIsError returns a deep copy of r with the named exchange's recorded
+// is_error flag negated, leaving the structured content untouched. It proves
+// AssertToolCalls compares the classification bit, not only the payload shape.
+func flipIsError(t *testing.T, r apirecording.Recording, name string) apirecording.Recording {
+	t.Helper()
+	out := deepCopy(t, r)
+	for i := range out.Exchanges {
+		if out.Exchanges[i].Request.Name != name {
+			continue
+		}
+		body, ok := out.Exchanges[i].Response.Body.(map[string]any)
+		if !ok {
+			t.Fatalf("exchange %q body is %T, want map", name, out.Exchanges[i].Response.Body)
+		}
+		cur, ok := body["is_error"].(bool)
+		if !ok {
+			t.Fatalf("exchange %q body has no bool is_error field; got %T", name, body["is_error"])
+		}
+		body["is_error"] = !cur
 		out.Exchanges[i].Response.Body = body
 		return out
 	}

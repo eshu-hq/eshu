@@ -9,32 +9,37 @@ before it reaches MCP callers — the MCP read-surface half of the integration g
 
 1. **Record.** `RecordToolCalls(msgHandler, calls, opts)` drives each
    `CallDescriptor` through an in-process MCP message handler (obtained from
-   `mcp.InProcessMessageHandler`) via `httptest`, extracts the `structuredContent`
-   from the JSON-RPC result, and canonicalizes it through the shared
-   `replay.Canonicalize` core. The result is an `apirecording.Recording` with
-   `Transport=TransportMCP`.
+   `mcp.InProcessMessageHandler`) via `httptest` and stores a canonical body
+   wrapping the caller-visible MCP result fields: the `structuredContent`
+   (canonicalized through the shared `replay.Canonicalize` core) under
+   `structured_content`, and the `isError` flag under `is_error`. The result is
+   an `apirecording.Recording` with `Transport=TransportMCP`.
 2. **Persist.** Uses `apirecording.WriteFile` / `apirecording.LoadFile` — the
    same format as the HTTP API recording gate (R-8), since both produce
    `apirecording.Recording` values. No new file format.
 3. **Assert.** `AssertToolCalls(msgHandler, recording, opts)` re-drives the
-   recorded calls and fails with a clear diff when the live structured content
-   diverges from the golden.
+   recorded calls and fails with a clear diff when the live result — structured
+   content **or** `isError` classification — diverges from the golden.
 4. **Answer parity.** `AssertAnswerParity` compares the `data` field of an MCP
    exchange with the `data` field of an HTTP API exchange from the same logical
    query. It proves the MCP tool and the HTTP API endpoint answering the same
    question return consistent substantive truth.
 
-## Why structuredContent is the assertion target
+## What the canonical body asserts on
 
-The MCP tool result carries three representations: a text summary (human
-convenience, non-canonical), a resource block (raw JSON bytes), and
-`structuredContent` (the canonical, typed payload). Replay must assert on
-`structuredContent` because:
+The MCP tool result carries several representations. The recorded canonical body
+captures the two that callers depend on:
 
-- The text summary is a lossy human convenience, not a shape contract.
-- The resource text is the same JSON as `structuredContent` but byte-formatted;
-  asserting on canonicalized `structuredContent` is more stable.
-- `structuredContent` is what MCP clients actually use to parse tool results.
+- **`structured_content`** — the canonical, typed payload (the `structuredContent`
+  field). Replay asserts on this rather than the text summary (a lossy human
+  convenience) or the resource block (the same JSON, byte-formatted). It is what
+  MCP clients parse.
+- **`is_error`** — the MCP `result.isError` flag. Clients branch on it to tell a
+  tool error from a successful payload, so a regression that returns the same
+  `{data:null,error:{...}}` envelope but mislabels it `isError:false` would slip
+  past a payload-only gate. Storing it as a sibling means `AssertToolCalls`
+  catches refusal/error-classification drift. `TestMCPAssertCatchesIsErrorFlip`
+  flips the refusal golden's flag and requires the assertion to fail.
 
 ## Shared format with R-8 (apirecording)
 
@@ -51,10 +56,12 @@ The parity gate operates on the `data` field of the canonical response envelope.
 For the query-playbook handler:
 
 - HTTP `GET /api/v0/query-playbooks` → `data.count`, `data.playbooks`
-- MCP `list_query_playbooks` → `structuredContent.data.count`, `structuredContent.data.playbooks`
+- MCP `list_query_playbooks` → `structured_content.data.count`, `structured_content.data.playbooks`
 
-Both call the same underlying handler. `AssertAnswerParity` proves they agree,
-so an API/graph change that silently breaks MCP callers is caught.
+`extractData` unwraps the MCP `structured_content` wrapper so both sides compare
+the same envelope `data` payload. Both call the same underlying handler;
+`AssertAnswerParity` proves they agree, so an API/graph change that silently
+breaks MCP callers is caught.
 
 ## Offline by design
 

@@ -17,9 +17,12 @@
 - **The gate MUST NOT be false-green.** `TestMCPAssertCatchesDeliberateShapeChange`
   injects a phantom field and requires `AssertToolCalls` to fail. Never delete or
   weaken it; if you change `diffBodies`, prove this still fails.
-- **Assert on structuredContent, not text summaries.** Text summaries are human
-  conveniences; shape drift in `structuredContent` is what breaks MCP callers.
-  Do not switch to asserting the text content block.
+- **Assert on the caller-visible result, not text summaries.** The recorded
+  body wraps the `structuredContent` (under `structured_content`) and the
+  `isError` flag (under `is_error`). Both are what MCP callers branch on; text
+  summaries are human conveniences. Do not switch to asserting the text content
+  block, and do not drop `is_error` — a regression that mislabels a refusal as
+  `isError:false` must be caught (`TestMCPAssertCatchesIsErrorFlip` proves it).
 - **Canonicalize every recorded body through the shared core.** Bodies pass
   through `replay.Canonicalize` via `apirecording.Options.Canonical()` so
   run-specific fields collapse and a re-record is byte-identical.

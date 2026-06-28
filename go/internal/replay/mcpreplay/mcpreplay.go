@@ -212,10 +212,28 @@ func buildToolCallBody(call CallDescriptor) ([]byte, error) {
 	return data, nil
 }
 
-// canonicalizeToolResult extracts the structuredContent from the JSON-RPC
-// result and canonicalizes it. The structured content is the authoritative,
-// non-text representation of the tool response — it is what replay must assert
-// on to catch shape drift, not the text summary which is a human convenience.
+// recordedToolResultKeys are the top-level keys of the canonical body a tool
+// exchange stores. The body wraps the tool's structured content alongside the
+// MCP result metadata callers depend on, so the replay gate asserts on the
+// full caller-visible result, not only the payload shape.
+const (
+	// keyIsError carries the MCP result.isError flag. MCP clients use it to
+	// distinguish a tool error from a successful payload, so a regression that
+	// flips isError while keeping the same envelope MUST be caught. Stored as a
+	// sibling of the structured content so diffBodies compares it.
+	keyIsError = "is_error"
+	// keyStructuredContent carries the canonical structuredContent — the
+	// authoritative, non-text representation of the tool response.
+	keyStructuredContent = "structured_content"
+)
+
+// canonicalizeToolResult extracts the caller-visible MCP result fields from the
+// JSON-RPC response and returns a canonical body wrapping them. The body
+// carries both the structured content (the authoritative, non-text payload —
+// not the text summary, which is a human convenience) and the isError flag (the
+// error-classification bit MCP clients branch on). Storing both means the
+// replay gate catches refusal/error-classification drift, not only payload
+// shape drift.
 func canonicalizeToolResult(raw []byte, opts apirecording.Options) (any, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, fmt.Errorf("empty JSON-RPC response body")
@@ -225,6 +243,7 @@ func canonicalizeToolResult(raw []byte, opts apirecording.Options) (any, error) 
 	var rpcResp struct {
 		Result struct {
 			StructuredContent json.RawMessage `json:"structuredContent"`
+			IsError           bool            `json:"isError"`
 		} `json:"result"`
 		Error *struct {
 			Code    int    `json:"code"`
@@ -247,11 +266,14 @@ func canonicalizeToolResult(raw []byte, opts apirecording.Options) (any, error) 
 	}
 	dec := json.NewDecoder(bytes.NewReader(canonical))
 	dec.UseNumber()
-	var value any
-	if err := dec.Decode(&value); err != nil {
+	var structured any
+	if err := dec.Decode(&structured); err != nil {
 		return nil, fmt.Errorf("decode canonical structuredContent: %w", err)
 	}
-	return value, nil
+	return map[string]any{
+		keyIsError:           rpcResp.Result.IsError,
+		keyStructuredContent: structured,
+	}, nil
 }
 
 // callFromExchange reconstructs a CallDescriptor from a recorded exchange so
@@ -292,12 +314,20 @@ func validateRecording(r apirecording.Recording) error {
 	return nil
 }
 
-// extractData retrieves the data field from the named exchange's body in the
-// recording. The body must be a JSON object with a "data" key, as the
-// canonical response envelope shape requires. A null JSON data field (nil in
-// Go) is an error: AssertAnswerParity is only meaningful when both sides carry
-// a non-nil payload. A nil-vs-nil match would be a vacuous pass that guards
-// nothing — the caller must supply exchanges with real payloads.
+// extractData retrieves the envelope data field from the named exchange's body
+// in the recording. It handles both seam shapes:
+//
+//   - HTTP (R-8 apirecording): the body is the response envelope directly, so
+//     the data field is at body["data"].
+//   - MCP (this package): the body wraps the tool's structured content under
+//     keyStructuredContent alongside keyIsError, so the data field is at
+//     body[keyStructuredContent]["data"].
+//
+// Unwrapping the MCP envelope here keeps AssertAnswerParity comparing the same
+// substantive payload (the envelope data) across both transports. A null JSON
+// data field (nil in Go) is an error: AssertAnswerParity is only meaningful
+// when both sides carry a non-nil payload. A nil-vs-nil match would be a vacuous
+// pass that guards nothing.
 func extractData(r apirecording.Recording, exchangeName string) (any, error) {
 	for _, ex := range r.Exchanges {
 		if ex.Request.Name != exchangeName {
@@ -306,6 +336,11 @@ func extractData(r apirecording.Recording, exchangeName string) (any, error) {
 		body, ok := ex.Response.Body.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("exchange %q body is %T, want map", exchangeName, ex.Response.Body)
+		}
+		// Unwrap the MCP structured-content wrapper if present so the envelope
+		// data field is reached regardless of seam.
+		if wrapped, ok := body[keyStructuredContent].(map[string]any); ok {
+			body = wrapped
 		}
 		data, ok := body["data"]
 		if !ok {
