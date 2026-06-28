@@ -147,11 +147,11 @@ func (b DrainBound) Limit() int64 {
 }
 
 // QueryShapes describes the canonical MCP and HTTP responses defined by the
-// snapshot for B-7(c) query truth. The gate currently enforces only the HTTP
-// shapes (checkQuery); the MCP shapes are modeled but not yet asserted —
-// asserting them is tracked in the gate-widening follow-up (#3866). The field is
-// kept so the snapshot stays the single source of truth and the follow-up only
-// adds the assertion, not the schema.
+// snapshot for B-7(c) query truth. The HTTP shapes are asserted by checkQuery
+// against a running eshu-api; the MCP shapes are asserted live by checkMCPQuery
+// against a running eshu-mcp-server when -mcp-base-url is set (#3866 criterion 4),
+// invoking each tool through the MCP tool layer rather than only the HTTP routes
+// the tools proxy to.
 type QueryShapes struct {
 	MCP  map[string]QueryShape `json:"mcp"`
 	HTTP map[string]QueryShape `json:"http"`
@@ -165,6 +165,10 @@ type QueryShape struct {
 	RequiredResponseFields   []string `json:"required_response_fields"`
 	MinimumResults           int      `json:"minimum_results"`
 	ResultItemRequiredFields []string `json:"result_item_required_fields"`
+	// Arguments are the tool-call arguments for an MCP query shape (e.g.
+	// get_repo_summary needs a repo selector). Empty/omitted for argument-less
+	// tools and for HTTP shapes.
+	Arguments map[string]any `json:"arguments,omitempty"`
 }
 
 // LoadSnapshot reads and parses the golden snapshot at path.

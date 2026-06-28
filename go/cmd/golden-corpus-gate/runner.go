@@ -117,7 +117,18 @@ func correlationSet(raw string) map[string]bool {
 func runQuery(ctx context.Context, o options, getenv func(string) string, snap Snapshot, r *Report) error {
 	apiKey := strings.TrimSpace(getenv("ESHU_API_KEY"))
 	client := newQueryClient(o.apiBaseURL, apiKey)
-	return checkQuery(ctx, client, snap, r)
+	if err := checkQuery(ctx, client, snap, r); err != nil {
+		return err
+	}
+	// When an MCP server URL is supplied, additionally assert the snapshot's MCP
+	// tool query shapes live through the MCP tool layer (#3866 criterion 4), not
+	// just the HTTP routes those tools proxy to.
+	if strings.TrimSpace(o.mcpBaseURL) != "" {
+		if err := checkMCPQuery(ctx, newMCPClient(o.mcpBaseURL, apiKey), snap, r); err != nil {
+			return fmt.Errorf("mcp query shapes: %w", err)
+		}
+	}
+	return nil
 }
 
 // phaseSet expands the comma-separated phase flag, treating "all" as every phase.

@@ -350,23 +350,24 @@
   "query_shapes": {
     "mcp": {
       "list_indexed_repositories": {
-        "description": "Returns the indexed repository list; confirms the corpus was ingested",
+        "description": "Returns the indexed repository list (under the truth-envelope data); confirms the corpus was ingested. Asserted live through the MCP tool layer (#3866).",
         "required_response_fields": ["repositories"],
-        "minimum_results": 1,
-        "result_item_required_fields": ["id", "name"]
+        "minimum_results": 1
       },
       "get_repo_summary": {
-        "description": "Returns a single repo's stats object at GET /api/v0/repositories/{selector}/stats; confirms graph projection is complete for the queried repo",
+        "description": "Returns a single repo's stats object; confirms graph projection is complete for the queried repo. Object response (minimum_results 0); needs a repo selector.",
         "required_response_fields": ["repository", "file_count", "languages", "entity_count", "entity_types", "coverage"],
-        "minimum_results": 1
+        "minimum_results": 0,
+        "arguments": {"repo_name": "orders-api"}
       },
       "list_kubernetes_correlations": {
-        "description": "Returns k8s workload correlations; confirms WorkloadInstance→Repository deployable-unit correlation ran",
+        "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector.",
         "required_response_fields": ["correlations"],
-        "minimum_results": 1
+        "minimum_results": 1,
+        "arguments": {"cluster_id": "supply-chain-demo"}
       },
       "list_cloud_resource_inventory": {
-        "description": "Returns cloud resource inventory; confirms AWS/Azure/GCP cassette facts were ingested and projected",
+        "description": "Returns cloud resource inventory (AWS/Azure/GCP cassettes); confirms cloud facts were ingested and projected. Route now mounted on the MCP server (#4071); asserted live (#3866).",
         "required_response_fields": ["resources"],
         "minimum_results": 1
       }
