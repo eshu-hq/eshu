@@ -9,7 +9,8 @@ Reference hardware is an Apple Silicon or mid-range x86 laptop with at least
 
 Related: [Collector Performance Envelope](collector-performance-envelope.md)
 defines the per-collector claim/ingest/emit/project budgets and gold points
-(the git 15 min / 896 repo template) that feed the local query envelope below.
+(the measured git 896-repo full-corpus template) that feed the local query
+envelope below.
 
 ## Target Profiles
 
