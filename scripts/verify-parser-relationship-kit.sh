@@ -178,6 +178,21 @@ require_doc_text() {
   return 0
 }
 
+require_doc_regex() {
+  local file="$1"
+  local pattern="$2"
+  local label="$3"
+  if [ ! -f "$repo_root/$file" ]; then
+    printf 'verify-parser-relationship-kit: missing required doc %s\n' "$file" >&2
+    return 1
+  fi
+  if ! rg -q "$pattern" "$repo_root/$file"; then
+    printf 'verify-parser-relationship-kit: %s missing %s\n' "$file" "$label" >&2
+    return 1
+  fi
+  return 0
+}
+
 validate_required_docs() {
   local issues=0
   require_doc_text \
@@ -208,6 +223,80 @@ validate_required_docs() {
     docs/public/reference/relationship-mapping.md \
     "positive, negative, and ambiguous" \
     "positive/negative/ambiguous fixture rule" || issues=1
+  return "$issues"
+}
+
+validate_parser_backing_ledger() {
+  local issues=0
+  local spec="specs/parser-backing-ledger.v1.yaml"
+  local maturity="docs/public/languages/support-maturity.md"
+  local parser
+
+  require_doc_text "$maturity" "Parser Backing Ledger" "parser backing ledger section" || issues=1
+  require_doc_text "$maturity" "structured-parser-backed-exception" "structured-parser exception status" || issues=1
+
+  for parser in cloudformation dockerfile hcl yaml; do
+    require_doc_regex "$spec" "^[[:space:]]*-[[:space:]]*parser:[[:space:]]*${parser}[[:space:]]*$" \
+      "parser backing row for ${parser}" || issues=1
+    require_doc_regex "$maturity" "^\\|[[:space:]]*[^|]*${parser}[^|]*\\|[[:space:]]*\`structured-parser-backed-exception\`.*specs/parser-backing-ledger\\.v1\\.yaml" \
+      "support-maturity backing row for ${parser}" || issues=1
+  done
+
+  for parser in cloudformation dockerfile hcl yaml; do
+    local block
+    block="$(awk -v parser="$parser" '
+      $0 ~ "^[[:space:]]*-[[:space:]]*parser:[[:space:]]*" parser "[[:space:]]*$" { in_block=1; print; next }
+      in_block && $0 ~ "^[[:space:]]*-[[:space:]]*parser:" { in_block=0 }
+      in_block { print }
+    ' "$repo_root/$spec" 2>/dev/null || true)"
+
+    if ! printf '%s\n' "$block" | rg -q "^[[:space:]]*implementation_class:[[:space:]]*structured-parser-backed-exception[[:space:]]*$"; then
+      printf 'verify-parser-relationship-kit: %s row must be structured-parser-backed-exception\n' "$parser" >&2
+      issues=1
+    fi
+    if ! printf '%s\n' "$block" | rg -q "^[[:space:]]*no_provider_required:[[:space:]]*true[[:space:]]*$"; then
+      printf 'verify-parser-relationship-kit: %s row must declare no_provider_required: true\n' "$parser" >&2
+      issues=1
+    fi
+    validate_parser_backing_path_list "$parser" "$block" source_files || issues=1
+    validate_parser_backing_path_list "$parser" "$block" test_files || issues=1
+    validate_parser_backing_path_list "$parser" "$block" docs || issues=1
+  done
+
+  return "$issues"
+}
+
+validate_parser_backing_path_list() {
+  local parser="$1"
+  local block="$2"
+  local key="$3"
+  local found=0
+  local issues=0
+  local path
+
+  while IFS= read -r path; do
+    [ -z "$path" ] && continue
+    found=1
+    if [ ! -e "$repo_root/$path" ]; then
+      printf 'verify-parser-relationship-kit: %s %s path does not exist: %s\n' "$parser" "$key" "$path" >&2
+      issues=1
+    fi
+  done < <(
+    printf '%s\n' "$block" | awk -v key="$key" '
+      $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
+      in_list && $0 ~ "^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*:" { in_list=0 }
+      in_list && $0 ~ "^[[:space:]]*-[[:space:]]*" {
+        item=$0
+        sub(/^[[:space:]]*-[[:space:]]*/, "", item)
+        print item
+      }
+    '
+  )
+
+  if [ "$found" -eq 0 ]; then
+    printf 'verify-parser-relationship-kit: %s row missing non-empty %s\n' "$parser" "$key" >&2
+    issues=1
+  fi
   return "$issues"
 }
 
@@ -365,6 +454,7 @@ validate_diff_contracts() {
 
 issues=0
 validate_required_docs || issues=1
+validate_parser_backing_ledger || issues=1
 validate_support_maturity_matrix || issues=1
 validate_language_pages || issues=1
 validate_diff_contracts || issues=1

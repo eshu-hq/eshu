@@ -1,0 +1,117 @@
+version: 1
+parser_backing:
+  - parser: cloudformation
+    implementation_class: structured-parser-backed-exception
+    backing: bounded structural evaluation over decoded YAML and JSON documents
+    no_provider_required: true
+    tree_sitter_decision: not_applicable_declarative_data
+    why_not_tree_sitter: CloudFormation and SAM are declarative template documents. YAML and JSON adapters decode the document tree, then the CloudFormation helper extracts bounded resource, parameter, output, condition, import, and export evidence without executing templates.
+    source_files:
+      - go/internal/parser/cloudformation/parser.go
+      - go/internal/parser/cloudformation/conditions.go
+      - go/internal/parser/yaml/language.go
+      - go/internal/parser/json/language.go
+    test_files:
+      - go/internal/parser/cloudformation/parser_test.go
+      - go/internal/parser/cloudformation/conditions_test.go
+      - go/internal/parser/cloudformation/imports_test.go
+      - go/internal/parser/engine_yaml_semantics_test.go
+    downstream_relevance:
+      - cloudformation_resources -> CloudFormationResource
+      - cloudformation_parameters -> CloudFormationParameter
+      - cloudformation_outputs -> CloudFormationOutput
+      - cloudformation_conditions -> CloudFormationCondition query/content evidence
+      - cloudformation_cross_stack_imports -> CloudFormationImport query/content evidence
+      - cloudformation_cross_stack_exports -> CloudFormationExport query/content evidence
+    docs:
+      - docs/public/languages/cloudformation.md
+      - docs/internal/parser-audit/cloudformation.md
+  - parser: dockerfile
+    implementation_class: structured-parser-backed-exception
+    backing: bounded Dockerfile instruction scanner
+    no_provider_required: true
+    tree_sitter_decision: not_applicable_build_manifest
+    why_not_tree_sitter: Dockerfiles are build manifests. Eshu extracts bounded FROM, COPY, ARG, ENV, LABEL, EXPOSE, ENTRYPOINT, CMD, WORKDIR, USER, and HEALTHCHECK evidence from instruction tokens, while unsupported instructions remain intentionally unclaimed.
+    source_files:
+      - go/internal/parser/dockerfile/metadata.go
+      - go/internal/parser/dockerfile/tokens.go
+      - go/internal/parser/dockerfile_language.go
+    test_files:
+      - go/internal/parser/dockerfile/metadata_test.go
+    downstream_relevance:
+      - dockerfile_stages -> parser metadata and runtime evidence
+      - dockerfile_ports -> parser metadata and runtime evidence
+      - dockerfile_args -> parser metadata and runtime evidence
+      - dockerfile_envs -> parser metadata and runtime evidence
+      - dockerfile_labels -> parser metadata and runtime evidence
+    docs:
+      - go/internal/parser/dockerfile/README.md
+      - docs/internal/parser-audit/dockerfile.md
+  - parser: hcl
+    implementation_class: structured-parser-backed-exception
+    backing: HashiCorp hcl/v2 and hclsyntax AST
+    no_provider_required: true
+    tree_sitter_decision: not_applicable_official_format_ast
+    why_not_tree_sitter: Terraform, tfvars, lockfile, and Terragrunt inputs use the official HashiCorp HCL parser. Replacing that canonical AST with tree-sitter would diverge from Terraform/Terragrunt syntax and expression semantics.
+    source_files:
+      - go/internal/parser/hcl/parser.go
+      - go/internal/parser/hcl/terraform_lock.go
+      - go/internal/parser/hcl/include_chain.go
+      - go/internal/parser/hcl/terraform_resource_attributes.go
+      - go/internal/parser/hcl_language.go
+    test_files:
+      - go/internal/parser/hcl/parser_test.go
+      - go/internal/parser/hcl/parser_edge_cases_test.go
+      - go/internal/parser/hcl/include_chain_test.go
+      - go/internal/parser/hcl/terraform_resource_attributes_test.go
+      - go/internal/parser/hcl_terraform_test.go
+      - go/internal/parser/hcl_terragrunt_test.go
+    graph_projection_relevance:
+      - terraform_resources -> TerraformResource
+      - terraform_variables -> TerraformVariable
+      - terraform_outputs -> TerraformOutput
+      - terraform_modules -> TerraformModule
+      - terraform_providers -> TerraformProvider
+      - terragrunt_configs -> TerragruntConfig
+      - terragrunt_dependencies -> TerragruntDependency
+    docs:
+      - docs/public/languages/terraform.md
+      - docs/public/languages/terragrunt.md
+      - docs/internal/parser-audit/hcl.md
+  - parser: yaml
+    implementation_class: structured-parser-backed-exception
+    backing: gopkg.in/yaml.v3 document decoder plus bounded domain walkers
+    no_provider_required: true
+    tree_sitter_decision: not_applicable_declarative_data
+    why_not_tree_sitter: YAML is declarative data. The YAML v3 decoder preserves documents, anchors, merges, and block scalars that a code grammar cannot model, and Eshu's domain walkers extract bounded Kubernetes, Argo CD, Crossplane, Kustomize, Helm, CloudFormation, GitLab CI, Atlantis, Pub, and observability evidence.
+    source_files:
+      - go/internal/parser/yaml/language.go
+      - go/internal/parser/yaml/node_decode.go
+      - go/internal/parser/yaml/semantics.go
+      - go/internal/parser/yaml/argocd.go
+      - go/internal/parser/yaml/helm.go
+      - go/internal/parser/yaml/gitlab_ci.go
+      - go/internal/parser/yaml/atlantis.go
+    test_files:
+      - go/internal/parser/yaml/language_test.go
+      - go/internal/parser/yaml/atlantis_test.go
+      - go/internal/parser/yaml/gitlab_ci_test.go
+      - go/internal/parser/yaml/helm_template_values_test.go
+      - go/internal/parser/engine_yaml_semantics_test.go
+    graph_projection_relevance:
+      - k8s_resources -> K8sResource
+      - argocd_applications -> ArgoCDApplication
+      - argocd_applicationsets -> ArgoCDApplicationSet
+      - crossplane_xrds -> CrossplaneXRD
+      - crossplane_compositions -> CrossplaneComposition
+      - crossplane_claims -> CrossplaneClaim
+      - kustomize_overlays -> KustomizeOverlay
+      - helm_charts -> HelmChart
+      - helm_values -> HelmValues
+    docs:
+      - docs/public/languages/kubernetes.md
+      - docs/public/languages/argocd.md
+      - docs/public/languages/crossplane.md
+      - docs/public/languages/kustomize.md
+      - docs/public/languages/helm.md
+      - docs/internal/parser-audit/yaml.md

@@ -265,7 +265,10 @@ func DecodeDocuments(source string) ([]any, error) {
 		if len(node.Content) == 0 {
 			continue
 		}
-		value := yamlNodeToAny(node.Content[0])
+		value, err := yamlNodeToAny(node.Content[0])
+		if err != nil {
+			return nil, err
+		}
 		if object, ok := value.(map[string]any); ok {
 			object["__eshu_line_number"] = node.Content[0].Line
 			documents = append(documents, object)
@@ -273,102 +276,6 @@ func DecodeDocuments(source string) ([]any, error) {
 		}
 		documents = append(documents, value)
 	}
-}
-
-func yamlNodeToAny(node *yamlv3.Node) any {
-	if node == nil {
-		return nil
-	}
-
-	if intrinsicKey, ok := cloudFormationYAMLIntrinsicKey(node.Tag); ok {
-		return map[string]any{intrinsicKey: yamlNodeValue(node)}
-	}
-
-	switch node.Kind {
-	case yamlv3.DocumentNode:
-		if len(node.Content) == 0 {
-			return nil
-		}
-		return yamlNodeToAny(node.Content[0])
-	case yamlv3.MappingNode:
-		result := make(map[string]any, len(node.Content)/2)
-		for index := 0; index+1 < len(node.Content); index += 2 {
-			key := yamlScalarString(node.Content[index])
-			result[key] = yamlNodeToAny(node.Content[index+1])
-		}
-		return result
-	case yamlv3.SequenceNode:
-		result := make([]any, 0, len(node.Content))
-		for _, child := range node.Content {
-			result = append(result, yamlNodeToAny(child))
-		}
-		return result
-	case yamlv3.ScalarNode:
-		return yamlScalarString(node)
-	default:
-		return nil
-	}
-}
-
-func yamlNodeValue(node *yamlv3.Node) any {
-	switch node.Kind {
-	case yamlv3.DocumentNode:
-		if len(node.Content) == 0 {
-			return nil
-		}
-		return yamlNodeToAny(node.Content[0])
-	case yamlv3.MappingNode:
-		result := make(map[string]any, len(node.Content)/2)
-		for index := 0; index+1 < len(node.Content); index += 2 {
-			key := yamlScalarString(node.Content[index])
-			result[key] = yamlNodeToAny(node.Content[index+1])
-		}
-		return result
-	case yamlv3.SequenceNode:
-		result := make([]any, 0, len(node.Content))
-		for _, child := range node.Content {
-			result = append(result, yamlNodeToAny(child))
-		}
-		return result
-	case yamlv3.ScalarNode:
-		return yamlScalarString(node)
-	default:
-		return nil
-	}
-}
-
-func cloudFormationYAMLIntrinsicKey(tag string) (string, bool) {
-	switch tag {
-	case "!And":
-		return "Fn::And", true
-	case "!Condition":
-		return "Condition", true
-	case "!Equals":
-		return "Fn::Equals", true
-	case "!GetAtt":
-		return "Fn::GetAtt", true
-	case "!If":
-		return "Fn::If", true
-	case "!ImportValue":
-		return "Fn::ImportValue", true
-	case "!Join":
-		return "Fn::Join", true
-	case "!Or":
-		return "Fn::Or", true
-	case "!Ref":
-		return "Ref", true
-	case "!Sub":
-		return "Fn::Sub", true
-	default:
-		return "", false
-	}
-}
-
-func yamlScalarString(node *yamlv3.Node) string {
-	if node == nil {
-		return ""
-	}
-	return strings.TrimSpace(node.Value)
 }
 
 // SanitizeTemplating removes or quotes common templating forms that would

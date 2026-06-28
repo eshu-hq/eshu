@@ -13,8 +13,13 @@ write_required_docs() {
     "${dir}/docs/public/languages" \
     "${dir}/docs/public/reference" \
     "${dir}/go/internal/parser" \
+    "${dir}/go/internal/parser/cloudformation" \
+    "${dir}/go/internal/parser/dockerfile" \
+    "${dir}/go/internal/parser/hcl" \
+    "${dir}/go/internal/parser/yaml" \
     "${dir}/go/internal/relationships" \
-    "${dir}/go/internal/query"
+    "${dir}/go/internal/query" \
+    "${dir}/specs"
 
   cat >"${dir}/docs/public/contributing-language-support.md" <<'MD'
 # Contributing Parser Support
@@ -66,6 +71,61 @@ MD
 | JSON Config | `DefaultEngine (json)` | - | - | unsupported | JSON metadata only | - | - | - |
 MD
 
+  cat >>"${dir}/docs/public/languages/support-maturity.md" <<'MD'
+
+## Parser Backing Ledger
+
+See `specs/parser-backing-ledger.v1.yaml`.
+
+| Parser Key | Implementation Class | Decision | Evidence |
+| --- | --- | --- | --- |
+| cloudformation | `structured-parser-backed-exception` | Decoded YAML/JSON plus bounded CloudFormation evaluation is the canonical parser. | `specs/parser-backing-ledger.v1.yaml` |
+| dockerfile | `structured-parser-backed-exception` | Dockerfile instruction scanning is the canonical build-manifest parser. | `specs/parser-backing-ledger.v1.yaml` |
+| hcl | `structured-parser-backed-exception` | HashiCorp HCL v2 is the canonical Terraform/Terragrunt parser. | `specs/parser-backing-ledger.v1.yaml` |
+| yaml | `structured-parser-backed-exception` | YAML v3 document decoding is the canonical declarative-data parser. | `specs/parser-backing-ledger.v1.yaml` |
+MD
+
+  cat >"${dir}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
+version: 1
+parser_backing:
+  - parser: cloudformation
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/cloudformation/parser.go
+    test_files:
+      - go/internal/parser/cloudformation/parser_test.go
+    docs:
+      - docs/public/languages/cloudformation.md
+  - parser: dockerfile
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/dockerfile/metadata.go
+    test_files:
+      - go/internal/parser/dockerfile/metadata_test.go
+    docs:
+      - docs/public/languages/support-maturity.md
+  - parser: hcl
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/hcl/parser.go
+    test_files:
+      - go/internal/parser/hcl/parser_test.go
+    docs:
+      - docs/public/languages/terraform.md
+  - parser: yaml
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/yaml/language.go
+    test_files:
+      - go/internal/parser/yaml/language_test.go
+    docs:
+      - docs/public/languages/kubernetes.md
+YAML
+
   cat >"${dir}/docs/public/languages/python.md" <<'MD'
 # Python Parser
 
@@ -73,6 +133,27 @@ MD
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Functions | `functions` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/python_language_test.go::TestPythonFunctions` | Compose-backed fixture verification | - |
 MD
+
+  for path in \
+    go/internal/parser/cloudformation/parser.go \
+    go/internal/parser/cloudformation/parser_test.go \
+    go/internal/parser/dockerfile/metadata.go \
+    go/internal/parser/dockerfile/metadata_test.go \
+    go/internal/parser/hcl/parser.go \
+    go/internal/parser/hcl/parser_test.go \
+    go/internal/parser/yaml/language.go \
+    go/internal/parser/yaml/language_test.go
+  do
+    printf 'package placeholder\n' >"${dir}/${path}"
+  done
+
+  for path in \
+    docs/public/languages/cloudformation.md \
+    docs/public/languages/terraform.md \
+    docs/public/languages/kubernetes.md
+  do
+    printf '# Fixture\n' >"${dir}/${path}"
+  done
 
   cat >"${dir}/docs/public/reference/dead-code-language-maturity.md" <<'MD'
 # Dead Code Language Maturity
@@ -194,5 +275,170 @@ MD
 git -C "${missing_language_proof_repo}" add .
 git -C "${missing_language_proof_repo}" commit -q -m 'missing language proof'
 expect_fail "${missing_language_proof_repo}"
+
+parser_backing_missing_repo="$(init_repo parser-backing-missing)"
+rm -f "${parser_backing_missing_repo}/specs/parser-backing-ledger.v1.yaml"
+cat >"${parser_backing_missing_repo}/docs/public/languages/support-maturity.md" <<'MD'
+# Parser Support Matrix
+
+| Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
+| Dockerfile | `DefaultEngine (dockerfile)` | - | - | unsupported | build-manifest evidence only | - | - | - |
+| HCL | `DefaultEngine (hcl)` | supported | supported | non-code evidence | Terraform and Terragrunt evidence | supported | supported | supported |
+| YAML | `DefaultEngine (yaml)` | - | - | unsupported | declarative-data evidence only | - | - | - |
+MD
+git -C "${parser_backing_missing_repo}" add .
+git -C "${parser_backing_missing_repo}" commit -q -m 'missing parser backing ledger'
+expect_fail "${parser_backing_missing_repo}"
+
+parser_backing_incomplete_repo="$(init_repo parser-backing-incomplete)"
+mkdir -p "${parser_backing_incomplete_repo}/specs"
+cat >"${parser_backing_incomplete_repo}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
+version: 1
+parser_backing:
+  - parser: cloudformation
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/cloudformation/parser.go
+    test_files:
+      - go/internal/parser/cloudformation/parser_test.go
+    docs:
+      - docs/public/languages/cloudformation.md
+YAML
+cat >"${parser_backing_incomplete_repo}/docs/public/languages/support-maturity.md" <<'MD'
+# Parser Support Matrix
+
+| Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
+| Dockerfile | `DefaultEngine (dockerfile)` | - | - | unsupported | build-manifest evidence only | - | - | - |
+| HCL | `DefaultEngine (hcl)` | supported | supported | non-code evidence | Terraform and Terragrunt evidence | supported | supported | supported |
+| YAML | `DefaultEngine (yaml)` | - | - | unsupported | declarative-data evidence only | - | - | - |
+
+## Parser Backing Ledger
+
+See `specs/parser-backing-ledger.v1.yaml`.
+
+| Parser | Implementation Class | Decision | Evidence |
+| --- | --- | --- | --- |
+| cloudformation | `structured-parser-backed-exception` | Decoded YAML/JSON plus bounded CloudFormation evaluation is the canonical parser. | `specs/parser-backing-ledger.v1.yaml` |
+MD
+git -C "${parser_backing_incomplete_repo}" add .
+git -C "${parser_backing_incomplete_repo}" commit -q -m 'incomplete parser backing ledger'
+expect_fail "${parser_backing_incomplete_repo}"
+
+parser_backing_bad_path_repo="$(init_repo parser-backing-bad-path)"
+cat >"${parser_backing_bad_path_repo}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
+version: 1
+parser_backing:
+  - parser: cloudformation
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/cloudformation/parser.go
+    test_files:
+      - go/internal/parser/cloudformation/parser_test.go
+    docs:
+      - docs/public/languages/cloudformation.md
+  - parser: dockerfile
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/dockerfile/does_not_exist.go
+    test_files:
+      - go/internal/parser/dockerfile/metadata_test.go
+    docs:
+      - docs/public/languages/support-maturity.md
+  - parser: hcl
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/hcl/parser.go
+    test_files:
+      - go/internal/parser/hcl/parser_test.go
+    docs:
+      - docs/public/languages/terraform.md
+  - parser: yaml
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/yaml/language.go
+    test_files:
+      - go/internal/parser/yaml/language_test.go
+    docs:
+      - docs/public/languages/kubernetes.md
+YAML
+git -C "${parser_backing_bad_path_repo}" add .
+git -C "${parser_backing_bad_path_repo}" commit -q -m 'stale parser backing ledger path'
+expect_fail "${parser_backing_bad_path_repo}"
+
+parser_backing_complete_repo="$(init_repo parser-backing-complete)"
+mkdir -p "${parser_backing_complete_repo}/specs"
+cat >"${parser_backing_complete_repo}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
+version: 1
+parser_backing:
+  - parser: cloudformation
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/cloudformation/parser.go
+    test_files:
+      - go/internal/parser/cloudformation/parser_test.go
+    docs:
+      - docs/public/languages/cloudformation.md
+  - parser: dockerfile
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/dockerfile/metadata.go
+    test_files:
+      - go/internal/parser/dockerfile/metadata_test.go
+    docs:
+      - docs/public/languages/support-maturity.md
+  - parser: hcl
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/hcl/parser.go
+    test_files:
+      - go/internal/parser/hcl/parser_test.go
+    docs:
+      - docs/public/languages/terraform.md
+  - parser: yaml
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/yaml/language.go
+    test_files:
+      - go/internal/parser/yaml/language_test.go
+    docs:
+      - docs/public/languages/kubernetes.md
+YAML
+cat >"${parser_backing_complete_repo}/docs/public/languages/support-maturity.md" <<'MD'
+# Parser Support Matrix
+
+| Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
+| Dockerfile | `DefaultEngine (dockerfile)` | - | - | unsupported | build-manifest evidence only | - | - | - |
+| HCL | `DefaultEngine (hcl)` | supported | supported | non-code evidence | Terraform and Terragrunt evidence | supported | supported | supported |
+| YAML | `DefaultEngine (yaml)` | - | - | unsupported | declarative-data evidence only | - | - | - |
+
+## Parser Backing Ledger
+
+See `specs/parser-backing-ledger.v1.yaml`.
+
+| Parser | Implementation Class | Decision | Evidence |
+| --- | --- | --- | --- |
+| cloudformation | `structured-parser-backed-exception` | Decoded YAML/JSON plus bounded CloudFormation evaluation is the canonical parser. | `specs/parser-backing-ledger.v1.yaml` |
+| dockerfile | `structured-parser-backed-exception` | Dockerfile instruction scanning is the canonical build-manifest parser. | `specs/parser-backing-ledger.v1.yaml` |
+| hcl | `structured-parser-backed-exception` | HashiCorp HCL v2 is the canonical Terraform/Terragrunt parser. | `specs/parser-backing-ledger.v1.yaml` |
+| yaml | `structured-parser-backed-exception` | YAML v3 document decoding is the canonical declarative-data parser. | `specs/parser-backing-ledger.v1.yaml` |
+MD
+git -C "${parser_backing_complete_repo}" add .
+git -C "${parser_backing_complete_repo}" commit -q -m 'complete parser backing ledger'
+expect_pass "${parser_backing_complete_repo}"
 
 printf 'verify-parser-relationship-kit tests passed\n'
