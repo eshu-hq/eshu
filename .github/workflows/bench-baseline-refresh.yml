@@ -1,0 +1,61 @@
+name: Bench Baseline Refresh
+
+# B-2 (#3795): recapture benchmarks/baseline.txt weekly on ubuntu-latest so the
+# committed baseline stays a like-for-like comparison target for the per-PR
+# benchstat regression gate (a baseline captured on a different runner class is
+# not a valid benchstat comparison). Opens a PR rather than pushing to main, so
+# the refreshed numbers go through the normal review bar.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: bench-baseline-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    name: refresh baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Recapture benchmark baseline
+        run: scripts/refresh-bench-baseline.sh
+
+      - name: Open a PR if the baseline changed
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- benchmarks/baseline.txt; then
+            echo "baseline unchanged — nothing to refresh"
+            exit 0
+          fi
+          branch="automation/bench-baseline-refresh"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}"
+          git add benchmarks/baseline.txt
+          git commit -m "chore(bench): weekly baseline refresh (#3795)"
+          git push -f origin "${branch}"
+          gh pr create --base main --head "${branch}" \
+            --title "chore(bench): weekly baseline refresh" \
+            --body "Automated weekly recapture of \`benchmarks/baseline.txt\` on ubuntu-latest (B-2, #3795). Review the benchstat diff before merging; this keeps the per-PR regression gate's baseline like-for-like." \
+            || gh pr edit "${branch}" --body "Automated weekly recapture of benchmarks/baseline.txt (updated $(date -u +%Y-%m-%d))."

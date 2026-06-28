@@ -2,9 +2,14 @@ name: Benchmarks
 
 # B-1 (#3794): run the Go micro-benchmark suite on every PR and upload the
 # results as an artifact so per-function ns/op / B/op / allocs/op are visible
-# per change. This is the visibility layer only — there is NO regression gate
-# here. B-2 (#3795) layers `benchstat` comparison against a committed baseline
-# on top of the artifact this workflow produces.
+# per change.
+#
+# B-2 (#3795): the bench-regression job compares the current run against the
+# committed benchmarks/baseline.txt with benchstat and reports sec/op regressions
+# > 10%. It is advisory until the baseline is recaptured on this runner class by
+# the weekly bench-baseline-refresh workflow (a committed baseline from a
+# different machine is not a valid benchstat comparison); flip it to blocking via
+# BENCH_REGRESSION_ENFORCE=true once the baseline is CI-refreshed.
 #
 # The run is hermetic: backend-bound benchmarks self-skip without a DSN and the
 # graph-write benchmarks use in-process no-op executors, so no Postgres/NornicDB
@@ -78,3 +83,45 @@ jobs:
           name: go-benchmark-results
           path: bench-results.txt
           if-no-files-found: error
+
+  bench-regression:
+    name: bench regression (benchstat vs baseline)
+    needs: test-mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Compare current benchmarks against committed baseline
+        env:
+          # Same shape as benchmarks/baseline.txt; keep these in lockstep with
+          # scripts/refresh-bench-baseline.sh so the comparison is like-for-like.
+          BENCH_TIME: 100ms
+          BENCH_COUNT: 6
+          BENCH_REGRESSION_PCT: 10
+          BENCH_ALPHA: 0.05
+          # Advisory until the baseline is recaptured on this runner class by the
+          # weekly bench-baseline-refresh workflow; then set to true to block.
+          BENCH_REGRESSION_ENFORCE: false
+        run: scripts/verify-bench-regression.sh
+
+      - name: Upload current benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-benchmark-current
+          path: benchmarks/current.txt
+          if-no-files-found: ignore
