@@ -240,6 +240,20 @@ Observability Evidence: `eshu_dp_queue_source_depth` and
 `source_system` from `ingestion_scopes.source_system`; reducer metrics prefer
 the reducer intent payload `source_system` and fall back to the scope source so
 operators can distinguish noisy-source starvation from ordinary backlog.
+No-Regression Evidence: the PR #4083 review fix changes only the source queue
+observer `GROUP BY` clauses from the ambiguous `source_system` alias to selected
+expression ordinals. `go test ./internal/storage/postgres -run
+TestSourceQueueObserverQueriesUseBoundedSourceSystem -count=1` failed before
+the fix and passed after it; `ESHU_REDUCER_FAIRNESS_PROOF_DSN=<disposable
+Postgres 18-alpine DSN> go test ./internal/storage/postgres -run
+TestQueueObserverStoreSourceQueriesRunOnPostgres -count=1 -v` proved the
+`SourceQueueDepths` and `SourceQueueOldestAge` queries execute against live
+Postgres with one projector source row and one reducer source row. Performance
+Evidence: this is a correctness-of-shape fix over the same queue observer scan,
+with no added join, predicate, or row expansion. Observability Evidence: the
+same `eshu_dp_queue_source_depth` and `eshu_dp_queue_source_oldest_age_seconds`
+metrics continue to expose the source labels; the fix restores their scrape
+path instead of adding a new telemetry surface.
 
 ### Deferred maintenance lock partitioning (issue #3482)
 

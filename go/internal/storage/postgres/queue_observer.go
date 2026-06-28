@@ -70,7 +70,7 @@ FROM active_fact_work_items AS work
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = work.scope_id
 WHERE work.status IN ('pending', 'claimed', 'running', 'retrying')
-GROUP BY work.stage, source_system, work.status
+GROUP BY 1, 2, work.status
 ORDER BY work.stage, source_system, work.status
 `
 
@@ -94,7 +94,7 @@ FROM active_fact_work_items AS work
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = work.scope_id
 WHERE work.status IN ('pending', 'claimed', 'running', 'retrying')
-GROUP BY work.stage, source_system
+GROUP BY 1, 2
 ORDER BY work.stage, source_system
 `
 
