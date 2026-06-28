@@ -283,7 +283,14 @@ func findEntityLabelSummaryLineWithPhase(t *testing.T, logs string, label string
 	return ""
 }
 
-func TestCanonicalExecutorForGraphBackendAllowsNornicDBGroupedWhenConformanceEnabled(t *testing.T) {
+// TestCanonicalExecutorForGraphBackendGroupedWritesUsePhaseGroupNornicDB is part
+// of the #4027 regression: enabling grouped writes must NOT hand NornicDB the
+// bare whole-materialization GroupExecutor. Whole-materialization atomic writes
+// drop every file/entity nested under a directory because an UNWIND-driven MATCH
+// does not see a node MERGE'd earlier in the same transaction (observed as 0
+// File nodes corpus-wide), so the executor must remain the per-dependency-phase
+// executor that commits each phase before the next phase's MATCH runs.
+func TestCanonicalExecutorForGraphBackendGroupedWritesUsePhaseGroupNornicDB(t *testing.T) {
 	t.Parallel()
 
 	inner := &groupCapableIngesterExecutor{}
@@ -300,21 +307,29 @@ func TestCanonicalExecutorForGraphBackendAllowsNornicDBGroupedWhenConformanceEna
 		nil,
 		nil,
 	)
-	ge, ok := executor.(sourcecypher.GroupExecutor)
-	if !ok {
-		t.Fatal("NornicDB canonical executor does not implement GroupExecutor when conformance grouped writes are enabled")
+	if _, ok := executor.(sourcecypher.GroupExecutor); ok {
+		t.Fatal("grouped-writes NornicDB executor exposes GroupExecutor (whole-materialization atomic drops nested files, #4027); want per-phase only")
 	}
-
-	err := ge.ExecuteGroup(context.Background(), []sourcecypher.Statement{{Cypher: "RETURN 1"}})
-	if err != nil {
-		t.Fatalf("ExecuteGroup() error = %v, want nil", err)
+	pge, ok := executor.(sourcecypher.PhaseGroupExecutor)
+	if !ok {
+		t.Fatal("grouped-writes NornicDB executor does not implement PhaseGroupExecutor (#4027)")
+	}
+	if err := pge.ExecutePhaseGroup(context.Background(), []sourcecypher.Statement{{Cypher: "RETURN 1"}}); err != nil {
+		t.Fatalf("ExecutePhaseGroup() error = %v, want nil", err)
 	}
 	if inner.groupCalls != 1 {
 		t.Fatalf("inner ExecuteGroup calls = %d, want 1", inner.groupCalls)
 	}
 }
 
-func TestCanonicalExecutorForGraphBackendNornicDBGroupedFullStackReachesRawExecutor(t *testing.T) {
+// TestCanonicalExecutorForGraphBackendGroupedFullStackUsesPhaseGroups is the
+// #4027 regression at the writer level: with grouped writes enabled the
+// canonical writer must commit per dependency phase (ExecutePhaseGroup), exactly
+// like the default path, so each phase's MATCH sees the prior committed phase.
+// The old behavior routed the whole materialization through a single
+// GroupExecutor.ExecuteGroup, which silently dropped every nested file/entity on
+// NornicDB.
+func TestCanonicalExecutorForGraphBackendGroupedFullStackUsesPhaseGroups(t *testing.T) {
 	t.Parallel()
 
 	inner := &groupCapableIngesterExecutor{}
@@ -331,8 +346,8 @@ func TestCanonicalExecutorForGraphBackendNornicDBGroupedFullStackReachesRawExecu
 		nil,
 		nil,
 	)
-	if _, ok := executor.(sourcecypher.GroupExecutor); !ok {
-		t.Fatal("NornicDB grouped executor stack does not implement GroupExecutor")
+	if _, ok := executor.(sourcecypher.GroupExecutor); ok {
+		t.Fatal("grouped-writes NornicDB executor exposes GroupExecutor (#4027); want per-phase only")
 	}
 
 	writer := sourcecypher.NewCanonicalNodeWriter(executor, 0, nil)
@@ -340,11 +355,11 @@ func TestCanonicalExecutorForGraphBackendNornicDBGroupedFullStackReachesRawExecu
 	if err != nil {
 		t.Fatalf("CanonicalNodeWriter.Write() error = %v, want nil", err)
 	}
-	if inner.groupCalls != 1 {
-		t.Fatalf("raw ExecuteGroup calls = %d, want 1", inner.groupCalls)
+	if inner.groupCalls == 0 {
+		t.Fatal("raw ExecuteGroup calls = 0, want per-phase group usage under grouped writes (#4027)")
 	}
-	if inner.executeCalls != 0 {
-		t.Fatalf("raw Execute calls = %d, want 0 for grouped path", inner.executeCalls)
+	if inner.executeCalls == 0 {
+		t.Fatal("raw Execute calls = 0, want sequential retract execution on the phase-group path (#4027)")
 	}
 }
 

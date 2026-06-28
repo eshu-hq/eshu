@@ -106,9 +106,13 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
   phases.** The binary currently has no signal handlers by design (one-shot).
   If you add `SIGTERM` handling, you must decide what partial-phase state means
   for correctness and document it.
-- **Do not enable `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true` in production
-  without running the conformance gate** (the grouped-write safety probe and
-  rollback conformance tests). See `CLAUDE.md` section
+- **`ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` is a conformance-only toggle.** On
+  NornicDB the bootstrap canonical writer commits per dependency phase in both
+  states — whole-materialization atomic canonical writes are unsupported because
+  an UNWIND-driven MATCH cannot see a same-transaction MERGE and would silently
+  drop nested files (#4027). Do not enable it expecting a single grouped
+  canonical transaction on NornicDB; that path is valid only for a
+  same-transaction read-your-writes backend (Neo4j). See `CLAUDE.md` section
   "NornicDB Compatibility Workflow".
 - **Do not treat `errProjectorDrained` as an error.** It is a sentinel
   (`main.go:671`) emitted after the `PhaseProjection` drain loop exhausts the

@@ -432,12 +432,6 @@ func openIngesterCanonicalWriter(
 		if err != nil {
 			return failAfterDriverOpen(err)
 		}
-		if nornicDBGroupedWrites {
-			slog.Warn("NornicDB canonical grouped writes enabled for conformance",
-				"graph_backend", string(graphBackend),
-				"grouped_writes", true,
-				"env_var", nornicDBCanonicalGroupedWritesEnv)
-		}
 	}
 
 	entityPhaseConcurrency := 0

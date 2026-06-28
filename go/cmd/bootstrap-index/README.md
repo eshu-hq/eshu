@@ -351,7 +351,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `ESHU_DISCOVERY_REPORT` | `""` | File path to write discovery advisory JSON; empty disables |
 | `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` (NornicDB) | Graph write transaction timeout |
 | `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
-| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | Enable NornicDB grouped canonical writes; conformance gate required |
+| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | Conformance toggle; on NornicDB it commits per dependency phase — whole-materialization atomic is unsupported (#4027) |
 | `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | NornicDB phase group statement cap |
 | `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | NornicDB file upsert row cap |
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | NornicDB entity upsert row cap |
@@ -381,8 +381,12 @@ Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
   `projector.ErrWorkSuperseded` when a newer same-scope generation exists; this
   is an expected stale-work cancellation, not a bootstrap failure.
 - **NornicDB grouped writes.** `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false`
-  by default. Enabling it without running the grouped-write safety probe test
-  carries the same rollback-safety risks as the ingester path.
+  by default. The toggle is conformance-only; on NornicDB both states commit per
+  dependency phase, because whole-materialization atomic canonical writes silently
+  drop files nested under a directory — an UNWIND-driven MATCH cannot see a
+  same-transaction MERGE (#4027). Whole-materialization atomic applies only to a
+  same-transaction read-your-writes backend (Neo4j), via the ingester path's
+  GroupExecutor.
 - **NornicDB entity containment.** Bootstrap enables row-scoped batched entity
   containment for NornicDB (`canonical_writer_config.go:20-38`) so cold-start
   indexing and the steady-state ingester use the same high-cardinality entity

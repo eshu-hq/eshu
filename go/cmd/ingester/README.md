@@ -199,7 +199,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
 | ESHU_CANONICAL_WRITE_TIMEOUT | 30s | Graph write timeout |
 | ESHU_NEO4J_PROFILE_GROUP_STATEMENTS | false | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
-| ESHU_NORNICDB_CANONICAL_GROUPED_WRITES | false | Enable NornicDB grouped writes (conformance gated) |
+| ESHU_NORNICDB_CANONICAL_GROUPED_WRITES | false | Conformance toggle; on NornicDB it commits per dependency phase — whole-materialization atomic is unsupported (#4027) |
 | ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT | true | Fold entity containment into row-scoped entity upserts; set false only for fallback comparisons |
 | ESHU_NORNICDB_PHASE_GROUP_STATEMENTS | 500 | NornicDB phase group statement cap |
 | ESHU_NORNICDB_ENTITY_BATCH_SIZE | 100 | Entity upsert row cap |
@@ -384,9 +384,12 @@ worker, queue domain, or runtime surface is removed.
 - `IngestionStore.SkipRelationshipBackfill = true` suppresses per-commit
   backfill; `AfterBatchDrained` handles global relationship maintenance after
   each full drain instead (`wiring.go:195-222`).
-- NornicDB grouped writes remain disabled by default. Enabling
-  ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true requires the fixed rollback binary
-  and a full conformance pass before production use.
+- NornicDB grouped writes remain disabled by default. The toggle is
+  conformance-only; on NornicDB both states commit per dependency phase, because
+  whole-materialization atomic canonical writes silently drop files nested under a
+  directory — an UNWIND-driven MATCH cannot see a same-transaction MERGE (#4027).
+  Whole-materialization atomic applies only to a same-transaction read-your-writes
+  backend (Neo4j).
 - NornicDB entity containment is batched into entity upserts by default
   (`wiring_nornicdb_env.go:38-47`). Set
   ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=false only for measured fallback
