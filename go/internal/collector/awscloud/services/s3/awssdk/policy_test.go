@@ -219,6 +219,67 @@ func TestDeriveBucketPolicyExternalPrincipalGrantsRejectsMalformedDocument(t *te
 	}
 }
 
+// TestDeriveBucketPolicyFlagsCanonicalUserPrincipalIsNeitherPublicNorCrossAccount
+// proves that a CanonicalUser principal (S3 ACL grantee type) is not treated as
+// a public grant or a cross-account grant because principalIdentifiers returns
+// only AWS-type entries for those two booleans.
+func TestDeriveBucketPolicyFlagsCanonicalUserPrincipalIsNeitherPublicNorCrossAccount(t *testing.T) {
+	document := `{"Statement":[{"Effect":"Allow","Principal":{"CanonicalUser":"79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"},"Action":"s3:GetObject","Resource":"arn:aws:s3:::b/*"}]}`
+	public, crossAccount, err := deriveBucketPolicyFlags(document, "123456789012")
+	if err != nil {
+		t.Fatalf("deriveBucketPolicyFlags() error = %v, want nil", err)
+	}
+	assertBoolPtr(t, "public", public, boolPtr(false))
+	assertBoolPtr(t, "crossAccount", crossAccount, boolPtr(false))
+}
+
+// TestDeriveBucketPolicyExternalPrincipalGrantsDeduplicate proves that the same
+// external principal appearing in multiple Allow statements is emitted exactly
+// once; the seen-set in bucketPolicyExternalPrincipalGrantsFromDocument must
+// dedup by (kind, value, outcome).
+func TestDeriveBucketPolicyExternalPrincipalGrantsDeduplicate(t *testing.T) {
+	document := `{"Statement":[
+		{"Sid":"S1","Effect":"Allow","Principal":{"AWS":"999988887777"},"Action":"s3:GetObject","Resource":"arn:aws:s3:::b/*"},
+		{"Sid":"S2","Effect":"Allow","Principal":{"AWS":"999988887777"},"Action":"s3:PutObject","Resource":"arn:aws:s3:::b/*"}
+	]}`
+	grants, err := deriveBucketPolicyExternalPrincipalGrants(document, "123456789012")
+	if err != nil {
+		t.Fatalf("deriveBucketPolicyExternalPrincipalGrants() error = %v, want nil", err)
+	}
+	if len(grants) != 1 {
+		t.Fatalf("grant count = %d, want 1 (same principal across two Allow statements must dedup): %#v", len(grants), grants)
+	}
+	if grants[0].AccountID != "999988887777" {
+		t.Fatalf("grants[0].AccountID = %q, want 999988887777", grants[0].AccountID)
+	}
+}
+
+// TestDeriveBucketPolicyExternalPrincipalGrantsUnresolvableAWSIdentifier covers
+// the branch in grantForAWSPrincipal where the value is not public, not an ARN,
+// and not a bare account-id — the function returns an Unsupported grant with
+// UnsupportedKey="AWS" and Value="AWS" to signal an unrecognised AWS principal.
+func TestDeriveBucketPolicyExternalPrincipalGrantsUnresolvableAWSIdentifier(t *testing.T) {
+	// "NotAnARNOrAccountID" satisfies: not "*", not "arn:", not 12 digits.
+	document := `{"Statement":[{"Effect":"Allow","Principal":{"AWS":"NotAnARNOrAccountID"},"Action":"s3:GetObject","Resource":"*"}]}`
+	grants, err := deriveBucketPolicyExternalPrincipalGrants(document, "123456789012")
+	if err != nil {
+		t.Fatalf("deriveBucketPolicyExternalPrincipalGrants() error = %v, want nil", err)
+	}
+	if len(grants) != 1 {
+		t.Fatalf("grant count = %d, want 1: %#v", len(grants), grants)
+	}
+	g := grants[0]
+	if !g.Unsupported {
+		t.Fatalf("Unsupported = false, want true for unresolvable AWS identifier")
+	}
+	if g.UnsupportedKey != "AWS" {
+		t.Fatalf("UnsupportedKey = %q, want AWS", g.UnsupportedKey)
+	}
+	if g.Value != "AWS" {
+		t.Fatalf("Value = %q, want AWS (redacted to key only)", g.Value)
+	}
+}
+
 func assertBoolPtr(t *testing.T, label string, got, want *bool) {
 	t.Helper()
 	switch {
