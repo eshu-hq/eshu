@@ -49,6 +49,9 @@ jobs:
       - name: Run bench script contract mirror
         run: scripts/test-run-go-benchmarks.sh
 
+      - name: Run reducer perf gate contract mirror
+        run: scripts/test-verify-reducer-perf-gate.sh
+
   benchmarks:
     name: go benchmarks
     needs: test-mirror
@@ -125,3 +128,40 @@ jobs:
           name: go-benchmark-current
           path: testdata/benchmarks/current.txt
           if-no-files-found: ignore
+
+  reducer-perf-gate:
+    # B-9 (#3802): per-materialization-handler latency gate. Asserts each
+    # credential-free reducer handler benchmark stays under its absolute ns/op
+    # ceiling (testdata/benchmarks/reducer-handler-budgets.txt). Complementary to
+    # the benchstat-relative bench-regression job above; this one answers the
+    # #3802 acceptance "CI asserts main meets per-handler budgets" directly and
+    # holds regardless of the Epic D file/monorepo split.
+    name: reducer per-handler latency gate
+    needs: test-mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Assert reducer handlers within per-handler latency budgets
+        env:
+          # Same count/benchtime the budgets were captured with so the median
+          # comparison is like-for-like. Keep in lockstep with
+          # scripts/refresh-reducer-handler-budgets.sh.
+          REDUCER_PERF_BENCHTIME: 100ms
+          REDUCER_PERF_COUNT: 6
+          # Advisory until the budget baseline is recaptured on this runner class
+          # (it was captured on darwin/arm64); then set to true to block. Refresh
+          # with scripts/refresh-reducer-handler-budgets.sh on ubuntu-latest.
+          REDUCER_PERF_ENFORCE: false
+        run: scripts/verify-reducer-perf-gate.sh

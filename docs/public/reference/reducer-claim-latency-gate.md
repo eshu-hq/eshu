@@ -111,6 +111,151 @@ as domain count increases. If the same-shape run is more than 10% slower or more
 than 60 seconds worse than the known-normal band, stop and profile before
 merging.
 
+## Per-Handler Materialization Budget
+
+Splitting reducer files (Epic D) does not make materialization faster — the
+per-handler cost is the same whether the handlers live in one package or many.
+B-9 (#3802) locks that cost with an absolute per-handler latency budget so a
+materialization or correlation handler regression is caught on `main`
+regardless of the file or monorepo layout. This is complementary to the
+claim-latency budget above (which governs the queue claim SQL) and to the
+benchstat-relative bench-regression gate (B-2 / #3795, a >10% sec/op drift vs a
+committed baseline). The per-handler gate instead asserts each handler stays
+under a fixed `ns/op` ceiling.
+
+The budgeted benchmarks are the credential-free, in-process reducer extractors
+in `go/internal/reducer` — they run pure handler logic over fixture facts with
+no Postgres or NornicDB, so the gate is hermetic on a plain runner. The
+backend-bound `BenchmarkReducerQueueClaimDeepQueue` claim benchmark is governed
+by the claim-latency budget above, not this table.
+
+The committed budgets and their measured baseline live in
+`testdata/benchmarks/reducer-handler-budgets.txt`. Each ceiling is
+`round(median_baseline * 1.50)`. The 1.50x headroom is wider than the
+claim-latency budget's 1.10x on purpose: this is a single-run absolute ceiling
+evaluated on a shared CI runner of a different class than where the baseline was
+captured (darwin/arm64, Apple M4 Pro, `-benchtime=100ms -count=6`), so it must
+absorb cross-class CPU difference and per-run noise without flaking.
+
+| Handler benchmark | Baseline (ns/op, median) | Budget (ns/op) |
+| --- | --- | --- |
+| `BenchmarkExtractCloudResourceNodeRows` (AWS node) | 10,741,623 | 16,100,000 |
+| `BenchmarkExtractGCPCloudResourceNodeRows` (GCP node) | 10,550,352 | 15,800,000 |
+| `BenchmarkExtractKubernetesWorkloadNodeRows` (k8s workload node) | 5,413,844 | 8,100,000 |
+| `BenchmarkExtractAWSRelationshipEdgeRows` (AWS edge) | 24,690,270 | 37,000,000 |
+| `BenchmarkExtractGCPRelationshipEdgeRows` (GCP edge) | 27,680,020 | 41,500,000 |
+| `BenchmarkExtractKubernetesCorrelationEdgeRows` (k8s correlation edge) | 9,174,514 | 13,800,000 |
+| `BenchmarkSecretsIAMGCPGrantObservations` (secrets/IAM trust chain) | 5,546,848 | 8,300,000 |
+| `BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout` (service-catalog correlation) | 6,120,469 | 9,200,000 |
+| `BenchmarkValueFlowFixpointFull` (value-flow fixpoint, cold) | 20,427,691 | 30,600,000 |
+| `BenchmarkValueFlowFixpointIncrementalCached` (value-flow fixpoint, cached) | 11,982,886 | 18,000,000 |
+
+`scripts/verify-reducer-perf-gate.sh` runs exactly these benchmarks
+credential-free, takes the median `ns/op` across samples (the same statistic the
+budgets were derived from), and reports any handler whose median exceeds its
+ceiling. The CI job `reducer-perf-gate` in `.github/workflows/bench.yml` runs it
+on every pull request and on push to `main`. The contract mirror
+`scripts/test-verify-reducer-perf-gate.sh` exercises the median parser and breach
+logic against synthetic results without running any benchmark.
+
+The committed baseline was captured on darwin/arm64, not the CI `ubuntu-latest`
+runner class, so an absolute single-run ceiling there is only a like-for-like
+comparison once the baseline is recaptured on the enforcement runner. Until then
+the gate runs **advisory** (`REDUCER_PERF_ENFORCE=false`: it reports a breach but
+does not fail the job) — the same shared-runner-variance reasoning as the B-2
+bench-regression gate. Recapture the budgets on `ubuntu-latest` with
+`scripts/refresh-reducer-handler-budgets.sh`, review the diff, then flip the
+workflow to `REDUCER_PERF_ENFORCE=true` to make a breach blocking. A breach must
+be fixed at the handler or proven to be an intended cost and re-baselined with a
+reviewed diff; it must not be hidden by widening the budget on an unexplained
+regression.
+
+## Projection-Tail Backlog Target
+
+The materialization phase is the git-collector end-to-end long pole (#3624): the
+emission phase front-loads tens of thousands of materialization intents and the
+reducer drains them slower than they arrive, producing multi-minute intent waits
+and a long projection tail before any repository reaches a fully-projected
+state. The per-handler budget above keeps each handler cheap; this target keeps
+the drain from silently regressing into an unbounded tail.
+
+The projection-tail backlog target is a same-harness, same-corpus drain
+contract, measured on the remote full-corpus harness (never started on the full
+corpus — use the small proof ladder first per `eshu-diagnostic-rigor`):
+
+- After collection completes (`source_local` succeeded), the materialization
+  domains (`deployment_mapping`, `workload_materialization`, `workload_identity`,
+  `inheritance_materialization`, `sql_relationship_materialization`,
+  `shell_exec_materialization`, `deployable_unit_correlation`,
+  `code_call_materialization`) must reach queue-zero pending, with zero
+  dead-letter rows, within the known-normal drain band for the harness.
+- The drain band is the recorded materialization wall-clock from the last
+  green full-corpus run on the same harness and backend; a run more than 10% or
+  60 seconds worse than that band must stop and profile before merge.
+- `intent_wait_seconds` (resolution-engine cycle) is the projection-tail signal:
+  it must trend toward zero as the tail drains, not plateau in the multi-minute
+  range that #3624 captured (~1,526 s).
+- A cycle reporting `written_rows: 0` while domains remain pending is a
+  readiness/ordering signal, not progress, and must be classified (upstream
+  inputs not ready vs genuinely empty work) before any worker change.
+
+This target is a drain contract for full-corpus proof runs, not a CI micro-gate:
+the per-handler budget is the hermetic CI assertion; the projection-tail target
+is validated on the remote harness and recorded in the active ADR with the
+fields the evidence ladder requires (collector-complete, projection-complete,
+and queue-zero as separate timings, plus queue counts, retrying, dead letters,
+commit id, backend, and clean-volume state).
+
+## #3710 / #3725 Baseline Win
+
+The deferred relationship-evidence backfill's **fact-LOAD** query was the
+dominant at-scale long pole feeding materialization readiness (#3710): a single
+`O(facts × catalog)` sequential scan over the whole latest-generation fact set
+with a per-row self-exclusion regex over `lower(payload::text)`. On a de-nested
+896-repo run (~3.5M facts, NornicDB) it ran ~20 min+ serially and blocked the
+whole relationship-backfill phase. PR #3725 (#3710) partitioned the load per
+`(scope_id, generation_id)` across the deferred-maintenance worker pool, added a
+partial `pg_trgm` GIN index on the `$1` arm inside a `MATERIALIZED` CTE, and
+replaced the `$2` self-exclusion boundary regex with an escaped, truth-equivalent
+`LIKE` superset refined by the in-memory `catalogMatcher`.
+
+This is the win B-9 locks as the before/after baseline:
+
+Benchmark Evidence: `BenchmarkDeferredBackfillDiscovery{Full,Scoped}Fleet{1k,5k}`
+in `go/internal/relationships` (in-memory `DiscoverEvidence` over the
+representative fleet corpus whose payloads carry `repo_id`), Apple M-series:
+fleet 1k `27,748,503 ns/op` / `399,019 allocs/op` Full -> `6,509,206 ns/op` /
+`55,916 allocs/op` Scoped (**4.3x faster, 8.6x fewer allocs**); fleet 5k
+`122,223,287 ns/op` / `218,460,600 B/op` Full -> `31,142,259 ns/op` /
+`25,836,605 B/op` Scoped (**3.9x faster, 8.4x fewer bytes**). Full-corpus
+wall-clock (896 repositories, 3,501,443 `fact_records`, 207,003 loaded
+queried-kind facts, PostgreSQL 18 + NornicDB, deferred-backfill concurrency 8,
+PR #3729 measurement): deferred relationship backfill **882 s (~14.7 min)**, down
+from the pre-#3710 ~36 min+ single-scan long pole (**~2.4x wall-clock**), fanned
+out across 896 `(scope_id, generation_id)` partitions / 8 workers. The honest
+residual is the giant-repository `$2` self-exclusion tail (slowest single
+per-scope query ~8 min), tracked by #3711; the per-handler budget table above
+does not regress on that residual because the budgeted handlers are the
+in-process extractors, not the backend fact-load.
+
+No-Regression Evidence: this section records #3710/#3725 as the locked baseline
+win; the numbers are the merged measurements from `go/internal/relationships`
+(`BenchmarkDeferredBackfillDiscovery*`) and PR #3729's full-corpus run, not new
+measurements. The B-9 per-handler gate's own current run on this branch
+(darwin/arm64, `-benchtime=100ms -count=6`) measured every budgeted handler
+within budget; see the Per-Handler Materialization Budget table.
+
+No-Observability-Change: B-9 adds a CI gate, a budget artifact, a verifier, a
+refresh script, and this documentation only. It adds no reducer claim SQL, graph
+write, queue worker, lease behavior, readiness store, runtime knob, schema DDL,
+metric, span, log field, or status field. Operators keep diagnosing
+materialization throughput and the projection tail through the existing reducer
+queue claim duration, Postgres queue query duration, reducer queue wait, batch
+claim size, resolution-engine `intent_wait_seconds`, `/admin/status` backlog,
+retry, and dead-letter state, and the deferred-backfill partition/load
+instruments (`DeferredBackfillPartitions`, `DeferredBackfillPartitionWorkers`,
+`DeferredBackfillPartitionLoadDuration`, `DeferredBackfillIndexBuildDuration`).
+
 ## Allowed Follow-Up Directions
 
 Follow-up implementation issues may move domain readiness out of the hot poll
