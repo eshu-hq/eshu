@@ -7,7 +7,14 @@ import type { EshuApiClient } from "./client";
 import { EshuEnvelopeError } from "./envelope";
 import type { GraphLayer } from "../console/types";
 
-const GRAPH_LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
+const GRAPH_LAYERS: readonly GraphLayer[] = [
+  "code",
+  "deploy",
+  "infra",
+  "runtime",
+  "security",
+  "ops",
+];
 
 export interface RelationshipVerbTile {
   readonly verb: string;
@@ -15,6 +22,10 @@ export interface RelationshipVerbTile {
   readonly count: number;
   readonly evidence: string;
   readonly detail: string;
+  // sourceTools is the per-tool edge count breakdown for Tier-2 verbs that
+  // carry source_tool. It is absent for Tier-1 self-labeling and Tier-3
+  // code/structural verbs that do not stamp edges with a tool.
+  readonly sourceTools?: Readonly<Record<string, number>>;
 }
 
 export interface RelationshipsCatalog {
@@ -30,6 +41,9 @@ export interface RelationshipEdge {
   readonly targetId: string;
   readonly targetName: string;
   readonly evidence: string;
+  // sourceTool is present on Tier-2 resolver edges and absent on Tier-1
+  // self-labeling and Tier-3 code/structural edges.
+  readonly sourceTool?: string;
 }
 
 export interface RelationshipEdges {
@@ -40,6 +54,9 @@ export interface RelationshipEdges {
   readonly edges: readonly RelationshipEdge[];
   readonly truncated: boolean;
   readonly limit: number;
+  // sourceTool echoes the filter that was applied to fetch this slice,
+  // or undefined when the slice was fetched without a source_tool filter.
+  readonly sourceTool?: string;
 }
 
 interface CatalogResponse {
@@ -55,6 +72,7 @@ interface VerbTileRecord {
   readonly count?: number;
   readonly evidence?: string;
   readonly detail?: string;
+  readonly source_tools?: Record<string, number>;
 }
 
 interface EdgesResponse {
@@ -65,6 +83,7 @@ interface EdgesResponse {
   readonly edges?: readonly EdgeRecord[];
   readonly truncated?: boolean;
   readonly limit?: number;
+  readonly source_tool?: string;
 }
 
 interface EdgeRecord {
@@ -73,11 +92,14 @@ interface EdgeRecord {
   readonly target_id?: string;
   readonly target_name?: string;
   readonly evidence?: string;
+  readonly source_tool?: string;
 }
 
 // loadRelationshipsCatalog fetches the typed-edge verb catalog with bounded
 // per-verb whole-graph counts.
-export async function loadRelationshipsCatalog(client: EshuApiClient): Promise<RelationshipsCatalog> {
+export async function loadRelationshipsCatalog(
+  client: EshuApiClient,
+): Promise<RelationshipsCatalog> {
   const env = await client.post<CatalogResponse>("/api/v0/relationships/catalog", {});
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
@@ -86,19 +108,25 @@ export async function loadRelationshipsCatalog(client: EshuApiClient): Promise<R
     verbs,
     verbCount: num(data.verb_count) ?? verbs.length,
     totalEdges: num(data.total_edges) ?? verbs.reduce((sum, verb) => sum + verb.count, 0),
-    layerCount: num(data.layer_count) ?? new Set(verbs.map((verb) => verb.layer)).size
+    layerCount: num(data.layer_count) ?? new Set(verbs.map((verb) => verb.layer)).size,
   };
 }
 
 // loadRelationshipEdges fetches the bounded concrete-edge slice for one verb.
+// When sourceTool is provided it is sent as source_tool in the POST body to
+// restrict the slice to edges stamped by that specific tool.
 export async function loadRelationshipEdges(
   client: EshuApiClient,
   verb: string,
-  limit = 50
+  limit = 50,
+  sourceTool?: string,
 ): Promise<RelationshipEdges> {
-  const env = await client.post<EdgesResponse>("/api/v0/relationships/edges", { verb, limit });
+  const body: Record<string, unknown> = { verb, limit };
+  if (sourceTool) body.source_tool = sourceTool;
+  const env = await client.post<EdgesResponse>("/api/v0/relationships/edges", body);
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
+  const tool = str(data.source_tool) || undefined;
   return {
     verb: str(data.verb) || verb,
     layer: layer(data.layer),
@@ -106,35 +134,57 @@ export async function loadRelationshipEdges(
     detail: str(data.detail),
     edges: (data.edges ?? []).map(normalizeEdge),
     truncated: data.truncated === true,
-    limit: num(data.limit) ?? limit
+    limit: num(data.limit) ?? limit,
+    sourceTool: tool,
   };
 }
 
 function normalizeVerbTile(record: VerbTileRecord): RelationshipVerbTile {
+  const sourceTools = normalizeSourceTools(record.source_tools);
   return {
     verb: str(record.verb),
     layer: layer(record.layer),
     count: num(record.count) ?? 0,
     evidence: str(record.evidence),
-    detail: str(record.detail)
+    detail: str(record.detail),
+    ...(sourceTools ? { sourceTools } : {}),
   };
 }
 
 function normalizeEdge(record: EdgeRecord): RelationshipEdge {
+  const tool = str(record.source_tool) || undefined;
   return {
     sourceId: str(record.source_id),
     sourceName: str(record.source_name) || str(record.source_id),
     targetId: str(record.target_id),
     targetName: str(record.target_name) || str(record.target_id),
-    evidence: str(record.evidence)
+    evidence: str(record.evidence),
+    ...(tool ? { sourceTool: tool } : {}),
   };
+}
+
+// normalizeSourceTools coerces the wire source_tools map to a plain
+// Record<string,number>, filtering out any entries with invalid counts.
+// Returns undefined when the map is empty or absent.
+function normalizeSourceTools(
+  raw: Record<string, number> | undefined,
+): Readonly<Record<string, number>> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const result: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const count = num(value);
+    if (key && count !== undefined) result[key] = count;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 // layer coerces an API layer string to a known GraphLayer, defaulting to "code"
 // for an unexpected value so the UI palette lookup never returns undefined.
 function layer(value: string | undefined): GraphLayer {
   const normalized = str(value).toLowerCase();
-  return (GRAPH_LAYERS as readonly string[]).includes(normalized) ? (normalized as GraphLayer) : "code";
+  return (GRAPH_LAYERS as readonly string[]).includes(normalized)
+    ? (normalized as GraphLayer)
+    : "code";
 }
 
 function str(value: string | undefined): string {
