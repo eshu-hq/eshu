@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -32,15 +33,12 @@ import (
 //     reclaimable by another worker, and is NOT claimable while still live;
 //   - conflict-key mutual exclusion with a COMMITTED holder: while one item on
 //     a (conflict_domain, conflict_key) holds a live lease, concurrent workers
-//     cannot claim a sibling on the same key.
-//
-// What this gate deliberately does NOT assert: conflict-key mutual exclusion
-// when two *pending* siblings are claimed by genuinely simultaneous workers
-// before either lease commits. That path has a TOCTOU race in the current
-// NOT EXISTS + SKIP LOCKED fence (the live-sibling check reads a snapshot that
-// may not yet see a concurrent sibling claim), tracked as #4137 (a completion
-// of #3558). Asserting it here would make the gate flaky; the
-// committed-holder case above is the deterministic guarantee replay can't cover.
+//     cannot claim a sibling on the same key;
+//   - conflict-key mutual exclusion under genuinely simultaneous claims of two
+//     *pending* siblings before either lease commits — the TOCTOU window the
+//     single-claim path had until #4137 (completing #3558) restricted the
+//     candidate to the per-conflict-key representative row so SKIP LOCKED
+//     serializes it. Looped so it is a reliable detector, not a timing fluke.
 //
 // The whole gate is skipped unless a DSN is provided, matching the package's
 // other real-Postgres proofs.
@@ -339,5 +337,109 @@ func TestReducerContentionGateConflictKeyMutualExclusionCommittedHolder(t *testi
 
 	if len(claimed) != 0 {
 		t.Fatalf("sibling(s) claimed while a committed lease on the same conflict key was live: %v", claimed)
+	}
+}
+
+// TestReducerContentionGateConflictKeyMutualExclusionConcurrentPendingSiblings
+// proves the conflict fence holds when two PENDING siblings on the same
+// (conflict_domain, conflict_key) are claimed by genuinely simultaneous workers
+// before either lease commits — the TOCTOU window #4137 closed (completing
+// #3558). Pre-fix, the single-claim path picks two DIFFERENT sibling rows under
+// READ COMMITTED (NOT EXISTS does not yet see the concurrent uncommitted claim,
+// and SKIP LOCKED locks distinct rows), so both get a live lease. The fix
+// restricts the candidate to the per-conflict-key representative row, so all
+// workers converge on one row and SKIP LOCKED serializes it. Looped so it is a
+// reliable detector rather than a timing-lucky single shot.
+func TestReducerContentionGateConflictKeyMutualExclusionConcurrentPendingSiblings(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the contention gate")
+	}
+
+	ctx := context.Background()
+	owningDB, schemaName := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	now := time.Date(2026, time.June, 28, 10, 0, 0, 0, time.UTC)
+	seedReducerFairnessScope(t, ctx, owningDB, "scope-race", now)
+
+	const sharedKey = "race-shared-key"
+	for i := 0; i < 2; i++ {
+		insertReducerFairnessWorkItem(t, ctx, owningDB, reducerFairnessWorkItem{
+			workItemID:     fmt.Sprintf("race-%03d", i),
+			scopeID:        "scope-race",
+			conflictDomain: reducerConflictDomainCodeGraph,
+			conflictKey:    sharedKey,
+			generationID:   "gen-fair",
+			domain:         string(contentionGateClaimDomain),
+			updatedAt:      now.Add(time.Duration(i) * time.Second),
+		})
+	}
+
+	const (
+		workers = 8
+		rounds  = 40
+	)
+	queues := make([]ReducerQueue, workers)
+	for i := range queues {
+		queues[i] = ReducerQueue{
+			db:            SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)},
+			LeaseOwner:    fmt.Sprintf("race-worker-%d", i),
+			LeaseDuration: time.Hour, // long: a claimed sibling stays live for the round
+			ClaimDomains:  []reducer.Domain{contentionGateClaimDomain},
+		}
+	}
+
+	for round := 0; round < rounds; round++ {
+		// Return both siblings to a fresh pending state so the next round races
+		// them from scratch.
+		if _, err := owningDB.ExecContext(ctx, `
+UPDATE fact_work_items
+SET status = 'pending', lease_owner = NULL, claim_until = NULL
+WHERE stage = 'reducer'`); err != nil {
+			t.Fatalf("round %d reset: %v", round, err)
+		}
+
+		var (
+			mu      sync.Mutex
+			claimed = map[string]string{} // work_item_id -> owner
+			start   = make(chan struct{})
+			wg      sync.WaitGroup
+		)
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func(q ReducerQueue) {
+				defer wg.Done()
+				<-start
+				intent, ok, err := q.Claim(ctx)
+				if err != nil {
+					mu.Lock()
+					claimed["error:"+q.LeaseOwner] = err.Error()
+					mu.Unlock()
+					return
+				}
+				if ok {
+					mu.Lock()
+					claimed[intent.IntentID] = q.LeaseOwner
+					mu.Unlock()
+				}
+			}(queues[w])
+		}
+		close(start)
+		wg.Wait()
+
+		for k, v := range claimed {
+			if strings.HasPrefix(k, "error:") {
+				t.Fatalf("round %d claim error from %s: %s", round, k, v)
+			}
+		}
+		// At most one sibling may hold a live lease on the shared key; both
+		// pending siblings claimed at once is the #3558/#4137 fence breach.
+		if len(claimed) > 1 {
+			t.Fatalf("round %d: %d siblings on one conflict key were claimed simultaneously (want <= 1): %v",
+				round, len(claimed), claimed)
+		}
+		// Liveness: exactly one must be claimable (the representative), never zero.
+		if len(claimed) == 0 {
+			t.Fatalf("round %d: no sibling was claimable; the representative must be claimable", round)
+		}
 	}
 }

@@ -55,3 +55,37 @@ CREATE INDEX IF NOT EXISTS fact_work_items_reducer_source_claim_idx
         work_item_id
     )
     WHERE stage = 'reducer';
+
+-- At most one live reducer lease per conflict key (#4137, completing #3558).
+-- The claim query's NOT EXISTS conflict fence defers a sibling only once a
+-- holder's claim has COMMITTED, but under READ COMMITTED two genuinely
+-- simultaneous single-claim workers can each pick a DIFFERENT pending sibling
+-- row before either commits (SKIP LOCKED locks the distinct rows), so both would
+-- claim. This partial unique index makes Postgres reject the second concurrent
+-- live lease on a conflict key; the claim path translates the resulting
+-- unique_violation into a deferred no-op claim. The batch claim path needs no
+-- equivalent — it already serializes on one representative row per conflict key.
+--
+-- Resolve any pre-existing duplicate live leases (only reachable via the race
+-- this index closes) before enforcing uniqueness, so the migration is safe to
+-- apply to a live deployment: losers return to pending and re-claim one at a
+-- time. The winner per key is the smallest work_item_id. Idempotent — once the
+-- unique index holds, at most one live lease per key exists, so this resets
+-- nothing on later applies.
+UPDATE fact_work_items AS loser
+SET status = 'pending', lease_owner = NULL, claim_until = NULL
+WHERE loser.stage = 'reducer'
+  AND loser.status IN ('claimed', 'running')
+  AND EXISTS (
+      SELECT 1
+      FROM fact_work_items AS winner
+      WHERE winner.stage = 'reducer'
+        AND winner.status IN ('claimed', 'running')
+        AND winner.conflict_domain = loser.conflict_domain
+        AND COALESCE(winner.conflict_key, winner.scope_id) = COALESCE(loser.conflict_key, loser.scope_id)
+        AND winner.work_item_id < loser.work_item_id
+  );
+
+CREATE UNIQUE INDEX IF NOT EXISTS fact_work_items_reducer_live_lease_uniq
+    ON fact_work_items (conflict_domain, COALESCE(conflict_key, scope_id))
+    WHERE stage = 'reducer' AND status IN ('claimed', 'running');

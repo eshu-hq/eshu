@@ -5,13 +5,35 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
+
+// reducerLiveLeaseUniqueConstraint is the partial unique index (migration 005)
+// that allows at most one live reducer lease per (conflict_domain, conflict_key).
+const reducerLiveLeaseUniqueConstraint = "fact_work_items_reducer_live_lease_uniq"
+
+// isReducerLiveLeaseConflict reports whether err is the unique-index violation
+// that fences a second concurrent live lease on a conflict key (#4137,
+// completing #3558). Under READ COMMITTED two genuinely simultaneous claimers
+// can each pick a different pending sibling row before either commits; the
+// database rejects the second claim with this specific constraint, and the
+// claim path treats it as "no claimable work this call" — the sibling stays
+// pending and the holder's lease governs the conflict key. The constraint name
+// is matched explicitly so an unrelated unique violation is never swallowed.
+func isReducerLiveLeaseConflict(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == "23505" &&
+		pgErr.ConstraintName == reducerLiveLeaseUniqueConstraint
+}
 
 func (q ReducerQueue) claimDomainFilters() []string {
 	domains := q.effectiveClaimDomains()

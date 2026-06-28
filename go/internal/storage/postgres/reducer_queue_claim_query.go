@@ -72,6 +72,14 @@ candidate AS (
       AND ` + reducerClaimReadinessGateSQL("fact_work_items", "readiness_req", "readiness_phase") + `
       -- Reducer domains can touch the same graph nodes for a scope. Fence by
       -- explicit conflict key so unrelated graph families can still overlap.
+      -- A pending/retrying candidate defers to ANY claimed/running holder on the
+      -- same key, NOT only a live (claim_until > $1) one (#4137): the live-lease
+      -- unique index keeps at most one claimed/running row per key, so when that
+      -- holder's lease expires it must be reclaimed (its own row stays the only
+      -- claimable one for the key) rather than have an older pending sibling
+      -- raced past it — which would hit the unique index (23505) and wedge the
+      -- key. The holder itself has no OTHER claimed/running sibling, so it is not
+      -- self-fenced and stays reclaimable.
       AND NOT EXISTS (
           SELECT 1
           FROM fact_work_items AS inflight
@@ -80,7 +88,6 @@ candidate AS (
             AND COALESCE(inflight.conflict_key, inflight.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)
             AND inflight.work_item_id <> fact_work_items.work_item_id
             AND inflight.status IN ('claimed', 'running')
-            AND inflight.claim_until > $1
       )
     ORDER BY updated_at ASC, work_item_id ASC
     LIMIT 1
