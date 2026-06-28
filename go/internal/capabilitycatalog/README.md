@@ -62,6 +62,20 @@ The marker is an HTML comment, so it is invisible in rendered docs. Run it with
 `go run ./cmd/capability-inventory -mode docs`. See
 [Capability Catalog](../../../docs/public/reference/capability-catalog.md).
 
+## Product claim ledger
+
+`LoadProductClaimLedger` reads `specs/product-claims.v1.yaml`, and
+`CheckProductClaims` verifies broad public claims that are too wide for a single
+`capability-state` marker. Each guarded source line must carry
+`<!-- product-claim: id=<claim-id> -->`, and each row must name the same source
+line, a whole-line quote, capability ids and maturity, owner packages,
+implementation paths, API/MCP/console surfaces, deterministic evidence source,
+semantic-output posture, proof command or artifact, generated surface-count
+expectations, catalog proof-signal references, and issue state for partial or
+gated claims. The check is part of
+`capability-inventory -mode docs`, so README and public docs cannot drift into
+broader product claims without a matching proof ledger update.
+
 ## Collector readiness guard
 
 `ParseCollectorClaims` scans markdown for `<!-- collector-state: name=<collector>

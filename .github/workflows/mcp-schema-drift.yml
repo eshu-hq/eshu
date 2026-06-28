@@ -12,6 +12,9 @@
 #      ReadOnlyTools (P0 — phantom capability).
 #   4. The committed catalog.generated.json or surface-inventory artifact
 #      differs from a freshly generated payload (P0 — stale artifact).
+#   5. A public product claim ledger row names an unknown capability, stale
+#      maturity, missing owner/surface/path/proof, required semantic output, or
+#      a moved source quote (P0 — public claim has lost its proof chain).
 #
 # What is NOT drift (cosmetic-only, not caught by this gate):
 #   - Tool description wording changes (whitespace, punctuation, rephrasing).
@@ -83,14 +86,26 @@ jobs:
 
       - name: Run capability inventory verify
         working-directory: go
-        run: go run ./cmd/capability-inventory -mode verify 2>&1 | tee /tmp/capability-verify.log
+        shell: bash
+        run: |
+          set -o pipefail
+          go run ./cmd/capability-inventory -mode verify 2>&1 | tee /tmp/capability-verify.log
+
+      - name: Run capability docs and product-claim verify
+        working-directory: go
+        shell: bash
+        run: |
+          set -o pipefail
+          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/capability-docs.log
 
       - name: Upload drift report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: mcp-schema-drift-report
-          path: /tmp/capability-verify.log
+          path: |
+            /tmp/capability-verify.log
+            /tmp/capability-docs.log
           if-no-files-found: warn
 
   # ── Gate 3: Full MCP test suite ──

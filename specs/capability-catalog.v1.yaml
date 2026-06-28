@@ -43,6 +43,11 @@ capabilities:
   - capability: semantic_search.curated_retrieval
     owner_package: internal/searchretrieval
     console: true
+  - capability: capability_catalog.list
+    owner_package: internal/capabilitycatalog
+    docs:
+      - reference/capability-catalog.md
+    console: true
 
   # Per-ecosystem reachability rows (issue #3021). Reachability rides the
   # supply-chain impact envelope, so these rows share its surfaces. Go is
@@ -238,6 +243,12 @@ tool_exemptions:
 # Matrix-declared tools that are served through an HTTP API operation rather
 # than the MCP registry. Each name maps 1:1 to an OpenAPI operationId.
 non_mcp_surfaces:
+  - tool: GET /api/v0/capabilities
+    kind: api
+    reason: served by the capability catalog HTTP operation
+  - tool: CapabilityMatrixPage
+    kind: logical
+    reason: console page that reads GET /api/v0/capabilities and renders the embedded capability catalog
   - tool: entity_map
     kind: api
     reason: served by the entityMap HTTP operation (GET /api/v0/entities/{id}/map)

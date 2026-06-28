@@ -1,0 +1,274 @@
+version: v1
+
+# Public product claims that are broader than a single capability-state marker.
+# The docs gate validates these rows with:
+#
+#   cd go && go run ./cmd/capability-inventory -mode docs
+#
+# Each source quote is intentionally exact and line-bound. If prose moves or
+# broadens, the ledger must move with it.
+claims:
+  - id: readme.code-intelligence.language-breadth
+    source:
+      path: README.md
+      line: 52
+      quote: "| Code intelligence | Find symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages. <!-- capability-state: id=code_search.symbol_lookup state=general_availability --> <!-- product-claim: id=readme.code-intelligence.language-breadth --> |"
+    claim_text: "Code intelligence covers symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages."
+    capabilities:
+      - id: code_search.symbol_lookup
+        claimed_maturity: general_availability
+    truth_level: exact
+    owner_packages: [internal/query]
+    implementation_paths: [go/internal/query, go/internal/parser]
+    mcp_surfaces: [find_symbol]
+    deterministic_evidence_source: "Capability matrix proof signals, parser support docs, and query/package tests guard the deterministic code-intelligence surface."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/parser -count=1"
+      signals:
+        - capability: code_search.symbol_lookup
+          kind: go_test
+          ref: ./internal/query
+
+  - id: readme.code-to-cloud.evidence-continuity
+    source:
+      path: README.md
+      line: 53
+      quote: "| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=general_availability --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
+    claim_text: "Code-to-cloud tracing connects source, image, workload, configuration, Terraform, and cloud observations with evidence at each hop."
+    capabilities:
+      - id: code_to_cloud.trace_exposure_path
+        claimed_maturity: general_availability
+    truth_level: derived
+    owner_packages: [internal/query]
+    implementation_paths: [go/internal/query, go/internal/reducer, go/internal/relationships]
+    reducer_paths: [go/internal/reducer]
+    collector_paths: [go/internal/collector]
+    mcp_surfaces: [trace_exposure_path]
+    deterministic_evidence_source: "Reducer-owned relationship materialization and trace query tests provide deterministic source-to-cloud evidence; semantic summaries are not required."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/reducer ./internal/relationships -count=1"
+      signals:
+        - capability: code_to_cloud.trace_exposure_path
+          kind: compose_e2e
+          ref: trace-exposure-path
+
+  - id: readme.supply-chain.default-gated
+    source:
+      path: README.md
+      line: 54
+      quote: "| Supply-chain traceability | Track dependencies across 13 package ecosystems, reconcile 4 advisory sources (CISA KEV, FIRST EPSS, OSV, NVD), and follow SBOM-to-image attachments with subject-digest evidence. These reads are served by external collectors (package registry, container registry, CI/CD, SBOM/attestation, advisory feeds, provider security alerts) that are off in a default deploy: enable them with `ESHU_COLLECTOR_INSTANCES_JSON` plus provider credentials, otherwise the `list_*` supply-chain tools return well-formed empty pages. <!-- capability-state: id=supply_chain.impact_findings.list state=gated --> <!-- product-claim: id=readme.supply-chain.default-gated --> |"
+    claim_text: "Supply-chain traceability covers package ecosystems, advisory sources, and SBOM-to-image attachments, but list reads are gated in a default deploy."
+    capabilities:
+      - id: supply_chain.impact_findings.list
+        claimed_maturity: gated
+    truth_level: exact
+    owner_packages: [internal/query]
+    implementation_paths: [go/internal/query, go/internal/collector]
+    collector_paths: [go/internal/collector]
+    mcp_surfaces: [list_supply_chain_impact_findings]
+    deterministic_evidence_source: "Capability maturity is gated by the catalog overlay, while collector-backed package/advisory/SBOM proof remains deterministic when configured."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/capabilitycatalog -count=1"
+      signals:
+        - capability: supply_chain.impact_findings.list
+          kind: go_test
+          ref: ./internal/query
+    issues:
+      - number: 3496
+        state: closed
+      - number: 3480
+        state: closed
+
+  - id: readme.security-iam.evidence-backed-findings
+    source:
+      path: README.md
+      line: 56
+      quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=general_availability --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
+    claim_text: "Security and IAM posture reads expose hardcoded secrets, secret-access paths, and IAM trust or privilege chains with backing evidence."
+    capabilities:
+      - id: security.hardcoded_secrets
+        claimed_maturity: general_availability
+      - id: secrets_iam.secret_access_paths.list
+        claimed_maturity: general_availability
+    truth_level: derived
+    owner_packages: [internal/query, internal/collector/vulnerabilityintelligence]
+    implementation_paths: [go/internal/query, go/internal/collector/vulnerabilityintelligence]
+    mcp_surfaces: [investigate_hardcoded_secrets, list_secrets_iam_secret_access_paths]
+    deterministic_evidence_source: "Scanner, collector, reducer, and query tests verify deterministic evidence packets before any narration layer."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/collector/vulnerabilityintelligence -count=1"
+      signals:
+        - capability: security.hardcoded_secrets
+          kind: go_test
+          ref: ./internal/query
+        - capability: secrets_iam.secret_access_paths.list
+          kind: go_test
+          ref: ./internal/query
+
+  - id: readme.change-risk.blast-radius
+    source:
+      path: README.md
+      line: 57
+      quote: "| Change-risk analysis | Ask for blast radius, shared dependencies, change surface, and direct versus transitive relationships before a change lands. <!-- capability-state: id=platform_impact.blast_radius state=general_availability --> <!-- product-claim: id=readme.change-risk.blast-radius --> |"
+    claim_text: "Change-risk analysis can return blast radius, shared dependencies, change surface, and direct versus transitive relationships."
+    capabilities:
+      - id: platform_impact.blast_radius
+        claimed_maturity: general_availability
+    truth_level: derived
+    owner_packages: [internal/query]
+    implementation_paths: [go/internal/query]
+    mcp_surfaces: [find_blast_radius]
+    deterministic_evidence_source: "Graph-backed query handlers and MCP routing tests prove the deterministic blast-radius read path."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/mcp -run 'Test.*Blast|Test.*Change' -count=1"
+      signals:
+        - capability: platform_impact.blast_radius
+          kind: compose_e2e
+          ref: blast-radius
+
+  - id: readme.replatforming.plan-readiness
+    source:
+      path: README.md
+      line: 58
+      quote: "| IaC and re-platforming | Find unmanaged resources, propose Terraform import plans, and compose multi-cloud re-platforming plans. <!-- capability-state: id=replatforming.plan.readiness state=general_availability --> <!-- product-claim: id=readme.replatforming.plan-readiness --> |"
+    claim_text: "IaC and re-platforming workflows cover unmanaged-resource discovery, Terraform import plans, and multi-cloud re-platforming plans."
+    capabilities:
+      - id: replatforming.plan.readiness
+        claimed_maturity: general_availability
+    truth_level: derived
+    owner_packages: [internal/query]
+    implementation_paths: [go/internal/query, go/internal/relationships]
+    mcp_surfaces: [compose_replatforming_plan]
+    deterministic_evidence_source: "Relationship extraction, query, and MCP tests verify deterministic re-platforming readiness before any external assistant handoff."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/mcp ./internal/relationships -run 'Test.*Replatform|Test.*Unmanaged|Test.*Terraform' -count=1"
+      signals:
+        - capability: replatforming.plan.readiness
+          kind: go_test
+          ref: ./internal/query
+
+  - id: readme.mcp-tool-count.indexed-truth
+    source:
+      path: README.md
+      line: 59
+      quote: "| AI assistant context | Serve indexed truth through 149 read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> <!-- product-claim: id=readme.mcp-tool-count.indexed-truth --> |"
+    claim_text: "Eshu exposes indexed truth through 149 read-only MCP tools for assistant clients."
+    capabilities:
+      - id: capability_catalog.list
+        claimed_maturity: general_availability
+    truth_level: exact
+    owner_packages: [internal/mcp, internal/capabilitycatalog]
+    implementation_paths: [go/internal/mcp, go/internal/capabilitycatalog]
+    mcp_surfaces: [get_capability_catalog]
+    deterministic_evidence_source: "ReadOnlyTools count tests and the capability catalog artifact prove the read-only MCP registry count without provider keys."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/mcp -run '^TestReadOnlyTools$' -count=1"
+      surface_counts:
+        - category: mcp_tool
+          count: 149
+      signals:
+        - capability: capability_catalog.list
+          kind: go_test
+          ref: ./internal/mcp
+
+  - id: readme.operations-visibility.freshness
+    source:
+      path: README.md
+      line: 60
+      quote: "| Operations visibility | Track ingestion, reducer queues, graph writes, runtime drift, freshness, health, metrics, traces, and logs. <!-- capability-state: id=freshness.changed_since state=general_availability --> <!-- product-claim: id=readme.operations-visibility.freshness --> |"
+    claim_text: "Operations visibility includes ingestion, reducer queues, graph writes, runtime drift, freshness, health, metrics, traces, and logs."
+    capabilities:
+      - id: freshness.changed_since
+        claimed_maturity: general_availability
+    truth_level: exact
+    owner_packages: [internal/query, internal/status, internal/telemetry]
+    implementation_paths: [go/internal/query, go/internal/status, go/internal/telemetry]
+    mcp_surfaces: [get_changed_since]
+    deterministic_evidence_source: "Status/query tests plus telemetry coverage verify operator-facing deterministic signals."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/status ./internal/telemetry -count=1"
+      signals:
+        - capability: freshness.changed_since
+          kind: go_test
+          ref: ./internal/query
+
+  - id: docs.capability-catalog.auditable-source
+    source:
+      path: docs/public/reference/capability-catalog.md
+      line: 3
+      quote: "The capability catalog is one auditable source that answers, per capability, whether Eshu has implemented it, where it is exposed, what proves it, how mature it is, what gaps remain, and which issues track it. <!-- product-claim: id=docs.capability-catalog.auditable-source -->"
+    claim_text: "The capability catalog answers implementation state, exposure, proof, maturity, gaps, and tracking issues per capability."
+    capabilities:
+      - id: capability_catalog.list
+        claimed_maturity: general_availability
+    truth_level: exact
+    owner_packages: [internal/capabilitycatalog]
+    implementation_paths: [go/internal/capabilitycatalog]
+    api_surfaces: [GET /api/v0/capabilities]
+    mcp_surfaces: [get_capability_catalog]
+    console_surfaces: [CapabilityMatrixPage]
+    deterministic_evidence_source: "The generated capability catalog artifact carries owner, maturity, surfaces, proof signals, known gaps, linked issues, and docs."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go run ./cmd/capability-inventory -mode verify"
+      artifact: go/internal/capabilitycatalog/data/catalog.generated.json
+      signals:
+        - capability: capability_catalog.list
+          kind: go_test
+          ref: ./internal/query
+
+  - id: docs.capability-catalog.surface-parity
+    source:
+      path: docs/public/reference/capability-catalog.md
+      line: 65
+      quote: "The same embedded artifact is exposed through three surfaces, so they report the same catalog state: <!-- product-claim: id=docs.capability-catalog.surface-parity -->"
+    claim_text: "HTTP API, MCP, and console capability surfaces report the same embedded catalog state."
+    capabilities:
+      - id: capability_catalog.list
+        claimed_maturity: general_availability
+    truth_level: exact
+    owner_packages: [internal/capabilitycatalog, internal/query, internal/mcp]
+    implementation_paths: [go/internal/capabilitycatalog, go/internal/query, go/internal/mcp, apps/console]
+    api_surfaces: [GET /api/v0/capabilities]
+    mcp_surfaces: [get_capability_catalog]
+    console_surfaces: [CapabilityMatrixPage]
+    deterministic_evidence_source: "API, MCP, and console tests compare against the same embedded capability catalog artifact."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/query ./internal/mcp ./cmd/capability-inventory -run 'Test.*Capabilit|TestVerifyAgainstRealSpecs' -count=1"
+      artifact: go/internal/capabilitycatalog/data/catalog.generated.json
+      signals:
+        - capability: capability_catalog.list
+          kind: go_test
+          ref: ./internal/query
+
+  - id: docs.mcp-tool-contract.capability-catalog-read
+    source:
+      path: docs/public/reference/mcp-tool-contract-matrix.md
+      line: 176
+      quote: "| `get_capability_catalog` | whole reconciled capability catalog from the embedded artifact | optional `maturity` and `owner` filters, `limit`/`offset` paging | yes | prompt-ready deterministic read of capability maturity, public surfaces, proof signals, owner package, known gaps, and linked issues; static embedded artifact with fresh truth and no live backend read <!-- product-claim: id=docs.mcp-tool-contract.capability-catalog-read --> |"
+    claim_text: "The get_capability_catalog MCP tool returns a deterministic embedded-artifact read with maturity, surfaces, proof, owner, gaps, and linked issues."
+    capabilities:
+      - id: capability_catalog.list
+        claimed_maturity: general_availability
+    truth_level: exact
+    owner_packages: [internal/mcp, internal/capabilitycatalog]
+    implementation_paths: [go/internal/mcp, go/internal/capabilitycatalog]
+    mcp_surfaces: [get_capability_catalog]
+    deterministic_evidence_source: "MCP runtime tests route get_capability_catalog to the same bounded catalog endpoint backed by the embedded artifact."
+    semantic_output: not_used
+    proof:
+      command: "cd go && go test ./internal/mcp ./internal/capabilitycatalog -run 'Test.*Capability|TestVerify' -count=1"
+      artifact: go/internal/capabilitycatalog/data/catalog.generated.json
+      signals:
+        - capability: capability_catalog.list
+          kind: go_test
+          ref: ./internal/query
