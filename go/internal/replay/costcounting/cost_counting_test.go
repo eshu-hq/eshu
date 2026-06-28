@@ -207,17 +207,21 @@ func TestCostBudget_NestedDirectoryTree(t *testing.T) {
 	// real otel reader. This counter is incremented by the production
 	// canonical writer, NOT by a hand-counted statement slice.
 	atomicWrites := collectCounter(rm, "eshu_dp_canonical_atomic_writes_total")
-	if maxWrites, ok := budget.Budgets["eshu_dp_canonical_atomic_writes_total"]; ok {
-		if atomicWrites > maxWrites {
-			t.Fatalf(
-				"eshu_dp_canonical_atomic_writes_total = %d exceeds budget %d "+
-					"(scenario=%s): algorithmic regression detected",
-				atomicWrites, maxWrites, budget.Scenario,
-			)
-		}
-		if atomicWrites == 0 {
-			t.Fatal("eshu_dp_canonical_atomic_writes_total = 0: instrument not recording (false green guard)")
-		}
+	maxWrites, ok := budget.Budgets["eshu_dp_canonical_atomic_writes_total"]
+	if !ok {
+		// Unconditional guard: a missing key must fail loudly, never silently
+		// skip the primary assertion and the false-green guard below.
+		t.Fatal("budget missing required key eshu_dp_canonical_atomic_writes_total")
+	}
+	if atomicWrites > maxWrites {
+		t.Fatalf(
+			"eshu_dp_canonical_atomic_writes_total = %d exceeds budget %d "+
+				"(scenario=%s): algorithmic regression detected",
+			atomicWrites, maxWrites, budget.Scenario,
+		)
+	}
+	if atomicWrites == 0 {
+		t.Fatal("eshu_dp_canonical_atomic_writes_total = 0: instrument not recording (false green guard)")
 	}
 
 	// SECONDARY assertion: raw statement count from the counting executor.
@@ -272,6 +276,14 @@ func TestCostBudget_N1_ExceedsBudget(t *testing.T) {
 	mat := loadCassetteMaterialization(t)
 
 	writer, _, reader := newInstrumentedWriter(t)
+
+	// The N+1 control only exceeds the single-write budget when there are at
+	// least 2 directories (each per-dir Write costs the same as the whole-batch
+	// write). Guard so a future single-directory cassette fails with a clear
+	// message instead of a misleading "budget too loose".
+	if len(mat.Directories) < 2 {
+		t.Fatalf("N+1 control needs >=2 directories to exceed the budget; cassette has %d", len(mat.Directories))
+	}
 
 	// N+1 projection: call Write once per directory instead of once for all.
 	// Each call emits a full write cycle (retract phase + repository + per-dir
