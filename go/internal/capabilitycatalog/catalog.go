@@ -221,6 +221,23 @@ func effectiveStatus(profile MatrixProfile) string {
 	return statusSupported
 }
 
+// ProfileClaimsSupport reports whether a profile makes a positive support claim —
+// supported or experimental under the canonical status resolution, where a blank
+// status with a non-unsupported truth ceiling resolves to supported. It is the
+// single rule the replay coverage gate (#4173) uses to decide a capability needs
+// a replay scenario, so the gate never reinvents the matrix's own status
+// vocabulary: an unsupported (or absent) profile claims nothing to prove or
+// refuse, while a truth-ceiling-only row (no status field) is correctly treated
+// as the support claim it is.
+func ProfileClaimsSupport(profile MatrixProfile) bool {
+	switch effectiveStatus(profile) {
+	case statusSupported, statusExperimental:
+		return true
+	default:
+		return false
+	}
+}
+
 // classifySurfaces resolves each declared tool to a surface kind. MCP-registry
 // tools become SurfaceMCP, overlay-declared non-MCP tools take their declared
 // kind, and everything else is SurfaceUnknown (which reconcile flags).

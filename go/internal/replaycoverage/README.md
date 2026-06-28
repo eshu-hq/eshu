@@ -1,0 +1,59 @@
+# replaycoverage
+
+`replaycoverage` is the assertion core of the **C-1 replay coverage manifest +
+lockstep gate** ([#4173](https://github.com/eshu-hq/eshu/issues/4173), epic
+[#4172](https://github.com/eshu-hq/eshu/issues/4172)). It answers one question:
+**does every surface Eshu claims to support have a green, credential-free,
+Docker-free replay scenario — and will CI notice when a new one doesn't?**
+
+It is the typed, unit-tested logic; the orchestration that loads the registries,
+writes the report, and sets the exit code lives in
+[`cmd/replay-coverage-gate`](../../cmd/replay-coverage-gate).
+
+## What it reconciles
+
+| Required surface (source of truth) | Coverage key | Scenario type |
+| --- | --- | --- |
+| surface-inventory implemented-lane collectors | `collector:<name>` | cassette |
+| fact-kind registry read surfaces | `read_surface:<surface>` | api/mcp golden |
+| parser-backing ledger parsers | `parser:<name>` | parser fixture |
+| capability-matrix positive claims | `capability:<id>` | claim / refusal |
+
+`EnumerateSupported` flattens the four registries into a deterministic
+`SupportedSurface` set. `LoadManifest` reads the curated
+`specs/replay-coverage-manifest.v1.yaml` that maps each surface to the scenario
+that covers it (plus audited exemptions). `Reconcile` classifies every surface as
+`covered`, `uncovered`, `unresolved` (manifest entry, missing artifact), or
+`exempt`, and reports stale manifest drift.
+
+## Why a manifest (and not just the registries)
+
+The natural keys differ across registries and artifacts: the `collector:aws`
+surface is exercised by the cassette under `testdata/cassettes/awscloud`. No
+single registry can express that mapping, so the manifest is the curated,
+reviewable bridge. It composes with — does not fork — the existing
+capability-inventory drift gate: collectors, read surfaces, parsers, and claims
+all come from the same generated registries that gate already owns.
+
+## Existence, not greenness
+
+The `Resolver` checks that a scenario artifact exists (a cassette dir, a parser
+fixture file, an rc-* / query shape in the B-12 snapshot). It deliberately does
+**not** run the scenario. Greenness is proven by the sibling gate named in each
+manifest entry's `proof_gate` (`golden-corpus-gate`, the parser fixture tests).
+That split keeps this gate fast and credential-free while never claiming a green
+it did not observe.
+
+## Advisory → blocking
+
+`Findings` renders the reconciliation as `goldengate.Finding`s. The gate ships
+**advisory**: every gap is reported but never fails CI, so its red output is the
+C-2..C-6 worklist. A single blocking flag flips every uncovered / unresolved /
+stale finding to required, so coverage can never regress once the gaps are burned
+down. `BuildReport` emits the coverage-report artifact the C-7 dashboard consumes.
+
+## Tests
+
+```bash
+cd go && go test ./internal/replaycoverage/ -count=1
+```

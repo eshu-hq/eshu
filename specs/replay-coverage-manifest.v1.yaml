@@ -1,0 +1,56 @@
+# Replay coverage manifest (C-1, issue #4173, epic #4172).
+#
+# This is the curated, reviewable mapping from each supported surface to the
+# replay scenario that exercises it. The replay-coverage-gate
+# (go/cmd/replay-coverage-gate) enumerates the supported surfaces from the four
+# source-of-truth registries — surface-inventory implemented-lane collectors,
+# fact-kind-registry read surfaces, parser-backing-ledger parsers, and
+# capability-matrix claims — and reports any surface with no entry here as
+# UNCOVERED. That uncovered list is the C-2..C-6 backfill worklist.
+#
+# Surface keys are "<kind>:<name>":
+#   collector:<name>          (surface-inventory implemented lane)
+#   read_surface:<surface>    (fact-kind-registry read_surface)
+#   parser:<name>             (parser-backing-ledger)
+#   capability:<id>           (capability-matrix positive claim)
+#
+# scenario types: cassette | parser_fixture | api_mcp_golden | correlation
+#   - cassette / parser_fixture refs are repo-relative paths to the artifact.
+#   - api_mcp_golden / correlation refs are B-12 snapshot ids (query-shape key /
+#     rc-*).
+# proof_gate names the gate that runs the scenario and proves it green; this gate
+# only verifies the artifact exists.
+#
+# Seed coverage = only what is genuinely green today: the five implemented-lane
+# collectors whose cassettes the golden-corpus-gate already replays. Everything
+# else is intentionally uncovered until C-2..C-6 author its scenario.
+version: "v1"
+
+coverage:
+  - surface: collector:aws
+    scenario: cassette
+    ref: testdata/cassettes/awscloud/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:oci_registry
+    scenario: cassette
+    ref: testdata/cassettes/ociregistry/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:package_registry
+    scenario: cassette
+    ref: testdata/cassettes/packageregistry/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:prometheus_mimir
+    scenario: cassette
+    ref: testdata/cassettes/prometheusmimir/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:terraform_state
+    scenario: cassette
+    ref: testdata/cassettes/terraformstate/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+
+# Exemptions: supported surfaces deliberately not required to have a replay
+# scenario, each with an auditable reason. Empty at seed time — every gap should
+# be burned down by an authored scenario (C-2..C-6), not exempted away. Add an
+# entry only when a surface genuinely cannot have a credential-free replay
+# scenario, with a reason an operator would accept.
+exemptions: []

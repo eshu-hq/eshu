@@ -1,0 +1,78 @@
+name: Replay Coverage Gate
+
+# C-1 replay coverage manifest + lockstep gate (#4173, epic #4172). Enumerates
+# every surface Eshu claims to support from the four source-of-truth registries
+# and reports any surface lacking a green replay scenario. Static, credential-free,
+# Docker-free — it composes with (does not replace) the golden-corpus-gate, which
+# actually replays the scenarios this gate counts.
+#
+# ADVISORY: the gate runs without --blocking, so an uncovered surface is reported
+# (and uploaded as the coverage-report artifact for the C-7 dashboard) but does
+# NOT fail this job. Its red output is the C-2..C-6 backfill worklist. Flipping to
+# blocking is a deliberate, separately-reviewed change to this workflow once
+# C-2..C-6 burn the coverage gaps down.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'go/cmd/replay-coverage-gate/**'
+      - 'go/internal/replaycoverage/**'
+      - 'go/internal/capabilitycatalog/**'
+      - 'go/internal/facts/**'
+      - 'go/internal/goldengate/**'
+      - 'specs/replay-coverage-manifest.v1.yaml'
+      - 'specs/parser-backing-ledger.v1.yaml'
+      - 'specs/fact-kind-registry.v1.yaml'
+      - 'specs/surface-inventory.v1.yaml'
+      - 'specs/capability-matrix.v1.yaml'
+      - 'specs/capability-matrix/**'
+      - 'testdata/golden/e2e-20repo-snapshot.json'
+      - 'testdata/cassettes/**'
+      - 'scripts/verify-replay-coverage-gate.sh'
+      - 'scripts/test-verify-replay-coverage-gate.sh'
+      - '.github/workflows/replay-coverage-gate.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Least privilege: the gate only checks out and reads the repo.
+permissions:
+  contents: read
+
+jobs:
+  static-mirror:
+    name: static mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Validate gate contract
+        run: bash scripts/test-verify-replay-coverage-gate.sh
+
+  coverage-gate:
+    name: coverage-gate (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Run replay coverage gate (advisory)
+        env:
+          RCOV_REPORT_OUT: replay-coverage-report.json
+        run: bash scripts/verify-replay-coverage-gate.sh
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-coverage-report
+          path: replay-coverage-report.json
+          if-no-files-found: error
