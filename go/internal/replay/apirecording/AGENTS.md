@@ -28,9 +28,13 @@
   response can carry a sensitive field; a recorded golden MUST NEVER embed a live
   credential, token, or private identifier. Over-match is safer than under-match.
 - **Stay transport-agnostic.** `RequestDescriptor.Transport` keeps the format
-  reusable for R-9 (#4111) MCP tool-call replay, which dispatches through the
-  same query mux. Do not hard-code "HTTP-only" assumptions into the recording
-  shape or the file format.
+  reusable for R-9 (#4111) MCP tool-call replay, which is implemented in
+  `internal/replay/mcpreplay`. Do not hard-code "HTTP-only" assumptions into the
+  recording shape or the file format. The `Options.Canonical()` accessor exposes
+  the underlying `replay.CanonicalOptions` so sub-packages can call
+  `replay.Canonicalize` directly on bodies they control (as mcpreplay does for
+  `structuredContent`). Do not expose the `canonical` field directly; use
+  `Canonical()` at the call site.
 - **Keep OpenAPI lockstep.** A recorded HTTP path MUST be declared in
   `query.OpenAPISpec()` (`openapi_lockstep_test.go`). When you record a new
   route, ensure the spec declares it first.

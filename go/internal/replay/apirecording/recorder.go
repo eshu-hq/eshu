@@ -80,6 +80,14 @@ func (o Options) normalized() Options {
 	return o
 }
 
+// Canonical returns the underlying [replay.CanonicalOptions] after normalizing
+// the zero value to DefaultOptions. It is the accessor for replay sub-packages
+// (such as mcpreplay) that need to call [replay.Canonicalize] directly on a
+// body they control, rather than routing through the HTTP-seam driveOne path.
+func (o Options) Canonical() replay.CanonicalOptions {
+	return o.normalized().canonical
+}
+
 // isZero reports whether o is the zero Options value (no canonical options
 // configured), which is the signal to substitute DefaultOptions.
 func (o Options) isZero() bool {

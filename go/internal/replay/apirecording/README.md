@@ -41,6 +41,14 @@ exchanges that dispatch through that mux — no format change. The recording is 
 unit of reuse: a recorded exchange is "request descriptor + canonical response",
 which is true at either seam.
 
+R-9 is implemented in `internal/replay/mcpreplay` (#4111). It drives
+`mcp.InProcessMessageHandler` through `httptest`, extracts `structuredContent`
+from the JSON-RPC result, and canonicalizes it through this package's `Options`
+(via the `Canonical()` accessor). The MCP golden format is the same
+`apirecording.Recording` schema, enabling mixed HTTP + MCP recordings and the
+answer-parity gate (`AssertAnswerParity`) that proves both transports return
+consistent truth for the same query.
+
 ## OpenAPI lockstep
 
 `openapi_lockstep_test.go` asserts every recorded HTTP path is declared in
