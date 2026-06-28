@@ -14,9 +14,11 @@ import (
 	"syscall"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/replay/recorder"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -29,6 +31,7 @@ type launchMode string
 const (
 	launchModeCassette launchMode = "cassette"
 	launchModeLive     launchMode = "live"
+	launchModeRecord   launchMode = "record"
 )
 
 // launchOptions holds the parsed command-line inputs for the collector binary.
@@ -67,11 +70,12 @@ func main() {
 }
 
 // parseArgs parses the collector launch mode. The default mode is live.
-// Cassette mode requires a -cassette-file path.
+// Cassette mode replays a -cassette-file credential-free; record mode runs the
+// live collector and writes a canonical cassette to -cassette-file.
 func parseArgs(args []string) (launchOptions, error) {
 	flags := flag.NewFlagSet(serviceName, flag.ContinueOnError)
-	mode := flags.String("mode", string(launchModeLive), "collector mode: live or cassette")
-	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (cassette mode only)")
+	mode := flags.String("mode", string(launchModeLive), "collector mode: live, cassette, or record")
+	cassetteFile := flags.String("cassette-file", "", "cassette JSON path (replayed in cassette mode, written in record mode)")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
@@ -81,9 +85,9 @@ func parseArgs(args []string) (launchOptions, error) {
 	}
 	switch selectedMode {
 	case launchModeLive:
-	case launchModeCassette:
+	case launchModeCassette, launchModeRecord:
 		if strings.TrimSpace(*cassetteFile) == "" {
-			return launchOptions{}, fmt.Errorf("-cassette-file is required in cassette mode")
+			return launchOptions{}, fmt.Errorf("-cassette-file is required in %s mode", selectedMode)
 		}
 	default:
 		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
@@ -110,6 +114,13 @@ func run(parent context.Context, opts launchOptions) error {
 	instruments, err := telemetry.NewInstruments(meter)
 	if err != nil {
 		return fmt.Errorf("telemetry instruments: %w", err)
+	}
+
+	// Record mode is a one-shot credentialed fixture run: it drives the live
+	// source and writes a canonical cassette, with no durable commit and no
+	// status server, so it needs the collector's credentials but no database.
+	if opts.mode == launchModeRecord {
+		return runRecord(parent, opts.cassetteFile, tracer, instruments, logger)
 	}
 
 	pprofSrv, err := runtimecfg.NewPprofServer(os.Getenv)
@@ -166,4 +177,35 @@ func run(parent context.Context, opts launchOptions) error {
 	defer stop()
 
 	return service.Run(ctx)
+}
+
+// runRecord drives the live Kubernetes source for one batch and writes a
+// canonical cassette to cassettePath. The cassette object_id values are the
+// collector's real facts.StableID derivation because the real source runs here,
+// which is the structural fix for cassette object_id fidelity (#3928).
+func runRecord(
+	parent context.Context,
+	cassettePath string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) error {
+	config, err := loadRuntimeConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	source := newLiveSource(config, tracer, instruments, logger)
+
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	logger.Info("recording cassette", "event_name", "collector.record.started", "path", cassettePath)
+	if err := recorder.Run(ctx, source, recorder.Options{
+		Path:           cassettePath,
+		CollectorLabel: "kubernetes_live",
+	}); err != nil {
+		return fmt.Errorf("record cassette: %w", err)
+	}
+	logger.Info("recorded cassette", "event_name", "collector.record.completed", "path", cassettePath)
+	return nil
 }

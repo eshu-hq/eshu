@@ -1,0 +1,45 @@
+{
+  "collector": "kubernetes_live",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "collector_kind": "kubernetes_live",
+      "facts": [
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_workload",
+          "fencing_token": 1,
+          "payload": {
+            "name": "api",
+            "object_id": "086f0926818483a4134b0d01d0a6b15b2a20d2f7758157045708ce70e4c727ea",
+            "replicas": 2
+          },
+          "schema_version": "1",
+          "source_confidence": "observed",
+          "source_uri": "k8s://default/deploy/api",
+          "stable_fact_key": "default/deploy/api"
+        },
+        {
+          "collector_kind": "kubernetes_live",
+          "fact_kind": "kubernetes_workload",
+          "fencing_token": 1,
+          "payload": {
+            "name": "app",
+            "object_id": "e8576ef1d131d625f64663fbf657831cd7ee15d2312701bfc706e3d8f2d835bf",
+            "replicas": 3
+          },
+          "schema_version": "1",
+          "source_confidence": "observed",
+          "source_uri": "k8s://default/deploy/app",
+          "stable_fact_key": "default/deploy/app"
+        }
+      ],
+      "generation_id": "canonical-generation-34ab3e1c8c468878",
+      "observed_at": "2000-01-01T00:00:00Z",
+      "scope_id": "cluster-a",
+      "scope_kind": "cluster",
+      "source_system": "kubernetes_live",
+      "trigger_kind": "snapshot"
+    }
+  ]
+}

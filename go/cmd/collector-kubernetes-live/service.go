@@ -19,6 +19,25 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// newLiveSource constructs the read-only Kubernetes live snapshot source from
+// already-loaded runtime config. It is shared by the live collector service and
+// record mode so both drive the identical credentialed source from one config
+// parse.
+func newLiveSource(
+	config runtimeConfig,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) collector.Source {
+	return &kuberneteslive.Source{
+		Config:        config.Collector,
+		ClientFactory: clusterClientFactory{auth: config.Auth},
+		Tracer:        tracer,
+		Instruments:   instruments,
+		Logger:        logger,
+	}
+}
+
 // buildCollectorService wires the read-only Kubernetes live snapshot source
 // onto the shared collector commit boundary.
 func buildCollectorService(
@@ -35,13 +54,7 @@ func buildCollectorService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	return collector.Service{
-		Source: &kuberneteslive.Source{
-			Config:        config.Collector,
-			ClientFactory: clusterClientFactory{auth: config.Auth},
-			Tracer:        tracer,
-			Instruments:   instruments,
-			Logger:        logger,
-		},
+		Source:       newLiveSource(config, tracer, instruments, logger),
 		Committer:    committer,
 		PollInterval: config.PollInterval,
 		Tracer:       tracer,
