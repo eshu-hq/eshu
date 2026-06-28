@@ -152,6 +152,27 @@ func TestScheduleReplayCatchesOrderSensitiveBug(t *testing.T) {
 	}
 }
 
+// TestScheduleReplayFailsWhenContextCanceledBeforeDrain proves the gate fails
+// loudly when the replay loop exits before every scripted intent has drained,
+// rather than comparing a partial/empty snapshot and reporting green. A
+// pre-canceled context must yield an error, never a successful nil snapshot.
+func TestScheduleReplayFailsWhenContextCanceledBeforeDrain(t *testing.T) {
+	t.Parallel()
+
+	items := loadItems(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already canceled before the run starts
+
+	snap, err := schedulereplay.RunSchedule(ctx, schedulereplay.Config{
+		Items:   schedulereplay.ScheduleInOrder(items),
+		Workers: 1,
+		Apply:   schedulereplay.ApplyCanonical,
+	})
+	if err == nil {
+		t.Fatalf("expected an error when the context is canceled before drain, got nil snapshot of %d bytes (would mask a non-draining replay)", len(snap))
+	}
+}
+
 // orderSensitiveApply is a deliberately broken applier used only to prove the
 // harness detects ordering sensitivity. It upserts nodes but drops any CONTAINS
 // edge whose parent (From) node has not already been applied — the classic

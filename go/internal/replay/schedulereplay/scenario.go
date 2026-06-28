@@ -94,6 +94,10 @@ func RunScheduleReport(ctx context.Context, cfg Config) (snapshot []byte, claimB
 	if execErr := exec.firstErr(); execErr != nil {
 		return nil, source.ClaimBatchCalls(), execErr
 	}
+	if f := sink.failed(); f > 0 {
+		return nil, source.ClaimBatchCalls(),
+			fmt.Errorf("schedule replay had %d failed intent(s); refusing to snapshot a partial graph", f)
+	}
 
 	snap, err := graph.Canonical()
 	if err != nil {
@@ -115,16 +119,32 @@ func awaitDrain(
 ) error {
 	ticker := time.NewTicker(200 * time.Microsecond)
 	defer ticker.Stop()
+	drained := func() bool { return source.Drained() && sink.processed() >= int64(total) }
 	for {
 		select {
 		case err := <-runErr:
-			return loopExitError(err)
+			// The loop exited on its own. A real error wins. Otherwise the loop
+			// stopped because its context was canceled — that is only success if
+			// every scripted intent actually drained; if not, fail loudly rather
+			// than snapshot a partial graph and report a green gate.
+			if e := loopExitError(err); e != nil {
+				return e
+			}
+			if !drained() {
+				return fmt.Errorf("schedule replay loop exited before draining: drained=%v acked=%d/%d",
+					source.Drained(), sink.acked(), total)
+			}
+			return nil
 		case <-ctx.Done():
 			cancel()
 			<-runErr
-			return fmt.Errorf("schedule replay canceled before drain: %w", ctx.Err())
+			if drained() {
+				return nil
+			}
+			return fmt.Errorf("schedule replay canceled before drain (acked=%d/%d): %w",
+				sink.acked(), total, ctx.Err())
 		case <-ticker.C:
-			if source.Drained() && sink.acked() >= int64(total) {
+			if drained() {
 				cancel()
 				return loopExitError(<-runErr)
 			}
@@ -164,16 +184,19 @@ type graphExecutor struct {
 	err error
 }
 
-func (e *graphExecutor) Execute(_ context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (e *graphExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	// Record every failure in firstErr: the reducer loop fails-and-continues
+	// (it does not abort the drain on an executor error), so a failed intent
+	// would otherwise leave the graph silently incomplete while the run still
+	// looks drained. firstErr is the loud-failure backstop.
+	if err := ctx.Err(); err != nil {
+		return reducer.Result{}, e.recordErrLocked(fmt.Errorf("schedule replay execute canceled: %w", err))
+	}
 	item, ok := e.registry[intent.IntentID]
 	if !ok {
-		err := fmt.Errorf("no work item registered for intent %q", intent.IntentID)
-		if e.err == nil {
-			e.err = err
-		}
-		return reducer.Result{}, err
+		return reducer.Result{}, e.recordErrLocked(fmt.Errorf("no work item registered for intent %q", intent.IntentID))
 	}
 	e.apply(e.graph, item)
 	return reducer.Result{
@@ -183,6 +206,15 @@ func (e *graphExecutor) Execute(_ context.Context, intent reducer.Intent) (reduc
 	}, nil
 }
 
+// recordErrLocked stores the first execute error and returns it. The caller must
+// hold e.mu.
+func (e *graphExecutor) recordErrLocked(err error) error {
+	if e.err == nil {
+		e.err = err
+	}
+	return err
+}
+
 func (e *graphExecutor) firstErr() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -190,9 +222,12 @@ func (e *graphExecutor) firstErr() error {
 }
 
 // countingSink acknowledges intents and counts completions so the runner knows
-// when the schedule has fully drained.
+// when the schedule has fully drained. Acks and failures are counted separately:
+// processed() (acked+failed) tells the runner the loop is done, while a non-zero
+// failed() means the run did not project cleanly and must not be reported green.
 type countingSink struct {
-	ackedCount atomic.Int64
+	ackedCount  atomic.Int64
+	failedCount atomic.Int64
 }
 
 func (s *countingSink) Ack(_ context.Context, _ reducer.Intent, _ reducer.Result) error {
@@ -201,7 +236,7 @@ func (s *countingSink) Ack(_ context.Context, _ reducer.Intent, _ reducer.Result
 }
 
 func (s *countingSink) Fail(_ context.Context, _ reducer.Intent, _ error) error {
-	s.ackedCount.Add(1)
+	s.failedCount.Add(1)
 	return nil
 }
 
@@ -212,4 +247,14 @@ func (s *countingSink) AckBatch(_ context.Context, intents []reducer.Intent, _ [
 
 func (s *countingSink) acked() int64 {
 	return s.ackedCount.Load()
+}
+
+func (s *countingSink) failed() int64 {
+	return s.failedCount.Load()
+}
+
+// processed reports how many intents the loop has finished (acked or failed),
+// which is the signal that the schedule has fully drained.
+func (s *countingSink) processed() int64 {
+	return s.ackedCount.Load() + s.failedCount.Load()
 }
