@@ -26,9 +26,9 @@
 //	report    print catalog and surface findings plus counts (default)
 //	generate  write the catalog artifact to -out and the surface artifact to -surface-out
 //	verify    fail when findings exist or either embedded artifact is stale
-//	docs      fail when a capability-state marker contradicts the catalog, or a
-//	          collector-state marker contradicts the surface inventory or claims
-//	          implemented without linked promotion proof
+//	docs      fail when a capability-state marker contradicts the catalog, a
+//	          collector-state marker contradicts the surface inventory, or a broad
+//	          public product claim is missing marker-to-proof ledger evidence
 //
 // Flags:
 //

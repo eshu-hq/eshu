@@ -1,0 +1,90 @@
+name: Product Claim Ledger
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - docs/public/**
+      - specs/product-claims.v1.yaml
+      - specs/capability-catalog.v1.yaml
+      - specs/capability-matrix.v1.yaml
+      - specs/capability-matrix/**
+      - go/internal/capabilitycatalog/**
+      - go/cmd/capability-inventory/**
+      - .github/workflows/product-claim-ledger.yml
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - docs/public/**
+      - specs/product-claims.v1.yaml
+      - specs/capability-catalog.v1.yaml
+      - specs/capability-matrix.v1.yaml
+      - specs/capability-matrix/**
+      - go/internal/capabilitycatalog/**
+      - go/cmd/capability-inventory/**
+      - .github/workflows/product-claim-ledger.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "23 9 * * 1"
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  verify-product-claims:
+    name: Verify product claim ledger
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run deterministic product-claim verify
+        working-directory: go
+        shell: bash
+        run: |
+          set -o pipefail
+          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-docs.log
+
+      - name: Run live issue-state verify for pull requests
+        if: github.event_name == 'pull_request'
+        working-directory: go
+        shell: bash
+        env:
+          ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE: "1"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-live-issues.log
+
+      - name: Run live issue-state verify for trusted events
+        if: github.event_name != 'pull_request'
+        working-directory: go
+        shell: bash
+        env:
+          ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE: "1"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-live-issues.log
+
+      - name: Upload product claim report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-claim-ledger-report
+          path: |
+            /tmp/product-claims-docs.log
+            /tmp/product-claims-live-issues.log
+          if-no-files-found: warn

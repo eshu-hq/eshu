@@ -29,9 +29,9 @@ go run ./cmd/capability-inventory -mode generate
 # Drift gate: fail when findings exist or the embedded artifact is stale.
 go run ./cmd/capability-inventory -mode verify
 
-# Docs guards: fail when a capability-state marker contradicts the catalog, or a
-# collector-state marker contradicts the surface inventory / claims implemented
-# without linked promotion proof.
+# Docs guards: fail when a capability-state marker contradicts the catalog, a
+# collector-state marker contradicts the surface inventory, or a broad public
+# product claim lacks a source-to-proof ledger row.
 go run ./cmd/capability-inventory -mode docs
 ```
 
@@ -55,8 +55,15 @@ go run ./cmd/capability-inventory -mode docs
 - `verify` is the CI gate. It fails when catalog or surface reconciliation
   findings exist or when either embedded artifact differs from a fresh
   regeneration. For collector surfaces, surface findings include missing
-  `collector_contract.fact_kinds` entries for live fact kinds. `docs` mode never
-  enumerates the source tree, so it needs no `-root`.
+  `collector_contract.fact_kinds` entries for live fact kinds. `docs` mode
+  checks capability markers, collector markers, and the product claim ledger at
+  `specs/product-claims.v1.yaml`; it uses `-root` to validate README/source-line
+  anchors, `product-claim` markers, generated surfaces, surface-count
+  expectations, proof paths, and catalog proof signals. Set
+  `ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1` to also check recorded issue states
+  against GitHub with a bounded run-level timeout; `.github/workflows/product-claim-ledger.yml`
+  enables that without `GITHUB_TOKEN` on pull requests and with `GITHUB_TOKEN`
+  on trusted claim-relevant push, schedule, and manual-dispatch events.
 - `generate` writes deterministic JSON for both the catalog and the surface
   inventory; the same inputs always produce the same bytes, so a regenerated
   artifact only changes when the matrix, overlay, registry, or a live surface

@@ -93,6 +93,43 @@ func TestBuildDerivesEntriesAndSurfaces(t *testing.T) {
 	}
 }
 
+func TestRealSpecsCapabilityCatalogConsoleSurfaceSetsConsoleFlag(t *testing.T) {
+	t.Parallel()
+
+	catalog, _, err := BuildFromSpecs(repoSpecsDir(t), Signals{MCPTools: map[string]bool{"get_capability_catalog": true}})
+	if err != nil {
+		t.Fatalf("BuildFromSpecs: %v", err)
+	}
+	entry, ok := entryByCapability(catalog.Entries, "capability_catalog.list")
+	if !ok {
+		t.Fatal("capability_catalog.list missing from real specs")
+	}
+	if !entry.Console {
+		t.Fatalf("Console = false with console surface: %+v", entry.Surfaces)
+	}
+	if !entryHasSurface(entry, "CapabilityMatrixPage") {
+		t.Fatalf("CapabilityMatrixPage surface missing: %+v", entry.Surfaces)
+	}
+}
+
+func entryByCapability(entries []Entry, capability string) (Entry, bool) {
+	for _, entry := range entries {
+		if entry.Capability == capability {
+			return entry, true
+		}
+	}
+	return Entry{}, false
+}
+
+func entryHasSurface(entry Entry, tool string) bool {
+	for _, surface := range entry.Surfaces {
+		if surface.Tool == tool {
+			return true
+		}
+	}
+	return false
+}
+
 func TestBuildFlagsOrphanAndUnmatched(t *testing.T) {
 	t.Parallel()
 
