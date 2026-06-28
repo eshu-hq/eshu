@@ -131,7 +131,9 @@ describe("RelationshipsPage", () => {
 
     expect(await screen.findByText("server/index.ts")).toBeInTheDocument();
     expect(screen.getByText("express")).toBeInTheDocument();
-    expect(screen.getByText("import statement")).toBeInTheDocument();
+    expect(screen.getByText("jsonwebtoken")).toBeInTheDocument();
+    // Both edges share the same evidence string.
+    expect(screen.getAllByText("import statement")).toHaveLength(2);
   });
 
   it("renders source_tool badge on edges that carry it", async () => {
@@ -139,18 +141,22 @@ describe("RelationshipsPage", () => {
       post: async (path: string) => (path.endsWith("/catalog") ? catalogEnvelope : edgesEnvelope),
     } as unknown as EshuApiClient;
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <RelationshipsPage model={liveModel()} client={client} />
       </MemoryRouter>,
     );
 
     fireEvent.click(await screen.findByText("IMPORTS"));
+    // Wait for the edge slice (the second edge carries source_tool: "terraform").
+    expect(await screen.findByText("jsonwebtoken")).toBeInTheDocument();
 
-    // The second edge carries source_tool: "terraform"; a Badge should appear.
-    expect(await screen.findByText("terraform")).toBeInTheDocument();
-    // The first edge has no source_tool; no badge for it (only one badge total).
-    expect(screen.getAllByText("terraform")).toHaveLength(1);
+    // Exactly one edge badge inside the edge list; the first edge has no
+    // source_tool, so no badge for it. The DEPENDS_ON breakdown + filter chips
+    // render "terraform" too, so scope to the edge list to prove the per-edge tag.
+    const edgeBadges = container.querySelectorAll(".rel-edge-list .badge-teal");
+    expect(edgeBadges).toHaveLength(1);
+    expect(edgeBadges[0]).toHaveTextContent("terraform");
   });
 
   it("renders source_tools breakdown under verb tiles that carry it", async () => {
@@ -158,15 +164,18 @@ describe("RelationshipsPage", () => {
       post: async () => catalogEnvelope,
     } as unknown as EshuApiClient;
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <RelationshipsPage model={liveModel()} client={client} />
       </MemoryRouter>,
     );
 
     // DEPENDS_ON tile has source_tools: { terraform: 215, helm: 65 }
-    expect(await screen.findByText(/terraform/)).toBeInTheDocument();
-    expect(screen.getByText(/helm/)).toBeInTheDocument();
+    await screen.findByText("DEPENDS_ON");
+    const breakdown = container.querySelector(".rel-verb-tools");
+    expect(breakdown).not.toBeNull();
+    expect(breakdown).toHaveTextContent("terraform");
+    expect(breakdown).toHaveTextContent("helm");
     // IMPORTS has no source_tools — no breakdown rendered for it.
   });
 
