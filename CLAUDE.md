@@ -152,6 +152,10 @@ skills are active.
   tracing, or query truth.
 - MUST add `eshu-mcp-call-rigor` for MCP/API tool calls or bounded
   graph-backed query contracts.
+- MUST add `eshu-golden-corpus-rigor` for changes the B-7 golden-corpus gate
+  asserts (collector facts, reducer/projector graph output, query/MCP response
+  shapes, a new verb/edge/correlation) or any cassette, B-12 snapshot, or gate
+  file — keep the cassettes and snapshot (the golden standard) in lockstep.
 - MUST add `eshu-release` for release, versioning, image, Helm, and GitHub
   Release work.
 - MUST add `eshu-folder-doc-keeper` for package `README.md`, `doc.go`, or
