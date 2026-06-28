@@ -147,7 +147,7 @@ if [[ "${mode}" == "staged" ]]; then
     if is_docs_trigger "${file_path}"; then
       changed_files+=("${file_path}")
     fi
-  done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+  done < <(git diff --cached --name-only -z --diff-filter=ACMRD)
 else
   base_ref="$(base_ref_from_env)"
   diff_left="$(resolve_diff_left "${base_ref}")"
@@ -156,7 +156,7 @@ else
     if is_docs_trigger "${file_path}"; then
       changed_files+=("${file_path}")
     fi
-  done < <(git diff --name-only -z --diff-filter=ACMR "${diff_left}" HEAD)
+  done < <(git diff --name-only -z --diff-filter=ACMRD "${diff_left}" HEAD)
 fi
 
 log "${#changed_files[@]} ${file_label} docs/navigation/project-guidance files"

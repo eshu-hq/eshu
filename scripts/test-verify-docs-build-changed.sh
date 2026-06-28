@@ -286,6 +286,27 @@ test_agents_skills_triggers_build() {
   assert_contains "[fake-uv] mkdocs build SUCCESS" "${out}"
 }
 
+# 12. Branch-mode deletion of a docs file triggers the gate.
+test_branch_deletion_triggers_build() {
+  local repo_dir="${tmp_root}/branch-deletion"
+  local out="${tmp_root}/branch-deletion.out"
+  git_init "${repo_dir}"
+  git_in "${repo_dir}" rm docs/public/index.md
+  git_in "${repo_dir}" commit -q -m "docs: remove index page"
+  run_verifier "${repo_dir}" "${out}"
+  assert_contains "[fake-uv] mkdocs build SUCCESS" "${out}"
+}
+
+# 13. Staged-mode deletion of a docs file triggers the gate.
+test_staged_deletion_triggers_build() {
+  local repo_dir="${tmp_root}/staged-deletion"
+  local out="${tmp_root}/staged-deletion.out"
+  git_init "${repo_dir}"
+  git_in "${repo_dir}" rm docs/public/index.md
+  run_verifier "${repo_dir}" "${out}" --staged
+  assert_contains "[fake-uv] mkdocs build SUCCESS" "${out}"
+}
+
 # ─── Run ────────────────────────────────────────────────────────────
 
 test_no_docs_changes_skips
@@ -299,5 +320,7 @@ test_staged_mode_respects_docs_changes
 test_staged_mode_no_docs_skips
 test_opencode_agent_triggers_build
 test_agents_skills_triggers_build
+test_branch_deletion_triggers_build
+test_staged_deletion_triggers_build
 
 echo "test-docs-build: all tests passed"
