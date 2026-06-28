@@ -4,8 +4,8 @@
 
 `internal/parser/swift` owns Swift language extraction without importing the
 parent `internal/parser` package. It emits the Swift payload, dead-code root
-hints, and pre-scan names for imports, nominal types, functions, variables, and
-bounded call metadata.
+hints, exact Vapor route entries, and pre-scan names for imports, nominal types,
+functions, variables, and bounded call metadata.
 
 ## Ownership boundary
 
@@ -56,9 +56,16 @@ calls, and real subscript, initializer, and chained-method calls the scanner
 missed are now captured. `super`/`self` receiver calls keep their receiver text.
 
 The Vapor `use:` route hint is the one documented permanent exception: it has no
-symbol-node form, so `collectSwiftVaporRouteHandlers` reads it as framework
-evidence from the `value_argument_label` `use`, feeding the
-`swift.vapor_route_handler` dead-code root without emitting a symbol row.
+symbol-node form, so `collectSwiftVaporRoutes` reads it as framework evidence
+from the `value_argument_label` `use`, feeding the `swift.vapor_route_handler`
+dead-code root without emitting a symbol row. The same AST-backed pass emits
+`framework_semantics.vapor.route_entries` only in files importing `Vapor`, for
+exact calls on receivers typed `Application` or `RoutesBuilder` with literal
+path segments and a simple handler identifier, such as
+`app.get("health", use: health)` or `app.on(.DELETE, "widgets", ":id", use:
+deleteWidget)`. Closure handlers, dynamic path expressions, computed route
+groups, generated routes, and non-Vapor Swift web frameworks remain unsupported
+for exact route-to-handler truth.
 
 Dead-code roots must be emitted as `dead_code_root_kinds` metadata, not query
 source fallbacks. Current roots cover `@main` types, `main`, SwiftUI `App` types
@@ -70,8 +77,9 @@ package-local unless another language-owned package has a real caller.
 No-Regression Evidence: the comprehensive-fixture golden gate
 `TestSwiftComprehensiveSymbolExtractionGate` and the parity tests
 `TestDefaultEngineParsePathSwift*` pin imports, bases, class context, args, end
-lines, variable types, constructor roots, protocol roots, dead-code roots, and
-pre-scan names; `go test ./internal/parser/... -count=1` passes (1269 tests).
+lines, variable types, constructor roots, protocol roots, Vapor route entries,
+dead-code roots, and pre-scan names; `go test ./internal/parser/... -count=1`
+passes (1269 tests).
 `engine_swift_ast_migration_test.go` red-proves the regex-false-positive removal
 and full-body source span against pre-migration `main`. No-Observability-Change:
 this parser-local extraction change adds no metric, span, log, status field,

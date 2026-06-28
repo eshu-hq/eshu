@@ -25,6 +25,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Imports | `imports` | supported | `imports` | `name, line_number` | `relationship:IMPORTS` | `go/internal/parser/engine_swift_semantics_test.go::TestDefaultEngineParsePathSwiftEmitsImportAndCallMetadata` | Compose-backed fixture verification | - |
 | Function calls | `function-calls` | supported | `function_calls` | `name, line_number` | `relationship:CALLS` | `go/internal/parser/engine_swift_semantics_test.go::TestDefaultEngineParsePathSwiftEmitsImportAndCallMetadata` | Compose-backed fixture verification | - |
 | Property declarations | `property-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_swift_semantics_test.go::TestDefaultEngineParsePathSwiftEmitsVariableContextAndTypeMetadata` | Compose-backed fixture verification | - |
+| Vapor literal route entries | `vapor-literal-route-entries` | supported | `framework_semantics.vapor.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` | `go/internal/parser/engine_swift_vapor_routes_test.go::TestDefaultEngineParsePathSwiftVaporRouteEntries`, `go/internal/reducer/handles_route_swift_test.go::TestBuildHandlesRouteIntentRowsEmitsSwiftVaporRouteMatches` | Focused reducer projection validation | Exact only in files importing `Vapor`, for literal registrations on receivers typed `Application` or `RoutesBuilder`, such as `app.get("path", use: handler)` and `app.on(.METHOD, "path", use: handler)` where the handler is a simple identifier. |
 | Dead-code roots | `dead-code-derived-roots` | derived | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` root suppression | `go/internal/parser/swift_dead_code_roots_test.go::TestDefaultEngineParsePathSwiftEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_swift_roots_test.go::TestHandleDeadCodeExcludesSwiftRootKindsFromMetadata` | Swift dogfood validation | Parser metadata marks `@main` types, top-level `main`, SwiftUI `App` types and `body`, protocol methods and same-file implementations, constructors, overrides, UIKit application delegate callbacks, Vapor route handlers, XCTest methods, and Swift Testing `@Test` functions as non-exact roots. |
 
 ## Known Limitations
@@ -49,9 +50,12 @@ Supported today:
 
 - SwiftUI app types and `body`, UIKit application delegate callbacks, Vapor
   route handlers, XCTest methods, and Swift Testing `@Test` functions are
-  modeled as derived roots. Vapor handler roots are not exact route entries;
-  Swift does not emit `framework_semantics.*.route_entries` or `HANDLES_ROUTE`
-  edges today.
+  modeled as derived roots.
+- Files importing `Vapor` can emit exact route entries for receiver route
+  registrations on receivers typed `Application` or `RoutesBuilder`, with
+  literal path segments and a simple `use:` handler identifier through
+  `framework_semantics.vapor.route_entries`, and can materialize
+  `HANDLES_ROUTE` edges when the handler resolves uniquely.
 - `@main` types, top-level `main`, protocol methods and same-file
   implementations, constructors, and overrides are modeled as root evidence.
 
@@ -60,5 +64,7 @@ Not claimed today:
 - Macros, conditional compilation, SwiftPM target resolution, protocol witness
   resolution, property-wrapper generated code, result builders, Objective-C
   runtime dispatch, and broad public API surfaces remain exactness blockers.
-- Exact route-to-handler truth for Vapor and other Swift web frameworks is
-  tracked by [#4098](https://github.com/eshu-hq/eshu/issues/4098).
+- Vapor closure handlers, nonliteral path expressions, computed route groups,
+  generated routes, and other Swift web frameworks remain unsupported for exact
+  route-to-handler truth and stay tracked by
+  [#4165](https://github.com/eshu-hq/eshu/issues/4165).

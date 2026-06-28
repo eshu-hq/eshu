@@ -60,7 +60,7 @@ Not claimed today:
   dispatch remain outside the exactness boundary.
 - Exact route-to-handler truth for Laravel, Symfony, WordPress, and other PHP
   frameworks is tracked by
-  [#4098](https://github.com/eshu-hq/eshu/issues/4098).
+  [#4162](https://github.com/eshu-hq/eshu/issues/4162).
 
 ## Known Limitations
 
