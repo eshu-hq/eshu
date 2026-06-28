@@ -75,6 +75,55 @@ R-4 (input tape, `http.RoundTripper` record/replay), R-5 (offline replay gate
 tier — runs real NornicDB, never an in-memory fake, so backend-specific bugs
 surface), R-6 (credentialed cassette refresh workflow).
 
+### R-6 — credentialed cassette refresh workflow (PR #4108)
+
+The refresh workflow keeps committed cassettes fresh against real provider APIs
+without a contributor needing live credentials locally. It is label-gated:
+applying the `[refresh-cassettes]` label to a PR triggers a hosted-runner job
+that builds each collector binary, runs it with `-mode=record`, and opens (or
+force-updates) a PR with the canonical diff against the committed fixtures.
+`workflow_dispatch` is also supported for operator-initiated one-shot refreshes.
+
+**Label gate rationale.** A credentialed run that contacts real AWS/k8s/GCP
+APIs must be an explicit operator action. Triggering on `pull_request: types:
+[labeled]` with an `if: github.event.label.name == 'refresh-cassettes'` guard
+ensures no credential is consumed by an unlabeled PR push or an accidental
+merge. This is consistent with the repo's other credentialed workflows that
+are either operator-only or remote-only.
+
+**Canonical-diff legibility.** Because the recorder writes canonical output
+(sorted keys, sorted arrays, volatile fields collapsed to sentinels) the diff
+against the committed fixture is always minimal: re-recording an unchanged
+provider API produces an empty diff; a single fact-field change produces one
+changed line. Reviewers can reason about exactly what changed in the provider
+API without wading through timestamp churn or ordering noise. This property is
+proved offline in `go/internal/replay/refreshworkflow` (no credentials, no
+network, no Docker) by `TestCanonicalDiffIsLegible`, which asserts that
+altering one payload field produces exactly one changed line in the diff.
+
+**Redaction.** The recorder calls `replay.Canonicalize` with
+`WithRedactedKeys` for any collector whose fact payloads can carry credential-
+bearing fields; the HTTP boundary is redacted separately by the input tape
+(R-4). Committed cassettes therefore never contain live secrets regardless of
+what the provider API returned. The redaction property is proved offline by
+`TestRedactionNeverLeaksSecrets`, which asserts that the configured secret
+value does not appear anywhere in the canonical output and that the redaction
+sentinel is present in its place.
+
+**Injection safety.** All GitHub Actions context values that flow into shell
+`run:` steps are bound to environment variables at the step boundary, never
+interpolated directly into the shell script. The PR-body trigger line is built
+from those env vars so an attacker cannot inject shell commands via a PR number
+or event name.
+
+**Files shipped by R-6:**
+
+| File | Purpose |
+| --- | --- |
+| `.github/workflows/refresh-cassettes.yml` | Label-gated CI workflow |
+| `go/internal/replay/refreshworkflow/` | Offline proofs (canonical-diff + redaction) |
+| `scripts/test-cassette-refresh-workflow.sh` | Static mirror test for the workflow contract |
+
 ## 7. Phase 2 — remaining integration levels
 
 R-7 (parser-fixture flavor), R-8 (API/query response replay), R-9 (MCP tool-call

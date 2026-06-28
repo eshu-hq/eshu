@@ -1,0 +1,254 @@
+name: Refresh Cassettes
+
+# R-6 credentialed cassette refresh workflow (epic #4102, issue #4108).
+#
+# This workflow records fresh cassettes from real provider APIs and opens (or
+# force-updates) a pull request with the canonical diff against the committed
+# fixtures. It is intentionally not triggered by plain PR pushes or merges:
+# a credentialed run that contacts real AWS/k8s/GCP APIs must be an explicit
+# operator action, never an accidental side-effect of a code review push.
+#
+# Two triggers are supported:
+#
+#   [refresh-cassettes] label — apply this label to any open PR; the job
+#     runs on a hosted runner with the credentials injected as env vars, then
+#     opens a separate PR (branch: automation/cassette-refresh) that carries
+#     the diff.
+#
+#   workflow_dispatch — an operator manually triggers a refresh from the
+#     Actions UI, optionally restricting to one collector for faster iteration.
+#
+# Safety properties (proved locally in go/internal/replay/refreshworkflow):
+#
+#   1. Canonical-diff legibility: because the recorder writes canonical output
+#      (sorted keys, sorted arrays, volatile fields collapsed), re-recording an
+#      unchanged provider API produces an empty diff. A fact-shape change
+#      produces a small, line-level, reviewable delta.
+#
+#   2. Redaction: secrets never appear in the committed cassettes. The recorder
+#      calls replay.Canonicalize with WithRedactedKeys for any collector that
+#      carries credential-bearing payload fields; the HTTP boundary is redacted
+#      separately by the input tape (R-4).
+#
+# These properties hold because the CI job uses the same recorder.Run /
+# Canonicalize path the local tests exercise — there is no separate "CI
+# recording path" that could skip redaction.
+
+on:
+  # Label-gated: requires the exact label name to prevent accidental triggers.
+  # The `pull_request` event fires on labeled/unlabeled as well as the normal
+  # push triggers; the job's `if:` condition narrows it to labeled only.
+  pull_request:
+    types: [labeled]
+
+  # Manual trigger: lets an operator refresh without opening a PR first.
+  workflow_dispatch:
+    inputs:
+      collector:
+        description: >
+          Collector to refresh (e.g. kubernetes_live, aws_cloud). Leave empty
+          to refresh all collectors with committed cassettes.
+        required: false
+        type: string
+        default: ''
+
+# Prevent concurrent refresh runs: re-recording and force-pushing the same
+# branch while a prior run is still in flight would produce a garbled diff.
+concurrency:
+  group: cassette-refresh
+  cancel-in-progress: false
+
+# Minimal permissions for the static mirror job; the record job elevates to
+# write so it can push the branch and open a PR.
+permissions:
+  contents: read
+
+jobs:
+
+  # -----------------------------------------------------------------------
+  # static-mirror: validates the offline-provable properties. Runs on every
+  # trigger (labeled PR or workflow_dispatch) before the credentialed job
+  # begins, so a mis-wired workflow fails fast without spending credentials.
+  # -----------------------------------------------------------------------
+  static-mirror:
+    name: Cassette refresh static mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Run for label events only when the correct label was applied; always
+    # run for workflow_dispatch.
+    #
+    # IMPORTANT: this `if:` guard is intentionally duplicated verbatim in the
+    # `record` job below. GitHub Actions does not support YAML anchors, so the
+    # two must be kept in sync manually. If the label name ever changes, update
+    # both this block and the identical block in the `record` job.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.action == 'labeled' &&
+       github.event.label.name == 'refresh-cassettes')
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run static mirror
+        run: bash scripts/test-cassette-refresh-workflow.sh
+
+      - name: Run offline Go tests (canonical-diff + redaction)
+        working-directory: go
+        run: go test ./internal/replay/refreshworkflow -count=1 -v
+
+  # -----------------------------------------------------------------------
+  # record: the credentialed run. Builds each collector binary, invokes it
+  # in -mode=record, and opens/updates the diff PR. Only runs after the
+  # static-mirror job passes; only runs when the correct label is present
+  # (or workflow_dispatch).
+  # -----------------------------------------------------------------------
+  record:
+    name: Record cassettes (credentialed)
+    needs: static-mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Elevate to write so we can git push and gh pr create.
+    permissions:
+      contents: write
+      pull-requests: write
+    # IMPORTANT: keep this `if:` guard identical to the one in `static-mirror`
+    # above. GitHub Actions has no YAML anchors; if the label name changes both
+    # blocks must be updated together.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.action == 'labeled' &&
+       github.event.label.name == 'refresh-cassettes')
+    env:
+      # Each collector binary reads its provider credentials from the
+      # environment. These names must match the collector's documented config
+      # contract. Only the credentials required by collectors that actually
+      # have committed cassettes are listed here; add a new entry when a new
+      # credentialed collector is onboarded.
+      #
+      # Secrets are injected as env vars and never echoed. Temporary
+      # kubeconfig materialization stays outside the repo; the recorder writes
+      # only canonical redacted cassette bytes to testdata/cassettes/.
+      ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID: ${{ secrets.ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID }}
+      ESHU_KUBERNETES_LIVE_CLUSTERS_JSON: ${{ secrets.ESHU_KUBERNETES_LIVE_CLUSTERS_JSON }}
+      # Optional base64-encoded kubeconfig. When set, the workflow writes it to
+      # /tmp/eshu-kubernetes-live/kubeconfig; kubeconfig-backed cluster entries
+      # in ESHU_KUBERNETES_LIVE_CLUSTERS_JSON must reference that path.
+      ESHU_KUBERNETES_LIVE_KUBECONFIG_B64: ${{ secrets.ESHU_KUBERNETES_LIVE_KUBECONFIG_B64 }}
+      # GITHUB_TOKEN is the standard Actions token — used only for git push
+      # and gh pr create, not as a provider credential.
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          # Fetch enough history for a clean branch push without a shallow-clone
+          # rebase conflict (house rule for eshu worktrees).
+          fetch-depth: 25
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Build collector binaries
+        working-directory: go
+        run: |
+          # Build only the collectors that have committed cassettes and
+          # support -mode=record (pilot: kubernetes_live).
+          go build -o /tmp/collector-kubernetes-live ./cmd/collector-kubernetes-live
+
+      - name: Materialize kubernetes_live kubeconfig
+        if: ${{ env.ESHU_KUBERNETES_LIVE_KUBECONFIG_B64 != '' }}
+        run: |
+          kubeconfig="/tmp/eshu-kubernetes-live/kubeconfig"
+          install -d -m 0700 "$(dirname "${kubeconfig}")"
+          base64 --decode <<<"${ESHU_KUBERNETES_LIVE_KUBECONFIG_B64}" > "${kubeconfig}"
+          chmod 0600 "${kubeconfig}"
+
+      - name: Record kubernetes_live cassette
+        # Only run when no specific collector was requested, or when the
+        # requested collector matches.
+        if: >
+          github.event.inputs.collector == '' ||
+          github.event.inputs.collector == 'kubernetes_live'
+        run: |
+          /tmp/collector-kubernetes-live \
+            -mode=record \
+            -cassette-file=testdata/cassettes/kuberneteslive/supply-chain-demo.json
+
+      - name: Open or update the diff PR
+        # SECURITY: all GitHub context values that flow into shell commands are
+        # bound to env vars here, never interpolated directly into the run:
+        # script. This prevents expression-injection attacks where an attacker
+        # controls a context value (e.g. event_name, PR number) that gets
+        # shell-executed. See:
+        # https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Bind the two context values used in the PR body to env vars so
+          # they are passed through the environment, not interpolated by the
+          # GitHub Actions expression evaluator into shell syntax.
+          GHA_EVENT_NAME: ${{ github.event_name }}
+          GHA_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if git diff --quiet -- testdata/cassettes/; then
+            echo "cassettes unchanged — no diff PR needed"
+            exit 0
+          fi
+
+          branch="automation/cassette-refresh"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}" 2>/dev/null || git checkout "${branch}"
+          git add testdata/cassettes/
+          git commit -m "chore(replay): cassette refresh (R-6, #4108)"
+          git push -f origin "${branch}"
+
+          # Build the trigger line from env vars (never from interpolated
+          # expressions) so an attacker cannot inject shell commands via a
+          # PR number or event_name value.
+          if [[ "${GHA_EVENT_NAME}" == "pull_request" && -n "${GHA_PR_NUMBER}" ]]; then
+            trigger_line="Triggered by pull_request on PR #${GHA_PR_NUMBER}"
+          else
+            trigger_line="Triggered by workflow_dispatch"
+          fi
+
+          # Write the PR body to a temp file so the YAML block scalar does not
+          # need to carry a multi-line shell string with colons or special chars
+          # that confuse the YAML parser.
+          pr_body_file="$(mktemp)"
+          {
+            printf '%s\n\n' "${trigger_line}"
+            printf '%s\n' "What to review in this diff:"
+            printf '%s\n' "- Each changed line reflects a real change in a fact field from the provider API."
+            printf '%s\n' "- Secrets are never present: the recorder runs Canonicalize with WithRedactedKeys; any credential-bearing field appears as <redacted>."
+            printf '%s\n' "- The diff is line-level, not whole-file: cassettes are canonical (sorted keys, sorted arrays, volatile fields collapsed) so a re-record of unchanged API output produces an empty diff."
+            printf '\n%s\n' "How to regenerate: Apply the [refresh-cassettes] label to a PR, or trigger refresh-cassettes.yml via workflow_dispatch."
+          } > "${pr_body_file}"
+
+          gh pr create \
+            --base main \
+            --head "${branch}" \
+            --title "chore(replay): cassette refresh (R-6, #4108)" \
+            --body-file "${pr_body_file}" \
+            2>/dev/null \
+            || gh pr edit "${branch}" \
+                 --body "Automated canonical cassette refresh — updated $(date -u +%Y-%m-%d)."
+
+          rm -f "${pr_body_file}"
+          echo "diff PR opened or updated on branch ${branch}"
