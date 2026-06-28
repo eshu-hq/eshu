@@ -65,3 +65,30 @@ domain, worker, lease, runtime knob, metric instrument, metric label, span, or
 log line. Operators continue to diagnose route projection through existing file
 fact payloads, reducer run spans, reducer execution counters, projection intent
 payloads, shared projection status/readiness surfaces, and API/MCP query spans.
+
+## C# ASP.NET Route Parity (#4115)
+
+No-Regression Evidence: `go test ./internal/parser -run
+'TestDefaultEngineParsePathCSharpASPNet.*RouteEntries' -count=1` proves C#
+emits exact route entries for literal ASP.NET Core MVC/Web API attributes and
+literal minimal API `Map*` registrations, while dynamic paths, tokenized
+controller/action route names, `[NonAction]` methods, convention-only
+controllers, inline lambdas, and non-identifier handlers stay non-emitting.
+`go test ./internal/reducer -run
+'Test(BuildHandlesRouteIntentRows|FrameworkAPIEndpointSignals)' -count=1`
+proves those route entries produce endpoint signals and exact `HANDLES_ROUTE`
+intents only when the handler resolves to one Function entity.
+
+No-Regression Evidence: this C# route slice is no-provider-required. It uses
+local C# source bytes, tree-sitter AST nodes, explicit local `using`
+directives, literal route strings, literal HTTP methods, and named handler
+identifiers only. It adds no semantic provider call, embedder, collector
+credential, external network dependency, or provider-key-gated fact family.
+
+No-Observability-Change: ASP.NET route extraction is a pure parser payload
+addition consumed by the existing endpoint and `HANDLES_ROUTE` projection paths.
+It adds no route, graph query, graph write shape, queue domain, worker, lease,
+runtime knob, metric instrument, metric label, span, or log line. Operators
+continue to diagnose route projection through existing file fact payloads,
+reducer run spans, reducer execution counters, projection intent payloads,
+shared projection status/readiness surfaces, and API/MCP query spans.

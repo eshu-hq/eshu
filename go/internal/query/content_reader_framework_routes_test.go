@@ -215,6 +215,48 @@ func TestParseFrameworkSemanticsExtractsJavaScriptFrameworkRoutes(t *testing.T) 
 	}
 }
 
+func TestParseFrameworkSemanticsExtractsCSharpASPNetRoutes(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["aspnet", "aspnet_minimal_api"],
+		"aspnet": {
+			"route_methods": ["GET"],
+			"route_paths": ["/api/orders/{id}"],
+			"route_entries": [{"method": "GET", "path": "/api/orders/{id}", "handler": "OrdersController.Get"}]
+		},
+		"aspnet_minimal_api": {
+			"route_methods": ["POST"],
+			"route_paths": ["/orders"],
+			"route_entries": [{"method": "POST", "path": "/orders", "handler": "CreateOrder"}]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("Controllers/OrdersController.cs", raw)
+	if len(results) != 2 {
+		t.Fatalf("len(results) = %d, want 2", len(results))
+	}
+	wantHandlers := map[string]string{
+		"aspnet":             "OrdersController.Get",
+		"aspnet_minimal_api": "CreateOrder",
+	}
+	for _, route := range results {
+		if route.RelativePath != "Controllers/OrdersController.cs" {
+			t.Fatalf("RelativePath = %q, want Controllers/OrdersController.cs", route.RelativePath)
+		}
+		if len(route.RouteEntries) != 1 {
+			t.Fatalf("%s RouteEntries = %#v, want exactly one entry", route.Framework, route.RouteEntries)
+		}
+		want, ok := wantHandlers[route.Framework]
+		if !ok {
+			t.Fatalf("unexpected framework %q in results %#v", route.Framework, results)
+		}
+		if got := route.RouteEntries[0].Handler; got != want {
+			t.Fatalf("%s handler = %q, want %q", route.Framework, got, want)
+		}
+	}
+}
+
 func TestParseFrameworkSemanticsExtractsNextJSRouteModules(t *testing.T) {
 	t.Parallel()
 
