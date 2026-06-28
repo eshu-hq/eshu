@@ -1,0 +1,36 @@
+{
+  "collector": "security_alert",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "security_alert:example-org/emit-bench-service",
+      "source_system": "security_alert",
+      "scope_kind": "security_alert",
+      "collector_kind": "security_alert",
+      "partition_key": "security_alert:example-org/emit-bench-service",
+      "metadata": {
+        "provider": "synthetic_provider"
+      },
+      "generation_id": "emit-bench-secalert-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "security_alert.repository_alert",
+          "stable_fact_key": "security_alert.repository_alert:example-org/emit-bench-service:alert-1",
+          "schema_version": "1.0.0",
+          "collector_kind": "security_alert",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repository": "example-org/emit-bench-service",
+            "alert_number": 1,
+            "state": "open",
+            "severity": "high",
+            "alert_kind": "dependabot"
+          }
+        }
+      ]
+    }
+  ]
+}

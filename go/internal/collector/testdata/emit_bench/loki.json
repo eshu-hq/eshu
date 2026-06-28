@@ -1,0 +1,46 @@
+{
+  "collector": "loki",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "loki:emit-bench-logs",
+      "source_system": "loki",
+      "scope_kind": "log_source",
+      "collector_kind": "loki",
+      "partition_key": "loki:emit-bench-logs",
+      "metadata": {
+        "endpoint": "https://loki.example.test"
+      },
+      "generation_id": "emit-bench-loki-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.declared_log_route",
+          "stable_fact_key": "observability.declared_log_route:loki:emit-bench-service",
+          "schema_version": "1.0.0",
+          "collector_kind": "loki",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_name": "emit-bench-service",
+            "label_selector": "{app=\"emit-bench-service\"}"
+          }
+        },
+        {
+          "fact_kind": "observability.observed_log_signal",
+          "stable_fact_key": "observability.observed_log_signal:loki:emit-bench-service",
+          "schema_version": "1.0.0",
+          "collector_kind": "loki",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_name": "emit-bench-service",
+            "stream_count": 3,
+            "observed_at": "2026-06-25T00:00:00Z"
+          }
+        }
+      ]
+    }
+  ]
+}

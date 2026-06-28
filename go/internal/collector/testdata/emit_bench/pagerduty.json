@@ -1,0 +1,47 @@
+{
+  "collector": "pagerduty",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "pagerduty:synthetic-account",
+      "source_system": "pagerduty",
+      "scope_kind": "pagerduty_account",
+      "collector_kind": "pagerduty",
+      "partition_key": "pagerduty:synthetic-account",
+      "metadata": {
+        "account_subdomain": "synthetic"
+      },
+      "generation_id": "emit-bench-pagerduty-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "incident_routing.observed_pagerduty_service",
+          "stable_fact_key": "incident_routing.observed_pagerduty_service:PSYNTH01",
+          "schema_version": "1.0.0",
+          "collector_kind": "pagerduty",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_id": "PSYNTH01",
+            "service_name": "emit-bench-service",
+            "status": "active"
+          }
+        },
+        {
+          "fact_kind": "incident_routing.observed_pagerduty_integration",
+          "stable_fact_key": "incident_routing.observed_pagerduty_integration:PSYNTH01:PINTEG01",
+          "schema_version": "1.0.0",
+          "collector_kind": "pagerduty",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_id": "PSYNTH01",
+            "integration_id": "PINTEG01",
+            "integration_kind": "events_api_v2"
+          }
+        }
+      ]
+    }
+  ]
+}

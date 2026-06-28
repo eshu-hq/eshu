@@ -1,0 +1,64 @@
+{
+  "collector": "ci_cd_run",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "ci_cd:github_actions:example-org/emit-bench-service",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd:github_actions:example-org/emit-bench-service",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "example-org/emit-bench-service"
+      },
+      "generation_id": "emit-bench-cicd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.pipeline_definition",
+          "stable_fact_key": "ci.pipeline_definition:example-org/emit-bench-service:build",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "github_actions",
+            "repository": "example-org/emit-bench-service",
+            "workflow_path": ".github/workflows/build.yml",
+            "name": "build"
+          }
+        },
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci.run:example-org/emit-bench-service:1",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "github_actions",
+            "repository": "example-org/emit-bench-service",
+            "run_id": "1",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        },
+        {
+          "fact_kind": "ci.job",
+          "stable_fact_key": "ci.job:example-org/emit-bench-service:1:build",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "run_id": "1",
+            "job_name": "build",
+            "conclusion": "success"
+          }
+        }
+      ]
+    }
+  ]
+}

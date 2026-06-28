@@ -1,0 +1,61 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git:example-org/emit-bench-service",
+      "source_system": "git",
+      "scope_kind": "repository",
+      "collector_kind": "git",
+      "partition_key": "git:example-org/emit-bench-service",
+      "metadata": {
+        "default_branch": "main",
+        "host": "git.example.test"
+      },
+      "generation_id": "emit-bench-git-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:example-org/emit-bench-service",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "example-org/emit-bench-service",
+            "default_branch": "main",
+            "head_commit": "0000000000000000000000000000000000000001"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:example-org/emit-bench-service:cmd/main.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "cmd/main.go",
+            "language": "go",
+            "size_bytes": 512
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:example-org/emit-bench-service:cmd/main.go:main",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "cmd/main.go",
+            "entity_kind": "function",
+            "name": "main"
+          }
+        }
+      ]
+    }
+  ]
+}

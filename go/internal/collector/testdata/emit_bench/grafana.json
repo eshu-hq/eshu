@@ -1,0 +1,47 @@
+{
+  "collector": "grafana",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "grafana:emit-bench-org",
+      "source_system": "grafana",
+      "scope_kind": "dashboard_source",
+      "collector_kind": "grafana",
+      "partition_key": "grafana:emit-bench-org",
+      "metadata": {
+        "endpoint": "https://grafana.example.test"
+      },
+      "generation_id": "emit-bench-grafana-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.declared_dashboard",
+          "stable_fact_key": "observability.declared_dashboard:grafana:emit-bench-overview",
+          "schema_version": "1.0.0",
+          "collector_kind": "grafana",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "emit-bench-overview",
+            "title": "Emit Bench Overview",
+            "folder": "Emit Bench"
+          }
+        },
+        {
+          "fact_kind": "observability.observed_dashboard",
+          "stable_fact_key": "observability.observed_dashboard:grafana:emit-bench-overview",
+          "schema_version": "1.0.0",
+          "collector_kind": "grafana",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "emit-bench-overview",
+            "panel_count": 6,
+            "observed_at": "2026-06-25T00:00:00Z"
+          }
+        }
+      ]
+    }
+  ]
+}
