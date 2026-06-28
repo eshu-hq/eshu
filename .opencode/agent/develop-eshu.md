@@ -1,9 +1,8 @@
 ---
 description: Eshu executor — implements one scoped task with TDD, then runs and pastes the gates
 mode: all
-# Pin to your executor-tier model, e.g.:
-# model: deepseek/deepseek-chat
-# model: minimax/minimax-01
+model: deepseek/deepseek-v4-pro
+variant: max
 permission:
   edit: allow
   write: allow

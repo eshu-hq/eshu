@@ -1,8 +1,8 @@
 ---
 description: Eshu performance engineer — finds bottlenecks and regressions, tunes the graph/storage stack; measures, does not edit code
 mode: all
-# Pin to a strong/frontier tier — tuning needs deep reasoning, not a cheap model:
-# model: anthropic/claude-opus-4-8
+model: openai/gpt-5.5
+variant: high
 permission:
   edit: deny
   write: deny

@@ -1,7 +1,8 @@
 ---
-description: Eshu executor variant pinned to DeepSeek Chat
+description: Eshu executor variant pinned to DeepSeek V4 Pro high
 mode: all
-model: deepseek/deepseek-chat
+model: deepseek/deepseek-v4-pro
+variant: high
 permission:
   edit: allow
   write: allow
@@ -12,7 +13,7 @@ permission:
 
 # Eshu Executor Variant (`develop-eshu-deepseek`)
 
-This is the DeepSeek-pinned variant of `develop-eshu`.
+This is the DeepSeek V4 Pro high variant of `develop-eshu`.
 
 Before work, read and follow `.opencode/agent/develop-eshu.md` and `AGENTS.md`.
 The base executor doctrine remains binding: one scoped surface, TDD first, run
