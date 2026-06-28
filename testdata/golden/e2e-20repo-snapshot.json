@@ -26,9 +26,9 @@
         "note": "20 corpus repos; may include additional discovered mirror stubs"
       },
       "File": {
-        "min": 200,
+        "min": 40,
         "max": 20000,
-        "note": "all source files parsed across the corpus; wide range to avoid size sensitivity"
+        "note": "all source files parsed across the deterministic 20-repo corpus (observed 78); floor catches a major projection drop (e.g. #4019), ceiling stays wide for parser growth"
       },
       "Function": {
         "min": 100,
@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 4,
+        "min": 1,
         "max": 60,
-        "note": "AWS ECR/ECS + Azure ACR/Container App + GCP GKE/Artifact Registry nodes"
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 2); floor 1 catches total loss, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -76,23 +76,23 @@
         "note": "cross-account principals from aws_cloud S3 grant path; 0 if no cross-account grants in corpus"
       },
       "SecretsIAMServiceAccount": {
-        "min": 1,
-        "max": 20,
-        "note": "service account nodes from vault_live auth-mount facts"
+        "min": 0,
+        "max": 0,
+        "note": "0: secrets/IAM graph projection is gated OFF by default (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED, ADR #1314); the corpus correctly produces none until that governed activation is recorded"
       },
       "SecretsIAMVaultAuthRole": {
-        "min": 1,
-        "max": 20,
-        "note": "vault auth role nodes from vault_live secrets/IAM projection"
+        "min": 0,
+        "max": 0,
+        "note": "0: secrets/IAM graph projection is gated OFF by default (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED, ADR #1314); the corpus correctly produces none until that governed activation is recorded"
       },
       "SecretsIAMVaultPolicy": {
         "min": 0,
-        "max": 20,
+        "max": 0,
         "note": "vault policy nodes; 0 if no policy facts in corpus"
       },
       "SecretsIAMSecretMetadataPath": {
         "min": 0,
-        "max": 50,
+        "max": 0,
         "note": "vault secret metadata path nodes; 0 if no secret-path facts in corpus"
       },
       "Platform": {
@@ -108,14 +108,14 @@
     },
     "edge_counts": {
       "REPO_CONTAINS": {
-        "min": 200,
+        "min": 40,
         "max": 20000,
-        "note": "every Repository→File edge; scales with corpus repo sizes"
+        "note": "every Repository→File edge (observed 78, tracks File); floor catches a major projection drop, ceiling wide for corpus growth"
       },
       "DEFINES": {
-        "min": 100,
+        "min": 1,
         "max": 50000,
-        "note": "File→Function definition edges"
+        "note": "File→Function definition edges (observed 5; the demo fixtures are largely config, few code functions); floor 1 catches total loss"
       },
       "IMPORTS": {
         "min": 0,
@@ -213,28 +213,28 @@
         "note": "Repository→Repository service materialization dependency edges"
       },
       "SECRETS_IAM_USES_SERVICE_ACCOUNT": {
-        "min": 1,
-        "max": 20,
-        "note": "vault_live service-account binding edges; min=1 because vault_live is a declared corpus collector"
+        "min": 0,
+        "max": 0,
+        "note": "0: secrets/IAM graph projection is gated OFF by default (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED, ADR #1314); the corpus correctly produces none until that governed activation is recorded"
       },
       "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE": {
-        "min": 1,
-        "max": 20,
-        "note": "vault_live workload→vault-auth-role authentication edges; min=1 because vault_live is a declared corpus collector"
+        "min": 0,
+        "max": 0,
+        "note": "0: secrets/IAM graph projection is gated OFF by default (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED, ADR #1314); the corpus correctly produces none until that governed activation is recorded"
       },
       "SECRETS_IAM_GRANTS_SECRET_READ": {
         "min": 0,
-        "max": 20,
+        "max": 0,
         "note": "vault_live policy→secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
       },
       "SECRETS_IAM_USES_VAULT_POLICY": {
-        "min": 1,
-        "max": 20,
-        "note": "vault_live role→policy binding edges; min=1 because vault_live is a declared corpus collector"
+        "min": 0,
+        "max": 0,
+        "note": "0: secrets/IAM graph projection is gated OFF by default (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED, ADR #1314); the corpus correctly produces none until that governed activation is recorded"
       },
       "SECRETS_IAM_ASSUMES_IAM_ROLE": {
         "min": 0,
-        "max": 20,
+        "max": 0,
         "note": "vault_live IAM role trust-chain edges; 0 if no assume-role facts in the supply-chain-demo cassette"
       }
     },

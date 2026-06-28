@@ -12,9 +12,9 @@
 //	              shared_projection_intents check is the B-13 (#3859) gate:
 //	              fact_work_items == 0 alone misses held projection intents.
 //	(b) graph   — required correlations exist (rc-1 deployable-unit, rc-3
-//	              DEPENDS_ON, ...); node/edge counts are reported against the
-//	              snapshot tolerances as advisory (the ranges are calibrated for
-//	              the 20-repo corpus).
+//	              DEPENDS_ON, ...); in the full 20-repo mode
+//	              (-graph-required-only=false) the node/edge counts are asserted
+//	              as required against the snapshot tolerances (#3866).
 //	(c) query   — canonical HTTP responses carry their required shape.
 //	(d) timing  — pipeline wall time stays within a budget multiplier.
 //
@@ -65,7 +65,7 @@ func parseFlags(args []string) (options, error) {
 	fs.Float64Var(&o.budgetSeconds, "budget-seconds", 0, "baseline pipeline wall-time budget in seconds (0 disables timing)")
 	fs.Float64Var(&o.budgetMultiplier, "budget-multiplier", 2.0, "allowed multiple of the baseline budget")
 	fs.Float64Var(&o.elapsedSeconds, "elapsed-seconds", 0, "observed pipeline wall time in seconds (from the orchestrator)")
-	fs.BoolVar(&o.graphRequiredOnly, "graph-required-only", true, "assert only required correlations (minimal corpus); node/edge tolerances are skipped")
+	fs.BoolVar(&o.graphRequiredOnly, "graph-required-only", true, "assert only corpus-size-independent correlations/nodes; when false (full 20-repo corpus) the node/edge count tolerances are asserted as required")
 	fs.StringVar(&o.requiredCorrelations, "required-correlations", "", "comma-separated correlation IDs that fail the gate; others are advisory (empty = all advisory until the corpus produces them)")
 	fs.StringVar(&o.requiredNodeLabels, "required-node-labels", "Repository", "comma-separated node labels that must each have >=1 node (graph-populated smoke check)")
 	fs.StringVar(&o.drainAdvisoryDomains, "drain-advisory-domains", "", "comma-separated shared_projection_intents domains whose nonterminal rows are advisory, not blocking")

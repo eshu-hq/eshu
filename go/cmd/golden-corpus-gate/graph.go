@@ -297,8 +297,9 @@ func checkRequiredNodeAssertions(ctx context.Context, c graphCounter, nodes []Re
 // checkGraph runs every B-7(b) graph assertion: required correlations and
 // node/edge count tolerances. blockingCorrelations names the correlation IDs
 // that fail the gate (the rest are advisory). requiredOnly limits the run to the
-// correlations, used by the minimal 5-repo gate where the 20-repo count ranges
-// do not apply.
+// corpus-size-independent correlation/node assertions; when false (the full
+// 20-repo mode) it additionally asserts the snapshot node/edge count tolerances
+// as required (#3866 criterion 3).
 func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly bool, blockingCorrelations map[string]bool, r *Report) error {
 	for _, rc := range snap.Graph.RequiredCorrelations {
 		var (
@@ -332,19 +333,22 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 		return nil
 	}
 
+	// Reaching here means full-corpus mode (requiredOnly=false): the count
+	// tolerances are calibrated for the 20-repo corpus and are asserted as
+	// required (#3866 criterion 3).
 	for _, label := range sortedKeys(snap.Graph.NodeCounts) {
 		count, err := c.CountNodes(ctx, label)
 		if err != nil {
 			return fmt.Errorf("count nodes %s: %w", label, err)
 		}
-		r.Add(evaluateNodeCount(label, snap.Graph.NodeCounts[label], count))
+		r.Add(evaluateNodeCount(label, snap.Graph.NodeCounts[label], count, true))
 	}
 	for _, rel := range sortedKeys(snap.Graph.EdgeCounts) {
 		count, err := c.CountEdges(ctx, rel)
 		if err != nil {
 			return fmt.Errorf("count edges %s: %w", rel, err)
 		}
-		r.Add(evaluateEdgeCount(rel, snap.Graph.EdgeCounts[rel], count))
+		r.Add(evaluateEdgeCount(rel, snap.Graph.EdgeCounts[rel], count, true))
 	}
 	return nil
 }
