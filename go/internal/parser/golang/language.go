@@ -54,6 +54,9 @@ func Parse(
 		localNameBindings,
 		lookup,
 	)
+	if frameworkSemantics, ok := goHTTPFrameworkSemantics(root, source, importAliases); ok {
+		payload["framework_semantics"] = frameworkSemantics
+	}
 	scope := options.NormalizedVariableScope()
 	packageImportPath := strings.TrimSpace(options.GoPackageImportPath)
 

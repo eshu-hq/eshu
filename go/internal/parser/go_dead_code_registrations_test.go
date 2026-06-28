@@ -25,11 +25,13 @@ import (
 
 func ServeDirect(w handler.ResponseWriter, r *handler.Request) {}
 func ServeMuxed(w handler.ResponseWriter, r *handler.Request) {}
+func ServeStatus(w handler.ResponseWriter, r *handler.Request) {}
 func runDirect(cmd *rootcobra.Command, args []string) {}
 func runAssigned(cmd *rootcobra.Command, args []string) {}
 
 func wire() {
 	handler.HandleFunc("/payments", ServeDirect)
+	handler.HandleFunc("GET /status", ServeStatus)
 	mux := handler.NewServeMux()
 	mux.Handle("/health", handler.HandlerFunc(ServeMuxed))
 	rootCmd := &rootcobra.Command{Run: runDirect}
@@ -51,8 +53,17 @@ func wire() {
 
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeDirect"), "dead_code_root_kinds", "go.net_http_handler_registration")
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeMuxed"), "dead_code_root_kinds", "go.net_http_handler_registration")
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeStatus"), "dead_code_root_kinds", "go.net_http_handler_registration")
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "runDirect"), "dead_code_root_kinds", "go.cobra_run_registration")
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "runAssigned"), "dead_code_root_kinds", "go.cobra_run_registration")
+	assertFrameworksEqual(t, got, "net_http")
+	assertNestedStringSliceEqual(t, got, "net_http", "route_methods", []string{"ANY", "GET"})
+	assertNestedStringSliceEqual(t, got, "net_http", "route_paths", []string{"/payments", "/status", "/health"})
+	assertNestedRouteEntriesEqual(t, got, "net_http", []map[string]string{
+		{"method": "ANY", "path": "/payments", "handler": "ServeDirect"},
+		{"method": "GET", "path": "/status", "handler": "ServeStatus"},
+		{"method": "ANY", "path": "/health", "handler": "ServeMuxed"},
+	})
 }
 
 func TestDefaultEngineParsePathGoIgnoresUnknownHandleFuncReceivers(t *testing.T) {
@@ -89,6 +100,9 @@ func wire() {
 	}
 
 	functionItem := assertFunctionByName(t, got, "maybeHTTP")
+	if semantics, ok := got["framework_semantics"]; ok {
+		t.Fatalf("framework_semantics = %#v, want absent for unknown mux receiver", semantics)
+	}
 	assertParserStringSliceContains(t, functionItem, "dead_code_root_kinds", "go.function_value_reference")
 	assertParserStringSliceNotContains(
 		t,

@@ -19,18 +19,7 @@ func goRegisteredDeadCodeRootKinds(
 		return registered
 	}
 
-	serveMuxVars := goKnownVariableNames(root, source, func(expr string) bool {
-		httpAliases := goAliasesForImportPath(importAliases, "net/http")
-		for _, alias := range httpAliases {
-			lowerAlias := strings.ToLower(alias)
-			if expr == lowerAlias+".newservemux()" ||
-				expr == "&"+lowerAlias+".servemux{}" ||
-				expr == lowerAlias+".servemux{}" {
-				return true
-			}
-		}
-		return false
-	})
+	serveMuxVars := goHTTPServeMuxVars(root, source, importAliases)
 	cobraVars := goKnownVariableNames(root, source, func(expr string) bool {
 		cobraAliases := goAliasesForImportPath(importAliases, "github.com/spf13/cobra")
 		for _, alias := range cobraAliases {
@@ -55,6 +44,25 @@ func goRegisteredDeadCodeRootKinds(
 	})
 
 	return registered
+}
+
+func goHTTPServeMuxVars(
+	root *tree_sitter.Node,
+	source []byte,
+	importAliases map[string][]string,
+) map[string]struct{} {
+	return goKnownVariableNames(root, source, func(expr string) bool {
+		httpAliases := goAliasesForImportPath(importAliases, "net/http")
+		for _, alias := range httpAliases {
+			lowerAlias := strings.ToLower(alias)
+			if expr == lowerAlias+".newservemux()" ||
+				expr == "&"+lowerAlias+".servemux{}" ||
+				expr == lowerAlias+".servemux{}" {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 func goKnownVariableNames(
