@@ -5851,6 +5851,78 @@
       }
     },
     {
+      "capability": "platform_impact.contract_impact",
+      "display_name": "Platform Impact Contract Impact",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "investigate_contract_impact",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_contract_scope"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "indexed_workspace"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "none"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "multi_repo_platform"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-contract-impact"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "service_runtime",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "repository_metadata",
+          "service_runtime"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "developer",
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
       "capability": "platform_impact.dependency_path",
       "display_name": "Platform Impact Dependency Path",
       "maturity": "general_availability",

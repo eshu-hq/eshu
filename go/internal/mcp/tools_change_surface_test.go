@@ -226,6 +226,82 @@ func TestResolveRouteMapsDeveloperChangePlanToBoundedBody(t *testing.T) {
 	}
 }
 
+func TestContractImpactToolContract(t *testing.T) {
+	t.Parallel()
+
+	var tool *ToolDefinition
+	for _, candidate := range ecosystemTools() {
+		if candidate.Name == "investigate_contract_impact" {
+			tool = &candidate
+			break
+		}
+	}
+	if tool == nil {
+		t.Fatal("investigate_contract_impact tool is not registered")
+	}
+	schema := tool.InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	for _, key := range []string{"family", "provider_repo_id", "consumer_repo_id", "repo_id", "route", "topic", "service_name", "method", "limit"} {
+		if _, ok := properties[key]; !ok {
+			t.Fatalf("tool schema missing %q", key)
+		}
+	}
+	family := properties["family"].(map[string]any)
+	enum := family["enum"].([]string)
+	for _, want := range []string{"http", "topic", "grpc"} {
+		if !stringSliceContains(enum, want) {
+			t.Fatalf("family enum = %#v, want %q", enum, want)
+		}
+	}
+	limit := properties["limit"].(map[string]any)
+	if got, want := limit["maximum"], 100; got != want {
+		t.Fatalf("limit maximum = %#v, want %#v", got, want)
+	}
+	for _, want := range []string{"deterministic", "string similarity", "topic", "grpc"} {
+		if !strings.Contains(tool.Description, want) {
+			t.Fatalf("tool description = %q, want %q", tool.Description, want)
+		}
+	}
+}
+
+func TestResolveRouteMapsContractImpactToBoundedBody(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("investigate_contract_impact", map[string]any{
+		"family":           "http",
+		"provider_repo_id": "repo-api",
+		"consumer_repo_id": "repo-web",
+		"route":            "/catalog",
+		"method":           "GET",
+		"limit":            float64(10),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "POST"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/impact/contracts"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	for key, want := range map[string]any{
+		"family":           "http",
+		"provider_repo_id": "repo-api",
+		"consumer_repo_id": "repo-web",
+		"route":            "/catalog",
+		"method":           "GET",
+		"limit":            10,
+	} {
+		if got := body[key]; got != want {
+			t.Fatalf("body[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestDeploymentConfigInfluenceToolContract(t *testing.T) {
 	t.Parallel()
 

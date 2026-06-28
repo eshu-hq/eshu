@@ -15,6 +15,7 @@ func ecosystemTools() []ToolDefinition {
 			},
 		},
 		graphSummaryPacketTool(),
+		contractImpactTool(),
 		{
 			Name:        "trace_deployment_chain",
 			Description: "Trace the full deployment chain for a service across ArgoCD Applications and ApplicationSets.",

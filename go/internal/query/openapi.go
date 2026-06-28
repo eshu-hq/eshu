@@ -82,6 +82,7 @@ func OpenAPISpec() string {
 			openAPIPathsCloudInventory+
 			openAPIPathsCloudRuntimeDrift+
 			openAPIPathsImpact+
+			openAPIPathsContractImpact+
 			openAPIPathsImpactRest+
 			openAPIPathsExposure+
 			openAPIPathsEvidence+

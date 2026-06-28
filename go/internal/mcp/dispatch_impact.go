@@ -37,6 +37,18 @@ func impactRoute(toolName string, args map[string]any) (*route, bool, error) {
 			"environment": str(args, "environment"),
 			"limit":       intOr(args, "limit", 50),
 		}}, true, nil
+	case "investigate_contract_impact":
+		return &route{method: "POST", path: "/api/v0/impact/contracts", body: map[string]any{
+			"family":           str(args, "family"),
+			"provider_repo_id": str(args, "provider_repo_id"),
+			"consumer_repo_id": str(args, "consumer_repo_id"),
+			"repo_id":          str(args, "repo_id"),
+			"route":            str(args, "route"),
+			"topic":            str(args, "topic"),
+			"service_name":     str(args, "service_name"),
+			"method":           str(args, "method"),
+			"limit":            intOr(args, "limit", 25),
+		}}, true, nil
 	case "investigate_change_surface":
 		return &route{method: "POST", path: "/api/v0/impact/change-surface/investigate", body: map[string]any{
 			"target":        str(args, "target"),

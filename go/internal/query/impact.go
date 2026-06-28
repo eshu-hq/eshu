@@ -27,6 +27,7 @@ func (h *ImpactHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/impact/change-surface/investigate", h.investigateChangeSurface)
 	mux.HandleFunc("POST /api/v0/impact/pre-change", h.preChangeImpact)
 	mux.HandleFunc("POST /api/v0/impact/developer-change-plan", h.developerChangePlan)
+	mux.HandleFunc("POST /api/v0/impact/contracts", h.contractImpact)
 	mux.HandleFunc("POST /api/v0/impact/entity-map", h.entityMap)
 	mux.HandleFunc("POST /api/v0/impact/resource-investigation", h.investigateResource)
 	mux.HandleFunc("POST /api/v0/impact/trace-resource-to-code", h.traceResourceToCode)
