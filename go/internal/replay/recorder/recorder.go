@@ -17,12 +17,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
-// schemaVersionV1 is the cassette schema version the recorder writes. It mirrors
-// the version replay/cassette reads; the post-write load-back rejects the output
-// if the two ever diverge, so this stays a self-correcting single literal rather
-// than an exported cross-package coupling.
-const schemaVersionV1 = "1"
-
 // Options configures one record pass.
 type Options struct {
 	// Path is the -cassette-file output location (required).
@@ -110,7 +104,7 @@ func (r *recording) write(opts Options) error {
 	}
 	file := cassette.File{
 		Collector:     opts.CollectorLabel,
-		SchemaVersion: schemaVersionV1,
+		SchemaVersion: cassette.SchemaVersionV1,
 		Scopes:        r.scopes,
 	}
 	raw, err := json.Marshal(file)
@@ -174,5 +168,18 @@ func toFact(env facts.Envelope) cassette.Fact {
 		Payload:          env.Payload,
 		IsTombstone:      env.IsTombstone,
 		SourceURI:        env.SourceRef.SourceURI,
+		SourceRecordID:   recordedSourceRecordID(env),
 	}
+}
+
+// recordedSourceRecordID returns the source-record id to persist. The cassette
+// reader defaults an empty source_record_id to the stable fact key, so when the
+// collector's SourceRecordID already equals the key it is omitted to keep the
+// cassette clean and the round-trip stable; a distinct id (the common case for
+// most collectors) is recorded verbatim so replay reproduces real provenance.
+func recordedSourceRecordID(env facts.Envelope) string {
+	if env.SourceRef.SourceRecordID == env.StableFactKey {
+		return ""
+	}
+	return env.SourceRef.SourceRecordID
 }

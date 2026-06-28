@@ -30,6 +30,7 @@
           },
           "schema_version": "1",
           "source_confidence": "observed",
+          "source_record_id": "k8s-uid-app-001",
           "source_uri": "k8s://default/deploy/app",
           "stable_fact_key": "default/deploy/app"
         }

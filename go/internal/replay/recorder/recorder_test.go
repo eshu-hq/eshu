@@ -67,7 +67,9 @@ func sampleEnvelopes() []facts.Envelope {
 				"name":      "app",
 				"replicas":  float64(3),
 			},
-			SourceRef: facts.Ref{SourceURI: "k8s://default/deploy/app"},
+			// A source-record id distinct from the stable key must round-trip
+			// verbatim (most collectors set these differently).
+			SourceRef: facts.Ref{SourceURI: "k8s://default/deploy/app", SourceRecordID: "k8s-uid-app-001"},
 		},
 		{
 			FactKind:         "kubernetes_workload",
@@ -173,6 +175,16 @@ func TestRecordReplayRoundTripPreservesFacts(t *testing.T) {
 		}
 		if got.SourceRef.SourceURI != want.SourceRef.SourceURI {
 			t.Errorf("%s SourceURI = %q, want %q", got.StableFactKey, got.SourceRef.SourceURI, want.SourceRef.SourceURI)
+		}
+		// SourceRecordID round-trips verbatim when distinct; when the collector
+		// left it equal to the stable key the cassette omits it and replay
+		// defaults it back to the key.
+		wantRecordID := want.SourceRef.SourceRecordID
+		if wantRecordID == "" {
+			wantRecordID = want.StableFactKey
+		}
+		if got.SourceRef.SourceRecordID != wantRecordID {
+			t.Errorf("%s SourceRecordID = %q, want %q (provenance fidelity)", got.StableFactKey, got.SourceRef.SourceRecordID, wantRecordID)
 		}
 	}
 }

@@ -100,6 +100,21 @@ type Fact struct {
 	IsTombstone bool `json:"is_tombstone,omitempty"`
 	// SourceURI is an optional provenance URI for the fact.
 	SourceURI string `json:"source_uri,omitempty"`
+	// SourceRecordID is the collector's source-record identity for the fact. Most
+	// collectors set it to something other than the stable fact key (an upstream
+	// record id, a digest, an event id), so it is recorded distinctly to preserve
+	// provenance verbatim. When empty it defaults to StableFactKey at replay.
+	SourceRecordID string `json:"source_record_id,omitempty"`
+}
+
+// sourceRecordID returns the effective source-record id, defaulting to the
+// stable fact key when the cassette does not carry one (the pre-existing
+// behavior for hand-authored cassettes that omit it).
+func (f Fact) sourceRecordID() string {
+	if id := strings.TrimSpace(f.SourceRecordID); id != "" {
+		return id
+	}
+	return f.StableFactKey
 }
 
 // fencingToken returns the effective fencing token.
