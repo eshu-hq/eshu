@@ -16,6 +16,10 @@
 // (specs/surface-inventory.v1.yaml). The committed surface artifact is
 // data/surface-inventory.generated.json; a drift test keeps it in lockstep with
 // live code so no surface can appear or disappear silently.
+// Collector surface rows also carry source-to-read-surface contracts for emitted
+// fact kinds, projection/read consumers, proof gates, fixtures, and truth
+// profile. The verifier flags live collector fact kinds missing from the
+// contract so source provenance cannot drift from API, MCP, or console reads.
 //
 // Modes:
 //

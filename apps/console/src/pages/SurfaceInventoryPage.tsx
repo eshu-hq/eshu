@@ -27,7 +27,7 @@ const READINESS_TONE: Record<string, "neutral" | "teal" | "ember" | "crit" | "wa
   fixture_only: "violet",
   research_only: "neutral",
   not_implemented: "neutral",
-  unsupported: "crit"
+  unsupported: "crit",
 };
 
 function readinessLabel(readiness: string): string {
@@ -40,7 +40,7 @@ function categoryLabel(category: string): string {
 
 export function SurfaceInventoryPage({
   client,
-  sourceLabel = "live"
+  sourceLabel = "live",
 }: {
   readonly client?: EshuApiClient;
   readonly sourceLabel?: string;
@@ -53,7 +53,10 @@ export function SurfaceInventoryPage({
 
   useEffect(() => {
     let cancelled = false;
-    if (!client) { setRows([]); return; }
+    if (!client) {
+      setRows([]);
+      return;
+    }
     void loadSurfaceInventory(client, { limit: 1000 }).then((page) => {
       if (cancelled) return;
       setRows(page.rows);
@@ -61,7 +64,9 @@ export function SurfaceInventoryPage({
       setTruthLevel(page.truth?.level);
       setFreshState(page.truth?.freshness.state);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [client]);
 
   const all = rows ?? [];
@@ -72,11 +77,13 @@ export function SurfaceInventoryPage({
         const hay = `${r.category} ${r.name} ${r.readiness} ${r.owner}`.toLowerCase();
         return hay.includes(q.toLowerCase());
       }),
-    [all, q]
+    [all, q],
   );
 
   const implementedCount = all.filter((r) => r.readiness === "implemented").length;
-  const gatedCount = all.filter((r) => r.readiness === "gated" || r.readiness === "foundation_only").length;
+  const gatedCount = all.filter(
+    (r) => r.readiness === "gated" || r.readiness === "foundation_only",
+  ).length;
 
   const sub =
     rows === null
@@ -97,10 +104,30 @@ export function SurfaceInventoryPage({
       </div>
 
       <div className="grid g-4">
-        <StatTile label="Surfaces" value={rows === null || provenance === "unavailable" ? "—" : all.length} color="var(--teal)" sub="classified surfaces" />
-        <StatTile label="Implemented" value={rows === null || provenance === "unavailable" ? "—" : implementedCount} color="var(--blue)" sub="production-ready" />
-        <StatTile label="Gated / foundation" value={rows === null || provenance === "unavailable" ? "—" : gatedCount} color="var(--ember)" sub="not production-ready" />
-        <StatTile label="Shown" value={rows === null || provenance === "unavailable" ? "—" : filtered.length} color="var(--violet)" sub="after filter" />
+        <StatTile
+          label="Surfaces"
+          value={rows === null || provenance === "unavailable" ? "—" : all.length}
+          color="var(--teal)"
+          sub="classified surfaces"
+        />
+        <StatTile
+          label="Implemented"
+          value={rows === null || provenance === "unavailable" ? "—" : implementedCount}
+          color="var(--blue)"
+          sub="production-ready"
+        />
+        <StatTile
+          label="Gated / foundation"
+          value={rows === null || provenance === "unavailable" ? "—" : gatedCount}
+          color="var(--ember)"
+          sub="not production-ready"
+        />
+        <StatTile
+          label="Shown"
+          value={rows === null || provenance === "unavailable" ? "—" : filtered.length}
+          color="var(--violet)"
+          sub="after filter"
+        />
       </div>
 
       <Panel
@@ -112,7 +139,11 @@ export function SurfaceInventoryPage({
             {truthLevel ? <TruthChip level={uiTruth(truthLevel)} /> : null}
             {freshState ? <FreshDot state={uiFresh(freshState)} /> : null}
             <div className="searchbox compact">
-              <input placeholder="Filter surfaces…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input
+                placeholder="Filter surfaces…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
             </div>
           </div>
         }
@@ -142,14 +173,26 @@ export function SurfaceInventoryPage({
                   <tr key={`${r.category}:${r.name}`}>
                     <td className="t-name">
                       {r.name}
-                      {r.notes ? <div className="t-mut" style={{ fontSize: ".72rem" }}>{r.notes}</div> : null}
+                      {r.notes ? (
+                        <div className="t-mut" style={{ fontSize: ".72rem" }}>
+                          {r.notes}
+                        </div>
+                      ) : null}
                     </td>
-                    <td className="t-mut mono" style={{ fontSize: ".72rem" }}>{categoryLabel(r.category)}</td>
+                    <td className="t-mut mono" style={{ fontSize: ".72rem" }}>
+                      {categoryLabel(r.category)}
+                    </td>
                     <td>
-                      <Badge tone={READINESS_TONE[r.readiness] ?? "neutral"}>{readinessLabel(r.readiness)}</Badge>
+                      <Badge tone={READINESS_TONE[r.readiness] ?? "neutral"}>
+                        {readinessLabel(r.readiness)}
+                      </Badge>
                     </td>
-                    <td className="t-mut mono" style={{ fontSize: ".72rem" }}>{r.owner || "—"}</td>
-                    <td className="t-mut mono" style={{ fontSize: ".72rem" }}>{r.proof || "—"}</td>
+                    <td className="t-mut mono" style={{ fontSize: ".72rem" }}>
+                      {r.owner || "—"}
+                    </td>
+                    <td className="t-mut mono" style={{ fontSize: ".72rem" }}>
+                      {r.proof || "—"}
+                    </td>
                     <td className="t-mut mono" style={{ fontSize: ".72rem" }}>
                       {r.docs.length === 0 ? "—" : r.docs.join(", ")}
                     </td>
@@ -158,7 +201,9 @@ export function SurfaceInventoryPage({
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="empty">
-                      {q !== "" ? "No surfaces match this filter." : "No surfaces from this source."}
+                      {q !== ""
+                        ? "No surfaces match this filter."
+                        : "No surfaces from this source."}
                     </td>
                   </tr>
                 ) : null}

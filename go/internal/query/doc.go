@@ -14,6 +14,10 @@
 // authorization metadata, so API and MCP callers see the same grant contract;
 // its OpenAPI schema includes the restricted and sensitive data-class
 // sensitivity values used by the catalog.
+// The static surface inventory route exposes the embedded surface catalog with
+// collector source-to-read-surface contracts, so HTTP, MCP, and console callers
+// can trace collector fact kinds to projection/read consumers and proof gates
+// without hand-maintained provenance lists.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

@@ -14,6 +14,10 @@ resource.
 structured response preserves the top-level built-in role/grant/data-class
 catalog and each capability's matched permission family, action, scope levels,
 default roles, and sensitive-data marker.
+`get_surface_inventory` is transport-only over `/api/v0/surface-inventory`; its
+structured response preserves collector `collector_contract` provenance, so MCP
+callers can trace fact kinds to projection/read consumers, proof gates, fixture
+refs, and deterministic/provider-gated/optional-semantic truth profiles.
 
 ## Where this fits in the pipeline
 

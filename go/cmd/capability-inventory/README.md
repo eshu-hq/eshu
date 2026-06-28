@@ -11,6 +11,9 @@ routes, MCP tools, console pages) enumerated from live code, specs, and the
 source tree, reconciled against `specs/surface-inventory.v1.yaml`. The drift gate
 fails CI when a surface is added or removed in code without regenerating the
 committed `internal/capabilitycatalog/data/surface-inventory.generated.json`.
+Collector rows also carry a `collector_contract` manifest that maps emitted fact
+kinds to projection/read surfaces, proof gates, and fixtures. The verifier fails
+when a live collector fact kind is not covered by that manifest.
 
 ## Usage
 
@@ -51,8 +54,9 @@ go run ./cmd/capability-inventory -mode docs
   and the source tree, builds, and dispatches on `-mode`.
 - `verify` is the CI gate. It fails when catalog or surface reconciliation
   findings exist or when either embedded artifact differs from a fresh
-  regeneration. `docs` mode never enumerates the source tree, so it needs no
-  `-root`.
+  regeneration. For collector surfaces, surface findings include missing
+  `collector_contract.fact_kinds` entries for live fact kinds. `docs` mode never
+  enumerates the source tree, so it needs no `-root`.
 - `generate` writes deterministic JSON for both the catalog and the surface
   inventory; the same inputs always produce the same bytes, so a regenerated
   artifact only changes when the matrix, overlay, registry, or a live surface

@@ -18,6 +18,7 @@ preflight and the docs freshness guard.
 | Editorial overlay | `specs/capability-catalog.v1.yaml` | display names, owner packages, maturity overrides, known gaps, linked issues, docs, exemptions, non-MCP surfaces |
 | Authorization catalog | `specs/authorization-catalog.v1.yaml` | built-in roles, data classes, permission families, bootstrap-owner posture, and per-capability grant metadata |
 | Live MCP registry | `go/internal/mcp` (`ReadOnlyTools`) | the tool names exposed to MCP clients |
+| Surface inventory overlay | `specs/surface-inventory.v1.yaml` | surface readiness lanes plus collector fact-kind provenance contracts |
 
 The matrix and Go contract (`go/internal/query/contract.go`) remain the source
 of truth for runtime behavior. The catalog adds the editorial and reconciliation
@@ -77,6 +78,25 @@ dispatches to the same route; the console fetches the same endpoint. Parity is
 covered by `go/internal/query/capabilities_test.go` (API total equals the
 embedded catalog), `go/internal/mcp/tools_runtime_test.go` (tool routes to the
 endpoint), and `apps/console/src/pages/CapabilityMatrixPage.test.tsx`.
+
+## Surface Inventory
+
+The companion surface inventory is generated to
+`go/internal/capabilitycatalog/data/surface-inventory.generated.json` and exposed
+through `GET /api/v0/surface-inventory`, `get_surface_inventory`, and the console
+surface inventory page. It enumerates command binaries, collector families,
+reducer domains, API routes, MCP tools, and routed console pages from live code.
+
+Collector rows include `collector_contract`, which maps emitted fact kinds to
+projection/read surfaces, proof gates, and fixture references. Its
+`truth_profile` separates deterministic collector evidence from provider-gated
+collectors and optional semantic output, preserving the contract that deterministic
+truth remains available without provider keys.
+
+`go run ./cmd/capability-inventory -mode verify` fails with
+`collector_fact_kind_unmapped` when a live collector fact kind is missing from
+the manifest, so API, MCP, and console provenance cannot drift into a
+hand-maintained list.
 
 ## Reconciliation findings
 

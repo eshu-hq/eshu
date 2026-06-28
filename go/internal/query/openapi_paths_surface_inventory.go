@@ -9,7 +9,7 @@ const openAPIPathsSurfaceInventory = `
       "get": {
         "tags": ["capabilities"],
         "summary": "List the surface inventory readiness rows",
-        "description": "Returns the generated surface inventory from the embedded artifact: every platform surface across six categories (command, collector, reducer_domain, api_route, mcp_tool, console_page) with its readiness lane, owner, promotion proof, docs, and notes. The read is static, bounded, and exact in every profile, and backs the MCP get_surface_inventory tool and the console surface inventory page. Supports optional category and readiness filters with deterministic limit/offset paging.",
+        "description": "Returns the generated surface inventory from the embedded artifact: every platform surface across six categories (command, collector, reducer_domain, api_route, mcp_tool, console_page) with its readiness lane, owner, promotion proof, docs, notes, and collector-only source provenance contracts. Collector contracts map emitted fact kinds to projection/read surfaces, proof gates, fixtures, and the truth profile that distinguishes deterministic, provider-gated, and optional semantic output. The read is static, bounded, and exact in every profile, and backs the MCP get_surface_inventory tool and the console surface inventory page. Supports optional category and readiness filters with deterministic limit/offset paging.",
         "operationId": "listSurfaceInventory",
         "parameters": [
           {"name": "category", "in": "query", "required": false, "schema": {"type": "string", "enum": ["command", "collector", "reducer_domain", "api_route", "mcp_tool", "console_page"]}, "description": "Optional surface category filter."},
@@ -41,7 +41,19 @@ const openAPIPathsSurfaceInventory = `
                           "owner": {"type": "string"},
                           "proof": {"type": "string"},
                           "docs": {"type": "array", "items": {"type": "string"}},
-                          "notes": {"type": "string"}
+                          "notes": {"type": "string"},
+                          "collector_contract": {
+                            "type": "object",
+                            "description": "Collector-only source-to-read-surface provenance contract. Omitted for non-collector surfaces.",
+                            "properties": {
+                              "fact_kinds": {"type": "array", "items": {"type": "string"}},
+                              "projection_surfaces": {"type": "array", "items": {"type": "string"}},
+                              "read_surfaces": {"type": "array", "items": {"type": "string"}},
+                              "proof_gates": {"type": "array", "items": {"type": "string"}},
+                              "fixture_refs": {"type": "array", "items": {"type": "string"}},
+                              "truth_profile": {"type": "string", "enum": ["deterministic", "provider_gated", "optional_semantic"]}
+                            }
+                          }
                         }
                       }
                     }

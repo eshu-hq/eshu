@@ -111,6 +111,11 @@ or `unsupported`. Only `implemented` asserts production readiness, so
 `ReadinessLane.RequiresPromotionProof` is true only for it. Non-collector
 categories default to `implemented` (they exist because they are built and
 served); collectors have no default and must be classified in the overlay.
+Collector records may also carry `collector_contract`, a source-to-read-surface
+manifest listing emitted fact kinds, projection/read consumers, proof gates,
+fixture references, and a truth profile (`deterministic`, `provider_gated`, or
+`optional_semantic`). The generator reconciles the live collector fact-kind map
+against this contract so a new fact kind cannot ship without source provenance.
 
 Surface findings:
 
@@ -118,6 +123,8 @@ Surface findings:
 - `implemented_without_proof` — a collector declared `implemented` with no proof.
 - `stale_surface_overlay` — an overlay row whose surface is absent from code.
 - `invalid_readiness_lane` — an overlay readiness value outside the closed set.
+- `collector_fact_kind_unmapped` — a live collector fact kind missing from that
+  collector's `collector_contract.fact_kinds` manifest.
 
 `data/surface-inventory.generated.json` is the committed artifact embedded by
 `LoadSurfaceInventory`. `TestSurfaceInventoryDriftAgainstRealCode` and

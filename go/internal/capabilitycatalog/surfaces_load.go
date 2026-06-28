@@ -47,13 +47,23 @@ type surfaceOverlayFile struct {
 }
 
 type surfaceOverlayFileRecord struct {
-	Category  string   `yaml:"category"`
-	Name      string   `yaml:"name"`
-	Readiness string   `yaml:"readiness"`
-	Owner     string   `yaml:"owner"`
-	Proof     string   `yaml:"proof"`
-	Docs      []string `yaml:"docs"`
-	Notes     string   `yaml:"notes"`
+	Category          string                          `yaml:"category"`
+	Name              string                          `yaml:"name"`
+	Readiness         string                          `yaml:"readiness"`
+	Owner             string                          `yaml:"owner"`
+	Proof             string                          `yaml:"proof"`
+	Docs              []string                        `yaml:"docs"`
+	Notes             string                          `yaml:"notes"`
+	CollectorContract surfaceOverlayCollectorContract `yaml:"collector_contract"`
+}
+
+type surfaceOverlayCollectorContract struct {
+	FactKinds          []string `yaml:"fact_kinds"`
+	ProjectionSurfaces []string `yaml:"projection_surfaces"`
+	ReadSurfaces       []string `yaml:"read_surfaces"`
+	ProofGates         []string `yaml:"proof_gates"`
+	FixtureRefs        []string `yaml:"fixture_refs"`
+	TruthProfile       string   `yaml:"truth_profile"`
 }
 
 // LoadSurfaceOverlay reads the surface inventory overlay from path. A missing
@@ -81,6 +91,14 @@ func LoadSurfaceOverlay(path string) (SurfaceOverlay, error) {
 			Proof:     rec.Proof,
 			Docs:      rec.Docs,
 			Notes:     rec.Notes,
+			CollectorContract: CollectorContract{
+				FactKinds:          rec.CollectorContract.FactKinds,
+				ProjectionSurfaces: rec.CollectorContract.ProjectionSurfaces,
+				ReadSurfaces:       rec.CollectorContract.ReadSurfaces,
+				ProofGates:         rec.CollectorContract.ProofGates,
+				FixtureRefs:        rec.CollectorContract.FixtureRefs,
+				TruthProfile:       rec.CollectorContract.TruthProfile,
+			},
 		})
 	}
 	return overlay, nil
