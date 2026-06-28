@@ -12,8 +12,14 @@ import (
 	"time"
 )
 
-// currentSchemaVersion is the only schema version the package reads and writes.
-const currentSchemaVersion = "1"
+// SchemaVersionV1 is the only cassette schema version the package reads and
+// writes. It is exported so the offline cassette-format schema and validator
+// (go/internal/replay/schema) derive the same version literal from one source
+// of truth instead of hard-coding "1" in two places.
+const SchemaVersionV1 = "1"
+
+// currentSchemaVersion is the internal alias used by validation.
+const currentSchemaVersion = SchemaVersionV1
 
 // File is the root document of a cassette JSON file. Each scope entry carries
 // the scope identity, the generation metadata, and the pre-recorded fact
@@ -130,12 +136,26 @@ func LoadFile(path string) (File, error) {
 	if err != nil {
 		return File{}, fmt.Errorf("read cassette file %q: %w", path, err)
 	}
+	f, err := ParseAndValidate(data)
+	if err != nil {
+		return File{}, fmt.Errorf("cassette file %q: %w", path, err)
+	}
+	return f, nil
+}
+
+// ParseAndValidate decodes cassette bytes and runs the same structural
+// validation LoadFile applies — required fields, the supported schema_version,
+// and field types — without touching the filesystem. The fast offline cassette
+// validator (go/internal/replay/schema) uses it to check a document's envelope
+// shape directly from bytes, so on-disk cassettes and in-memory candidates go
+// through one validation path.
+func ParseAndValidate(data []byte) (File, error) {
 	var f File
 	if err := json.Unmarshal(data, &f); err != nil {
-		return File{}, fmt.Errorf("parse cassette file %q: %w", path, err)
+		return File{}, fmt.Errorf("parse cassette: %w", err)
 	}
 	if err := f.validate(); err != nil {
-		return File{}, fmt.Errorf("invalid cassette file %q: %w", path, err)
+		return File{}, fmt.Errorf("invalid cassette: %w", err)
 	}
 	return f, nil
 }
