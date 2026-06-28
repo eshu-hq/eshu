@@ -39,7 +39,7 @@ function FacetChip({ facets }: { readonly facets: AskAppliedFacets }): React.JSX
 /** The full answer panel. Leads with the truth badge; usable with no prose. */
 export function AnswerView({
   answer,
-  headingRef
+  headingRef,
 }: {
   readonly answer: AskAnswer;
   readonly headingRef?: RefObject<HTMLHeadingElement | null>;
@@ -62,7 +62,9 @@ export function AnswerView({
         <div className="partial-banner" role="note">
           <TriangleAlert aria-hidden size={15} />
           <div>
-            <strong>{answer.partial ? "This answer is partial." : "This answer has limitations."}</strong>
+            <strong>
+              {answer.partial ? "This answer is partial." : "This answer has limitations."}
+            </strong>
             <span> Eshu is showing what it could verify — don&apos;t read it as complete.</span>
           </div>
         </div>
@@ -70,8 +72,8 @@ export function AnswerView({
 
       {evidenceOnly ? (
         <div className="evidence-only-note">
-          <ShieldCheck aria-hidden size={15} /> Narrated answers are off — showing the evidence Eshu gathered. The
-          reasoning trace and artifacts below are the answer.
+          <ShieldCheck aria-hidden size={15} /> Narrated answers are off — showing the evidence Eshu
+          gathered. The reasoning trace and artifacts below are the answer.
         </div>
       ) : (
         <div className="answer-prose">{renderMarkdown(prose)}</div>

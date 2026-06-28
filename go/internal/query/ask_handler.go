@@ -126,17 +126,20 @@ type askArtifact struct {
 	Issues  []string `json:"issues,omitempty"`
 }
 
-// askAppliedFacets carries the deterministic question-scoping metadata that
-// the pre-engine facet mapper detected. It is informational: the actual
-// server-side filtering happens inside the tool handlers when the LLM passes
-// source_tool / languages arguments. Callers can use this field to surface
-// "scoped to source_tool=helm" chips in the UI without parsing the query trace.
+// askAppliedFacets carries the deterministic detected-intent metadata that
+// the pre-engine facet mapper found in the question. It is informational: the
+// field records what the detector found in the question text, not what the
+// agent actually filtered on — see the query_trace for the filters the agent
+// passed to its tools. Callers can use this field to surface detected-scope
+// chips in the UI without parsing the query trace.
 type askAppliedFacets struct {
-	// SourceTool is the canonical source_tool token the LLM was steered toward,
-	// or empty when no canonical tool was detected in the question.
+	// SourceTool is the canonical source_tool token detected in the question
+	// (e.g. "helm", "terraform"). Empty when no canonical tool was detected.
+	// This is detected intent, not a confirmed applied filter.
 	SourceTool string `json:"source_tool,omitempty"`
-	// Language is the programming-language name the LLM was steered toward,
-	// or empty when none was detected.
+	// Language is the programming-language name detected in the question
+	// (e.g. "go", "python"). Empty when none was detected.
+	// This is detected intent, not a confirmed applied filter.
 	Language string `json:"language,omitempty"`
 	// UnknownToolNote is a human-readable note when the question appeared to
 	// name a specific tool that is not in the canonical vocabulary. Empty when
@@ -299,9 +302,9 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 		}
 	}
 
-	// Applied facets: deterministically detect question scoping and add honest
-	// notes to Limitations. The LLM is steered via the system prompt; this is
-	// purely a recording / honesty step.
+	// Applied facets: record detected intent from the question and add honest
+	// limitation notes. This is a pure recording step; see query_trace for the
+	// filters the agent actually applied inside its tool calls.
 	resp.AppliedFacets = buildAppliedFacets(question, &resp.Limitations)
 
 	// Query trace.
@@ -322,9 +325,11 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 }
 
 // buildAppliedFacets runs DetectFacets on the question and returns a populated
-// askAppliedFacets (or nil when the question has no detectable scope). It also
-// appends honest Limitation notes to limitations so the scoping is visible even
-// to callers that ignore the applied_facets field.
+// askAppliedFacets (or nil when the question has no detectable scope). It
+// records detected-intent metadata and appends honest Limitation notes so the
+// scoping is visible even to callers that ignore the applied_facets field.
+// The field reflects what the pre-engine detector found; see the query_trace
+// for the filters the agent actually applied inside its tool calls.
 func buildAppliedFacets(question string, limitations *[]string) *askAppliedFacets {
 	f := facet.DetectFacets(question)
 	if f.SourceTool == "" && f.Language == "" && f.UnknownToolMention == "" {
@@ -336,11 +341,11 @@ func buildAppliedFacets(question string, limitations *[]string) *askAppliedFacet
 	}
 	if f.SourceTool != "" {
 		*limitations = appendAskLimitation(*limitations,
-			"Detected a source_tool="+f.SourceTool+" intent and steered the agent to filter by it; see the query trace for the filters actually applied.")
+			"Detected a source_tool="+f.SourceTool+" intent in the question; see the query trace for the filters the agent actually applied.")
 	}
 	if f.Language != "" {
 		*limitations = appendAskLimitation(*limitations,
-			"Detected a language="+f.Language+" intent and steered the agent to filter by it; see the query trace for the filters actually applied.")
+			"Detected a language="+f.Language+" intent in the question; see the query trace for the filters the agent actually applied.")
 	}
 	if f.UnknownToolMention != "" {
 		note := "'" + f.UnknownToolMention + "' is not a recognized Eshu source_tool; answered without a tool filter"

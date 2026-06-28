@@ -15,7 +15,7 @@ import type {
   AskEvidenceHandle,
   AskNarrationState,
   AskTraceStep,
-  AskTruthClass
+  AskTruthClass,
 } from "./askEshu";
 
 const KNOWN_TRUTH_CLASSES: readonly AskTruthClass[] = [
@@ -24,7 +24,7 @@ const KNOWN_TRUTH_CLASSES: readonly AskTruthClass[] = [
   "fallback",
   "semantic_observation",
   "code_hint",
-  "unsupported"
+  "unsupported",
 ];
 
 /** Coerce a raw ask response into a fully-populated AskAnswer. */
@@ -37,10 +37,10 @@ export function normalizeAnswer(raw: unknown): AskAnswer {
     query_trace: asArray(record.query_trace).map(normalizeTraceStep),
     partial: record.partial === true,
     limitations: asArray(record.limitations).filter(
-      (value): value is string => typeof value === "string"
+      (value): value is string => typeof value === "string",
     ),
     evidence_handles: asArray(record.evidence_handles).map(normalizeEvidenceHandle),
-    applied_facets: normalizeAppliedFacets(record.applied_facets)
+    applied_facets: normalizeAppliedFacets(record.applied_facets),
   };
 }
 
@@ -51,10 +51,14 @@ export function normalizeAppliedFacets(raw: unknown): AskAppliedFacets | undefin
     return undefined;
   }
   const record = raw as Record<string, unknown>;
-  const source_tool = typeof record.source_tool === "string" && record.source_tool ? record.source_tool : undefined;
-  const language = typeof record.language === "string" && record.language ? record.language : undefined;
+  const source_tool =
+    typeof record.source_tool === "string" && record.source_tool ? record.source_tool : undefined;
+  const language =
+    typeof record.language === "string" && record.language ? record.language : undefined;
   const unknown_tool_note =
-    typeof record.unknown_tool_note === "string" && record.unknown_tool_note ? record.unknown_tool_note : undefined;
+    typeof record.unknown_tool_note === "string" && record.unknown_tool_note
+      ? record.unknown_tool_note
+      : undefined;
   if (!source_tool && !language && !unknown_tool_note) {
     return undefined;
   }
@@ -67,7 +71,7 @@ export function normalizeArtifact(raw: unknown): AskArtifact {
   return {
     format: typeof record.format === "string" ? record.format : "text",
     content: typeof record.content === "string" ? record.content : "",
-    issues: asArray(record.issues).filter((value): value is string => typeof value === "string")
+    issues: asArray(record.issues).filter((value): value is string => typeof value === "string"),
   };
 }
 
@@ -81,7 +85,7 @@ export function normalizeTraceStep(raw: unknown): AskTraceStep {
     truth_class?: string;
     err?: string;
   } = {
-    tool: typeof record.tool === "string" ? record.tool : "tool"
+    tool: typeof record.tool === "string" ? record.tool : "tool",
   };
   if (record.args && typeof record.args === "object") {
     step.args = record.args as Record<string, unknown>;

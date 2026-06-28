@@ -96,11 +96,11 @@ const openAPIPathsAsk = `
                       "properties": {
                         "source_tool": {
                           "type": "string",
-                          "description": "Canonical source_tool token the LLM was steered toward (e.g. 'helm', 'terraform'). Empty when no canonical tool was detected."
+                          "description": "Canonical source_tool token detected as intent in the question (e.g. 'helm', 'terraform'). This is detected intent, not a confirmed applied filter — see query_trace for the filters the agent actually used. Empty when no canonical tool was detected."
                         },
                         "language": {
                           "type": "string",
-                          "description": "Programming language name the LLM was steered toward (e.g. 'go', 'python'). Empty when none was detected."
+                          "description": "Programming language name detected as intent in the question (e.g. 'go', 'python'). This is detected intent, not a confirmed applied filter — see query_trace for the filters the agent actually used. Empty when none was detected."
                         },
                         "unknown_tool_note": {
                           "type": "string",

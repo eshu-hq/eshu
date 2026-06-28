@@ -252,6 +252,82 @@ func TestDetectFacets(t *testing.T) {
 			question:     "golang services that expose gRPC",
 			wantLanguage: "go",
 		},
+
+		// --- adversarial: distant qualifier must NOT fire (proximity check) ---
+		// The qualifier word appears in the sentence but is too far from the
+		// collision token to confirm it as a tool name.
+		{
+			name:     "go: distant service qualifier does not fire",
+			question: "Where should I go to see service owners?",
+			// "service" is 3 tokens from "go" — outside the proximity window.
+		},
+		{
+			name:     "go: distant services qualifier does not fire",
+			question: "where should I go to find the production services",
+			// "services" is 5 tokens from "go" — outside the proximity window.
+		},
+		{
+			name:     "salt: distant qualifier does not fire",
+			question: "pinch of salt to the recipe",
+			// no qualifier present at all.
+		},
+		{
+			name:     "chef: distant ingredients does not fire",
+			question: "ask the chef what ingredients to use",
+			// "ingredients" is not a qualifier; chef has no nearby qualifier.
+		},
+		{
+			name:     "cargo: distant capacity does not fire",
+			question: "cargo capacity of the ship",
+			// "capacity" is not a qualifier.
+		},
+		{
+			name:     "pip: list not a qualifier",
+			question: "pip down the list",
+			// "list" is not a qualifier.
+		},
+
+		// --- keep these PASSING: qualifier is proximate ---
+		{
+			name:           "cargo: via is proximate",
+			question:       "deploy via cargo",
+			wantSourceTool: "cargo",
+		},
+		{
+			name:           "salt: formula is proximate",
+			question:       "services using the salt formula",
+			wantSourceTool: "salt",
+		},
+		{
+			name:           "chef: cookbooks is proximate",
+			question:       "which chef cookbooks install nginx?",
+			wantSourceTool: "chef",
+		},
+		{
+			name:         "go module: module is proximate",
+			question:     "go module dependencies",
+			wantLanguage: "go",
+		},
+		{
+			name:         "what Go repos: repos is proximate",
+			question:     "what Go repos depend on lib-common?",
+			wantLanguage: "go",
+		},
+		{
+			name:           "pip packages: packages is proximate",
+			question:       "pip packages that depend on requests",
+			wantSourceTool: "pip",
+		},
+		{
+			name:           "npm packages: packages is proximate",
+			question:       "npm packages that reference lodash",
+			wantSourceTool: "npm",
+		},
+		{
+			name:           "maven dependency: dependency is proximate",
+			question:       "maven dependency on commons-lang",
+			wantSourceTool: "maven",
+		},
 	}
 
 	for _, tc := range tests {

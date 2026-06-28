@@ -5,6 +5,8 @@ package query
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -212,5 +214,88 @@ func TestAskHandler_FacetHelm(t *testing.T) {
 	}
 	if _, ok := wire["applied_facets"]; !ok {
 		t.Fatal("applied_facets missing from handler response")
+	}
+}
+
+// TestHandleAskAppliedFacetsDetectedIntent drives h.handleAsk through an
+// httptest mux (mirroring the Mount pattern) and verifies:
+//   - A Helm question yields applied_facets.source_tool=="helm" and a
+//     detected-intent limitation; the limitation must NOT contain "steered".
+//   - A plain question (no tool or language) yields no applied_facets.
+func TestHandleAskAppliedFacetsDetectedIntent(t *testing.T) {
+	t.Parallel()
+
+	fakeAnswer := AskAnswer{
+		Prose:    "Helm services.",
+		Narrated: true,
+		Packets: []AnswerPacket{{
+			TruthClass: AnswerTruthDeterministic,
+			Supported:  true,
+		}},
+	}
+	h := &AskHandler{Asker: &fakeAsker{answer: fakeAnswer}}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v0/ask", h.handleAsk)
+
+	// --- Helm question: expect applied_facets with source_tool=="helm" ---
+	helmBody := strings.NewReader(`{"question":"which services are deployed via helm charts?"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/ask", helmBody)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("helm question: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var helmWire struct {
+		AppliedFacets *struct {
+			SourceTool string `json:"source_tool"`
+			Language   string `json:"language"`
+		} `json:"applied_facets"`
+		Limitations []string `json:"limitations"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &helmWire); err != nil {
+		t.Fatalf("helm question: unmarshal: %v", err)
+	}
+	if helmWire.AppliedFacets == nil {
+		t.Fatal("helm question: applied_facets is nil, want non-nil")
+	}
+	if helmWire.AppliedFacets.SourceTool != "helm" {
+		t.Errorf("helm question: applied_facets.source_tool = %q, want %q", helmWire.AppliedFacets.SourceTool, "helm")
+	}
+	if helmWire.AppliedFacets.Language != "" {
+		t.Errorf("helm question: applied_facets.language = %q, want empty", helmWire.AppliedFacets.Language)
+	}
+	if !hasLimitation(helmWire.Limitations, "Detected a source_tool=helm intent") {
+		t.Errorf("helm question: limitations %v missing detected-intent note", helmWire.Limitations)
+	}
+	// The limitation must reflect detected intent only — never claim the agent was "steered".
+	for _, lim := range helmWire.Limitations {
+		if strings.Contains(lim, "steered") {
+			t.Errorf("helm question: limitation contains forbidden word 'steered': %q", lim)
+		}
+	}
+
+	// --- Plain question: expect no applied_facets ---
+	plainBody := strings.NewReader(`{"question":"which services are in production?"}`)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v0/ask", plainBody)
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	mux.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Fatalf("plain question: expected 200, got %d: %s", w2.Code, w2.Body.String())
+	}
+
+	var plainWire struct {
+		AppliedFacets *json.RawMessage `json:"applied_facets"`
+	}
+	if err := json.Unmarshal(w2.Body.Bytes(), &plainWire); err != nil {
+		t.Fatalf("plain question: unmarshal: %v", err)
+	}
+	if plainWire.AppliedFacets != nil {
+		t.Errorf("plain question: applied_facets = %s, want nil (omitted)", *plainWire.AppliedFacets)
 	}
 }

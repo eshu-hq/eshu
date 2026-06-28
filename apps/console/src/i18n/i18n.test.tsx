@@ -1,13 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { defaultLocale, defaultMessages, type MessageId } from "./messages";
 import {
   createLocaleMessages,
   localeCatalogs,
   supportedLocales,
   translatedMessageIds,
 } from "./locales";
+import { defaultLocale, defaultMessages, type MessageId } from "./messages";
 import { NAV_GROUPS } from "./navigation";
 import { ConsoleI18nProvider, FormattedMessage, createConsoleIntl } from "./provider";
 import { formatApiUnavailableMessage, shellMessageDescriptors } from "./shellMessages";

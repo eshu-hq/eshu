@@ -25,7 +25,6 @@ package facet
 
 import (
 	"strings"
-	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/sourcetool"
@@ -166,16 +165,53 @@ var collisionQualifiers = []string{
 	"installs",
 }
 
+// collisionProximityWindow is the maximum token distance (exclusive) allowed
+// between a collision token and a qualifying word. A window of 3 means the
+// qualifier must be at most 2 tokens away (immediately adjacent or one token
+// between them). This prevents a distant "services" in a different clause from
+// qualifying "go" as a tool name (e.g. "where should I go to see service owners?").
+const collisionProximityWindow = 3
+
 // collisionTokenMatches reports whether collision token tok appears as a whole
-// word AND a qualifier word is also present in the question as a whole word.
-// This prevents "where should I go" from matching "go" as a source tool while
-// still matching "go modules" or "deploy via go".
+// word in the question AND a qualifier word appears ADJACENT or PROXIMATE to it
+// (within collisionProximityWindow tokens). The proximity check prevents a
+// qualifier in a different clause of the sentence from falsely confirming the
+// collision token as a tool name.
+//
+// Examples that match: "go module", "go modules", "salt formula", "deploy via cargo",
+// "which chef cookbooks", "what Go repos", "pip packages".
+// Examples that do not match: "where should I go to see service owners?" (qualifier
+// "service" is too far from "go"), "where should I go to find the production services".
 func collisionTokenMatches(lower, tok string) bool {
-	if !containsWholeWord(lower, tok) {
+	words := tokenize(lower)
+	tokIdx := -1
+	for i, w := range words {
+		if w == tok {
+			tokIdx = i
+			break
+		}
+	}
+	if tokIdx < 0 {
 		return false
 	}
+	// Build a set of qualifiers for O(1) lookup.
+	qualSet := make(map[string]struct{}, len(collisionQualifiers))
 	for _, q := range collisionQualifiers {
-		if containsWholeWord(lower, q) {
+		qualSet[q] = struct{}{}
+	}
+	lo := tokIdx - collisionProximityWindow + 1
+	if lo < 0 {
+		lo = 0
+	}
+	hi := tokIdx + collisionProximityWindow
+	if hi > len(words) {
+		hi = len(words)
+	}
+	for i := lo; i < hi; i++ {
+		if i == tokIdx {
+			continue
+		}
+		if _, ok := qualSet[words[i]]; ok {
 			return true
 		}
 	}
@@ -349,71 +385,4 @@ func detectUnknownTool(lower string) string {
 		return word
 	}
 	return ""
-}
-
-// containsPhrase reports whether s contains the exact phrase (with space
-// boundaries on both sides or at the string edges).
-func containsPhrase(s, phrase string) bool {
-	idx := strings.Index(s, phrase)
-	if idx < 0 {
-		return false
-	}
-	end := idx + len(phrase)
-	// Check that the phrase is not part of a longer word.
-	before := idx == 0 || !isWordChar(rune(s[idx-1]))
-	after := end >= len(s) || !isWordChar(rune(s[end]))
-	return before && after
-}
-
-// containsWholeWord reports whether word appears as a whole word in s.
-func containsWholeWord(s, word string) bool {
-	start := 0
-	for {
-		idx := strings.Index(s[start:], word)
-		if idx < 0 {
-			return false
-		}
-		abs := start + idx
-		end := abs + len(word)
-		before := abs == 0 || !isWordChar(rune(s[abs-1]))
-		after := end >= len(s) || !isWordChar(rune(s[end]))
-		if before && after {
-			return true
-		}
-		start = abs + 1
-	}
-}
-
-// extractFirstWord returns the first contiguous sequence of word characters
-// from s (letters, digits, hyphens within a word). Hyphens are treated as
-// word characters only when surrounded by letters (e.g. "my-tool").
-func extractFirstWord(s string) string {
-	s = strings.TrimLeftFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
-	end := 0
-	for end < len(s) {
-		r := rune(s[end])
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' {
-			end++
-		} else {
-			break
-		}
-	}
-	return strings.TrimRight(s[:end], "-_")
-}
-
-func isWordChar(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
-}
-
-// isCommonWord rejects short articles, prepositions, and pronouns that are
-// not plausible tool names.
-func isCommonWord(w string) bool {
-	switch w {
-	case "a", "an", "the", "it", "its", "my", "our", "their",
-		"this", "that", "some", "all", "any", "no",
-		"in", "on", "at", "to", "by", "of", "or", "and",
-		"we", "they", "i", "me", "you", "he", "she":
-		return true
-	}
-	return false
 }
