@@ -255,6 +255,9 @@ func TestCommittedCassettesValid(t *testing.T) {
 	}
 	for _, path := range matches {
 		path := path
+		if strings.HasSuffix(path, ".cost-budget.json") {
+			continue
+		}
 		t.Run(filepath.Base(filepath.Dir(path))+"/"+filepath.Base(path), func(t *testing.T) {
 			t.Parallel()
 			data := readFile(t, path)

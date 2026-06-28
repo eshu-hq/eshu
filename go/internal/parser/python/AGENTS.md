@@ -8,8 +8,9 @@
 4. shared_helpers.go - allowed shared helper imports and copied wire-shape helpers
 5. notebook.go and notebook_temp.go - notebook extraction and temporary source file lifecycle
 6. dead_code_roots.go, lambda_roots.go, public_api_roots.go - dead-code root evidence
-7. framework_routes.go, ast_nodes.go - FastAPI/Flask route and ORM table
-   semantics plus the reusable decorator/call/argument AST node helpers
+7. framework_routes.go, django_drf_routes.go, drf_routes.go,
+   aiohttp_tornado_routes.go, ast_nodes.go - Python framework route and ORM
+   table semantics plus the reusable decorator/call/argument AST node helpers
 9. semantics.go, imports.go, call_inference.go, annotation_support.go - metadata helpers
 10. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over python/pydataflow
 11. payload_buckets.go - sortNamedBucket / collectBucketNames bucket utilities

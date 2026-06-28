@@ -256,11 +256,11 @@ language_features:
     docs_claim: docs/public/languages/python.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [source-entities, semantic-metadata, relationships, fastapi-flask-route-roots, django-drf-routes]
-    partial_features: [aiohttp-tornado-routes, outbound-contracts]
+    supported_features: [source-entities, semantic-metadata, relationships, fastapi-flask-route-roots, django-drf-routes, aiohttp-tornado-routes]
+    partial_features: [outbound-contracts]
     derived_features: [dead-code-roots]
-    source_files: [go/internal/parser/python_language.go, go/internal/parser/python/language.go, go/internal/parser/python/framework_routes.go, go/internal/parser/python/django_drf_routes.go, go/internal/parser/python/drf_routes.go]
-    test_files: [go/internal/parser/engine_python_semantics_test.go, go/internal/parser/engine_python_django_drf_routes_test.go, go/internal/parser/python/semantics_test.go, go/internal/parser/python/django_drf_routes_test.go, go/internal/parser/python_dead_code_roots_test.go, go/internal/reducer/handles_route_intents_test.go]
+    source_files: [go/internal/parser/python_language.go, go/internal/parser/python/language.go, go/internal/parser/python/framework_routes.go, go/internal/parser/python/django_drf_routes.go, go/internal/parser/python/drf_routes.go, go/internal/parser/python/aiohttp_tornado_routes.go]
+    test_files: [go/internal/parser/engine_python_semantics_test.go, go/internal/parser/engine_python_django_drf_routes_test.go, go/internal/parser/engine_python_aiohttp_tornado_routes_test.go, go/internal/parser/python/semantics_test.go, go/internal/parser/python/django_drf_routes_test.go, go/internal/parser/python/aiohttp_tornado_routes_test.go, go/internal/parser/python_dead_code_roots_test.go, go/internal/reducer/handles_route_intents_test.go, go/internal/reducer/handles_route_python_framework_intents_test.go]
     docs: [docs/public/languages/python.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
     tracking_issues: [4042, 4092, 4093]

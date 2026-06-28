@@ -33,9 +33,10 @@ ownership, fact storage, and graph writes remain outside this package.
 
 The package is responsible for Python-specific parsing and evidence shaping.
 That includes .py input, .ipynb code-cell extraction, import source metadata,
-FastAPI and Flask route summaries, SQLAlchemy and Django table hints, Lambda
-handler roots from SAM and serverless config, generator flags, metaclass data,
-public API roots, and Python call receiver inference.
+FastAPI, Flask, Django, DRF, aiohttp, and Tornado route summaries, SQLAlchemy
+and Django table hints, Lambda handler roots from SAM and serverless config,
+generator flags, metaclass data, public API roots, and Python call receiver
+inference.
 
 The parent parser package still owns registry dispatch, absolute path
 resolution, content metadata, and Engine method signatures. The child package
@@ -134,6 +135,25 @@ strings, dynamic DRF router prefixes or mounts, nonliteral action maps, and
 imported Django bare names or attributes stay unclaimed for handler projection
 while still preserving exact method/path evidence when the route literal is
 static.
+
+No-Regression Evidence: bounded aiohttp and Tornado route extraction is
+parser-only and no-provider deterministic. `go test ./internal/parser/python
+-run 'TestBuildPythonFrameworkSemantics(AioHTTP|Tornado)' -count=1` failed
+before the parser emitted `framework_semantics.aiohttp` and
+`framework_semantics.tornado` `route_entries`, then passed after literal
+aiohttp `RouteTableDef` decorators, `app.router.add_*`,
+`app.router.add_route(...)`, `app.add_routes([web.*(...)])`, and Tornado
+`Application` URL specs emitted exact method/path rows with handlers only when
+the target was exact. `go test ./internal/parser -run
+TestDefaultEngineParsePathPythonAioHTTPTornadoExactRouteEntries -count=1`
+proves the parent `DefaultEngine.ParsePath` payload carries those rows into the
+emitted file fact shape. `go test ./internal/reducer -run
+TestBuildHandlesRouteIntentRowsEmitsAioHTTPTornadoFrameworkRoutes -count=1`
+proves the existing `HANDLES_ROUTE` projection resolves aiohttp function
+handlers and Tornado `Class.method` handler strings to exact Function entities.
+Nonliteral aiohttp path/method/handler values, dynamic route lists, app factory
+indirection, imported Tornado handler attributes, generated URL specs, plugin
+loading, and runtime-discovered routes stay unclaimed.
 
 No-Observability-Change: this change only adds deterministic rows to the
 existing `framework_semantics.route_entries` payload consumed by existing
