@@ -11,6 +11,10 @@ internal durable fact envelope.
 - Initial SDK module semver: `v0.1.x`
 - Initial wire protocol: `collector-sdk/v1alpha1`
 - JSON Schema artifact: `schema/collector-sdk-v1alpha1.schema.json`
+- Cassette format JSON Schema (replay fixtures): `schema/cassette-format.v1.schema.json`
+  — a generated mirror of the host's cassette envelope contract
+  (`go/internal/replay/schema`), so credential-free replay cassettes can be
+  validated offline against the same schema the host enforces.
 
 The module version may add helpers without changing the wire protocol. The wire
 protocol changes only when host and extension records would serialize
