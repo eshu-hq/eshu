@@ -167,6 +167,54 @@ func TestParseFrameworkSemanticsExtractsGoFrameworkRoutes(t *testing.T) {
 	}
 }
 
+func TestParseFrameworkSemanticsExtractsJavaScriptFrameworkRoutes(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["koa", "fastify", "nestjs"],
+		"koa": {
+			"route_methods": ["GET"],
+			"route_paths": ["/koa"],
+			"route_entries": [{"method": "GET", "path": "/koa", "handler": "Koa"}]
+		},
+		"fastify": {
+			"route_methods": ["POST"],
+			"route_paths": ["/fastify"],
+			"route_entries": [{"method": "POST", "path": "/fastify", "handler": "Fastify"}]
+		},
+		"nestjs": {
+			"route_methods": ["PATCH"],
+			"route_paths": ["/nest/:id"],
+			"route_entries": [{"method": "PATCH", "path": "/nest/:id", "handler": "Nest"}]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("src/routes.ts", raw)
+	if len(results) != 3 {
+		t.Fatalf("len(results) = %d, want 3", len(results))
+	}
+	wantHandlers := map[string]string{
+		"koa":     "Koa",
+		"fastify": "Fastify",
+		"nestjs":  "Nest",
+	}
+	for _, route := range results {
+		if route.RelativePath != "src/routes.ts" {
+			t.Fatalf("RelativePath = %q, want src/routes.ts", route.RelativePath)
+		}
+		if len(route.RouteEntries) != 1 {
+			t.Fatalf("%s RouteEntries = %#v, want exactly one entry", route.Framework, route.RouteEntries)
+		}
+		want, ok := wantHandlers[route.Framework]
+		if !ok {
+			t.Fatalf("unexpected framework %q in results %#v", route.Framework, results)
+		}
+		if got := route.RouteEntries[0].Handler; got != want {
+			t.Fatalf("%s handler = %q, want %q", route.Framework, got, want)
+		}
+	}
+}
+
 func TestParseFrameworkSemanticsExtractsNextJSRouteModules(t *testing.T) {
 	t.Parallel()
 
