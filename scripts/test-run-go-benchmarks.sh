@@ -60,13 +60,9 @@ rg -q "scripts/run-go-benchmarks.sh" "${workflow}"; check "workflow invokes the 
 rg -q "scripts/test-run-go-benchmarks.sh" "${workflow}"; check "workflow runs this mirror" $?
 rg -q "upload-artifact@v4" "${workflow}"; check "workflow uploads results as an artifact" $?
 rg -q "pull_request" "${workflow}"; check "workflow triggers on pull_request" $?
-# B-1 must NOT gate on regressions — that is B-2 (#3795). Guard against a
-# benchstat gate sneaking into this workflow before B-2 lands. Match only
-# non-comment lines so the explanatory comment naming B-2 does not trip it.
-if rg -q -P '^(?!\s*#).*benchstat' "${workflow}"; then
-	note "FAIL: bench.yml invokes benchstat — regression gating belongs to B-2 (#3795), not B-1"
-	fail=1
-fi
+# Note: B-2 (#3795) added the benchstat regression job to bench.yml; that job has
+# its own mirror (test-verify-bench-regression.sh). The earlier "no benchstat in
+# bench.yml" guard was retired when B-2 landed.
 
 # --- Functional check: producer emits results, credential-free ----------------
 tmp_root="$(mktemp -d)"
