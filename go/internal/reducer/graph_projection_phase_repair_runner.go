@@ -68,9 +68,26 @@ type GraphProjectionPhaseRepairer struct {
 	Config      GraphProjectionPhaseRepairerConfig
 	Wait        func(context.Context, time.Duration) error
 
+	// Now is the injectable clock that decides which repairs are due and the
+	// retry-backoff deadline (see internal/clock). Nil falls back to the real
+	// wall clock, so production behavior is unchanged; replay and tests inject a
+	// controllable clock to drive due-time and backoff deterministically. It is
+	// the semantic clock only — latency measurement keeps reading time.Now().
+	Now func() time.Time
+
 	Tracer      any
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
+}
+
+// now returns the semantic current time from the injected clock, or the real
+// wall clock when unset. It is UTC-normalized to match the repair queue's
+// stored deadlines.
+func (r *GraphProjectionPhaseRepairer) now() time.Time {
+	if r.Now != nil {
+		return r.Now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 // Run polls the repair queue until the context is cancelled.
@@ -85,8 +102,8 @@ func (r *GraphProjectionPhaseRepairer) Run(ctx context.Context) error {
 			return nil
 		}
 
-		startedAt := time.Now()
-		repaired, err := r.RunOnce(ctx, startedAt.UTC())
+		startedAt := time.Now() // real clock: latency measurement only
+		repaired, err := r.RunOnce(ctx, r.now())
 		if err != nil {
 			if r.Logger != nil {
 				r.Logger.ErrorContext(
