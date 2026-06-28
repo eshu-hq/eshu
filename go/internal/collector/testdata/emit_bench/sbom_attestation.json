@@ -1,0 +1,59 @@
+{
+  "collector": "sbom_attestation",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "sbom_attestation:example-org/emit-bench-service",
+      "source_system": "sbom_attestation",
+      "scope_kind": "sbom_attestation",
+      "collector_kind": "sbom_attestation",
+      "partition_key": "sbom_attestation:example-org/emit-bench-service",
+      "metadata": {
+        "document_format": "cyclonedx"
+      },
+      "generation_id": "emit-bench-sbom-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "sbom.document",
+          "stable_fact_key": "sbom.document:example-org/emit-bench-service:cyclonedx",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_attestation",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "format": "cyclonedx",
+            "spec_version": "1.5",
+            "serial_number": "urn:uuid:00000000-0000-0000-0000-000000000001"
+          }
+        },
+        {
+          "fact_kind": "sbom.component",
+          "stable_fact_key": "sbom.component:example-org/emit-bench-service:pkg:npm/synthetic-lib@1.0.0",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_attestation",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "purl": "pkg:npm/synthetic-lib@1.0.0",
+            "name": "synthetic-lib",
+            "version": "1.0.0"
+          }
+        },
+        {
+          "fact_kind": "attestation.statement",
+          "stable_fact_key": "attestation.statement:example-org/emit-bench-service:provenance",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_attestation",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "predicate_type": "https://slsa.dev/provenance/v1",
+            "subject_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "collector": "tempo",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "tempo:emit-bench-traces",
+      "source_system": "tempo",
+      "scope_kind": "trace_source",
+      "collector_kind": "tempo",
+      "partition_key": "tempo:emit-bench-traces",
+      "metadata": {
+        "endpoint": "https://tempo.example.test"
+      },
+      "generation_id": "emit-bench-tempo-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.declared_trace_route",
+          "stable_fact_key": "observability.declared_trace_route:tempo:emit-bench-service",
+          "schema_version": "1.0.0",
+          "collector_kind": "tempo",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_name": "emit-bench-service",
+            "route": "tempo/emit-bench-service"
+          }
+        },
+        {
+          "fact_kind": "observability.observed_trace_signal",
+          "stable_fact_key": "observability.observed_trace_signal:tempo:emit-bench-service",
+          "schema_version": "1.0.0",
+          "collector_kind": "tempo",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_name": "emit-bench-service",
+            "span_count": 12,
+            "observed_at": "2026-06-25T00:00:00Z"
+          }
+        }
+      ]
+    }
+  ]
+}

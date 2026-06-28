@@ -1,0 +1,50 @@
+{
+  "collector": "jira",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "jira:synthetic.atlassian.test",
+      "source_system": "jira",
+      "scope_kind": "jira_site",
+      "collector_kind": "jira",
+      "partition_key": "jira:synthetic.atlassian.test",
+      "metadata": {
+        "site": "synthetic.atlassian.test",
+        "project_key": "EB"
+      },
+      "generation_id": "emit-bench-jira-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "work_item.record",
+          "stable_fact_key": "work_item.record:synthetic.atlassian.test:EB-1",
+          "schema_version": "1.0.0",
+          "collector_kind": "jira",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "key": "EB-1",
+            "issue_type": "Task",
+            "status": "Done",
+            "summary": "Synthetic work item used only for the emit benchmark."
+          }
+        },
+        {
+          "fact_kind": "work_item.transition",
+          "stable_fact_key": "work_item.transition:synthetic.atlassian.test:EB-1:1",
+          "schema_version": "1.0.0",
+          "collector_kind": "jira",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "key": "EB-1",
+            "from_status": "In Progress",
+            "to_status": "Done",
+            "transitioned_at": "2026-06-24T00:00:00Z"
+          }
+        }
+      ]
+    }
+  ]
+}

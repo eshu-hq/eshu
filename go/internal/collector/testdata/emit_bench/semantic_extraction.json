@@ -1,0 +1,46 @@
+{
+  "collector": "semantic_extraction",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "semantic_extraction:example-org/emit-bench-service",
+      "source_system": "semantic_extraction",
+      "scope_kind": "repository",
+      "collector_kind": "semantic_extraction",
+      "partition_key": "semantic_extraction:example-org/emit-bench-service",
+      "metadata": {
+        "extractor": "synthetic_semantic"
+      },
+      "generation_id": "emit-bench-semantic-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "semantic.code_hint",
+          "stable_fact_key": "semantic.code_hint:example-org/emit-bench-service:cmd/main.go:main",
+          "schema_version": "1.0.0",
+          "collector_kind": "semantic_extraction",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "cmd/main.go",
+            "symbol": "main",
+            "hint": "service entrypoint"
+          }
+        },
+        {
+          "fact_kind": "semantic.documentation_observation",
+          "stable_fact_key": "semantic.documentation_observation:example-org/emit-bench-service:docs/README.md",
+          "schema_version": "1.0.0",
+          "collector_kind": "semantic_extraction",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "docs/README.md",
+            "observation": "describes the emit-bench-service runtime"
+          }
+        }
+      ]
+    }
+  ]
+}

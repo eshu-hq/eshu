@@ -1,0 +1,59 @@
+{
+  "collector": "documentation",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "documentation:example-org/emit-bench-service",
+      "source_system": "documentation",
+      "scope_kind": "documentation_source",
+      "collector_kind": "documentation",
+      "partition_key": "documentation:example-org/emit-bench-service",
+      "metadata": {
+        "source_kind": "repository_docs"
+      },
+      "generation_id": "emit-bench-doc-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "documentation_source",
+          "stable_fact_key": "documentation_source:example-org/emit-bench-service",
+          "schema_version": "1.0.0",
+          "collector_kind": "documentation",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_kind": "repository_docs",
+            "root_path": "docs/"
+          }
+        },
+        {
+          "fact_kind": "documentation_document",
+          "stable_fact_key": "documentation_document:example-org/emit-bench-service:docs/README.md",
+          "schema_version": "1.0.0",
+          "collector_kind": "documentation",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "docs/README.md",
+            "title": "Emit Bench Service",
+            "format": "markdown"
+          }
+        },
+        {
+          "fact_kind": "documentation_section",
+          "stable_fact_key": "documentation_section:example-org/emit-bench-service:docs/README.md:overview",
+          "schema_version": "1.1.0",
+          "collector_kind": "documentation",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "document_path": "docs/README.md",
+            "anchor": "overview",
+            "heading": "Overview"
+          }
+        }
+      ]
+    }
+  ]
+}

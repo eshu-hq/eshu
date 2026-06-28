@@ -1,0 +1,36 @@
+{
+  "collector": "scanner_worker",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scanner_worker:example-org/emit-bench-service",
+      "source_system": "scanner_worker",
+      "scope_kind": "scanner_worker",
+      "collector_kind": "scanner_worker",
+      "partition_key": "scanner_worker:example-org/emit-bench-service",
+      "metadata": {
+        "analyzer": "synthetic_reachability"
+      },
+      "generation_id": "emit-bench-scanner-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "scanner_worker.analysis",
+          "stable_fact_key": "scanner_worker.analysis:example-org/emit-bench-service:finding-1",
+          "schema_version": "1.0.0",
+          "collector_kind": "scanner_worker",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "analyzer": "synthetic_reachability",
+            "finding_id": "finding-1",
+            "purl": "pkg:npm/synthetic-lib@1.0.0",
+            "cve_id": "CVE-0000-00001",
+            "reachable": true
+          }
+        }
+      ]
+    }
+  ]
+}
