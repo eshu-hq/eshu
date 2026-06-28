@@ -62,6 +62,20 @@ bash scripts/verify-scale-benchmark-artifact.sh \
   --artifact scale-benchmark-artifact.json
 ```
 
+Validate a per-capability budget proof artifact that binds the capability
+matrix's `p95_latency_ms` and `max_scope_size` rows to measured API/MCP evidence:
+
+```bash
+bash scripts/verify-capability-budget-proof.sh \
+  --artifact capability-budget-proof.json
+```
+
+That verifier fails when a supported capability/profile budget row has no
+measurement, measured p95 exceeds the declared budget without a linked public
+issue, max scope lacks limit/truncation proof, API and MCP parity fails for a
+proxied surface, retry/dead-letter or truncation invariants fail under a pass
+claim, or the public artifact contains private-looking data.
+
 ## Producing An Artifact
 
 First convert an aggregate runtime summary into the measurement input:
@@ -110,3 +124,7 @@ inputs. Keep raw logs, pprof captures, and source manifests operator-local.
 This gate complements `scripts/verify-performance-evidence.sh`: hot-path code
 changes still need tracked benchmark or no-regression evidence in the repo,
 while this artifact gate defines the shape of the benchmark proof itself.
+The companion capability-budget proof gate consumes these aggregate benchmark
+artifacts as sanitized handles and proves the per-capability route/tool budget
+contract without publishing raw repository, provider, log, request, or response
+data.

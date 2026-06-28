@@ -861,22 +861,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_generation"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_generation"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_generation"
         }
       },
       "proof_signals": [
@@ -933,22 +940,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         }
       },
       "proof_signals": [
@@ -1000,22 +1015,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph_plus_agent_reasoning_provider"
+          "required_runtime": "local_host_plus_graph_plus_agent_reasoning_provider",
+          "p95_latency_ms": 10000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack_plus_agent_reasoning_provider"
+          "required_runtime": "full_stack_plus_agent_reasoning_provider",
+          "p95_latency_ms": 15000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_agent_reasoning_provider"
+          "required_runtime": "local_host_plus_agent_reasoning_provider",
+          "p95_latency_ms": 10000,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services_plus_agent_reasoning_provider"
+          "required_runtime": "deployed_services_plus_agent_reasoning_provider",
+          "p95_latency_ms": 15000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1071,22 +1094,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "aws_account_or_scope"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         }
       },
       "proof_signals": [
@@ -1142,22 +1172,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1213,22 +1250,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1284,22 +1329,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1355,22 +1408,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "none"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1418,22 +1478,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1481,22 +1549,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1552,22 +1627,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -1632,22 +1714,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 200,
+          "max_scope_size": "full_catalog"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 200,
+          "max_scope_size": "full_catalog"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 200,
+          "max_scope_size": "full_catalog"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 400,
+          "max_scope_size": "full_catalog"
         }
       },
       "proof_signals": [
@@ -1701,22 +1791,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_run_or_commit_or_artifact_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_run_or_commit_or_artifact_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_run_or_commit_or_artifact_scope"
         }
       },
       "proof_signals": [
@@ -1770,22 +1867,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "run_or_commit_or_artifact_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "run_or_commit_or_artifact_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "run_or_commit_or_artifact_scope"
         }
       },
       "proof_signals": [
@@ -1841,22 +1945,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "account_project_or_subscription"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
         }
       },
       "proof_signals": [
@@ -1912,22 +2023,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "account_project_or_subscription"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_project_or_subscription"
         }
       },
       "proof_signals": [
@@ -1979,22 +2097,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2046,22 +2172,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2113,22 +2247,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 10000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2184,22 +2325,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "none"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1800,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2247,22 +2395,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 800,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2310,22 +2466,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 500,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 500,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 500,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 800,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2373,22 +2537,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 700,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 700,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 700,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2436,22 +2608,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 500,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 500,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 500,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 800,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2499,22 +2679,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2562,22 +2750,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 700,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 700,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 700,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2629,22 +2825,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 4000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 6000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -2700,22 +2903,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "one_collector_family"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "one_collector_family"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "one_collector_family"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 100,
+          "max_scope_size": "one_collector_family"
         }
       },
       "proof_signals": [
@@ -2760,22 +2971,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "bounded_extraction_policy_catalog_page_1_500"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "bounded_extraction_policy_catalog_page_1_500"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "bounded_extraction_policy_catalog_page_1_500"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 100,
+          "max_scope_size": "bounded_extraction_policy_catalog_page_1_500"
         }
       },
       "proof_signals": [
@@ -2820,22 +3039,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_component_registry"
+          "required_runtime": "local_host_component_registry",
+          "p95_latency_ms": 250,
+          "max_scope_size": "one_component"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack_component_registry"
+          "required_runtime": "full_stack_component_registry",
+          "p95_latency_ms": 250,
+          "max_scope_size": "one_component"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_component_registry"
+          "required_runtime": "local_host_component_registry",
+          "p95_latency_ms": 250,
+          "max_scope_size": "one_component"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services_component_registry"
+          "required_runtime": "deployed_services_component_registry",
+          "p95_latency_ms": 500,
+          "max_scope_size": "one_component"
         }
       },
       "proof_signals": [
@@ -2882,22 +3109,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_component_registry"
+          "required_runtime": "local_host_component_registry",
+          "p95_latency_ms": 250,
+          "max_scope_size": "bounded_local_component_registry_page_1_500"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack_component_registry"
+          "required_runtime": "full_stack_component_registry",
+          "p95_latency_ms": 250,
+          "max_scope_size": "bounded_local_component_registry_page_1_500"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_component_registry"
+          "required_runtime": "local_host_component_registry",
+          "p95_latency_ms": 250,
+          "max_scope_size": "bounded_local_component_registry_page_1_500"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services_component_registry"
+          "required_runtime": "deployed_services_component_registry",
+          "p95_latency_ms": 500,
+          "max_scope_size": "bounded_deployed_component_registry_page_1_500"
         }
       },
       "proof_signals": [
@@ -2939,22 +3174,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_package_and_ecosystem_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_package_and_ecosystem_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_package_and_ecosystem_scope"
         }
       },
       "proof_signals": [
@@ -3006,22 +3248,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 500,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 500,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 800,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -3073,22 +3322,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -3140,22 +3396,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_documentation_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_documentation_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_documentation_scope"
         }
       },
       "proof_signals": [
@@ -3211,22 +3474,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_scope_finding_type_source_document_or_status_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_scope_finding_type_source_document_or_status_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_scope_finding_type_source_document_or_status_scope"
         }
       },
       "proof_signals": [
@@ -3278,22 +3548,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -3345,22 +3622,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "bounded_handle_batch"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 800,
+          "max_scope_size": "bounded_handle_batch"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "bounded_handle_batch"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "bounded_handle_batch"
         }
       },
       "proof_signals": [
@@ -3408,22 +3693,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "one_fact_kind"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "one_fact_kind"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "one_fact_kind"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 100,
+          "max_scope_size": "one_fact_kind"
         }
       },
       "proof_signals": [
@@ -3468,22 +3761,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "bounded_fact_schema_version_registry_page_1_500"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "bounded_fact_schema_version_registry_page_1_500"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 50,
+          "max_scope_size": "bounded_fact_schema_version_registry_page_1_500"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "none"
+          "required_runtime": "none",
+          "p95_latency_ms": 100,
+          "max_scope_size": "bounded_fact_schema_version_registry_page_1_500"
         }
       },
       "proof_signals": [
@@ -3528,22 +3829,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_scope_since_generation_or_observed_at"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_scope_since_generation_or_observed_at"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_postgres"
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_scope_since_generation_or_observed_at"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "repository_scope_since_generation_or_observed_at"
         }
       },
       "proof_signals": [
@@ -3592,22 +3901,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_repository_collector_source_generation_or_status"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_repository_collector_source_generation_or_status"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_postgres"
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_repository_collector_source_generation_or_status"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_repository_collector_source_generation_or_status"
         }
       },
       "proof_signals": [
@@ -3656,22 +3973,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "service_id_since_service_generation"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "service_id_since_service_generation"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_postgres"
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "service_id_since_service_generation"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "service_id_since_service_generation"
         }
       },
       "proof_signals": [
@@ -3720,22 +4045,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_query_window"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_query_window"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "none"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_query_window"
         }
       },
       "proof_signals": [
@@ -3783,22 +4115,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         }
       },
       "proof_signals": [
@@ -3847,22 +4187,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "indexed_workspace"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -3918,22 +4265,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         }
       },
       "proof_signals": [
@@ -3989,22 +4343,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "aws_account_or_scope"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         }
       },
       "proof_signals": [
@@ -4060,22 +4421,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "aws_account_or_scope_plus_arn"
         }
       },
       "proof_signals": [
@@ -4131,22 +4499,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "aws_account_or_scope"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "aws_account_or_scope"
         }
       },
       "proof_signals": [
@@ -4202,22 +4577,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 10000,
+          "max_scope_size": "bounded_repo_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 10000,
+          "max_scope_size": "bounded_repo_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 10000,
+          "max_scope_size": "bounded_repo_scope"
         }
       },
       "proof_signals": [
@@ -4273,22 +4655,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "incident_or_service_time_window"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "incident_or_service_time_window"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_postgres"
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "incident_or_service_time_window"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "incident_or_service_time_window"
         }
       },
       "proof_signals": [
@@ -4338,22 +4728,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cluster_workload_namespace_image_or_digest_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cluster_workload_namespace_image_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "cluster_workload_namespace_image_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -4407,22 +4804,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_provider_signal_object_resource_or_service_scope_with_source_or_resource_class_filter"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_provider_signal_object_resource_or_service_scope_with_source_or_resource_class_filter"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_provider_signal_object_resource_or_service_scope_with_source_or_resource_class_filter"
         }
       },
       "proof_signals": [
@@ -4478,22 +4882,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "package_or_repository_id"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "package_or_repository_id"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "package_or_repository_id"
         }
       },
       "proof_signals": [
@@ -4551,22 +4962,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "package_or_version_id"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "package_or_version_id"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "package_or_version_id"
         }
       },
       "proof_signals": [
@@ -4622,22 +5040,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_id"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_id"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "repository_id"
         }
       },
       "proof_signals": [
@@ -4693,22 +5118,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_ecosystem_registry_namespace_package_manager_or_visibility_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_ecosystem_registry_namespace_package_manager_or_visibility_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_ecosystem_registry_namespace_package_manager_or_visibility_scope"
         }
       },
       "proof_signals": [
@@ -4762,22 +5194,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_registry_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_registry_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_registry_scope"
         }
       },
       "proof_signals": [
@@ -4835,22 +5274,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "package_id"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "package_id"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "package_id"
         }
       },
       "proof_signals": [
@@ -4906,22 +5352,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -4991,22 +5444,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5064,22 +5525,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5137,22 +5605,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_provider_resource_type_region_or_account_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_provider_resource_type_region_or_account_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2500,
+          "max_scope_size": "optional_provider_resource_type_region_or_account_scope"
         }
       },
       "proof_signals": [
@@ -5204,22 +5679,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_digest_repository_or_tag_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_digest_repository_or_tag_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_digest_repository_or_tag_scope"
         }
       },
       "proof_signals": [
@@ -5303,22 +5785,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 4000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 4000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 6000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5376,22 +5865,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5457,22 +5953,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 4000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 4000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 6000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5530,22 +6033,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 4000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 4000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 6000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5603,22 +6113,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5676,22 +6193,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5749,22 +6273,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 6000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 6000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 8000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -5822,22 +6353,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "optional_repo_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "optional_repo_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "optional_repo_scope"
         }
       },
       "proof_signals": [
@@ -5895,22 +6433,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_category_provider_environment_or_resource_service_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_category_provider_environment_or_resource_service_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2500,
+          "max_scope_size": "optional_category_provider_environment_or_resource_service_scope"
         }
       },
       "proof_signals": [
@@ -5962,22 +6507,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -6043,22 +6595,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "whole_graph"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "whole_graph"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 3000,
+          "max_scope_size": "whole_graph"
         }
       },
       "proof_signals": [
@@ -6112,22 +6671,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -6185,22 +6751,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 7000,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -6258,22 +6831,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "one_metric_window_2000_samples"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "one_metric_window_2000_samples"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "one_metric_window_2000_samples"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2500,
+          "max_scope_size": "one_metric_window_2000_samples"
         }
       },
       "proof_signals": [
@@ -6443,22 +7024,26 @@
         "local_authoritative": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -6532,22 +7117,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -6616,22 +7208,26 @@
         "local_authoritative": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -6705,22 +7301,26 @@
         "local_authoritative": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -6792,22 +7392,28 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -6876,22 +7482,26 @@
         "local_authoritative": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -6964,22 +7574,26 @@
         "local_authoritative": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -7050,22 +7664,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -7117,22 +7738,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_or_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_or_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "account_or_scope"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_or_scope"
         }
       },
       "proof_signals": [
@@ -7184,22 +7812,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_environment_or_service"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_environment_or_service"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "account_environment_or_service"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_environment_or_service"
         }
       },
       "proof_signals": [
@@ -7251,22 +7886,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_environment_or_service"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_environment_or_service"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "account_environment_or_service"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "account_environment_or_service"
         }
       },
       "proof_signals": [
@@ -7318,22 +7960,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_chain_workload_service_account_or_iam_role_scope_with_state_filter"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_chain_workload_service_account_or_iam_role_scope_with_state_filter"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_chain_workload_service_account_or_iam_role_scope_with_state_filter"
         }
       },
       "proof_signals": [
@@ -7385,22 +8034,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_gap_or_service_account_scope_with_gap_type_state_filter"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_gap_or_service_account_scope_with_gap_type_state_filter"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_gap_or_service_account_scope_with_gap_type_state_filter"
         }
       },
       "proof_signals": [
@@ -7452,22 +8108,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "single_reducer_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "single_reducer_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "single_reducer_scope"
         }
       },
       "proof_signals": [
@@ -7519,22 +8182,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_or_observation_scope_with_risk_severity_state_filter"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_or_observation_scope_with_risk_severity_state_filter"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_or_observation_scope_with_risk_severity_state_filter"
         }
       },
       "proof_signals": [
@@ -7586,22 +8256,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_path_chain_or_vault_mount_scope_with_state_filter"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_path_chain_or_vault_mount_scope_with_state_filter"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_path_chain_or_vault_mount_scope_with_state_filter"
         }
       },
       "proof_signals": [
@@ -7653,22 +8330,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1800,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -7716,22 +8401,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_semantic_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_semantic_scope"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_semantic_scope"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -7779,22 +8472,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_semantic_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_semantic_scope"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_semantic_scope"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -7842,22 +8543,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 100,
+          "max_scope_size": "runtime_status"
         }
       },
       "proof_signals": [
@@ -7902,22 +8611,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_search_documents"
+          "required_runtime": "local_host_plus_search_documents",
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "active_repo"
         }
       },
       "proof_signals": [
@@ -7967,22 +8683,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "catalog_entity_repository_service_workload_or_owner_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "catalog_entity_repository_service_workload_or_owner_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "catalog_entity_repository_service_workload_or_owner_scope"
         }
       },
       "proof_signals": [
@@ -8031,22 +8754,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_catalog_page"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "bounded_catalog_page"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_catalog_page"
         }
       },
       "proof_signals": [
@@ -8098,22 +8828,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_advisory_or_package_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_advisory_or_package_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "cve_advisory_or_package_scope"
         }
       },
       "proof_signals": [
@@ -8169,22 +8906,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_digest_ref_repository_or_outcome_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_digest_ref_repository_or_outcome_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_digest_ref_repository_or_outcome_scope"
         }
       },
       "proof_signals": [
@@ -8238,22 +8982,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "digest_ref_repository_or_outcome_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "digest_ref_repository_or_outcome_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "digest_ref_repository_or_outcome_scope"
         }
       },
       "proof_signals": [
@@ -8313,22 +9064,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "one_finding_or_advisory_package_repository_path"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "one_finding_or_advisory_package_repository_path"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "one_finding_or_advisory_package_repository_path"
         }
       },
       "proof_signals": [
@@ -8384,22 +9142,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -8453,22 +9218,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "cve_package_repository_or_digest_scope"
         }
       },
       "proof_signals": [
@@ -8528,22 +9300,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_subject_document_attachment_status_or_artifact_kind_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_subject_document_attachment_status_or_artifact_kind_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_subject_document_attachment_status_or_artifact_kind_scope"
         }
       },
       "proof_signals": [
@@ -8597,22 +9376,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "digest_or_document_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "digest_or_document_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "digest_or_document_scope"
         }
       },
       "proof_signals": [
@@ -8672,22 +9458,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_repository_provider_package_or_advisory_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "optional_repository_provider_package_or_advisory_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "optional_repository_provider_package_or_advisory_scope"
         }
       },
       "proof_signals": [
@@ -8741,22 +9534,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_provider_package_or_advisory_scope"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "repository_provider_package_or_advisory_scope"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "repository_provider_package_or_advisory_scope"
         }
       },
       "proof_signals": [
@@ -8812,22 +9612,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 100,
+          "max_scope_size": "static_contract"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 100,
+          "max_scope_size": "static_contract"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 100,
+          "max_scope_size": "static_contract"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 200,
+          "max_scope_size": "static_contract"
         }
       },
       "proof_signals": [
@@ -8875,22 +9683,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 200,
+          "max_scope_size": "full_catalog"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 200,
+          "max_scope_size": "full_catalog"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 200,
+          "max_scope_size": "full_catalog"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 400,
+          "max_scope_size": "full_catalog"
         }
       },
       "proof_signals": [
@@ -8935,22 +9751,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 800,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -9006,22 +9830,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 800,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -9073,22 +9905,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 800,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -9140,22 +9980,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 0,
+          "max_scope_size": "none"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -9203,22 +10051,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 800,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -9274,22 +10130,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "active_repo"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "multi_repo_platform"
         }
       },
       "proof_signals": [
@@ -9341,22 +10205,29 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_query_window"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "bounded_query_window"
         },
         "local_lightweight": {
           "status": "unsupported",
           "max_truth_level": "unsupported",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "max_scope_size": "none"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_query_window"
         }
       },
       "proof_signals": [
@@ -9404,22 +10275,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 200,
+          "max_scope_size": "bounded_packet"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 200,
+          "max_scope_size": "bounded_packet"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "local_host"
+          "required_runtime": "local_host",
+          "p95_latency_ms": 200,
+          "max_scope_size": "bounded_packet"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "derived",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 400,
+          "max_scope_size": "bounded_packet"
         }
       },
       "proof_signals": [
@@ -9467,22 +10346,30 @@
         "local_authoritative": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_plus_graph"
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "jira_scope_project_work_item_url_or_observed_window"
         },
         "local_full_stack": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "full_stack"
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "jira_scope_project_work_item_url_or_observed_window"
         },
         "local_lightweight": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "local_host_postgres"
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "jira_scope_project_work_item_url_or_observed_window"
         },
         "production": {
           "status": "supported",
           "max_truth_level": "exact",
-          "required_runtime": "deployed_services"
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "jira_scope_project_work_item_url_or_observed_window"
         }
       },
       "proof_signals": [

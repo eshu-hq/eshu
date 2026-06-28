@@ -114,6 +114,20 @@ const openAPIPathsCapabilities = `
                           "maturity": {"type": "string"},
                           "derived_maturity": {"type": "string"},
                           "maturity_reason": {"type": "string"},
+                          "profiles": {
+                            "type": "object",
+                            "description": "Per runtime-profile support, truth ceiling, required runtime, p95 latency budget, and max-scope claim.",
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "status": {"type": "string", "enum": ["supported", "unsupported", "experimental"]},
+                                "max_truth_level": {"type": "string"},
+                                "required_runtime": {"type": "string"},
+                                "p95_latency_ms": {"type": "integer", "nullable": true},
+                                "max_scope_size": {"type": "string"}
+                              }
+                            }
+                          },
                           "surfaces": {
                             "type": "array",
                             "items": {

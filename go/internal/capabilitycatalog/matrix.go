@@ -38,6 +38,12 @@ type MatrixProfile struct {
 	MaxTruthLevel string
 	// RequiredRuntime is the runtime shape required for the row.
 	RequiredRuntime string
+	// P95LatencyMS is the declared p95 latency budget in milliseconds. A nil
+	// value means the row explicitly has no latency budget, usually because the
+	// capability is unsupported for that profile.
+	P95LatencyMS *int
+	// MaxScopeSize is the declared maximum scope size for the profile.
+	MaxScopeSize string
 	// Verification lists the proof signals declared for the row.
 	Verification []MatrixVerification
 }
@@ -64,6 +70,8 @@ type matrixFileProfileRow struct {
 	Status          string              `yaml:"status"`
 	MaxTruthLevel   string              `yaml:"max_truth_level"`
 	RequiredRuntime string              `yaml:"required_runtime"`
+	P95LatencyMS    *int                `yaml:"p95_latency_ms"`
+	MaxScopeSize    string              `yaml:"max_scope_size"`
 	Verification    []map[string]string `yaml:"verification"`
 }
 
@@ -169,6 +177,8 @@ func convertCapability(raw matrixFileCapability) MatrixCapability {
 			Status:          row.Status,
 			MaxTruthLevel:   row.MaxTruthLevel,
 			RequiredRuntime: row.RequiredRuntime,
+			P95LatencyMS:    row.P95LatencyMS,
+			MaxScopeSize:    row.MaxScopeSize,
 			Verification:    convertVerification(row.Verification),
 		}
 	}

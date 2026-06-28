@@ -1,0 +1,91 @@
+version: capability-budget-proof/v1
+updated_at: 2026-06-28
+issue: 4062
+gate_status: operational
+purpose: >
+  Bind capability-matrix per-profile latency and max-scope budget claims to
+  public-safe measured proof artifacts for API and MCP surfaces.
+
+artifact_contract:
+  schema_version: capability-budget-proof/v1
+  privacy_status: public_safe
+  raw_evidence_location: operator_local_only
+
+required_run_metadata:
+  - id: run.issue
+    rule: 4062
+  - id: run.commit
+    rule: 40 character lowercase commit SHA
+  - id: run.backend.kind
+    rule: nornicdb or neo4j
+  - id: run.backend.version
+    rule: sanitized backend version label
+
+measurement_rows:
+  - id: capability
+    rule: required
+  - id: profile
+    rule: required
+  - id: api_routes
+    rule: required_when_api_surface_measured
+  - id: mcp_tools
+    rule: required_when_mcp_surface_measured
+  - id: corpus_slot
+    rule: required public-safe scale-lab corpus slot
+  - id: backend
+    rule: backend kind and version used for the measurement
+  - id: p50_ms
+    rule: required_when_matrix_declares_p95
+  - id: p95_ms
+    rule: required_when_matrix_declares_p95
+  - id: p99_ms
+    rule: required_when_matrix_declares_p95
+  - id: not_applicable_reason
+    rule: allowed only when no p95 budget applies
+  - id: declared_max_scope_size
+    rule: required_when_matrix_declares_max_scope_size
+  - id: result_scope
+    rule: aggregate public-safe measured scope
+  - id: limit_enforced
+    rule: true when max_scope_size is declared
+  - id: truncation_proof
+    rule: required when max_scope_size is declared
+  - id: artifact_handle
+    rule: sanitized aggregate proof handle
+  - id: commit
+    rule: 40 character lowercase commit SHA measured
+  - id: freshness
+    rule: measured_at and expires_at
+  - id: surface_parity
+    rule: required_for_api_mcp_proxy with status, api_p95_ms, mcp_p95_ms, max_delta_ms, and proof_handle
+  - id: surface_parity.api_p95_ms
+    rule: measured API p95 for proxied route/tool comparison
+  - id: surface_parity.mcp_p95_ms
+    rule: measured MCP p95 for proxied route/tool comparison
+  - id: surface_parity.max_delta_ms
+    rule: maximum accepted API/MCP p95 delta
+  - id: retry_count
+    rule: pass artifact requires zero
+  - id: dead_letter_count
+    rule: pass artifact requires zero
+  - id: linked_issue
+    rule: required when measured p95 exceeds the declared budget
+
+privacy_rules:
+  - id: aggregate_only
+    rule: >
+      Public capability-budget artifacts may contain aggregate latency
+      percentiles, status enums, commit SHAs, sanitized run ids, sanitized
+      artifact handles, backend labels, public issue numbers, and corpus slots
+      only.
+  - id: no_private_values
+    rule: >
+      Public artifacts must not contain private repository names, provider
+      locators, alert locators, account ids, tokens, email addresses,
+      hostnames, IP addresses, local machine paths, raw logs, raw request or
+      response bodies, package names from private systems, or transcripts.
+
+proof_gate:
+  command: bash scripts/verify-capability-budget-proof.sh
+  artifact_command: bash scripts/verify-capability-budget-proof.sh --artifact capability-budget-proof.json
+  expected_result: pass
