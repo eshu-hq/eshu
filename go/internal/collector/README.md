@@ -699,16 +699,32 @@ changes.
   and Java call inference do not need every method-local declaration as a
   canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
   unless their query contracts change.
-- SCIP indexing defaults on for `python,typescript,javascript,go,rust,java,cpp,c`
-  when the matching `scip-*` binary is available. Set `SCIP_INDEXER=false`, `0`,
-  `no`, or `off` for native-only parsing, or set `SCIP_LANGUAGES` to narrow the
-  SCIP language. Missing binaries, indexer/parser failures, or selected files
-  absent from `index.scip` fall back to native parser output. No-Regression
-  Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
+- SCIP indexing is opt-in for `python,typescript,javascript,go,rust,java,cpp,c`.
+  Set `SCIP_INDEXER=1`, `true`, `yes`, or `on` to enable it when the matching
+  `scip-*` binary is available. Unset, unrecognized, `false`, `0`, `no`, and
+  `off` values keep native-only parsing. Set `SCIP_LANGUAGES` to narrow the SCIP
+  language. Missing binaries, indexer/parser failures, or selected files absent
+  from `index.scip` fall back to native parser output. No-Regression Evidence:
+  `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
+  Performance Evidence: baseline unset `SCIP_INDEXER` could enter the shared
+  SCIP process limiter and launch an external indexer when an allowed language
+  and matching `scip-*` binary were present. After this slice, unset
+  `SCIP_INDEXER` returns `Enabled=false`, records one
+  `eshu_dp_scip_snapshot_attempts_total{language="unknown",result="disabled"}`
+  attempt, and returns to native parser workers without binary lookup, process
+  wait, indexer execution, protobuf parsing, queue work, graph writes, or extra
+  rows. Backend/version: local Go test runtime with fixture Python and mixed
+  Python/Go repositories, no Postgres/NornicDB/Neo4j/provider required. After
+  measurement: `go test ./internal/collector -run
+  'Test(LoadSnapshotSCIPConfig|SCIPSnapshot|SCIPLanguage|SCIPWorkers)'
+  -count=1` passed and proves default-off, explicit-on, binary fallback,
+  subtree fan-out, missing-index fallback, and worker-limit behavior.
   Observability Evidence: bounded SCIP fallback logs name language, reason, and
   failure class; `eshu_dp_scip_process_wait_seconds` exposes shared process
   limiter saturation by language; parse logs, metrics, and fact counters
-  diagnose fallback.
+  diagnose fallback. No-Observability-Change: no metric name, metric label,
+  span, status field, log field, worker, queue, graph write, runtime endpoint,
+  deployment profile, or provider configuration is added.
 - Terraform-state ingestion currently uses explicit sources and Git-observed
   backend facts. The #140 target design adds repo-local `.tfstate` candidates
   as advisory metadata, but those candidates must not route raw state through

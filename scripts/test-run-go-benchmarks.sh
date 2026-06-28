@@ -42,6 +42,10 @@ if rg -q -P '^(?!\s*#).*\bmapfile\b' "${producer}"; then
 	note "FAIL: producer uses mapfile (bash 4+ only); use a portable read loop"
 	fail=1
 fi
+if rg -q -P '^(?!\s*#).*\bxargs\b' "${producer}"; then
+	note "FAIL: producer uses xargs in discovery; use a shell read loop so empty input is handled explicitly"
+	fail=1
+fi
 
 # Credential-free: the producer must not bake in a Postgres/NornicDB DSN, so
 # backend-bound benchmarks self-skip on a plain runner.
@@ -84,6 +88,25 @@ fi
 [[ -f "${out}" ]]; check "producer writes the results file" $?
 if [[ -f "${out}" ]]; then
 	rg -q "^BenchmarkValidateSchemaVersion" "${out}"; check "results file contains benchmark rows" $?
+fi
+
+# Auto-discovery must find benchmark packages without BENCH_PACKAGES. Keep the
+# benchmark pattern narrow so this proves package discovery without running the
+# full suite in the mirror.
+auto_out="${tmp_root}/bench-results-auto.txt"
+if env -u BENCH_PACKAGES -u ESHU_POSTGRES_DSN -u ESHU_REDUCER_CLAIM_BENCH_DSN \
+	BENCH_OUTPUT="${auto_out}" \
+	BENCH_PATTERN="BenchmarkValidateSchemaVersion$" \
+	BENCH_TIME="1x" \
+	BENCH_COUNT="1" \
+	"${producer}" >/dev/null 2>&1; then
+	check "producer auto-discovers benchmark packages" 0
+else
+	check "producer auto-discovers benchmark packages" 1
+fi
+[[ -f "${auto_out}" ]]; check "auto-discovery writes the results file" $?
+if [[ -f "${auto_out}" ]]; then
+	rg -q "^BenchmarkValidateSchemaVersion" "${auto_out}"; check "auto-discovery results contain benchmark rows" $?
 fi
 
 # Hermeticity under a hostile environment: export a bogus backend DSN and confirm

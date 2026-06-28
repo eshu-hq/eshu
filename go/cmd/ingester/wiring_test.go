@@ -111,8 +111,8 @@ func TestBuildIngesterCollectorServiceUsesNativeSnapshotter(t *testing.T) {
 		t.Fatalf("buildIngesterCollectorService() snapshotter type = %T, want collector.NativeRepositorySnapshotter", source.Snapshotter)
 	}
 	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
-	if !snapshotter.SCIP.Enabled {
-		t.Fatal("buildIngesterCollectorService() SCIP enabled by default = false, want true")
+	if snapshotter.SCIP.Enabled {
+		t.Fatal("buildIngesterCollectorService() SCIP enabled by default = true, want false")
 	}
 	if got, want := snapshotter.SCIP.Workers, 4; got != want {
 		t.Fatalf("buildIngesterCollectorService() SCIP workers = %d, want %d", got, want)

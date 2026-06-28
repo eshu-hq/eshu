@@ -28,9 +28,7 @@ func TestSCIPSnapshotConcurrentParseMergesSCIPSupplement(t *testing.T) {
 	writeCollectorTestFile(t, helperPath, "def helper():\n    return 1\n")
 
 	indexer := &recordingSCIPIndexer{available: true}
-	config := LoadSnapshotSCIPConfig(func(string) string {
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
 		result: parser.SCIPParseResult{
@@ -108,9 +106,7 @@ func TestSCIPSnapshotFallbackLogsBoundedReason(t *testing.T) {
 			appPath := filepath.Join(repoRoot, "app.py")
 			writeCollectorTestFile(t, appPath, "def main():\n    return 1\n")
 
-			config := LoadSnapshotSCIPConfig(func(string) string {
-				return ""
-			})
+			config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 			config.Indexer = tt.indexer
 			config.Parser = tt.parser
 			var logs bytes.Buffer
@@ -175,9 +171,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 			name: "no supported language",
 			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
 				t.Helper()
-				config := LoadSnapshotSCIPConfig(func(string) string {
-					return ""
-				})
+				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Languages = []string{"go"}
 				return config
 			},
@@ -188,9 +182,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 			name: "binary unavailable",
 			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
 				t.Helper()
-				config := LoadSnapshotSCIPConfig(func(string) string {
-					return ""
-				})
+				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Indexer = &recordingSCIPIndexer{available: false}
 				return config
 			},
@@ -201,9 +193,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 			name: "indexer failed",
 			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
 				t.Helper()
-				config := LoadSnapshotSCIPConfig(func(string) string {
-					return ""
-				})
+				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Indexer = &recordingSCIPIndexer{available: true, runErr: errors.New("indexer failed")}
 				return config
 			},
@@ -214,9 +204,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 			name: "parse failed",
 			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
 				t.Helper()
-				config := LoadSnapshotSCIPConfig(func(string) string {
-					return ""
-				})
+				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Indexer = &recordingSCIPIndexer{available: true}
 				config.Parser = fakeSCIPParser{err: errors.New("parse failed")}
 				return config
@@ -228,9 +216,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 			name: "empty result",
 			configure: func(t *testing.T, _ string) SnapshotSCIPConfig {
 				t.Helper()
-				config := LoadSnapshotSCIPConfig(func(string) string {
-					return ""
-				})
+				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Indexer = &recordingSCIPIndexer{available: true}
 				config.Parser = fakeSCIPParser{result: parser.SCIPParseResult{Files: map[string]map[string]any{}}}
 				return config
@@ -242,9 +228,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 			name: "used",
 			configure: func(t *testing.T, appPath string) SnapshotSCIPConfig {
 				t.Helper()
-				config := LoadSnapshotSCIPConfig(func(string) string {
-					return ""
-				})
+				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Indexer = &recordingSCIPIndexer{available: true}
 				config.Parser = fakeSCIPParser{
 					result: parser.SCIPParseResult{

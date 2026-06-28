@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 )
 
-func TestBuildBootstrapCollectorWiresDefaultSCIPConfig(t *testing.T) {
+func TestBuildBootstrapCollectorWiresDefaultSCIPDisabled(t *testing.T) {
 	t.Parallel()
 
 	deps, err := buildBootstrapCollector(
@@ -25,7 +25,32 @@ func TestBuildBootstrapCollectorWiresDefaultSCIPConfig(t *testing.T) {
 
 	source := deps.source.(*collector.GitSource)
 	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
+	if snapshotter.SCIP.Enabled {
+		t.Fatal("buildBootstrapCollector() SCIP enabled by default = true, want false")
+	}
+}
+
+func TestBuildBootstrapCollectorWiresExplicitSCIPEnable(t *testing.T) {
+	t.Parallel()
+
+	deps, err := buildBootstrapCollector(
+		context.Background(),
+		&fakeBootstrapSQLDB{},
+		func(key string) string {
+			if key == "SCIP_INDEXER" {
+				return "true"
+			}
+			return ""
+		},
+		nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
+	}
+
+	source := deps.source.(*collector.GitSource)
+	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
 	if !snapshotter.SCIP.Enabled {
-		t.Fatal("buildBootstrapCollector() SCIP enabled by default = false, want true")
+		t.Fatal("buildBootstrapCollector() SCIP enabled = false, want true")
 	}
 }

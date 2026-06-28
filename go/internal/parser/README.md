@@ -234,8 +234,9 @@ The Ruby package also owns Bundler `Gemfile` and `Gemfile.lock` dependency
 evidence so RubyGems manifest and lockfile rows use the same parser payload
 path as `.rb` source files.
 
-**SCIP path**: the collector snapshotter enables SCIP by default for the
-configured SCIP-capable language list, groups selected files by language and
+**SCIP path**: when `SCIP_INDEXER=1`, `true`, `yes`, or `on`, the collector
+snapshotter groups selected files from the configured SCIP-capable list by
+language and
 package/workspace root, verifies the matching `scip-*` binary is on `PATH`,
 runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index via
 `SCIPIndexParser.Parse`. The SCIP result supplements the native tree-sitter
@@ -391,11 +392,12 @@ path in Eshu:
 5. SCIP results supplement — not replace — native tree-sitter output for the
    same repository.
 
-SCIP defaults on for
-`python,typescript,javascript,go,rust,java,cpp,c` when the required external
-binary is available. Set `SCIP_INDEXER=false`, `0`, `no`, or `off` to force
-native-only parsing. `SCIP_LANGUAGES` narrows the allowlist; it does not remove
-native parser coverage for selected files outside the SCIP index.
+SCIP defaults off. Set `SCIP_INDEXER=1`, `true`, `yes`, or `on` to enable
+SCIP for `python,typescript,javascript,go,rust,java,cpp,c` when the required
+external binary is available. Unset, unrecognized, `false`, `0`, `no`, and
+`off` values keep native-only parsing. `SCIP_LANGUAGES` narrows the allowlist;
+it does not remove native parser coverage for selected files outside the SCIP
+index.
 
 ## Cyclomatic complexity coverage
 

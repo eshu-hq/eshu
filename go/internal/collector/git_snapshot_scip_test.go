@@ -68,19 +68,41 @@ func TestMergeSCIPSupplementAttachesCallsAndPreservesNativeRoots(t *testing.T) {
 	}
 }
 
-func TestLoadSnapshotSCIPConfigDefaultsEnabledForTopLanguageList(t *testing.T) {
+func TestLoadSnapshotSCIPConfigDefaultsDisabledForTopLanguageList(t *testing.T) {
 	t.Parallel()
 
 	config := LoadSnapshotSCIPConfig(func(string) string {
 		return ""
 	})
 
-	if !config.Enabled {
-		t.Fatalf("Enabled = false, want default SCIP enabled")
+	if config.Enabled {
+		t.Fatalf("Enabled = true, want default SCIP disabled")
 	}
 	wantLanguages := []string{"python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"}
 	if !reflect.DeepEqual(config.Languages, wantLanguages) {
 		t.Fatalf("Languages = %#v, want %#v", config.Languages, wantLanguages)
+	}
+}
+
+func TestLoadSnapshotSCIPConfigExplicitEnableValues(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"1", "true", "yes", "on"} {
+		raw := raw
+		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
+			config := LoadSnapshotSCIPConfig(func(key string) string {
+				if key == "SCIP_INDEXER" {
+					return raw
+				}
+				return ""
+			})
+
+			if !config.Enabled {
+				t.Fatalf("Enabled = false, want SCIP_INDEXER=%q to enable SCIP", raw)
+			}
+		})
 	}
 }
 
@@ -107,13 +129,16 @@ func TestLoadSnapshotSCIPConfigExplicitDisablePreservesLanguageNarrowing(t *test
 	}
 }
 
-func TestSCIPSnapshotDefaultsToSCIPWhenBinaryAvailable(t *testing.T) {
+func TestSCIPSnapshotExplicitEnableUsesSCIPWhenBinaryAvailable(t *testing.T) {
 	repoRoot := t.TempDir()
 	appPath := filepath.Join(repoRoot, "app.py")
 	writeCollectorTestFile(t, appPath, "def main():\n    return 1\n")
 
 	indexer := &recordingSCIPIndexer{available: true}
-	config := LoadSnapshotSCIPConfig(func(string) string {
+	config := LoadSnapshotSCIPConfig(func(key string) string {
+		if key == "SCIP_INDEXER" {
+			return "true"
+		}
 		return ""
 	})
 	config.Indexer = indexer
@@ -148,7 +173,7 @@ func TestSCIPSnapshotDefaultsToSCIPWhenBinaryAvailable(t *testing.T) {
 		t.Fatalf("SCIP run languages = %#v, want python", got)
 	}
 	if got, _ := parsedFiles[0]["function_calls_scip"].([]map[string]any); len(got) != 1 {
-		t.Fatalf("function_calls_scip = %#v, want default SCIP supplement", parsedFiles[0]["function_calls_scip"])
+		t.Fatalf("function_calls_scip = %#v, want explicit SCIP supplement", parsedFiles[0]["function_calls_scip"])
 	}
 }
 
@@ -202,9 +227,7 @@ func TestSCIPSnapshotUnavailableBinaryFallsBackToNative(t *testing.T) {
 	writeCollectorTestFile(t, appPath, "def main():\n    return 1\n")
 
 	indexer := &recordingSCIPIndexer{available: false}
-	config := LoadSnapshotSCIPConfig(func(string) string {
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
 		result: parser.SCIPParseResult{
@@ -248,12 +271,7 @@ func TestSCIPSnapshotLanguagesNarrowDominantSelection(t *testing.T) {
 	writeCollectorTestFile(t, goPath, "package main\n\nfunc main() {}\n")
 
 	indexer := &recordingSCIPIndexer{available: true}
-	config := LoadSnapshotSCIPConfig(func(key string) string {
-		if key == "SCIP_LANGUAGES" {
-			return "go"
-		}
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(map[string]string{"SCIP_LANGUAGES": "go"}))
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
 		result: parser.SCIPParseResult{
@@ -312,9 +330,7 @@ func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
 			"callee_symbol": "scip-python python helper/helper().",
 		},
 	}
-	config := LoadSnapshotSCIPConfig(func(string) string {
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Indexer = &recordingSCIPIndexer{available: true}
 	config.Parser = fakeSCIPParser{
 		result: parser.SCIPParseResult{
@@ -395,6 +411,18 @@ func defaultCollectorTestEngine(t *testing.T) *parser.Engine {
 		t.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
 	return engine
+}
+
+func scipEnabledTestGetenv(values map[string]string) func(string) string {
+	return func(key string) string {
+		if key == "SCIP_INDEXER" {
+			return "true"
+		}
+		if values == nil {
+			return ""
+		}
+		return values[key]
+	}
 }
 
 type recordingSCIPIndexer struct {

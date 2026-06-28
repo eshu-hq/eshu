@@ -25,9 +25,7 @@ func TestSCIPSnapshotRunsEachSupportedLanguageSubtree(t *testing.T) {
 	writeCollectorTestFile(t, goPath, "package main\n\nfunc main() {}\n")
 
 	indexer := &languagePathSCIPIndexer{available: map[string]bool{"python": true, "go": true}}
-	config := LoadSnapshotSCIPConfig(func(string) string {
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
@@ -89,9 +87,7 @@ func TestSCIPSnapshotRunsSameLanguagePackageSubtrees(t *testing.T) {
 	writeCollectorTestFile(t, jobsPath, "def run():\n    return task()\n")
 
 	indexer := &languagePathSCIPIndexer{available: map[string]bool{"python": true}}
-	config := LoadSnapshotSCIPConfig(func(string) string {
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
@@ -153,9 +149,7 @@ func TestSCIPSnapshotSameLanguageSubtreeFailurePreservesOtherRoots(t *testing.T)
 		available:       map[string]bool{"python": true},
 		runErrorsByRoot: map[string]error{apiRoot: errors.New("indexer failed")},
 	}
-	config := LoadSnapshotSCIPConfig(func(string) string {
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
@@ -208,9 +202,7 @@ func TestSCIPSnapshotLanguageSubtreeFallbackPreservesOtherLanguages(t *testing.T
 		t.Fatalf("NewInstruments() error = %v, want nil", err)
 	}
 	indexer := &languagePathSCIPIndexer{available: map[string]bool{"python": true, "go": false}}
-	config := LoadSnapshotSCIPConfig(func(string) string {
-		return ""
-	})
+	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
