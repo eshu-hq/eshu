@@ -30,6 +30,7 @@ cd "${repo_root}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
+: "${GATE_MCP_PORT:=18091}"   # eshu-mcp-server http transport for B-7(c) MCP query truth
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
 : "${GATE_DRAIN_TIMEOUT:=10m}"
 : "${GATE_BUDGET_SECONDS:=900}"   # baseline wall-time budget; ceiling is 2x.
@@ -231,6 +232,7 @@ build_bin bootstrap-index
 build_bin projector
 build_bin reducer
 build_bin api
+build_bin mcp-server
 build_bin golden-corpus-gate
 for spec in "${collector_specs[@]}"; do build_bin "${spec%%:*}"; done
 
@@ -384,6 +386,19 @@ for _ in $(seq 1 30); do
 done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
 
+log "start eshu-mcp-server (http) for MCP query truth"
+ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \
+	start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server"
+mcp_ready=false
+for _ in $(seq 1 30); do
+	if curl -fsS "http://localhost:${GATE_MCP_PORT}/health" >/dev/null 2>&1; then
+		mcp_ready=true
+		break
+	fi
+	sleep 1
+done
+[[ "${mcp_ready}" == "true" ]] || { tail -30 "${log_dir}/mcp-server.log" >&2 || true; die "eshu-mcp-server /health never returned on port ${GATE_MCP_PORT}"; }
+
 log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # Minimal-corpus posture: the required graph assertions are "the pipeline
 # projected the corpus" (Repository present) and the cross-repo DEPENDS_ON
@@ -427,6 +442,7 @@ gate_status=0
 	-phase=graph,query,timing \
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
+	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" \
 	-graph-required-only=false \
 	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,Platform,GitlabPipeline,GitlabJob,CloudAction" \
 	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8,rc-11,rc-12,rc-13,rc-14,rc-15,rc-16,rc-17,rc-18,rc-19,rc-20,rc-21,rc-22,rc-23,rc-10,rc-9,rc-24,rc-25,rc-26,rc-27,rc-28,rc-29,rc-30,rc-31,rc-32,rc-33,rc-34,rc-35,rc-36" \
@@ -434,6 +450,7 @@ gate_status=0
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" || gate_status=$?
 kill "${api_pid}" >/dev/null 2>&1 || true
+kill "${mcp_pid}" >/dev/null 2>&1 || true
 
 if [[ "${gate_status}" -ne 0 ]]; then
 	die "graph/query/timing phase failed (elapsed ${elapsed}s)"

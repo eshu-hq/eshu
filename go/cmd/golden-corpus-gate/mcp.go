@@ -119,12 +119,28 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 		return nil, fmt.Errorf("tools/call %s: tool reported isError; content=%q", name, firstText(rpc.Result.Content))
 	}
 	if len(rpc.Result.StructuredContent) > 0 {
-		return rpc.Result.StructuredContent, nil
+		return unwrapTruthEnvelope(rpc.Result.StructuredContent), nil
 	}
 	if t := firstText(rpc.Result.Content); t != "" {
-		return []byte(t), nil
+		return unwrapTruthEnvelope([]byte(t)), nil
 	}
 	return nil, fmt.Errorf("tools/call %s: result carried no structuredContent or text content", name)
+}
+
+// unwrapTruthEnvelope returns the tool payload to assert the query shape against.
+// Eshu MCP tools wrap their payload in a truth envelope {data, truth, error}; the
+// canonical query data the snapshot shapes describe lives under "data". When the
+// raw bytes are such an envelope, the "data" object is returned; otherwise the raw
+// bytes are returned unchanged so a non-enveloped tool still works.
+func unwrapTruthEnvelope(raw []byte) []byte {
+	var env struct {
+		Data  json.RawMessage `json:"data"`
+		Truth json.RawMessage `json:"truth"`
+	}
+	if err := json.Unmarshal(raw, &env); err == nil && len(env.Data) > 0 && len(env.Truth) > 0 {
+		return env.Data
+	}
+	return raw
 }
 
 func firstText(entries []mcpContentEntry) string {
