@@ -30,7 +30,8 @@ capabilities:
     tools: [find_code]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, verification: [{go_test: ./internal/query}]}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, verification: [{remote_validation: prod-code-search-exact}]}
+      local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}]}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-exact}]}
 `)
 	writeFile(t, filepath.Join(dir, "capability-matrix", "extra.v1.yaml"), `
 capabilities:
@@ -54,6 +55,15 @@ capabilities:
 	}
 	if got := first.Profiles["production"].Verification; len(got) != 1 || got[0].Kind != "remote_validation" || got[0].Ref != "prod-code-search-exact" {
 		t.Fatalf("verification parse = %+v", got)
+	}
+	if got := first.Profiles["production"].P95LatencyMS; got == nil || *got != 800 {
+		t.Fatalf("production p95 latency = %v, want 800", got)
+	}
+	if got := first.Profiles["production"].MaxScopeSize; got != "multi_repo_platform" {
+		t.Fatalf("production max scope = %q, want multi_repo_platform", got)
+	}
+	if got := first.Profiles["local_authoritative"].P95LatencyMS; got != nil {
+		t.Fatalf("unsupported p95 latency = %v, want nil", *got)
 	}
 	if first.Tools[0] != "find_code" {
 		t.Fatalf("tools = %v", first.Tools)

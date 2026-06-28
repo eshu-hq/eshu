@@ -42,4 +42,5 @@
 //
 //	go run ./cmd/capability-inventory -mode generate
 //	go run ./cmd/capability-inventory -mode verify
+//	go run ./cmd/capability-inventory -mode budget-proof -budget-artifact ../capability-budget-proof.json
 package main

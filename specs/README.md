@@ -40,6 +40,10 @@ documentation.
   artifact required for large-corpus ingestion, reducer drain, graph-write,
   API, MCP, retry/dead-letter, memory, backend, and before/after proof. See
   `docs/public/reference/local-testing/scale-benchmark-artifact.md`.
+- `capability-budget-proof.v1.yaml` defines the public-safe per-capability
+  proof artifact that binds capability-matrix `p95_latency_ms` and
+  `max_scope_size` rows to measured API/MCP budget evidence. It is enforced by
+  `scripts/verify-capability-budget-proof.sh`.
 
 Treat edits here as contract changes. Update matching docs and verification in
 the same PR.

@@ -44,6 +44,12 @@ Each family default role must also explicitly grant the family action with the
 family data classes and scope levels, so role tables cannot drift away from
 advertised defaults.
 
+Each profile also carries the matrix-declared `p95_latency_ms` and
+`max_scope_size` budget claims. `CheckBudgetProof` verifies an operator-supplied
+public artifact that binds every supported budget row to measured API/MCP
+evidence, scope/truncation proof, freshness, backend/version, sanitized artifact
+handle, and retry/dead-letter invariants.
+
 ## Maturity
 
 Maturity is derived from the matrix support statuses
@@ -95,6 +101,7 @@ by `Load`. Regenerate and verify it with:
 cd go
 go run ./cmd/capability-inventory -mode generate
 go run ./cmd/capability-inventory -mode verify
+go run ./cmd/capability-inventory -mode budget-proof -budget-artifact ../capability-budget-proof.json
 ```
 
 `TestVerifyAgainstRealSpecs` (in `cmd/capability-inventory`) is the drift gate:

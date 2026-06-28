@@ -81,6 +81,33 @@ func TestCapabilitiesHandlerListsCatalogWithExactTruth(t *testing.T) {
 	if entryAuthorization["family"].(string) == "" || entryAuthorization["action"].(string) == "" {
 		t.Fatalf("first capability authorization missing family/action: %+v", entryAuthorization)
 	}
+
+	foundProfileBudget := false
+	for i, raw := range capabilities {
+		entry := raw.(map[string]any)
+		profiles, ok := entry["profiles"].(map[string]any)
+		if !ok {
+			t.Fatalf("capability %q missing profiles", entry["capability"])
+		}
+		production, ok := profiles["production"].(map[string]any)
+		if !ok {
+			t.Fatalf("capability %q missing production profile", entry["capability"])
+		}
+		expected := catalog.Entries[i].Profiles["production"]
+		if expected.P95LatencyMS != nil {
+			if got, want := int(production["p95_latency_ms"].(float64)), *expected.P95LatencyMS; got != want {
+				t.Fatalf("%s production p95_latency_ms = %d, want %d", entry["capability"], got, want)
+			}
+			if got, want := production["max_scope_size"].(string), expected.MaxScopeSize; got != want {
+				t.Fatalf("%s production max_scope_size = %q, want %q", entry["capability"], got, want)
+			}
+			foundProfileBudget = true
+			break
+		}
+	}
+	if !foundProfileBudget {
+		t.Fatal("catalog response has no production profile with a p95 latency budget")
+	}
 }
 
 func TestOpenAPISpecDocumentsCapabilityAuthorizationCatalog(t *testing.T) {
@@ -115,6 +142,17 @@ func TestOpenAPISpecDocumentsCapabilityAuthorizationCatalog(t *testing.T) {
 	entryProperties := items["properties"].(map[string]any)
 	if _, ok := entryProperties["authorization"]; !ok {
 		t.Fatal("capabilities OpenAPI entry missing authorization metadata")
+	}
+	profiles, ok := entryProperties["profiles"].(map[string]any)
+	if !ok {
+		t.Fatal("capabilities OpenAPI entry missing profile metadata")
+	}
+	profileProperties := profiles["additionalProperties"].(map[string]any)["properties"].(map[string]any)
+	if _, ok := profileProperties["p95_latency_ms"]; !ok {
+		t.Fatal("capabilities OpenAPI profile metadata missing p95_latency_ms")
+	}
+	if _, ok := profileProperties["max_scope_size"]; !ok {
+		t.Fatal("capabilities OpenAPI profile metadata missing max_scope_size")
 	}
 }
 

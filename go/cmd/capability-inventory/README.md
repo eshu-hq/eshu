@@ -33,16 +33,22 @@ go run ./cmd/capability-inventory -mode verify
 # collector-state marker contradicts the surface inventory, or a broad public
 # product claim lacks a source-to-proof ledger row.
 go run ./cmd/capability-inventory -mode docs
+
+# Capability budget proof guard: fail when a public measurement artifact does
+# not bind every supported p95/max-scope budget row to measured API/MCP proof.
+go run ./cmd/capability-inventory -mode budget-proof \
+  -budget-artifact ../capability-budget-proof.json
 ```
 
 ## Flags
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `-mode` | `report` | `report`, `generate`, `verify`, or `docs` |
+| `-mode` | `report` | `report`, `generate`, `verify`, `docs`, or `budget-proof` |
 | `-specs` | `../specs` | path to the specs directory (matrix, overlay, surface overlay) |
 | `-out` | `internal/capabilitycatalog/data/catalog.generated.json` | catalog artifact output path (generate mode) |
 | `-surface-out` | `internal/capabilitycatalog/data/surface-inventory.generated.json` | surface artifact output path (generate mode) |
+| `-budget-artifact` | empty | public capability budget proof artifact path (budget-proof mode) |
 | `-docs` | `../docs/public` | path to the docs directory (docs mode) |
 | `-root` | `..` | path to the repository root (surface enumeration) |
 

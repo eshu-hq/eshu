@@ -36,7 +36,8 @@ API, MCP, and console to read. Each entry carries:
   `unknown`
 - `authorization` — the matched permission family, action, data classes, scope
   levels, default roles, and sensitive-data marker
-- `profiles` — per-profile status, truth ceiling, and required runtime
+- `profiles` — per-profile status, truth ceiling, required runtime, p95 latency
+  budget, and max-scope claim
 - `proof_signals` — deduplicated verification signals from the matrix
 - `known_gaps`, `linked_issues`, `docs`, `console`
 
@@ -103,6 +104,25 @@ capability and no exemption), unmatched surfaces (a declared tool with no MCP
 match and no non-MCP-surface declaration), and stale overlay entries. Intentional
 gaps are recorded in the overlay with a reason so the gate stays green and the
 gap stays auditable.
+
+## Capability Budget Proof
+
+Capability-matrix rows may declare `p95_latency_ms` and `max_scope_size`.
+Those budget claims are included in the generated catalog profiles, and the
+operator-supplied public proof artifact is checked with:
+
+```bash
+cd go
+go run ./cmd/capability-inventory \
+  -mode budget-proof \
+  -budget-artifact ../capability-budget-proof.json
+```
+
+The gate fails when a supported row with a latency or max-scope budget has no
+measurement, measured p95 exceeds budget without a linked public issue, max
+scope lacks limit/truncation proof, API and MCP measurements disagree for a
+proxied surface, a pass claim hides retry/dead-letter/truncation failures, or
+the artifact contains private-looking data.
 
 ## Docs freshness guard
 

@@ -61,6 +61,11 @@ jobs:
           scripts/test-verify-scale-benchmark-artifact.sh
           scripts/verify-scale-benchmark-artifact.sh
 
+      - name: Verify capability budget proof
+        run: |
+          scripts/test-verify-capability-budget-proof.sh
+          scripts/verify-capability-budget-proof.sh
+
       - name: Verify package docs
         run: |
           scripts/test-verify-package-docs.sh

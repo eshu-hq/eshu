@@ -38,6 +38,9 @@
 // source markers and whole-line quotes to capability ids, owner paths, generated
 // public surfaces, deterministic proof, generated surface counts, catalog proof
 // signals, semantic-output posture, and tracking issue state.
+// Matrix-declared p95 latency and max-scope budget claims are retained in each
+// profile so CheckBudgetProof can bind them to public-safe measured API/MCP
+// artifacts.
 //
 // Load returns the committed, generated artifact embedded from
 // data/catalog.generated.json. It is the runtime entry point for the API, MCP,

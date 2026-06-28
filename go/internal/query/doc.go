@@ -12,8 +12,9 @@
 // seams. The static capabilities route exposes the embedded capability catalog,
 // including built-in roles, grants, data classes, and per-capability
 // authorization metadata, so API and MCP callers see the same grant contract;
-// its OpenAPI schema includes the restricted and sensitive data-class
-// sensitivity values used by the catalog.
+// profile rows include the capability matrix's p95 latency and max-scope
+// budgets, and its OpenAPI schema includes those budget fields plus the
+// restricted and sensitive data-class sensitivity values used by the catalog.
 // The static surface inventory route exposes the embedded surface catalog with
 // collector source-to-read-surface contracts, so HTTP, MCP, and console callers
 // can trace collector fact kinds to projection/read consumers and proof gates

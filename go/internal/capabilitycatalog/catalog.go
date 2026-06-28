@@ -83,6 +83,10 @@ type EntryProfile struct {
 	MaxTruthLevel string `json:"max_truth_level,omitempty"`
 	// RequiredRuntime is the runtime shape required for the profile.
 	RequiredRuntime string `json:"required_runtime,omitempty"`
+	// P95LatencyMS is the declared p95 latency budget in milliseconds.
+	P95LatencyMS *int `json:"p95_latency_ms,omitempty"`
+	// MaxScopeSize is the declared maximum supported scope for the profile.
+	MaxScopeSize string `json:"max_scope_size,omitempty"`
 }
 
 // ProofSignal is one deduplicated verification signal.
@@ -197,6 +201,8 @@ func entryProfiles(profiles map[string]MatrixProfile) map[string]EntryProfile {
 			Status:          effectiveStatus(profile),
 			MaxTruthLevel:   profile.MaxTruthLevel,
 			RequiredRuntime: profile.RequiredRuntime,
+			P95LatencyMS:    profile.P95LatencyMS,
+			MaxScopeSize:    profile.MaxScopeSize,
 		}
 	}
 	return out

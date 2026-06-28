@@ -77,6 +77,91 @@ func TestUnsupportedMode(t *testing.T) {
 	}
 }
 
+func TestBudgetProofModeVerifiesArtifact(t *testing.T) {
+	t.Parallel()
+
+	specsDir := t.TempDir()
+	writeTestFile(t, filepath.Join(specsDir, "capability-matrix.v1.yaml"), `
+capabilities:
+  - capability: code_search.exact_symbol
+    tools: [find_code]
+    profiles:
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform}
+`)
+	artifact := filepath.Join(t.TempDir(), "budget-proof.json")
+	writeTestFile(t, artifact, `{
+  "schema_version": "capability-budget-proof/v1",
+  "status": "pass",
+  "run": {
+    "issue": 4062,
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "backend": {"kind": "nornicdb", "version": "fixture-v1"}
+  },
+  "measurements": [{
+    "capability": "code_search.exact_symbol",
+    "profile": "production",
+    "mcp_tools": ["find_code"],
+    "corpus_slot": "medium/representative_20_50",
+    "backend": {"kind": "nornicdb", "version": "fixture-v1"},
+    "latency": {"p50_ms": 120, "p95_ms": 700, "p99_ms": 760},
+    "scope": {
+      "declared_max_scope_size": "multi_repo_platform",
+      "result_scope": "multi_repo_platform",
+      "limit_enforced": true,
+      "truncation_proof": "limit-plus-one",
+      "truncation_invariant": "pass"
+    },
+    "artifact_handle": "capability-budget-code-search",
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "freshness": {"measured_at": "2026-06-28T00:00:00Z", "expires_at": "2026-07-28T00:00:00Z"},
+    "surface_parity": {"status": "pass"},
+    "retry_count": 0,
+    "dead_letter_count": 0,
+    "status": "pass"
+  }]
+}`)
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"-mode", "budget-proof", "-specs", specsDir, "-budget-artifact", artifact}, &stdout, &stderr); err != nil {
+		t.Fatalf("budget-proof failed: %v\nstdout:\n%s", err, stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "capability budget proof verified") {
+		t.Fatalf("budget-proof output missing confirmation:\n%s", stdout.String())
+	}
+}
+
+func TestBudgetProofModeFailsOnMissingMeasurement(t *testing.T) {
+	t.Parallel()
+
+	specsDir := t.TempDir()
+	writeTestFile(t, filepath.Join(specsDir, "capability-matrix.v1.yaml"), `
+capabilities:
+  - capability: code_search.exact_symbol
+    tools: [find_code]
+    profiles:
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform}
+`)
+	artifact := filepath.Join(t.TempDir(), "budget-proof.json")
+	writeTestFile(t, artifact, `{
+  "schema_version": "capability-budget-proof/v1",
+  "status": "pass",
+  "run": {
+    "issue": 4062,
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "backend": {"kind": "nornicdb", "version": "fixture-v1"}
+  },
+  "measurements": []
+}`)
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"-mode", "budget-proof", "-specs", specsDir, "-budget-artifact", artifact}, &stdout, &stderr); err == nil {
+		t.Fatal("budget-proof error = nil, want missing measurement failure")
+	}
+	if !strings.Contains(stdout.String(), "missing_measurement") {
+		t.Fatalf("budget-proof output missing finding:\n%s", stdout.String())
+	}
+}
+
 // repoDocsDir resolves the repository docs/public directory from this test file.
 func repoDocsDir(t *testing.T) string {
 	t.Helper()

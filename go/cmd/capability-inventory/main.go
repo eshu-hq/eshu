@@ -40,14 +40,19 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("capability-inventory", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	mode := flags.String("mode", "report", "report | generate | verify | docs")
+	mode := flags.String("mode", "report", "report | generate | verify | docs | budget-proof")
 	specsDir := flags.String("specs", defaultSpecsDir, "path to the specs directory")
 	out := flags.String("out", defaultArtifactOut, "catalog artifact output path (generate mode)")
 	surfaceOut := flags.String("surface-out", defaultSurfaceArtifactOut, "surface inventory artifact output path (generate mode)")
+	budgetArtifact := flags.String("budget-artifact", "", "public capability budget proof artifact path (budget-proof mode)")
 	docsDir := flags.String("docs", defaultDocsDir, "path to the docs directory (docs mode)")
 	root := flags.String("root", defaultRoot, "path to the repository root (surface enumeration)")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+
+	if *mode == "budget-proof" {
+		return checkBudgetProof(stdout, *specsDir, *budgetArtifact)
 	}
 
 	signals := mcpSignals()
@@ -106,6 +111,32 @@ func run(args []string, stdout, stderr io.Writer) error {
 	default:
 		return fmt.Errorf("unsupported mode %q", *mode)
 	}
+}
+
+// checkBudgetProof verifies an operator-supplied public-safe measurement
+// artifact against the capability matrix's per-profile performance budgets.
+func checkBudgetProof(stdout io.Writer, specsDir, artifactPath string) error {
+	if artifactPath == "" {
+		return fmt.Errorf("-budget-artifact is required in budget-proof mode")
+	}
+	matrix, err := capabilitycatalog.LoadMatrix(specsDir)
+	if err != nil {
+		return err
+	}
+	artifact, err := capabilitycatalog.LoadBudgetProofArtifact(artifactPath)
+	if err != nil {
+		return err
+	}
+	findings := capabilitycatalog.CheckBudgetProof(matrix, artifact)
+	if len(findings) == 0 {
+		_, err := fmt.Fprintf(stdout, "capability budget proof verified: measurements=%d\n", len(artifact.Measurements))
+		return err
+	}
+	_, _ = fmt.Fprintf(stdout, "%d capability budget proof findings:\n", len(findings))
+	for _, finding := range findings {
+		_, _ = fmt.Fprintf(stdout, "  [%s] %s: %s\n", finding.Kind, finding.Subject, finding.Detail)
+	}
+	return fmt.Errorf("capability budget proof failed: %d findings", len(findings))
 }
 
 // checkDocs runs the docs guards: capability-state freshness, collector-state
