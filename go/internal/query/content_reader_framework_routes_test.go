@@ -135,6 +135,38 @@ func TestParseFrameworkSemanticsExtractsNextJSRouteModules(t *testing.T) {
 	}
 }
 
+func TestParseFrameworkSemanticsSurfacesNextJSRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["nextjs"],
+		"nextjs": {
+			"module_kind": "route",
+			"route_segments": ["api", "catalog"],
+			"route_verbs": ["GET", "POST"],
+			"route_entries": [
+				{"method": "GET", "path": "/api/catalog", "handler": "GET"},
+				{"method": "POST", "path": "/api/catalog", "handler": "POST"}
+			]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("src/app/api/catalog/route.ts", raw)
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	route := results[0]
+	if len(route.RouteEntries) != 2 {
+		t.Fatalf("len(RouteEntries) = %d, want 2", len(route.RouteEntries))
+	}
+	if got, want := route.RouteEntries[0].Handler, "GET"; got != want {
+		t.Fatalf("RouteEntries[0].Handler = %q, want %q", got, want)
+	}
+	if got, want := route.RouteEntries[1].Method, "POST"; got != want {
+		t.Fatalf("RouteEntries[1].Method = %q, want %q", got, want)
+	}
+}
+
 func TestParseFrameworkSemanticsSkipsEmptyFrameworks(t *testing.T) {
 	t.Parallel()
 

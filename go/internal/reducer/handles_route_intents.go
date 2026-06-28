@@ -27,7 +27,8 @@ const handlesRouteEvidenceSource = "parser/framework-routes"
 // resolves to zero or more than one Function — within the file or across the
 // repository — the entry is skipped and no edge is produced, because a wrong or
 // guessed handler binding would corrupt graph truth. Frameworks without a
-// route_entries slice (for example Next.js) are tolerated and skipped.
+// route_entries slice are tolerated and skipped; this preserves exact-only
+// behavior for older facts or frameworks that still model roots without routes.
 func buildHandlesRouteIntentRows(
 	envelopes []facts.Envelope,
 	index codeEntityIndex,
@@ -144,8 +145,8 @@ func resolveHandlesRouteFunction(
 // handlesRouteEntries returns the framework route entries declared for a file,
 // flattened across every framework the parser tagged. Each returned map carries
 // the originating framework name under the "framework" key so the emitted
-// intent can record provenance. Frameworks without a route_entries slice (such
-// as Next.js, which models routes differently) are skipped.
+// intent can record provenance. Frameworks without a route_entries slice are
+// skipped.
 func handlesRouteEntries(fileData map[string]any) []map[string]any {
 	semantics, ok := fileData["framework_semantics"].(map[string]any)
 	if !ok {

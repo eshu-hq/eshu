@@ -117,37 +117,6 @@ func javaScriptHasMetadataConstExport(root *tree_sitter.Node, source []byte) boo
 	return found
 }
 
-// javaScriptHTTPVerbExports returns the HTTP verbs exported as functions from a
-// Next.js route module, deduplicated in source order. It walks export_statement
-// nodes whose declaration is a function_declaration named after an HTTP verb.
-func javaScriptHTTPVerbExports(root *tree_sitter.Node, source []byte) []string {
-	verbs := make([]string, 0, 4)
-	seen := make(map[string]struct{})
-	if root == nil {
-		return verbs
-	}
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "export_statement" {
-			return
-		}
-		declaration := node.ChildByFieldName("declaration")
-		if declaration == nil || declaration.Kind() != "function_declaration" {
-			return
-		}
-		name := strings.TrimSpace(nodeText(declaration.ChildByFieldName("name"), source))
-		verb := strings.ToUpper(name)
-		if _, ok := javaScriptHTTPMethodVerbs[verb]; !ok {
-			return
-		}
-		if _, ok := seen[verb]; ok {
-			return
-		}
-		seen[verb] = struct{}{}
-		verbs = append(verbs, verb)
-	})
-	return verbs
-}
-
 // javaScriptExpressRoute is one Express route registration discovered in the AST.
 type javaScriptExpressRoute struct {
 	symbol  string

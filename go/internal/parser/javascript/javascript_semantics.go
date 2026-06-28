@@ -216,11 +216,14 @@ func detectNextJSSemantics(path string, root *tree_sitter.Node, source []byte) (
 	case "layout.tsx", "layout.jsx", "layout.ts", "layout.js":
 		moduleKind = "layout"
 	}
+	if moduleKind == "" && javaScriptIsNextJSPagesAPIPath(path) {
+		moduleKind = "pages_api"
+	}
 	if moduleKind == "" {
 		return nil, false
 	}
 
-	routeSegments := nextJSRouteSegments(path)
+	routeSegments := nextJSRouteSegmentsForModule(path, moduleKind)
 	metadataExports := "none"
 	if strings.Contains(text, "generateMetadata") {
 		metadataExports = "dynamic"
@@ -239,9 +242,20 @@ func detectNextJSSemantics(path string, root *tree_sitter.Node, source []byte) (
 		"route_segments":   routeSegments,
 		"runtime_boundary": runtimeBoundary,
 	}
-	if moduleKind == "route" {
-		nextjs["route_verbs"] = javaScriptHTTPVerbExports(root, source)
+	switch moduleKind {
+	case "route":
+		entries := javaScriptNextJSAppRouteEntries(root, source, routeSegments)
+		nextjs["route_verbs"] = routeEntryMethods(entries)
+		if len(entries) > 0 {
+			nextjs["route_entries"] = entries
+		}
 		nextjs["request_response_apis"] = nextJSRequestResponseAPIs(text)
+	case "pages_api":
+		entries := javaScriptNextJSPagesAPIRouteEntries(root, source, routeSegments)
+		nextjs["route_verbs"] = routeEntryMethods(entries)
+		if len(entries) > 0 {
+			nextjs["route_entries"] = entries
+		}
 	}
 	return nextjs, true
 }

@@ -175,11 +175,11 @@ language_features:
     docs_claim: docs/public/languages/javascript.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [source-entities, framework-package-roots, graph-backed-queries, semantic-metadata, express-hapi-route-truth]
-    partial_features: [nextjs-route-handler-truth, koa-fastify-nestjs-route-truth, outbound-contracts, generated-clients, runtime-dynamic-routes]
+    supported_features: [source-entities, framework-package-roots, graph-backed-queries, semantic-metadata, express-hapi-route-truth, nextjs-route-handler-truth]
+    partial_features: [koa-fastify-nestjs-route-truth, outbound-contracts, generated-clients, runtime-dynamic-routes]
     derived_features: [dead-code-roots]
-    source_files: [go/internal/parser/javascript_language.go, go/internal/parser/javascript/javascript_language.go, go/internal/parser/javascript/javascript_semantics_ast.go, go/internal/parser/javascript/javascript_dead_code_framework_routes.go]
-    test_files: [go/internal/parser/engine_javascript_semantics_test.go, go/internal/parser/engine_javascript_route_handler_test.go, go/internal/parser/engine_javascript_handler_test.go, go/internal/parser/engine_javascript_ast_conversion_test.go, go/internal/reducer/handles_route_intents_test.go, go/internal/query/code_dead_code_javascript_roots_test.go, go/internal/query/language_query_graph_first_test.go]
+    source_files: [go/internal/parser/javascript_language.go, go/internal/parser/javascript/javascript_language.go, go/internal/parser/javascript/javascript_semantics_ast.go, go/internal/parser/javascript/javascript_nextjs_routes.go, go/internal/parser/javascript/javascript_dead_code_framework_routes.go]
+    test_files: [go/internal/parser/engine_javascript_semantics_test.go, go/internal/parser/engine_javascript_nextjs_route_entries_test.go, go/internal/parser/engine_javascript_route_handler_test.go, go/internal/parser/engine_javascript_handler_test.go, go/internal/parser/engine_javascript_ast_conversion_test.go, go/internal/reducer/handles_route_intents_test.go, go/internal/query/code_dead_code_javascript_roots_test.go, go/internal/query/language_query_graph_first_test.go]
     docs: [docs/public/languages/javascript.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
     tracking_issues: [4039, 4094, 4095]
@@ -351,11 +351,11 @@ language_features:
     docs_claim: docs/public/languages/typescript.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [source-entities, type-metadata, javascript-family-roots, query-surfacing, express-hapi-route-truth]
-    partial_features: [nextjs-route-handler-truth, koa-fastify-nestjs-route-truth, outbound-contracts, decorator-container-behavior, generated-clients]
+    supported_features: [source-entities, type-metadata, javascript-family-roots, query-surfacing, express-hapi-route-truth, nextjs-route-handler-truth]
+    partial_features: [koa-fastify-nestjs-route-truth, outbound-contracts, decorator-container-behavior, generated-clients]
     derived_features: [dead-code-roots]
-    source_files: [go/internal/parser/javascript_language.go, go/internal/parser/javascript/javascript_typescript_semantics.go, go/internal/parser/javascript/javascript_semantics_ast.go, go/internal/parser/javascript/javascript_dead_code_framework_routes.go]
-    test_files: [go/internal/parser/engine_typescript_advanced_semantics_test.go, go/internal/parser/engine_javascript_ast_conversion_test.go, go/internal/reducer/handles_route_intents_test.go, go/internal/query/code_dead_code_node_typescript_matrix_test.go, go/internal/query/code_dead_code_typescript_semantics_test.go, go/internal/query/typescript_graph_metadata_test.go]
+    source_files: [go/internal/parser/javascript_language.go, go/internal/parser/javascript/javascript_typescript_semantics.go, go/internal/parser/javascript/javascript_semantics_ast.go, go/internal/parser/javascript/javascript_nextjs_routes.go, go/internal/parser/javascript/javascript_dead_code_framework_routes.go]
+    test_files: [go/internal/parser/engine_typescript_advanced_semantics_test.go, go/internal/parser/engine_javascript_ast_conversion_test.go, go/internal/parser/engine_javascript_nextjs_route_entries_test.go, go/internal/reducer/handles_route_intents_test.go, go/internal/query/code_dead_code_node_typescript_matrix_test.go, go/internal/query/code_dead_code_typescript_semantics_test.go, go/internal/query/typescript_graph_metadata_test.go]
     docs: [docs/public/languages/typescript.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
     tracking_issues: [4039, 4094, 4095]

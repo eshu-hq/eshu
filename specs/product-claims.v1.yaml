@@ -253,7 +253,7 @@ claims:
   - id: docs.mcp-tool-contract.capability-catalog-read
     source:
       path: docs/public/reference/mcp-tool-contract-matrix.md
-      line: 180
+      line: 181
       quote: "| `get_capability_catalog` | whole reconciled capability catalog from the embedded artifact | optional `maturity` and `owner` filters, `limit`/`offset` paging | yes | prompt-ready deterministic read of capability maturity, public surfaces, proof signals, owner package, known gaps, and linked issues; static embedded artifact with fresh truth and no live backend read <!-- product-claim: id=docs.mcp-tool-contract.capability-catalog-read --> |"
     claim_text: "The get_capability_catalog MCP tool returns a deterministic embedded-artifact read with maturity, surfaces, proof, owner, gaps, and linked issues."
     capabilities:

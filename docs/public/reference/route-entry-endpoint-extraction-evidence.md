@@ -18,12 +18,16 @@ terminal queue, graph rows, or database rows because the extractor is a pure
 in-memory reducer helper.
 
 No-Regression Evidence: `go test ./internal/parser -run
-'TestDefaultEngineParsePathGo(EmitsDeadCodeRegistrationRoots|EmitsMixedCaseServeMuxRouteEntry|IgnoresUnknownHandleFuncReceivers)'
+'TestDefaultEngineParsePathGo(EmitsDeadCodeRegistrationRoots|EmitsMixedCaseServeMuxRouteEntry|IgnoresUnknownHandleFuncReceivers)|TestDefaultEngineParsePathNextJS'
 -count=1` proves Go `net/http` route entries still emit exact handlers,
-including mixed-case `ServeMux` local variables. `go test ./internal/reducer
--run 'TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs|HandlesRoute|APIEndpoint'
+including mixed-case `ServeMux` local variables, and JavaScript-family Next.js
+route entries emit only for exact app-router handler exports or named
+`pages/api` defaults. `go test ./internal/reducer -run
+'TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs|TestFrameworkAPIEndpointSignalsPreferNextJSRouteEntries|HandlesRoute|APIEndpoint'
 -count=1` proves endpoint extraction consumes paired `route_entries` before
-falling back to legacy flattened lists.
+falling back to legacy flattened lists, including the Next.js handler-entry path.
+`go test ./internal/query -run TestParseFrameworkSemanticsSurfacesNextJSRouteEntries
+-count=1` proves framework-route readback preserves the Next.js handler symbol.
 
 No-Observability-Change: this is a pure extraction correction inside existing
 reducer fact processing. It adds no route, graph query, graph write, queue
