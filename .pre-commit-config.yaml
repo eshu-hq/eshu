@@ -170,6 +170,30 @@ repos:
         require_serial: true
         stages: [pre-commit]
 
+      # Docs-build changed-file gate: at commit time, inspect the git index and
+      # run mkdocs build --strict on staged docs/navigation/project-guidance files
+      # only, so contributors catch mkdocs build errors before pushing. This avoids
+      # running mkdocs on every commit when only source code changed.
+      - id: docs-build-staged
+        name: docs build (staged files)
+        entry: scripts/verify-docs-build-changed.sh --staged
+        language: script
+        files: '^(docs/|README\.md|AGENTS\.md|CLAUDE\.md|\.opencode/agent/.*\.md|\.agents/skills/.*\.md|scripts/verify-docs-build-changed\.sh|scripts/test-verify-docs-build-changed\.sh)'
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-commit]
+
+      # Keep the docs-build verifier and hook wiring self-tested at commit time
+      # when either the hook config or verifier scripts change.
+      - id: docs-build-verifier-tests
+        name: docs build verifier tests
+        entry: scripts/test-verify-docs-build-changed.sh
+        language: script
+        files: '^(\.pre-commit-config\.yaml|scripts/(verify-docs-build-changed|test-verify-docs-build-changed)\.sh)$'
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-commit]
+
       # Frontend changed-file Prettier gate (frontend.yml "Prettier format check"):
       # diffs the branch against origin/main and checks only changed JS/TS files,
       # so local pushes fail on the same format drift surfaced in CI without
@@ -177,6 +201,19 @@ repos:
       - id: frontend-format-changed
         name: frontend prettier changed files
         entry: scripts/verify-frontend-format-changed.sh
+        language: script
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]
+
+      # Docs-build changed-file gate (mirrors CI docs build in test.yml): diffs
+      # the branch against origin/main and checks only changed docs/navigation/
+      # project-guidance files, so local pushes fail on the same mkdocs build
+      # errors surfaced in CI without blocking on unrelated changes.
+      - id: docs-build-changed
+        name: docs build (changed files)
+        entry: scripts/verify-docs-build-changed.sh
         language: script
         always_run: true
         pass_filenames: false
