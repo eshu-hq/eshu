@@ -298,6 +298,7 @@ catalog; per-route variants share the same `route` label dimension.
 | Status and admin | go/internal/query/admin.go:182 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query admin |
 | Auth (sessions, OIDC, SAML) | go/internal/query/browser_session*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query auth |
 | OIDC login rate-limit | go/internal/query/oidc_rate_limiter.go | `eshu_dp_oidc_login_throttled_total` | query auth |
+| Search hybrid degradation | go/internal/query/semantic_search_telemetry.go | `eshu_dp_search_hybrid_degraded_total` | query search |
 | Component extensions | go/internal/query/component_extensions.go:149 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query extensions |
 | Ask (CLI/MCP) | go/internal/query/ask_handler.go:159 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query ask |
 | Capabilities | go/internal/query/capabilities.go:47 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query capabilities |
