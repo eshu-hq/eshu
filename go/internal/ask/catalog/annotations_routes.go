@@ -159,6 +159,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"POST /api/v0/impact/blast-radius":                  {Backend: BackendNornicDB, Cost: CostHigh},
 		"POST /api/v0/impact/change-surface":                {Backend: BackendNornicDB, Cost: CostHigh},
 		"POST /api/v0/impact/change-surface/investigate":    {Backend: BackendBoth, Cost: CostHigh},
+		"POST /api/v0/impact/contracts":                     {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/impact/deployment-config-influence":   {Backend: BackendBoth, Cost: CostHigh},
 		"POST /api/v0/impact/developer-change-plan":         {Backend: BackendBoth, Cost: CostHigh},
 		"POST /api/v0/impact/entity-map":                    {Backend: BackendNornicDB, Cost: CostHigh},
