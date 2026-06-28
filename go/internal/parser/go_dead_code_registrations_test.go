@@ -112,6 +112,43 @@ func wire() {
 	)
 }
 
+func TestDefaultEngineParsePathGoEmitsMixedCaseServeMuxRouteEntry(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "mixed_case_mux.go")
+	writeTestFile(
+		t,
+		filePath,
+		`package roots
+
+import handler "net/http"
+
+func ServeReady(w handler.ResponseWriter, r *handler.Request) {}
+
+func wire() {
+	apiMux := handler.NewServeMux()
+	apiMux.HandleFunc("GET /ready", ServeReady)
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "ServeReady"), "dead_code_root_kinds", "go.net_http_handler_registration")
+	assertNestedRouteEntriesEqual(t, got, "net_http", []map[string]string{
+		{"method": "GET", "path": "/ready", "handler": "ServeReady"},
+	})
+}
+
 func assertParserStringSliceContains(t *testing.T, item map[string]any, field string, want string) {
 	t.Helper()
 

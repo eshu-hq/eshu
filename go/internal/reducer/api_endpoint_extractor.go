@@ -112,6 +112,10 @@ func frameworkAPIEndpointSignals(relativePath string, fileData map[string]any) [
 			}
 			continue
 		}
+		if entrySignals := frameworkRouteEntryEndpointSignals(relativePath, framework, frameworkData); len(entrySignals) > 0 {
+			signals = append(signals, entrySignals...)
+			continue
+		}
 		methods := normalizeHTTPMethods(toStringSlice(frameworkData["route_methods"]))
 		for _, routePath := range toStringSlice(frameworkData["route_paths"]) {
 			routePath = strings.TrimSpace(routePath)
@@ -127,6 +131,55 @@ func frameworkAPIEndpointSignals(relativePath string, fileData map[string]any) [
 		}
 	}
 	return signals
+}
+
+// frameworkRouteEntryEndpointSignals preserves parser-owned method/path pairs
+// when a framework emits per-route entries alongside legacy flattened lists.
+func frameworkRouteEntryEndpointSignals(
+	relativePath string,
+	framework string,
+	frameworkData map[string]any,
+) []APIEndpointSignal {
+	entries := frameworkRouteEntryMaps(frameworkData["route_entries"])
+	if len(entries) == 0 {
+		return nil
+	}
+	signals := make([]APIEndpointSignal, 0, len(entries))
+	for _, entry := range entries {
+		routePath := strings.TrimSpace(entry["path"])
+		if routePath == "" {
+			continue
+		}
+		signals = append(signals, APIEndpointSignal{
+			Path:        routePath,
+			Methods:     normalizeHTTPMethods([]string{entry["method"]}),
+			SourceKinds: []string{"framework:" + framework},
+			SourcePaths: []string{relativePath},
+		})
+	}
+	return signals
+}
+
+func frameworkRouteEntryMaps(raw any) []map[string]string {
+	switch entries := raw.(type) {
+	case []map[string]string:
+		return entries
+	case []any:
+		values := make([]map[string]string, 0, len(entries))
+		for _, rawEntry := range entries {
+			entry, ok := rawEntry.(map[string]any)
+			if !ok {
+				continue
+			}
+			values = append(values, map[string]string{
+				"method": apiStringValue(entry["method"]),
+				"path":   apiStringValue(entry["path"]),
+			})
+		}
+		return values
+	default:
+		return nil
+	}
 }
 
 // nextJSAPIEndpointSignal translates parser-owned Next.js route module
