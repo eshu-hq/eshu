@@ -122,10 +122,14 @@ func TestSchemaVersionRegistryPinForcesCompatibilityCase(t *testing.T) {
 	}
 }
 
-// TestAdmissionHookIsTheReplayedFunction proves the function this replay asserts
-// against (facts.ValidateSchemaVersion) is the SAME admission hook the production
-// projector wires for these kinds, so the gate is not testing a parallel
-// re-implementation.
+// TestAdmissionHookIsTheReplayedFunction confirms the central registry declares
+// facts.ValidateSchemaVersion as the admission hook for each corpus kind, so a
+// registry-level rename of the hook is caught here. This is a metadata check:
+// the projector calls facts.ValidateSchemaVersion directly (via the thin
+// projector/schema_version_admission.go wrapper) rather than dispatching on this
+// string, so it documents the wiring rather than enforcing it at runtime — but
+// ReplayAdmission calls that exact same leaf function, so the replay still
+// asserts the real admission decision, not a re-implementation.
 func TestAdmissionHookIsTheReplayedFunction(t *testing.T) {
 	t.Parallel()
 

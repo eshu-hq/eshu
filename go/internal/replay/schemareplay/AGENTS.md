@@ -25,6 +25,16 @@
   or hostnames.
 - Stay credential-free: no Postgres, no graph backend, no Docker.
 
+## Coverage TODO
+
+Every core fact kind is currently at `1.0.0`, so the corpus cannot yet exercise
+the backward-compat path (same MAJOR, older MINOR/PATCH admitted). The exact
+`aws_resource@1.0.0` admit case becomes that proof the moment a kind advances
+past `1.0.0`. When the registry first bumps a kind, add an explicit
+older-same-major admit case (e.g. `aws_resource@1.0.x` against a bumped
+`1.1.0`) so the `CompatibilitySupported` older-minor branch is covered, not just
+the exact-match fast path.
+
 ## Skill routing
 
 - `eshu-golden-corpus-rigor` for the frozen cassette + admission assertions.
