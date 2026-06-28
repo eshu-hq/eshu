@@ -17,6 +17,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/search" {
 		return true
 	}
+	if scopedCodeFlowRoute(r) {
+		return true
+	}
 	// POST /api/v0/ask orchestrates other read routes through the in-process MCP
 	// runner; it holds no graph query of its own. Its tenant scoping is enforced
 	// transitively: the runner re-dispatches each inner tool call through this

@@ -273,3 +273,15 @@ non_mcp_surfaces:
   - tool: get_relationship_edges
     kind: api
     reason: served by the getRelationshipEdges HTTP operation (POST /api/v0/relationships/edges)
+  - tool: POST /api/v0/code/flow/taint-path
+    kind: api
+    reason: served by the inspectCodeFlowTaintPath HTTP operation
+  - tool: POST /api/v0/code/flow/reaching-def
+    kind: api
+    reason: served by the inspectCodeFlowReachingDef HTTP operation
+  - tool: POST /api/v0/code/flow/cfg-summary
+    kind: api
+    reason: served by the inspectCodeFlowCFGSummary HTTP operation
+  - tool: POST /api/v0/code/flow/pdg-summary
+    kind: api
+    reason: served by the inspectCodeFlowPDGSummary HTTP operation

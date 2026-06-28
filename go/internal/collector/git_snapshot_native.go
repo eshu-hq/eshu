@@ -284,6 +284,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	snapshot.InterprocTaintEvidence = buildInterprocTaintEvidence(repoPath, parsedFiles, materialization.Entities)
 	snapshot.FunctionSummaries = buildFunctionSummaries(repoPath, parsedFiles, materialization.Entities)
 	snapshot.FunctionSources = buildFunctionSources(parsedFiles)
+	snapshot.DataflowFunctions = buildDataflowFunctions(repoPath, parsedFiles, materialization.Entities)
 	snapshot.DataflowCatalogVersions = buildDataflowCatalogVersions(parsedFiles)
 	// Record that the value-flow gate ran so a per-generation marker fact is
 	// emitted even when no findings were produced, letting the reducer retract
@@ -296,6 +297,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("interproc_taint_evidence_count", len(snapshot.InterprocTaintEvidence)),
 		slog.Int("function_summary_count", len(snapshot.FunctionSummaries)),
 		slog.Int("function_source_count", len(snapshot.FunctionSources)),
+		slog.Int("dataflow_function_count", len(snapshot.DataflowFunctions)),
 		slog.Bool("dataflow_scanned", s.EmitDataflow),
 	)
 	snapshot.FileData = parsedFiles

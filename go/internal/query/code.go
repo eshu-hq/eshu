@@ -16,6 +16,7 @@ type CodeHandler struct {
 	GraphBackend GraphBackend
 	Neo4j        GraphQuery
 	Content      ContentStore
+	CodeFlow     CodeFlowStore
 	Profile      QueryProfile
 	// HybridRanker, when set, reorders content-search results by fused
 	// BM25+vector relevance using the shipped local embedder. It is optional:
@@ -32,6 +33,10 @@ func (h *CodeHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/security/secrets/investigate", h.handleHardcodedSecretInvestigation)
 	mux.HandleFunc("POST /api/v0/code/imports/investigate", h.handleImportDependencyInvestigation)
 	mux.HandleFunc("POST /api/v0/code/call-graph/metrics", h.handleCallGraphMetrics)
+	mux.HandleFunc("POST /api/v0/code/flow/taint-path", h.handleTaintPath)
+	mux.HandleFunc("POST /api/v0/code/flow/reaching-def", h.handleReachingDef)
+	mux.HandleFunc("POST /api/v0/code/flow/cfg-summary", h.handleCFGSummary)
+	mux.HandleFunc("POST /api/v0/code/flow/pdg-summary", h.handlePDGSummary)
 	mux.HandleFunc("POST /api/v0/code/relationships", h.handleRelationships)
 	mux.HandleFunc("POST /api/v0/code/relationships/story", h.handleRelationshipStory)
 	mux.HandleFunc("POST /api/v0/code/dead-code", h.handleDeadCode)

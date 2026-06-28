@@ -14,6 +14,7 @@ type ToolDefinition struct {
 func ReadOnlyTools() []ToolDefinition {
 	tools := make([]ToolDefinition, 0, 150)
 	tools = append(tools, codebaseTools()...)
+	tools = append(tools, codeFlowTools()...)
 	tools = append(tools, repositoryLanguageTools()...)
 	tools = append(tools, ecosystemTools()...)
 	tools = append(tools, infraResourceAggregateTools()...)

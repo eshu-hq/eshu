@@ -112,6 +112,11 @@ type RepositorySnapshot struct {
 	// interproc source ports for the cross-repo fixpoint. Empty unless the parser
 	// emitted dataflow_sources; byte-identical when off.
 	FunctionSources []FunctionSourceSnapshot `json:"function_sources,omitempty"`
+	// DataflowFunctions carries raw per-function CFG, reaching-definition, and
+	// control-dependence parser facts read from the dataflow_functions bucket.
+	// These exact parser facts back API/MCP code-flow summaries without re-running
+	// parsers. Empty unless the value-flow gate emitted dataflow_functions.
+	DataflowFunctions []DataflowFunctionSnapshot `json:"dataflow_functions,omitempty"`
 	// DataflowCatalogVersions carries parser-emitted value-flow catalog content
 	// hashes. It is folded into snapshot freshness so catalog-only changes force
 	// re-evaluation even when a file produces no findings. Empty when the
