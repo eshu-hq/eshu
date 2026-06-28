@@ -59,6 +59,8 @@ type PhaseBaselineEntry struct {
 
 // LoadPhaseTimings reads the orchestrator-emitted observed timings.
 func LoadPhaseTimings(path string) (PhaseTimings, error) {
+	// #nosec G304 -- path is the orchestrator-supplied phase-timings file (a gate
+	// flag), not user- or request-derived input.
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return PhaseTimings{}, fmt.Errorf("read phase timings %q: %w", path, err)
@@ -75,6 +77,8 @@ func LoadPhaseTimings(path string) (PhaseTimings, error) {
 
 // LoadPhaseBaseline reads the committed per-phase baseline.
 func LoadPhaseBaseline(path string) (PhaseBaseline, error) {
+	// #nosec G304 -- path is the operator-supplied per-phase baseline path (a gate
+	// flag), not user- or request-derived input.
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return PhaseBaseline{}, fmt.Errorf("read phase baseline %q: %w", path, err)
