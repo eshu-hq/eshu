@@ -24,6 +24,7 @@ type relationshipStoryRequest struct {
 	EntityID          string `json:"entity_id"`
 	RepoID            string `json:"repo_id"`
 	Language          string `json:"language"`
+	CrossRepo         bool   `json:"cross_repo"`
 	Direction         string `json:"direction"`
 	RelationshipType  string `json:"relationship_type"`
 	IncludeTransitive bool   `json:"include_transitive"`
@@ -140,6 +141,15 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 func (r relationshipStoryRequest) validate() error {
 	if strings.TrimSpace(r.EntityID) == "" && strings.TrimSpace(r.target()) == "" && !r.isRepoScopedOverrideStory() {
 		return errors.New("entity_id or target is required")
+	}
+	if r.CrossRepo && strings.TrimSpace(r.RepoID) == "" {
+		return errors.New("cross_repo relationship story requires repo_id")
+	}
+	if r.CrossRepo && r.normalizedQueryType() == "class_hierarchy" {
+		return errors.New("cross_repo class_hierarchy enrichment is not supported; use relationship_type INHERITS")
+	}
+	if r.CrossRepo && r.normalizedQueryType() == "overrides" {
+		return errors.New("cross_repo overrides enrichment is not supported; use relationship_type OVERRIDES")
 	}
 	if r.Offset < 0 {
 		return errors.New("offset must be >= 0")
@@ -326,6 +336,7 @@ func relationshipStoryData(
 	}
 	coverage := map[string]any{
 		"query_shape":            queryShape,
+		"scope_mode":             relationshipStoryScopeMode(req),
 		"directions":             relationshipStoryDirections(direction),
 		"relationship_types":     relationshipTypes,
 		"max_depth":              relationshipStoryEffectiveMaxDepth(req),
@@ -364,6 +375,7 @@ func relationshipStoryData(
 		"direction":          direction,
 		"relationship_type":  relationshipTypes[0],
 		"relationship_types": relationshipTypes,
+		"cross_repo":         req.CrossRepo,
 		"limit":              limit,
 		"offset":             req.Offset,
 		"max_depth":          relationshipStoryEffectiveMaxDepth(req),
@@ -379,6 +391,13 @@ func relationshipStoryData(
 		"summary":           summary,
 		"coverage":          coverage,
 	}
+}
+
+func relationshipStoryScopeMode(req relationshipStoryRequest) string {
+	if req.CrossRepo {
+		return "cross_repo"
+	}
+	return "repo_scoped"
 }
 
 func markRelationshipStoryClassHierarchyCoverage(data map[string]any, req relationshipStoryRequest) {

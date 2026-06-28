@@ -78,3 +78,35 @@ func TestResolveRouteMapsFindFunctionCallChainExactSelectorsWithoutNames(t *test
 		t.Fatalf("body[max_depth] = %#v, want %#v", got, want)
 	}
 }
+
+func TestResolveRouteMapsFindFunctionCallChainCrossRepoSelectors(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("find_function_call_chain", map[string]any{
+		"start_entity_id": "entity:api-handler",
+		"end_entity_id":   "entity:billing-charge",
+		"cross_repo":      true,
+		"start_repo_id":   "api",
+		"end_repo_id":     "billing",
+		"max_depth":       float64(6),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.path, "/api/v0/code/call-chain"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body := requireRouteBody(t, route)
+	for key, want := range map[string]any{
+		"cross_repo":      true,
+		"start_entity_id": "entity:api-handler",
+		"end_entity_id":   "entity:billing-charge",
+		"start_repo_id":   "api",
+		"end_repo_id":     "billing",
+		"max_depth":       6,
+	} {
+		if got := body[key]; got != want {
+			t.Fatalf("body[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}

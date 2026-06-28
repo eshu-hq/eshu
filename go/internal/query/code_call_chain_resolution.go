@@ -46,7 +46,7 @@ func (h *CodeHandler) resolveCallChainEntityIDsByReachability(
 		)
 	}
 
-	pairs, err := h.reachableCallChainCandidatePairs(ctx, req.MaxDepth, startCandidates, endCandidates)
+	pairs, err := h.reachableCallChainCandidatePairs(ctx, req, startCandidates, endCandidates)
 	if err != nil {
 		return false, err
 	}
@@ -74,10 +74,14 @@ func (h *CodeHandler) resolveCallChainEntityIDsByReachability(
 
 func (h *CodeHandler) reachableCallChainCandidatePairs(
 	ctx context.Context,
-	maxDepth int,
+	req *callChainRequest,
 	startCandidates []EntityContent,
 	endCandidates []EntityContent,
 ) ([]callChainCandidatePair, error) {
+	maxDepth := 5
+	if req != nil {
+		maxDepth = req.MaxDepth
+	}
 	if maxDepth <= 0 {
 		maxDepth = 5
 	}
@@ -108,7 +112,7 @@ func (h *CodeHandler) reachableCallChainCandidatePairs(
 		for depth := 1; depth <= maxDepth && len(frontier) > 0; depth++ {
 			next := make([]callChainCandidatePath, 0)
 			for _, path := range frontier {
-				rows, err := h.callChainCandidateOneHopRows(ctx, path.nodeID, path.label)
+				rows, err := h.callChainCandidateOneHopRows(ctx, req, path.nodeID, path.label)
 				if err != nil {
 					return nil, err
 				}
@@ -144,19 +148,26 @@ func (h *CodeHandler) reachableCallChainCandidatePairs(
 
 func (h *CodeHandler) callChainCandidateOneHopRows(
 	ctx context.Context,
+	req *callChainRequest,
 	sourceID string,
 	sourceLabel string,
 ) ([]map[string]any, error) {
 	if h.graphBackend() == GraphBackendNornicDB {
-		return h.nornicDBCallChainOneHopRows(ctx, sourceID, sourceLabel)
+		return h.nornicDBCallChainOneHopRows(ctx, sourceID, sourceLabel, callChainAllowedTraversalRepoIDs(req))
+	}
+	params := map[string]any{"source_id": sourceID}
+	repoPredicate := ""
+	if repoIDs := callChainAllowedTraversalRepoIDs(req); len(repoIDs) > 0 {
+		params["traversal_repo_ids"] = repoIDs
+		repoPredicate = " AND coalesce(target.repo_id, '') IN $traversal_repo_ids"
 	}
 	return h.Neo4j.Run(ctx, `
 		MATCH (source)-[:CALLS]->(target)
-		WHERE `+graphEntityIDPredicate("source", "$source_id")+`
+		WHERE `+graphEntityIDPredicate("source", "$source_id")+repoPredicate+`
 		RETURN coalesce(target.id, target.uid) as id,
 		       target.name as name,
 		       labels(target) as labels
-	`, map[string]any{"source_id": sourceID})
+	`, params)
 }
 
 func callChainEndpointCandidates(entityID string, candidates []EntityContent) []EntityContent {

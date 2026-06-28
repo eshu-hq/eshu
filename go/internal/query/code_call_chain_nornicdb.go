@@ -12,11 +12,11 @@ type nornicDBCallChainPath struct {
 }
 
 func (h *CodeHandler) nornicDBCallChainRows(ctx context.Context, req callChainRequest) ([]map[string]any, error) {
-	start, err := h.nornicDBRelationshipMetadataRow(ctx, req.StartEntityID, req.Start, req.RepoID)
+	start, err := h.nornicDBRelationshipMetadataRow(ctx, req.StartEntityID, req.Start, callChainStartRepoID(&req))
 	if err != nil || start == nil {
 		return nil, err
 	}
-	end, err := h.nornicDBRelationshipMetadataRow(ctx, req.EndEntityID, req.End, req.RepoID)
+	end, err := h.nornicDBRelationshipMetadataRow(ctx, req.EndEntityID, req.End, callChainEndRepoID(&req))
 	if err != nil || end == nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (h *CodeHandler) nornicDBCallChainRows(ctx context.Context, req callChainRe
 	for depth := 1; depth <= req.MaxDepth && len(frontier) > 0 && len(rows) < 5; depth++ {
 		next := make([]nornicDBCallChainPath, 0)
 		for _, path := range frontier {
-			targets, err := h.nornicDBCallChainOneHopRows(ctx, path.nodeID, path.label)
+			targets, err := h.nornicDBCallChainOneHopRows(ctx, path.nodeID, path.label, callChainAllowedTraversalRepoIDs(&req))
 			if err != nil {
 				return nil, err
 			}
@@ -71,17 +71,33 @@ func (h *CodeHandler) nornicDBCallChainRows(ctx context.Context, req callChainRe
 	return rows, nil
 }
 
-func (h *CodeHandler) nornicDBCallChainOneHopRows(ctx context.Context, sourceID string, sourceLabel string) ([]map[string]any, error) {
+func (h *CodeHandler) nornicDBCallChainOneHopRows(
+	ctx context.Context,
+	sourceID string,
+	sourceLabel string,
+	allowedRepoIDs []string,
+) ([]map[string]any, error) {
 	sourcePattern := nornicDBNodePattern("source", sourceLabel, "$source_id")
+	params := map[string]any{"source_id": sourceID}
+	repoPredicate := ""
+	if len(allowedRepoIDs) > 0 {
+		params["traversal_repo_ids"] = allowedRepoIDs
+		repoPredicate = `
+		WHERE coalesce(target.repo_id, targetRepo.id, '') IN $traversal_repo_ids`
+	}
 	rows, err := h.Neo4j.Run(ctx, `
 		MATCH `+sourcePattern+`-[:CALLS]->(target)
+		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)
+		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
+		`+repoPredicate+`
 		RETURN coalesce(target.id, target.uid) as id,
 		       target.name as name,
 		       labels(target) as labels,
+		       coalesce(target.repo_id, targetRepo.id) as repo_id,
 		       coalesce(target.language, target.lang) as language,
 		       target.docstring as docstring,
 		       target.method_kind as method_kind
-	`, map[string]any{"source_id": sourceID})
+	`, params)
 	if err != nil {
 		return nil, err
 	}

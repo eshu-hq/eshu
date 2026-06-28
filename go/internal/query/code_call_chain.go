@@ -18,6 +18,9 @@ type callChainRequest struct {
 	StartEntityID string `json:"start_entity_id"`
 	EndEntityID   string `json:"end_entity_id"`
 	RepoID        string `json:"repo_id"`
+	CrossRepo     bool   `json:"cross_repo"`
+	StartRepoID   string `json:"start_repo_id"`
+	EndRepoID     string `json:"end_repo_id"`
 	MaxDepth      int    `json:"max_depth"`
 }
 
@@ -67,8 +70,20 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 	if req.MaxDepth > 10 {
 		req.MaxDepth = 10
 	}
+	if err := req.validate(); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if !h.applyRepositorySelector(w, r, &req.RepoID) {
 		return
+	}
+	if req.CrossRepo {
+		if !h.applyRepositorySelector(w, r, &req.StartRepoID) {
+			return
+		}
+		if !h.applyRepositorySelector(w, r, &req.EndRepoID) {
+			return
+		}
 	}
 	if err := h.resolveCallChainEntityIDs(r.Context(), &req); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -108,8 +123,27 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 		"start_entity_id": req.StartEntityID,
 		"end_entity_id":   req.EndEntityID,
 		"repo_id":         req.RepoID,
+		"cross_repo":      req.CrossRepo,
+		"start_repo_id":   req.StartRepoID,
+		"end_repo_id":     req.EndRepoID,
 		"chains":          chains,
 	}, BuildTruthEnvelope(h.profile(), "call_graph.call_chain_path", TruthBasisAuthoritativeGraph, "resolved from authoritative call graph traversal"))
+}
+
+func (r callChainRequest) validate() error {
+	if !r.CrossRepo && (strings.TrimSpace(r.StartRepoID) != "" || strings.TrimSpace(r.EndRepoID) != "") {
+		return fmt.Errorf("start_repo_id and end_repo_id require cross_repo")
+	}
+	if !r.CrossRepo {
+		return nil
+	}
+	if strings.TrimSpace(callChainStartRepoID(&r)) == "" {
+		return fmt.Errorf("cross_repo call-chain traversal requires start_repo_id or repo_id")
+	}
+	if strings.TrimSpace(callChainEndRepoID(&r)) == "" {
+		return fmt.Errorf("cross_repo call-chain traversal requires end_repo_id or repo_id")
+	}
+	return nil
 }
 
 func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, map[string]any) {
@@ -136,7 +170,12 @@ func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, m
 		predicates = append(predicates, "end.name = $end")
 	}
 
-	if strings.TrimSpace(req.RepoID) != "" {
+	if req.CrossRepo {
+		params["start_repo_id"] = strings.TrimSpace(callChainStartRepoID(&req))
+		params["end_repo_id"] = strings.TrimSpace(callChainEndRepoID(&req))
+		params["traversal_repo_ids"] = callChainAllowedTraversalRepoIDs(&req)
+		predicates = append(predicates, "start.repo_id = $start_repo_id", "end.repo_id = $end_repo_id")
+	} else if strings.TrimSpace(req.RepoID) != "" {
 		params["repo_id"] = strings.TrimSpace(req.RepoID)
 		predicates = append(predicates, "start.repo_id = $repo_id", "end.repo_id = $repo_id")
 	}
@@ -153,6 +192,11 @@ func buildCallChainCypher(req callChainRequest, backend GraphBackend) (string, m
 	fmt.Fprint(&cypher, req.MaxDepth)
 	cypher.WriteString("]->(end)\n")
 	cypher.WriteString("\t\t)\n")
+	if req.CrossRepo {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids)\n")
+	} else if strings.TrimSpace(req.RepoID) != "" {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)\n")
+	}
 	if backend == GraphBackendNornicDB {
 		// NornicDB resolves this path correctly with raw nodes(path) results,
 		// while its inline list projection returns null today.
@@ -189,7 +233,12 @@ func buildNornicDBCallChainCypher(req callChainRequest) (string, map[string]any)
 	}
 	endPattern += ")"
 
-	if strings.TrimSpace(req.RepoID) != "" {
+	if req.CrossRepo {
+		params["start_repo_id"] = strings.TrimSpace(callChainStartRepoID(&req))
+		params["end_repo_id"] = strings.TrimSpace(callChainEndRepoID(&req))
+		params["traversal_repo_ids"] = callChainAllowedTraversalRepoIDs(&req)
+		predicates = append(predicates, "start.repo_id = $start_repo_id", "end.repo_id = $end_repo_id")
+	} else if strings.TrimSpace(req.RepoID) != "" {
 		params["repo_id"] = strings.TrimSpace(req.RepoID)
 		predicates = append(predicates, "start.repo_id = $repo_id", "end.repo_id = $repo_id")
 	}
@@ -208,6 +257,11 @@ func buildNornicDBCallChainCypher(req callChainRequest) (string, map[string]any)
 	fmt.Fprint(&cypher, req.MaxDepth)
 	cypher.WriteString("]->(end)\n")
 	cypher.WriteString("\t\t)\n")
+	if req.CrossRepo {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids)\n")
+	} else if strings.TrimSpace(req.RepoID) != "" {
+		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)\n")
+	}
 	// NornicDB returns typed Bolt nodes for raw nodes(path); the handler
 	// normalizes them to Eshu's existing call-chain response shape.
 	cypher.WriteString("\t\tRETURN nodes(path) as chain,\n")
@@ -277,11 +331,12 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 	)
 	if strings.TrimSpace(req.StartEntityID) == "" && strings.TrimSpace(req.Start) != "" {
 		var err error
-		startCandidates, err = resolveExactGraphEntityCandidates(ctx, h.Content, req.RepoID, req.Start)
+		startRepoID := callChainStartRepoID(req)
+		startCandidates, err = resolveExactGraphEntityCandidates(ctx, h.Content, startRepoID, req.Start)
 		if err != nil {
 			return err
 		}
-		resolved, err := selectExactGraphEntityCandidate(req.RepoID, req.Start, startCandidates)
+		resolved, err := selectExactGraphEntityCandidate(startRepoID, req.Start, startCandidates)
 		startErr = err
 		if resolved != nil {
 			req.StartEntityID = resolved.EntityID
@@ -289,11 +344,12 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 	}
 	if strings.TrimSpace(req.EndEntityID) == "" && strings.TrimSpace(req.End) != "" {
 		var err error
-		endCandidates, err = resolveExactGraphEntityCandidates(ctx, h.Content, req.RepoID, req.End)
+		endRepoID := callChainEndRepoID(req)
+		endCandidates, err = resolveExactGraphEntityCandidates(ctx, h.Content, endRepoID, req.End)
 		if err != nil {
 			return err
 		}
-		resolved, err := selectExactGraphEntityCandidate(req.RepoID, req.End, endCandidates)
+		resolved, err := selectExactGraphEntityCandidate(endRepoID, req.End, endCandidates)
 		endErr = err
 		if resolved != nil {
 			req.EndEntityID = resolved.EntityID
@@ -313,6 +369,59 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 	}
 	if endErr != nil {
 		return endErr
+	}
+	return nil
+}
+
+func callChainStartRepoID(req *callChainRequest) string {
+	if req != nil && req.CrossRepo && strings.TrimSpace(req.StartRepoID) != "" {
+		return req.StartRepoID
+	}
+	if req == nil {
+		return ""
+	}
+	return req.RepoID
+}
+
+func callChainEndRepoID(req *callChainRequest) string {
+	if req != nil && req.CrossRepo && strings.TrimSpace(req.EndRepoID) != "" {
+		return req.EndRepoID
+	}
+	if req == nil {
+		return ""
+	}
+	return req.RepoID
+}
+
+func callChainTraversalRepoIDs(req *callChainRequest) []string {
+	if req == nil || !req.CrossRepo {
+		return nil
+	}
+	repos := make([]string, 0, 2)
+	seen := make(map[string]struct{}, 2)
+	for _, repoID := range []string{callChainStartRepoID(req), callChainEndRepoID(req)} {
+		repoID = strings.TrimSpace(repoID)
+		if repoID == "" {
+			continue
+		}
+		if _, ok := seen[repoID]; ok {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		repos = append(repos, repoID)
+	}
+	return repos
+}
+
+func callChainAllowedTraversalRepoIDs(req *callChainRequest) []string {
+	if req == nil {
+		return nil
+	}
+	if req.CrossRepo {
+		return callChainTraversalRepoIDs(req)
+	}
+	if repoID := strings.TrimSpace(req.RepoID); repoID != "" {
+		return []string{repoID}
 	}
 	return nil
 }

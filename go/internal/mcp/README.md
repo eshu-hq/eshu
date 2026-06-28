@@ -186,7 +186,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `investigate_hardcoded_secrets` | POST | `/api/v0/code/security/secrets/investigate` |
 | `investigate_dead_code` | POST | `/api/v0/code/dead-code/investigate` |
 | `get_code_relationship_story` | POST | `/api/v0/code/relationships/story` |
-| `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers/class hierarchy/overrides; `/api/v0/code/call-chain` for call chains with optional exact entity selectors; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
+| `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers/class hierarchy/overrides, including explicit `find_cross_repo_*` variants; `/api/v0/code/call-chain` for call chains with optional exact entity selectors and `cross_repo` endpoint repository selectors; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
 | `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
 | `get_iac_management_status` | POST | `/api/v0/iac/management-status` |

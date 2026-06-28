@@ -100,7 +100,7 @@ func codebaseTools() []ToolDefinition {
 		codeRelationshipStoryTool(),
 		{
 			Name:        "analyze_code_relationships",
-			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Relationship-story query types return per-row provenance blocks. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
+			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Relationship-story query types return per-row provenance blocks. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_cross_repo_callers, find_cross_repo_callees, find_importers, find_cross_repo_importers, who_modifies, class_hierarchy, cross_repo_class_hierarchy, overrides, cross_repo_overrides, dead_code, call_chain, find_cross_repo_call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
 			InputSchema: analyzeCodeRelationshipsSchema(),
 		},
 		{
@@ -417,6 +417,19 @@ func codebaseTools() []ToolDefinition {
 					"repo_id": map[string]any{
 						"type":        "string",
 						"description": "Optional canonical repository identifier used to scope name-based call-chain resolution",
+					},
+					"cross_repo": map[string]any{
+						"type":        "boolean",
+						"description": "Explicit opt-in for bounded cross-repository call-chain traversal",
+						"default":     false,
+					},
+					"start_repo_id": map[string]any{
+						"type":        "string",
+						"description": "Optional starting repository selector for cross-repo call-chain resolution",
+					},
+					"end_repo_id": map[string]any{
+						"type":        "string",
+						"description": "Optional ending repository selector for cross-repo call-chain resolution",
 					},
 					"start_entity_id": map[string]any{
 						"type":        "string",
