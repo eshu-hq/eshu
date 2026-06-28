@@ -46,6 +46,24 @@ func (d *drainCommitter) CommitScopeGeneration(
 // fresh in-memory cassette.Source over the already-parsed file and drives the
 // service until the batch is exhausted, so the timed region is the collector
 // emit path and not file I/O.
+//
+// Scope of the measurement. This is the uniform, cross-collector Claim ->
+// ingest -> emit-facts SERVICE-path benchmark: it times collector.Service
+// draining a recorded fact-envelope generation (Source.Next -> committer fact
+// stream), i.e. the lifecycle, fact-stream channel, and per-fact drain cost that
+// every collector shares. It deliberately does NOT exercise a collector's
+// provider-response -> facts.Envelope builder, because the provider-API
+// collectors (aws, azure, gcp, jira, pagerduty, oci_registry, ...) cannot run
+// their real emitters credential-free: that path needs recorded provider HTTP
+// responses replayed through the real source, which is the deterministic-replay
+// framework tracked in #4102 (a recorded-transport tape, distinct from these
+// fact-level cassettes). Until that lands, per-collector fact-builder cost is
+// measured by the dedicated parse/build benchmarks where the input is already
+// credential-free and local — BenchmarkParseStream_LargeState
+// (collector/terraformstate), the SBOM document parser bench
+// (collector/sbomdocument), and the git snapshot benches
+// (git_snapshot_delta_bench_test.go, git_selection_scale_bench_test.go) — not by
+// this service-path table.
 func BenchmarkEmit(b *testing.B) {
 	for _, c := range emitBenchCases() {
 		c := c
