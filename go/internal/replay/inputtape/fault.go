@@ -71,11 +71,41 @@ var validFaultKinds = map[FaultKind]struct{}{
 }
 
 // ErrFaultTimeout is returned by RoundTrip when a FaultKindTimeout or a
-// sequence step with FaultKindTimeout is active. It wraps
-// context.DeadlineExceeded so callers that inspect errors.Is(err,
-// context.DeadlineExceeded) also match, but callers that specifically test for
-// an injected tape fault can use errors.Is(err, ErrFaultTimeout).
-var ErrFaultTimeout = fmt.Errorf("inputtape: fault timeout: %w", context.DeadlineExceeded)
+// sequence step with FaultKindTimeout is active. It is a *timeoutError, so it
+// satisfies BOTH classification paths real timeouts use:
+//
+//   - errors.Is(err, context.DeadlineExceeded) is true (it wraps the sentinel),
+//     for callers that classify retryable timeouts via the context error.
+//   - it implements Timeout() bool returning true, so net.Error /
+//     (*url.Error).Timeout() / os.IsTimeout classify it as a timeout. The HTTP
+//     stack wraps a RoundTrip error in *url.Error, whose Timeout() delegates to
+//     the immediate wrapped error's Timeout method — so without this method an
+//     injected timeout would not be recognized as retryable by SDKs that gate
+//     retries on Timeout().
+//
+// Callers that specifically test for an injected tape fault can still use
+// errors.Is(err, ErrFaultTimeout) because errors.Is falls back to identity.
+var ErrFaultTimeout error = &timeoutError{err: fmt.Errorf("inputtape: fault timeout: %w", context.DeadlineExceeded)}
+
+// timeoutError is a typed error that both wraps an underlying error (so
+// errors.Is/As traverse to it) and reports Timeout() bool == true, matching the
+// net.Error timeout contract real network timeouts honor. It is the value
+// returned on the timeout fault path so injected timeouts are classified
+// identically to live ones by both the context-sentinel and the
+// Timeout()-interface code paths.
+type timeoutError struct{ err error }
+
+// Error returns the wrapped error's message.
+func (e *timeoutError) Error() string { return e.err.Error() }
+
+// Unwrap exposes the wrapped error so errors.Is(e, context.DeadlineExceeded)
+// and errors.As keep working through this type.
+func (e *timeoutError) Unwrap() error { return e.err }
+
+// Timeout reports that this error represents a timeout, satisfying the
+// net.Error timeout-classification contract (and thus (*url.Error).Timeout()
+// and os.IsTimeout).
+func (e *timeoutError) Timeout() bool { return true }
 
 // ErrFaultReset is returned by RoundTrip when a FaultKindReset or a sequence
 // step with FaultKindReset is active. It represents a connection reset by the

@@ -63,6 +63,13 @@ func TestFaultTimeout(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("want errors.Is(err, context.DeadlineExceeded) true, got false for: %v", err)
 	}
+	// The injected timeout must ALSO satisfy the net.Error Timeout() contract,
+	// so SDKs/collectors that classify retryable timeouts via Timeout() (e.g.
+	// (*url.Error).Timeout(), os.IsTimeout) recognize the fault as a timeout.
+	var timeoutClassifier interface{ Timeout() bool }
+	if !errors.As(err, &timeoutClassifier) || !timeoutClassifier.Timeout() {
+		t.Fatalf("want injected timeout to satisfy Timeout() bool == true, got %v", err)
+	}
 }
 
 // TestFaultPartialBody asserts that an interaction marked with
