@@ -85,6 +85,19 @@ func TestFaultPartialBody(t *testing.T) {
 	tape.Interactions[0].Fault = &Fault{Kind: FaultKindPartialBody, PartialBytes: 8}
 	server.Close()
 
+	// PartialBytes slices from the CANONICAL recorded body (the JSON the recorder
+	// canonicalised and stored), NOT the raw bytes the fake server wrote. The
+	// canonical form is what decodeBody returns and what partialBodyResponse
+	// truncates, so the expected partial prefix is derived from it here.
+	canonicalBody, err := decodeBody(tape.Interactions[0].Response.Body)
+	if err != nil {
+		t.Fatalf("decode recorded body: %v", err)
+	}
+	if len(canonicalBody) < 8 {
+		t.Fatalf("canonical body too short (%d) to slice 8 bytes", len(canonicalBody))
+	}
+	wantPrefix := canonicalBody[:8]
+
 	replayer, err := NewReplayer(tape, Config{})
 	if err != nil {
 		t.Fatalf("new replayer: %v", err)
@@ -104,6 +117,11 @@ func TestFaultPartialBody(t *testing.T) {
 	_ = resp.Body.Close()
 	if len(allBytes) != 8 {
 		t.Fatalf("want 8 partial bytes, got %d: %q", len(allBytes), allBytes)
+	}
+	// The delivered partial bytes must be the exact prefix of the canonical
+	// recorded body, confirming the truncation slices canonical (not raw) bytes.
+	if string(allBytes) != string(wantPrefix) {
+		t.Fatalf("partial bytes %q are not the canonical-body prefix %q", allBytes, wantPrefix)
 	}
 	if !errors.Is(readErr, io.ErrUnexpectedEOF) {
 		t.Fatalf("want io.ErrUnexpectedEOF after partial bytes, got %v", readErr)
@@ -261,8 +279,12 @@ func TestFaultTapeNoDuplicateFactsUnderRetry(t *testing.T) {
 		t.Fatalf("new replayer: %v", err)
 	}
 
-	// Simulate a collector that emits a fact only on 200. Count emissions.
+	// Simulate a collector that emits a fact only on 200. Count emissions AND
+	// failures so the test cannot pass vacuously: if the fault never fired and a
+	// 200 arrived on attempt 0, factsEmitted would still be 1 but failuresSeen
+	// would be 0, which the assertion below rejects.
 	factsEmitted := 0
+	failuresSeen := 0
 	const maxAttempts = 5
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		rreq, _ := http.NewRequest(http.MethodGet, server.URL+"/resource/1", nil)
@@ -277,9 +299,15 @@ func TestFaultTapeNoDuplicateFactsUnderRetry(t *testing.T) {
 			break
 		}
 		// 500: collector skips fact emission, retries.
+		failuresSeen++
 	}
 	if factsEmitted != 1 {
 		t.Fatalf("want exactly 1 fact emission, got %d", factsEmitted)
+	}
+	// The two scripted 500s MUST have fired before the 200, or the idempotency
+	// assertion is vacuous (a 200 on attempt 0 would also yield factsEmitted==1).
+	if failuresSeen != 2 {
+		t.Fatalf("want exactly 2 transient failures before success, got %d (test would be vacuous)", failuresSeen)
 	}
 }
 

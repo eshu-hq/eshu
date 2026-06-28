@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 )
 
 // faultedReplay executes the fault directive on interaction for the current
@@ -105,6 +106,10 @@ func partialBodyResponse(req *http.Request, recorded RecordedResponse, n int) (*
 	header := make(http.Header, len(recorded.Header))
 	for k, vs := range recorded.Header {
 		cp := append([]string(nil), vs...)
+		// Sort header values to match buildResponse's deterministic replay
+		// ordering exactly, so a partial-body fault reconstructs the same header
+		// shape a normal replay would for the same recorded response.
+		sort.Strings(cp)
 		header[http.CanonicalHeaderKey(k)] = cp
 	}
 	resp := &http.Response{
