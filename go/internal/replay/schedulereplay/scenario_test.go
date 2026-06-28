@@ -85,10 +85,11 @@ func TestScheduleReplayConcurrentBatchInvariant(t *testing.T) {
 
 	items := loadItems(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	seqSnap, err := schedulereplay.RunSchedule(ctx, schedulereplay.Config{
+	// Each run gets its own deadline so a slow sequential run cannot eat into the
+	// concurrent run's budget.
+	seqCtx, seqCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer seqCancel()
+	seqSnap, err := schedulereplay.RunSchedule(seqCtx, schedulereplay.Config{
 		Items:   schedulereplay.ScheduleInOrder(items),
 		Workers: 1,
 		Apply:   schedulereplay.ApplyCanonical,
@@ -97,7 +98,9 @@ func TestScheduleReplayConcurrentBatchInvariant(t *testing.T) {
 		t.Fatalf("sequential RunSchedule: %v", err)
 	}
 
-	concSnap, batchCalls, err := schedulereplay.RunScheduleReport(ctx, schedulereplay.Config{
+	concCtx, concCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer concCancel()
+	concSnap, batchCalls, err := schedulereplay.RunScheduleReport(concCtx, schedulereplay.Config{
 		Items:   schedulereplay.ScheduleReverse(items),
 		Workers: 4,
 		Apply:   schedulereplay.ApplyCanonical,

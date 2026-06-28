@@ -105,8 +105,13 @@ func WorkItemsFromMaterialization(mat projector.CanonicalMaterialization) ([]Wor
 				"depth":   strconv.Itoa(dir.Depth),
 			},
 		}
+		// Depth is the authoritative discriminant for "repo is the parent" vs
+		// "a directory is the parent": a depth-0 directory hangs off the
+		// Repository node, deeper directories off their parent Directory node.
+		// (ParentPath equals mat.RepoPath at depth 0, but keying on Depth avoids
+		// depending on a repo-root path-string convention.)
 		fromKey := repoNode.Key()
-		if dir.ParentPath != mat.RepoPath {
+		if dir.Depth != 0 {
 			fromKey = Node{Label: "Directory", ID: dir.ParentPath}.Key()
 		}
 		items = append(items, WorkItem{
