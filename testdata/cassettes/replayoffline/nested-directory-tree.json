@@ -1,0 +1,80 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git:repository:replay-offline-nested-tree",
+      "source_system": "git",
+      "scope_kind": "repository",
+      "collector_kind": "git",
+      "partition_key": "git:repository:replay-offline-nested-tree",
+      "metadata": {
+        "repo_name": "replay-offline-nested-tree",
+        "purpose": "R-5 offline replay tier nested-directory (#4019) backend proof"
+      },
+      "generation_id": "cassette-replay-offline-nested-tree-gen1",
+      "observed_at": "2026-06-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "git.repository",
+          "stable_fact_key": "git:repository:replay-offline-nested-tree:repo",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "replay-offline-nested-tree",
+            "name": "replay-offline-nested-tree",
+            "path": "/repos/replay-offline-nested-tree"
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-offline-nested-tree:dir:src",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-offline-nested-tree/src",
+            "name": "src",
+            "parent_path": "/repos/replay-offline-nested-tree",
+            "repo_id": "replay-offline-nested-tree",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-offline-nested-tree:dir:src/pkg",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-offline-nested-tree/src/pkg",
+            "name": "pkg",
+            "parent_path": "/repos/replay-offline-nested-tree/src",
+            "repo_id": "replay-offline-nested-tree",
+            "depth": 1
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-offline-nested-tree:dir:src/pkg/sub",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-offline-nested-tree/src/pkg/sub",
+            "name": "sub",
+            "parent_path": "/repos/replay-offline-nested-tree/src/pkg",
+            "repo_id": "replay-offline-nested-tree",
+            "depth": 2
+          }
+        }
+      ]
+    }
+  ]
+}
