@@ -23,22 +23,20 @@ func TestBuildDataflowFunctionsReadsParserBucket(t *testing.T) {
 			"function_name": "handle",
 			"line_number":   3,
 			"lang":          "go",
-			"cfg": map[string]any{
-				"blocks": []any{
-					map[string]any{"id": 0, "kind": "entry"},
-					map[string]any{"id": 1, "kind": "exit"},
+			"blocks": []map[string]any{
+				{
+					"id":    0,
+					"succs": []int{1},
+					"stmts": []map[string]any{{"id": 10, "line": 4, "defs": []string{"q"}}},
 				},
-				"edges": []any{map[string]any{"from": 0, "to": 1}},
+				{"id": 1, "succs": []int{}, "stmts": []map[string]any{{"id": 11, "line": 5, "uses": []string{"q"}}}},
 			},
-			"def_use": []map[string]any{{
+			"def_uses": []map[string]any{{
 				"binding":  "q",
 				"def_line": 4,
 				"use_line": 5,
 			}},
-			"control_dependencies": []map[string]any{{
-				"controller": 4,
-				"dependent":  5,
-			}},
+			"overflow": map[string]any{"def_use_edges": 2, "access_paths": 1},
 		}},
 	}}
 	entities := []content.EntityRecord{{
@@ -66,8 +64,8 @@ func TestBuildDataflowFunctionsReadsParserBucket(t *testing.T) {
 	if len(got.DefUse) != 1 || got.DefUse[0]["binding"] != "q" {
 		t.Fatalf("def-use not mapped: %+v", got.DefUse)
 	}
-	if len(got.ControlDependencies) != 1 {
-		t.Fatalf("control dependencies not mapped: %+v", got.ControlDependencies)
+	if !got.Overflow || got.OverflowReason != "def_use_edges=2,access_paths=1" {
+		t.Fatalf("overflow not mapped: %+v", got)
 	}
 }
 

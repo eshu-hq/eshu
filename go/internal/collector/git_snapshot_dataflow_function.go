@@ -5,7 +5,9 @@ package collector
 
 import (
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
@@ -66,14 +68,21 @@ func buildDataflowFunctions(
 				FunctionName:        functionName,
 				Language:            snapshotPayloadString(row, "lang", "language"),
 				LineNumber:          line,
-				DefUse:              snapshotPayloadMapSlice(row, "def_use"),
+				CFGBlocks:           snapshotPayloadAnySlice(row, "blocks"),
+				DefUse:              snapshotPayloadMapSlice(row, "def_uses"),
 				ControlDependencies: snapshotPayloadMapSlice(row, "control_dependencies"),
-				Overflow:            snapshotPayloadBool(row, "overflow"),
-				OverflowReason:      snapshotPayloadString(row, "overflow_reason", "limit_reason"),
+				Overflow:            dataflowOverflowPresent(row),
+				OverflowReason:      dataflowOverflowReason(row),
 			}
 			if cfg, ok := row["cfg"].(map[string]any); ok {
 				function.CFGBlocks = snapshotPayloadAnySlice(cfg, "blocks")
 				function.CFGEdges = snapshotPayloadAnySlice(cfg, "edges")
+			}
+			if len(function.CFGEdges) == 0 {
+				function.CFGEdges = dataflowCFGEdges(function.CFGBlocks)
+			}
+			if len(function.DefUse) == 0 {
+				function.DefUse = snapshotPayloadMapSlice(row, "def_use")
 			}
 			key := entityLookupKey(relativePath, taintEvidenceFunctionLabel, functionName, line)
 			function.FunctionUID = lookup[key]
@@ -153,5 +162,92 @@ func snapshotPayloadAnySlice(payload map[string]any, key string) []any {
 		return out
 	default:
 		return nil
+	}
+}
+
+func dataflowCFGEdges(blocks []any) []any {
+	var edges []any
+	for _, block := range blocks {
+		blockMap, ok := block.(map[string]any)
+		if !ok {
+			continue
+		}
+		from, ok := dataflowInt(blockMap["id"])
+		if !ok {
+			continue
+		}
+		for _, succ := range dataflowIntSlice(blockMap["succs"]) {
+			edges = append(edges, map[string]any{"from": from, "to": succ})
+		}
+	}
+	return edges
+}
+
+func dataflowOverflowPresent(row map[string]any) bool {
+	switch typed := row["overflow"].(type) {
+	case bool:
+		return typed
+	case map[string]any:
+		for _, value := range typed {
+			if n, ok := dataflowInt(value); ok && n != 0 {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func dataflowOverflowReason(row map[string]any) string {
+	if reason := snapshotPayloadString(row, "overflow_reason", "limit_reason"); reason != "" {
+		return reason
+	}
+	details, ok := row["overflow"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	keys := make([]string, 0, len(details))
+	for key, value := range details {
+		if n, ok := dataflowInt(value); ok && n != 0 {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		n, _ := dataflowInt(details[key])
+		parts = append(parts, key+"="+strconv.Itoa(n))
+	}
+	return strings.Join(parts, ",")
+}
+
+func dataflowIntSlice(value any) []int {
+	switch typed := value.(type) {
+	case []int:
+		return typed
+	case []any:
+		out := make([]int, 0, len(typed))
+		for _, item := range typed {
+			if n, ok := dataflowInt(item); ok {
+				out = append(out, n)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func dataflowInt(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int64:
+		return int(typed), true
+	case float64:
+		return int(typed), true
+	default:
+		return 0, false
 	}
 }
