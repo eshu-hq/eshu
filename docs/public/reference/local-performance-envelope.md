@@ -280,14 +280,11 @@ The growth gates are:
 
 Issue #2749 (merged) delivered the hosted-growth Postgres fact and queue
 partition migration proof gate; see [Hosted-Growth Postgres Fact And Queue Proof
-Gate (#2749)](#hosted-growth-postgres-fact-and-queue-proof-gate-2749) below. The
-gate records relation row counts, index size, representative read/write latency,
-queue drain behavior, migration rollback, and the empty-table, large-table,
-old-generation, stale-row, retry/dead-letter, and active-claim scenario proofs
-required before changing production schema layout. The actual production schema
-partition migration stays gated behind that proof and is only triggered when the
-`fact_records` or `shared_projection_intents` growth thresholds in the table
-above are crossed.
+Gate (#2749)](#hosted-growth-postgres-fact-and-queue-proof-gate-2749) below.
+Issue #4044 extends that gate into the `fact_records` growth breakpoint decision
+record in `docs/internal/design/4044-fact-records-growth-breakpoint.md`: measure
+growth pressure first, then choose partitioning, archive tables, fact-family
+splits, retention tuning, or deferral from evidence.
 
 ### Collector Fairness And Provider Backpressure (#2699)
 
@@ -330,7 +327,8 @@ shared-intent backlog, graph-write metrics, and collector/coordinator logs.
 ### Hosted-Growth Postgres Fact And Queue Proof Gate (#2749)
 
 No-Regression Evidence: #2749 adds a storage-evaluation proof contract and
-public-safe verifier only. It does not change Postgres DDL, relation indexes,
+public-safe verifier only. #4044 keeps that boundary: it extends the proof
+contract without changing Postgres DDL, relation indexes,
 queue claim SQL, reducer workers, runtime defaults, graph writes, or collector
 fanout. The focused proof suite first failed because
 `ValidateHostedGrowthPostgresProof` and
@@ -340,17 +338,18 @@ after the contract required `fact_records`, `fact_work_items`,
 measurements; fact and queue read/write latency; reducer queue drain evidence;
 empty and large table migration scenarios; stale rows; retry/dead-letter rows;
 active-claim preservation; active-generation read correctness; changed-since
-retained-window correctness; rollback behavior; and a hosted-small to
-hosted-growth operator gate.
+retained-window correctness; rollback behavior; a hosted-small to hosted-growth
+operator gate; and the #4044 fact-growth, index-bloat, graph-write,
+query-plan, retention, and evidence-bound decision fields.
 
 No-Observability-Change: the slice adds no metric, span, log field, status
 route, worker, lease, batch size, runtime knob, or data-plane query. It defines
 the evidence future hosted-growth proof runners must report: relation sizes,
 index sizes, read/write latency, queue depth, oldest queue age, retry count,
 dead letters, stale rows, active claims, migration duration, rollback status,
-and public-safe summary output. Raw repositories, hostnames, IPs, paths, DSNs,
-logs, source payloads, principals, accounts, and credentials remain
-operator-local.
+growth breakpoint measurements, and public-safe summary output. Raw
+repositories, hostnames, IPs, paths, DSNs, logs, source payloads, principals,
+accounts, and credentials remain operator-local.
 
 ### Shared Projection Indexed Partition Selection (#2755)
 
