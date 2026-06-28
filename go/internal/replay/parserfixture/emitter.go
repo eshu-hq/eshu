@@ -93,6 +93,18 @@ func NewEmitter(opts EmitterOptions) (*Emitter, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("parserfixture: tree %q is not a directory", opts.TreePath)
 	}
+	// Resolve the tree to an absolute path. parser.Engine.ParsePath stores an
+	// absolute file path in each payload, and the Git collector seam relativizes
+	// that against the repo root. A relative repo root cannot relativize an
+	// absolute file path, so the collector would fall back to filepath.Base and
+	// collapse nested same-named files into one stable_fact_key / relative_path
+	// (the #4019 nested-path class). Normalizing here keeps provenance correct
+	// regardless of the caller's working directory.
+	absTree, err := filepath.Abs(opts.TreePath)
+	if err != nil {
+		return nil, fmt.Errorf("parserfixture: resolve tree %q: %w", opts.TreePath, err)
+	}
+	opts.TreePath = absTree
 	if strings.TrimSpace(opts.GenerationID) == "" {
 		// Stamp the canonical generation_id derived from the scope so the live run's
 		// generation_id already equals its recorded/replayed form: canonicalization
