@@ -354,20 +354,25 @@ type reducerFairnessWorkItem struct {
 	domain         string
 	conflictDomain string
 	conflictKey    string
+	sourceSystem   string
 	updatedAt      time.Time
 }
 
 func insertReducerFairnessWorkItem(t *testing.T, ctx context.Context, db *sql.DB, item reducerFairnessWorkItem) {
 	t.Helper()
+	sourceSystem := strings.TrimSpace(item.sourceSystem)
+	if sourceSystem == "" {
+		sourceSystem = "aws"
+	}
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_work_items (
     work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
     conflict_key, status, attempt_count, payload, created_at, updated_at
 ) VALUES ($1::text, $2, $3, 'reducer', $4, $5, $6, 'pending', 0,
-    jsonb_build_object('entity_key', $1::text, 'reason', 'fairness', 'fact_id', $1::text, 'source_system', 'aws'),
-    $7, $7)`,
+    jsonb_build_object('entity_key', $1::text, 'reason', 'fairness', 'fact_id', $1::text, 'source_system', $7::text),
+    $8, $8)`,
 		item.workItemID, item.scopeID, item.generationID, item.domain,
-		item.conflictDomain, item.conflictKey, item.updatedAt); err != nil {
+		item.conflictDomain, item.conflictKey, sourceSystem, item.updatedAt); err != nil {
 		t.Fatalf("insert fairness work item %q: %v", item.workItemID, err)
 	}
 }

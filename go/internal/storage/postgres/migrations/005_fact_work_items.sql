@@ -43,3 +43,15 @@ CREATE INDEX IF NOT EXISTS fact_work_items_claim_until_idx
 CREATE INDEX IF NOT EXISTS fact_work_items_reducer_conflict_claim_idx
     ON fact_work_items (stage, conflict_domain, COALESCE(conflict_key, scope_id), status, claim_until, updated_at DESC)
     WHERE stage = 'reducer';
+
+CREATE INDEX IF NOT EXISTS fact_work_items_reducer_source_claim_idx
+    ON fact_work_items (
+        COALESCE(NULLIF(BTRIM(payload->>'source_system'), ''), 'unknown'),
+        domain,
+        status,
+        visible_at,
+        claim_until,
+        updated_at,
+        work_item_id
+    )
+    WHERE stage = 'reducer';

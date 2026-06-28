@@ -239,8 +239,8 @@ Each domain has a depth/age gauge pair sourced from the queue observer.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
-| reducer queue | go/internal/storage/postgres/queue_observer.go:112 | `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_workflow_family_queue_depth` | queue domain |
-| projector queue | go/internal/storage/postgres/queue_observer.go:112 (stage=projector) | `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_workflow_family_queue_depth` | queue domain |
+| reducer queue | go/internal/storage/postgres/queue_observer.go:112 | `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_queue_source_depth`, `eshu_dp_queue_source_oldest_age_seconds`, `eshu_dp_workflow_family_queue_depth` | queue domain |
+| projector queue | go/internal/storage/postgres/queue_observer.go:112 (stage=projector) | `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_queue_source_depth`, `eshu_dp_queue_source_oldest_age_seconds`, `eshu_dp_workflow_family_queue_depth` | queue domain |
 | semantic extraction queue | go/internal/storage/postgres/queue_observer.go:57 (semanticQueueDepthQuery) | `eshu_dp_semantic_extraction_queue_events_total`, `eshu_dp_semantic_extraction_budget_tokens_total`, `eshu_dp_semantic_extraction_budget_cost_micros_total` | queue domain |
 | worker pool active | go/internal/telemetry/instruments.go:3617 | `eshu_dp_worker_pool_active` | queue runtime |
 | workflow claim lease age | go/internal/collector/claimed_service_backpressure_metrics.go:78 | `eshu_dp_workflow_claim_lease_age_seconds` | queue runtime |

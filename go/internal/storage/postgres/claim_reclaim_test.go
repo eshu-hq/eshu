@@ -147,7 +147,7 @@ func TestProjectorQueueClaimScopesBySourceSystem(t *testing.T) {
 	query := db.queries[0].query
 	for _, want := range []string{
 		"$4 = ''",
-		"FROM ingestion_scopes AS candidate_scope",
+		"JOIN ingestion_scopes AS candidate_scope",
 		"source_system = $4",
 		"candidate_scope.scope_id = work.scope_id",
 		"same.scope_id = work.scope_id",

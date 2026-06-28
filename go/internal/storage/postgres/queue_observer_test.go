@@ -120,6 +120,73 @@ func TestQueueObserverStoreQueueDepthsMergesClaimedAndRunning(t *testing.T) {
 	}
 }
 
+func TestQueueObserverStoreSourceQueueDepths(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{
+				rows: [][]any{
+					{"projector", "git", "pending", int64(5)},
+					{"projector", "git", "claimed", int64(2)},
+					{"projector", "git", "running", int64(1)},
+					{"reducer", "aws", "retrying", int64(3)},
+				},
+			},
+		},
+	}
+
+	observer := NewQueueObserverStore(queryer)
+	depths, err := observer.SourceQueueDepths(context.Background())
+	if err != nil {
+		t.Fatalf("SourceQueueDepths() error = %v", err)
+	}
+
+	if got, want := depths["projector"]["git"]["pending"], int64(5); got != want {
+		t.Fatalf("projector git pending = %d, want %d", got, want)
+	}
+	if got, want := depths["projector"]["git"]["in_flight"], int64(3); got != want {
+		t.Fatalf("projector git in_flight = %d, want %d", got, want)
+	}
+	if _, has := depths["projector"]["git"]["claimed"]; has {
+		t.Fatal("claimed status should be merged into source in_flight")
+	}
+	if _, has := depths["projector"]["git"]["running"]; has {
+		t.Fatal("running status should be merged into source in_flight")
+	}
+	if got, want := depths["reducer"]["aws"]["retrying"], int64(3); got != want {
+		t.Fatalf("reducer aws retrying = %d, want %d", got, want)
+	}
+}
+
+func TestQueueObserverStoreSourceQueueOldestAge(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{
+				rows: [][]any{
+					{"projector", "git", 120.5},
+					{"reducer", "aws", 45.0},
+				},
+			},
+		},
+	}
+
+	observer := NewQueueObserverStore(queryer)
+	ages, err := observer.SourceQueueOldestAge(context.Background())
+	if err != nil {
+		t.Fatalf("SourceQueueOldestAge() error = %v", err)
+	}
+
+	if got, want := ages["projector"]["git"], 120.5; got != want {
+		t.Fatalf("projector git age = %f, want %f", got, want)
+	}
+	if got, want := ages["reducer"]["aws"], 45.0; got != want {
+		t.Fatalf("reducer aws age = %f, want %f", got, want)
+	}
+}
+
 func TestQueueObserverQueriesExcludeInactiveReducerGenerations(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +207,28 @@ func TestQueueObserverQueriesExcludeInactiveReducerGenerations(t *testing.T) {
 		} {
 			if !strings.Contains(query, want) {
 				t.Fatalf("%s missing inactive-generation observer predicate %q:\n%s", name, want, query)
+			}
+		}
+	}
+}
+
+func TestSourceQueueObserverQueriesUseBoundedSourceSystem(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"sourceQueueDepthQuery":     sourceQueueDepthQuery,
+		"sourceQueueOldestAgeQuery": sourceQueueOldestAgeQuery,
+	} {
+		for _, want := range []string{
+			"active_fact_work_items AS (",
+			"JOIN ingestion_scopes AS scope",
+			"scope.source_system",
+			"work.payload->>'source_system'",
+			"GROUP BY work.stage, source_system",
+			"ORDER BY work.stage, source_system",
+		} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("%s missing source observer predicate %q:\n%s", name, want, query)
 			}
 		}
 	}
@@ -213,6 +302,16 @@ func TestQueueObserverStoreNilQueryer(t *testing.T) {
 	_, err = observer.QueueOldestAge(context.Background())
 	if err == nil {
 		t.Fatal("QueueOldestAge() error = nil, want non-nil for nil queryer")
+	}
+
+	_, err = observer.SourceQueueDepths(context.Background())
+	if err == nil {
+		t.Fatal("SourceQueueDepths() error = nil, want non-nil for nil queryer")
+	}
+
+	_, err = observer.SourceQueueOldestAge(context.Background())
+	if err == nil {
+		t.Fatal("SourceQueueOldestAge() error = nil, want non-nil for nil queryer")
 	}
 }
 
