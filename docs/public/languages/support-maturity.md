@@ -72,6 +72,23 @@ debt"; they are documented exceptions with fixture-backed deterministic output.
 | hcl | `structured-parser-backed-exception` | Terraform, tfvars, lockfile, and Terragrunt evidence uses HashiCorp's official HCL v2 parser and expression AST. | `go/internal/parser/hcl/*`, `docs/public/languages/terraform.md`, `docs/public/languages/terragrunt.md`, `specs/parser-backing-ledger.v1.yaml` |
 | yaml | `structured-parser-backed-exception` | YAML-family evidence uses YAML v3 document decoding plus bounded Kubernetes, Argo CD, Crossplane, Kustomize, Helm, CloudFormation, GitLab CI, Atlantis, Pub, and observability walkers. | `go/internal/parser/yaml/*`, `docs/public/languages/{argocd,crossplane,helm,kubernetes,kustomize}.md`, `specs/parser-backing-ledger.v1.yaml` |
 
+## Language Feature Parity Ledger
+
+The machine-readable language claim ledger lives at
+`specs/language-feature-parity-ledger.v1.yaml`. It maps each language page to
+the supported, partial, and derived feature ids that page may claim, plus the
+implementation files, test files, docs, parser-backing class, deterministic
+no-provider requirement, read surfaces, and follow-up issues for gaps. The
+parser relationship kit verifier fails when a language page claims a supported,
+partial, or derived feature that is missing from this ledger, or when a ledger
+row points at stale implementation, test, or docs paths.
+
+This ledger is deliberately narrower than the product-claim ledger in #4060:
+it only gates language and configuration parser claims. Broad route parity,
+outbound contract extraction, and cross-repo impact workflows remain tracked in
+#4038 through #4042, #4043, and #4046 unless the current ledger row marks a
+feature supported with deterministic proof.
+
 | Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
 |--------|--------------|-----------------|---------------|----------------------------|------------------|-----------------|----------------------|---------------------|
 | ArgoCD | `DefaultEngine (yaml)` | - | - | unsupported | Application manifests and sync metadata only | - | - | - |

@@ -1,0 +1,371 @@
+version: 1
+language_features:
+  - language: argocd
+    docs_claim: docs/public/languages/argocd.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [argocd-applications-application, application-source-repo-url, application-source-path, application-multi-source-repos-paths, destination-namespace, destination-server, argocd-applicationsets-applicationset, applicationset-generator-source-repos-paths, applicationset-generator-template-source-split, sync-policy, argocd-entity-context-summary, argocd-query-fallback-relationships, argocd-trace-deployment-chain]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/yaml/argocd.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/engine_yaml_semantics_test.go, go/internal/query/content_relationships_argocd_test.go]
+    docs: [docs/public/languages/argocd.md]
+    read_surfaces: [entity_context, trace_deployment_chain]
+  - language: atlantis
+    docs_claim: docs/public/languages/atlantis.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [atlantis-projects, atlantis-project-dir, atlantis-project-workspace, atlantis-terraform-version, atlantis-autoplan, atlantis-apply-requirements, atlantis-depends-on, atlantis-workflow, atlantis-repo-locks, atlantis-workflows, atlantis-uses-workflow-edge, atlantis-manages-edge, atlantis-depends-on-edge]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/yaml/atlantis.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/yaml/atlantis_test.go]
+    docs: [docs/public/languages/atlantis.md]
+    read_surfaces: [content_relationships]
+  - language: c
+    docs_claim: docs/public/languages/c.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions, pointer-returning-functions, structs, unions, enums, typedefs, includes, function-calls, dead-code-roots, variables-initialized-declarations, macros-define]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/c_language.go, go/internal/parser/c/parser.go]
+    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/c_dead_code_roots_test.go]
+    docs: [docs/public/languages/c.md]
+    read_surfaces: [execute_language_query, find_dead_code]
+  - language: cloudformation
+    docs_claim: docs/public/languages/cloudformation.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [resources, parameters, outputs, dependson, conditions, condition-definitions, export-names, cross-stack-imports-exports, allowedvalues, json-templates, nested-stack-template-url]
+    partial_features: [intrinsic-function-semantic-resolution]
+    derived_features: []
+    source_files: [go/internal/parser/cloudformation/parser.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/cloudformation/parser_test.go, go/internal/parser/cloudformation/conditions_test.go]
+    docs: [docs/public/languages/cloudformation.md]
+    read_surfaces: [entity_context, content_relationships]
+    tracking_issues: [4048]
+  - language: cpp
+    docs_claim: docs/public/languages/cpp.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions, classes, structs, enums, unions, includes, function-calls, method-calls, variables-initialized, field-declarations, macros-define, lambda-assignments]
+    partial_features: []
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/cpp_language.go, go/internal/parser/cpp/parser.go]
+    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/cpp_dead_code_roots_test.go]
+    docs: [docs/public/languages/cpp.md]
+    read_surfaces: [execute_language_query, find_dead_code]
+  - language: crossplane
+    docs_claim: docs/public/languages/crossplane.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [composite-resource-definitions-xrds, xrd-group-kind-version, compositions, composition-composite-type-ref, composition-resources-list, claims, claim-api-version]
+    partial_features: [composition-transforms, function-pipelines]
+    derived_features: []
+    source_files: [go/internal/parser/yaml/semantics.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/engine_yaml_semantics_test.go]
+    docs: [docs/public/languages/crossplane.md]
+    read_surfaces: [content_relationships]
+  - language: csharp
+    docs_claim: docs/public/languages/csharp.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [methods, constructors, local-functions, classes, interfaces, structs, records, enums, properties, using-directives, method-invocations, object-creation, inheritance-base-list]
+    partial_features: [framework-route-parity, outbound-contracts]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/csharp_language.go, go/internal/parser/csharp/language.go]
+    test_files: [go/internal/parser/csharp_cfg_dataflow_test.go, go/internal/parser/csharp_dead_code_roots_test.go]
+    docs: [docs/public/languages/csharp.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4038]
+  - language: dart
+    docs_claim: docs/public/languages/dart.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions, constructors, classes, mixins, extensions, enums, library-imports, library-exports, function-calls, local-variable-declarations, top-level-variable-declarations]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/dart_language.go, go/internal/parser/dart/parser.go]
+    test_files: [go/internal/parser/dart/parser_test.go]
+    docs: [docs/public/languages/dart.md]
+    read_surfaces: [execute_language_query]
+  - language: elixir
+    docs_claim: docs/public/languages/elixir.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions-def-defp, macros-defmacro-defmacrop, guards-defguard-defguardp, delegated-functions-defdelegate, modules-defmodule, protocols-defprotocol, protocol-implementations-defimpl, use-import-alias-require, dot-notation-calls, simple-function-calls, module-attributes-attr]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/elixir/language.go, go/internal/parser/elixir/ast_extract.go]
+    test_files: [go/internal/parser/engine_elixir_ast_test.go, go/internal/parser/engine_elixir_semantics_test.go]
+    docs: [docs/public/languages/elixir.md]
+    read_surfaces: [execute_language_query]
+  - language: gitlab-ci
+    docs_claim: docs/public/languages/gitlab-ci.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [gitlab-pipeline, gitlab-stages, gitlab-variables, gitlab-jobs, gitlab-job-attrs, gitlab-job-script, gitlab-job-needs, gitlab-defines-job-edge, gitlab-needs-edge]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/yaml/gitlab_ci.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/yaml/gitlab_ci_test.go]
+    docs: [docs/public/languages/gitlab-ci.md]
+    read_surfaces: [content_relationships]
+  - language: go
+    docs_claim: docs/public/languages/go.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions, structs, interfaces, imports, function-calls, variables, methods-receivers, generics, embedded-sql-queries]
+    partial_features: [framework-route-entries, outbound-contracts]
+    derived_features: []
+    source_files: [go/internal/parser/go_language.go, go/internal/parser/golang/language.go]
+    test_files: [go/internal/parser/engine_test.go, go/internal/parser/go_embedded_sql_test.go]
+    docs: [docs/public/languages/go.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story]
+    tracking_issues: [4041]
+  - language: groovy
+    docs_claim: docs/public/languages/groovy.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [jenkins-shared-libraries, jenkins-pipeline-calls, jenkins-entry-points, jenkins-deploy-hints, jenkins-shell-commands, jenkins-ansible-hints]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/groovy_language.go, go/internal/parser/groovy/parser.go]
+    test_files: [go/internal/parser/groovy_language_test.go, go/internal/parser/groovy/metadata_test.go]
+    docs: [docs/public/languages/groovy.md]
+    read_surfaces: [content_relationships]
+  - language: haskell
+    docs_claim: docs/public/languages/haskell.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [function-declarations, initializer-declarations, type-classes, data-types-struct-like, enumerations, protocols-typeclasses, import-declarations, function-call-expressions, property-binding-declarations]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/perl_haskell_language.go, go/internal/parser/haskell/parser.go]
+    test_files: [go/internal/parser/engine_haskell_test.go, go/internal/parser/haskell/parser_test.go]
+    docs: [docs/public/languages/haskell.md]
+    read_surfaces: [execute_language_query]
+  - language: helm
+    docs_claim: docs/public/languages/helm.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [helm-charts-chart-yaml, chart-name-version-app-version, chart-dependencies, values-files-values-yaml, values-top-level-keys]
+    partial_features: [hook-metadata, query-content-fallback]
+    derived_features: []
+    source_files: [go/internal/parser/yaml/helm.go, go/internal/parser/yaml/helm_template_values.go]
+    test_files: [go/internal/parser/yaml/helm_template_values_test.go, go/internal/parser/engine_yaml_semantics_test.go]
+    docs: [docs/public/languages/helm.md]
+    read_surfaces: [content_relationships]
+  - language: java
+    docs_claim: docs/public/languages/java.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [source-entities, call-metadata, annotation-metadata, dead-code-roots]
+    partial_features: [spring-route-entries, outbound-contracts, broad-reflection]
+    derived_features: []
+    source_files: [go/internal/parser/java_language.go, go/internal/parser/java/parser.go]
+    test_files: [go/internal/parser/engine_managed_oo_test.go, go/internal/parser/java_dead_code_framework_roots_test.go]
+    docs: [docs/public/languages/java.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4040]
+  - language: javascript
+    docs_claim: docs/public/languages/javascript.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [source-entities, framework-package-roots, graph-backed-queries, semantic-metadata]
+    partial_features: [outbound-contracts, generated-clients, runtime-dynamic-routes]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/javascript_language.go, go/internal/parser/javascript/javascript_language.go]
+    test_files: [go/internal/parser/engine_javascript_semantics_test.go, go/internal/query/language_query_graph_first_test.go]
+    docs: [docs/public/languages/javascript.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4039]
+  - language: json
+    docs_claim: docs/public/languages/json.md
+    parser_backing: content-metadata-exception
+    no_provider_required: true
+    supported_features: [package-json-dependencies, package-json-scripts, composer-json-dependencies, tsconfig-targeted-metadata, cloudformation-json-delegation]
+    partial_features: [generic-json-metadata-only]
+    derived_features: []
+    source_files: [go/internal/parser/json_language.go, go/internal/parser/json/language.go]
+    test_files: [go/internal/parser/json_language_test.go, go/internal/parser/json_dbt_test.go]
+    docs: [docs/public/languages/json.md]
+    read_surfaces: [execute_language_query, content_relationships]
+  - language: kotlin
+    docs_claim: docs/public/languages/kotlin.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [core-declarations, extension-receiver-tracking, suspend-function-semantics, receiver-inference, smart-casts-and-safe-calls, scope-function-preservation, delegated-lazy-properties, same-file-function-return-aliasing, cross-file-function-return-chaining, constructor-root-receiver-chains, class-context-on-functions, secondary-constructors, dead-code-derived-roots]
+    partial_features: [spring-route-entries, outbound-contracts]
+    derived_features: []
+    source_files: [go/internal/parser/kotlin_language.go, go/internal/parser/kotlin/parser.go]
+    test_files: [go/internal/parser/engine_kotlin_ast_test.go, go/internal/parser/kotlin_dead_code_roots_test.go]
+    docs: [docs/public/languages/kotlin.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4040]
+  - language: kubernetes
+    docs_claim: docs/public/languages/kubernetes.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [kubernetes-resources-any-apiversion-kind, api-version, kind, name-metadata-name, namespace-metadata-namespace, labels, qualified-name, service-selects-deployment, multi-document-yaml-support]
+    partial_features: [selector-semantics, crd-specific-modeling]
+    derived_features: []
+    source_files: [go/internal/parser/yaml/semantics.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/engine_infra_test.go, go/internal/query/content_relationships_k8s_test.go]
+    docs: [docs/public/languages/kubernetes.md]
+    read_surfaces: [content_relationships, trace_deployment_chain]
+  - language: kustomize
+    docs_claim: docs/public/languages/kustomize.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [kustomization-overlays-kustomization-yaml, namespace, resources-list, patches-list, patch-targets, patch-link-heuristic, base-references, typed-deploy-source-refs, typed-deploy-source-query-fallback]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/yaml/semantics.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/engine_yaml_semantics_test.go, go/internal/query/content_relationships_kustomize_test.go]
+    docs: [docs/public/languages/kustomize.md]
+    read_surfaces: [content_relationships]
+  - language: perl
+    docs_claim: docs/public/languages/perl.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [source-entities, graph-surface]
+    partial_features: [framework-route-parity]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/perl_haskell_language.go, go/internal/parser/perl/parser.go]
+    test_files: [go/internal/parser/engine_long_tail_test.go, go/internal/parser/perl/parser_test.go]
+    docs: [docs/public/languages/perl.md]
+    read_surfaces: [execute_language_query, find_dead_code]
+    tracking_issues: [4038]
+  - language: php
+    docs_claim: docs/public/languages/php.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [core-declarations, trait-adaptation-aliases, static-receiver-families, typed-property-and-alias-receivers, function-return-receiver-chains, method-return-receiver-chains, cross-file-object-call-families, nullsafe-and-anonymous-class-receivers]
+    partial_features: [framework-route-parity, reflection-heavy-dispatch]
+    derived_features: [dead-code-root-hints]
+    source_files: [go/internal/parser/php_language.go, go/internal/parser/php/parser.go]
+    test_files: [go/internal/parser/php_language_test.go, go/internal/parser/php_dead_code_roots_test.go]
+    docs: [docs/public/languages/php.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4038]
+  - language: python
+    docs_claim: docs/public/languages/python.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [source-entities, semantic-metadata, relationships, fastapi-flask-route-roots]
+    partial_features: [django-drf-routes, aiohttp-tornado-routes, outbound-contracts]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/python_language.go, go/internal/parser/python/language.go]
+    test_files: [go/internal/parser/engine_python_semantics_test.go, go/internal/parser/python_dead_code_roots_test.go]
+    docs: [docs/public/languages/python.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4042]
+  - language: ruby
+    docs_claim: docs/public/languages/ruby.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [methods-def, classes, modules, require-load-imports, method-calls, instance-variable-assignments, local-variable-assignments, module-inclusions-include-extend, parent-context-class-module]
+    partial_features: [framework-route-parity, dynamic-dispatch]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/ruby_language.go, go/internal/parser/ruby/parser.go]
+    test_files: [go/internal/parser/engine_ruby_test.go, go/internal/parser/ruby_dead_code_roots_test.go]
+    docs: [docs/public/languages/ruby.md]
+    read_surfaces: [execute_language_query, find_dead_code]
+    tracking_issues: [4038]
+  - language: rust
+    docs_claim: docs/public/languages/rust.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [source-entities, impl-blocks, query-metadata, cargo-roots]
+    partial_features: [framework-route-parity, lifetime-aware-graph-semantics, macro-expansion]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/rust_language.go, go/internal/parser/rust/parser.go]
+    test_files: [go/internal/parser/engine_systems_test.go, go/internal/query/code_relationships_rust_graph_test.go]
+    docs: [docs/public/languages/rust.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4038]
+  - language: scala
+    docs_claim: docs/public/languages/scala.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions-def, classes, objects-object, traits, imports, function-calls, generic-function-calls, val-definitions, var-definitions, parent-context-class-context, dead-code-roots]
+    partial_features: [framework-route-parity, outbound-contracts]
+    derived_features: []
+    source_files: [go/internal/parser/scala_language.go, go/internal/parser/scala/language.go]
+    test_files: [go/internal/parser/engine_scala_imports_test.go, go/internal/parser/scala_dead_code_roots_test.go]
+    docs: [docs/public/languages/scala.md]
+    read_surfaces: [execute_language_query, find_dead_code]
+    tracking_issues: [4038]
+  - language: sql
+    docs_claim: docs/public/languages/sql.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [schema-objects, relationships, routine-metadata, dbt-lineage, query-fallback]
+    partial_features: [dynamic-sql, dialect-specific-routines, broad-dbt-macros]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/sql_language.go, go/internal/parser/sql/language.go]
+    test_files: [go/internal/parser/engine_sql_test.go, go/internal/parser/sql_parity_test.go]
+    docs: [docs/public/languages/sql.md]
+    read_surfaces: [execute_language_query, entity_context, content_relationships]
+  - language: swift
+    docs_claim: docs/public/languages/swift.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [functions, initializers-init, classes, structs, enums, protocols, actors, imports, function-calls, property-declarations]
+    partial_features: [framework-route-parity, vapor-route-binding]
+    derived_features: [dead-code-derived-roots]
+    source_files: [go/internal/parser/swift_language.go, go/internal/parser/swift/language.go]
+    test_files: [go/internal/parser/engine_swift_ast_migration_test.go, go/internal/parser/swift_dead_code_roots_test.go]
+    docs: [docs/public/languages/swift.md]
+    read_surfaces: [execute_language_query, find_dead_code]
+    tracking_issues: [4038]
+  - language: terraform
+    docs_claim: docs/public/languages/terraform.md
+    parser_backing: official-format-ast-exception
+    no_provider_required: true
+    supported_features: [resource-blocks, variable-blocks, output-blocks, module-blocks, data-source-blocks, terraform-block-metadata, provider-blocks, locals-blocks]
+    partial_features: [cross-file-expression-resolution, count-for-each-expansion, dynamic-blocks]
+    derived_features: []
+    source_files: [go/internal/parser/hcl_language.go, go/internal/parser/hcl/parser.go]
+    test_files: [go/internal/parser/hcl_terraform_test.go, go/internal/query/repository_config_artifacts_hcl_join_test.go]
+    docs: [docs/public/languages/terraform.md]
+    read_surfaces: [content_relationships, trace_resource_to_code]
+    tracking_issues: [4048]
+  - language: terragrunt
+    docs_claim: docs/public/languages/terragrunt.md
+    parser_backing: official-format-ast-exception
+    no_provider_required: true
+    supported_features: [terragrunt-config-blocks-include-locals-inputs, include-block-labels, dependency-blocks, locals-block, inputs-block, source-attribute-in-terraform-block]
+    partial_features: [read-terragrunt-config-resolution, helper-built-hcl]
+    derived_features: []
+    source_files: [go/internal/parser/hcl_language.go, go/internal/parser/hcl/include_chain.go]
+    test_files: [go/internal/parser/hcl_terragrunt_test.go, go/internal/parser/hcl/include_chain_test.go]
+    docs: [docs/public/languages/terragrunt.md]
+    read_surfaces: [content_relationships]
+    tracking_issues: [4048]
+  - language: typescript
+    docs_claim: docs/public/languages/typescript.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [source-entities, type-metadata, javascript-family-roots, query-surfacing]
+    partial_features: [outbound-contracts, decorator-container-behavior, generated-clients]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/javascript_language.go, go/internal/parser/javascript/javascript_typescript_semantics.go]
+    test_files: [go/internal/parser/engine_typescript_advanced_semantics_test.go, go/internal/query/typescript_graph_metadata_test.go]
+    docs: [docs/public/languages/typescript.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4039]
+  - language: typescriptjsx
+    docs_claim: docs/public/languages/typescriptjsx.md
+    parser_backing: tree-sitter-backed
+    no_provider_required: true
+    supported_features: [source-entities, react-evidence, graph-backed-query, compatibility]
+    partial_features: [runtime-built-component-names, generated-route-maps]
+    derived_features: [dead-code-roots]
+    source_files: [go/internal/parser/javascript_language.go, go/internal/parser/javascript/javascript_typescript_semantics.go]
+    test_files: [go/internal/parser/engine_tsx_advanced_semantics_test.go, go/internal/parser/engine_tsx_component_wrapper_test.go]
+    docs: [docs/public/languages/typescriptjsx.md]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    tracking_issues: [4039]

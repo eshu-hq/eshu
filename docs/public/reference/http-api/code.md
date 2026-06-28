@@ -276,6 +276,11 @@ recommended next calls in the response.
 Use focused routes first when they answer the question; use language-query for
 language/entity-type contracts that do not fit symbol, relationship,
 inventory, dependency, or dead-code routes.
+Accepted language/entity pairs are not a blanket framework, route, outbound
+contract, dead-code, or cross-repo parity claim. The feature-level contract is
+the [Language Feature Parity Ledger](../../languages/support-maturity.md#language-feature-parity-ledger);
+features marked partial or absent from that ledger remain unsupported for
+API/MCP parity claims.
 
 ## Diagnostics And Bundles
 

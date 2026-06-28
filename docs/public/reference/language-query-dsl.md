@@ -47,6 +47,15 @@ Accepted names:
 `jsx` normalizes to `javascript`; `tsx` normalizes to `typescript`.
 Unsupported languages return HTTP 400 with the valid values.
 
+Accepted here means the route can query indexed entities for that language; it
+does not promote every framework, route, outbound-contract, dead-code, or
+cross-repo relationship claim to full parity. The current feature-level contract
+is the [Language Feature Parity Ledger](../languages/support-maturity.md#language-feature-parity-ledger),
+which marks supported, partial, and derived features and links each row to
+implementation, tests, docs, read surfaces, and follow-up issues. Features
+marked partial or absent from the ledger remain unsupported for API/MCP parity
+claims even when the parser can index source entities.
+
 ## Entity types
 
 Entity types are resolved against three backing stores:
@@ -153,9 +162,12 @@ When adding or promoting language-query support:
 3. State whether the entity type is graph-backed, graph-first with content
    fallback, or content-only.
 4. Update the affected language page with the query surface and proof path.
-5. Update this page when accepted values, backing-store behavior, error
+5. Update `specs/language-feature-parity-ledger.v1.yaml` so the promoted
+   feature has implementation files, test files, docs, read surfaces, parser
+   backing, and deterministic no-provider proof.
+6. Update this page when accepted values, backing-store behavior, error
    semantics, truth ceilings, or HTTP/MCP parity changes.
-6. Run `scripts/verify-parser-relationship-kit.sh`, focused query tests, the
+7. Run `scripts/verify-parser-relationship-kit.sh`, focused query tests, the
    docs build, and `git diff --check`.
 
 Guardrails:
