@@ -63,4 +63,4 @@ Not claimed today:
   exactness boundary.
 - Exact route-to-handler truth for Axum, Actix, Rocket, and other Rust web
   frameworks is tracked by
-  [#4098](https://github.com/eshu-hq/eshu/issues/4098).
+  [#4163](https://github.com/eshu-hq/eshu/issues/4163).

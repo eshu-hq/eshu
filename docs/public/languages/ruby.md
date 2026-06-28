@@ -43,7 +43,7 @@ Not claimed today:
   gem public API surfaces, broad constant resolution, and broader
   metaprogramming remain outside the exactness boundary.
 - Exact route-to-handler truth for Rails, Sinatra, and other Ruby frameworks is
-  tracked by [#4098](https://github.com/eshu-hq/eshu/issues/4098).
+  tracked by [#4161](https://github.com/eshu-hq/eshu/issues/4161).
 
 ## Known Limitations
 - Singleton methods on specific objects are only separated for `def self.name`

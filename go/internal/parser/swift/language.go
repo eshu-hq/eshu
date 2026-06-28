@@ -17,6 +17,7 @@ type swiftSemanticFacts struct {
 	protocolMethods    map[string]map[string]struct{}
 	typeConformances   map[string]map[string]struct{}
 	vaporRouteHandlers map[string]struct{}
+	vaporRouteEntries  []map[string]string
 }
 
 // Parse extracts Swift imports, types, functions, variables, and calls.
@@ -34,6 +35,9 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	payload["protocols"] = []map[string]any{}
 
 	facts := collectSwiftSemanticFacts(root, source)
+	if semantics := swiftFrameworkSemantics(facts); semantics != nil {
+		payload["framework_semantics"] = semantics
+	}
 	extractor := newSwiftExtractor(payload, source, isDependency, options, facts)
 	extractor.extract(root)
 
@@ -42,6 +46,18 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	}
 
 	return payload, nil
+}
+
+func swiftFrameworkSemantics(facts swiftSemanticFacts) map[string]any {
+	if len(facts.vaporRouteEntries) == 0 {
+		return nil
+	}
+	return map[string]any{
+		"frameworks": []string{"vapor"},
+		"vapor": map[string]any{
+			"route_entries": facts.vaporRouteEntries,
+		},
+	}
 }
 
 // PreScan returns Swift names used by the collector import-map pre-scan.

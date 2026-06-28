@@ -251,7 +251,7 @@ language_features:
     test_files: [go/internal/parser/php_language_test.go, go/internal/parser/php_dead_code_roots_test.go]
     docs: [docs/public/languages/php.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
-    tracking_issues: [4038, 4098]
+    tracking_issues: [4038, 4162]
   - language: python
     docs_claim: docs/public/languages/python.md
     parser_backing: tree-sitter-backed
@@ -275,7 +275,7 @@ language_features:
     test_files: [go/internal/parser/engine_ruby_test.go, go/internal/parser/ruby_dead_code_roots_test.go]
     docs: [docs/public/languages/ruby.md]
     read_surfaces: [execute_language_query, find_dead_code]
-    tracking_issues: [4038, 4098]
+    tracking_issues: [4038, 4161]
   - language: rust
     docs_claim: docs/public/languages/rust.md
     parser_backing: tree-sitter-backed
@@ -287,7 +287,7 @@ language_features:
     test_files: [go/internal/parser/engine_systems_test.go, go/internal/query/code_relationships_rust_graph_test.go]
     docs: [docs/public/languages/rust.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
-    tracking_issues: [4038, 4098]
+    tracking_issues: [4038, 4163]
   - language: scala
     docs_claim: docs/public/languages/scala.md
     parser_backing: tree-sitter-backed
@@ -299,7 +299,7 @@ language_features:
     test_files: [go/internal/parser/engine_scala_imports_test.go, go/internal/parser/scala_dead_code_roots_test.go]
     docs: [docs/public/languages/scala.md]
     read_surfaces: [execute_language_query, find_dead_code]
-    tracking_issues: [4038, 4098]
+    tracking_issues: [4038, 4164]
   - language: sql
     docs_claim: docs/public/languages/sql.md
     parser_backing: tree-sitter-backed
@@ -315,14 +315,14 @@ language_features:
     docs_claim: docs/public/languages/swift.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [functions, initializers-init, classes, structs, enums, protocols, actors, imports, function-calls, property-declarations]
-    partial_features: [vapor-route-truth]
+    supported_features: [functions, initializers-init, classes, structs, enums, protocols, actors, imports, function-calls, property-declarations, vapor-literal-route-entries]
+    partial_features: [vapor-dynamic-route-truth]
     derived_features: [dead-code-derived-roots]
-    source_files: [go/internal/parser/swift_language.go, go/internal/parser/swift/language.go]
-    test_files: [go/internal/parser/engine_swift_ast_migration_test.go, go/internal/parser/swift_dead_code_roots_test.go]
+    source_files: [go/internal/parser/swift_language.go, go/internal/parser/swift/language.go, go/internal/parser/swift/tree_sitter_syntax.go]
+    test_files: [go/internal/parser/engine_swift_ast_migration_test.go, go/internal/parser/swift_dead_code_roots_test.go, go/internal/parser/engine_swift_vapor_routes_test.go, go/internal/reducer/handles_route_swift_test.go]
     docs: [docs/public/languages/swift.md]
-    read_surfaces: [execute_language_query, find_dead_code]
-    tracking_issues: [4038, 4098]
+    read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
+    tracking_issues: [4038, 4165]
   - language: terraform
     docs_claim: docs/public/languages/terraform.md
     parser_backing: official-format-ast-exception
