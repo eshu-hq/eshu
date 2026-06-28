@@ -17,7 +17,7 @@ func TestSemanticSearchToolIsRegistered(t *testing.T) {
 	if !ok {
 		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
 	}
-	for _, field := range []string{"repo_id", "query", "mode", "limit", "timeout_ms", "service_id", "workload_id", "environment", "source_kinds", "rerank"} {
+	for _, field := range []string{"repo_id", "query", "mode", "limit", "timeout_ms", "service_id", "workload_id", "environment", "source_kinds", "languages", "rerank"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("tool properties missing %q", field)
 		}

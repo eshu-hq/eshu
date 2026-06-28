@@ -39,7 +39,11 @@ type EshuSearchIndexSearch struct {
 	Query       string
 	Anchor      searchretrieval.Anchor
 	SourceKinds []searchdocs.SourceKind
-	Limit       int
+	// Languages filters the corpus to documents whose Labels array contains
+	// a "language:<lang>" entry for one of the requested languages. An empty
+	// slice means no language filter.
+	Languages []string
+	Limit     int
 }
 
 // EshuSearchIndexSearchResult is the ranked candidate page plus corpus metadata
@@ -159,6 +163,9 @@ func normalizeEshuSearchIndexSearch(search EshuSearchIndexSearch) EshuSearchInde
 	for i, kind := range search.SourceKinds {
 		search.SourceKinds[i] = searchdocs.SourceKind(strings.TrimSpace(string(kind)))
 	}
+	for i, lang := range search.Languages {
+		search.Languages[i] = strings.TrimSpace(lang)
+	}
 	return search
 }
 
@@ -219,6 +226,17 @@ func buildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, ter
 		}
 		if len(kinds) > 0 {
 			conditions = append(conditions, "d.source_kind = ANY("+addArg(kinds)+"::text[])")
+		}
+	}
+	if len(search.Languages) > 0 {
+		langs := make([]string, 0, len(search.Languages))
+		for _, lang := range search.Languages {
+			if lang != "" {
+				langs = append(langs, "language:"+lang)
+			}
+		}
+		if len(langs) > 0 {
+			conditions = append(conditions, "EXISTS (SELECT 1 FROM jsonb_array_elements_text(d.document->'Labels') AS lbl WHERE lbl = ANY("+addArg(langs)+"::text[]))")
 		}
 	}
 

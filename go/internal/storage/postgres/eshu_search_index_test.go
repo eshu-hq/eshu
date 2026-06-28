@@ -138,6 +138,88 @@ func TestEshuSearchIndexStoreRequiresBoundedSearch(t *testing.T) {
 	}
 }
 
+func TestEshuSearchIndexStoreLanguageFilterAppendsLabelPredicate(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{int64(100), false}}},
+			{rows: [][]any{}},
+		},
+	}
+	store := NewEshuSearchIndexStore(db)
+
+	_, err := store.Search(context.Background(), EshuSearchIndexSearch{
+		ScopeID:   "repo-1",
+		RepoID:    "repo-1",
+		Query:     "payment",
+		Anchor:    searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+		Languages: []string{"go", "python"},
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("Search error = %v", err)
+	}
+
+	if len(db.queries) < 2 {
+		t.Fatalf("queries = %d, want at least 2", len(db.queries))
+	}
+	q := db.queries[1].query
+	if !strings.Contains(q, "jsonb_array_elements_text") {
+		t.Errorf("query missing jsonb_array_elements_text for language filter:\n%s", q)
+	}
+	// The label values must arrive as parameterised args, not interpolated into SQL.
+	if strings.Contains(q, "language:go") {
+		t.Errorf("language value was interpolated into SQL instead of parameterised:\n%s", q)
+	}
+	found := false
+	for _, arg := range db.queries[1].args {
+		if langs, ok := arg.([]string); ok {
+			for _, l := range langs {
+				if strings.HasPrefix(l, "language:") {
+					found = true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected a []string arg containing language: prefixed values; args = %#v", db.queries[1].args)
+	}
+}
+
+func TestEshuSearchIndexStoreNoLanguageFilterOmitsLabelPredicate(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{int64(100), false}}},
+			{rows: [][]any{}},
+		},
+	}
+	store := NewEshuSearchIndexStore(db)
+
+	_, err := store.Search(context.Background(), EshuSearchIndexSearch{
+		ScopeID: "repo-1",
+		RepoID:  "repo-1",
+		Query:   "payment",
+		Anchor:  searchretrieval.Anchor{Kind: searchretrieval.ScopeKindRepo, ID: "repo-1"},
+		// No Languages field.
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("Search error = %v", err)
+	}
+
+	if len(db.queries) < 2 {
+		t.Fatalf("queries = %d, want at least 2", len(db.queries))
+	}
+	q := db.queries[1].query
+	if strings.Contains(q, "jsonb_array_elements_text") {
+		t.Errorf("query unexpectedly contains language filter when no languages requested:\n%s", q)
+	}
+}
+
 func searchIndexDocumentFixture(id string, repoID string, title string) searchdocs.Document {
 	return searchdocs.Document{
 		ID:          id,

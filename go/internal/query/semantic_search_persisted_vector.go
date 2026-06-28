@@ -119,12 +119,13 @@ func (h *PersistedLocalSemanticSearchHybrid) Search(
 		ScopeID:     query.ScopeID,
 		RepoID:      query.RepoID,
 		SourceKinds: query.SourceKinds,
+		Languages:   query.Languages,
 		Limit:       h.Config.CorpusLimit,
 	})
 	if err != nil {
 		return semanticSearchIndexResult{}, err
 	}
-	docs := semanticSearchDocuments(rows)
+	docs := semanticSearchDocumentsFiltered(rows, query.Languages)
 	vectors, state, err := h.readyVectors(ctx, docs, query.ScopeID)
 	if err != nil {
 		return semanticSearchIndexResult{}, err
@@ -269,10 +270,14 @@ func (h *PersistedLocalSemanticSearchHybrid) validate() error {
 	return nil
 }
 
-func semanticSearchDocuments(rows []semanticSearchDocumentRow) []searchdocs.Document {
+// semanticSearchDocumentsFiltered converts rows to documents, applying an
+// in-memory language label filter when langs is non-empty.
+func semanticSearchDocumentsFiltered(rows []semanticSearchDocumentRow, langs []string) []searchdocs.Document {
 	docs := make([]searchdocs.Document, 0, len(rows))
 	for _, row := range rows {
-		docs = append(docs, row.Document)
+		if semanticSearchDocumentMatchesLanguages(row.Document, langs) {
+			docs = append(docs, row.Document)
+		}
 	}
 	return docs
 }

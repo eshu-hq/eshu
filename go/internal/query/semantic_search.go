@@ -6,7 +6,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -35,6 +34,9 @@ type semanticSearchIndexQuery struct {
 	ScopeID     string
 	RepoID      string
 	SourceKinds []searchdocs.SourceKind
+	// Languages filters the bounded corpus to documents whose Labels contain
+	// "language:<lang>" for one of the requested languages. Empty means no filter.
+	Languages []string
 }
 
 type semanticSearchIndexResult struct {
@@ -55,10 +57,24 @@ type semanticSearchRequest struct {
 	WorkloadID  string   `json:"workload_id,omitempty"`
 	Environment string   `json:"environment,omitempty"`
 	SourceKinds []string `json:"source_kinds,omitempty"`
+	// Languages filters the corpus to documents whose Labels contain
+	// "language:<lang>" for one of the requested languages. An empty slice
+	// means no language filter. Any non-empty lowercased token is accepted;
+	// an unmatched language returns an empty result set rather than an error.
+	// The index is the source of truth for which language values exist.
+	Languages []string `json:"languages,omitempty"`
 	// Rerank opts the request into graph-neighborhood reranking over the
 	// retrieved in-scope results. Off by default; when on, the response reports
 	// the reranking state, per-result ranking basis, and recommended next calls.
 	Rerank bool `json:"rerank,omitempty"`
+}
+
+// semanticSearchFacets carries per-facet counts over the already-bounded
+// in-scope candidate corpus.
+type semanticSearchFacets struct {
+	// Languages maps each "language:<x>" label value (the "<x>" part) to the
+	// count of results carrying that language in the post-filter result set.
+	Languages map[string]int `json:"languages"`
 }
 
 type semanticSearchResponse struct {
@@ -76,8 +92,12 @@ type semanticSearchResponse struct {
 	CorpusLimit              int                    `json:"corpus_limit"`
 	CorpusMayBeTruncated     bool                   `json:"corpus_may_be_truncated"`
 	RetrievalState           string                 `json:"retrieval_state"`
-	Rerank                   *semanticSearchRerank  `json:"rerank,omitempty"`
-	RecommendedNextCalls     []semanticSearchCall   `json:"recommended_next_calls,omitempty"`
+	// Facets carries per-dimension aggregate counts computed over the
+	// post-filter result set. The block is always present (never omitted) so
+	// callers can rely on the shape unconditionally.
+	Facets               semanticSearchFacets  `json:"facets"`
+	Rerank               *semanticSearchRerank `json:"rerank,omitempty"`
+	RecommendedNextCalls []semanticSearchCall  `json:"recommended_next_calls,omitempty"`
 }
 
 type semanticSearchResult struct {
@@ -209,6 +229,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		writeSemanticSearchError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
 		return
 	}
+	languages := semanticSearchLanguages(body.Languages)
 	req, err := semanticSearchRetrievalRequest(body)
 	if err != nil {
 		writeSemanticSearchError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
@@ -225,7 +246,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var indexResult semanticSearchIndexResult
-	backend, err := h.semanticSearchBackend(req, body, sourceKinds, &indexResult)
+	backend, err := h.semanticSearchBackend(req, body, sourceKinds, languages, &indexResult)
 	if err != nil {
 		writeSemanticSearchError(
 			w,
@@ -259,6 +280,7 @@ func (h *SemanticSearchHandler) semanticSearchBackend(
 	req searchretrieval.Request,
 	body semanticSearchRequest,
 	sourceKinds []searchdocs.SourceKind,
+	languages []string,
 	indexResult *semanticSearchIndexResult,
 ) (searchretrieval.Backend, error) {
 	query := semanticSearchIndexQuery{
@@ -268,6 +290,7 @@ func (h *SemanticSearchHandler) semanticSearchBackend(
 		ScopeID:     body.RepoID,
 		RepoID:      body.RepoID,
 		SourceKinds: sourceKinds,
+		Languages:   languages,
 	}
 	if h.LocalHybrid != nil && (req.Mode == searchbench.ModeSemantic || req.Mode == searchbench.ModeHybrid) {
 		return semanticSearchIndexBackend{
@@ -314,78 +337,6 @@ func (backend semanticSearchIndexBackend) Search(
 		*backend.Result = result
 	}
 	return result.Candidates, nil
-}
-
-func normalizeSemanticSearchRequest(req semanticSearchRequest) semanticSearchRequest {
-	req.RepoID = strings.TrimSpace(req.RepoID)
-	req.Query = strings.TrimSpace(req.Query)
-	req.Mode = strings.TrimSpace(req.Mode)
-	req.ServiceID = strings.TrimSpace(req.ServiceID)
-	req.WorkloadID = strings.TrimSpace(req.WorkloadID)
-	req.Environment = strings.TrimSpace(req.Environment)
-	for i, kind := range req.SourceKinds {
-		req.SourceKinds[i] = strings.TrimSpace(kind)
-	}
-	return req
-}
-
-func semanticSearchRetrievalRequest(body semanticSearchRequest) (searchretrieval.Request, error) {
-	if body.RepoID == "" {
-		return searchretrieval.Request{}, errors.New("repo_id is required")
-	}
-	req := searchretrieval.Request{
-		Query: body.Query,
-		Scope: searchretrieval.Scope{
-			ServiceID:   body.ServiceID,
-			WorkloadID:  body.WorkloadID,
-			RepoID:      body.RepoID,
-			Environment: body.Environment,
-		},
-		Mode:    searchbench.Mode(body.Mode),
-		Limit:   body.Limit,
-		Timeout: time.Duration(body.TimeoutMS) * time.Millisecond,
-	}
-	if err := searchretrieval.ValidateRequest(req); err != nil {
-		return searchretrieval.Request{}, err
-	}
-	return req, nil
-}
-
-func semanticSearchSourceKinds(raw []string) ([]searchdocs.SourceKind, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	kinds := make([]searchdocs.SourceKind, 0, len(raw))
-	for _, value := range raw {
-		switch kind := searchdocs.SourceKind(strings.TrimSpace(value)); kind {
-		case searchdocs.SourceKindCodeEntity,
-			searchdocs.SourceKindRepositoryFile,
-			searchdocs.SourceKindRuntimeSummary,
-			searchdocs.SourceKindSemanticContext:
-			kinds = append(kinds, kind)
-		case "":
-			continue
-		default:
-			return nil, fmt.Errorf("source_kinds contains unsupported value %q", value)
-		}
-	}
-	return kinds, nil
-}
-
-func emptySemanticSearchResponse(req searchretrieval.Request) semanticSearchResponse {
-	return semanticSearchResponse{
-		Query:          req.Query,
-		RepoID:         req.Scope.RepoID,
-		Anchor:         req.Scope.Anchor(),
-		Mode:           req.Mode,
-		SearchMode:     string(req.Mode),
-		Limit:          req.Limit,
-		TimeoutMS:      int(req.Timeout / time.Millisecond),
-		Results:        []semanticSearchResult{},
-		CorpusLimit:    0,
-		Truncated:      false,
-		RetrievalState: defaultSemanticSearchRetrievalState(req.Mode),
-	}
 }
 
 func semanticSearchRetrievalError(err error) (int, ErrorCode) {

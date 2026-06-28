@@ -30,6 +30,11 @@ const openAPIPathsSemanticSearch = `
                     "type": "array",
                     "items": {"type": "string", "enum": ["code_entity", "repository_file", "runtime_summary", "semantic_context"]}
                   },
+                  "languages": {
+                    "type": "array",
+                    "description": "Optional filter over recognized parser-registry language values (e.g. \"go\", \"python\", \"typescript\"). Documents are included only when their Labels array contains \"language:<lang>\" for one of the requested values. An empty array means no language filter. Unknown values are rejected with HTTP 400.",
+                    "items": {"type": "string"}
+                  },
                   "rerank": {"type": "boolean", "description": "Opt into graph-neighborhood reranking over the in-scope results. When true the response reports the reranking state, per-result ranking basis, and recommended next calls. Off by default."}
                 }
               }
@@ -57,6 +62,17 @@ const openAPIPathsSemanticSearch = `
                     "corpus_limit": {"type": "integer"},
                     "corpus_may_be_truncated": {"type": "boolean"},
                     "retrieval_state": {"type": "string", "enum": ["keyword_only", "semantic_unavailable", "hybrid_degraded", "semantic_active", "hybrid_active", "policy_denied", "index_unready"]},
+                    "facets": {
+                      "type": "object",
+                      "description": "Per-dimension aggregate counts derived from the post-filter result set. Always present. Computed over the documents returned by the bounded index query — no second scan.",
+                      "properties": {
+                        "languages": {
+                          "type": "object",
+                          "description": "Map of language value to count of results carrying that language label in the result set.",
+                          "additionalProperties": {"type": "integer"}
+                        }
+                      }
+                    },
                     "results": {
                       "type": "array",
                       "items": {

@@ -24,6 +24,7 @@ Optional request fields:
 | `workload_id` | Smaller workload anchor inside the repository corpus. |
 | `environment` | Environment anchor inside the repository corpus. |
 | `source_kinds` | Optional filter over `code_entity`, `repository_file`, `runtime_summary`, and `semantic_context`. |
+| `languages` | Optional filter over language values (e.g. `go`, `python`, `typescript`). Documents are included only when their `Labels` array contains `language:<lang>` for one of the requested values. An empty array means no language filter. Any non-empty token is accepted; an unmatched language returns an empty result set rather than an error. The index is the source of truth for which language values exist. |
 | `rerank` | Opt into graph-neighborhood reranking over the in-scope results. Off by default. |
 
 The route reads the active generation from the persisted curated search index.
@@ -59,6 +60,36 @@ Results carry:
 
 Search scores and vector similarity stay derived evidence. They do not promote a
 result to canonical graph truth.
+
+## Language facet
+
+The response always includes a `facets` block:
+
+```json
+{
+  "facets": {
+    "languages": {
+      "go": 4,
+      "python": 2
+    }
+  }
+}
+```
+
+`facets.languages` maps each recognized language label (the `<lang>` part of
+`language:<lang>`) to the count of results in the returned set carrying that
+label. Facet counts are derived from the post-filter result set — the documents
+already returned by the bounded index query — so no second scan is issued.
+
+**Note:** `facets.languages` counts are page-scoped (over the returned result
+set), not corpus-wide totals. A language with documents in the corpus but none
+in the returned page will not appear in the facet map.
+
+Performance Evidence: the facet is computed by iterating the already-returned
+result slice; it adds O(results × labels-per-doc) work with no additional
+database query. No-Observability-Change: the `telemetry.SpanQuerySemanticSearch`
+span already wraps the full route; no new metric or span is added for facet
+computation.
 
 ## Graph-neighborhood reranking
 
@@ -125,9 +156,19 @@ transport-only: it forwards the request fields, including `rerank`, to
 
 No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(SemanticSearch|OpenAPISpecIncludesSemanticSearch|SemanticSearchTool)' -count=1`
 covers required fields, bounds, scoped-token no-grant and not-found behavior,
-OpenAPI shape, MCP schema, route mapping, and graph-neighborhood reranking
+OpenAPI shape, MCP schema, route mapping, graph-neighborhood reranking
 (promotion of the service-anchored result, ranking basis, recommended next
-calls, and the rerank-off default).
+calls, and the rerank-off default), language filter narrowing, unknown language
+open-pass (200 with empty result set), facet count accuracy, and no-filter
+no-op behaviour.
+
+Language Filter and Facet Evidence: `go test ./internal/query/ -run 'TestSemanticSearchHandler(Language|Facets|Passes)' -count=1`
+and `go test ./internal/storage/postgres/ -run 'TestEshuSearchIndexStore(Language|NoLanguage)' -count=1`
+verify the SQL predicate is present when languages are requested, absent when
+not, and that label values arrive as parameterised args (no interpolation).
+The unknown-language open-pass behaviour (200 with empty result set, index
+reached) is verified by
+`TestSemanticSearchHandlerUnknownLanguageReturnsEmptyResult`.
 
 Benchmark Evidence: `go test ./internal/searchrerank -run Benchmark -v -count=1`
 scores baseline vs reranked nDCG@3 over a labeled fixture suite and gates the

@@ -30,8 +30,12 @@ type EshuSearchDocumentFilter struct {
 	GenerationID string
 	RepoID       string
 	SourceKinds  []searchdocs.SourceKind
-	Limit        int
-	Offset       int
+	// Languages restricts the candidate set to documents whose Labels array
+	// contains a "language:<lang>" entry for one of the requested values.
+	// An empty slice means no language filter.
+	Languages []string
+	Limit     int
+	Offset    int
 }
 
 // EshuSearchDocumentRow is one active curated search document loaded from
@@ -142,6 +146,17 @@ func buildEshuSearchDocumentQuery(filter EshuSearchDocumentFilter) (string, []an
 			placeholders = append(placeholders, addArg(string(kind)))
 		}
 		conditions = append(conditions, "fact.payload->>'source_kind' IN ("+strings.Join(placeholders, ", ")+")")
+	}
+	if len(filter.Languages) > 0 {
+		langs := make([]string, 0, len(filter.Languages))
+		for _, lang := range filter.Languages {
+			if lang != "" {
+				langs = append(langs, "language:"+lang)
+			}
+		}
+		if len(langs) > 0 {
+			conditions = append(conditions, "EXISTS (SELECT 1 FROM jsonb_array_elements_text(fact.payload->'document'->'Labels') AS lbl WHERE lbl = ANY("+addArg(langs)+"::text[]))")
+		}
 	}
 
 	var builder strings.Builder
