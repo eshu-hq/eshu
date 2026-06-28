@@ -1,0 +1,54 @@
+name: Replay Tier (offline NornicDB)
+
+# R-5 offline replay gate tier (#4107, epic #4102). Spins up a single NornicDB
+# via plain `docker run` (no Compose), replays the committed cassette through the
+# production canonical projection writer, and asserts node/edge truth over Bolt.
+#
+# This job is what actually gates the backend-specific projection class in CI —
+# #4019 nested-directory drop, commit-time MERGE races, NornicDB MATCH quirks. A
+# fake/in-memory graph cannot reproduce those, so without this job a regression
+# back to the full-atomic projection path would stay green on the default
+# `go test ./...` run (where the live tier skips). It is deliberately lean (one
+# container, no Postgres, seconds), complementing — not replacing — the full
+# Compose B-7 golden-corpus gate.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'go/internal/replay/**'
+      - 'go/internal/storage/cypher/**'
+      - 'go/internal/projector/**'
+      - 'go/internal/graph/**'
+      - 'go/internal/runtime/**'
+      - 'testdata/cassettes/replayoffline/**'
+      - 'scripts/verify-replay-tier.sh'
+      - '.github/workflows/verify-replay-tier.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Least privilege: the gate only checks out and reads the repo.
+permissions:
+  contents: read
+
+jobs:
+  replay-tier:
+    name: Offline replay tier vs real NornicDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run offline replay tier against real NornicDB
+        run: bash scripts/verify-replay-tier.sh

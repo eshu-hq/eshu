@@ -51,6 +51,12 @@ tears the container down:
 scripts/verify-replay-tier.sh
 ```
 
+CI runs exactly this script in `.github/workflows/verify-replay-tier.yml` on
+pushes/PRs that touch the replay, projection, graph, or cypher paths, so the
+backend-specific regression class is gated on the real backend in CI — not only
+when a developer remembers to run it locally. (The default `go test ./...` run
+leaves `ESHU_REPLAY_TIER_LIVE` unset, so the live tier skips there.)
+
 To run it by hand against an already-running backend:
 
 ```bash
