@@ -24,7 +24,7 @@ parser mechanics live in `go/internal/parser/java/README.md`.
 | Call metadata | Method and constructor arity, local receiver type inference, argument counts, typed receiver variables, records, nested-class context, and same-class helper return types. |
 | Annotation metadata | Applied annotations persist as first-class graph entities and remain graph-first on `code/language-query`, with content fallback when the graph is empty. |
 | Dead-code roots | Parser metadata and reducer `REFERENCES` edges suppress parser-proven runtime and framework roots from cleanup candidates. |
-| Framework route entries | Literal Spring MVC/WebFlux `@RequestMapping`, `@GetMapping`, `@PostMapping`, `@PutMapping`, `@PatchMapping`, and `@DeleteMapping` annotations emit exact `framework_semantics.spring.route_entries` with handler names for downstream `HANDLES_ROUTE` projection. |
+| Framework route entries | Literal Spring MVC/WebFlux, JAX-RS, and Micronaut route annotations emit exact `framework_semantics.<framework>.route_entries` with handler names for downstream `HANDLES_ROUTE` projection. |
 
 Primary proof:
 
@@ -79,6 +79,9 @@ Supported today:
   `@RequestMapping` literal prefixes and path variables are preserved. The
   reducer still emits `HANDLES_ROUTE` only when that handler name resolves
   exactly; ambiguous or unknown handlers are skipped.
+- Literal JAX-RS `@Path` plus HTTP method annotations and Micronaut
+  `@Controller` plus HTTP method annotations emit exact route entries when the
+  path is source-literal and the handler is the annotated method.
 - Gradle plugin/task/DSL roots, JUnit tests and lifecycle methods,
   Jenkins/Stapler extension points, serialization hooks, ServiceLoader
   providers, and Spring Boot autoconfiguration metadata are modeled roots.
@@ -94,8 +97,9 @@ Not claimed today:
   code, broad dependency injection, annotation processors, and container
   behavior outside checked metadata remain exactness blockers.
 - Spring composed/meta-annotations, non-literal route paths, multi-route
-  expansion policy, JAX-RS, Micronaut, and other JVM web frameworks are tracked
-  by [#4097](https://github.com/eshu-hq/eshu/issues/4097).
+  expansion policy, external route configuration, runtime-discovered routes,
+  generated handlers, and other JVM web frameworks are not claimed as exact
+  route truth.
 
 ## Known Limitations
 

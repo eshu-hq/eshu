@@ -35,6 +35,9 @@ Canonical implementation:
 | Secondary constructors | `secondary-constructors` | supported | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathKotlinSecondaryConstructors`, `go/internal/query/entity_story_kotlin_test.go::TestAttachSemanticSummaryAddsKotlinSecondaryConstructorStory` | Secondary constructors keep `constructor_kind` metadata through semantic summaries and stories. |
 | Dead-code roots | `dead-code-derived-roots` | supported | `go/internal/parser/kotlin_dead_code_roots_test.go::TestDefaultEngineParsePathKotlinEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_kotlin_roots_test.go::TestHandleDeadCodeExcludesKotlinRootKindsFromMetadata` | Parser metadata marks top-level `main`, secondary constructors, interface methods, same-file interface implementations, overrides, Gradle plugin/task callbacks, Spring component and method callbacks, lifecycle callbacks, and JUnit methods as `kotlin.*` dead-code roots. The query layer suppresses those parser-backed roots before returning cleanup candidates. |
 | Spring route entries | `spring-mvc-route-truth` | supported | `go/internal/parser/java_kotlin_spring_route_semantics_test.go::TestDefaultEngineParsePathKotlinSpringRouteSemantics` | Literal Spring MVC/WebFlux annotations emit exact `framework_semantics.spring.route_entries` with handler function names. `HANDLES_ROUTE` projection remains exact-only and skips ambiguous or unknown handlers. |
+| JAX-RS route entries | `jax-rs-route-truth` | supported | `go/internal/parser/java_kotlin_spring_route_semantics_test.go::TestDefaultEngineParsePathKotlinJVMRouteSemantics` | Literal `@Path` plus HTTP method annotations emit exact `framework_semantics.jax_rs.route_entries` with handler function names. Dynamic paths are not guessed. |
+| Micronaut route entries | `micronaut-route-truth` | supported | `go/internal/parser/java_kotlin_spring_route_semantics_test.go::TestDefaultEngineParsePathKotlinJVMRouteSemantics` | Literal `@Controller` plus HTTP method annotations emit exact `framework_semantics.micronaut.route_entries` with handler function names. Dynamic paths are not guessed. |
+| Ktor route entries | `ktor-literal-handler-route-truth` | supported | `go/internal/parser/java_kotlin_spring_route_semantics_test.go::TestDefaultEngineParsePathKotlinJVMRouteSemantics` | Literal Ktor verb routes emit exact `framework_semantics.ktor.route_entries` only when the route lambda delegates to one exact bare handler function call. |
 
 ## Current Truth
 
@@ -72,6 +75,12 @@ Supported today:
   route entries when the path is source-literal. Class `@RequestMapping`
   literal prefixes and path variables are preserved; dynamic paths are not
   guessed.
+- Literal JAX-RS `@Path` plus HTTP method annotations and Micronaut
+  `@Controller` plus HTTP method annotations emit exact route entries when the
+  path is source-literal and the handler is the annotated function.
+- Literal Ktor verb routes emit exact route entries only when the route has one
+  source-literal path and the route lambda delegates to exactly one bare
+  handler function call.
 - Interfaces, same-file interface implementations, overrides, and top-level
   `main` are modeled as root evidence.
 - Maven/Gradle vulnerability reachability can use Kotlin imports, calls, and
@@ -84,5 +93,7 @@ Not claimed today:
   Gradle source-set selection, multiplatform targets, and dynamic dispatch
   remain exactness blockers.
 - Spring composed/meta-annotations, non-literal route paths, multi-route
-  expansion policy, Ktor, Micronaut, JAX-RS, and other JVM web frameworks are
-  tracked by [#4097](https://github.com/eshu-hq/eshu/issues/4097).
+  expansion policy, Ktor nested route-group prefixes, Ktor inline lambdas
+  without a single exact handler function, external route configuration,
+  runtime-discovered routes, generated handlers, and other JVM web frameworks
+  are not claimed as exact route truth.

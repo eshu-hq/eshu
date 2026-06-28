@@ -22,35 +22,6 @@ type kotlinSpringRoute struct {
 	handler string
 }
 
-func kotlinSpringFrameworkSemantics(root *tree_sitter.Node, source []byte) map[string]any {
-	routes := kotlinSpringRoutes(root, source)
-	if len(routes) == 0 {
-		return nil
-	}
-
-	methods := make([]string, 0, len(routes))
-	paths := make([]string, 0, len(routes))
-	entries := make([]map[string]string, 0, len(routes))
-	for _, route := range routes {
-		methods = appendKotlinUnique(methods, route.method)
-		paths = appendKotlinUnique(paths, route.path)
-		entries = append(entries, map[string]string{
-			"method":  route.method,
-			"path":    route.path,
-			"handler": route.handler,
-		})
-	}
-
-	return map[string]any{
-		"frameworks": []string{"spring"},
-		"spring": map[string]any{
-			"route_methods": methods,
-			"route_paths":   paths,
-			"route_entries": entries,
-		},
-	}
-}
-
 func kotlinSpringRoutes(root *tree_sitter.Node, source []byte) []kotlinSpringRoute {
 	if root == nil {
 		return nil
