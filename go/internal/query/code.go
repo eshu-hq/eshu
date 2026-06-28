@@ -44,6 +44,7 @@ func (h *CodeHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/complexity", h.handleComplexity)
 	mux.HandleFunc("POST /api/v0/code/quality/inspect", h.handleCodeQualityInspection)
 	mux.HandleFunc("POST /api/v0/code/call-chain", h.handleCallChain)
+	mux.HandleFunc("POST /api/v0/code/routes/callers", h.handleRouteToCaller)
 
 	// Read-only Cypher, visualization, and bundle search.
 	mux.HandleFunc("POST /api/v0/code/cypher", h.handleCypherQuery)

@@ -95,6 +95,7 @@ func codebaseTools() []ToolDefinition {
 		structuralInventoryTool(),
 		importDependencyTool(),
 		callGraphMetricsTool(),
+		routeToCallerTool(),
 		codeTopicInvestigationTool(),
 		securityInvestigationTool(),
 		codeRelationshipStoryTool(),

@@ -179,6 +179,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	routeToCallerCapability: {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"code_to_cloud.trace_exposure_path": {
 		// Level 1 reachability is symbol-level, never value-flow, so the ceiling is
 		// derived, never exact (#2704 non-goals). It needs the authoritative call

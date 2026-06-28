@@ -201,6 +201,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-call-chain}], notes: graph sidecar shortestPath}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{compose_e2e: call-chain-path}], notes: authoritative path query}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-call-chain-path}], notes: authoritative path query}
+  - capability: call_graph.route_to_caller
+    tools: [trace_route_callers]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: requires exact HANDLES_ROUTE graph truth and bounded CALLS traversal}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: exact HANDLES_ROUTE handler resolution with bounded CALLS traversal and impact summaries}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: exact HANDLES_ROUTE handler resolution with bounded CALLS traversal and impact summaries}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-route-to-caller}], notes: exact HANDLES_ROUTE handler resolution with bounded CALLS traversal and impact summaries}
   - capability: code_to_cloud.trace_exposure_path
     tools: [trace_exposure_path]
     profiles:
