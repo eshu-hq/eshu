@@ -160,6 +160,9 @@ func walkFile(repoRoot, path string, isDependency bool, options shared.Options, 
 
 	// Main pass: emit declarations, variables, and calls in source order.
 	w.walkNode(tree.RootNode(), frame{})
+	if semantics := kotlinSpringFrameworkSemantics(tree.RootNode(), source); semantics != nil {
+		w.payload["framework_semantics"] = semantics
+	}
 
 	shared.SortNamedBucket(w.payload, "functions")
 	shared.SortNamedBucket(w.payload, "classes")
