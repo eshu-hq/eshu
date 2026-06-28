@@ -106,6 +106,9 @@ func TestBootstrapWorkItemSchemaIncludesPayloadAndLeaseOwner(t *testing.T) {
 		"ADD COLUMN IF NOT EXISTS conflict_key TEXT NULL",
 		"fact_work_items_reducer_conflict_claim_idx",
 		"fact_work_items_reducer_source_claim_idx",
+		// At most one live reducer lease per conflict key (#4137, completing #3558).
+		"fact_work_items_reducer_live_lease_uniq",
+		"WHERE stage = 'reducer' AND status IN ('claimed', 'running')",
 		"payload->>'source_system'",
 		"COALESCE(conflict_key, scope_id)",
 	} {

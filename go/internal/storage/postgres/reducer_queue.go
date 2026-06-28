@@ -257,12 +257,20 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
 		q.semanticEntityClaimLimit(),
 	)
 	if err != nil {
+		if isReducerLiveLeaseConflict(err) {
+			// A concurrent claimer already holds the live lease on this
+			// conflict key; defer rather than double-claim (#4137).
+			return reducer.Intent{}, false, nil
+		}
 		return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
+			if isReducerLiveLeaseConflict(err) {
+				return reducer.Intent{}, false, nil
+			}
 			return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 		}
 		return reducer.Intent{}, false, nil
@@ -273,6 +281,9 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
 		return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
 	if err := rows.Err(); err != nil {
+		if isReducerLiveLeaseConflict(err) {
+			return reducer.Intent{}, false, nil
+		}
 		return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
 

@@ -204,8 +204,11 @@ func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 		"inflight.conflict_domain = fact_work_items.conflict_domain",
 		"COALESCE(inflight.conflict_key, inflight.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
 		"inflight.work_item_id <> fact_work_items.work_item_id",
+		// The conflict fence intentionally has no live-only (claim_until > $1)
+		// scope: a pending sibling defers to ANY claimed/running holder so an
+		// expired holder is reclaimed rather than raced (#4137). Proven by
+		// TestReducerClaimReclaimsExpiredHolderBeforeOlderPendingSibling.
 		"inflight.status IN ('claimed', 'running')",
-		"inflight.claim_until > $1",
 		"FOR UPDATE SKIP LOCKED",
 	} {
 		if !strings.Contains(query, want) {

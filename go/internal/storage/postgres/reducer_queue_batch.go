@@ -35,6 +35,14 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 		limit,
 	)
 	if err != nil {
+		if isReducerLiveLeaseConflict(err) {
+			// The batch claim restricts candidates to one representative row per
+			// conflict key, so it does not race itself; this only fires if a
+			// concurrent single-claim worker took a sibling on the same key
+			// first. The whole batch statement rolled back — return empty and let
+			// the next poll re-claim (#4137).
+			return nil, nil
+		}
 		return nil, fmt.Errorf("batch claim reducer work: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
@@ -48,6 +56,9 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 		intents = append(intents, intent)
 	}
 	if err := rows.Err(); err != nil {
+		if isReducerLiveLeaseConflict(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("batch claim reducer work: %w", err)
 	}
 

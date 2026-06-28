@@ -142,16 +142,18 @@ on independent connections against real Postgres:
 - **Conflict-key mutual exclusion with a committed holder.** While one item on a
   `(conflict_domain, conflict_key)` holds a committed live lease, concurrent
   workers cannot claim a sibling on the same key.
+- **Conflict-key mutual exclusion under simultaneous pending claims.** When two
+  *pending* siblings on one key are claimed by genuinely simultaneous workers
+  before either lease commits, at most one acquires a live lease.
 
-**Deliberately out of scope of this gate:** conflict-key mutual exclusion when
-two *pending* siblings are claimed by genuinely simultaneous workers before
-either lease commits. The current `NOT EXISTS` + `SKIP LOCKED` fence has a
-TOCTOU window there (the live-sibling check reads a snapshot that may not yet see
-a concurrent sibling claim), so asserting it would make the gate flaky. That gap
-is tracked as #4137 (a completion of #3558); the committed-holder
-case above is the deterministic conflict guarantee. Keeping the gate green and
-honest matters more than over-claiming a property the production fence does not
-yet guarantee under true simultaneity.
+**Resolved (#4137, completing #3558):** the single-claim path originally had a
+TOCTOU window here — under READ COMMITTED the `NOT EXISTS` live-sibling check did
+not see a concurrent *uncommitted* sibling claim, and `SKIP LOCKED` locked the
+two distinct sibling rows, so both were claimed. The batch claim already avoided
+this by restricting its candidate to the per-conflict-key representative row; the
+fix gives the single-claim candidate the same restriction, so all claimers
+converge on one row and `SKIP LOCKED` serializes it. The gate now asserts this
+case directly (looped, `-race`).
 
 ## 11. Phase 5 — fidelity and the bug classes unit tests can't see
 

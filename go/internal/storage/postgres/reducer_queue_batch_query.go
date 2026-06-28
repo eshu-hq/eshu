@@ -296,6 +296,12 @@ candidate AS (
             AND ($2::text[] IS NULL OR same.domain = ANY($2::text[]))
             AND ` + reducerClaimReadinessGateSQL("same", "same_readiness_req", "same_readiness_phase") + `
           ORDER BY
+            -- Prefer reclaiming the existing claimed/running holder over an older
+            -- pending sibling (#4137). The live-lease unique index keeps at most
+            -- one claimed/running row per key, so when its lease expires the
+            -- representative must stay that row — picking an older pending sibling
+            -- instead would hit the unique index (23505) and wedge the key.
+            CASE WHEN same.status IN ('claimed', 'running') THEN 0 ELSE 1 END ASC,
             CASE WHEN same.domain = 'eshu_search_document' THEN 1 ELSE 0 END ASC,
             same.updated_at ASC,
             same.work_item_id ASC
