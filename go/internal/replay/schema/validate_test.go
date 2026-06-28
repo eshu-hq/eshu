@@ -255,6 +255,13 @@ func TestCommittedCassettesValid(t *testing.T) {
 	}
 	for _, path := range matches {
 		path := path
+		// .cost-budget.json files are R-16 cost-budget sidecars co-located with
+		// their cassette (see replay/costcounting/doc.go), not cassettes
+		// themselves; they carry a budgets/scenario shape and are validated by the
+		// costcounting package, so the cassette schema must not be applied to them.
+		if strings.HasSuffix(path, ".cost-budget.json") {
+			continue
+		}
 		t.Run(filepath.Base(filepath.Dir(path))+"/"+filepath.Base(path), func(t *testing.T) {
 			t.Parallel()
 			data := readFile(t, path)
