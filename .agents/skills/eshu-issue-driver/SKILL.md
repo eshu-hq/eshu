@@ -29,8 +29,10 @@ until the proof clauses in the DONE section all hold.
   repo and open PRs before any push/PR step. Do not hard-code an account; use
   whatever the local setup requires (switch with `gh auth switch` if needed).
 - **fresh base**: before opening or updating a PR, `git fetch origin`, rebase on
-  `origin/main`, and verify the working tree is clean. Do not create a PR from a
-  branch that is knowingly behind main or locally conflicted.
+  `origin/main`, rerun focused gates, and push the rebased head before creating
+  or updating the PR. Use `--force-with-lease` when the rebase rewrites an
+  already-pushed branch. Do not create or update a PR from a branch that is
+  knowingly behind main or locally conflicted.
 
 ## How to run it (composition with /goal)
 
@@ -122,8 +124,9 @@ current turn, stop and ask — do not self-approve and proceed.
   During CI/review waiting, check `gh pr view <n> --json mergeable,headRefOid`
   about every 60 seconds. If `mergeable` becomes `CONFLICTING` or `UNKNOWN`
   for more than one poll, fetch, rebase on `origin/main`, rerun focused gates,
-  push with lease, and restart the poll. Active agents merge constantly; a green
-  check snapshot can become stale while the PR is waiting.
+  push the rebased head with `--force-with-lease`, and restart the poll. Active
+  agents merge constantly; a green check snapshot can become stale while the PR
+  is waiting.
 - Fetch ALL inline + bot review comments:
   `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
   uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot
@@ -207,12 +210,14 @@ current turn, stop and ask — do not self-approve and proceed.
    verdict (counts per severity + resolution). Proceed only when **P0=0 and P1=0
    with re-review proof**. In self-review mode, explicitly say it was
    self-review mode and list the evidence inspected.
-5. Ensure `gh` auth can push, then push.
-6. Before opening the PR, `git fetch origin`, rebase on `origin/main`, rerun the
-   focused gates affected by the rebase, and confirm `git status --short` is
-   clean. Open the PR with a humanized description; update affected docs in the
-   same PR. Immediately check `gh pr view <n> --json mergeable,statusCheckRollup`
-   and fix conflicts before waiting on CI.
+5. Ensure `gh` auth can push, then `git fetch origin`, rebase on `origin/main`,
+   rerun the focused gates affected by the rebase, confirm
+   `git status --short` is clean, and push the rebased head. Use
+   `git push --force-with-lease` when rebasing an already-pushed branch.
+6. Open or update the PR only after the rebased head is on GitHub. Use a
+   humanized description and update affected docs in the same PR. Immediately
+   check `gh pr view <n> --json mergeable,statusCheckRollup` and fix conflicts
+   before waiting on CI.
 7. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
    AND the review gate above both land AND all their findings resolve. CI green
    is necessary, not sufficient. During CI waiting, poll mergeability and review
@@ -244,8 +249,8 @@ to the originating issue.
   no conflicts and CI green. **Confirm merge state directly from the GitHub API —
   do not assert it from local git or memory.**
 - The PR history shows the branch was fetched/rebased on `origin/main` before
-  PR creation or the latest PR update, and the CI-wait loop polled mergeability
-  about every 60 seconds until merge.
+  PR creation or the latest PR update, the rebased head was pushed, and the
+  CI-wait loop polled mergeability about every 60 seconds until merge.
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
 - Latest review verdict shows **P0=0 and P1=0** with re-review proof. If this
