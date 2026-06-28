@@ -2,7 +2,7 @@
 name: eshu-issue-driver
 description: |
   Drive one or more Eshu GitHub issues (including epics) to a verifiable closed
-  state — merged PRs, a separate-context severity-tagged review gate, and
+  state — merged PRs, a severity-tagged review gate, and
   resolution of every bot and human review (codex, GitHub Copilot, Cursor,
   Claude, and human reviewers, treated uniformly). ACTIVATE when the user says
   "drive issue(s)", "work issue(s) to closed/done", "close out issue/epic", or
@@ -15,8 +15,8 @@ description: |
 # eshu-issue-driver
 
 Drives a set of Eshu GitHub issues to a verifiable closed state with a
-separate-context, severity-tagged review gate. Designed to run under `/goal` so
-it loops turns until the proof clauses in the DONE section all hold.
+severity-tagged review gate. Designed to run under `/goal` so it loops turns
+until the proof clauses in the DONE section all hold.
 
 ## Inputs
 
@@ -28,6 +28,11 @@ it loops turns until the proof clauses in the DONE section all hold.
 - **gh auth**: ensure `gh` is authenticated to an account that can push to the
   repo and open PRs before any push/PR step. Do not hard-code an account; use
   whatever the local setup requires (switch with `gh auth switch` if needed).
+- **fresh base**: before opening or updating a PR, `git fetch origin`, rebase on
+  `origin/main`, rerun focused gates, and push the rebased head before creating
+  or updating the PR. Use `--force-with-lease` when the rebase rewrites an
+  already-pushed branch. Do not create or update a PR from a branch that is
+  knowingly behind main or locally conflicted.
 
 ## How to run it (composition with /goal)
 
@@ -42,8 +47,8 @@ blocked only on operator-side action (say so).
 
 The `/goal` evaluator reads the conversation, which includes this loaded skill,
 so "done per the skill" is checkable. Run with auto mode on so each turn runs
-unattended. For wall-clock polling of conflicts/CI/review comments, run a
-parallel `/loop 3m`.
+unattended. While a PR is open, poll conflicts, CI, and review comments about
+every 60 seconds; do not only wait for the check rollup.
 
 ## Step 1 — Build the work set (expand epics)
 
@@ -97,9 +102,17 @@ current turn, stop and ask — do not self-approve and proceed.
 - `rg`/glob only (never `grep`/`find`). TDD: failing regression test first.
   Files < 500 lines. No AI attribution. No `git stash` across worktrees.
 - Serialization is not a fix — partition by conflict key or make writes idempotent.
-- **Subagents for all parallel work.** Orchestrator stays Opus (planning, review
-  arbitration, merge calls); Sonnet executors for impl/tests/refactors/docs;
-  Haiku for lookups/status polls. **Author never reviews own code.**
+- Use subagents for independent parallel work when the active harness permits
+  delegation. Orchestrator keeps planning, review arbitration, and merge calls;
+  executors own scoped implementation/tests/refactors/docs; lookup agents own
+  status polls.
+- **Self-review is allowed and required.** Every PR must have a full
+  severity-tagged review before push/PR/merge. Prefer a separate-context review
+  when delegation is available, but if the active harness forbids subagents or
+  the repo owner explicitly wants the current agent to review, perform the
+  self-review directly. Self-review must cover the complete diff, touched
+  contracts, tests, generated artifacts, docs, private-data leakage, and
+  verification evidence.
 - **Commit early and often** per worktree. Agent deaths are usage-limit
   boundaries, not load — committed work survives them. Watch agent liveness;
   revive stalled agents, have them commit in-progress work, resume from last
@@ -108,6 +121,12 @@ current turn, stop and ask — do not self-approve and proceed.
 ## Step 4 — Every few turns, before new work
 
 - Rebase open PRs on `main`; resolve conflicts immediately (PRs merge fast).
+  During CI/review waiting, check `gh pr view <n> --json mergeable,headRefOid`
+  about every 60 seconds. If `mergeable` becomes `CONFLICTING` or `UNKNOWN`
+  for more than one poll, fetch, rebase on `origin/main`, rerun focused gates,
+  push the rebased head with `--force-with-lease`, and restart the poll. Active
+  agents merge constantly; a green check snapshot can become stale while the PR
+  is waiting.
 - Fetch ALL inline + bot review comments:
   `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
   uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot
@@ -124,8 +143,10 @@ current turn, stop and ask — do not self-approve and proceed.
   before proceeding. An empty first review is not a pass — it is a failed
   request that must be retried.
 - Check GHA on every PR. Enumerate **every** check's state, not just the green
-  rollup; on red, root-cause (no symptom patch), fix, rerun. A clean PR *diff*
-  can still inherit pre-existing red: this repo has no required-status-check
+  rollup; on red, root-cause (no symptom patch), fix, rerun. While checks are
+  pending, poll the PR about every 60 seconds for merge conflicts and new review
+  threads instead of staring only at the check watcher. A clean PR *diff* can
+  still inherit pre-existing red: this repo has no required-status-check
   enforcement, so whole-module Lint Go / Go tests that an earlier sequential gate
   masked (e.g. a failing "Verify hot-path evidence" step that aborts the job
   before Lint Go) surface only on the first PR to pass those earlier gates. Fix
@@ -141,10 +162,10 @@ current turn, stop and ask — do not self-approve and proceed.
    touched packages; cite exact commands + results.
 3. Runtime-affecting -> perf proof or no-regression measurement + operator
    telemetry (spans/metrics/logs).
-4. **Review gate (separate context, author never reviews own code).** Dispatch
-   reviewers in PARALLEL, each a fresh agent with a distinct lens, each loading
-   the Eshu skills for the touched surface, each prompted to FIND defects
-   (default to reject, not approve):
+4. **Review gate.** Run a severity-tagged review before push/PR/merge. Prefer
+   separate-context reviewers in PARALLEL when the harness permits delegation;
+   otherwise run an explicit self-review in the current agent. Either mode must
+   be prompted to FIND defects (default to reject, not approve):
    - **Accuracy (Opus):** wrong graph/query/deploy truth, fact loss,
      fixture-vs-reducer-vs-API disagreement. Skills: `eshu-correlation-truth`,
      `cypher-query-rigor`, `eshu-mcp-call-rigor`.
@@ -187,12 +208,21 @@ current turn, stop and ask — do not self-approve and proceed.
 
    Each finding cites `file:line` + the violated rule/skill + the fix. Paste the
    verdict (counts per severity + resolution). Proceed only when **P0=0 and P1=0
-   with re-review proof**.
-5. Ensure `gh` auth can push, then push.
-6. Open the PR with a humanized description; update affected docs in the same PR.
+   with re-review proof**. In self-review mode, explicitly say it was
+   self-review mode and list the evidence inspected.
+5. Ensure `gh` auth can push, then `git fetch origin`, rebase on `origin/main`,
+   rerun the focused gates affected by the rebase, confirm
+   `git status --short` is clean, and push the rebased head. Use
+   `git push --force-with-lease` when rebasing an already-pushed branch.
+6. Open or update the PR only after the rebased head is on GitHub. Use a
+   humanized description and update affected docs in the same PR. Immediately
+   check `gh pr view <n> --json mergeable,statusCheckRollup` and fix conflicts
+   before waiting on CI.
 7. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
-   AND the internal review gate above both land AND all their findings resolve.
-   CI green is necessary, not sufficient.
+   AND the review gate above both land AND all their findings resolve. CI green
+   is necessary, not sufficient. During CI waiting, poll mergeability and review
+   threads about every 60 seconds; if main moves and creates conflicts, rebase
+   and push before continuing the CI wait.
 8. **When the goal is "drive to merged-closed", execute the merge.** Do not
    defer the merge back to the user when all gates are green and all review
    threads are resolved. Use `gh pr merge <n> --repo eshu-hq/eshu --squash
@@ -218,9 +248,15 @@ to the originating issue.
   `gh pr view <n> --repo eshu-hq/eshu --json mergeable,statusCheckRollup` shows
   no conflicts and CI green. **Confirm merge state directly from the GitHub API —
   do not assert it from local git or memory.**
+- The PR history shows the branch was fetched/rebased on `origin/main` before
+  PR creation or the latest PR update, the rebased head was pushed, and the
+  CI-wait loop polled mergeability about every 60 seconds until merge.
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
-- Latest internal review verdict shows **P0=0 and P1=0** with re-review proof.
+- Latest review verdict shows **P0=0 and P1=0** with re-review proof. If this
+  was self-review mode, the verdict explicitly says so and lists the diff,
+  contracts, tests, docs, generated artifacts, private-data scan, and
+  verification evidence inspected.
 - **Before closing any issue as fixed**: run the full verification suite from
   `docs/public/reference/local-testing.md` with exact tool versions. Do NOT
   shortcut by verifying a pre-existing fix, trusting a prior CI run, or
