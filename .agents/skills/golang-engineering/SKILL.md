@@ -42,6 +42,11 @@ References:
   any `go build`, `go test`, or `golangci-lint` invocation. Parallel agents
   sharing the default `~/.cache/go-build` corrupt each other's incremental
   builds and can wipe in-progress compilation for a sibling agent.
+- MUST use distinct `GOCACHE` directories for concurrent Go commands launched
+  inside the same worktree, or run those commands serially. Sharing one
+  worktree-local cache across simultaneous `go test`, `go run`, verifier, or
+  lint commands can produce missing cache object, vet, or linker failures that
+  look like product regressions.
 - MUST run focused Go tests before broader package tests.
 - MUST run `golangci-lint` when Go code changed unless the user explicitly
   narrows verification.
