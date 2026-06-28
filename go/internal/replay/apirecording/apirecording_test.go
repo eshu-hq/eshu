@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/replay"
 	"github.com/eshu-hq/eshu/go/internal/replay/apirecording"
 )
 
@@ -108,12 +109,39 @@ func TestQueryPlaybookRecordingMatchesGolden(t *testing.T) {
 		t.Fatalf("recorded API shape diverged from golden:\n%v", err)
 	}
 
-	// Cover the success and refusal branches explicitly so a golden that drops an
-	// exchange is caught, not silently passed.
-	gotNames := exchangeNames(recording)
-	for _, want := range []string{"list-catalog-success", "resolve-success", "resolve-unknown-refusal"} {
-		if _, ok := gotNames[want]; !ok {
-			t.Fatalf("recording missing exchange %q; got %v", want, gotNames)
+	// Assert against the LOADED golden's exchange set, not the freshly recorded
+	// one: Assert only replays exchanges present in the golden, so a golden that
+	// drops an unmutated exchange (e.g. resolve-success) would silently leave that
+	// route unprotected. Requiring the golden to carry exactly the expected set
+	// closes that gap — a dropped or extra golden exchange fails here.
+	assertExchangeSet(t, "golden", golden, expectedExchangeNames())
+}
+
+// expectedExchangeNames is the set of request names every committed golden must
+// carry. It is derived from recordingRequests so the source of truth is the
+// request set itself, and it is the set TestQueryPlaybookRecordingMatchesGolden
+// requires the loaded golden to equal.
+func expectedExchangeNames() map[string]struct{} {
+	want := make(map[string]struct{})
+	for _, req := range recordingRequests() {
+		want[req.Name] = struct{}{}
+	}
+	return want
+}
+
+// assertExchangeSet fails when r's exchange names do not exactly equal want
+// (no missing, no extra), so a golden that drops or adds an exchange is caught.
+func assertExchangeSet(t *testing.T, label string, r apirecording.Recording, want map[string]struct{}) {
+	t.Helper()
+	got := exchangeNames(r)
+	for name := range want {
+		if _, ok := got[name]; !ok {
+			t.Fatalf("%s is missing required exchange %q; got %v", label, name, got)
+		}
+	}
+	for name := range got {
+		if _, ok := want[name]; !ok {
+			t.Fatalf("%s carries unexpected exchange %q; want exactly %v", label, name, want)
 		}
 	}
 }
@@ -141,6 +169,28 @@ func TestAssertCatchesDeliberateShapeChange(t *testing.T) {
 	err = apirecording.Assert(handler, mutated, opts)
 	if err == nil {
 		t.Fatal("Assert() = nil on a mutated golden; the gate is false-green")
+	}
+}
+
+// TestDroppedGoldenExchangeIsCaught proves the coverage check is not
+// false-green: a golden with an unmutated exchange removed (which Assert would
+// happily pass, since it only replays exchanges present in the golden) MUST fail
+// the exchange-set check, so a silently-unprotected route is caught.
+func TestDroppedGoldenExchangeIsCaught(t *testing.T) {
+	golden, err := apirecording.LoadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) error = %v", goldenPath, err)
+	}
+
+	// Sanity: the unmodified golden satisfies the exchange-set check.
+	assertExchangeSet(t, "baseline golden", golden, expectedExchangeNames())
+
+	pruned := dropExchange(t, golden, "resolve-success")
+
+	// The exchange-set check must fail for the pruned golden. Run it under a
+	// subtest recorder so the expected failure does not fail this test.
+	if !exchangeSetFails(pruned, expectedExchangeNames()) {
+		t.Fatal("assertExchangeSet passed on a golden missing resolve-success; the coverage check is false-green")
 	}
 }
 
@@ -214,6 +264,47 @@ func TestRecordingIsDeterministic(t *testing.T) {
 	}
 }
 
+// TestZeroValueOptionsCollapsesVolatileFields proves the documented zero-value
+// contract: Record(..., Options{}) normalizes to DefaultOptions, so a response
+// carrying run-specific correlation_id and observed_at canonicalizes to the
+// fixed sentinels rather than churning. Without normalization the zero value has
+// nil VolatileKeys and these fields would survive verbatim, breaking re-record
+// stability and offline replay.
+func TestZeroValueOptionsCollapsesVolatileFields(t *testing.T) {
+	const correlationSentinel = "canonical-correlation-id"
+
+	// A tiny handler that emits both volatile fields with live-looking values.
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"correlation_id":"req-abc-123","observed_at":"2026-06-28T12:34:56Z","ok":true}`))
+	})
+	requests := []apirecording.RequestDescriptor{{
+		Name:   "volatile-probe",
+		Method: http.MethodGet,
+		Path:   "/probe",
+	}}
+
+	// Record with the ZERO value, not DefaultOptions().
+	recording, err := apirecording.Record(handler, requests, apirecording.Options{})
+	if err != nil {
+		t.Fatalf("Record(Options{}) error = %v, want nil", err)
+	}
+	if len(recording.Exchanges) != 1 {
+		t.Fatalf("recording has %d exchanges, want 1", len(recording.Exchanges))
+	}
+	body, ok := recording.Exchanges[0].Response.Body.(map[string]any)
+	if !ok {
+		t.Fatalf("recorded body type = %T, want map", recording.Exchanges[0].Response.Body)
+	}
+	if got := body["correlation_id"]; got != correlationSentinel {
+		t.Fatalf("correlation_id = %v, want collapsed sentinel %q", got, correlationSentinel)
+	}
+	if got := body["observed_at"]; got != replay.SentinelObservedAt {
+		t.Fatalf("observed_at = %v, want collapsed sentinel %q", got, replay.SentinelObservedAt)
+	}
+}
+
 // exchangeNames returns the set of request names in a recording.
 func exchangeNames(r apirecording.Recording) map[string]struct{} {
 	names := make(map[string]struct{}, len(r.Exchanges))
@@ -221,6 +312,43 @@ func exchangeNames(r apirecording.Recording) map[string]struct{} {
 		names[ex.Request.Name] = struct{}{}
 	}
 	return names
+}
+
+// dropExchange returns a deep copy of r with the named exchange removed, used to
+// prove the exchange-set coverage check fails when a golden silently drops a
+// route.
+func dropExchange(t *testing.T, r apirecording.Recording, name string) apirecording.Recording {
+	t.Helper()
+	out := deepCopy(t, r)
+	kept := out.Exchanges[:0]
+	found := false
+	for _, ex := range out.Exchanges {
+		if ex.Request.Name == name {
+			found = true
+			continue
+		}
+		kept = append(kept, ex)
+	}
+	if !found {
+		t.Fatalf("exchange %q not found to drop", name)
+	}
+	out.Exchanges = kept
+	return out
+}
+
+// exchangeSetFails reports whether the real assertExchangeSet fails for r/want.
+// It runs the production check against a throwaway *testing.T so an expected
+// failure can be asserted without failing the caller — the check itself is the
+// code under test, not a re-implementation.
+func exchangeSetFails(r apirecording.Recording, want map[string]struct{}) bool {
+	probe := &testing.T{}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assertExchangeSet(probe, "pruned golden", r, want)
+	}()
+	<-done
+	return probe.Failed()
 }
 
 // mutateRefusalStatus returns a deep copy of r with the named exchange's

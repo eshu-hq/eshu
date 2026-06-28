@@ -15,11 +15,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay"
 )
 
-// Options configures how an API recording is canonicalized. The zero value uses
-// the API-flavor defaults (DefaultOptions). The fields mirror the replay
-// canonical core but are scoped to the response shapes the query handlers emit:
-// run-specific fields that would churn a re-record collapse to fixed sentinels,
-// and configured secrets redact.
+// Options configures how an API recording is canonicalized. The zero value is
+// normalized to the API-flavor defaults (DefaultOptions) at every
+// canonicalization site, so Record(..., Options{}) and Assert(..., Options{})
+// still collapse the run-specific volatile fields rather than churning. The
+// fields mirror the replay canonical core but are scoped to the response shapes
+// the query handlers emit: run-specific fields that would churn a re-record
+// collapse to fixed sentinels, and configured secrets redact.
 type Options struct {
 	// canonical is the underlying canonical-core options the response body is
 	// serialized with. It is built from DefaultOptions and extended via
@@ -55,9 +57,35 @@ const sentinelCorrelationID = "canonical-correlation-id"
 // WithRedactedKeys returns a copy of o with each named object key marked for
 // secret redaction wherever it appears in a recorded response. The receiver is
 // not mutated, so a shared DefaultOptions value is safe to extend per call site.
+// It first normalizes a zero-value receiver to DefaultOptions so callers can
+// write Options{}.WithRedactedKeys(...) and still get the volatile-field
+// collapse, matching the documented zero-value contract.
 func (o Options) WithRedactedKeys(keys ...string) Options {
+	o = o.normalized()
 	o.canonical = o.canonical.WithRedactedKeys(keys...)
 	return o
+}
+
+// normalized returns o unchanged unless it is the zero value, in which case it
+// substitutes DefaultOptions. The zero value carries nil VolatileKeys, so
+// canonicalizing with it would NOT collapse observed_at/correlation_id and a
+// re-record would churn (or replay would diverge) despite the documented
+// "zero value == DefaultOptions" contract. Normalizing here makes that contract
+// real at every canonicalization site (Record and Assert both route through
+// driveOne, which calls this).
+func (o Options) normalized() Options {
+	if o.isZero() {
+		return DefaultOptions()
+	}
+	return o
+}
+
+// isZero reports whether o is the zero Options value (no canonical options
+// configured), which is the signal to substitute DefaultOptions.
+func (o Options) isZero() bool {
+	c := o.canonical
+	return c.VolatileKeys == nil && c.DerivedKeys == nil &&
+		c.SecretKeys == nil && c.SortArrays == nil && c.Indent == ""
 }
 
 // Record drives each request against h via httptest, canonicalizes the response
@@ -128,7 +156,7 @@ func canonicalizeResponseBody(raw []byte, opts Options) (any, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, fmt.Errorf("empty response body; expected a JSON document")
 	}
-	canonical, err := replay.Canonicalize(raw, opts.canonical)
+	canonical, err := replay.Canonicalize(raw, opts.normalized().canonical)
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize response body: %w", err)
 	}
