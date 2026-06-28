@@ -267,9 +267,12 @@ response itself already reports the served mode in its `retrieval_state` field
 
 The two labels are bounded:
 
-- `query_type` — the requested ranking family: `hybrid` or `semantic`.
-- `reason` — why semantic ranking was unavailable. Today the only value is
-  `no_embedder`.
+- `query_type` — the requested ranking family: `hybrid` or `semantic`. A plain
+  `keyword` request is never counted (it is not a degradation).
+- `reason` — why semantic ranking was unavailable: `no_embedder` (no embedder is
+  configured, so hybrid is served by BM25 and semantic is refused) or
+  `index_unready` (vectors are configured but the persisted vector index is not
+  ready yet, so the request fell back to keyword).
 
 An explicit `keyword` request and a fully active `hybrid_active` /
 `semantic_active` run do **not** increment the counter — only genuine

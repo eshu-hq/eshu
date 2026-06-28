@@ -268,7 +268,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	annotateSemanticSearchDegraded(r.Context(), span, indexResult.RetrievalState)
+	annotateSemanticSearchDegraded(r.Context(), span, req.Mode, indexResult.RetrievalState)
 
 	WriteSuccess(
 		w,

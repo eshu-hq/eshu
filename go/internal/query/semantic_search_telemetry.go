@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -15,10 +16,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// semanticSearchDegradedReasonNoEmbedder is the only current degradation reason:
-// no embedder/vector ranking was available, so the request was served by BM25
-// (hybrid) or refused (semantic). It is a bounded metric label value.
-const semanticSearchDegradedReasonNoEmbedder = "no_embedder"
+// Bounded degradation reasons (closed metric label set):
+//   - no_embedder: no embedder/vector ranking is configured, so the request was
+//     served by BM25 (hybrid) or refused (semantic).
+//   - index_unready: vectors are configured but the persisted vector index is not
+//     ready yet, so a semantic-ranking request fell back to keyword.
+const (
+	semanticSearchDegradedReasonNoEmbedder   = "no_embedder"
+	semanticSearchDegradedReasonIndexUnready = "index_unready"
+)
 
 // The query package is not handed a *telemetry.Instruments (see
 // images_telemetry.go), so the degraded-search counter is registered lazily here
@@ -54,16 +60,41 @@ func initSemanticSearchInstruments() {
 // semanticSearchDegradation classifies a handler retrieval_state into the bounded
 // degraded signal. A degradation is a request that asked for semantic ranking
 // (hybrid or semantic) but was served without it; an explicit keyword request and
-// a fully active hybrid/semantic run are not degradations. query_type and reason
-// are bounded label values; both are empty when the state is not degraded.
-func semanticSearchDegradation(retrievalState string) (degraded bool, queryType, reason string) {
+// a fully active hybrid/semantic run are not degradations. The requested mode is
+// needed for retrieval states (index_unready) that do not themselves encode which
+// family was requested — a keyword request that falls back to keyword is not a
+// degradation. query_type and reason are bounded label values; both are empty when
+// the state is not degraded.
+func semanticSearchDegradation(mode searchbench.Mode, retrievalState string) (degraded bool, queryType, reason string) {
 	switch retrievalState {
 	case "hybrid_degraded":
 		return true, "hybrid", semanticSearchDegradedReasonNoEmbedder
 	case "semantic_unavailable":
 		return true, "semantic", semanticSearchDegradedReasonNoEmbedder
+	case "index_unready":
+		// Persisted vectors are configured but not ready, so the request fell back
+		// to keyword. Only a semantic-ranking request is degraded by that; a
+		// keyword request asked for keyword and got it.
+		queryType = semanticSearchQueryType(mode)
+		if queryType == "" {
+			return false, "", ""
+		}
+		return true, queryType, semanticSearchDegradedReasonIndexUnready
 	default:
 		return false, "", ""
+	}
+}
+
+// semanticSearchQueryType maps a requested mode to the bounded query_type label,
+// or "" for keyword mode (a keyword request is never a degradation).
+func semanticSearchQueryType(mode searchbench.Mode) string {
+	switch mode {
+	case searchbench.ModeHybrid:
+		return "hybrid"
+	case searchbench.ModeSemantic:
+		return "semantic"
+	default:
+		return ""
 	}
 }
 
@@ -99,8 +130,8 @@ func recordSemanticSearchDegraded(ctx context.Context, queryType, reason string)
 // the counter) for a completed retrieval. It always stamps the retrieval_state and
 // degraded flag on the span so an operator can see the served mode of every
 // request, and increments the counter only when the request was actually degraded.
-func annotateSemanticSearchDegraded(ctx context.Context, span trace.Span, retrievalState string) {
-	degraded, queryType, reason := semanticSearchDegradation(retrievalState)
+func annotateSemanticSearchDegraded(ctx context.Context, span trace.Span, mode searchbench.Mode, retrievalState string) {
+	degraded, queryType, reason := semanticSearchDegradation(mode, retrievalState)
 	span.SetAttributes(
 		attribute.String("search.retrieval_state", retrievalState),
 		attribute.Bool("search.degraded", degraded),
