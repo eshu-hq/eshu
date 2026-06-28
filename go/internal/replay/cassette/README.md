@@ -1,4 +1,4 @@
-# collector/cassette
+# replay/cassette
 
 Credential-free collector replay from a pre-recorded JSON cassette file.
 
@@ -90,7 +90,7 @@ The `buildCassetteService` function in each binary's `service.go` wires
 No-Regression Evidence: `Source` performs no network calls, acquires no
 credentials, and holds no shared mutable state beyond its scope index (which
 advances single-threaded per `collector.Service`). Verified by
-`go test ./internal/collector/cassette/... -count=1`.
+`go test ./internal/replay/cassette/... -count=1`.
 
 The `// #nosec G304` annotation on `LoadFile`'s `os.ReadFile` is comment-only: it
 documents that the cassette path is operator-supplied (the `-cassette-file` flag

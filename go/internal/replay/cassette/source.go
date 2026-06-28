@@ -10,8 +10,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/replay"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
+
+// Compile-time proof that the cassette flavor satisfies the shared replay.Source
+// contract (which embeds collector.Source), so it drops into the same
+// collector.Service poll loop as the live collector.
+var _ replay.Source = (*Source)(nil)
 
 // Source implements collector.Source for credential-free cassette replay. Each
 // Next call yields one CollectedGeneration for the next scope in the cassette
