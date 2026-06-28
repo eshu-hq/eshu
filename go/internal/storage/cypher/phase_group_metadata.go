@@ -30,8 +30,14 @@ const (
 	// CanonicalPhaseEntityContainment identifies file-to-entity containment
 	// writes that may need backend-specific grouping limits.
 	CanonicalPhaseEntityContainment = "entity_containment"
-	// CanonicalPhaseDirectories identifies depth-ordered directory-node writes.
+	// CanonicalPhaseDirectories identifies directory-node writes (MERGE by path,
+	// no parent MATCH).
 	CanonicalPhaseDirectories = "directories"
+	// CanonicalPhaseDirectoryEdges identifies the directory parent CONTAINS edge
+	// writes. It runs after CanonicalPhaseDirectories commits so each parent
+	// (Repository or parent Directory) is already visible to its MATCH — required
+	// on NornicDB, which hides same-transaction MERGEs from a later MATCH.
+	CanonicalPhaseDirectoryEdges = "directory_edges"
 	// CanonicalPhaseFiles identifies canonical file-node writes.
 	CanonicalPhaseFiles = "files"
 	// PhaseGroupModeExecuteOnly tells executors to run a statement outside the

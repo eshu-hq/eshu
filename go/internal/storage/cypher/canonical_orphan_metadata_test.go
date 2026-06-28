@@ -81,17 +81,24 @@ func TestCanonicalCodeStructureNodesStampOrphanSweepMetadata(t *testing.T) {
 		fragments []string
 	}{
 		{
-			name:   "root directory",
-			cypher: canonicalNodeDirectoryDepth0Cypher,
+			name:   "directory node",
+			cypher: canonicalNodeDirectoryNodeCypher,
 			fragments: []string{
 				"d.evidence_source = 'projector/canonical'",
 			},
 		},
 		{
-			name:   "nested directory",
-			cypher: canonicalNodeDirectoryDepthNCypher,
+			name:   "root directory edge",
+			cypher: canonicalNodeDirectoryDepth0EdgeCypher,
 			fragments: []string{
-				"d.evidence_source = 'projector/canonical'",
+				"rel.evidence_source = 'projector/canonical'",
+			},
+		},
+		{
+			name:   "nested directory edge",
+			cypher: canonicalNodeDirectoryDepthNEdgeCypher,
+			fragments: []string{
+				"rel.evidence_source = 'projector/canonical'",
 			},
 		},
 		{

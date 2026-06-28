@@ -228,62 +228,6 @@ func TestCanonicalNodeWriterWriteReportsSequentialPhaseOnFailure(t *testing.T) {
 	}
 }
 
-func TestCanonicalNodeWriterDirectoryDepthOrder(t *testing.T) {
-	t.Parallel()
-
-	exec := &mockExecutor{}
-	writer := NewCanonicalNodeWriter(exec, 500, nil)
-
-	mat := projector.CanonicalMaterialization{
-		ScopeID:      "scope-1",
-		GenerationID: "gen-1",
-		RepoID:       "repo-1",
-		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
-			RepoID: "repo-1",
-			Name:   "my-repo",
-			Path:   "/repos/my-repo",
-		},
-		Directories: []projector.DirectoryRow{
-			{Path: "/repos/my-repo/src/pkg/sub", Name: "sub", ParentPath: "/repos/my-repo/src/pkg", RepoID: "repo-1", Depth: 2},
-			{Path: "/repos/my-repo/src", Name: "src", ParentPath: "/repos/my-repo", RepoID: "repo-1", Depth: 0},
-			{Path: "/repos/my-repo/src/pkg", Name: "pkg", ParentPath: "/repos/my-repo/src", RepoID: "repo-1", Depth: 1},
-		},
-	}
-
-	err := writer.Write(context.Background(), mat)
-	if err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-
-	// Collect directory-phase calls.
-	var dirCalls []Statement
-	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalUpsert &&
-			strings.Contains(call.Cypher, "Directory {path: row.path}") {
-			dirCalls = append(dirCalls, call)
-		}
-	}
-
-	if len(dirCalls) == 0 {
-		t.Fatal("expected directory calls, got 0")
-	}
-
-	// Depth-0 dirs use MATCH (r:Repository ...), depth 1+ use MATCH (p:Directory ...)
-	// First call must be depth 0 (Repository parent)
-	if !strings.Contains(dirCalls[0].Cypher, "MATCH (r:Repository") {
-		t.Fatalf("first directory call should match Repository parent, got: %s", dirCalls[0].Cypher)
-	}
-
-	// Subsequent depth groups must use Directory parents. Each depth emits an
-	// update-existing and guarded create-missing statement.
-	for i := 2; i < len(dirCalls); i++ {
-		if !strings.Contains(dirCalls[i].Cypher, "MATCH (p:Directory") {
-			t.Fatalf("directory call[%d] should match Directory parent, got: %s", i, dirCalls[i].Cypher)
-		}
-	}
-}
-
 func TestCanonicalNodeWriterEntityUpsertsRemainLabelScoped(t *testing.T) {
 	t.Parallel()
 

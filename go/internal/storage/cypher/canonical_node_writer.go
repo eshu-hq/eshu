@@ -133,7 +133,8 @@ func (w *CanonicalNodeWriter) WithBatchedEntityContainmentInEntityUpsert() *Cano
 //	A: retract stale nodes
 //	B: repository_cleanup (skipped for first-generation scopes)
 //	C: repository
-//	D: directories (depth-ordered)
+//	D: directory nodes (MERGE by path, no parent MATCH)
+//	D2: directory edges (parent CONTAINS, after directory nodes commit)
 //	E: files
 //	F: entities (per-label)
 //	G: entity_retract
@@ -184,9 +185,13 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	// Atomic path: single transaction for all node phases, then a deferred
 	// second transaction for the package_registry edge phases. The deferred
 	// edges MATCH multi-label nodes (Package, PackageVersion, PackageDependency)
-	// that are MERGE'd in the main group; NornicDB does not make those nodes
-	// visible to a same-transaction UNWIND-driven MATCH, so the edges must run
-	// after the node group commits.
+	// that are MERGE'd in the main group; NornicDB does not make those
+	// multi-label nodes visible to a same-transaction UNWIND-driven MATCH, so
+	// the edges must run after the node group commits. Single-label edges (e.g.
+	// File -> Directory and Directory -> Directory CONTAINS) do NOT need
+	// deferral: NornicDB provides cross-statement read-your-writes for
+	// single-label nodes within one atomic group (see the RequireAtomicGroup
+	// "file entity containment" conformance case), so they stay inline.
 	if ge, ok := w.executor.(GroupExecutor); ok {
 		mainStatements, edgeStatements := partitionDeferredPackageRegistryEdgePhases(phases)
 		start := time.Now()
@@ -349,7 +354,8 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 		{name: "retract", statements: w.buildRetractStatements(mat)},
 		{name: "repository_cleanup", statements: w.buildRepositoryCleanupStatements(mat)},
 		{name: "repository", statements: w.buildRepositoryStatements(mat)},
-		{name: CanonicalPhaseDirectories, statements: w.buildDirectoryStatements(mat)},
+		{name: CanonicalPhaseDirectories, statements: w.buildDirectoryNodeStatements(mat)},
+		{name: CanonicalPhaseDirectoryEdges, statements: w.buildDirectoryEdgeStatements(mat)},
 		{name: CanonicalPhaseFiles, statements: w.buildFileStatements(mat)},
 		{name: "entities", statements: w.buildEntityStatements(mat)},
 		{name: "entity_retract", statements: w.buildEntityRetractStatements(mat)},
@@ -376,7 +382,12 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 
 // isDeferredPackageRegistryEdgePhase reports whether a phase name belongs to the
 // deferred package_registry edge phases that must execute in a second atomic
-// write group, after the node phases they MATCH have committed.
+// write group, after the node phases they MATCH have committed. Only the
+// package_registry edges need this: they MATCH MULTI-LABEL nodes
+// (Package/PackageVersion/PackageDependency) that NornicDB does not surface to a
+// same-transaction UNWIND-driven MATCH. Single-label edge phases (directory_edges,
+// the inline File edges) get cross-statement read-your-writes within one atomic
+// group and stay in the main group.
 func isDeferredPackageRegistryEdgePhase(name string) bool {
 	switch name {
 	case canonicalPhasePackageRegistryVersionEdges, canonicalPhasePackageRegistryDependencyEdges:

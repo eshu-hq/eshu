@@ -210,7 +210,10 @@ func (e nornicDBPhaseGroupExecutor) phaseGroupStatementLimit(stmts []sourcecyphe
 		}
 		return defaultNornicDBFilePhaseStatements
 	}
-	if phase == sourcecypher.CanonicalPhaseDirectories {
+	if phase == sourcecypher.CanonicalPhaseDirectories || phase == sourcecypher.CanonicalPhaseDirectoryEdges {
+		// directory_edges carries the same directory row maps as the directory
+		// node phase, so it shares the directory request-size budget rather than
+		// falling back to the broad phase-group default.
 		if e.directoryMaxStatements > 0 {
 			return e.directoryMaxStatements
 		}

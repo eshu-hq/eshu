@@ -97,16 +97,24 @@ func TestCanonicalNodeWriterDirectoryGenerationID(t *testing.T) {
 		}
 	}
 
-	// Verify directory MERGE Cypher sets generation_id
+	// Verify directory Cypher stamps generation_id: the node MERGE on d, the
+	// parent-edge writes on rel.
 	for _, call := range exec.calls {
-		if call.Operation == OperationCanonicalUpsert &&
-			strings.Contains(call.Cypher, "Directory {path: row.path}") {
-			if !strings.Contains(call.Cypher, "d.generation_id") {
-				t.Fatalf("directory write Cypher missing generation_id: %s", call.Cypher)
+		if call.Operation != OperationCanonicalUpsert ||
+			!strings.Contains(call.Cypher, "Directory {path: row.path}") {
+			continue
+		}
+		if strings.Contains(call.Cypher, "-[rel:CONTAINS]->") {
+			if !strings.Contains(call.Cypher, "rel.generation_id") {
+				t.Fatalf("directory edge Cypher missing generation_id: %s", call.Cypher)
 			}
-			if !strings.Contains(call.Cypher, "d.scope_id") {
-				t.Fatalf("directory write Cypher missing scope_id: %s", call.Cypher)
-			}
+			continue
+		}
+		if !strings.Contains(call.Cypher, "d.generation_id") {
+			t.Fatalf("directory node Cypher missing generation_id: %s", call.Cypher)
+		}
+		if !strings.Contains(call.Cypher, "d.scope_id") {
+			t.Fatalf("directory node Cypher missing scope_id: %s", call.Cypher)
 		}
 	}
 

@@ -142,17 +142,33 @@ func (f fakeCounter) ListNodeProperty(_ context.Context, label, prop string) ([]
 	return f.nodeProp[label+"|"+prop], f.err
 }
 
+// fileLanguageFloor seeds the File-language required-node floor (rn-file-language,
+// minimum_count 10) so a minimal-gate test can satisfy the snapshot's
+// unconditionally-asserted required nodes while focusing on its own assertion.
+func fileLanguageFloor() (map[string]int64, map[string][]string) {
+	langs := make([]string, 10)
+	for i := range langs {
+		langs[i] = "go"
+	}
+	return map[string]int64{"File": int64(len(langs))}, map[string][]string{"File|language": langs}
+}
+
 func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 	snap, err := LoadSnapshot(goldenSnapshotPath())
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := fakeCounter{corr: map[string]int64{
-		"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 2,
-		"Function|RUNS_IN|Workload":                        1,
-		"Repository|DEPENDS_ON|Repository":                 7,
-		"KubernetesWorkload|RUNS_IMAGE|OciImageManifest":   1,
-	}}
+	nodes, nodeProp := fileLanguageFloor()
+	c := fakeCounter{
+		corr: map[string]int64{
+			"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 2,
+			"Function|RUNS_IN|Workload":                        1,
+			"Repository|DEPENDS_ON|Repository":                 7,
+			"KubernetesWorkload|RUNS_IMAGE|OciImageManifest":   1,
+		},
+		nodes:    nodes,
+		nodeProp: nodeProp,
+	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
@@ -168,10 +184,15 @@ func TestCheckGraphAdvisoryCorrelationDoesNotBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	// rc-1 and rc-3 present; rc-2 and rc-4 absent but advisory (not in blocking set).
-	c := fakeCounter{corr: map[string]int64{
-		"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 1,
-		"Repository|DEPENDS_ON|Repository":                 1,
-	}}
+	nodes, nodeProp := fileLanguageFloor()
+	c := fakeCounter{
+		corr: map[string]int64{
+			"Repository|CORRELATES_DEPLOYABLE_UNIT|Repository": 1,
+			"Repository|DEPENDS_ON|Repository":                 1,
+		},
+		nodes:    nodes,
+		nodeProp: nodeProp,
+	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)

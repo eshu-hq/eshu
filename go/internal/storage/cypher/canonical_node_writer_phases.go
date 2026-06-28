@@ -70,14 +70,49 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat projector.Can
 	}
 }
 
-// --- Phase C: Directories (depth-ordered) ---
+// --- Phase C: Directory node + edge Cypher builders ---
 
-func (w *CanonicalNodeWriter) buildDirectoryStatements(mat projector.CanonicalMaterialization) []Statement {
+// directoryRowParams builds the UNWIND row params for a directory, shared by the
+// node and edge statement builders so both phases agree on the key fields.
+func directoryRowParams(d projector.DirectoryRow, mat projector.CanonicalMaterialization) map[string]any {
+	return map[string]any{
+		"path":          d.Path,
+		"name":          d.Name,
+		"parent_path":   d.ParentPath,
+		"repo_id":       d.RepoID,
+		"scope_id":      mat.ScopeID,
+		"generation_id": mat.GenerationID,
+	}
+}
+
+// buildDirectoryNodeStatements MERGEs every Directory node by path with no MATCH,
+// so the batch carries no cross-row parent-visibility dependency. The parent
+// CONTAINS edges are written separately by buildDirectoryEdgeStatements in a
+// later phase, after these nodes commit (see canonical_node_cypher.go).
+func (w *CanonicalNodeWriter) buildDirectoryNodeStatements(mat projector.CanonicalMaterialization) []Statement {
 	if len(mat.Directories) == 0 {
 		return nil
 	}
 
-	// Group by depth, sorted ascending.
+	rows := make([]map[string]any, len(mat.Directories))
+	for i, d := range mat.Directories {
+		rows[i] = directoryRowParams(d, mat)
+	}
+	return buildBatchedStatements(canonicalNodeDirectoryNodeCypher, rows, w.batchSize)
+}
+
+// buildDirectoryEdgeStatements wires each Directory to its parent: the
+// Repository for depth-0 directories, the parent Directory for depth-N. Both
+// endpoints are MATCH'd (not MERGE'd), so this phase MUST run after the
+// directory node phase commits. Depth ordering is preserved for stable batching
+// but is no longer required for correctness, since every endpoint already exists
+// by the time this phase runs.
+func (w *CanonicalNodeWriter) buildDirectoryEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+	if len(mat.Directories) == 0 {
+		return nil
+	}
+
+	// Group by depth, sorted ascending, for deterministic batch ordering.
 	byDepth := map[int][]projector.DirectoryRow{}
 	for _, d := range mat.Directories {
 		byDepth[d.Depth] = append(byDepth[d.Depth], d)
@@ -94,19 +129,12 @@ func (w *CanonicalNodeWriter) buildDirectoryStatements(mat projector.CanonicalMa
 		dirs := byDepth[depth]
 		rows := make([]map[string]any, len(dirs))
 		for i, d := range dirs {
-			rows[i] = map[string]any{
-				"path":          d.Path,
-				"name":          d.Name,
-				"parent_path":   d.ParentPath,
-				"repo_id":       d.RepoID,
-				"scope_id":      mat.ScopeID,
-				"generation_id": mat.GenerationID,
-			}
+			rows[i] = directoryRowParams(d, mat)
 		}
 
-		cypher := canonicalNodeDirectoryDepthNCypher
+		cypher := canonicalNodeDirectoryDepthNEdgeCypher
 		if depth == 0 {
-			cypher = canonicalNodeDirectoryDepth0Cypher
+			cypher = canonicalNodeDirectoryDepth0EdgeCypher
 		}
 
 		stmts = append(stmts, buildBatchedStatements(cypher, rows, w.batchSize)...)
