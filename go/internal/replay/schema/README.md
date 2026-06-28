@@ -17,10 +17,13 @@ field is caught at author time, before the change is even pushed.
   cassette format, built in Go from the cassette structs. The committed
   `cassette-format.v1.schema.json` is generated from this function, never
   hand-edited.
-- `ValidateCassetteBytes(name, data)` — validates one cassette document offline:
-  structural validation via the canonical loader
-  (`cassette.ParseAndValidate`) **and** `additionalProperties:false` enforcement
-  that rejects unknown (typo) fields with a field-level path.
+- `ValidateCassetteBytes(name, data)` — validates one cassette document offline
+  against the **generated schema itself** (types, required, `const`/`enum`,
+  `minimum`/`minLength`/`minItems`, and `additionalProperties:false`), plus the
+  canonical loader's few semantic checks the schema cannot express (a non-zero
+  `observed_at`). Errors are field-level. Validating against the published schema
+  — not a permissive re-implementation — is what keeps the author-time gate from
+  drifting from the contract.
 
 ## Generated, not hand-maintained
 
@@ -58,8 +61,11 @@ cases.
 
 ## Relationship to the loader
 
-The schema is the **published contract**; `cassette.ParseAndValidate` is its
-**runtime enforcement**. They are kept in lockstep by the cross-link test, so
-the two never declare different required fields. The schema additionally
-declares `additionalProperties:false`, which the validator enforces on top of
-the loader to catch the field-name-typo class.
+The validator enforces the **generated schema** directly (via a small
+interpreter over exactly the JSON Schema vocabulary the builder emits), so the
+author-time gate and the published schema cannot drift: a constraint the schema
+declares — a negative `fencing_token`, a null `metadata`, an unknown field — is
+rejected by the gate, not silently accepted. The canonical loader
+(`cassette.ParseAndValidate`) runs as a second pass only for the rules the schema
+cannot express (a non-zero `observed_at`). The cross-link test additionally
+proves the schema's properties stay equal to the cassette structs' JSON keys.

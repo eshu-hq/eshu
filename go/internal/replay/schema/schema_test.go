@@ -8,9 +8,55 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
+	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
+
+// The cross-link gate derives the allowed JSON keys from the cassette structs'
+// tags, so a schema property set that drifts from format.go is caught.
+var (
+	fileKeys  = jsonKeys(reflect.TypeOf(cassette.File{}))
+	scopeKeys = jsonKeys(reflect.TypeOf(cassette.Scope{}))
+	factKeys  = jsonKeys(reflect.TypeOf(cassette.Fact{}))
+)
+
+// jsonKeys returns the set of JSON object key names a struct serializes to,
+// honoring `json:"name,omitempty"` tags and skipping `json:"-"` fields.
+func jsonKeys(t reflect.Type) map[string]struct{} {
+	keys := make(map[string]struct{}, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		name := jsonFieldName(t.Field(i))
+		if name == "" {
+			continue
+		}
+		keys[name] = struct{}{}
+	}
+	return keys
+}
+
+func jsonFieldName(f reflect.StructField) string {
+	if f.PkgPath != "" { // unexported
+		return ""
+	}
+	tag := f.Tag.Get("json")
+	if tag == "-" {
+		return ""
+	}
+	name := f.Name
+	if tag != "" {
+		if comma := strings.IndexByte(tag, ','); comma >= 0 {
+			tag = tag[:comma]
+		}
+		if tag != "" {
+			name = tag
+		}
+	}
+	return name
+}
 
 // updateGolden rewrites the committed schema JSON files from the Go builder.
 // Run `go test ./internal/replay/schema -run TestCassetteSchemaMatchesGolden

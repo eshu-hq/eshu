@@ -23,8 +23,14 @@
   absence. `collector` is informational and not required; keep it that way
   unless the loader changes too.
 - **`additionalProperties:false` is load-bearing.** It is what turns a
-  field-name typo into a validation failure. Do not relax it; the unknown-field
-  check in `validate.go` derives its allowed keys from the same structs.
+  field-name typo into a validation failure. Do not relax it; the schema
+  interpreter in `schemacheck.go` enforces it directly off the generated schema.
+- **The validator enforces the generated schema, not a re-implementation.**
+  `ValidateCassetteBytes` runs `checkAgainstSchema` (a bounded interpreter over
+  the vocabulary the builder emits) so the gate cannot accept a cassette the
+  published schema rejects. When the builder gains a new keyword, teach
+  `schemacheck.go` to honor it — never let validation silently ignore a keyword
+  the schema declares.
 - **Validation MUST stay offline and fast.** No Docker, no graph, no network.
   `ValidateCassetteBytes` is pure CPU over bytes.
 

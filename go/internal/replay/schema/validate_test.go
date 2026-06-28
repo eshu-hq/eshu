@@ -97,7 +97,7 @@ func TestValidateCassetteBytesRejectsStructural(t *testing.T) {
 		{
 			name:    "no scopes",
 			mutate:  func(r map[string]any) { r["scopes"] = []any{} },
-			wantSub: "at least one scope",
+			wantSub: "at least 1 item",
 		},
 		{
 			name: "missing scope_id",
@@ -175,6 +175,63 @@ func TestValidateCassetteBytesRejectsUnknownField(t *testing.T) {
 			err := schema.ValidateCassetteBytes(tc.name, data)
 			if err == nil {
 				t.Fatalf("ValidateCassetteBytes(%s) = nil, want unknown-field error", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.wantSub) {
+				t.Fatalf("error = %q, want it to contain %q", err, tc.wantSub)
+			}
+		})
+	}
+}
+
+// TestValidateCassetteBytesEnforcesSchemaOnlyConstraints proves the validator
+// enforces constraints the permissive Go loader never checks but the published
+// JSON Schema declares — so the author-time gate cannot accept a cassette the
+// schema rejects (regression for the codex P2 on #4105).
+func TestValidateCassetteBytesEnforcesSchemaOnlyConstraints(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		mutate  func(root map[string]any)
+		wantSub string
+	}{
+		{
+			name: "negative fencing_token",
+			mutate: func(r map[string]any) {
+				fact := r["scopes"].([]any)[0].(map[string]any)["facts"].([]any)[0].(map[string]any)
+				fact["fencing_token"] = -1
+			},
+			wantSub: "fencing_token: must be >= 0",
+		},
+		{
+			name: "null metadata",
+			mutate: func(r map[string]any) {
+				scope := r["scopes"].([]any)[0].(map[string]any)
+				scope["metadata"] = nil
+			},
+			wantSub: "metadata: must be an object",
+		},
+		{
+			name: "null partition_key",
+			mutate: func(r map[string]any) {
+				scope := r["scopes"].([]any)[0].(map[string]any)
+				scope["partition_key"] = nil
+			},
+			wantSub: "partition_key: must be a string",
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			data := withInjectedKey(t, validCassetteBytes(t), tc.mutate)
+			// The permissive loader alone must NOT catch these (that is the
+			// drift the schema pass closes): prove the loader passes the doc.
+			if _, err := cassette.ParseAndValidate(data); err != nil {
+				t.Fatalf("precondition: loader rejected %s (%v); schema-only case is moot", tc.name, err)
+			}
+			err := schema.ValidateCassetteBytes(tc.name, data)
+			if err == nil {
+				t.Fatalf("ValidateCassetteBytes(%s) = nil, want schema error containing %q", tc.name, tc.wantSub)
 			}
 			if !strings.Contains(err.Error(), tc.wantSub) {
 				t.Fatalf("error = %q, want it to contain %q", err, tc.wantSub)
