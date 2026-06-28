@@ -1,0 +1,53 @@
+{
+  "schema_version": "1",
+  "baseline_id": "supply-chain-demo-20repo-nornicdb",
+  "description": "B-11 (#3804) macro per-phase wall-clock baseline for the B-7 golden corpus gate. Complements the B-12 graph/query snapshot (e2e-20repo-snapshot.json): the snapshot is the logic contract, this is the performance contract. The golden-corpus-gate compares each live run's phase-timings.json against these numbers and fails a gated phase that regresses beyond the band, OR keeps it advisory on shared CI runners (see regression_policy).",
+  "corpus": {
+    "fixture_count": 20,
+    "cassette_recording": "supply-chain-demo.json",
+    "graph_backend": "nornicdb"
+  },
+  "regression_band": 0.15,
+  "absolute_slack_seconds": 5,
+  "phases": {
+    "bootstrap": {
+      "baseline_seconds": 5,
+      "gated": true,
+      "note": "schema + filesystem discovery/parse + first projection (eshu-bootstrap-index)"
+    },
+    "collect": {
+      "baseline_seconds": 20,
+      "gated": false,
+      "note": "cassette replay + the fixed GATE_COLLECTOR_SETTLE_SECONDS settle window + facts-landed verification. Dominated by the configured settle constant, not pipeline work, so it is recorded for visibility but not gated."
+    },
+    "first_drain": {
+      "baseline_seconds": 6,
+      "gated": true,
+      "note": "first projector+reducer drain to terminal"
+    },
+    "maintenance_drains": {
+      "baseline_seconds": 5,
+      "gated": true,
+      "note": "two deferred maintenance + drain cycles (the additive-correlation convergence long pole at full corpus scale)"
+    },
+    "graph_query": {
+      "baseline_seconds": 3,
+      "gated": true,
+      "note": "eshu-api + eshu-mcp-server startup before the assertion phase (excludes the gate's own assertion time)"
+    }
+  },
+  "regression_policy": {
+    "rule": "A gated phase passes if observed_seconds <= baseline_seconds * (1 + regression_band) OR observed_seconds <= baseline_seconds + absolute_slack_seconds.",
+    "ci_mode": "The golden-corpus-gate workflow runs the per-phase check in ADVISORY mode (-phase-regression-advisory) because GitHub's shared runners vary run-to-run by more than the band — the same reasoning behind the gate's 2x total-wall-time budget multiplier. Per-PR regressions stay visible without false reds.",
+    "blocking_mode": "A controlled validation host (consistent hardware) runs with GATE_PHASE_REGRESSION_ADVISORY=false to make the gated phases blocking, where the baseline below is valid."
+  },
+  "capture": {
+    "host_class": "developer laptop (apple silicon, arm64), local docker compose",
+    "note": "Seed capture. Integer-second resolution (date +%s, portable across GNU/BSD); the absolute_slack_seconds allowance absorbs the resulting jitter on small phases. Recapture on the enforcement host for blocking use."
+  },
+  "update_protocol": {
+    "when": "Update when an intentional perf change alters a phase's wall-clock, or when recapturing on a new enforcement host. Do not update in response to transient CI noise (that is what the band + slack absorb).",
+    "how": "Run scripts/refresh-e2e-baseline.sh on the enforcement host, review the diff, and commit with a clear before/after explanation in the PR.",
+    "who": "Baseline updates require the same review bar as code changes. Silently widening numbers to mask a regression is not acceptable."
+  }
+}

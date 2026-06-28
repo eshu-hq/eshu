@@ -53,6 +53,10 @@ type options struct {
 	requiredNodeLabels      string
 	drainAdvisoryDomains    string
 	requirePopulatedDomains string
+	phaseTimingsPath        string
+	phaseBaselinePath       string
+	phaseRegressionBand     float64
+	phaseRegressionAdvisory bool
 }
 
 func parseFlags(args []string) (options, error) {
@@ -72,6 +76,10 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.requiredNodeLabels, "required-node-labels", "Repository", "comma-separated node labels that must each have >=1 node (graph-populated smoke check)")
 	fs.StringVar(&o.drainAdvisoryDomains, "drain-advisory-domains", "", "comma-separated shared_projection_intents domains whose nonterminal rows are advisory, not blocking")
 	fs.StringVar(&o.requirePopulatedDomains, "require-populated-domains", "", "comma-separated shared_projection_intents domains the reducer must be observed to emit before a drain is accepted (guards against draining an unreduced pipeline)")
+	fs.StringVar(&o.phaseTimingsPath, "phase-timings-file", "", "path to the observed per-phase phase-timings.json emitted by the orchestrator; when set, the timing phase also runs the B-11 macro per-phase regression check")
+	fs.StringVar(&o.phaseBaselinePath, "phase-baseline-file", "testdata/golden/e2e-baseline.json", "path to the committed B-11 per-phase baseline (used with -phase-timings-file)")
+	fs.Float64Var(&o.phaseRegressionBand, "phase-regression-band", 0, "override the baseline's regression band (0 = use the band in the baseline file)")
+	fs.BoolVar(&o.phaseRegressionAdvisory, "phase-regression-advisory", false, "downgrade per-phase regression findings to advisory (use on shared CI runners whose hardware variance exceeds the band; the committed baseline is captured on the controlled validation host)")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

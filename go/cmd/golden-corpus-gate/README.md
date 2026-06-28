@@ -13,7 +13,7 @@ buckets.
 | drains | B-7(a)    | `fact_work_items` residual ≤ bound; `shared_projection_intents` nonterminal ≤ bound (B-13 / #3859 gate, incl. `repo_dependency` subset detail) | — |
 | graph  | B-7(b)    | required correlations exist (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...); required edge/node **properties** present (e.g. `source_tool` on Tier-2 edges, `language` on `File` nodes) | per-label node / per-relationship edge counts vs snapshot tolerances |
 | query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields / minimum results | — |
-| timing | B-7(d)    | pipeline wall time ≤ `budget-multiplier` × baseline | — |
+| timing | B-7(d)    | total pipeline wall time ≤ `budget-multiplier` × baseline; with `-phase-timings-file` (B-11 / #3804) each **gated** phase ≤ baseline band/slack in `e2e-baseline.json` | per-phase findings are advisory under `-phase-regression-advisory` (shared CI) |
 
 **Node/edge count tolerances are required (#3866):** the gate runs the full
 20-repo corpus with `-graph-required-only=false`, so every snapshot
