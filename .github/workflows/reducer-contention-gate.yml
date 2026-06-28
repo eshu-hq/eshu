@@ -1,0 +1,74 @@
+name: Reducer Contention Gate
+
+# Residual real-Postgres concurrency gate (issue #4124, R-15 of epic #4102).
+#
+# The deterministic replay framework runs credential-free and Docker-free, but
+# by construction it cannot exercise the real `FOR UPDATE SKIP LOCKED` claim
+# path, wall-clock lease expiry, or the per-claim attempt counter. This job
+# keeps a small real-Postgres contention check for exactly those guarantees —
+# the irreducible remainder replay does not subsume
+# (docs/internal/design/4102-deterministic-replay-framework.md §10).
+#
+# It runs ONLY the TestReducerContentionGate* tests, not the whole
+# storage/postgres package, so it asserts the deterministic guarantees and does
+# not run the separately-tracked flaky conflict-fence proof.
+
+on:
+  push:
+    branches:
+      - main
+  # On PRs, only spin Postgres when claim-path code could be affected. main runs
+  # unconditionally above as the backstop, so a regression that reaches main via
+  # an unfiltered path is still caught (the repo has no required-status-check
+  # enforcement, so a skipped PR run never blocks merge).
+  pull_request:
+    paths:
+      - "go/internal/storage/postgres/**"
+      - "go/internal/reducer/**"
+      - "schema/data-plane/postgres/**"
+      - ".github/workflows/reducer-contention-gate.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  contention-gate:
+    name: reducer contention gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run reducer contention gate
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+        run: go test ./internal/storage/postgres/ -run '^TestReducerContentionGate' -race -count=1 -timeout 120s -v
