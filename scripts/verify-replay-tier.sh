@@ -83,12 +83,12 @@ export ESHU_REPLAY_TIER_LIVE=1
 # Per-worktree build cache isolation (house rule).
 export GOCACHE="${repo_root}/.gocache"
 
-log "running focused offline replay tier test against real NornicDB"
+log "running focused offline replay tier tests (R-5 graph truth + R-17 delta/tombstone) against real NornicDB"
 tier_start="$(date +%s)"
 (
 	cd go
 	go test ./internal/replay/offlinetier/ \
-		-run 'TestOfflineReplayTierGraphTruth' -count=1 -v
+		-run 'TestOfflineReplayTierGraphTruth|TestDeltaTombstone' -count=1 -v
 )
 tier_status=$?
 tier_end="$(date +%s)"
