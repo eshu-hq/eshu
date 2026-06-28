@@ -42,7 +42,9 @@ var pythonFlaskServerConstructors = map[string]struct{}{
 func buildPythonFrameworkSemantics(root *tree_sitter.Node, source []byte) map[string]any {
 	fastAPI := detectPythonFastAPISemantics(root, source)
 	flask := detectPythonFlaskSemantics(root, source)
-	frameworks := make([]string, 0, 2)
+	django := detectPythonDjangoSemantics(root, source)
+	drf := detectPythonDRFSemantics(root, source)
+	frameworks := make([]string, 0, 4)
 	semantics := map[string]any{
 		"frameworks": []string{},
 	}
@@ -53,6 +55,14 @@ func buildPythonFrameworkSemantics(root *tree_sitter.Node, source []byte) map[st
 	if flask != nil {
 		frameworks = append(frameworks, "flask")
 		semantics["flask"] = flask
+	}
+	if django != nil {
+		frameworks = append(frameworks, "django")
+		semantics["django"] = django
+	}
+	if drf != nil {
+		frameworks = append(frameworks, "drf")
+		semantics["drf"] = drf
 	}
 	semantics["frameworks"] = frameworks
 	return semantics
