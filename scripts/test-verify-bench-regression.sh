@@ -36,11 +36,11 @@ bash -n "${clean_lib}"; check "benchstat-clean lib syntax" $?
 rg -q "benchstat_clean_filter" "${script}"; check "gate filters generated current via the lib" $?
 rg -q "benchstat_clean_filter" "${refresh}"; check "refresh filters the baseline via the lib" $?
 # The committed baseline must already be clean: no app-log timestamps.
-if rg -q "20[0-9][0-9]/[0-9]" "${baseline:=${repo_root}/benchmarks/baseline.txt}"; then
+if rg -q "20[0-9][0-9]/[0-9]" "${baseline:=${repo_root}/testdata/benchmarks/baseline.txt}"; then
 	note "FAIL: committed baseline contains app-log lines (timestamps); regenerate via refresh-bench-baseline.sh"
 	fail=1
 fi
-[[ -f "${baseline:=${repo_root}/benchmarks/baseline.txt}" ]]; check "committed baseline.txt exists" $?
+[[ -f "${baseline:=${repo_root}/testdata/benchmarks/baseline.txt}" ]]; check "committed baseline.txt exists" $?
 
 # Workflow wiring: PR regression job + weekly refresh schedule.
 [[ -f "${workflow}" ]]; check "bench.yml exists" $?

@@ -5,7 +5,7 @@ name: Benchmarks
 # per change.
 #
 # B-2 (#3795): the bench-regression job compares the current run against the
-# committed benchmarks/baseline.txt with benchstat and reports sec/op regressions
+# committed testdata/benchmarks/baseline.txt with benchstat and reports sec/op regressions
 # > 10%. It is advisory until the baseline is recaptured on this runner class by
 # the weekly bench-baseline-refresh workflow (a committed baseline from a
 # different machine is not a valid benchstat comparison); flip it to blocking via
@@ -107,7 +107,7 @@ jobs:
 
       - name: Compare current benchmarks against committed baseline
         env:
-          # Same shape as benchmarks/baseline.txt; keep these in lockstep with
+          # Same shape as testdata/benchmarks/baseline.txt; keep these in lockstep with
           # scripts/refresh-bench-baseline.sh so the comparison is like-for-like.
           BENCH_TIME: 100ms
           BENCH_COUNT: 6
@@ -123,5 +123,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: go-benchmark-current
-          path: benchmarks/current.txt
+          path: testdata/benchmarks/current.txt
           if-no-files-found: ignore

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# refresh-bench-baseline.sh — B-2 (#3795): (re)capture benchmarks/baseline.txt by
+# refresh-bench-baseline.sh — B-2 (#3795): (re)capture testdata/benchmarks/baseline.txt by
 # running the Go benchmark suite. Run on the enforcement runner class (the weekly
 # bench-baseline-refresh workflow runs this on ubuntu-latest) so the committed
 # baseline is a like-for-like comparison target for the per-PR regression gate.
@@ -14,7 +14,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/benchstat-clean.sh
 . "${repo_root}/scripts/lib/benchstat-clean.sh"
-baseline="${BENCH_BASELINE:-${repo_root}/benchmarks/baseline.txt}"
+baseline="${BENCH_BASELINE:-${repo_root}/testdata/benchmarks/baseline.txt}"
 
 command -v rg >/dev/null 2>&1 || { printf 'refresh-bench-baseline: missing rg\n' >&2; exit 1; }
 mkdir -p "$(dirname "${baseline}")"

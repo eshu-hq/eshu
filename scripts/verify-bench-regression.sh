@@ -11,7 +11,7 @@
 #
 # Enforcement: a committed micro-benchmark baseline is only a like-for-like
 # comparison when it was captured on the same runner class as the current run.
-# The weekly bench-baseline-refresh workflow recaptures benchmarks/baseline.txt
+# The weekly bench-baseline-refresh workflow recaptures testdata/benchmarks/baseline.txt
 # on ubuntu-latest for exactly that reason. Until a baseline is refreshed on the
 # CI runner class, the check defaults to ADVISORY (report, do not fail) — the same
 # shared-runner-variance reasoning as the B-11 macro gate. Set
@@ -19,8 +19,8 @@
 # turn a regression into a non-zero exit.
 #
 # Tunables (env):
-#   BENCH_BASELINE          baseline results file   (default benchmarks/baseline.txt)
-#   BENCH_CURRENT           current results file     (default benchmarks/current.txt;
+#   BENCH_BASELINE          baseline results file   (default testdata/benchmarks/baseline.txt)
+#   BENCH_CURRENT           current results file     (default testdata/benchmarks/current.txt;
 #                           generated via run-go-benchmarks.sh if absent)
 #   BENCH_REGRESSION_PCT    regression threshold %   (default 10)
 #   BENCH_ALPHA             benchstat significance   (default 0.05)
@@ -31,8 +31,12 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/benchstat-clean.sh
 . "${repo_root}/scripts/lib/benchstat-clean.sh"
-baseline="${BENCH_BASELINE:-${repo_root}/benchmarks/baseline.txt}"
-current="${BENCH_CURRENT:-${repo_root}/benchmarks/current.txt}"
+baseline="${BENCH_BASELINE:-${repo_root}/testdata/benchmarks/baseline.txt}"
+# current_explicit tracks whether the caller pinned BENCH_CURRENT (the mirror
+# feeds synthetic files); when it did, use it verbatim. Otherwise always
+# (re)generate so the gate never compares against a stale current.txt.
+current_explicit="${BENCH_CURRENT:-}"
+current="${current_explicit:-${repo_root}/testdata/benchmarks/current.txt}"
 threshold_pct="${BENCH_REGRESSION_PCT:-10}"
 alpha="${BENCH_ALPHA:-0.05}"
 enforce="${BENCH_REGRESSION_ENFORCE:-false}"
@@ -45,12 +49,17 @@ die() {
 command -v benchstat >/dev/null 2>&1 || die "missing required tool: benchstat (go install golang.org/x/perf/cmd/benchstat@latest)"
 [[ -f "${baseline}" ]] || die "baseline not found: ${baseline} (commit one, or run scripts/refresh-bench-baseline.sh)"
 
-# Generate the current results if not supplied. Same shape as the baseline:
-# run-go-benchmarks.sh auto-discovers the same benchmark packages, and the count/
-# benchtime come from the same env the baseline was captured with.
-if [[ ! -f "${current}" ]]; then
+# Resolve the current results. A caller-pinned BENCH_CURRENT is used verbatim
+# (the mirror feeds synthetic files); otherwise always (re)generate so a stale
+# current.txt from a previous run is never silently reused. Same shape as the
+# baseline: run-go-benchmarks.sh auto-discovers the same packages, and count/
+# benchtime match what the baseline was captured with.
+if [[ -n "${current_explicit}" ]]; then
+	[[ -f "${current}" ]] || die "BENCH_CURRENT set but not found: ${current}"
+else
 	printf 'verify-bench-regression: generating %s (count=%s time=%s)\n' \
 		"${current}" "${BENCH_COUNT:-6}" "${BENCH_TIME:-100ms}" >&2
+	mkdir -p "$(dirname "${current}")"
 	# Capture raw, then filter to clean benchstat input (same as the baseline).
 	raw="$(mktemp)"
 	trap 'rm -f "${raw}" 2>/dev/null || true' EXIT

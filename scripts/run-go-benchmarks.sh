@@ -54,17 +54,36 @@ if [[ -n "${BENCH_PACKAGES:-}" ]]; then
 	read -r -a packages <<<"${BENCH_PACKAGES}"
 else
 	command -v rg >/dev/null 2>&1 || die "missing required tool: rg (needed to auto-discover benchmark packages; set BENCH_PACKAGES to skip discovery)"
+	go_dir="${repo_root}/go"
+	# Guard the path explicitly. Searching by absolute path (instead of `cd ${go_dir}
+	# && rg`) avoids a silent short-circuit: a bad repo_root made `cd` fail and rg
+	# never ran, which surfaced only as an empty package list in CI (#3795).
+	[[ -d "${go_dir}" ]] || die "go directory not found at ${go_dir} (repo_root=${repo_root}, pwd=$(pwd), source=${BASH_SOURCE[0]})"
+	# discover_benchmark_packages prints the ./-prefixed package dirs (relative to
+	# go/) that contain a benchmark. rg prints absolute paths under ${go_dir}; strip
+	# that prefix and the filename to get the package directory.
+	discover_benchmark_packages() {
+		rg -l "$@" --glob '*_test.go' '^func Benchmark' "${go_dir}" |
+			sed "s#^${go_dir}/##; s#/[^/]*\$##" |
+			sort -u |
+			sed 's#^#./#'
+	}
 	# Portable read loop (no mapfile — macOS ships bash 3.2, which lacks it).
 	while IFS= read -r pkg; do
 		[[ -n "${pkg}" ]] && packages+=("${pkg}")
-	done < <(
-		cd "${repo_root}/go" &&
-			rg -l --glob '*_test.go' '^func Benchmark' |
-			xargs -n1 dirname |
-			sort -u |
-			sed 's#^#./#'
-	)
-	[[ "${#packages[@]}" -gt 0 ]] || die "no benchmark packages discovered under go/"
+	done < <(discover_benchmark_packages)
+	# Fallback: the default git-aware walk has been observed to return nothing in
+	# some CI environments. Retry ignoring VCS filters before giving up, so a
+	# checkout quirk cannot silently zero out the benchmark set.
+	if [[ "${#packages[@]}" -eq 0 ]]; then
+		printf 'run-go-benchmarks: git-aware discovery found no packages; retrying with --no-ignore-vcs\n' >&2
+		while IFS= read -r pkg; do
+			[[ -n "${pkg}" ]] && packages+=("${pkg}")
+		done < <(discover_benchmark_packages --no-ignore-vcs)
+	fi
+	if [[ "${#packages[@]}" -eq 0 ]]; then
+		die "no benchmark packages discovered under ${go_dir} (rg=$(command -v rg), go-test files seen=$(rg --files --no-ignore-vcs "${go_dir}" 2>/dev/null | rg -c '_test\.go$' || echo 0))"
+	fi
 fi
 
 mkdir -p "$(dirname "${output}")"
