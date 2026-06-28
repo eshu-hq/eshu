@@ -8,9 +8,10 @@ selected content/read-model families and the #1288 shadow-write comparison gate
 for bounded fact-family migration proof. It also owns the #1289 queue-substrate
 decision gate that keeps queue/workflow ownership separate from storage
 ownership and the #1290 backup/restore proof gate for future NornicDB-owned
-durable state classes. The #2749 hosted-growth Postgres proof gate records the
-fact, queue, migration, rollback, and operator signals required before a hosted
-installation can claim it is ready for growth storage.
+durable state classes. The #2749/#4044 hosted-growth Postgres proof gate
+records the fact, queue, migration, rollback, breakpoint, and operator signals
+required before a hosted installation can claim it is ready for growth storage
+or choose a `fact_records` layout change.
 
 The package validates records that compare current Postgres production answers
 with NornicDB shadow answers. Passing evidence proves only parity for the
@@ -19,9 +20,10 @@ Queue-substrate decisions prove only that a candidate comparison covered queue
 semantics and observability; they do not implement a new queue. Backup/restore
 proofs prove only clean restore parity for one durable state class; they do not
 implement backup tooling or change production ownership.
-Hosted-growth Postgres proofs prove only that aggregate relation sizes, queue
-drain behavior, migration safety, rollback behavior, and observability have
-been recorded. They do not apply DDL, change partitioning, or move work between
+Hosted-growth Postgres proofs prove only that aggregate relation sizes,
+fact-family growth, index bloat, query-plan posture, retention lag, queue drain
+behavior, migration safety, rollback behavior, and observability have been
+recorded. They do not apply DDL, change partitioning, or move work between
 profiles.
 
 ## Ownership boundary
@@ -80,15 +82,24 @@ See `doc.go` for the godoc contract.
 - `HostedGrowthPostgresProof` is the evidence record for hosted-growth Postgres
   fact and queue proof.
 - `ValidateHostedGrowthPostgresProof` accepts only relation size and latency
-  measurements, reducer queue drain evidence, migration/rollback coverage,
-  active-generation and changed-since correctness, operator gate thresholds,
-  and observability that all pass the #2749 contract.
+  measurements, fact-family growth, index bloat, graph-write pressure, indexed
+  hot query plans, retention lag/prune posture, reducer queue drain evidence,
+  migration/rollback coverage, active-generation and changed-since correctness,
+  evidence-bound decisions, operator gate thresholds, and observability that
+  all pass the #2749/#4044 contract.
 - `HostedGrowthProfile`, `HostedGrowthRelation`,
   `HostedGrowthRelationMeasurement`, `HostedGrowthQueueDrainMeasurement`,
+  `HostedGrowthFactGrowth`, `HostedGrowthFactTotals`,
+  `HostedGrowthFactFamily`, `HostedGrowthFactFamilyGrowth`,
+  `HostedGrowthIndexBloat`, `HostedGrowthIndexClass`,
+  `HostedGrowthIndexBloatSample`, `HostedGrowthGraphWritePressure`,
+  `HostedGrowthQueryClass`, `HostedGrowthQueryPlanStatus`,
+  `HostedGrowthQueryPlan`, `HostedGrowthRetentionProof`,
   `HostedGrowthScenarioProof`, `HostedGrowthMigrationProof`,
   `HostedGrowthOperatorGate`, `HostedGrowthObservability`,
-  `HostedGrowthVerdict`, and `HostedGrowthFailureClass` provide hosted-growth
-  proof labels.
+  `HostedGrowthDecision`, `HostedGrowthRecommendation`,
+  `HostedGrowthImplication`, `HostedGrowthVerdict`, and
+  `HostedGrowthFailureClass` provide hosted-growth proof labels.
 
 ## Dependencies
 
@@ -109,8 +120,12 @@ size, restore duration, restore failure class, and parity drift.
 Hosted-growth Postgres proof runners must expose relation row counts, index and
 total sizes, read/write latency, queue depth, oldest queue age, retry and
 dead-letter counts, stale rows, active claims, migration duration, rollback
-status, and status summaries. Raw repositories, hostnames, IPs, paths, DSNs,
-logs, payloads, principals, and accounts remain operator-local.
+status, and status summaries. #4044 breakpoint artifacts must also carry
+fact-family growth, index bloat, graph-write pressure, query-plan posture,
+retention lag/prune posture, and the evidence-bound decision labels. These are
+artifact fields, not new runtime metrics from this package. Raw repositories,
+hostnames, IPs, paths, DSNs, logs, payloads, principals, and accounts remain
+operator-local.
 
 No-Observability-Change: this package defines the required evidence labels and
 does not alter hosted runtime signals.
@@ -149,6 +164,11 @@ does not alter hosted runtime signals.
   rollback behavior; fallback reads must not hide parity drift.
 - Hosted-growth proof must include `fact_records`, `fact_work_items`,
   `shared_projection_intents`, and `shared_projection_acceptance` measurements.
+- Hosted-growth fact-growth proof must reconcile `fact_growth.after` with the
+  aggregate `fact_records` relation measurement.
+- Hosted-growth decision proof must use public-safe implication labels and match
+  the measured breakpoint evidence; `defer` is valid only below the configured
+  row, index, queue, age, and retention thresholds.
 - Native Postgres partitioning proof must show primary and unique constraints
   include the partition key; otherwise the proof must remain a migration plan,
   not a shipped DDL claim.

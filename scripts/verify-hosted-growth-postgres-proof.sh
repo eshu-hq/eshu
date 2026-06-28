@@ -3,6 +3,10 @@
 
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+source "${repo_root}/scripts/lib/hosted_growth_postgres_proof.sh"
+
 input=""
 output_json=""
 output_markdown=""
@@ -98,10 +102,11 @@ if ! jq -e '
 	def nonempty_string($value): ($value | type == "string" and length > 0);
 	.schema_version == 1 and
 	nonempty_string(.proof_id) and
-	(.proof_id | test("^[A-Za-z0-9._-]+$")) and
+	(.proof_id | test("^hosted-growth-postgres-proof-(test|[0-9]{8}T[0-9]{6}Z)$")) and
 	nonempty_string(.generated_at) and
 	(.generated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
 	nonempty_string(.eshu_commit) and
+	(.eshu_commit | test("^[0-9a-f]{7,40}$")) and
 	.profile == "hosted_growth" and
 	(.relations | type == "array") and
 	(.queue_drain | type == "object") and
@@ -167,6 +172,8 @@ if ! jq -e '.queue_drain.bounded_evidence == true' "${input}" >/dev/null; then
 	die "queue drain proof must include bounded evidence"
 fi
 
+validate_hosted_growth_breakpoint_evidence "${input}"
+
 if ! jq -e '
 	(.migration.native_partitioning == false or
 		(.migration.primary_key_includes_partition_key == true and .migration.unique_constraints_include_partition_key == true)) and
@@ -203,32 +210,15 @@ if ! jq -e '
 	(.gate.queue_rows_threshold | type == "number" and . > 0) and
 	(.gate.index_bytes_threshold | type == "number" and . > 0) and
 	(.gate.oldest_queue_age_threshold_ns | type == "number" and . > 0) and
-	(.gate.recommended_action | type == "string" and length > 0) and
-	(.gate.operator_status_signal | type == "string" and length > 0) and
+	.gate.recommended_action == "run_hosted_growth_postgres_proof" and
+	.gate.operator_status_signal == "admin_status_relation_queue_summary" and
 	.gate.requires_migration_window == true and
 	.gate.requires_rollback_artifact == true
 ' "${input}" >/dev/null; then
-	die "operator gate must target hosted_growth with positive thresholds, status signal, migration window, and rollback artifact"
+	die "operator gate must target hosted_growth with positive thresholds, public-safe labels, migration window, and rollback artifact"
 fi
 
-if ! jq -e '
-	[
-		.observability.relation_size,
-		.observability.index_size,
-		.observability.read_latency,
-		.observability.write_latency,
-		.observability.queue_depth,
-		.observability.oldest_age,
-		.observability.retry_count,
-		.observability.dead_letters,
-		.observability.stale_rows,
-		.observability.active_claims,
-		.observability.migration_duration,
-		.observability.rollback_status
-	] | all
-' "${input}" >/dev/null; then
-	die "observability proof must cover relation/index sizes, latency, queue depth, age, retries, dead letters, stale rows, active claims, migration duration, and rollback status"
-fi
+validate_hosted_growth_observability "${input}"
 
 if ! jq -e '
 	.security.secret_scan == "passed" and
@@ -242,86 +232,7 @@ tmp_json="${output_json}.tmp"
 tmp_markdown="${output_markdown}.tmp"
 mkdir -p "$(dirname "${output_json}")" "$(dirname "${output_markdown}")"
 
-jq '{
-	status: "pass",
-	schema_version: 1,
-	proof_id: .proof_id,
-	generated_at: .generated_at,
-	eshu_commit: .eshu_commit,
-	profile: .profile,
-	relation_count: (.relations | length),
-	total_row_count: ([.relations[].row_count] | add),
-	total_index_bytes: ([.relations[].index_bytes] | add),
-	relations: [.relations[] | {relation, row_count, index_bytes, total_bytes, read_p95_ns, write_p95_ns}],
-	queue_drain: {
-		queue_surface: .queue_drain.queue_surface,
-		pending_rows: .queue_drain.pending_rows,
-		retry_rows: .queue_drain.retry_rows,
-		dead_letter_rows: .queue_drain.dead_letter_rows,
-		stale_rows: .queue_drain.stale_rows,
-		claimed_rows: .queue_drain.claimed_rows,
-		completed_rows: .queue_drain.completed_rows,
-		failed_rows: .queue_drain.failed_rows,
-		oldest_age_ns: .queue_drain.oldest_age_ns,
-		drain_duration_ns: .queue_drain.drain_duration_ns,
-		worker_count: .queue_drain.worker_count
-	},
-	migration: {
-		native_partitioning: .migration.native_partitioning,
-		active_generation_read_correct: .migration.active_generation_read_correct,
-		changed_since_retained_window_correct: .migration.changed_since_retained_window_correct,
-		rollback_behavior: .migration.rollback_behavior,
-		scenarios: [.migration.scenarios[] | {scenario, status}],
-		post_migration_read_p95_ns: .migration.post_migration_read_p95_ns,
-		post_migration_write_p95_ns: .migration.post_migration_write_p95_ns,
-		post_migration_queue_claim_p95_ns: .migration.post_migration_queue_claim_p95_ns,
-		post_migration_queue_drain_duration_ns: .migration.post_migration_queue_drain_duration_ns,
-		post_migration_active_generation_rows: .migration.post_migration_active_generation_rows,
-		post_migration_changed_since_retained_rows: .migration.post_migration_changed_since_retained_rows,
-		post_migration_active_claim_rows_preserved: .migration.post_migration_active_claim_rows_preserved,
-		post_migration_retry_rows_preserved: .migration.post_migration_retry_rows_preserved,
-		post_migration_dead_letter_rows_preserved: .migration.post_migration_dead_letter_rows_preserved,
-		post_migration_stale_rows_classified: .migration.post_migration_stale_rows_classified
-	},
-	gate: {
-		from_profile: .gate.from_profile,
-		to_profile: .gate.to_profile,
-		fact_rows_threshold: .gate.fact_rows_threshold,
-		queue_rows_threshold: .gate.queue_rows_threshold,
-		index_bytes_threshold: .gate.index_bytes_threshold,
-		oldest_queue_age_threshold_ns: .gate.oldest_queue_age_threshold_ns,
-		recommended_action: .gate.recommended_action,
-		operator_status_signal: .gate.operator_status_signal,
-		requires_migration_window: .gate.requires_migration_window,
-		requires_rollback_artifact: .gate.requires_rollback_artifact
-	},
-	security: {
-		secret_scan: .security.secret_scan,
-		private_locator_scan: .security.private_locator_scan,
-		public_artifact_review: .security.public_artifact_review
-	},
-	verdict: .verdict,
-	failure_class: .failure_class
-}' "${input}" >"${tmp_json}"
-
-jq -r '
-	[
-		"# Hosted-growth Postgres proof",
-		"",
-		"- Status: \(.status)",
-		"- Proof ID: \(.proof_id)",
-		"- Generated at: \(.generated_at)",
-		"- Profile: \(.profile)",
-		"- Relations: \(.relation_count)",
-		"- Total rows: \(.total_row_count)",
-		"- Total index bytes: \(.total_index_bytes)",
-		"- Queue drain: completed=\(.queue_drain.completed_rows), retry=\(.queue_drain.retry_rows), dead_letters=\(.queue_drain.dead_letter_rows), stale=\(.queue_drain.stale_rows)",
-		"- Migration: rollback=\(.migration.rollback_behavior), scenarios=\([.migration.scenarios[].scenario] | join(","))",
-		"- Gate: \(.gate.from_profile) -> \(.gate.to_profile), fact_rows=\(.gate.fact_rows_threshold), queue_rows=\(.gate.queue_rows_threshold)",
-		"",
-		"Raw repositories, hostnames, IPs, paths, DSNs, logs, source payloads, principals, accounts, and credentials remain operator-local."
-	] | .[]
-' "${tmp_json}" >"${tmp_markdown}"
+write_hosted_growth_summary "${input}" "${tmp_json}" "${tmp_markdown}"
 
 mv "${tmp_json}" "${output_json}"
 mv "${tmp_markdown}" "${output_markdown}"

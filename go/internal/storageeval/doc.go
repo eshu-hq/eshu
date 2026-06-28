@@ -27,6 +27,8 @@
 // or queue/workflow substrates. Hosted-growth Postgres proofs are accepted only
 // when aggregate relation sizes, read/write latency, reducer queue drain
 // behavior, migration and rollback scenarios, stale rows, retry/dead-letter
-// rows, active claims, active-generation reads, changed-since retained-window
-// semantics, and operator-facing observability are all covered.
+// rows, active claims, fact-family growth, index bloat, graph-write pressure,
+// hot query plans, retention lag, active-generation reads, changed-since
+// retained-window semantics, evidence-bound recommendations, and
+// operator-facing observability are all covered.
 package storageeval

@@ -64,6 +64,132 @@ type HostedGrowthQueueDrainMeasurement struct {
 	BoundedEvidence bool          `json:"bounded_evidence"`
 }
 
+// HostedGrowthFactGrowth records fact_records growth by family.
+type HostedGrowthFactGrowth struct {
+	ModelVersion  string                         `json:"model_version"`
+	RowsPerSecond float64                        `json:"rows_per_second"`
+	Before        HostedGrowthFactTotals         `json:"before"`
+	After         HostedGrowthFactTotals         `json:"after"`
+	Families      []HostedGrowthFactFamilyGrowth `json:"families"`
+}
+
+// HostedGrowthFactTotals records fact_records aggregate size at one point.
+type HostedGrowthFactTotals struct {
+	FactRecordsRows int64     `json:"fact_records_rows"`
+	IndexBytes      int64     `json:"index_bytes"`
+	TotalBytes      int64     `json:"total_bytes"`
+	ObservedAt      time.Time `json:"observed_at"`
+	BoundedEvidence bool      `json:"bounded_evidence"`
+}
+
+// HostedGrowthFactFamily names the fact families that can drive table growth.
+type HostedGrowthFactFamily string
+
+const (
+	// HostedGrowthFactFamilyCollector covers hosted and source collectors.
+	HostedGrowthFactFamilyCollector HostedGrowthFactFamily = "collector"
+	// HostedGrowthFactFamilyParser covers parser-emitted source facts.
+	HostedGrowthFactFamilyParser HostedGrowthFactFamily = "parser"
+	// HostedGrowthFactFamilySearchDocuments covers search-document facts.
+	HostedGrowthFactFamilySearchDocuments HostedGrowthFactFamily = "search_documents"
+	// HostedGrowthFactFamilyCorrelation covers reducer correlation facts.
+	HostedGrowthFactFamilyCorrelation HostedGrowthFactFamily = "correlation"
+)
+
+// HostedGrowthFactFamilyGrowth records one family growth sample.
+type HostedGrowthFactFamilyGrowth struct {
+	Family                  HostedGrowthFactFamily `json:"family"`
+	FactKindCount           int                    `json:"fact_kind_count"`
+	BeforeRows              int64                  `json:"before_rows"`
+	AfterRows               int64                  `json:"after_rows"`
+	AfterIndexBytes         int64                  `json:"after_index_bytes"`
+	WriteAmplificationRatio float64                `json:"write_amplification_ratio"`
+	P95Insert               time.Duration          `json:"p95_insert_ns"`
+	BoundedEvidence         bool                   `json:"bounded_evidence"`
+}
+
+// HostedGrowthIndexBloat records table and index bloat evidence.
+type HostedGrowthIndexBloat struct {
+	TableBloatRatio float64                        `json:"table_bloat_ratio"`
+	DeadTupleBytes  int64                          `json:"dead_tuple_bytes"`
+	Indexes         []HostedGrowthIndexBloatSample `json:"indexes"`
+}
+
+// HostedGrowthIndexClass names bounded index sample groups.
+type HostedGrowthIndexClass string
+
+const (
+	// HostedGrowthIndexClassActiveGeneration covers active-generation lookup indexes.
+	HostedGrowthIndexClassActiveGeneration HostedGrowthIndexClass = "active_generation"
+	// HostedGrowthIndexClassCorrelationLookup covers correlation lookup indexes.
+	HostedGrowthIndexClassCorrelationLookup HostedGrowthIndexClass = "correlation_lookup"
+)
+
+// HostedGrowthIndexBloatSample records one bounded index-size sample.
+type HostedGrowthIndexBloatSample struct {
+	IndexClass              HostedGrowthIndexClass `json:"index_class"`
+	SizeBytes               int64                  `json:"size_bytes"`
+	BloatRatio              float64                `json:"bloat_ratio"`
+	WriteAmplificationRatio float64                `json:"write_amplification_ratio"`
+	BoundedEvidence         bool                   `json:"bounded_evidence"`
+}
+
+// HostedGrowthGraphWritePressure records reducer graph-write pressure.
+type HostedGrowthGraphWritePressure struct {
+	WriteP95                      time.Duration `json:"write_p95_ns"`
+	TimeoutRetries                int64         `json:"timeout_retries"`
+	RetryingGraphWriteTimeoutRows int64         `json:"retrying_graph_write_timeout_rows"`
+	DeadLetterRows                int64         `json:"dead_letter_rows"`
+	P95GroupRows                  int64         `json:"p95_group_rows"`
+	ObservedAt                    time.Time     `json:"observed_at"`
+	BoundedEvidence               bool          `json:"bounded_evidence"`
+}
+
+// HostedGrowthQueryClass names hot fact-read query classes.
+type HostedGrowthQueryClass string
+
+const (
+	// HostedGrowthQueryClassActiveGenerationRead covers active generation reads.
+	HostedGrowthQueryClassActiveGenerationRead HostedGrowthQueryClass = "active_generation_read"
+	// HostedGrowthQueryClassCorrelationJoin covers fact-backed correlation joins.
+	HostedGrowthQueryClassCorrelationJoin HostedGrowthQueryClass = "correlation_join"
+	// HostedGrowthQueryClassRetentionChangedSince covers retained-window changed-since reads.
+	HostedGrowthQueryClassRetentionChangedSince HostedGrowthQueryClass = "retention_changed_since"
+	// HostedGrowthQueryClassHotAPIRead covers hot API fact reads.
+	HostedGrowthQueryClassHotAPIRead HostedGrowthQueryClass = "hot_api_read"
+)
+
+// HostedGrowthQueryPlanStatus names the accepted plan status.
+type HostedGrowthQueryPlanStatus string
+
+const (
+	// HostedGrowthQueryPlanIndexed means the plan uses bounded indexes.
+	HostedGrowthQueryPlanIndexed HostedGrowthQueryPlanStatus = "indexed"
+)
+
+// HostedGrowthQueryPlan records one bounded hot query plan.
+type HostedGrowthQueryPlan struct {
+	QueryClass      HostedGrowthQueryClass      `json:"query_class"`
+	P95             time.Duration               `json:"p95_ns"`
+	RowsExamined    int64                       `json:"rows_examined"`
+	PlanStatus      HostedGrowthQueryPlanStatus `json:"plan_status"`
+	SeqScan         bool                        `json:"seq_scan"`
+	Spill           bool                        `json:"spill"`
+	ObservedAt      time.Time                   `json:"observed_at"`
+	BoundedEvidence bool                        `json:"bounded_evidence"`
+}
+
+// HostedGrowthRetentionProof records retention lag and prune cost.
+type HostedGrowthRetentionProof struct {
+	SupersededRows      int64         `json:"superseded_rows"`
+	OldestSupersededAge time.Duration `json:"oldest_superseded_age_ns"`
+	RetentionLag        time.Duration `json:"retention_lag_ns"`
+	PruneDuration       time.Duration `json:"prune_duration_ns"`
+	PruneBatchRows      int64         `json:"prune_batch_rows"`
+	ArchiveRequired     bool          `json:"archive_required"`
+	BoundedEvidence     bool          `json:"bounded_evidence"`
+}
+
 // HostedGrowthScenario names a required migration or safety proof lane.
 type HostedGrowthScenario string
 
@@ -169,6 +295,50 @@ type HostedGrowthObservability struct {
 	RollbackStatus    bool `json:"rollback_status"`
 }
 
+// HostedGrowthRecommendation records the measured storage decision.
+type HostedGrowthRecommendation string
+
+const (
+	// HostedGrowthRecommendationPartition chooses native partitioning.
+	HostedGrowthRecommendationPartition HostedGrowthRecommendation = "partition"
+	// HostedGrowthRecommendationArchive chooses archive tables.
+	HostedGrowthRecommendationArchive HostedGrowthRecommendation = "archive"
+	// HostedGrowthRecommendationSplit chooses fact-family splits.
+	HostedGrowthRecommendationSplit HostedGrowthRecommendation = "split"
+	// HostedGrowthRecommendationRetentionTune chooses retention-policy tuning.
+	HostedGrowthRecommendationRetentionTune HostedGrowthRecommendation = "retention_tune"
+	// HostedGrowthRecommendationDefer records no physical schema change yet.
+	HostedGrowthRecommendationDefer HostedGrowthRecommendation = "defer"
+)
+
+// HostedGrowthImplication records low-cardinality decision implications.
+type HostedGrowthImplication string
+
+const (
+	// HostedGrowthImplicationNone means no change to that axis.
+	HostedGrowthImplicationNone HostedGrowthImplication = "none"
+	// HostedGrowthImplicationKeepCurrentPostgres keeps current Postgres state.
+	HostedGrowthImplicationKeepCurrentPostgres HostedGrowthImplication = "keep_current_postgres"
+	// HostedGrowthImplicationTunePolicy changes retention policy only.
+	HostedGrowthImplicationTunePolicy HostedGrowthImplication = "tune_policy"
+	// HostedGrowthImplicationUnchanged means the implication is unchanged.
+	HostedGrowthImplicationUnchanged HostedGrowthImplication = "unchanged"
+	// HostedGrowthImplicationMigrationWindow requires a migration window.
+	HostedGrowthImplicationMigrationWindow HostedGrowthImplication = "migration_window_required"
+)
+
+// HostedGrowthDecision records the measured storage decision.
+type HostedGrowthDecision struct {
+	Recommendation              HostedGrowthRecommendation `json:"recommendation"`
+	SchemaChangeRequired        bool                       `json:"schema_change_required"`
+	RationaleClass              string                     `json:"rationale_class"`
+	LinkedIssues                []int                      `json:"linked_issues"`
+	MigrationImplications       HostedGrowthImplication    `json:"migration_implications"`
+	RollbackImplications        HostedGrowthImplication    `json:"rollback_implications"`
+	RetentionImplications       HostedGrowthImplication    `json:"retention_implications"`
+	TenantIsolationImplications HostedGrowthImplication    `json:"tenant_isolation_implications"`
+}
+
 // HostedGrowthVerdict records the final hosted-growth proof result.
 type HostedGrowthVerdict string
 
@@ -195,25 +365,31 @@ const (
 
 // HostedGrowthPostgresProof records the #2749 hosted-growth Postgres gate.
 type HostedGrowthPostgresProof struct {
-	ProofID       string                            `json:"proof_id"`
-	EshuCommit    string                            `json:"eshu_commit"`
-	Profile       HostedGrowthProfile               `json:"profile"`
-	Relations     []HostedGrowthRelationMeasurement `json:"relations"`
-	QueueDrain    HostedGrowthQueueDrainMeasurement `json:"queue_drain"`
-	Migration     HostedGrowthMigrationProof        `json:"migration"`
-	Gate          HostedGrowthOperatorGate          `json:"gate"`
-	Observability HostedGrowthObservability         `json:"observability"`
-	Verdict       HostedGrowthVerdict               `json:"verdict"`
-	FailureClass  HostedGrowthFailureClass          `json:"failure_class"`
+	ProofID            string                            `json:"proof_id"`
+	EshuCommit         string                            `json:"eshu_commit"`
+	Profile            HostedGrowthProfile               `json:"profile"`
+	Relations          []HostedGrowthRelationMeasurement `json:"relations"`
+	QueueDrain         HostedGrowthQueueDrainMeasurement `json:"queue_drain"`
+	FactGrowth         HostedGrowthFactGrowth            `json:"fact_growth"`
+	IndexBloat         HostedGrowthIndexBloat            `json:"index_bloat"`
+	GraphWritePressure HostedGrowthGraphWritePressure    `json:"graph_write_pressure"`
+	QueryPlans         []HostedGrowthQueryPlan           `json:"query_plans"`
+	Retention          HostedGrowthRetentionProof        `json:"retention"`
+	Migration          HostedGrowthMigrationProof        `json:"migration"`
+	Gate               HostedGrowthOperatorGate          `json:"gate"`
+	Observability      HostedGrowthObservability         `json:"observability"`
+	Decision           HostedGrowthDecision              `json:"decision"`
+	Verdict            HostedGrowthVerdict               `json:"verdict"`
+	FailureClass       HostedGrowthFailureClass          `json:"failure_class"`
 }
 
 // ValidateHostedGrowthPostgresProof verifies one passing hosted-growth proof.
 func ValidateHostedGrowthPostgresProof(proof HostedGrowthPostgresProof) error {
-	if strings.TrimSpace(proof.ProofID) == "" {
-		return fmt.Errorf("proof id is required")
+	if !validHostedGrowthProofID(proof.ProofID) {
+		return fmt.Errorf("proof id must be a public hosted-growth proof token")
 	}
-	if strings.TrimSpace(proof.EshuCommit) == "" {
-		return fmt.Errorf("eshu commit is required")
+	if !validHostedGrowthCommit(proof.EshuCommit) {
+		return fmt.Errorf("eshu commit must be a git SHA")
 	}
 	if proof.Profile != HostedGrowthProfileHostedGrowth {
 		return fmt.Errorf("profile must be hosted_growth")
@@ -224,6 +400,21 @@ func ValidateHostedGrowthPostgresProof(proof HostedGrowthPostgresProof) error {
 	if err := validateHostedGrowthQueueDrain(proof.QueueDrain); err != nil {
 		return err
 	}
+	if err := validateHostedGrowthFactGrowth(proof.FactGrowth, proof.Relations); err != nil {
+		return err
+	}
+	if err := validateHostedGrowthIndexBloat(proof.IndexBloat); err != nil {
+		return err
+	}
+	if err := validateHostedGrowthGraphWritePressure(proof.GraphWritePressure); err != nil {
+		return err
+	}
+	if err := validateHostedGrowthQueryPlans(proof.QueryPlans); err != nil {
+		return err
+	}
+	if err := validateHostedGrowthRetention(proof.Retention); err != nil {
+		return err
+	}
 	if err := validateHostedGrowthMigration(proof.Migration); err != nil {
 		return err
 	}
@@ -231,6 +422,9 @@ func ValidateHostedGrowthPostgresProof(proof HostedGrowthPostgresProof) error {
 		return err
 	}
 	if err := requireHostedGrowthObservability(proof.Observability); err != nil {
+		return err
+	}
+	if err := validateHostedGrowthDecision(proof); err != nil {
 		return err
 	}
 	if proof.Verdict == "" {
@@ -246,4 +440,39 @@ func ValidateHostedGrowthPostgresProof(proof HostedGrowthPostgresProof) error {
 		return fmt.Errorf("failure class must be none for pass verdict")
 	}
 	return nil
+}
+
+func validHostedGrowthProofID(proofID string) bool {
+	if proofID == "hosted-growth-postgres-proof-test" {
+		return true
+	}
+	const prefix = "hosted-growth-postgres-proof-"
+	if !strings.HasPrefix(proofID, prefix) {
+		return false
+	}
+	suffix := strings.TrimPrefix(proofID, prefix)
+	if len(suffix) != len("20260617T030000Z") || suffix[8] != 'T' || suffix[15] != 'Z' {
+		return false
+	}
+	for i, r := range suffix {
+		if i == 8 || i == 15 {
+			continue
+		}
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func validHostedGrowthCommit(commit string) bool {
+	if len(commit) < 7 || len(commit) > 40 {
+		return false
+	}
+	for _, r := range commit {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }

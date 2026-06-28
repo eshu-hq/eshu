@@ -5,6 +5,7 @@ package storageeval
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -62,8 +63,11 @@ func validateHostedGrowthQueueDrain(queue HostedGrowthQueueDrainMeasurement) err
 	if queue.QueueSurface != QueueSurfaceReducer {
 		return fmt.Errorf("queue drain surface must be reducer to prove fact_work_items drain, got %q", queue.QueueSurface)
 	}
-	if queue.PendingRows < 0 || queue.FailedRows < 0 || queue.ClaimedRows < 0 {
+	if queue.PendingRows < 0 || queue.FailedRows < 0 {
 		return fmt.Errorf("queue drain row counts must not be negative")
+	}
+	if queue.ClaimedRows <= 0 {
+		return fmt.Errorf("queue drain claimed_rows must be positive")
 	}
 	if queue.RetryRows <= 0 || queue.DeadLetterRows <= 0 || queue.StaleRows <= 0 {
 		return fmt.Errorf("queue drain must include retry, dead-letter, and stale rows")
@@ -85,6 +89,218 @@ func validateHostedGrowthQueueDrain(queue HostedGrowthQueueDrainMeasurement) err
 	}
 	if !queue.BoundedEvidence {
 		return fmt.Errorf("queue drain evidence must be bounded")
+	}
+	return nil
+}
+
+func validateHostedGrowthFactGrowth(
+	growth HostedGrowthFactGrowth,
+	relations []HostedGrowthRelationMeasurement,
+) error {
+	if strings.TrimSpace(growth.ModelVersion) == "" {
+		return fmt.Errorf("fact growth model version is required")
+	}
+	if growth.ModelVersion != "fact_records_growth_v1" {
+		return fmt.Errorf("fact growth model version must be fact_records_growth_v1")
+	}
+	if nonFinite(growth.RowsPerSecond) {
+		return fmt.Errorf("fact growth rows_per_second must be finite")
+	}
+	if growth.RowsPerSecond <= 0 {
+		return fmt.Errorf("fact growth rows_per_second must be positive")
+	}
+	if err := validateHostedGrowthFactTotals("before", growth.Before); err != nil {
+		return err
+	}
+	if err := validateHostedGrowthFactTotals("after", growth.After); err != nil {
+		return err
+	}
+	if growth.After.FactRecordsRows < growth.Before.FactRecordsRows {
+		return fmt.Errorf("fact growth after rows must be at least before rows")
+	}
+	if growth.After.IndexBytes < growth.Before.IndexBytes {
+		return fmt.Errorf("fact growth after index bytes must be at least before index bytes")
+	}
+	factRelation, ok := hostedGrowthRelation(relations, HostedGrowthRelationFactRecords)
+	if !ok {
+		return fmt.Errorf("relation fact_records measurement is required")
+	}
+	if growth.After.FactRecordsRows != factRelation.RowCount {
+		return fmt.Errorf("fact growth after rows must match fact_records relation row count")
+	}
+	if growth.After.IndexBytes != factRelation.IndexBytes {
+		return fmt.Errorf("fact growth after index bytes must match fact_records relation index bytes")
+	}
+	if growth.After.TotalBytes != factRelation.TotalBytes {
+		return fmt.Errorf("fact growth after total bytes must match fact_records relation total bytes")
+	}
+	if err := validateHostedGrowthFactFamilies(growth.Families, growth.After.FactRecordsRows); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateHostedGrowthFactTotals(label string, totals HostedGrowthFactTotals) error {
+	if totals.FactRecordsRows <= 0 {
+		return fmt.Errorf("fact growth %s rows must be positive", label)
+	}
+	if totals.IndexBytes <= 0 {
+		return fmt.Errorf("fact growth %s index bytes must be positive", label)
+	}
+	if totals.TotalBytes < totals.IndexBytes {
+		return fmt.Errorf("fact growth %s total bytes must be at least index bytes", label)
+	}
+	if totals.ObservedAt.IsZero() {
+		return fmt.Errorf("fact growth %s observed_at is required", label)
+	}
+	if !totals.BoundedEvidence {
+		return fmt.Errorf("fact growth %s evidence must be bounded", label)
+	}
+	return nil
+}
+
+func validateHostedGrowthFactFamilies(families []HostedGrowthFactFamilyGrowth, afterRows int64) error {
+	if len(families) == 0 {
+		return fmt.Errorf("fact growth families are required")
+	}
+	seen := make(map[HostedGrowthFactFamily]struct{}, len(families))
+	var familyRows int64
+	for _, family := range families {
+		if !supportedHostedGrowthFactFamily(family.Family) {
+			return fmt.Errorf("fact growth family %q is unsupported", family.Family)
+		}
+		if _, ok := seen[family.Family]; ok {
+			return fmt.Errorf("fact growth family %s is duplicated", family.Family)
+		}
+		seen[family.Family] = struct{}{}
+		if nonFinite(family.WriteAmplificationRatio) {
+			return fmt.Errorf("fact growth family %s ratios must be finite", family.Family)
+		}
+		if family.FactKindCount <= 0 || family.BeforeRows < 0 ||
+			family.AfterRows < family.BeforeRows || family.AfterIndexBytes <= 0 ||
+			family.WriteAmplificationRatio <= 0 || family.P95Insert <= 0 ||
+			!family.BoundedEvidence {
+			return fmt.Errorf("fact growth family %s must include positive counts, write amplification, insert latency, and bounded evidence", family.Family)
+		}
+		familyRows += family.AfterRows
+	}
+	for _, family := range requiredHostedGrowthFactFamilies() {
+		if _, ok := seen[family]; !ok {
+			return fmt.Errorf("fact growth family %s is required", family)
+		}
+	}
+	if familyRows != afterRows {
+		return fmt.Errorf("fact growth family rows must match fact_records after rows")
+	}
+	return nil
+}
+
+func validateHostedGrowthIndexBloat(bloat HostedGrowthIndexBloat) error {
+	if nonFinite(bloat.TableBloatRatio) {
+		return fmt.Errorf("index bloat table ratio must be finite")
+	}
+	if bloat.TableBloatRatio < 0 {
+		return fmt.Errorf("index bloat table ratio must not be negative")
+	}
+	if bloat.DeadTupleBytes < 0 {
+		return fmt.Errorf("index bloat dead tuple bytes must not be negative")
+	}
+	if len(bloat.Indexes) == 0 {
+		return fmt.Errorf("index bloat samples are required")
+	}
+	seen := make(map[HostedGrowthIndexClass]struct{}, len(bloat.Indexes))
+	for _, sample := range bloat.Indexes {
+		if !supportedHostedGrowthIndexClass(sample.IndexClass) {
+			return fmt.Errorf("index bloat class %q is unsupported", sample.IndexClass)
+		}
+		if _, ok := seen[sample.IndexClass]; ok {
+			return fmt.Errorf("index bloat class %s is duplicated", sample.IndexClass)
+		}
+		seen[sample.IndexClass] = struct{}{}
+		if nonFinite(sample.BloatRatio) || nonFinite(sample.WriteAmplificationRatio) {
+			return fmt.Errorf("index bloat sample %s ratios must be finite", sample.IndexClass)
+		}
+		if sample.SizeBytes <= 0 || sample.BloatRatio < 0 ||
+			sample.WriteAmplificationRatio <= 0 || !sample.BoundedEvidence {
+			return fmt.Errorf("index bloat sample %s must include size, bloat, write amplification, and bounded evidence", sample.IndexClass)
+		}
+	}
+	for _, indexClass := range requiredHostedGrowthIndexClasses() {
+		if _, ok := seen[indexClass]; !ok {
+			return fmt.Errorf("index bloat class %s is required", indexClass)
+		}
+	}
+	return nil
+}
+
+func nonFinite(value float64) bool {
+	return math.IsNaN(value) || math.IsInf(value, 0)
+}
+
+func validateHostedGrowthGraphWritePressure(pressure HostedGrowthGraphWritePressure) error {
+	if pressure.WriteP95 <= 0 {
+		return fmt.Errorf("graph-write pressure write p95 must be positive")
+	}
+	if pressure.TimeoutRetries < 0 || pressure.RetryingGraphWriteTimeoutRows < 0 ||
+		pressure.DeadLetterRows < 0 {
+		return fmt.Errorf("graph-write pressure retry and dead-letter counts must not be negative")
+	}
+	if pressure.P95GroupRows <= 0 {
+		return fmt.Errorf("graph-write pressure p95 group rows must be positive")
+	}
+	if pressure.ObservedAt.IsZero() {
+		return fmt.Errorf("graph-write pressure observed_at is required")
+	}
+	if !pressure.BoundedEvidence {
+		return fmt.Errorf("graph-write pressure evidence must be bounded")
+	}
+	return nil
+}
+
+func validateHostedGrowthQueryPlans(plans []HostedGrowthQueryPlan) error {
+	if len(plans) == 0 {
+		return fmt.Errorf("query plans are required")
+	}
+	seen := make(map[HostedGrowthQueryClass]struct{}, len(plans))
+	for _, plan := range plans {
+		if !supportedHostedGrowthQueryClass(plan.QueryClass) {
+			return fmt.Errorf("query plan class %q is unsupported", plan.QueryClass)
+		}
+		if _, ok := seen[plan.QueryClass]; ok {
+			return fmt.Errorf("query plan %s is duplicated", plan.QueryClass)
+		}
+		seen[plan.QueryClass] = struct{}{}
+		if plan.P95 <= 0 || plan.RowsExamined <= 0 || plan.PlanStatus != HostedGrowthQueryPlanIndexed ||
+			plan.SeqScan || plan.Spill || plan.ObservedAt.IsZero() || !plan.BoundedEvidence {
+			return fmt.Errorf("query plan %s must be indexed without seq scan or spill", plan.QueryClass)
+		}
+	}
+	for _, queryClass := range requiredHostedGrowthQueryClasses() {
+		if _, ok := seen[queryClass]; !ok {
+			return fmt.Errorf("query plan %s is required", queryClass)
+		}
+	}
+	return nil
+}
+
+func validateHostedGrowthRetention(retention HostedGrowthRetentionProof) error {
+	if retention.SupersededRows < 0 {
+		return fmt.Errorf("retention superseded rows must not be negative")
+	}
+	if retention.OldestSupersededAge <= 0 {
+		return fmt.Errorf("retention oldest superseded age must be positive")
+	}
+	if retention.RetentionLag < 0 {
+		return fmt.Errorf("retention lag must not be negative")
+	}
+	if retention.PruneDuration <= 0 {
+		return fmt.Errorf("retention prune duration must be positive")
+	}
+	if retention.PruneBatchRows <= 0 {
+		return fmt.Errorf("retention prune batch rows must be positive")
+	}
+	if !retention.BoundedEvidence {
+		return fmt.Errorf("retention evidence must be bounded")
 	}
 	return nil
 }
@@ -163,6 +379,18 @@ func validateHostedGrowthScenarioCoverage(proofs []HostedGrowthScenarioProof) er
 	return nil
 }
 
+func hostedGrowthRelation(
+	relations []HostedGrowthRelationMeasurement,
+	relation HostedGrowthRelation,
+) (HostedGrowthRelationMeasurement, bool) {
+	for _, candidate := range relations {
+		if candidate.Relation == relation {
+			return candidate, true
+		}
+	}
+	return HostedGrowthRelationMeasurement{}, false
+}
+
 func validateHostedGrowthOperatorGate(gate HostedGrowthOperatorGate) error {
 	if !supportedHostedGrowthProfile(gate.FromProfile) {
 		return fmt.Errorf("operator gate from_profile is unsupported")
@@ -177,11 +405,11 @@ func validateHostedGrowthOperatorGate(gate HostedGrowthOperatorGate) error {
 		gate.IndexBytesThreshold <= 0 || gate.OldestQueueAgeThreshold <= 0 {
 		return fmt.Errorf("operator gate thresholds must be positive")
 	}
-	if strings.TrimSpace(gate.RecommendedAction) == "" {
-		return fmt.Errorf("operator gate recommended action is required")
+	if gate.RecommendedAction != "run_hosted_growth_postgres_proof" {
+		return fmt.Errorf("operator gate recommended action must be run_hosted_growth_postgres_proof")
 	}
-	if strings.TrimSpace(gate.OperatorStatusSignal) == "" {
-		return fmt.Errorf("operator gate status signal is required")
+	if gate.OperatorStatusSignal != "admin_status_relation_queue_summary" {
+		return fmt.Errorf("operator gate status signal must be admin_status_relation_queue_summary")
 	}
 	if !gate.RequiresMigrationWindow {
 		return fmt.Errorf("operator gate must require a migration window")
