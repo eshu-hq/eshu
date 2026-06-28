@@ -49,6 +49,16 @@ type Interaction struct {
 	Request RecordedRequest `json:"request"`
 	// Response is the recorded (redacted) response served on a key match.
 	Response RecordedResponse `json:"response"`
+	// Fault is an optional fault directive for this interaction. When set, the
+	// replayer injects the described fault instead of (or sequenced before)
+	// serving the real recorded response. Nil means no fault — replay the
+	// response as recorded. See fault.go for the Fault type and FaultKind
+	// constants.
+	//
+	// Fault directives are part of the tape, not runtime config, so a committed
+	// tape with faults replays the same fault sequence every time, credential-
+	// free and without any wall-clock dependency.
+	Fault *Fault `json:"fault,omitempty"`
 }
 
 // RecordedRequest is the redacted, canonical view of a captured request. It
@@ -126,6 +136,9 @@ func (t Tape) validate() error {
 		seen[in.RequestKey] = struct{}{}
 		if in.Response.StatusCode == 0 {
 			return fmt.Errorf("interaction[%d]: response.status_code is required", i)
+		}
+		if err := in.Fault.validate(i); err != nil {
+			return err
 		}
 	}
 	return nil

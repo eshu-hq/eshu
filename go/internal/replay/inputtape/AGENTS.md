@@ -42,13 +42,33 @@
   `request_key` and round-trips through `replay.Canonicalize` so re-recording
   equivalent traffic does not churn the committed file.
 
+## Fault-injection tape invariants (R-11, #4120)
+
+- **Faults are tape-owned, not runtime-config.** A `Fault` directive lives on
+  the `Interaction` in the JSON tape. `NewReplayer` validates every fault before
+  accepting the tape so a malformed directive fails loudly rather than silently
+  serving the wrong behavior.
+- **No wall-clock in fault execution.** `FaultKindTimeout` returns
+  `ErrFaultTimeout` immediately — no `time.Sleep`. Determinism is preserved.
+- **Per-key attempt counter is mutex-guarded.** The `attempts` map in
+  `RoundTripper` is incremented inside `mu` before `faultedReplay` is called,
+  so concurrent callers each consume a distinct sequence step. Never hold `mu`
+  across the fault execution itself.
+- **Sequences exhaust to the real response.** Once all `FaultKindSequence` steps
+  are consumed, every subsequent call for that key returns the real recorded
+  response — the retry-then-succeed pattern without requiring the caller to know
+  how many faults are scripted.
+- **Fault fields must not carry secrets.** The `Fault` and `SequenceStep` types
+  have no credential-bearing fields by design; do not add any. `MarshalTape`
+  round-trips through `replay.Canonicalize` so all fault fields are safe to commit.
+
 ## Skill routing
 
 - `golang-engineering` for any Go change to this package.
-- `concurrency-deadlock-rigor` for any change to the record/replay locking or
-  the request-capture body handling.
+- `concurrency-deadlock-rigor` for any change to the record/replay locking,
+  the request-capture body handling, or the per-key attempt counter.
 - `eshu-golden-corpus-rigor` if input tapes become inputs to the B-7 golden
-  gate (a recorded tape is a fixture the gate could assert on).
+  gate (a recorded tape with faults is a fixture the gate could assert on).
 
 ## Do not
 
@@ -58,3 +78,6 @@
 - Let header/query/JSON-key order affect the request key.
 - Import an unrelated collector package from non-test code (collectors wire the
   tripper; the tripper does not depend on any collector).
+- Add `time.Sleep` or any wall-clock dependence to fault execution; faults must
+  remain deterministic and instantaneous.
+- Nest `FaultKindSequence` inside a sequence step; one level deep is the limit.

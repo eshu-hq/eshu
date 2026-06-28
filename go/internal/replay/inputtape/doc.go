@@ -25,6 +25,22 @@
 //     recorded request set fails loudly (ErrUnmatchedRequest) rather than
 //     silently issuing a live call.
 //
+// # Fault-injection tape (R-11)
+//
+// An Interaction may carry an optional Fault directive that turns a plain
+// recorded tape into a scenario: a scripted sequence of transport faults
+// (timeout, connection reset), body faults (truncated partial response), status
+// overrides (4xx/5xx injection), or retry-then-succeed sequences. Faults are
+// part of the tape, not runtime configuration, so the same tape produces the
+// same fault sequence on every replay run — deterministic by construction, no
+// wall-clock reads and no random elements.
+//
+// See the Fault type, FaultKind constants, ErrFaultTimeout, and ErrFaultReset
+// for the full API. The R-11 acceptance gate (TestFaultRetryThenSucceed,
+// TestFaultRoundTripDeterminism) verifies that a 5xx-then-200 sequence yields
+// byte-identical output across independent replays and that a collector retry
+// loop emits each fact exactly once.
+//
 // # Request matching
 //
 // Each request is reduced to a deterministic key: a SHA-256 over the method, URL

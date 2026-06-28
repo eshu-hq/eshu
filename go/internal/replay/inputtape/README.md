@@ -85,6 +85,51 @@ Request and response bodies are stored by encoding: `json` (canonicalized text,
 so the tape stays reviewable and the key is key-order independent), `text`
 (verbatim UTF-8, e.g. a YAML rules body), or `base64` (opaque/binary).
 
+## Fault-injection tape (R-11)
+
+An interaction may carry an optional `"fault"` directive that scripts a fault
+to inject on replay, turning a plain tape into a *scenario*. Faults are part of
+the tape, not runtime config, so the same tape yields the same fault sequence on
+every replay run — credential-free and without wall-clock dependence.
+
+### Fault kinds
+
+| Kind | Transport error? | Description |
+| --- | --- | --- |
+| `"timeout"` | yes — `ErrFaultTimeout` | Simulates a request that times out before any response bytes arrive. No sleeping. |
+| `"reset"` | yes — `ErrFaultReset` | Simulates a connection reset: peer closed with no response. |
+| `"partial_body"` | no (response delivered) | Returns a response whose body delivers `partial_bytes` bytes then `io.ErrUnexpectedEOF`. |
+| `"status"` | no (response delivered) | Returns an empty response with the overriding `status_code` (4xx/5xx injection). |
+| `"sequence"` | depends on steps | Steps through an ordered list of faults, then serves the real recorded response once exhausted. |
+
+### Retry-then-succeed example
+
+```json
+{
+  "request_key": "...",
+  "request": { ... },
+  "response": { "status_code": 200, ... },
+  "fault": {
+    "kind": "sequence",
+    "sequence": [
+      { "kind": "status", "status_code": 500 },
+      { "kind": "timeout" }
+    ]
+  }
+}
+```
+
+The first call returns 500, the second returns `ErrFaultTimeout`, the third
+(and all subsequent calls) returns the real recorded 200 response. A collector
+that retries on transient errors will see exactly one successful response per
+key — the idempotency property the R-11 acceptance gate asserts.
+
+### Credential safety
+
+Fault directives contain no credential-bearing fields. `MarshalTape` round-
+trips all fields through `replay.Canonicalize` so a tape with faults is as safe
+to commit as a plain tape.
+
 ## Wiring
 
 The `RoundTripper` is an `http.RoundTripper`, so it installs as an
