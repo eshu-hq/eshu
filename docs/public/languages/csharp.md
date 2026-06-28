@@ -29,15 +29,32 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Object creation | `object-creation` | supported | `function_calls` | `name, line_number` | `relationship:CALLS` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathCSharp` | Compose-backed fixture verification | - |
 | Inheritance (`base_list`) | `inheritance-base-list` | supported | `classes` | `name, line_number, bases` | `relationship:INHERITS` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathCSharp` | Compose-backed fixture verification | - |
 | Dead-code roots | `dead-code-roots` | derived | `functions.metadata.dead_code_root_kinds` | `name, line_number, dead_code_root_kinds` | `code_quality.dead_code` root suppression | `go/internal/parser/csharp_dead_code_roots_test.go::TestDefaultEngineParsePathCSharpEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_csharp_roots_test.go::TestHandleDeadCodeExcludesCSharpRootKindsFromMetadata` | Compose-backed C# dogfood required by issue #97 | Main methods, constructors, overrides, same-file interface methods and implementations, ASP.NET controller actions, hosted-service callbacks, test methods, and serialization callbacks are modeled as derived roots. |
+| ASP.NET attribute route truth | `aspnet-attribute-route-truth` | supported | `framework_semantics.aspnet.route_entries` | `method, path, handler` for literal controller/action attributes; handlers are class-qualified when the declaring controller is known | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/csharp_route_semantics_test.go::TestDefaultEngineParsePathCSharpASPNetAttributeRouteEntries`, `go/internal/reducer/handles_route_csharp_test.go::TestBuildHandlesRouteIntentRowsEmitsCSharpASPNetExactEntries` | Shared reducer route projection proof | Literal ASP.NET Core MVC/Web API attributes emit exact entries only when the route path and method handler are source-proven. Token substitution, nonliteral routes, `[NonAction]`, generated routes, and convention routing do not fabricate handler edges. |
+| ASP.NET minimal API route truth | `aspnet-minimal-api-route-truth` | supported | `framework_semantics.aspnet_minimal_api.route_entries` | `method, path, handler` for literal `Map*` calls with named handlers | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/csharp_route_semantics_test.go::TestDefaultEngineParsePathCSharpASPNetMinimalAPIRouteEntries`, `go/internal/reducer/handles_route_csharp_test.go::TestBuildHandlesRouteIntentRowsEmitsCSharpASPNetExactEntries` | Shared reducer route projection proof | Literal `MapGet`, `MapPost`, `MapPut`, `MapPatch`, `MapDelete`, and literal `MapMethods` registrations emit exact entries only when the handler is a bare identifier. Lambdas, method values, dynamic paths, endpoint filters, and generated/runtime route registrations remain unclaimed. |
+| ASP.NET convention route truth | `aspnet-convention-route-truth` | partial | - | - | - | `go/internal/parser/csharp_route_semantics_test.go` | Explicit unsupported-route wording on this page | Controller/action conventions, `[controller]`/`[action]` token expansion, runtime discovery, and generated manifests are not exact route-to-handler truth today. |
+| ASP.NET endpoint-routing truth | `aspnet-endpoint-routing-route-truth` | partial | - | - | - | `go/internal/parser/csharp_route_semantics_test.go` | Explicit unsupported-route wording on this page | `MapControllerRoute`, `MapGroup`, endpoint filters, runtime discovery, and generated manifests are not exact route-to-handler truth today. |
 
 ## Framework And Library Support
 
 Supported today:
 
 - ASP.NET controller actions, hosted-service callbacks, test methods, and
-  serialization callbacks are modeled as derived roots. ASP.NET roots are not
-  exact route entries; C# does not emit
-  `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges today.
+  serialization callbacks are modeled as derived roots. Derived ASP.NET roots
+  are separate from exact route truth and do not by themselves create
+  `HANDLES_ROUTE` edges.
+- Literal ASP.NET Core MVC/Web API attributes emit
+  `framework_semantics.aspnet.route_entries` when the parser can prove the HTTP
+  method, route path, and method handler from local source. Class-level
+  `[Route("...")]` prefixes and method-level `HttpGet`/`HttpPost`/`HttpPut`/
+  `HttpPatch`/`HttpDelete`/`HttpHead`/`HttpOptions` or literal method
+  `[Route("...")]` attributes are in scope; `[NonAction]`, nonliteral paths,
+  and `[controller]`/`[action]` token expansion are skipped.
+- Literal ASP.NET Core minimal API registrations emit
+  `framework_semantics.aspnet_minimal_api.route_entries` for `MapGet`,
+  `MapPost`, `MapPut`, `MapPatch`, `MapDelete`, and literal `MapMethods`
+  calls when the route path is a source literal and the handler argument is a
+  bare identifier. `HANDLES_ROUTE` is projected only when the reducer resolves
+  that handler to exactly one Function entity.
 - Main methods, constructors, overrides, and same-file interface methods and
   implementations are also modeled as root evidence.
 - `.csproj` PackageReference entries are parsed by the separate
@@ -53,9 +70,11 @@ Not claimed today:
   exactness blockers for code reachability. NuGet project-reference package
   identity is skipped unless it is represented as PackageReference package
   evidence.
-- Exact route-to-handler truth for ASP.NET MVC/Web API, minimal APIs, and
-  endpoint routing is tracked by
-  [#4115](https://github.com/eshu-hq/eshu/issues/4115).
+- ASP.NET controller/action conventions, tokenized `[controller]` and
+  `[action]` routes, `MapControllerRoute`, `MapGroup`, endpoint filters, route
+  values derived from dependency injection, reflection, generated manifests,
+  implicit global usings, and runtime-discovered registrations are not emitted
+  as exact route-to-handler truth today.
 
 ## Known Limitations
 - Extension methods are not tagged as extensions in the graph
@@ -64,3 +83,5 @@ Not claimed today:
 - Reflection, dependency injection, source generators, project references,
   partial type merging, dynamic dispatch, and broad public API surfaces remain
   exactness blockers for dead-code cleanup.
+- C# route truth requires explicit local source evidence. Implicit/global using
+  configuration and project-level endpoint conventions are not resolved.

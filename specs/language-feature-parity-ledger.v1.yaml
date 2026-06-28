@@ -73,11 +73,11 @@ language_features:
     docs_claim: docs/public/languages/csharp.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [methods, constructors, local-functions, classes, interfaces, structs, records, enums, properties, using-directives, method-invocations, object-creation, inheritance-base-list]
-    partial_features: [aspnet-route-truth, outbound-contracts]
+    supported_features: [methods, constructors, local-functions, classes, interfaces, structs, records, enums, properties, using-directives, method-invocations, object-creation, inheritance-base-list, aspnet-attribute-route-truth, aspnet-minimal-api-route-truth]
+    partial_features: [aspnet-convention-route-truth, aspnet-endpoint-routing-route-truth, outbound-contracts]
     derived_features: [dead-code-roots]
-    source_files: [go/internal/parser/csharp_language.go, go/internal/parser/csharp/language.go]
-    test_files: [go/internal/parser/csharp_cfg_dataflow_test.go, go/internal/parser/csharp_dead_code_roots_test.go]
+    source_files: [go/internal/parser/csharp_language.go, go/internal/parser/csharp/language.go, go/internal/parser/csharp/framework_routes.go, go/internal/parser/csharp/framework_routes_syntax.go]
+    test_files: [go/internal/parser/csharp_cfg_dataflow_test.go, go/internal/parser/csharp_dead_code_roots_test.go, go/internal/parser/csharp_route_semantics_test.go, go/internal/reducer/handles_route_csharp_test.go]
     docs: [docs/public/languages/csharp.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
     tracking_issues: [4038, 4115]
