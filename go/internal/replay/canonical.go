@@ -234,6 +234,19 @@ func transformChild(parent map[string]any, key string, child any, opts Canonical
 	return transformed
 }
 
+// DerivedGenerationID returns the canonical generation_id Canonicalize derives
+// for a scope from its scope_id. A recorder whose source can choose its own
+// generation_id (the parser-fixture flavor, which runs the parser fresh rather
+// than replaying a credentialed run) stamps this value so the run's generation_id
+// already equals its canonical form: the recorded fixture is then byte-stable AND
+// the live envelopes match the replayed ones exactly (record->replay round-trip
+// identity), instead of the run-specific id being silently rewritten on record.
+// It is the exported counterpart to the internal generation_id derivation in
+// DefaultCanonicalOptions.
+func DerivedGenerationID(scopeID string) string {
+	return deriveValue("generation_id", scopeID)
+}
+
 // deriveValue returns a deterministic replacement for a run-specific key whose
 // value must stay unique. The result is "<prefix>-<hash(seed)>", stable across
 // re-records because seed is a stable sibling (scope_id) rather than the
