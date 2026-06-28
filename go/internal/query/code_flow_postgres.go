@@ -18,8 +18,8 @@ type codeFlowQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-// PostgresCodeFlowStore reads active-generation code-flow evidence from
-// fact_records.
+// PostgresCodeFlowStore reads cumulative active code-flow evidence from
+// fact_records, preserving unchanged facts across delta generations.
 type PostgresCodeFlowStore struct {
 	db codeFlowQueryer
 }
@@ -30,42 +30,68 @@ func NewPostgresCodeFlowStore(db codeFlowQueryer) PostgresCodeFlowStore {
 }
 
 const listActiveCodeFlowFactsSQL = `
+WITH active_scope AS (
+    SELECT
+        scope.scope_id,
+        scope.active_generation_id,
+        active_generation.ingested_at AS active_ingested_at
+    FROM ingestion_scopes AS scope
+    JOIN scope_generations AS active_generation
+      ON active_generation.scope_id = scope.scope_id
+     AND active_generation.generation_id = scope.active_generation_id
+    WHERE active_generation.status = 'active'
+),
+ranked_candidates AS (
+    SELECT
+        fact.fact_id,
+        fact.generation_id,
+        fact.fact_kind,
+        fact.observed_at,
+        fact.is_tombstone,
+        fact.payload,
+        ROW_NUMBER() OVER (
+            PARTITION BY fact.scope_id, fact.stable_fact_key
+            ORDER BY generation.ingested_at DESC, generation.generation_id DESC, fact.observed_at DESC, fact.fact_id DESC
+        ) AS rn
+    FROM fact_records AS fact
+    JOIN active_scope
+      ON active_scope.scope_id = fact.scope_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = ANY($1::text[])
+      AND fact.payload->>'repo_id' = $2
+      AND generation.status IN ('active', 'superseded')
+      AND generation.ingested_at <= active_scope.active_ingested_at
+)
 SELECT
-    fact.fact_id,
-    fact.generation_id,
-    fact.fact_kind,
-    fact.observed_at,
-    fact.payload
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND fact.fact_kind = ANY($1::text[])
-  AND fact.payload->>'repo_id' = $2
-  AND ($3::text = '' OR lower(coalesce(nullif(fact.payload->>'language', ''), nullif(fact.payload->>'lang', ''))) = $3)
-  AND ($4::text = '' OR fact.payload->>'relative_path' = $4)
+    candidate.fact_id,
+    candidate.generation_id,
+    candidate.fact_kind,
+    candidate.observed_at,
+    candidate.payload
+FROM ranked_candidates AS candidate
+WHERE candidate.rn = 1
+  AND candidate.is_tombstone = FALSE
+  AND ($3::text = '' OR lower(coalesce(nullif(candidate.payload->>'language', ''), nullif(candidate.payload->>'lang', ''))) = $3)
+  AND ($4::text = '' OR candidate.payload->>'relative_path' = $4)
   AND (
     $5::text = ''
-    OR fact.payload->>'function_name' = $5
-    OR fact.payload->>'source_function_name' = $5
-    OR fact.payload->>'sink_function_name' = $5
+    OR candidate.payload->>'function_name' = $5
+    OR candidate.payload->>'source_function_name' = $5
+    OR candidate.payload->>'sink_function_name' = $5
   )
   AND (
     $6::int = 0
-    OR coalesce(nullif(fact.payload->>'line_number', ''), '0')::int = $6
-    OR coalesce(nullif(fact.payload->>'source_line', ''), '0')::int = $6
-    OR coalesce(nullif(fact.payload->>'sink_line', ''), '0')::int = $6
+    OR coalesce(nullif(candidate.payload->>'line_number', ''), '0')::int = $6
+    OR coalesce(nullif(candidate.payload->>'source_line', ''), '0')::int = $6
+    OR coalesce(nullif(candidate.payload->>'sink_line', ''), '0')::int = $6
   )
-ORDER BY fact.observed_at ASC, fact.fact_id ASC
+ORDER BY candidate.observed_at ASC, candidate.fact_id ASC
 LIMIT $7
 `
 
-// ListCodeFlow loads bounded active-generation code-flow rows.
+// ListCodeFlow loads bounded cumulative active code-flow rows.
 func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlowFilter) (CodeFlowReadModel, error) {
 	if s.db == nil {
 		return CodeFlowReadModel{}, fmt.Errorf("code-flow store database is required")
@@ -90,7 +116,7 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 		limit,
 	)
 	if err != nil {
-		return CodeFlowReadModel{}, fmt.Errorf("list active code-flow facts: %w", err)
+		return CodeFlowReadModel{}, fmt.Errorf("list cumulative active code-flow facts: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -100,11 +126,11 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 		var observedAt time.Time
 		var rawPayload []byte
 		if err := rows.Scan(&factID, &generationID, &factKind, &observedAt, &rawPayload); err != nil {
-			return CodeFlowReadModel{}, fmt.Errorf("scan active code-flow fact: %w", err)
+			return CodeFlowReadModel{}, fmt.Errorf("scan cumulative active code-flow fact: %w", err)
 		}
 		payload := map[string]any{}
 		if err := json.Unmarshal(rawPayload, &payload); err != nil {
-			return CodeFlowReadModel{}, fmt.Errorf("decode active code-flow payload: %w", err)
+			return CodeFlowReadModel{}, fmt.Errorf("decode cumulative active code-flow payload: %w", err)
 		}
 		switch factKind {
 		case facts.CodeDataflowFunctionFactKind:
@@ -114,7 +140,7 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return CodeFlowReadModel{}, fmt.Errorf("list active code-flow facts: %w", err)
+		return CodeFlowReadModel{}, fmt.Errorf("list cumulative active code-flow facts: %w", err)
 	}
 	return model, nil
 }

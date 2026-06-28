@@ -64,7 +64,7 @@ func TestBuildDataflowFunctionsReadsParserBucket(t *testing.T) {
 	if len(got.DefUse) != 1 || got.DefUse[0]["binding"] != "q" {
 		t.Fatalf("def-use not mapped: %+v", got.DefUse)
 	}
-	if !got.Overflow || got.OverflowReason != "def_use_edges=2,access_paths=1" {
+	if !got.Overflow || got.OverflowReason != "access_paths=1,def_use_edges=2" {
 		t.Fatalf("overflow not mapped: %+v", got)
 	}
 }
