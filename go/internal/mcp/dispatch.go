@@ -130,6 +130,12 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok, err := repositoryRoute(toolName, args); ok {
 		return route, err
 	}
+	if route, ok, err := relationshipEdgesRoute(toolName, args); ok {
+		return route, err
+	}
+	if route, ok, err := repositoryFilesRoute(toolName, args); ok {
+		return route, err
+	}
 	if route, ok := ecosystemRoute(toolName, args); ok {
 		return route, nil
 	}

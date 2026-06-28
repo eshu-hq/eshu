@@ -6017,6 +6017,10 @@
         {
           "tool": "get_relationships_catalog",
           "kind": "api"
+        },
+        {
+          "tool": "list_relationship_edges",
+          "kind": "mcp"
         }
       ],
       "profiles": {
