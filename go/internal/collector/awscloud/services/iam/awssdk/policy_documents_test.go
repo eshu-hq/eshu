@@ -124,3 +124,27 @@ func TestBoundedPermissionBoundaryStatementsPropagatesFetchError(t *testing.T) {
 		t.Fatal("boundedPermissionBoundaryStatements() error = nil, want fetch error")
 	}
 }
+
+// TestBoundedManagedPolicyStatementsSourceLabelIsAttachedManaged proves that
+// every statement produced by boundedManagedPolicyStatements carries
+// Source="attached_managed" so the reducer can distinguish managed-policy
+// grants from inline and boundary grants.
+func TestBoundedManagedPolicyStatementsSourceLabelIsAttachedManaged(t *testing.T) {
+	const policyARN = "arn:aws:iam::123456789012:policy/ReadOnly"
+	doc := `{"Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:ListBucket"],"Resource":"*"}]}`
+	statements, err := boundedManagedPolicyStatements([]string{policyARN}, 5, func(string) (string, error) {
+		return doc, nil
+	})
+	if err != nil {
+		t.Fatalf("boundedManagedPolicyStatements() error = %v", err)
+	}
+	if len(statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(statements))
+	}
+	if statements[0].Source != "attached_managed" {
+		t.Fatalf("Source = %q, want attached_managed", statements[0].Source)
+	}
+	if statements[0].PolicyARN != policyARN {
+		t.Fatalf("PolicyARN = %q, want %q", statements[0].PolicyARN, policyARN)
+	}
+}

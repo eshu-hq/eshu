@@ -117,6 +117,66 @@ func TestDeriveBucketPolicyResourcePermissionStatementsRejectsMalformed(t *testi
 	}
 }
 
+// TestDerivePrincipalFactsCanonicalAndFederatedTypes proves that CanonicalUser
+// and Federated principal-key entries contribute their type to PrincipalTypes
+// (via principalTypeForKey) without contributing account-ids or ARNs, and that
+// neither sets the public or cross-account booleans.
+func TestDerivePrincipalFactsCanonicalAndFederatedTypes(t *testing.T) {
+	document := `{"Statement":[
+		{"Sid":"Canon","Effect":"Allow","Principal":{"CanonicalUser":"79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be"},"Action":"s3:GetObject","Resource":"*"},
+		{"Sid":"Fed","Effect":"Allow","Principal":{"Federated":"arn:aws:iam::123456789012:oidc-provider/example"},"Action":"s3:GetObject","Resource":"*"}
+	]}`
+	statements, err := deriveBucketPolicyResourcePermissionStatements(document, "123456789012")
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if len(statements) != 2 {
+		t.Fatalf("statement count = %d, want 2", len(statements))
+	}
+
+	canon := statementBySID(t, statements, "Canon")
+	if !equalStrings(canon.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeCanonical}) {
+		t.Fatalf("Canon PrincipalTypes = %#v, want [canonical]", canon.PrincipalTypes)
+	}
+	if len(canon.PrincipalARNs) != 0 || len(canon.PrincipalAccountIDs) != 0 {
+		t.Fatalf("Canon must not emit ARNs/accountIDs for CanonicalUser: arns=%v accounts=%v", canon.PrincipalARNs, canon.PrincipalAccountIDs)
+	}
+	if canon.IsPublic || canon.IsCrossAccount {
+		t.Fatalf("Canon: is_public=%v is_cross_account=%v, want both false", canon.IsPublic, canon.IsCrossAccount)
+	}
+
+	fed := statementBySID(t, statements, "Fed")
+	if !equalStrings(fed.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeFederated}) {
+		t.Fatalf("Fed PrincipalTypes = %#v, want [federated]", fed.PrincipalTypes)
+	}
+	if len(fed.PrincipalARNs) != 0 || len(fed.PrincipalAccountIDs) != 0 {
+		t.Fatalf("Fed must not emit ARNs/accountIDs for Federated: arns=%v accounts=%v", fed.PrincipalARNs, fed.PrincipalAccountIDs)
+	}
+	if fed.IsPublic || fed.IsCrossAccount {
+		t.Fatalf("Fed: is_public=%v is_cross_account=%v, want both false", fed.IsPublic, fed.IsCrossAccount)
+	}
+}
+
+// TestDeriveBucketPolicyResourcePermissionStatementsMalformedEffectIsSkipped
+// proves that a statement with an unrecognized Effect value is silently dropped
+// by normalizeStatementEffect, so only well-formed Allow/Deny entries are emitted.
+func TestDeriveBucketPolicyResourcePermissionStatementsMalformedEffectIsSkipped(t *testing.T) {
+	document := `{"Statement":[
+		{"Sid":"Good","Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"*"},
+		{"Sid":"Bad","Effect":"Permit","Principal":"*","Action":"s3:GetObject","Resource":"*"}
+	]}`
+	statements, err := deriveBucketPolicyResourcePermissionStatements(document, "123456789012")
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if len(statements) != 1 {
+		t.Fatalf("statement count = %d, want 1 (malformed effect must be skipped): %#v", len(statements), statements)
+	}
+	if statements[0].StatementSID != "Good" {
+		t.Fatalf("StatementSID = %q, want Good", statements[0].StatementSID)
+	}
+}
+
 func statementBySID(t *testing.T, statements []s3service.ResourcePolicyStatement, sid string) s3service.ResourcePolicyStatement {
 	t.Helper()
 	for _, statement := range statements {

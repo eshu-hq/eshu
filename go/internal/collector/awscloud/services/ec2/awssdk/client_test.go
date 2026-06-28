@@ -302,3 +302,85 @@ func TestNetworkInterfaceInputIncludesManagedResourcesAndPagination(t *testing.T
 		t.Fatalf("MaxResults = %#v, want %d", input.MaxResults, ec2PageLimit)
 	}
 }
+
+// TestMapSubnetPreservesVPCLinkageAndIPv6 proves mapSubnet records the VpcId
+// (the RUNS_IN foundation field) and the IPv6 CIDR associations alongside the
+// other subnet identity fields. VPCID is the critical cross-resource link used
+// by the runtimebind reducer to derive RUNS_IN edges; it must survive the
+// mapping without truncation.
+func TestMapSubnetPreservesVPCLinkageAndIPv6(t *testing.T) {
+	subnet := mapSubnet(awsec2types.Subnet{
+		SubnetId:                    aws.String("subnet-abc123"),
+		SubnetArn:                   aws.String("arn:aws:ec2:us-east-1:123456789012:subnet/subnet-abc123"),
+		VpcId:                       aws.String("vpc-123"),
+		OwnerId:                     aws.String("123456789012"),
+		State:                       awsec2types.SubnetStateAvailable,
+		CidrBlock:                   aws.String("10.0.1.0/24"),
+		AvailabilityZone:            aws.String("us-east-1a"),
+		AvailabilityZoneId:          aws.String("use1-az1"),
+		AvailableIpAddressCount:     aws.Int32(251),
+		DefaultForAz:                aws.Bool(false),
+		MapPublicIpOnLaunch:         aws.Bool(false),
+		AssignIpv6AddressOnCreation: aws.Bool(true),
+		Ipv6Native:                  aws.Bool(false),
+		OutpostArn:                  aws.String(""),
+		Ipv6CidrBlockAssociationSet: []awsec2types.SubnetIpv6CidrBlockAssociation{{
+			AssociationId: aws.String("subnet-cidr-assoc-v6-1"),
+			Ipv6CidrBlock: aws.String("2001:db8::/64"),
+		}},
+		Tags: []awsec2types.Tag{{Key: aws.String("tier"), Value: aws.String("private")}},
+	})
+
+	if subnet.ID != "subnet-abc123" {
+		t.Fatalf("ID = %q, want subnet-abc123", subnet.ID)
+	}
+	if subnet.VPCID != "vpc-123" {
+		t.Fatalf("VPCID = %q, want vpc-123 (cross-resource link for RUNS_IN foundation)", subnet.VPCID)
+	}
+	if subnet.CIDRBlock != "10.0.1.0/24" {
+		t.Fatalf("CIDRBlock = %q, want 10.0.1.0/24", subnet.CIDRBlock)
+	}
+	if subnet.AvailabilityZone != "us-east-1a" {
+		t.Fatalf("AvailabilityZone = %q, want us-east-1a", subnet.AvailabilityZone)
+	}
+	if got, want := len(subnet.IPv6CIDRBlocks), 1; got != want {
+		t.Fatalf("len(IPv6CIDRBlocks) = %d, want %d", got, want)
+	}
+	if subnet.IPv6CIDRBlocks[0].CIDRBlock != "2001:db8::/64" {
+		t.Fatalf("IPv6CIDRBlocks[0].CIDRBlock = %q, want 2001:db8::/64", subnet.IPv6CIDRBlocks[0].CIDRBlock)
+	}
+	if subnet.Tags["tier"] != "private" {
+		t.Fatalf("tag tier = %q, want private", subnet.Tags["tier"])
+	}
+}
+
+// TestMapSecurityGroupPreservesVPCAndOwner proves mapSecurityGroup records the
+// VpcId and OwnerId fields that the runtimebind reducer uses to scope the
+// security-group to the correct VPC and account context. The ALLOWS_INGRESS
+// edges derived from security-group rules depend on these fields being present.
+func TestMapSecurityGroupPreservesVPCAndOwner(t *testing.T) {
+	sg := mapSecurityGroup(awsec2types.SecurityGroup{
+		GroupId:     aws.String("sg-prod-api"),
+		GroupName:   aws.String("prod-api"),
+		Description: aws.String("prod API security group"),
+		VpcId:       aws.String("vpc-123"),
+		OwnerId:     aws.String("123456789012"),
+		Tags:        []awsec2types.Tag{{Key: aws.String("service"), Value: aws.String("api")}},
+	})
+
+	if sg.ID != "sg-prod-api" {
+		t.Fatalf("ID = %q, want sg-prod-api", sg.ID)
+	}
+	if sg.VPCID != "vpc-123" {
+		t.Fatalf("VPCID = %q, want vpc-123", sg.VPCID)
+	}
+	if sg.OwnerID != "123456789012" {
+		t.Fatalf("OwnerID = %q, want 123456789012", sg.OwnerID)
+	}
+	if sg.Name != "prod-api" {
+		t.Fatalf("Name = %q, want prod-api", sg.Name)
+	}
+	if sg.Tags["service"] != "api" {
+		t.Fatalf("tag service = %q, want api", sg.Tags["service"])
+	}
+}
