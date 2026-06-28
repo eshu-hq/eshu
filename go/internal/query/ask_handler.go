@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
+	"github.com/eshu-hq/eshu/go/internal/ask/facet"
 	"github.com/eshu-hq/eshu/go/internal/ask/render"
 )
 
@@ -98,6 +98,7 @@ var ErrNoStreaming = fmt.Errorf("ask: adapter does not support streaming")
 //	  "artifacts":        []object // rendered format artifacts
 //	  "truth_class":      string   // from primary packet
 //	  "evidence_handles": []object // from primary packet
+//	  "applied_facets":   object   // deterministic question-scoping metadata
 //	  "query_trace":      []object // tool-call trace
 //	  "partial":          bool
 //	  "limitations":      []string
@@ -125,6 +126,27 @@ type askArtifact struct {
 	Issues  []string `json:"issues,omitempty"`
 }
 
+// askAppliedFacets carries the deterministic detected-intent metadata that
+// the pre-engine facet mapper found in the question. It is informational: the
+// field records what the detector found in the question text, not what the
+// agent actually filtered on — see the query_trace for the filters the agent
+// passed to its tools. Callers can use this field to surface detected-scope
+// chips in the UI without parsing the query trace.
+type askAppliedFacets struct {
+	// SourceTool is the canonical source_tool token detected in the question
+	// (e.g. "helm", "terraform"). Empty when no canonical tool was detected.
+	// This is detected intent, not a confirmed applied filter.
+	SourceTool string `json:"source_tool,omitempty"`
+	// Language is the programming-language name detected in the question
+	// (e.g. "go", "python"). Empty when none was detected.
+	// This is detected intent, not a confirmed applied filter.
+	Language string `json:"language,omitempty"`
+	// UnknownToolNote is a human-readable note when the question appeared to
+	// name a specific tool that is not in the canonical vocabulary. Empty when
+	// no unknown tool was detected.
+	UnknownToolNote string `json:"unknown_tool_note,omitempty"`
+}
+
 // askResponse is the documented JSON response shape for POST /api/v0/ask.
 type askResponse struct {
 	AnswerProse     string                   `json:"answer_prose,omitempty"`
@@ -135,10 +157,11 @@ type askResponse struct {
 	// packet's evidence handles. It is the packet-level citation coverage for the
 	// answer prose when individual EvidenceHandles are not inlined, and is the
 	// coverage anchor for derived, un-narrated prose (issue #3550).
-	CitationRef string       `json:"citation_ref,omitempty"`
-	QueryTrace  []traceEntry `json:"query_trace,omitempty"`
-	Partial     bool         `json:"partial"`
-	Limitations []string     `json:"limitations,omitempty"`
+	CitationRef   string            `json:"citation_ref,omitempty"`
+	AppliedFacets *askAppliedFacets `json:"applied_facets,omitempty"`
+	QueryTrace    []traceEntry      `json:"query_trace,omitempty"`
+	Partial       bool              `json:"partial"`
+	Limitations   []string          `json:"limitations,omitempty"`
 }
 
 // traceEntry is the per-call representation in query_trace.
@@ -262,14 +285,7 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 
 	// Defense-in-depth: when narration produced no publishable prose but a
 	// supported packet carries a deterministic Summary, surface that Summary as
-	// derived prose so the answer is not silently empty (issue #3550). The
-	// Summary is the packet builder's evidence-gated deterministic answer, not a
-	// governed narration, so it is published only when publish-safe and is
-	// explicitly marked derived/un-narrated. The guardrail's citation-coverage
-	// rule applies to governed narration prose, not to this deterministic
-	// packet Summary; the publish-safety scan is reapplied here to keep the
-	// leak-safety invariant. The fallback also guarantees citation/provenance
-	// coverage for the surfaced prose so it is never bare uncited prose.
+	// derived prose so the answer is not silently empty (issue #3550).
 	applyDerivedProseFallback(&resp, ans.Narrated, primarySupported, primarySummary)
 
 	// Artifacts: when the answer has prose, validate the detected format and
@@ -285,6 +301,11 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 			},
 		}
 	}
+
+	// Applied facets: record detected intent from the question and add honest
+	// limitation notes. This is a pure recording step; see query_trace for the
+	// filters the agent actually applied inside its tool calls.
+	resp.AppliedFacets = buildAppliedFacets(question, &resp.Limitations)
 
 	// Query trace.
 	if len(ans.Trace) > 0 {
@@ -303,165 +324,33 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 	return resp
 }
 
-func applyAskRuntimeGuardrails(resp *askResponse, primarySupported bool) {
-	if resp == nil {
-		return
-	}
-	verdict := answerguardrail.ValidateResult(answerguardrail.Result{
-		AnswerSummary:   resp.AnswerProse,
-		Supported:       primarySupported,
-		CitationHandles: askCitationHandleStrings(resp.EvidenceHandles),
-		// Prose backed by a classified packet's truth provenance (non-empty
-		// truth_class) satisfies citation coverage, mirroring the narration
-		// validator's ProvenanceTruth allowance (issue #3609).
-		TruthProvenance: strings.TrimSpace(resp.TruthClass) != "",
-		Limitations:     resp.Limitations,
-	})
-	if verdict.Valid {
-		return
-	}
-	resp.AnswerProse = ""
-	resp.Artifacts = nil
-	resp.Partial = true
-	if verdict.HasFinding(answerguardrail.CriterionPublishSafety) {
-		resp.Limitations = publishSafeAskLimitations(resp.Limitations)
-		resp.EvidenceHandles = publishSafeAskEvidenceHandles(resp.EvidenceHandles)
-	}
-	for _, finding := range verdict.Findings {
-		resp.Limitations = appendAskLimitation(resp.Limitations,
-			"runtime answer guardrail blocked publishable prose: "+string(finding.Criterion))
-	}
-}
-
-// applyDerivedProseFallback surfaces a supported packet's deterministic Summary
-// as answer_prose when the engine produced no governed narration (issue #3550).
-// It is defense-in-depth for the case where narration is unavailable or the
-// narration validator rejected every sentence: without it, a fully supported
-// deterministic answer would return empty prose.
-//
-// It runs after applyAskRuntimeGuardrails and only acts when narration produced
-// no prose, the primary packet is supported, and the Summary is non-empty. The
-// Summary is the packet builder's evidence-gated deterministic answer, not a
-// governed narration, so the guardrail's citation-coverage rule (which targets
-// governed narration prose) does not apply here. Publish safety still does: an
-// unsafe Summary is never surfaced. Surfaced prose is marked derived and
-// un-narrated via a limitation so callers do not mistake it for a governed
-// narration.
-//
-// Citation coverage parity: the narration path guarantees every published
-// answer carries citation coverage — inlined evidence handles, a citation_ref,
-// or, for an uncitable packet, truth provenance keyed to truth_class (the #3550
-// narration fix). The derived fallback matches that guarantee. It keeps any
-// publish-safe EvidenceHandles or CitationRef already on resp as the coverage,
-// and when the packet has neither it stamps an explicit truth-provenance
-// coverage marker so the surfaced prose is never bare uncited prose.
-func applyDerivedProseFallback(resp *askResponse, narrated, primarySupported bool, primarySummary string) {
-	if resp == nil {
-		return
-	}
-	if narrated || !primarySupported {
-		return
-	}
-	if resp.AnswerProse != "" {
-		return
-	}
-	summary := strings.TrimSpace(primarySummary)
-	if summary == "" {
-		return
-	}
-	if answerguardrail.UnsafeString(summary) {
-		resp.Limitations = appendAskLimitation(resp.Limitations,
-			"derived deterministic summary withheld: failed publish-safety scan")
-		return
-	}
-	resp.AnswerProse = primarySummary
-	resp.Limitations = appendAskLimitation(resp.Limitations,
-		"answer_prose is the derived, un-narrated deterministic summary (no governed narration produced)")
-	applyDerivedProseCoverage(resp)
-}
-
-// applyDerivedProseCoverage guarantees the derived fallback prose carries
-// citation or provenance coverage, mirroring the narration path. Inlined
-// publish-safe EvidenceHandles or a non-empty CitationRef already cover the
-// prose, so nothing is added in those cases. When neither is present the packet
-// is uncitable; the answer is still backed by its classified truth_class, so an
-// explicit truth-provenance coverage marker is stamped (and the truth_class is
-// echoed in it) rather than leaving the prose with no citation or provenance
-// reference (issue #3550).
-func applyDerivedProseCoverage(resp *askResponse) {
-	if len(resp.EvidenceHandles) > 0 || strings.TrimSpace(resp.CitationRef) != "" {
-		return
-	}
-	truthClass := strings.TrimSpace(resp.TruthClass)
-	if truthClass == "" {
-		truthClass = string(AnswerTruthUnsupported)
-	}
-	resp.Limitations = appendAskLimitation(resp.Limitations,
-		"answer_prose citation coverage is the packet truth provenance (truth_class: "+truthClass+"); no citation_ref or evidence handles were resolved")
-}
-
-func askCitationHandleStrings(handles []evidenceCitationHandle) []string {
-	if len(handles) == 0 {
+// buildAppliedFacets runs DetectFacets on the question and returns a populated
+// askAppliedFacets (or nil when the question has no detectable scope). It
+// records detected-intent metadata and appends honest Limitation notes so the
+// scoping is visible even to callers that ignore the applied_facets field.
+// The field reflects what the pre-engine detector found; see the query_trace
+// for the filters the agent actually applied inside its tool calls.
+func buildAppliedFacets(question string, limitations *[]string) *askAppliedFacets {
+	f := facet.DetectFacets(question)
+	if f.SourceTool == "" && f.Language == "" && f.UnknownToolMention == "" {
 		return nil
 	}
-	out := make([]string, 0, len(handles))
-	for _, handle := range handles {
-		parts := []string{
-			handle.Kind,
-			handle.RepoID,
-			handle.RelativePath,
-			handle.EntityID,
-			handle.EvidenceFamily,
-			handle.Reason,
-		}
-		var nonEmpty []string
-		for _, part := range parts {
-			if strings.TrimSpace(part) != "" {
-				nonEmpty = append(nonEmpty, part)
-			}
-		}
-		out = append(out, strings.Join(nonEmpty, ":"))
+	out := &askAppliedFacets{
+		SourceTool: f.SourceTool,
+		Language:   f.Language,
+	}
+	if f.SourceTool != "" {
+		*limitations = appendAskLimitation(*limitations,
+			"Detected a source_tool="+f.SourceTool+" intent in the question; see the query trace for the filters the agent actually applied.")
+	}
+	if f.Language != "" {
+		*limitations = appendAskLimitation(*limitations,
+			"Detected a language="+f.Language+" intent in the question; see the query trace for the filters the agent actually applied.")
+	}
+	if f.UnknownToolMention != "" {
+		note := "'" + f.UnknownToolMention + "' is not a recognized Eshu source_tool; answered without a tool filter"
+		out.UnknownToolNote = note
+		*limitations = appendAskLimitation(*limitations, note)
 	}
 	return out
-}
-
-func publishSafeAskLimitations(limitations []string) []string {
-	if len(limitations) == 0 {
-		return limitations
-	}
-	out := make([]string, 0, len(limitations))
-	for _, limitation := range limitations {
-		if answerguardrail.UnsafeString(limitation) {
-			continue
-		}
-		out = append(out, limitation)
-	}
-	return out
-}
-
-func publishSafeAskEvidenceHandles(handles []evidenceCitationHandle) []evidenceCitationHandle {
-	if len(handles) == 0 {
-		return handles
-	}
-	out := make([]evidenceCitationHandle, 0, len(handles))
-	for _, handle := range handles {
-		if answerguardrail.FirstUnsafeString(askCitationHandleStrings([]evidenceCitationHandle{handle})) != "" {
-			continue
-		}
-		out = append(out, handle)
-	}
-	return out
-}
-
-func appendAskLimitation(limitations []string, value string) []string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return limitations
-	}
-	for _, existing := range limitations {
-		if existing == value {
-			return limitations
-		}
-	}
-	return append(limitations, value)
 }

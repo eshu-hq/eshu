@@ -18,13 +18,13 @@ import {
   narrationState,
   normalizeAnswer,
   normalizeStreamError,
-  normalizeTraceStep
+  normalizeTraceStep,
 } from "./askEshuNormalize";
 import type { EshuFetcher } from "./client";
 import {
   browserSessionCSRFCookieName,
   browserSessionCSRFHeaderName,
-  eshuEnvelopeAccept
+  eshuEnvelopeAccept,
 } from "./client";
 
 /** Requested answer format. `auto` lets the engine infer from the question. */
@@ -67,6 +67,14 @@ export interface AskEvidenceHandle {
   readonly [key: string]: unknown;
 }
 
+/** Deterministic question-scoping metadata. Present only when a recognizable
+ *  tool or language was detected in the question. */
+export interface AskAppliedFacets {
+  readonly source_tool?: string;
+  readonly language?: string;
+  readonly unknown_tool_note?: string;
+}
+
 /** Full answer packet from POST /api/v0/ask, normalized for the UI. */
 export interface AskAnswer {
   readonly answer_prose: string;
@@ -76,6 +84,7 @@ export interface AskAnswer {
   readonly partial: boolean;
   readonly limitations: readonly string[];
   readonly evidence_handles: readonly AskEvidenceHandle[];
+  readonly applied_facets?: AskAppliedFacets;
 }
 
 /** Terminal error states the Ask surface can present. */
@@ -144,7 +153,7 @@ export function askEshu(options: AskRunOptions): void {
     onAnswer: options.onAnswer ?? noop,
     onError: options.onError ?? noop,
     onDone: once(options.onDone ?? noop),
-    onAbort: options.onAbort ?? noop
+    onAbort: options.onAbort ?? noop,
   };
   const body = JSON.stringify({ question: options.question, format: options.format });
   if (options.stream === false) {
@@ -159,29 +168,37 @@ export function askEshu(options: AskRunOptions): void {
 // rather than presenting a broken control. Never throws.
 export async function askNarrationStatus(
   connection: AskConnection,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<AskNarrationProbe> {
   const fetcher = connection.fetcher ?? globalFetch();
   try {
     const response = await fetcher(joinUrl(connection.baseUrl, narrationStatusPath), {
       credentials: "same-origin",
       headers: getHeaders(connection.apiKey),
-      signal
+      signal,
     });
     if (!response.ok) {
-      return { state: "unavailable", reason: `probe failed: HTTP ${response.status}`, providerConfigured: true };
+      return {
+        state: "unavailable",
+        reason: `probe failed: HTTP ${response.status}`,
+        providerConfigured: true,
+      };
     }
     const parsed = (await response.json()) as unknown;
     const data = narrationData(parsed);
     return {
       state: narrationState(data.state),
       reason: typeof data.reason === "string" ? data.reason : "",
-      providerConfigured: narrationProviderConfigured(data.provider_configured)
+      providerConfigured: narrationProviderConfigured(data.provider_configured),
     };
   } catch (error) {
     // On a failed probe, assume the provider is configured so the input still
     // renders; a real outage surfaces at submit time as a bounded error.
-    return { state: "unavailable", reason: errorMessage(error) || "probe failed", providerConfigured: true };
+    return {
+      state: "unavailable",
+      reason: errorMessage(error) || "probe failed",
+      providerConfigured: true,
+    };
   }
 }
 
@@ -189,7 +206,7 @@ async function runStream(
   connection: AskConnection,
   body: string,
   handlers: AskHandlers,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
   const fetcher = connection.fetcher ?? globalFetch();
   try {
@@ -198,7 +215,7 @@ async function runStream(
       credentials: "same-origin",
       headers: postHeaders(connection.apiKey, "text/event-stream"),
       body,
-      signal
+      signal,
     });
     // A server-side failure of the SSE variant is recoverable: the synchronous
     // JSON variant of the same route does not need an http.Flusher, so a 5xx
@@ -231,7 +248,7 @@ async function runSync(
   connection: AskConnection,
   body: string,
   handlers: AskHandlers,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
   const fetcher = connection.fetcher ?? globalFetch();
   try {
@@ -240,7 +257,7 @@ async function runSync(
       credentials: "same-origin",
       headers: postHeaders(connection.apiKey, "application/json"),
       body,
-      signal
+      signal,
     });
     if (handleStatus(response, handlers)) {
       return;
@@ -263,7 +280,7 @@ async function consumeSyncResponse(response: Response, handlers: AskHandlers): P
 
 async function consumeEventStream(
   stream: ReadableStream<Uint8Array>,
-  handlers: AskHandlers
+  handlers: AskHandlers,
 ): Promise<void> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -326,7 +343,7 @@ function handleStatus(response: Response, handlers: AskHandlers): boolean {
   if (response.status === 403) {
     handlers.onError({
       state: "forbidden",
-      reason: "This token is scoped. Ask Eshu requires a shared or admin token."
+      reason: "This token is scoped. Ask Eshu requires a shared or admin token.",
     });
     handlers.onDone();
     return true;
@@ -340,7 +357,10 @@ function handleStatus(response: Response, handlers: AskHandlers): boolean {
     handlers.onDone();
     return true;
   }
-  handlers.onError({ state: "error", reason: `Ask Eshu request failed (HTTP ${response.status}).` });
+  handlers.onError({
+    state: "error",
+    reason: `Ask Eshu request failed (HTTP ${response.status}).`,
+  });
   handlers.onDone();
   return true;
 }
@@ -374,7 +394,7 @@ function postHeaders(apiKey: string, accept: string): HeadersInit {
   const headers: Record<string, string> = {
     ...getHeaders(apiKey),
     Accept: accept,
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
   };
   if (apiKey.trim().length === 0) {
     const csrfToken = readCookie(browserSessionCSRFCookieName);
@@ -399,7 +419,9 @@ function joinUrl(baseUrl: string, path: string): string {
   const cleanPath = path.startsWith("/") ? path.slice(1) : path;
   const origin = globalThis.location?.origin ?? "http://localhost";
   const absoluteBase =
-    base.startsWith("http://") || base.startsWith("https://") ? base : new URL(base, origin).toString();
+    base.startsWith("http://") || base.startsWith("https://")
+      ? base
+      : new URL(base, origin).toString();
   return new URL(cleanPath, absoluteBase).toString();
 }
 
@@ -425,14 +447,22 @@ function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  if (typeof error === "object" && error !== null && typeof (error as { message?: unknown }).message === "string") {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
     return (error as { message: string }).message;
   }
   return "";
 }
 
 function hasName(error: unknown): error is { name: string } {
-  return typeof error === "object" && error !== null && typeof (error as { name?: unknown }).name === "string";
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { name?: unknown }).name === "string"
+  );
 }
 
 function globalFetch(): EshuFetcher {
