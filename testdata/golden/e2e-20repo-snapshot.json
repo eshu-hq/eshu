@@ -365,6 +365,11 @@
         "required_response_fields": ["correlations"],
         "minimum_results": 1,
         "arguments": {"cluster_id": "supply-chain-demo"}
+      },
+      "list_cloud_resource_inventory": {
+        "description": "Returns cloud resource inventory (AWS/Azure/GCP cassettes); confirms cloud facts were ingested and projected. Route now mounted on the MCP server (#4071); asserted live (#3866).",
+        "required_response_fields": ["resources"],
+        "minimum_results": 1
       }
     },
     "http": {

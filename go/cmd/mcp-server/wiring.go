@@ -417,5 +417,13 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Content: contentReader,
 			Profile: queryProfile,
 		},
+		// CloudInventory backs the list_cloud_resource_inventory MCP tool. It must
+		// be mounted here (mirroring cmd/api/wiring.go) or the advertised tool
+		// dispatches to /api/v0/cloud/inventory and 404s on the standalone MCP
+		// server (#4071); the B-7 gate asserts this shape (#3866 criterion 4).
+		CloudInventory: &query.CloudInventoryHandler{
+			Content: contentReader,
+			Profile: queryProfile,
+		},
 	}
 }
