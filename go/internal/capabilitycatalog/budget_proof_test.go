@@ -182,6 +182,38 @@ func TestCheckBudgetProofFlagsPassWithRetryOrDeadLetter(t *testing.T) {
 	requireBudgetFinding(t, findings, BudgetFindingRuntimeInvariantFailed)
 }
 
+func TestCheckBudgetProofFlagsPassWithFailedMeasurementStatus(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []string{"", "fail", "partial"} {
+		t.Run("status_"+status, func(t *testing.T) {
+			t.Parallel()
+
+			artifact := validBudgetProofArtifact()
+			artifact.Measurements[0].Status = status
+			artifact.Measurements[0].RetryCount = 1
+			artifact.Measurements[0].DeadLetters = 1
+			artifact.Measurements[0].Scope.TruncationInvariant = "fail"
+
+			findings := CheckBudgetProof(testBudgetMatrix(), artifact)
+			requireBudgetFinding(t, findings, BudgetFindingRuntimeInvariantFailed)
+		})
+	}
+}
+
+func TestCheckBudgetProofDoesNotTreatCommitDigitsAsPrivateData(t *testing.T) {
+	t.Parallel()
+
+	artifact := validBudgetProofArtifact()
+	artifact.Run.Commit = "aaaaaaaaaa123456789012bbbbbbbbbbbbbbbbbb"
+	artifact.Measurements[0].Commit = "aaaaaaaaaa123456789012bbbbbbbbbbbbbbbbbb"
+
+	findings := CheckBudgetProof(testBudgetMatrix(), artifact)
+	if len(findings) != 0 {
+		t.Fatalf("unexpected findings: %+v", findings)
+	}
+}
+
 func TestCheckBudgetProofFlagsPrivateData(t *testing.T) {
 	t.Parallel()
 

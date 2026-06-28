@@ -148,7 +148,7 @@ func CheckBudgetProof(matrix Matrix, artifact BudgetProofArtifact) []BudgetFindi
 	byRow := map[string]BudgetMeasurement{}
 	for _, measurement := range artifact.Measurements {
 		byRow[budgetRowKey(measurement.Capability, measurement.Profile)] = measurement
-		findings = append(findings, measurementFindings(measurement)...)
+		findings = append(findings, measurementFindings(artifact.Status, measurement)...)
 	}
 
 	for _, capability := range matrix.Capabilities {
@@ -205,9 +205,16 @@ func invalidBudgetArtifact(subject, detail string) BudgetFinding {
 	return BudgetFinding{Kind: BudgetFindingInvalidArtifact, Subject: subject, Detail: detail}
 }
 
-func measurementFindings(measurement BudgetMeasurement) []BudgetFinding {
+func measurementFindings(artifactStatus string, measurement BudgetMeasurement) []BudgetFinding {
 	subject := budgetRowKey(measurement.Capability, measurement.Profile)
 	var findings []BudgetFinding
+	if artifactStatus == "pass" && measurement.Status != "pass" {
+		findings = append(findings, BudgetFinding{
+			Kind:    BudgetFindingRuntimeInvariantFailed,
+			Subject: subject,
+			Detail:  "pass artifact requires every measurement row status to pass",
+		})
+	}
 	if measurement.Status == "pass" && (measurement.RetryCount != 0 || measurement.DeadLetters != 0 || measurement.Scope.TruncationInvariant != "pass") {
 		findings = append(findings, BudgetFinding{
 			Kind:    BudgetFindingRuntimeInvariantFailed,
@@ -297,7 +304,13 @@ func requiresBudgetProof(profile MatrixProfile) bool {
 }
 
 func publicArtifactContainsPrivateData(artifact BudgetProofArtifact) bool {
-	payload, err := json.Marshal(artifact)
+	redacted := artifact
+	redacted.Run.Commit = ""
+	redacted.Measurements = append([]BudgetMeasurement(nil), artifact.Measurements...)
+	for i := range redacted.Measurements {
+		redacted.Measurements[i].Commit = ""
+	}
+	payload, err := json.Marshal(redacted)
 	if err != nil {
 		return true
 	}
