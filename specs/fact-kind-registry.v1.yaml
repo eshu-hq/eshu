@@ -1,0 +1,261 @@
+# Generated fact-kind registry contract v1.
+#
+# This is the source input for go/internal/facts/fact_kind_registry.generated.go
+# and go/internal/facts/FACT_KIND_REGISTRIES.md. Keep fact kind, schema version,
+# reducer domain, projection, admission, read surface, owner, and truth-profile
+# naming aligned with specs/surface-inventory.v1.yaml and
+# specs/evidence-continuity.v1.yaml.
+version: "1.0.0"
+families:
+  documentation:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    schema_version_overrides: {documentation_section: "1.1.0"}
+    reducer_domain: documentation_materialization
+    projection_hook: documentation_evidence
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/documentation/facts"
+    truth_profile: deterministic
+    provider_key_independent: true
+    kinds: [documentation_claim_candidate, documentation_document, documentation_entity_mention, documentation_evidence_packet, documentation_finding, documentation_link, documentation_section, documentation_source]
+  aws:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: aws_cloud_runtime_drift
+    projection_hook: cloud_asset_resolution
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/cloud/inventory"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning]
+  azure:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: azure_resource_materialization
+    projection_hook: multi_cloud_runtime_drift
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/cloud/inventory"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation]
+  ci_cd_run:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: ci_cd_run_correlation
+    projection_hook: ci_cd_run_correlation
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/ci-cd/run-correlations"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [ci.artifact, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
+  ec2_instance_posture:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: ec2_instance_node_materialization
+    projection_hook: ec2_instance_posture
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/cloud/resources"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [ec2_instance_posture]
+  gcp:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: gcp_resource_materialization
+    projection_hook: multi_cloud_runtime_drift
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/cloud/inventory"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_policy_observation, gcp_image_reference, gcp_tag_observation]
+  incident_context:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: incident_repository_correlation
+    projection_hook: incident_context_read_model
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/incidents/{incident_id}/context"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [change.record, incident.lifecycle_event, incident.record]
+  incident_routing:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: incident_routing_materialization
+    projection_hook: incident_routing_materialization
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/incidents/{incident_id}/context"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning, incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service]
+  kubernetes_live:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: kubernetes_correlation
+    projection_hook: kubernetes_correlation
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/cloud/resources"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
+  observability:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: observability_coverage_correlation
+    projection_hook: observability_coverage_correlation
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/observability/coverage"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [observability.applied_resource, observability.applied_sync_state, observability.coverage_warning, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route, observability.observed_dashboard, observability.observed_log_signal, observability.observed_rule, observability.observed_target, observability.observed_trace_signal, observability.source_instance]
+  oci_registry:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: container_image_identity
+    projection_hook: container_image_identity
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/images"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning]
+  package_registry:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: package_source_correlation
+    projection_hook: package_source_correlation
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/package-registry/packages"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning]
+  rds_posture:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: rds_posture_materialization
+    projection_hook: rds_posture_materialization
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/cloud/resources"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [rds_instance_posture]
+  s3_bucket_posture:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: s3_internet_exposure_materialization
+    projection_hook: s3_bucket_posture
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/cloud/resources"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [s3_bucket_posture]
+  s3_external_principal_grant:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: s3_external_principal_grant_materialization
+    projection_hook: s3_external_principal_grant_materialization
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/secrets-iam/posture-summary"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [s3_external_principal_grant]
+  sbom_attestation:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: sbom_attestation_attachment
+    projection_hook: sbom_attestation_attachment
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/supply-chain/sbom-attestations/attachments"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning]
+  scanner_worker:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: supply_chain_impact
+    projection_hook: supply_chain_impact
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/supply-chain/impact/findings"
+    truth_profile: fixture_gated
+    provider_key_independent: false
+    kinds: [scanner_worker.analysis, scanner_worker.warning]
+  secrets_iam:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: secrets_iam_trust_chain
+    projection_hook: secrets_iam_graph_projection
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/secrets-iam/posture-summary"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [aws_iam_access_analyzer_finding, aws_iam_instance_profile, aws_iam_permission_boundary, aws_iam_permission_policy, aws_iam_policy_attachment, aws_iam_principal, aws_iam_trust_policy, eks_irsa_annotation, eks_pod_identity_association, gcp_iam_permission_policy, gcp_iam_principal, gcp_iam_trust_policy, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, secrets_iam_coverage_warning, vault_acl_policy, vault_auth_mount, vault_auth_role, vault_identity_alias, vault_identity_entity, vault_kv_metadata, vault_secret_engine_mount]
+  security_alert:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: security_alert_reconciliation
+    projection_hook: security_alert_reconciliation
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/supply-chain/security-alerts/reconciliations"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [security_alert.repository_alert]
+  semantic:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: semantic_entity_materialization
+    projection_hook: semantic_evidence
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/semantic-evidence"
+    truth_profile: optional_semantic
+    policy_gate: semanticpolicy
+    provider_key_independent: false
+    kinds: [semantic.code_hint, semantic.documentation_observation]
+  service_catalog:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: service_catalog_correlation
+    projection_hook: service_catalog_correlation
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/service-catalog/correlations"
+    truth_profile: deterministic
+    provider_key_independent: true
+    kinds: [service_catalog.api_link, service_catalog.dependency, service_catalog.entity, service_catalog.operational_link, service_catalog.ownership, service_catalog.repository_link, service_catalog.scorecard_definition, service_catalog.scorecard_result, service_catalog.warning]
+  terraform_state:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: config_state_drift
+    projection_hook: terraform_relationship_projection
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/iac/resources"
+    truth_profile: deterministic
+    provider_key_independent: true
+    kinds: [terraform_state_candidate, terraform_state_module, terraform_state_output, terraform_state_provider_binding, terraform_state_resource, terraform_state_snapshot, terraform_state_tag_observation, terraform_state_warning]
+  vulnerability_intelligence:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: supply_chain_impact
+    projection_hook: vulnerability_source_state
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/supply-chain/impact/findings"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
+  vulnerability_suppression:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: supply_chain_impact
+    projection_hook: vulnerability_suppression_admission
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/supply-chain/impact/findings"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [vulnerability.suppression]
+  work_item:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: incident_repository_correlation
+    projection_hook: work_item_evidence_read_model
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/work-items/evidence"
+    truth_profile: provider_gated
+    provider_key_independent: false
+    kinds: [work_item.external_link, work_item.field_metadata, work_item.issue_type_metadata, work_item.metadata_warning, work_item.project_metadata, work_item.record, work_item.status_metadata, work_item.transition, work_item.workflow_metadata]

@@ -2166,6 +2166,11 @@
     },
     {
       "category": "command",
+      "name": "fact-kind-registry",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "golden-corpus-gate",
       "readiness": "implemented"
     },

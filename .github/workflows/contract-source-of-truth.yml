@@ -34,6 +34,9 @@ jobs:
       - name: Run test mirror
         run: scripts/test-verify-contracttest.sh
 
+      - name: Run fact-kind registry test mirror
+        run: scripts/test-verify-fact-kind-registry.sh
+
   generate:
     name: Verify contract source-of-truth gate
     timeout-minutes: 15
@@ -57,17 +60,24 @@ jobs:
         run: |
           set -o pipefail
           scripts/generate-contracttest.sh 2>&1 | tee /tmp/contracttest.log
+          scripts/generate-fact-kind-registry.sh 2>&1 | tee /tmp/fact-kind-registry.log
 
       - name: Check for uncommitted drift
         shell: bash
         run: |
           set -o pipefail
-          if ! git diff --exit-code -- go/internal/collector/contracttest/contract_data.go; then
+          if ! git diff --exit-code -- \
+            go/internal/collector/contracttest/contract_data.go \
+            go/internal/facts/fact_kind_registry.generated.go \
+            go/internal/facts/FACT_KIND_REGISTRIES.md; then
             {
-              printf 'contract-source-of-truth: the committed contract_data.go drifted from the YAML spec.\n'
-              printf 'Re-run: scripts/generate-contracttest.sh\n'
+              printf 'contract-source-of-truth: generated contract artifacts drifted from their YAML specs.\n'
+              printf 'Re-run: scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh\n'
               printf '\nDiff:\n'
-              git diff -- go/internal/collector/contracttest/contract_data.go
+              git diff -- \
+                go/internal/collector/contracttest/contract_data.go \
+                go/internal/facts/fact_kind_registry.generated.go \
+                go/internal/facts/FACT_KIND_REGISTRIES.md
             } >&2
             exit 1
           fi
@@ -77,5 +87,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: contracttest-drift-report
-          path: /tmp/contracttest.log
+          path: |
+            /tmp/contracttest.log
+            /tmp/fact-kind-registry.log
           if-no-files-found: warn

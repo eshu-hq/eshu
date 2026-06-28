@@ -472,8 +472,9 @@ fail closed unless a permission decision says the viewer can read the source.
 
 When adding or changing a fact family:
 
-1. Add or update fact kind constants and schema-version helpers in
-   `go/internal/facts`.
+1. Add or update the family metadata in
+   `specs/fact-kind-registry.v1.yaml`, then regenerate the generated registry
+   contract in `go/internal/facts`.
 2. Set `CollectorKind`, `SourceConfidence`, `ScopeID`, `GenerationID`, and
    `StableFactKey` deliberately in the emitter.
 3. Redact sensitive payload values before emission.
