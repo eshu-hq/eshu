@@ -282,6 +282,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			GraphBackend: graphBackend,
 			Neo4j:        neo4jReader,
 			Content:      contentReader,
+			CodeFlow:     query.NewPostgresCodeFlowStore(db),
 			Profile:      queryProfile,
 			HybridRanker: newCodeHybridRanker(semanticSearchEmbedding),
 		},

@@ -81,6 +81,7 @@ func buildStreamingGenerationWithContext(
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		len(snapshot.TaintEvidence) + len(snapshot.InterprocTaintEvidence) +
 		len(snapshot.FunctionSummaries) + len(snapshot.FunctionSources) +
+		len(snapshot.DataflowFunctions) +
 		dataflowScannedFactCount +
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
@@ -326,6 +327,10 @@ func streamFacts(
 		ch <- functionSourceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fnSource)
 	}
 	snapshot.FunctionSources = nil
+	for _, function := range snapshot.DataflowFunctions {
+		ch <- dataflowFunctionFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, function)
+	}
+	snapshot.DataflowFunctions = nil
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	if snapshot.Delta {

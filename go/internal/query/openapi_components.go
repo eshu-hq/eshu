@@ -188,6 +188,37 @@ const openAPIComponents = `  "components": {
           "next_cursor": {"type": "string"}
         }
       },
+      "CodeFlowRequest": {
+        "type": "object",
+        "required": ["repo_id"],
+        "properties": {
+          "repo_id": {"type": "string", "description": "Required repository selector (canonical ID, name, slug, or path)."},
+          "language": {"type": "string", "description": "Optional supported language filter. Unsupported languages return explicit unsupported coverage instead of fabricated rows."},
+          "symbol": {"type": "string", "description": "Optional function or source/sink symbol filter."},
+          "file_path": {"type": "string", "description": "Optional repository-relative file path filter."},
+          "line": {"type": "integer", "minimum": 1, "description": "Optional 1-based line filter."},
+          "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100}
+        }
+      },
+      "CodeFlowResponse": {
+        "type": "object",
+        "description": "Canonical bounded code-flow response. One of paths, definitions, functions, or summaries is populated depending on the operation. Each row carries a fact_label such as exact_parser_fact, derived_reducer_evidence, or partial_derived_summary.",
+        "properties": {
+          "kind": {"type": "string", "enum": ["taint_path", "reaching_def", "cfg_summary", "pdg_summary"]},
+          "scope": {"type": "object", "additionalProperties": true},
+          "paths": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+          "definitions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+          "functions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+          "summaries": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+          "coverage": {"type": "object", "additionalProperties": true},
+          "bounds": {"type": "object", "additionalProperties": true},
+          "count": {"type": "integer"},
+          "limit": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "source_backend": {"type": "string", "enum": ["fact_records"]},
+          "answer_metadata": {"type": "object", "description": "Normalized answer metadata with evidence handles, missing evidence, limitations, partial reasons, coverage, and recommended next calls."}
+        }
+      },
       "Relationship": {
         "type": "object",
         "properties": {

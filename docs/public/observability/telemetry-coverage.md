@@ -137,6 +137,7 @@ land at the same call sites.
 | bootstrap pipeline overlap | go/cmd/bootstrap-index/main.go:420 | `eshu_dp_pipeline_overlap_seconds` | collector chokepoint |
 | repo snapshot | go/internal/collector/git_source_processing.go:211 | `eshu_dp_repo_snapshot_duration_seconds`, `eshu_dp_repos_snapshotted_total`, `eshu_dp_files_parsed_total` | collector per-collector |
 | snapshot stage timing | go/internal/collector/git_snapshot_native.go:330 | `eshu_dp_collector_snapshot_stage_duration_seconds` | collector per-collector |
+| dataflow function fact mapping | go/internal/collector/git_snapshot_dataflow_function.go:31 | No-Observability-Change: covered by `eshu_dp_collector_snapshot_stage_duration_seconds`, `eshu_dp_facts_emitted_total`, and `eshu_dp_generation_fact_count`; this file maps already-parser-bounded `dataflow_functions` rows into one streamed fact per function and emits no metric of its own | collector per-collector |
 | delta baseline fallback | go/internal/collector/git_selection_baseline.go:175 | `eshu_dp_collector_delta_baseline_fallback_total` | collector per-collector |
 | file parse | go/internal/collector/git_snapshot_native.go | `eshu_dp_file_parse_duration_seconds`, `eshu_dp_scip_snapshot_attempts_total`, `eshu_dp_scip_process_wait_seconds` | collector per-collector |
 | scope assign | go/internal/collector/git_source_processing.go:35 | `eshu_dp_scope_assign_duration_seconds` | collector per-collector |

@@ -163,6 +163,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := askRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := codeFlowRoute(toolName, args); ok {
+		return route, nil
+	}
 	switch toolName {
 	// ── Code ──
 	case "find_code":

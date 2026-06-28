@@ -259,11 +259,32 @@ progress messages.
   emits `dataflow_sources`; `streamFacts` emits each as a `code_function_source`
   fact, keyed idempotently on `(FunctionID, param index)`. The reducer persists
   them to the function-source store. Empty (and byte-identical) when off.
+- `DataflowFunctionSnapshot` — one parser-emitted function-level CFG,
+  reaching-definition, and control-dependence row read from `dataflow_functions`.
+  Populated only when the value-flow gate emits that bucket; `streamFacts` emits
+  each as a `code_dataflow_function` fact for bounded API/MCP code-flow
+  readbacks. Empty (and byte-identical) when off.
 - `DataflowCatalogVersionSnapshot` — one parser-emitted taint catalog content
   hash from `dataflow_catalog_versions`. It is folded into snapshot freshness so
   catalog-only source/sink matcher changes re-run the value-flow path for
   unchanged files. It does not stream as a fact and is empty when the dataflow
   gate is off.
+
+No-Regression Evidence: `go test ./internal/collector -run
+'Test(BuildDataflowFunctionsReadsParserBucket|DataflowFunctionFactEmittedAndCounted)'
+-count=1` covers the dataflow function fact-mapping path. The baseline input is
+the existing gate-off/no-`dataflow_functions` snapshot shape; the after input is
+one parser-emitted function row with one CFG block and one def-use edge. The
+terminal row delta is exactly one `code_dataflow_function` fact, and
+`FactCount == len(envelopes)` remains true. Backend/version: Postgres
+`fact_records` receives one additional active-generation fact per parser row;
+no graph write, queue, worker, or provider call is added.
+
+No-Observability-Change: the mapping is covered by existing
+`eshu_dp_collector_snapshot_stage_duration_seconds`, `eshu_dp_facts_emitted_total`,
+and `eshu_dp_generation_fact_count` signals. The `dataflow_function_count`
+snapshot log attribute lets operators correlate row volume with fact-count
+changes without adding a new metric or label.
 
 No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary|FunctionSource' -count=1`,
 `go test ./internal/storage/postgres -run 'FunctionSource' -count=1`, and

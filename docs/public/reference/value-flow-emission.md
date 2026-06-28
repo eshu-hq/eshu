@@ -38,6 +38,15 @@ key is added, the snapshot payload is byte-identical to a build without the
 feature. This is the load-bearing contract: turning the gate off leaves every
 pre-existing fact contract exactly as it was.
 
+The API and MCP code-flow readbacks expose only already-collected facts:
+`/api/v0/code/flow/cfg-summary` and `/api/v0/code/flow/reaching-def` read exact
+parser `dataflow_functions` facts, `/api/v0/code/flow/taint-path` reads derived
+taint/interprocedural evidence, and `/api/v0/code/flow/pdg-summary` reports a
+partial derived summary from available def-use and control-dependence facts. All
+four routes remain deterministic without provider keys, bound their result
+counts, and label unsupported languages, missing evidence, ambiguity, stale
+generations, and truncation explicitly.
+
 ## Accepted values
 
 The gate uses an affirmative-only contract. The raw value is trimmed and
@@ -120,6 +129,25 @@ Recorded explicitly so launch and product reviewers can cite it:
   parse and projection budget for output that is never read.
 - The gate is read per collector process from the environment; there is no
   per-repository override in the gate itself.
+
+No-Regression Evidence: `go test ./internal/collector ./internal/query
+./internal/mcp ./cmd/api ./cmd/mcp-server ./cmd/capability-inventory
+./internal/capabilitycatalog -count=1` covers the collector/API/MCP readback.
+The baseline input is the existing gate-off and no-`dataflow_functions` snapshot
+shape; the after input adds one parser-emitted function row with one CFG block
+and one def-use edge. The collector regression drains both streams and asserts a
+terminal row delta of exactly one `code_dataflow_function` fact, with
+`FactCount == len(envelopes)`. API/MCP reads stay bounded by `limit+1` probe,
+with a hard maximum of 100 returned rows. Backend/version: Postgres
+`fact_records` active-generation rows; no graph write path or provider call is
+added.
+
+No-Observability-Change: no new metric is required. Existing
+`eshu_dp_collector_snapshot_stage_duration_seconds`,
+`eshu_dp_facts_emitted_total`, and `eshu_dp_generation_fact_count` already cover
+snapshot duration and emitted/committed fact volume for the added fact kind. The
+API/MCP path is read-only and continues to use the existing HTTP/MCP envelope,
+status, error, and truth/freshness metadata surfaces.
 
 ## Related
 

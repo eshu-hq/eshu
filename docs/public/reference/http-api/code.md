@@ -21,6 +21,10 @@ absolute server paths are not portable client identifiers.
 | `POST /api/v0/code/security/secrets/investigate` | Redacted hardcoded-secret findings, confidence, severity, suppression notes, source handles, and coverage. |
 | `POST /api/v0/code/imports/investigate` | Importers, imports by file, package imports, module dependencies, direct Python file cycles, and cross-module calls. |
 | `POST /api/v0/code/call-graph/metrics` | Hub functions and recursive functions for one repository. |
+| `POST /api/v0/code/flow/taint-path` | Bounded taint-path evidence from active value-flow facts, labeled as derived reducer evidence. |
+| `POST /api/v0/code/flow/reaching-def` | Bounded reaching-definition rows from exact parser-emitted `dataflow_functions` facts. |
+| `POST /api/v0/code/flow/cfg-summary` | Bounded CFG summaries from exact parser-emitted `dataflow_functions` facts. |
+| `POST /api/v0/code/flow/pdg-summary` | Bounded partial PDG summaries combining def-use and control-dependence facts. |
 | `POST /api/v0/code/relationships` | Direct or bounded transitive relationships for a canonical entity or resolved name. |
 | `POST /api/v0/code/relationships/story` | Narrative relationship packet with ambiguity handling and recommended follow-up calls. |
 | `POST /api/v0/code/call-chain` | Bounded path between start and end symbols or entity IDs. |
@@ -85,6 +89,25 @@ write, queue, worker, runtime setting, metric label, or new span is added.
 `POST /api/v0/code/call-graph/metrics` requires `repo_id`. It supports
 `hub_functions` and `recursive_functions`, deterministic ordering, paging,
 truncation metadata, source handles, and coverage.
+
+## Code Flow
+
+The code-flow routes require `repo_id` and accept optional `language`, `symbol`,
+`file_path`, `line`, and `limit` filters. They read only active-generation facts
+that were already produced by the parser/collector/reducer path; they do not
+call semantic providers and do not require provider keys.
+
+`cfg-summary` and `reaching-def` rows are labeled `exact_parser_fact` because
+they come from parser-emitted `dataflow_functions`. `taint-path` rows are
+labeled `derived_reducer_evidence` because they expose reducer-ingested taint and
+interprocedural evidence handles. `pdg-summary` rows are labeled
+`partial_derived_summary`; they combine available def-use and
+control-dependence facts and must not be treated as whole-program PDGs.
+
+Responses include `coverage` and `bounds` so empty evidence, unsupported
+languages, ambiguous symbols, stale generations, and truncation stay visible.
+Unsupported languages return explicit unsupported coverage rather than claiming
+no findings.
 
 ## Relationships And Paths
 

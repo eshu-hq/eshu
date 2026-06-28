@@ -11,3 +11,9 @@ package facts
 // generation's finding set is empty. Absent when the gate is off, so the snapshot
 // is byte-identical when value-flow emission is disabled.
 const CodeDataflowScannedFactKind = "code_dataflow_scanned"
+
+// CodeDataflowFunctionFactKind identifies one parser-emitted function-level
+// dataflow record carrying bounded CFG, reaching-definition, and
+// control-dependence facts. It is exact parser evidence for API/MCP code-flow
+// readbacks, not canonical graph truth. Absent when the value-flow gate is off.
+const CodeDataflowFunctionFactKind = "code_dataflow_function"
