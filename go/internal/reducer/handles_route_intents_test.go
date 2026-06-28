@@ -237,6 +237,47 @@ func TestBuildHandlesRouteIntentRowsPreservesJVMFrameworkProvenance(t *testing.T
 	}
 }
 
+func TestBuildHandlesRouteIntentRowsResolvesClassMethodHandler(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"urls.py",
+			[]map[string]any{
+				{
+					"name":          "get",
+					"class_context": "ReportView",
+					"uid":           "content-entity:report-get",
+					"line_number":   10,
+					"end_line":      12,
+					"lang":          "python",
+				},
+			},
+			"django",
+			[]any{
+				map[string]any{"method": "GET", "path": "/reports/", "handler": "ReportView.get"},
+			},
+		),
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 1 {
+		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
+	}
+	intent := intents[0]
+	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:report-get"; got != want {
+		t.Fatalf("function_entity_id = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "framework"), "django"; got != want {
+		t.Fatalf("framework = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
+		t.Fatalf("resolution_method = %q, want %q", got, want)
+	}
+}
+
 func TestBuildHandlesRouteIntentRowsSkipsUnknownHandler(t *testing.T) {
 	t.Parallel()
 

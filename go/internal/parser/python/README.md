@@ -107,3 +107,40 @@ VariableScope option to all when a caller needs local assignment payloads too.
 - docs/public/architecture.md
 - docs/public/reference/local-testing.md
 - docs/public/languages/support-maturity.md
+
+## Evidence notes
+
+No-Regression Evidence: bounded Django and DRF route extraction is parser-only
+and no-provider deterministic. `go test ./internal/parser/python -run
+'TestBuildPythonFrameworkSemanticsDjango|TestBuildPythonFrameworkSemanticsDRF'
+-count=1` failed before the parser emitted `framework_semantics.django` and
+`framework_semantics.drf` `route_entries`, then passed after literal
+`path(...)` under `urlpatterns`, same-file function identifiers, same-file
+class-view methods, literal DRF `ViewSet.as_view({...})` maps, router
+registrations with literal URLconf mounts or `urlpatterns = router.urls`, and
+literal `@action` routes emitted exact method/path rows with handlers only when
+the target is exact.
+Django route literals preserve their trailing slash shape, while DRF router
+entries apply DRF's trailing slash convention after any literal mount prefix.
+`go test ./internal/parser -run
+TestDefaultEngineParsePathPythonDjangoDRFExactRouteEntries -count=1` proves the
+parent `DefaultEngine.ParsePath` payload carries those rows into the emitted
+file fact shape. `go test ./internal/reducer -run
+TestBuildHandlesRouteIntentRowsResolvesClassMethodHandler -count=1` proves the
+existing `HANDLES_ROUTE` projection resolves `Class.method` handler strings to
+the exact Function entity when the parser can prove the class method. Dynamic
+`include()`, generated URLconf, shadowed `path` helpers, nonliteral route
+strings, dynamic DRF router prefixes or mounts, nonliteral action maps, and
+imported Django bare names or attributes stay unclaimed for handler projection
+while still preserving exact method/path evidence when the route literal is
+static.
+
+No-Observability-Change: this change only adds deterministic rows to the
+existing `framework_semantics.route_entries` payload consumed by existing
+endpoint extraction and `HANDLES_ROUTE` shared projection. It adds no metric
+instrument, metric label, span, log key, status field, env var, queue domain,
+worker, lease, batch, runtime knob, graph query, or graph writer. Operators
+continue to diagnose parsing through collector parse-stage logs and
+`eshu_dp_file_parse_duration_seconds`, and route projection through existing
+reducer run spans, shared-projection intent rows, execution counters, and
+`HANDLES_ROUTE` projection logs.
