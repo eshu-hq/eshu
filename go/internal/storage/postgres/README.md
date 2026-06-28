@@ -214,6 +214,47 @@ catalog snapshot, not a login denial. Observability: fail-closed `slog.ErrorCont
 on role/grant resolution errors so an operator can distinguish a
 permission-catalog outage from any other login failure.
 
+No-Regression Evidence: source-fair projector claims and reducer batch claims
+keep the existing worker count, batch size, lease expiry priority, same-scope
+projector representative, reducer conflict-key fencing, retry,
+stale-generation, and dead-letter paths intact while adding source-aware tie
+breakers to admission. Reducer batch claim predicates are backed by
+`fact_work_items_reducer_source_claim_idx`, a partial expression index over the
+normalized reducer intent `source_system`, domain, status, visibility, lease,
+and deterministic claim-order columns.
+`go test ./internal/storage/postgres ./internal/telemetry -run
+'Test(ProjectorQueue|ReducerQueue|ClaimBatch).*Source|TestQueueObserverStoreSource|TestSourceQueueObserverQueriesUseBoundedSourceSystem|TestRegisterObservableGauges'
+-count=1` covers the source-admission ordering and bounded metric registration.
+Performance Evidence: disposable Postgres 18-alpine, reducer claim benchmark
+input shape `ESHU_REDUCER_CLAIM_BENCH_DEPTHS=10000`, one source, 10,000 pending
+reducer rows, single `ReducerQueue.Claim` path unchanged by this PR. Baseline
+`origin/main` samples were 20.3 ms, 22.4 ms, and 22.3 ms/op; after samples were
+20.6 ms, 23.7 ms, and 22.0 ms/op with the same 34 KiB/op and 145-147 allocs/op
+range. The first source-fair draft used per-row source-rank counts and was
+rejected after a 10,000-row run was interrupted at 132 seconds; the landed
+reducer batch query instead uses a pre-aggregated in-flight source count, a
+source-head priority, and the partial source expression index above.
+Observability Evidence: `eshu_dp_queue_source_depth` and
+`eshu_dp_queue_source_oldest_age_seconds` expose queue pressure by bounded
+`queue`, `source_system`, and `status` labels. Projector metrics derive
+`source_system` from `ingestion_scopes.source_system`; reducer metrics prefer
+the reducer intent payload `source_system` and fall back to the scope source so
+operators can distinguish noisy-source starvation from ordinary backlog.
+No-Regression Evidence: the PR #4083 review fix changes only the source queue
+observer `GROUP BY` clauses from the ambiguous `source_system` alias to selected
+expression ordinals. `go test ./internal/storage/postgres -run
+TestSourceQueueObserverQueriesUseBoundedSourceSystem -count=1` failed before
+the fix and passed after it; `ESHU_REDUCER_FAIRNESS_PROOF_DSN=<disposable
+Postgres 18-alpine DSN> go test ./internal/storage/postgres -run
+TestQueueObserverStoreSourceQueriesRunOnPostgres -count=1 -v` proved the
+`SourceQueueDepths` and `SourceQueueOldestAge` queries execute against live
+Postgres with one projector source row and one reducer source row. Performance
+Evidence: this is a correctness-of-shape fix over the same queue observer scan,
+with no added join, predicate, or row expansion. Observability Evidence: the
+same `eshu_dp_queue_source_depth` and `eshu_dp_queue_source_oldest_age_seconds`
+metrics continue to expose the source labels; the fix restores their scrape
+path instead of adding a new telemetry surface.
+
 ### Deferred maintenance lock partitioning (issue #3482)
 
 Deferred relationship maintenance commits bounded per-repository-batch

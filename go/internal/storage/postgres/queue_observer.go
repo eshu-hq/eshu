@@ -57,6 +57,47 @@ WHERE status IN ('pending', 'claimed', 'running', 'retrying')
 GROUP BY stage
 `
 
+const sourceQueueDepthQuery = `
+WITH ` + activeFactWorkItemsCTE + `
+SELECT work.stage,
+       CASE
+         WHEN work.stage = 'projector' THEN COALESCE(NULLIF(BTRIM(scope.source_system), ''), 'unknown')
+         ELSE COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown')
+       END AS source_system,
+       work.status,
+       COUNT(*) AS count
+FROM active_fact_work_items AS work
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = work.scope_id
+WHERE work.status IN ('pending', 'claimed', 'running', 'retrying')
+GROUP BY 1, 2, work.status
+ORDER BY work.stage, source_system, work.status
+`
+
+const sourceQueueOldestAgeQuery = `
+WITH ` + activeFactWorkItemsCTE + `
+SELECT work.stage,
+       CASE
+         WHEN work.stage = 'projector' THEN COALESCE(NULLIF(BTRIM(scope.source_system), ''), 'unknown')
+         ELSE COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown')
+       END AS source_system,
+       COALESCE(
+         EXTRACT(
+           EPOCH FROM (
+             $1 - MIN(work.created_at)
+               FILTER (WHERE work.status IN ('pending', 'claimed', 'running', 'retrying'))
+           )
+         ),
+         0
+       ) AS oldest_age_seconds
+FROM active_fact_work_items AS work
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = work.scope_id
+WHERE work.status IN ('pending', 'claimed', 'running', 'retrying')
+GROUP BY 1, 2
+ORDER BY work.stage, source_system
+`
+
 const semanticQueueDepthQuery = `
 SELECT 'semantic_extraction' AS queue,
        status,
@@ -163,6 +204,47 @@ func (s *QueueObserverStore) addQueueDepthRows(
 	return nil
 }
 
+// SourceQueueDepths returns queue depth per stage, source system, and status.
+// Status values "claimed" and "running" are merged into "in_flight" to match
+// QueueDepths while keeping source_system bounded to collector/source families.
+func (s *QueueObserverStore) SourceQueueDepths(ctx context.Context) (map[string]map[string]map[string]int64, error) {
+	if s.queryer == nil {
+		return nil, fmt.Errorf("queue observer queryer is required")
+	}
+
+	rows, err := s.queryer.QueryContext(ctx, sourceQueueDepthQuery)
+	if err != nil {
+		return nil, fmt.Errorf("source queue depths: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string]map[string]map[string]int64)
+	for rows.Next() {
+		var queue, sourceSystem, status string
+		var count int64
+		if err := rows.Scan(&queue, &sourceSystem, &status, &count); err != nil {
+			return nil, fmt.Errorf("source queue depths scan: %w", err)
+		}
+		if result[queue] == nil {
+			result[queue] = make(map[string]map[string]int64)
+		}
+		if result[queue][sourceSystem] == nil {
+			result[queue][sourceSystem] = make(map[string]int64)
+		}
+		switch status {
+		case "claimed", "running":
+			result[queue][sourceSystem]["in_flight"] += count
+		default:
+			result[queue][sourceSystem][status] += count
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("source queue depths: %w", err)
+	}
+
+	return result, nil
+}
+
 // ReducerGraphWriteTimeoutDepth returns the number of reducer work items that
 // are retrying because a bounded graph write timed out (failure_class =
 // graph_write_timeout). The producer write-backpressure gate consumes this
@@ -190,6 +272,37 @@ func (s *QueueObserverStore) ReducerGraphWriteTimeoutDepth(ctx context.Context) 
 	}
 
 	return depth, nil
+}
+
+// SourceQueueOldestAge returns oldest outstanding item age by stage and source.
+func (s *QueueObserverStore) SourceQueueOldestAge(ctx context.Context) (map[string]map[string]float64, error) {
+	if s.queryer == nil {
+		return nil, fmt.Errorf("queue observer queryer is required")
+	}
+
+	rows, err := s.queryer.QueryContext(ctx, sourceQueueOldestAgeQuery, s.now())
+	if err != nil {
+		return nil, fmt.Errorf("source queue oldest age: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string]map[string]float64)
+	for rows.Next() {
+		var queue, sourceSystem string
+		var ageSeconds float64
+		if err := rows.Scan(&queue, &sourceSystem, &ageSeconds); err != nil {
+			return nil, fmt.Errorf("source queue oldest age scan: %w", err)
+		}
+		if result[queue] == nil {
+			result[queue] = make(map[string]float64)
+		}
+		result[queue][sourceSystem] = ageSeconds
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("source queue oldest age: %w", err)
+	}
+
+	return result, nil
 }
 
 // QueueOldestAge returns the age in seconds of the oldest outstanding item

@@ -6,12 +6,52 @@ package postgres
 var claimReducerWorkBatchQuery = `
 WITH ` + supersedeInactiveReducerGenerationsCTE + `,
 ` + reducerClaimReadinessRequirementsCTE() + `,
+reducer_source_inflight AS (
+    SELECT
+        COALESCE(NULLIF(BTRIM(payload->>'source_system'), ''), 'unknown') AS reducer_source_system,
+        count(*) AS reducer_source_inflight_count
+    FROM fact_work_items
+    WHERE stage = 'reducer'
+      AND status IN ('claimed', 'running')
+      AND claim_until > $1
+    GROUP BY reducer_source_system
+),
 candidate AS (
     SELECT
         work_item_id,
+        COALESCE(NULLIF(BTRIM(fact_work_items.payload->>'source_system'), ''), 'unknown') AS reducer_source_system,
         -- Derived search-document catch-up can be expensive; graph truth and
         -- materialization reducers must not wait behind it when both are ready.
         CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority,
+        COALESCE(source_counts.reducer_source_inflight_count, 0) AS reducer_source_inflight_count,
+        -- Per-source fairness rank (#4053). Source systems are a bounded
+        -- collector vocabulary carried in the reducer intent payload. The
+        -- first ready representative for each source sorts ahead of additional
+        -- same-source rows, which prevents a noisy older source from filling
+        -- every batch while preserving the existing conflict-key fence.
+        CASE WHEN fact_work_items.work_item_id = (
+            SELECT source_head.work_item_id
+            FROM fact_work_items AS source_head
+            WHERE source_head.stage = 'reducer'
+              AND source_head.domain = fact_work_items.domain
+              AND COALESCE(NULLIF(BTRIM(source_head.payload->>'source_system'), ''), 'unknown') =
+                  COALESCE(NULLIF(BTRIM(fact_work_items.payload->>'source_system'), ''), 'unknown')
+              AND source_head.status IN ('pending', 'retrying', 'claimed', 'running')
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM superseded_stale_reducer_generations AS source_superseded
+                  WHERE source_superseded.work_item_id = source_head.work_item_id
+              )
+              AND (source_head.visible_at IS NULL OR source_head.visible_at <= $1)
+              AND (source_head.claim_until IS NULL OR source_head.claim_until <= $1)
+              AND ($2::text[] IS NULL OR source_head.domain = ANY($2::text[]))
+              AND ` + reducerClaimReadinessGateSQL("source_head", "source_readiness_req", "source_readiness_phase") + `
+            ORDER BY
+              CASE WHEN source_head.domain = 'eshu_search_document' THEN 1 ELSE 0 END ASC,
+              source_head.updated_at ASC,
+              source_head.work_item_id ASC
+            LIMIT 1
+        ) THEN 0 ELSE 1 END AS reducer_source_fair_rank,
         -- Per-domain fairness rank (#3385, P1 fix #3386). A lane that claims
         -- several domains must not let one high-volume domain with an older,
         -- continuously regenerated backlog monopolize every batch and
@@ -139,6 +179,8 @@ candidate AS (
               )
         ) AS reducer_domain_fair_rank
     FROM fact_work_items
+    LEFT JOIN reducer_source_inflight AS source_counts
+      ON source_counts.reducer_source_system = COALESCE(NULLIF(BTRIM(fact_work_items.payload->>'source_system'), ''), 'unknown')
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
       AND NOT EXISTS (
@@ -259,7 +301,7 @@ candidate AS (
             same.work_item_id ASC
           LIMIT 1
       )
-    ORDER BY reducer_domain_priority ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC
+    ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC
     LIMIT $8
     FOR UPDATE SKIP LOCKED
 ),

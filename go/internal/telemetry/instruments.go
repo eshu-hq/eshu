@@ -26,6 +26,14 @@ type QueueObserver interface {
 	QueueOldestAge(ctx context.Context) (map[string]float64, error)
 }
 
+// SourceQueueObserver provides queue pressure grouped by bounded source system.
+// Keys for SourceQueueDepths are queue name -> source_system -> status -> count.
+// Keys for SourceQueueOldestAge are queue name -> source_system -> age seconds.
+type SourceQueueObserver interface {
+	SourceQueueDepths(ctx context.Context) (map[string]map[string]map[string]int64, error)
+	SourceQueueOldestAge(ctx context.Context) (map[string]map[string]float64, error)
+}
+
 // WorkflowFamilyQueueDepthObserver provides outstanding claim-aware collector
 // queue depth grouped by collector family and status, backing the per-family
 // queue-depth gauge. Keys: collector_kind -> source_system -> status -> count.
@@ -986,6 +994,8 @@ type Instruments struct {
 	// Observable gauges for autoscaling signals
 	QueueDepth             metric.Int64ObservableGauge
 	QueueOldestAge         metric.Float64ObservableGauge
+	SourceQueueDepth       metric.Int64ObservableGauge
+	SourceQueueOldestAge   metric.Float64ObservableGauge
 	WorkerPoolActive       metric.Int64ObservableGauge
 	SharedAcceptanceRows   metric.Int64ObservableGauge
 	GraphOrphanNodes       metric.Int64ObservableGauge
@@ -3826,6 +3836,64 @@ func RegisterObservableGauges(
 		)
 		if err != nil {
 			return fmt.Errorf("register QueueOldestAge gauge: %w", err)
+		}
+
+		if sourceObs, ok := queueObs.(SourceQueueObserver); ok {
+			inst.SourceQueueDepth, err = meter.Int64ObservableGauge(
+				"eshu_dp_queue_source_depth",
+				metric.WithDescription("Current queue depth by queue, source system, and status"),
+				metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+					depths, err := sourceObs.SourceQueueDepths(ctx)
+					if err != nil {
+						return err
+					}
+					for queue, sources := range depths {
+						for sourceSystem, statuses := range sources {
+							for status, count := range statuses {
+								o.Observe(
+									count,
+									metric.WithAttributes(
+										attribute.String("queue", queue),
+										attribute.String(MetricDimensionSourceSystem, sourceSystem),
+										attribute.String(MetricDimensionStatus, status),
+									),
+								)
+							}
+						}
+					}
+					return nil
+				}),
+			)
+			if err != nil {
+				return fmt.Errorf("register SourceQueueDepth gauge: %w", err)
+			}
+
+			inst.SourceQueueOldestAge, err = meter.Float64ObservableGauge(
+				"eshu_dp_queue_source_oldest_age_seconds",
+				metric.WithDescription("Age of oldest queue item in seconds by queue and source system"),
+				metric.WithUnit("s"),
+				metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
+					ages, err := sourceObs.SourceQueueOldestAge(ctx)
+					if err != nil {
+						return err
+					}
+					for queue, sources := range ages {
+						for sourceSystem, age := range sources {
+							o.Observe(
+								age,
+								metric.WithAttributes(
+									attribute.String("queue", queue),
+									attribute.String(MetricDimensionSourceSystem, sourceSystem),
+								),
+							)
+						}
+					}
+					return nil
+				}),
+			)
+			if err != nil {
+				return fmt.Errorf("register SourceQueueOldestAge gauge: %w", err)
+			}
 		}
 	}
 

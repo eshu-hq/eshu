@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestQueueObserverStoreQueueDepths(t *testing.T) {
@@ -120,6 +121,123 @@ func TestQueueObserverStoreQueueDepthsMergesClaimedAndRunning(t *testing.T) {
 	}
 }
 
+func TestQueueObserverStoreSourceQueueDepths(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{
+				rows: [][]any{
+					{"projector", "git", "pending", int64(5)},
+					{"projector", "git", "claimed", int64(2)},
+					{"projector", "git", "running", int64(1)},
+					{"reducer", "aws", "retrying", int64(3)},
+				},
+			},
+		},
+	}
+
+	observer := NewQueueObserverStore(queryer)
+	depths, err := observer.SourceQueueDepths(context.Background())
+	if err != nil {
+		t.Fatalf("SourceQueueDepths() error = %v", err)
+	}
+
+	if got, want := depths["projector"]["git"]["pending"], int64(5); got != want {
+		t.Fatalf("projector git pending = %d, want %d", got, want)
+	}
+	if got, want := depths["projector"]["git"]["in_flight"], int64(3); got != want {
+		t.Fatalf("projector git in_flight = %d, want %d", got, want)
+	}
+	if _, has := depths["projector"]["git"]["claimed"]; has {
+		t.Fatal("claimed status should be merged into source in_flight")
+	}
+	if _, has := depths["projector"]["git"]["running"]; has {
+		t.Fatal("running status should be merged into source in_flight")
+	}
+	if got, want := depths["reducer"]["aws"]["retrying"], int64(3); got != want {
+		t.Fatalf("reducer aws retrying = %d, want %d", got, want)
+	}
+}
+
+func TestQueueObserverStoreSourceQueueOldestAge(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{
+				rows: [][]any{
+					{"projector", "git", 120.5},
+					{"reducer", "aws", 45.0},
+				},
+			},
+		},
+	}
+
+	observer := NewQueueObserverStore(queryer)
+	ages, err := observer.SourceQueueOldestAge(context.Background())
+	if err != nil {
+		t.Fatalf("SourceQueueOldestAge() error = %v", err)
+	}
+
+	if got, want := ages["projector"]["git"], 120.5; got != want {
+		t.Fatalf("projector git age = %f, want %f", got, want)
+	}
+	if got, want := ages["reducer"]["aws"], 45.0; got != want {
+		t.Fatalf("reducer aws age = %f, want %f", got, want)
+	}
+}
+
+func TestQueueObserverStoreSourceQueriesRunOnPostgres(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the source queue observer Postgres proof")
+	}
+
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	now := time.Date(2026, time.June, 28, 12, 30, 0, 0, time.UTC)
+
+	seedProjectorSourceFairnessScope(t, ctx, db, "observer-git-scope", "observer-git-gen", "git", now)
+	insertProjectorSourceFairnessWork(t, ctx, db, "observer-git-scope", "observer-git-gen", now)
+	seedReducerFairnessScope(t, ctx, db, "observer-aws-scope", now)
+	insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
+		workItemID:     "observer-reducer-aws",
+		scopeID:        "observer-aws-scope",
+		generationID:   "gen-fair",
+		domain:         "runtime_truth",
+		conflictDomain: reducerConflictDomainScope,
+		conflictKey:    "observer-reducer-aws",
+		sourceSystem:   "aws",
+		updatedAt:      now,
+	})
+
+	observer := NewQueueObserverStore(SQLDB{DB: db})
+	observer.Now = func() time.Time { return now.Add(5 * time.Minute) }
+
+	depths, err := observer.SourceQueueDepths(ctx)
+	if err != nil {
+		t.Fatalf("SourceQueueDepths() error = %v", err)
+	}
+	if got, want := depths["projector"]["git"]["pending"], int64(1); got != want {
+		t.Fatalf("projector git pending depth = %d, want %d", got, want)
+	}
+	if got, want := depths["reducer"]["aws"]["pending"], int64(1); got != want {
+		t.Fatalf("reducer aws pending depth = %d, want %d", got, want)
+	}
+
+	ages, err := observer.SourceQueueOldestAge(ctx)
+	if err != nil {
+		t.Fatalf("SourceQueueOldestAge() error = %v", err)
+	}
+	if got := ages["projector"]["git"]; got <= 0 {
+		t.Fatalf("projector git oldest age = %f, want positive", got)
+	}
+	if got := ages["reducer"]["aws"]; got <= 0 {
+		t.Fatalf("reducer aws oldest age = %f, want positive", got)
+	}
+}
+
 func TestQueueObserverQueriesExcludeInactiveReducerGenerations(t *testing.T) {
 	t.Parallel()
 
@@ -142,6 +260,37 @@ func TestQueueObserverQueriesExcludeInactiveReducerGenerations(t *testing.T) {
 				t.Fatalf("%s missing inactive-generation observer predicate %q:\n%s", name, want, query)
 			}
 		}
+	}
+}
+
+func TestSourceQueueObserverQueriesUseBoundedSourceSystem(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"sourceQueueDepthQuery":     sourceQueueDepthQuery,
+		"sourceQueueOldestAgeQuery": sourceQueueOldestAgeQuery,
+	} {
+		for _, want := range []string{
+			"active_fact_work_items AS (",
+			"JOIN ingestion_scopes AS scope",
+			"scope.source_system",
+			"work.payload->>'source_system'",
+			"ORDER BY work.stage, source_system",
+		} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("%s missing source observer predicate %q:\n%s", name, want, query)
+			}
+		}
+		if strings.Contains(query, "GROUP BY work.stage, source_system") {
+			t.Fatalf("%s groups by ambiguous source_system alias:\n%s", name, query)
+		}
+	}
+
+	if !strings.Contains(sourceQueueDepthQuery, "GROUP BY 1, 2, work.status") {
+		t.Fatalf("sourceQueueDepthQuery must group by the derived source expression ordinal:\n%s", sourceQueueDepthQuery)
+	}
+	if !strings.Contains(sourceQueueOldestAgeQuery, "GROUP BY 1, 2") {
+		t.Fatalf("sourceQueueOldestAgeQuery must group by the derived source expression ordinal:\n%s", sourceQueueOldestAgeQuery)
 	}
 }
 
@@ -213,6 +362,16 @@ func TestQueueObserverStoreNilQueryer(t *testing.T) {
 	_, err = observer.QueueOldestAge(context.Background())
 	if err == nil {
 		t.Fatal("QueueOldestAge() error = nil, want non-nil for nil queryer")
+	}
+
+	_, err = observer.SourceQueueDepths(context.Background())
+	if err == nil {
+		t.Fatal("SourceQueueDepths() error = nil, want non-nil for nil queryer")
+	}
+
+	_, err = observer.SourceQueueOldestAge(context.Background())
+	if err == nil {
+		t.Fatal("SourceQueueOldestAge() error = nil, want non-nil for nil queryer")
 	}
 }
 

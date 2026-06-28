@@ -105,6 +105,8 @@ func TestBootstrapWorkItemSchemaIncludesPayloadAndLeaseOwner(t *testing.T) {
 		"ADD COLUMN IF NOT EXISTS conflict_domain TEXT NOT NULL DEFAULT 'scope'",
 		"ADD COLUMN IF NOT EXISTS conflict_key TEXT NULL",
 		"fact_work_items_reducer_conflict_claim_idx",
+		"fact_work_items_reducer_source_claim_idx",
+		"payload->>'source_system'",
 		"COALESCE(conflict_key, scope_id)",
 	} {
 		if !strings.Contains(workItemSQL, want) {

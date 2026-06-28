@@ -72,6 +72,8 @@ Use these to locate the phase that changed before opening logs or traces:
 | --- | --- |
 | `eshu_dp_queue_depth` | Queue depth by queue and status. |
 | `eshu_dp_queue_oldest_age_seconds` | Oldest queued item age by queue. |
+| `eshu_dp_queue_source_depth` | Queue depth by queue, source system, and status. |
+| `eshu_dp_queue_source_oldest_age_seconds` | Oldest queued item age by queue and source system. |
 | `eshu_dp_queue_claim_duration_seconds` | Queue claim latency. |
 | `eshu_dp_worker_pool_active` | Active worker count by pool. |
 | `eshu_dp_collector_observe_duration_seconds` | Collector observe cycle cost. |

@@ -506,6 +506,16 @@ func TestRegisterObservableGauges_WithObservers(t *testing.T) {
 		ages: map[string]float64{
 			"projector": 30.5,
 		},
+		sourceDepths: map[string]map[string]map[string]int64{
+			"projector": {
+				"git": {"pending": 5, "in_flight": 2},
+			},
+		},
+		sourceAges: map[string]map[string]float64{
+			"projector": {
+				"git": 30.5,
+			},
+		},
 	}
 	workerObs := &fakeWorkerObserver{
 		counts: map[string]int64{
@@ -523,6 +533,12 @@ func TestRegisterObservableGauges_WithObservers(t *testing.T) {
 	}
 	if inst.QueueOldestAge == nil {
 		t.Error("expected QueueOldestAge gauge to be set")
+	}
+	if inst.SourceQueueDepth == nil {
+		t.Error("expected SourceQueueDepth gauge to be set")
+	}
+	if inst.SourceQueueOldestAge == nil {
+		t.Error("expected SourceQueueOldestAge gauge to be set")
 	}
 	if inst.WorkerPoolActive == nil {
 		t.Error("expected WorkerPoolActive gauge to be set")
@@ -850,8 +866,10 @@ func TestReconciliationDriftRetractionsCounterRecordsBoundedLabels(t *testing.T)
 }
 
 type fakeQueueObserver struct {
-	depths map[string]map[string]int64
-	ages   map[string]float64
+	depths       map[string]map[string]int64
+	ages         map[string]float64
+	sourceDepths map[string]map[string]map[string]int64
+	sourceAges   map[string]map[string]float64
 }
 
 func (f *fakeQueueObserver) QueueDepths(_ context.Context) (map[string]map[string]int64, error) {
@@ -860,6 +878,14 @@ func (f *fakeQueueObserver) QueueDepths(_ context.Context) (map[string]map[strin
 
 func (f *fakeQueueObserver) QueueOldestAge(_ context.Context) (map[string]float64, error) {
 	return f.ages, nil
+}
+
+func (f *fakeQueueObserver) SourceQueueDepths(_ context.Context) (map[string]map[string]map[string]int64, error) {
+	return f.sourceDepths, nil
+}
+
+func (f *fakeQueueObserver) SourceQueueOldestAge(_ context.Context) (map[string]map[string]float64, error) {
+	return f.sourceAges, nil
 }
 
 type fakeWorkerObserver struct {
