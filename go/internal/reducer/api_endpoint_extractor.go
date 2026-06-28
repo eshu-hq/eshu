@@ -106,14 +106,14 @@ func frameworkAPIEndpointSignals(relativePath string, fileData map[string]any) [
 		if framework == "" || frameworkData == nil {
 			continue
 		}
+		if entrySignals := frameworkRouteEntryEndpointSignals(relativePath, framework, frameworkData); len(entrySignals) > 0 {
+			signals = append(signals, entrySignals...)
+			continue
+		}
 		if framework == "nextjs" {
 			if signal, ok := nextJSAPIEndpointSignal(relativePath, frameworkData); ok {
 				signals = append(signals, signal)
 			}
-			continue
-		}
-		if entrySignals := frameworkRouteEntryEndpointSignals(relativePath, framework, frameworkData); len(entrySignals) > 0 {
-			signals = append(signals, entrySignals...)
 			continue
 		}
 		methods := normalizeHTTPMethods(toStringSlice(frameworkData["route_methods"]))

@@ -58,6 +58,34 @@ func TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs(t *testing.T) 
 	}
 }
 
+func TestFrameworkAPIEndpointSignalsPreferNextJSRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	signals := frameworkAPIEndpointSignals("src/app/api/accounts/[id]/route.ts", map[string]any{
+		"framework_semantics": map[string]any{
+			"frameworks": []any{"nextjs"},
+			"nextjs": map[string]any{
+				"module_kind":    "route",
+				"route_segments": []any{"api", "accounts", "[id]"},
+				"route_verbs":    []any{"GET", "POST"},
+				"route_entries": []any{
+					map[string]any{"method": "GET", "path": "/api/accounts/[id]", "handler": "GET"},
+					map[string]any{"method": "POST", "path": "/api/accounts/[id]", "handler": "POST"},
+				},
+			},
+		},
+	})
+
+	if got, want := len(signals), 2; got != want {
+		t.Fatalf("len(signals) = %d, want %d: %#v", got, want, signals)
+	}
+	methodsByPath := map[string][]string{}
+	for _, signal := range signals {
+		methodsByPath[signal.Path] = append(methodsByPath[signal.Path], signal.Methods...)
+	}
+	assertEndpointMethods(t, methodsByPath, "/api/accounts/[id]", []string{"get", "post"})
+}
+
 func assertEndpointMethods(t *testing.T, got map[string][]string, path string, want []string) {
 	t.Helper()
 

@@ -198,11 +198,13 @@ package manifest. A `types` target ending in `.d.ts` is treated as a declaration
 artifact path, so `lib/index.d.ts` can map back to authored sources such as
 `src/index.ts` when generated declaration files are not checked in.
 
-Dead-code roots are evidence rows, not guesses. Package entrypoints, CommonJS
-exports, methods on CommonJS default-exported classes, Hapi handlers, Next.js
-route exports, Fastify route-object handlers, framework callbacks, TypeScript
-interface implementation methods, module-contract exports, and public API
-re-exports must remain grounded in syntax or bounded repository files.
+Dead-code roots and route entries are evidence rows, not guesses. Package
+entrypoints, CommonJS exports, methods on CommonJS default-exported classes,
+Hapi handlers, exact Next.js app-router route handler exports, named Next.js
+`pages/api` default handlers, Fastify route-object handlers, framework
+callbacks, TypeScript interface implementation methods, module-contract exports,
+and public API re-exports must remain grounded in syntax or bounded repository
+files.
 Receiver type metadata is likewise bounded to local syntax: constructor
 assignments, typed fields, typed parameters, and simple typed function returns.
 Function values passed as call or constructor arguments are emitted as

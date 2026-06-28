@@ -296,7 +296,8 @@ func TestBuildHandlesRouteIntentRowsSkipsEntryWithoutHandler(t *testing.T) {
 func TestBuildHandlesRouteIntentRowsSkipsFrameworkWithoutRouteEntries(t *testing.T) {
 	t.Parallel()
 
-	// nextjs carries no route_entries; the emitter must tolerate that and skip.
+	// Older Next.js facts may carry endpoint metadata without exact route entries;
+	// the emitter must tolerate that and skip rather than invent a handler edge.
 	envelopes := []facts.Envelope{
 		handlesRouteRepoEnvelope("repo-1"),
 		{
@@ -325,5 +326,41 @@ func TestBuildHandlesRouteIntentRowsSkipsFrameworkWithoutRouteEntries(t *testing
 	intents := buildHandlesRouteIntentsForTest(t, envelopes)
 	if len(intents) != 0 {
 		t.Fatalf("expected no HANDLES_ROUTE intent for framework without route_entries, got %d", len(intents))
+	}
+}
+
+func TestBuildHandlesRouteIntentRowsEmitsNextJSRouteHandlerEntries(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"src/app/api/accounts/[id]/route.ts",
+			[]map[string]any{
+				{"name": "GET", "uid": "content-entity:get", "line_number": 3, "end_line": 5},
+				{"name": "POST", "uid": "content-entity:post", "line_number": 7, "end_line": 9},
+			},
+			"nextjs",
+			[]any{
+				map[string]any{"method": "GET", "path": "/api/accounts/[id]", "handler": "GET"},
+				map[string]any{"method": "POST", "path": "/api/accounts/[id]", "handler": "POST"},
+			},
+		),
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 2 {
+		t.Fatalf("expected 2 HANDLES_ROUTE intents, got %d", len(intents))
+	}
+	seen := map[string]bool{}
+	for _, intent := range intents {
+		if got, want := payloadStr(intent.Payload, "framework"), "nextjs"; got != want {
+			t.Fatalf("framework = %q, want %q", got, want)
+		}
+		seen[payloadStr(intent.Payload, "http_method")+" "+payloadStr(intent.Payload, "function_entity_id")] = true
+	}
+	if !seen["GET content-entity:get"] || !seen["POST content-entity:post"] {
+		t.Fatalf("nextjs HANDLES_ROUTE intents = %#v, want GET and POST bindings", intents)
 	}
 }

@@ -96,6 +96,17 @@ func parseFrameworkSemantics(relativePath string, raw []byte) []FrameworkRouteEv
 		if fwData == nil {
 			continue
 		}
+		entries := frameworkRouteEntries(fwData["route_entries"])
+		if len(entries) > 0 {
+			results = append(results, FrameworkRouteEvidence{
+				Framework:    fw,
+				RelativePath: relativePath,
+				RoutePaths:   routeEntryPaths(entries),
+				RouteMethods: routeEntryMethods(entries),
+				RouteEntries: entries,
+			})
+			continue
+		}
 		if fw == "nextjs" {
 			if route, ok := nextJSFrameworkRoute(relativePath, fwData); ok {
 				results = append(results, route)
@@ -169,6 +180,40 @@ func anySliceToStrings(raw any) []string {
 		}
 	}
 	return result
+}
+
+func routeEntryPaths(entries []FrameworkRouteEntryEvidence) []string {
+	paths := make([]string, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		path := strings.TrimSpace(entry.Path)
+		if path == "" {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func routeEntryMethods(entries []FrameworkRouteEntryEvidence) []string {
+	methods := make([]string, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		method := strings.TrimSpace(entry.Method)
+		if method == "" {
+			continue
+		}
+		if _, ok := seen[method]; ok {
+			continue
+		}
+		seen[method] = struct{}{}
+		methods = append(methods, method)
+	}
+	return methods
 }
 
 // frameworkRouteEntries decodes the parser's paired route evidence while
