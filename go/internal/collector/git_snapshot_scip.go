@@ -66,10 +66,10 @@ func defaultSnapshotSCIPLanguages() []string {
 
 func scipEnabledFromEnv(raw string) bool {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "0", "false", "no", "off":
-		return false
-	default:
+	case "1", "true", "yes", "on":
 		return true
+	default:
+		return false
 	}
 }
 

@@ -54,9 +54,10 @@
 // Argo CD/Kubernetes observability state rows from repository parsers become
 // metadata-only observability source facts; reducers and query surfaces own any
 // later declared/applied/observed coverage truth.
-// SCIP indexing is enabled by default when a selected file group's external
-// scip-* binary is available, and explicit SCIP_INDEXER=false/off/0/no keeps
-// native-only parsing. SCIP groups are planned by bounded language priority and
+// SCIP indexing is opt-in: SCIP_INDEXER=1/true/yes/on enables it when a
+// selected file group's external scip-* binary is available. Unset,
+// unrecognized, false/off/0/no values keep native-only parsing. SCIP groups
+// are planned by bounded language priority and
 // package/workspace root, then run through a bounded worker pool before
 // supplementing native parser output with call facts for matching files only.
 // SCIP must not shrink the discovered parser file set: files selected by
@@ -66,8 +67,10 @@
 // retrigger gated taint analysis when matcher rules change without streaming
 // extra facts or changing gate-off snapshots.
 //
-// No-Regression Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`
-// covers a default SCIP-enabled snapshot where one selected Python file is
+// No-Regression Evidence:
+// `TestLoadSnapshotSCIPConfigDefaultsDisabledForTopLanguageList` covers the
+// native-only default, and `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`
+// covers an explicitly enabled SCIP snapshot where one selected Python file is
 // missing from SCIP output and still emits native parser metadata.
 //
 // Observability Evidence: the completeness guard reuses the existing

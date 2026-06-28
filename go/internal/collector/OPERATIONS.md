@@ -126,11 +126,12 @@ README.
   and Java call inference do not need every method-local declaration as a
   canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
   unless their query contracts change.
-- SCIP indexing defaults on for `python,typescript,javascript,go,rust,java,cpp,c`
-  when the matching `scip-*` binary is available, with `SCIP_WORKERS=4` for
-  bounded language/subtree fan-out across concurrent repository snapshots. Set
-  `SCIP_INDEXER=false`, `0`, `no`, or `off` for native-only parsing, set
-  `SCIP_LANGUAGES` to narrow the SCIP language, or set `SCIP_WORKERS=1` for
+- SCIP indexing is opt-in for `python,typescript,javascript,go,rust,java,cpp,c`.
+  Set `SCIP_INDEXER=1`, `true`, `yes`, or `on` to enable it when the matching
+  `scip-*` binary is available, with `SCIP_WORKERS=4` for bounded
+  language/subtree fan-out across concurrent repository snapshots. Unset,
+  unrecognized, `false`, `0`, `no`, and `off` values keep native-only parsing.
+  Set `SCIP_LANGUAGES` to narrow the SCIP language, or set `SCIP_WORKERS=1` for
   memory-constrained serial fallback.
   Missing binaries, indexer/parser failures, or selected files absent from
   `index.scip` fall back to native parser output. No-Regression Evidence:

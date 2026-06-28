@@ -45,8 +45,8 @@ func TestBuildCollectorServiceUsesIngestionStoreBoundary(t *testing.T) {
 		t.Fatalf("buildCollectorService() snapshotter type = %T, want collector.NativeRepositorySnapshotter", source.Snapshotter)
 	}
 	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
-	if !snapshotter.SCIP.Enabled {
-		t.Fatal("buildCollectorService() SCIP enabled by default = false, want true")
+	if snapshotter.SCIP.Enabled {
+		t.Fatal("buildCollectorService() SCIP enabled by default = true, want false")
 	}
 	wantLanguages := []string{"python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"}
 	if !reflect.DeepEqual(snapshotter.SCIP.Languages, wantLanguages) {
@@ -63,6 +63,32 @@ func TestBuildCollectorServiceUsesIngestionStoreBoundary(t *testing.T) {
 			"buildCollectorService() committer type = %T, want postgres.IngestionStore",
 			service.Committer,
 		)
+	}
+}
+
+func TestBuildCollectorServiceWiresExplicitSCIPEnable(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildCollectorService(
+		postgres.SQLDB{},
+		func(key string) string {
+			if key == "SCIP_INDEXER" {
+				return "true"
+			}
+			return ""
+		},
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildCollectorService() error = %v, want nil", err)
+	}
+
+	source := service.Source.(*collector.GitSource)
+	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
+	if !snapshotter.SCIP.Enabled {
+		t.Fatal("buildCollectorService() SCIP enabled = false, want true")
 	}
 }
 
