@@ -49,6 +49,10 @@ if rg -q "ESHU_[A-Z_]*DSN=|ESHU_POSTGRES_DSN=|ESHU_NEO4J|bolt://|postgres://" "$
 	note "FAIL: producer sets a backend DSN (must stay credential-free)"
 	fail=1
 fi
+# And it must actively clear inherited backend DSNs so an ambient
+# ESHU_POSTGRES_DSN cannot turn the sweep into one that hits a live database.
+rg -q "env_unset|[-]u .*ESHU_POSTGRES_DSN| -u " "${producer}"; check "producer clears inherited backend DSNs" $?
+rg -q "ESHU_POSTGRES_DSN" "${producer}"; check "producer names ESHU_POSTGRES_DSN among cleared vars" $?
 
 # --- Static contract: workflow ------------------------------------------------
 [[ -f "${workflow}" ]]; check "bench.yml workflow exists" $?
@@ -84,6 +88,23 @@ fi
 [[ -f "${out}" ]]; check "producer writes the results file" $?
 if [[ -f "${out}" ]]; then
 	rg -q "^BenchmarkValidateSchemaVersion" "${out}"; check "results file contains benchmark rows" $?
+fi
+
+# Hermeticity under a hostile environment: export a bogus backend DSN and confirm
+# the postgres benchmark still self-skips (exit 0) instead of dialing it. If the
+# runner failed to clear the inherited DSN, go test would try to connect and fail.
+out2="${tmp_root}/bench-results-dsn.txt"
+if ESHU_POSTGRES_DSN="postgres://invalid:invalid@127.0.0.1:1/none" \
+	ESHU_REDUCER_CLAIM_BENCH_DSN="postgres://invalid:invalid@127.0.0.1:1/none" \
+	BENCH_OUTPUT="${out2}" \
+	BENCH_PACKAGES="./internal/storage/postgres" \
+	BENCH_PATTERN="BenchmarkReducerQueueClaimDeepQueue" \
+	BENCH_TIME="1x" \
+	BENCH_COUNT="1" \
+	"${producer}" >/dev/null 2>&1; then
+	check "producer stays hermetic with an inherited backend DSN (bench skips, exit 0)" 0
+else
+	check "producer stays hermetic with an inherited backend DSN (bench skips, exit 0)" 1
 fi
 
 if [[ "${fail}" -ne 0 ]]; then

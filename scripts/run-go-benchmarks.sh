@@ -72,6 +72,18 @@ mkdir -p "$(dirname "${output}")"
 printf 'run-go-benchmarks: bench=%s benchtime=%s count=%s packages=%d -> %s\n' \
 	"${bench_pattern}" "${bench_time}" "${bench_count}" "${#packages[@]}" "${output}" >&2
 
+# Backend-bound benchmarks self-skip only when their DSN env var is unset. A
+# developer shell or CI job may already export these, which would turn the
+# "credential-free" sweep into one that connects to (and creates/drops schemas
+# on) a live database. Clear them for the subprocess so the run is hermetic
+# regardless of the ambient environment. Keep this list in sync with the env
+# vars that benchmark _test.go files read to gate backend access.
+backend_dsn_vars=(ESHU_POSTGRES_DSN ESHU_REDUCER_CLAIM_BENCH_DSN)
+env_unset=()
+for v in "${backend_dsn_vars[@]}"; do
+	env_unset+=(-u "${v}") # -u is portable across GNU and BSD env; --unset is GNU-only
+done
+
 # -run='^$' disables unit tests so only benchmarks execute. Stream to both the
 # console (live CI log) and the results file (benchstat input / artifact). The
 # go test exit status — not tee's — decides success, so capture it explicitly.
@@ -79,7 +91,8 @@ set -o pipefail
 status=0
 (
 	cd "${repo_root}/go" &&
-		go test \
+		env "${env_unset[@]}" \
+			go test \
 			-run='^$' \
 			-bench="${bench_pattern}" \
 			-benchmem \
