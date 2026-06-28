@@ -226,13 +226,16 @@ entries add `child_count` (the number of descendant files in that subtree). Use
 `language=<value>` to filter the listing to files of one language/source type
 (e.g. `go`, `python`, `hcl`, `yaml`); aliases expand to a family (`typescript`
 also matches `tsx`, `terraform` also matches `hcl`/`tfvars`). Filtering a real
-path down to zero matches returns an empty `entries` array, not a `404`. The
-filter operates within the same bounded file read as the unfiltered tree
-(`truncated=true` signals the per-repository file cap was reached), so on a
-repository large enough to truncate, a language whose files sort beyond the cap
-can be under-reported; `truncated` is the signal that the listing is incomplete. The response `ref` reports the
-indexed commit SHA the tree was built from, and `truncated=true` signals that
-the file cap was reached for a very large repository. When `ref` is supplied, it
+path down to zero matches returns an empty `entries` array, not a `404` (path
+existence is resolved unfiltered, so a real directory with no files in the
+requested language is an empty `200`, not a `404`). The language predicate **and**
+the `path` subtree scope are pushed into the content-store read, so the
+per-repository file cap applies to the matching, path-scoped set: a language (or a
+deep subdirectory) whose files sort beyond the cap in the full repository is still
+returned, and `truncated=true` then reflects that the matching set under `path`
+itself exceeded the cap. The response `ref` reports the indexed commit SHA the
+tree was built from, and `truncated=true` signals that the (matching) file cap
+was reached for a very large repository. When `ref` is supplied, it
 must match a captured source ref name/head SHA that equals the indexed commit,
 or the exact indexed commit SHA. A known but unindexed ref or unavailable branch
 metadata returns `409` instead of silently falling back. An indexed repository

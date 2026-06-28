@@ -4,6 +4,7 @@
 package query
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -16,6 +17,16 @@ import (
 // content store (content_files), so this keeps the read bounded for very large
 // repositories; callers see `truncated: true` when the cap is reached.
 const repositoryTreeFileLimit = 50000
+
+// repoFileLanguageLister is the optional content-store capability that pushes the
+// language predicate and the path/ref lookup into the database, so the file cap
+// applies to the matching set rather than to the whole repository. The production
+// ContentReader implements it; content stores that do not are served by the in-Go
+// post-cap filter fallback (correct for repositories within the cap).
+type repoFileLanguageLister interface {
+	ListRepoFilesByLanguage(ctx context.Context, repoID string, languages []string, pathPrefix string, limit int) ([]FileContent, error)
+	RepoFilePathContext(ctx context.Context, repoID, requestPath string) (bool, string, error)
+}
 
 // getRepositoryTree returns one directory level (or the full subtree with
 // ?recursive=true) of a repository's indexed files, derived from the content
@@ -43,17 +54,49 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 	requestPath := normalizeTreePath(r.URL.Query().Get("path"))
 	requestedRef := strings.TrimSpace(r.URL.Query().Get("ref"))
 	recursive, _ := strconv.ParseBool(r.URL.Query().Get("recursive"))
-	languageFilter := repositoryTreeLanguageFilter(r.URL.Query().Get("language"))
+	languageRaw := r.URL.Query().Get("language")
+	languageList := repositoryTreeLanguageList(languageRaw)
 
-	var files []FileContent
-	if h.Content != nil {
+	var (
+		files        []FileContent
+		indexedRef   string
+		truncated    bool
+		matched      bool
+		matchedKnown bool
+		// languageFilter applies the in-Go filter only on the fallback path; the
+		// pushed-down path filters in SQL and passes nil to the builder.
+		languageFilter = repositoryTreeLanguageFilter(languageRaw)
+	)
+
+	if lister, ok := h.Content.(repoFileLanguageLister); ok && len(languageList) > 0 {
+		// Pushed-down path: the language predicate and path/ref lookup run in the
+		// content store, so the file cap applies to the matching set (correct for
+		// repositories above the cap). Path existence is resolved unfiltered so a
+		// real directory with zero matching-language files is an empty 200, not a
+		// 404.
+		exists, ref, ctxErr := lister.RepoFilePathContext(ctx, repoID, requestPath)
+		if ctxErr != nil {
+			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", ctxErr))
+			return
+		}
+		indexedRef = ref
+		matched = requestPath == "" || exists
+		matchedKnown = true
+		files, err = lister.ListRepoFilesByLanguage(ctx, repoID, languageList, requestPath, repositoryTreeFileLimit+1)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
+			return
+		}
+		languageFilter = nil
+	} else if h.Content != nil {
 		files, err = h.Content.ListRepoFiles(ctx, repoID, repositoryTreeFileLimit+1)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
 			return
 		}
+		indexedRef = repositoryTreeRef(files)
 	}
-	indexedRef := repositoryTreeRef(files)
+
 	if status, message, err := validateSelectedRepositoryRef(ctx, h.Content, repoID, requestedRef, indexedRef); err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
 		return
@@ -61,12 +104,15 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 		WriteError(w, status, message)
 		return
 	}
-	truncated := len(files) > repositoryTreeFileLimit
+	truncated = len(files) > repositoryTreeFileLimit
 	if truncated {
 		files = files[:repositoryTreeFileLimit]
 	}
 
-	entries, matched := buildRepositoryTree(files, requestPath, recursive, languageFilter)
+	entries, builtMatched := buildRepositoryTree(files, requestPath, recursive, languageFilter)
+	if !matchedKnown {
+		matched = builtMatched
+	}
 	if requestPath != "" && !matched {
 		WriteError(w, http.StatusNotFound, "path not found")
 		return
@@ -106,15 +152,33 @@ func normalizeTreePath(raw string) string {
 // terraform also matches hcl/tfvars). Values are lowercased for a
 // case-insensitive match against the stored file language.
 func repositoryTreeLanguageFilter(raw string) map[string]bool {
+	list := repositoryTreeLanguageList(raw)
+	if list == nil {
+		return nil
+	}
+	set := make(map[string]bool, len(list))
+	for _, lang := range list {
+		set[lang] = true
+	}
+	return set
+}
+
+// repositoryTreeLanguageList returns the alias-expanded, lowercased language
+// family for a ?language= param, or nil when the param is empty. It is the
+// single expansion both the in-Go filter (repositoryTreeLanguageFilter) and the
+// pushed-down SQL predicate (ListRepoFilesByLanguage) consume, so the two paths
+// match the by-language inventory endpoint identically (e.g. typescript also
+// matches tsx; terraform also matches hcl/tfvars).
+func repositoryTreeLanguageList(raw string) []string {
 	family := repositoryLanguageFamily(raw)
 	if len(family) == 0 {
 		return nil
 	}
-	set := make(map[string]bool, len(family))
+	list := make([]string, 0, len(family))
 	for _, lang := range family {
-		set[strings.ToLower(strings.TrimSpace(lang))] = true
+		list = append(list, strings.ToLower(strings.TrimSpace(lang)))
 	}
-	return set
+	return list
 }
 
 // repositoryTreeRef returns the indexed commit SHA shared by the listed files.

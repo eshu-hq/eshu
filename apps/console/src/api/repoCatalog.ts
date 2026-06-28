@@ -36,10 +36,16 @@ export interface RepoDetail {
 }
 
 interface RepoRecord {
-  readonly id?: string; readonly name?: string; readonly repo_slug?: string;
-  readonly remote_url?: string; readonly is_dependency?: boolean;
-  readonly group_key?: string; readonly group_source?: string; readonly group_truth?: string;
-  readonly group_kind?: string; readonly group_reason?: string;
+  readonly id?: string;
+  readonly name?: string;
+  readonly repo_slug?: string;
+  readonly remote_url?: string;
+  readonly is_dependency?: boolean;
+  readonly group_key?: string;
+  readonly group_source?: string;
+  readonly group_truth?: string;
+  readonly group_kind?: string;
+  readonly group_reason?: string;
 }
 interface RepoListResponse {
   readonly repositories?: readonly RepoRecord[];
@@ -58,11 +64,13 @@ const REPOSITORY_PAGE_LIMIT = 500;
 // is a misbehaving API and will be caught by the offset-stall break first.
 const REPOSITORY_MAX_PAGES = 24;
 
-function str(v: unknown): string { return typeof v === "string" ? v : ""; }
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
 
 function repoSlugLeaf(slug: string): string {
   const parts = slug.split(/[\\/]/).filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] ?? "" : "";
+  return parts.length > 0 ? (parts[parts.length - 1] ?? "") : "";
 }
 
 function isOpaqueRepositoryId(value: string): boolean {
@@ -86,7 +94,7 @@ function repoListItem(r: RepoRecord): RepoListItem {
     groupSource: str(r.group_source),
     groupTruth: str(r.group_truth),
     groupKind: str(r.group_kind),
-    groupReason: str(r.group_reason)
+    groupReason: str(r.group_reason),
   };
 }
 
@@ -96,7 +104,7 @@ function repoListItem(r: RepoRecord): RepoListItem {
 function warnIncomplete(reason: string): void {
   console.warn(
     `loadRepositories: repository list may be incomplete — ${reason}. ` +
-    `Repositories beyond the reachable offset are not shown.`
+      `Repositories beyond the reachable offset are not shown.`,
   );
 }
 
@@ -120,7 +128,9 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
   let offset = 0;
   let page = 0;
   for (; page < REPOSITORY_MAX_PAGES; page += 1) {
-    const env = await client.get<RepoListResponse>(`/api/v0/repositories?limit=${REPOSITORY_PAGE_LIMIT}&offset=${offset}`);
+    const env = await client.get<RepoListResponse>(
+      `/api/v0/repositories?limit=${REPOSITORY_PAGE_LIMIT}&offset=${offset}`,
+    );
     if (env.error) throw new EshuEnvelopeError(env.error);
     // Offset-stall guard: check BEFORE appending rows. The server echoes the
     // offset it actually applied after server-side clamping
@@ -133,7 +143,7 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
       if (env.data?.truncated === true) {
         warnIncomplete(
           `server offset clamped at ${echoedOffset} (requested ${offset}); ` +
-          `catalog has more repositories beyond the server offset limit`
+            `catalog has more repositories beyond the server offset limit`,
         );
       }
       break;
@@ -156,13 +166,15 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
   }
   if (page === REPOSITORY_MAX_PAGES) {
     warnIncomplete(
-      `reached page limit (${REPOSITORY_MAX_PAGES} pages × ${REPOSITORY_PAGE_LIMIT} rows)`
+      `reached page limit (${REPOSITORY_MAX_PAGES} pages × ${REPOSITORY_PAGE_LIMIT} rows)`,
     );
   }
   return items;
 }
 
-export async function loadRepositoryNameMap(client: EshuApiClient): Promise<ReadonlyMap<string, string>> {
+export async function loadRepositoryNameMap(
+  client: EshuApiClient,
+): Promise<ReadonlyMap<string, string>> {
   const repos = await loadRepositories(client);
   return new Map(repos.map((repo) => [repo.id, repo.name]));
 }
@@ -185,17 +197,46 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+// loadRepoLanguages returns the per-repo language inventory from the /stats
+// endpoint. It is a lightweight alternative to loadRepositoryDetail for callers
+// that only need the language list (e.g. the RepoSourcePage language filter
+// dropdown). Returns an empty array on any error so the caller degrades silently.
+export async function loadRepoLanguages(
+  client: EshuApiClient,
+  id: string,
+): Promise<readonly string[]> {
+  try {
+    const env = await client.get<StatsResponse>(
+      `/api/v0/repositories/${encodeURIComponent(id)}/stats`,
+    );
+    if (env.error) return [];
+    const langs = env.data?.languages;
+    if (!Array.isArray(langs)) return [];
+    return langs.filter((l): l is string => typeof l === "string").sort();
+  } catch {
+    return [];
+  }
+}
+
 export async function loadRepositoryDetail(client: EshuApiClient, id: string): Promise<RepoDetail> {
   try {
-    const statsEnv = await client.get<StatsResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/stats`);
+    const statsEnv = await client.get<StatsResponse>(
+      `/api/v0/repositories/${encodeURIComponent(id)}/stats`,
+    );
     if (statsEnv.error) throw new EshuEnvelopeError(statsEnv.error);
     const s = statsEnv.data ?? {};
     let highlights: string[] = [];
     try {
-      const storyEnv = await client.get<StoryResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/story`);
+      const storyEnv = await client.get<StoryResponse>(
+        `/api/v0/repositories/${encodeURIComponent(id)}/story`,
+      );
       const raw = storyEnv.data?.highlights ?? storyEnv.data?.sections ?? [];
-      highlights = raw.map((h) => typeof h === "string" ? h : str((h as { title?: string })?.title)).filter(Boolean);
-    } catch { /* story optional */ }
+      highlights = raw
+        .map((h) => (typeof h === "string" ? h : str((h as { title?: string })?.title)))
+        .filter(Boolean);
+    } catch {
+      /* story optional */
+    }
     return {
       id,
       name: s.repository?.name ?? id,
@@ -204,16 +245,24 @@ export async function loadRepositoryDetail(client: EshuApiClient, id: string): P
         entityCount: num(s.entity_count),
         languages: s.languages ?? [],
         entityTypes: s.entity_types ?? [],
-        coverageState: s.coverage?.source_backend ?? "unavailable"
+        coverageState: s.coverage?.source_backend ?? "unavailable",
       },
       highlights,
-      provenance: statsEnv.data ? "live" : "empty"
+      provenance: statsEnv.data ? "live" : "empty",
     };
   } catch {
     return {
-      id, name: id,
-      stats: { fileCount: null, entityCount: null, languages: [], entityTypes: [], coverageState: "unavailable" },
-      highlights: [], provenance: "unavailable"
+      id,
+      name: id,
+      stats: {
+        fileCount: null,
+        entityCount: null,
+        languages: [],
+        entityTypes: [],
+        coverageState: "unavailable",
+      },
+      highlights: [],
+      provenance: "unavailable",
     };
   }
 }
