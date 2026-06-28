@@ -1,0 +1,10 @@
+{
+  "scenario": "nested-directory-tree",
+  "cassette": "testdata/cassettes/replayoffline/nested-directory-tree.json",
+  "description": "1 repository + 3 depth-ordered directories (the #4019 nested-directory regression cassette). FirstGeneration=true so the retract and repository_cleanup phases are empty. Budgets are the exact deterministic counts the production canonical writer produces for this scenario (4 atomic-write events across the repository, directories, and directory_edges phases plus the overall write; 5 executed statements), so any increase — an N+1 or extra-phase regression — trips the gate and must be refreshed deliberately via the R-6 path.",
+  "refresh_path": "R-6 credentialed cassette refresh workflow",
+  "budgets": {
+    "eshu_dp_canonical_atomic_writes_total": 4,
+    "statements_executed": 5
+  }
+}
