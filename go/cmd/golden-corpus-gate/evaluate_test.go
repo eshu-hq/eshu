@@ -147,14 +147,22 @@ func TestEvaluateRequiredCorrelation(t *testing.T) {
 
 func TestEvaluateNodeAndEdgeCountAdvisory(t *testing.T) {
 	rng := CountRange{Min: 15, Max: 30}
-	if f := evaluateNodeCount("Repository", rng, 5); f.OK || f.Required {
-		t.Errorf("out-of-range node count must warn (advisory): %+v", f)
+	// Advisory variant (required=false): out-of-range warns without blocking.
+	if f := evaluateNodeCount("Repository", rng, 5, false); f.OK || f.Required {
+		t.Errorf("out-of-range advisory node count must warn without blocking: %+v", f)
 	}
-	if f := evaluateNodeCount("Repository", rng, 20); !f.OK {
+	if f := evaluateNodeCount("Repository", rng, 20, false); !f.OK {
 		t.Errorf("in-range node count must pass: %+v", f)
 	}
-	if f := evaluateEdgeCount("DEPENDS_ON", rng, 100); f.OK || f.Required {
-		t.Errorf("out-of-range edge count must warn (advisory): %+v", f)
+	if f := evaluateEdgeCount("DEPENDS_ON", rng, 100, false); f.OK || f.Required {
+		t.Errorf("out-of-range advisory edge count must warn without blocking: %+v", f)
+	}
+	// Required variant (required=true, #3866 full-corpus mode): out-of-range blocks.
+	if f := evaluateNodeCount("Repository", rng, 5, true); f.OK || !f.Required {
+		t.Errorf("out-of-range required node count must block: %+v", f)
+	}
+	if f := evaluateEdgeCount("DEPENDS_ON", rng, 100, true); f.OK || !f.Required {
+		t.Errorf("out-of-range required edge count must block: %+v", f)
 	}
 }
 

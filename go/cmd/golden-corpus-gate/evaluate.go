@@ -213,27 +213,32 @@ func evaluateNodePresent(label string, count int64) Finding {
 	}
 }
 
-// evaluateNodeCount produces an advisory finding comparing an observed node-label
-// count to its snapshot tolerance. Advisory because the snapshot ranges are
-// calibrated for the 20-repo corpus; the minimal gate runs fewer repos.
-func evaluateNodeCount(label string, rng CountRange, count int64) Finding {
+// evaluateNodeCount compares an observed node-label count to its snapshot
+// tolerance. required controls whether a shortfall blocks the gate: the
+// full-corpus mode (-graph-required-only=false) runs all 20 repos and promotes
+// these tolerances to required (#3866 criterion 3) so a regression that drops a
+// node count out of range fails the gate (a required File-count floor would have
+// caught the #4019 nested-file drop). The minimal/required-only mode never
+// reaches this check.
+func evaluateNodeCount(label string, rng CountRange, count int64, required bool) Finding {
 	return Finding{
 		Phase:    "graph",
 		Check:    "node_count_" + label,
 		OK:       rng.Contains(count),
-		Required: false,
+		Required: required,
 		Detail:   fmt.Sprintf("%d, snapshot range [%d,%d]", count, rng.Min, rng.Max),
 	}
 }
 
-// evaluateEdgeCount produces an advisory finding comparing an observed edge-type
-// count to its snapshot tolerance.
-func evaluateEdgeCount(rel string, rng CountRange, count int64) Finding {
+// evaluateEdgeCount compares an observed edge-type count to its snapshot
+// tolerance. required mirrors evaluateNodeCount: blocking in the full-corpus
+// mode, where the ranges are calibrated for the 20-repo corpus.
+func evaluateEdgeCount(rel string, rng CountRange, count int64, required bool) Finding {
 	return Finding{
 		Phase:    "graph",
 		Check:    "edge_count_" + rel,
 		OK:       rng.Contains(count),
-		Required: false,
+		Required: required,
 		Detail:   fmt.Sprintf("%d, snapshot range [%d,%d]", count, rng.Min, rng.Max),
 	}
 }
