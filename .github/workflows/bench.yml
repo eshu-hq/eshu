@@ -1,0 +1,80 @@
+name: Benchmarks
+
+# B-1 (#3794): run the Go micro-benchmark suite on every PR and upload the
+# results as an artifact so per-function ns/op / B/op / allocs/op are visible
+# per change. This is the visibility layer only — there is NO regression gate
+# here. B-2 (#3795) layers `benchstat` comparison against a committed baseline
+# on top of the artifact this workflow produces.
+#
+# The run is hermetic: backend-bound benchmarks self-skip without a DSN and the
+# graph-write benchmarks use in-process no-op executors, so no Postgres/NornicDB
+# service is needed.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-mirror:
+    name: bench script contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run bench script contract mirror
+        run: scripts/test-run-go-benchmarks.sh
+
+  benchmarks:
+    name: go benchmarks
+    needs: test-mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run Go benchmarks (credential-free, no regression gate)
+        env:
+          BENCH_OUTPUT: ${{ github.workspace }}/bench-results.txt
+          # Stable signal without an unbounded CI run. B-2 (#3795) pins the
+          # benchtime/count used for the gated baseline comparison.
+          BENCH_TIME: 200ms
+          BENCH_COUNT: 1
+        run: scripts/run-go-benchmarks.sh
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-benchmark-results
+          path: bench-results.txt
+          if-no-files-found: error
