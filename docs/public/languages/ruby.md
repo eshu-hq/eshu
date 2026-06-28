@@ -31,7 +31,9 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 Supported today:
 
 - Rails controller actions and Rails callback methods are modeled as derived
-  roots when the parser sees the source shape.
+  roots when the parser sees the source shape. This is reachability/root
+  evidence only; Ruby does not emit exact `framework_semantics.*.route_entries`
+  or `HANDLES_ROUTE` edges today.
 - Literal method-reference targets, `method_missing`, `respond_to_missing?`,
   and script guards are protected as runtime root evidence.
 
@@ -40,6 +42,8 @@ Not claimed today:
 - Rails route files, autoload/eager-load configuration, ActiveRecord scopes,
   gem public API surfaces, broad constant resolution, and broader
   metaprogramming remain outside the exactness boundary.
+- Exact route-to-handler truth for Rails, Sinatra, and other Ruby frameworks is
+  tracked by [#4098](https://github.com/eshu-hq/eshu/issues/4098).
 
 ## Known Limitations
 - Singleton methods on specific objects are only separated for `def self.name`

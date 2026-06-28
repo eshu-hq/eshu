@@ -38,12 +38,17 @@ Supported today:
 - This parser does not claim framework-level support.
 - Exporter declarations, package namespaces, constructors, special blocks,
   `AUTOLOAD`, `DESTROY`, and script entrypoints are modeled as derived roots.
+- Perl web framework handlers are not exact route entries today; Perl does not
+  emit `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges.
 
 Not claimed today:
 
 - Moose/Moo metadata, symbolic references, `AUTOLOAD` target resolution,
   import side effects, runtime `eval`, and broad public API surfaces remain
   exactness blockers.
+- Exact route-to-handler truth for Mojolicious, Dancer, Catalyst, and other
+  Perl web frameworks is tracked by
+  [#4116](https://github.com/eshu-hq/eshu/issues/4116).
 
 ## Related Docs
 

@@ -35,7 +35,9 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 Supported today:
 
 - ASP.NET controller actions, hosted-service callbacks, test methods, and
-  serialization callbacks are modeled as derived roots.
+  serialization callbacks are modeled as derived roots. ASP.NET roots are not
+  exact route entries; C# does not emit
+  `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges today.
 - Main methods, constructors, overrides, and same-file interface methods and
   implementations are also modeled as root evidence.
 - `.csproj` PackageReference entries are parsed by the separate
@@ -51,6 +53,9 @@ Not claimed today:
   exactness blockers for code reachability. NuGet project-reference package
   identity is skipped unless it is represented as PackageReference package
   evidence.
+- Exact route-to-handler truth for ASP.NET MVC/Web API, minimal APIs, and
+  endpoint routing is tracked by
+  [#4115](https://github.com/eshu-hq/eshu/issues/4115).
 
 ## Known Limitations
 - Extension methods are not tagged as extensions in the graph
