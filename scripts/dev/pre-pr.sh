@@ -11,9 +11,11 @@
 #     e.g. code that becomes unused when a sibling package stops referencing it
 #     (the exact class that accumulated as silent lint debt on main).
 #   - go build / go vet: whole module.
-#   - go test: only the packages changed vs origin/main (fast; the test failures
-#     that matter live in what you touched). Integration suites that need Postgres
-#     or NornicDB are CI's job — see docs/public/reference/local-testing.md.
+#   - go test: the packages changed vs origin/main, PLUS any package whose tests
+#     load a changed non-Go fixture (e.g. the B-12 golden snapshot → golden-corpus
+#     -gate) — fast, and the test failures that matter live in what you touched.
+#     Integration suites that need Postgres or NornicDB are CI's job — see
+#     docs/public/reference/local-testing.md.
 #   - 500-line file cap + package docs: the cheap structural gates.
 #
 # Every step runs even if an earlier one fails (accumulate), so you see all
@@ -45,6 +47,32 @@ changed_go_dirs() {
 	done | sort -u
 }
 
+# changed_all_files: every changed path (committed vs base + staged + unstaged),
+# not just Go files. Used to map non-Go fixtures to their consumer packages.
+changed_all_files() {
+	{
+		git -C "${repo_root}" diff --name-only "${base}...HEAD"
+		git -C "${repo_root}" diff --name-only HEAD
+		git -C "${repo_root}" diff --name-only --cached
+	} 2>/dev/null | sort -u
+}
+
+# fixture_consumer_dirs: ./-relative Go package dirs whose tests load a non-Go
+# fixture that changed. pre-pr's focused `go test` is scoped to changed *Go*
+# packages, so a fixture-only edit (e.g. the B-12 golden snapshot, which is a
+# JSON file, not a Go package) would never run its consumer's tests locally — the
+# exact gap that let a golden-snapshot change break go/cmd/golden-corpus-gate on
+# CI only. Each entry maps a changed-path pattern to the package(s) that consume
+# it; extend this table when a new fixture-backed test is added.
+fixture_consumer_dirs() {
+	local all
+	all="$(changed_all_files)"
+	# The B-12 golden snapshot is loaded by the golden-corpus-gate unit tests.
+	if printf '%s\n' "${all}" | rg -q '^testdata/golden/'; then
+		printf './cmd/golden-corpus-gate\n'
+	fi
+}
+
 # results accumulates one "PASS|FAIL  <name> (<n>s)" line per step.
 results=()
 overall=0
@@ -68,11 +96,23 @@ step_vet() { ( cd "${go_dir}" && go vet ./... ); }
 step_test() {
 	local dirs=() d
 	while IFS= read -r d; do [[ -n "${d}" ]] && dirs+=("${d}"); done < <(changed_go_dirs)
+	# Add packages whose tests load a changed non-Go fixture (deduped against the
+	# changed-Go-package set), so a fixture-only edit still runs its consumer.
+	while IFS= read -r d; do
+		[[ -n "${d}" ]] || continue
+		local seen=0 existing
+		# Guard the array expansion: under `set -u`, "${dirs[@]}" on an empty array
+		# is an unbound-variable error (the fixture-only-change case).
+		if [[ ${#dirs[@]} -gt 0 ]]; then
+			for existing in "${dirs[@]}"; do [[ "${existing}" == "${d}" ]] && seen=1 && break; done
+		fi
+		[[ ${seen} -eq 0 ]] && dirs+=("${d}")
+	done < <(fixture_consumer_dirs)
 	if [[ ${#dirs[@]} -eq 0 ]]; then
-		printf 'no changed Go packages vs %s — skipping focused tests\n' "${base}"
+		printf 'no changed Go packages or fixtures vs %s — skipping focused tests\n' "${base}"
 		return 0
 	fi
-	printf 'testing %d changed package(s)\n' "${#dirs[@]}"
+	printf 'testing %d package(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
 	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" )
 }
 
