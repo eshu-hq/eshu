@@ -3326,6 +3326,11 @@ BenchmarkFrameworkAPIEndpointSignalsRouteEntries -benchmem -count=3` extracted
 100 route entries in 39.0us/op, 33.1us/op, and 31.8us/op with 75.4KB/op and 705
 allocs/op.
 
+Benchmark Evidence: the benchmark input is one parser file with 100 exact
+`route_entries` and no terminal queue, graph rows, or database rows because the
+extractor is a pure in-memory reducer helper. The after measurement above is the
+full post-change path used before endpoint-signal merge.
+
 No-Regression Evidence: `go test ./internal/parser -run
 'TestDefaultEngineParsePathGo(EmitsDeadCodeRegistrationRoots|EmitsMixedCaseServeMuxRouteEntry|IgnoresUnknownHandleFuncReceivers)'
 -count=1` proves Go `net/http` route entries still emit exact handlers, including
