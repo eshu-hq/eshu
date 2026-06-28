@@ -157,8 +157,8 @@ claims:
     source:
       path: README.md
       line: 59
-      quote: "| AI assistant context | Serve indexed truth through 149 read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> <!-- product-claim: id=readme.mcp-tool-count.indexed-truth --> |"
-    claim_text: "Eshu exposes indexed truth through 149 read-only MCP tools for assistant clients."
+      quote: "| AI assistant context | Serve indexed truth through 150 read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> <!-- product-claim: id=readme.mcp-tool-count.indexed-truth --> |"
+    claim_text: "Eshu exposes indexed truth through 150 read-only MCP tools for assistant clients."
     capabilities:
       - id: capability_catalog.list
         claimed_maturity: general_availability
@@ -172,7 +172,7 @@ claims:
       command: "cd go && go test ./internal/mcp -run '^TestReadOnlyTools$' -count=1"
       surface_counts:
         - category: mcp_tool
-          count: 149
+          count: 150
       signals:
         - capability: capability_catalog.list
           kind: go_test

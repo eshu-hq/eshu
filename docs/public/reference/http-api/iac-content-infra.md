@@ -16,7 +16,7 @@ comparison. The route list is verified against `go/internal/query`.
 | Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
 | Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/graph/entities`, `POST /api/v0/ecosystem/graph-summary`, `GET /api/v0/cloud/resources`, `GET /api/v0/cloud/inventory` |
-| Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/pre-change`, `POST /api/v0/impact/developer-change-plan`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
+| Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/contracts`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/pre-change`, `POST /api/v0/impact/developer-change-plan`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
 
 OpenAPI remains canonical for full request and response schemas.
 
@@ -551,6 +551,21 @@ generate or apply patches; stale, missing, or partial graph evidence is reported
 as `blocked`, `missing_evidence`, partial AnswerPacket metadata, and follow-up
 calls instead of being filled by guesses. Unsupported profiles fail closed with
 `501`, and unavailable content-backed code-surface evidence returns `503`.
+
+`/impact/contracts` investigates contract impact from deterministic parser,
+spec, or config evidence only. It never creates contract edges from string
+similarity or optional semantic output. The first supported family is `http`:
+send `family: "http"` plus `provider_repo_id` (or the `repo_id` alias) and
+optionally `route`, `method`, `consumer_repo_id`, and `limit`. The handler reads
+anchored `Repository -[:EXPOSES_ENDPOINT]-> Endpoint` evidence, returns
+provider rows with source kinds/paths, operation ids, workload linkage when
+materialized, `coverage`, and `truncated`, and caps `limit` at 100. The `topic`
+and `grpc` families are accepted only as explicit family-state readbacks today;
+they return `unsupported` family states with reasons until topic/queue and
+protobuf/gRPC deterministic projections land. Unsupported runtime profiles fail
+closed with `501`, and an unavailable graph backend returns `503`. Scoped tokens
+remain denied at the route gate until consumer-side projection can prove
+tenant-filtered repository bounds.
 
 `/impact/entity-map` requires `from` and accepts `from_type`, `repo_id`,
 `environment`, `relationship`, `depth`, and `limit`. `depth` defaults to 1 and

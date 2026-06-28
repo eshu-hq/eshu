@@ -131,7 +131,7 @@ dispatch observability surface.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 149 tools from the tool definition files.
+`ReadOnlyTools` assembles 150 tools from the tool definition files.
 `ReadOnlyTools()` (and the `Verify ReadOnlyTools count` gate) is the authoritative
 count; the per-group table below lists the major static groups for orientation
 and is not an exhaustive enumeration (some groups — e.g. reachability and ask —
@@ -141,7 +141,7 @@ are assembled dynamically and are not broken out here).
 |---|---|---|
 | `codebaseTools` | 30 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
-| `ecosystemTools` | 22 | `tools_ecosystem.go`, `tools_graph_summary_packet.go`, `tools_prechange_impact.go` |
+| `ecosystemTools` | 23 | `tools_ecosystem.go`, `tools_graph_summary_packet.go`, `tools_prechange_impact.go`, `tools_contract_impact.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
 | `cloudInventoryTools` | 1 | `tools_cloud_inventory.go` |
 | `cloudRuntimeDriftTools` | 1 | `tools_cloud_runtime_drift.go` |
@@ -237,6 +237,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `get_repo_summary` | GET | `/api/v0/repositories/{repo_id}/stats` — lightweight identity and coverage summary (file count, languages, entity count, entity types, indexing coverage state); use before `get_repo_context` for a quick overview. Requires exactly one of `repo_id` (preferred) or the legacy `repo_name` alias; neither is forced in the schema (so a `repo_name`-only call validates), and dispatch returns a clear error when both are absent |
 | `get_repo_context` | GET | `/api/v0/repositories/{repo_id}/context` — full enriched context including entry points, infrastructure, relationships, API surface, and deployment evidence |
 | `get_repo_story` | GET | `/api/v0/repositories/{repo_id}/story` |
+| `investigate_contract_impact` | POST | `/api/v0/impact/contracts` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `analyze_pre_change_impact` | POST | `/api/v0/impact/pre-change` |
 | `plan_developer_change` | POST | `/api/v0/impact/developer-change-plan` |
@@ -341,13 +342,19 @@ developer intent, target/topic scope, and bounds to
 blocking, recommended tests, bounded next calls, truth labels, truncation, and
 AnswerPacket metadata.
 
-No-Regression Evidence: pre-change MCP schema and dispatch parity are covered
-by `go test ./internal/mcp -run 'TestPreChangeImpact|TestDeveloperChangePlan|TestResolveRouteMaps(PreChange|DeveloperChangePlan)|TestReadOnlyTools' -count=1`.
+`investigate_contract_impact` is transport-only. MCP forwards family, provider
+repository, consumer repository, route, topic, gRPC service name, HTTP method,
+and bounds to `/api/v0/impact/contracts`. The HTTP query layer owns the
+deterministic evidence boundary, capability gating, graph reads, unsupported
+topic/gRPC family states, truncation, and truth envelope.
 
-No-Observability-Change: pre-change and developer-change-plan MCP dispatch add
-no runtime span, metric, datastore access, graph traversal, or retry loop. They
-preserve the existing MCP `dispatch tool` debug log and canonical HTTP
-envelope.
+No-Regression Evidence: pre-change MCP schema and dispatch parity are covered
+by `go test ./internal/mcp -run 'TestPreChangeImpact|TestDeveloperChangePlan|TestContractImpact|TestResolveRouteMaps(PreChange|DeveloperChangePlan|ContractImpact)|TestReadOnlyTools' -count=1`.
+
+No-Observability-Change: pre-change, developer-change-plan, and contract-impact
+MCP dispatch add no runtime span, metric, datastore access, graph traversal, or
+retry loop. They preserve the existing MCP `dispatch tool` debug log and
+canonical HTTP envelope.
 
 Supply-chain tools keep the same transport-only contract. The impact explain
 tool forwards one `finding_id` or advisory/CVE plus package, repository, or
@@ -415,7 +422,7 @@ membership as trust.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 149 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 150 tool definitions |
 
 ## SSE session model
 

@@ -101,6 +101,7 @@ func askToolAnnotations() map[string]Annotation {
 		"inspect_code_quality":                            {Backend: BackendNornicDB, Cost: CostModerate},
 		"investigate_change_surface":                      {Backend: BackendBoth, Cost: CostHigh},
 		"investigate_code_topic":                          {Backend: BackendPostgres, Cost: CostModerate},
+		"investigate_contract_impact":                     {Backend: BackendNornicDB, Cost: CostModerate},
 		"investigate_dead_code":                           {Backend: BackendNornicDB, Cost: CostHigh},
 		"investigate_deployment_config":                   {Backend: BackendBoth, Cost: CostHigh},
 		"investigate_hardcoded_secrets":                   {Backend: BackendPostgres, Cost: CostModerate},
