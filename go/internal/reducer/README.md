@@ -3340,9 +3340,10 @@ mixed-case `ServeMux` local variables. `go test ./internal/reducer -run
 falling back to legacy flattened lists, so `/payments` does not inherit `GET`
 from a separate `GET /status` route.
 
-No-Observability-Change: this is a pure extraction correction inside existing
-reducer fact processing. It adds no route, graph query, graph write, queue
-domain, worker, runtime knob, metric instrument, metric label, span, or log line;
-operators continue to diagnose endpoint and `HANDLES_ROUTE` projection through
-the existing reducer run spans, execution counters, projection intent payloads,
-and shared projection status/readiness surfaces.
+Observability Evidence: No-Observability-Change: this is a pure extraction
+correction inside existing reducer fact processing. It adds no route, graph
+query, graph write, queue domain, worker, runtime knob, metric instrument,
+metric label, span, or log line; operators continue to diagnose endpoint and
+`HANDLES_ROUTE` projection through the existing reducer run spans, execution
+counters, projection intent payloads, and shared projection status/readiness
+surfaces.
