@@ -207,6 +207,7 @@ const openAPIPathsCode = `
                   "name": {"type": "string", "description": "Alias for target."},
                   "entity_id": {"type": "string", "description": "Canonical entity id to anchor the relationship query."},
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path) for name resolution."},
+                  "cross_repo": {"type": "boolean", "description": "Explicit opt-in for bounded cross-repository traversal. Cross-repo relationship-story requests require repo_id as the anchor repository selector, including exact entity_id requests.", "default": false},
                   "language": {"type": "string", "description": "Optional language filter for name resolution."},
                   "direction": {"type": "string", "enum": ["incoming", "outgoing", "both"], "default": "both"},
                   "relationship_type": {"type": "string", "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO"], "default": "CALLS"},
@@ -270,6 +271,9 @@ const openAPIPathsCode = `
                   "start_entity_id": {"type": "string", "description": "Canonical caller entity id. Takes precedence over start when provided."},
                   "end_entity_id": {"type": "string", "description": "Canonical callee entity id. Takes precedence over end when provided."},
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path) to scope both endpoints to one repository."},
+                  "cross_repo": {"type": "boolean", "description": "Explicit opt-in for bounded cross-repository call-chain traversal.", "default": false},
+                  "start_repo_id": {"type": "string", "description": "Optional starting repository selector for cross-repo name resolution or endpoint verification."},
+                  "end_repo_id": {"type": "string", "description": "Optional ending repository selector for cross-repo name resolution or endpoint verification."},
                   "max_depth": {"type": "integer", "description": "Maximum traversal depth (default 5, max 10)", "default": 5}
                 }
               }
@@ -289,6 +293,9 @@ const openAPIPathsCode = `
                     "start_entity_id": {"type": "string"},
                     "end_entity_id": {"type": "string"},
                     "repo_id": {"type": "string"},
+                    "cross_repo": {"type": "boolean"},
+                    "start_repo_id": {"type": "string"},
+                    "end_repo_id": {"type": "string"},
                     "chains": {
                       "type": "array",
                       "items": {

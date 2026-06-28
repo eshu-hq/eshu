@@ -29,6 +29,13 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 				return resolution, nil, err
 			}
 			if entity != nil {
+				access := repositoryAccessFilterFromContext(ctx)
+				if strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(entity.RepoID) != strings.TrimSpace(req.RepoID) {
+					return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
+				}
+				if !access.allowsRepositoryID(strings.TrimSpace(entity.RepoID)) {
+					return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
+				}
 				resolution.Name = entity.EntityName
 				resolution.RepoID = entity.RepoID
 				resolution.Language = entity.Language

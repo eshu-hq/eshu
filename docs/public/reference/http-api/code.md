@@ -130,6 +130,34 @@ or language from the symbol name alone. The source/target prefix always follows
 the returned edge direction, so an `incoming` row has the caller under `source_*`
 and the requested symbol under `target_*`.
 
+Cross-repository relationship story and call-chain reads are explicit opt-in
+only. `cross_repo=true` requires repository selectors before traversal; scoped
+tokens resolve those selectors against their grant before graph reads. The
+relationship-story graph shape joins both edge endpoints to repositories and
+filters scoped results through the granted repository set, while call-chain
+paths constrain every returned/intermediate node to the selected endpoint
+repositories. Direct rows label code relationships as
+`edge_origin=direct_code_edge`; package/module/service inference must use its own
+relationship type and provenance instead of masquerading as a direct code edge.
+
+No-Regression Evidence: cross-repo caller/callee/importer/inheritance/call-chain
+transport and policy behavior are guarded by focused MCP and HTTP tests:
+
+```bash
+go test ./internal/query -run 'Test(BuildCallChainCypherCrossRepo|HandleCallChainRejects|HandleRelationshipStoryRejects|RelationshipStoryDataMarksCrossRepo|RelationshipStoryGraphCypherCrossRepo|OpenAPIDocumentsCrossRepo)' -count=1
+go test ./internal/mcp -run 'Test(AnalyzeCodeRelationshipsSchemaAdvertisesCrossRepo|ResolveRouteMapsAnalyzeCodeRelationshipsCrossRepo|ResolveRouteMapsFindFunctionCallChainCrossRepo)' -count=1
+```
+
+The tests prove explicit MCP query types, endpoint selectors, path-wide
+repository filters, scoped-token denial, response scope metadata, OpenAPI
+fields, and source/target repository evidence for story rows.
+
+No-Observability-Change: this change adds no graph write, queue, worker,
+runtime knob, metric instrument, metric label, or new span. Operators continue
+to diagnose these read paths through the existing HTTP status/error body,
+truth envelope, bounded `coverage`, `truncated`/`limit` fields, and query
+handler spans/metrics.
+
 Each returned relationship carries a `provenance` block so API and MCP clients
 can compare code and correlation edges without reading several optional scalar
 fields. The block includes `confidence` when numeric confidence exists,

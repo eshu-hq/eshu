@@ -22,6 +22,7 @@ func codeRelationshipStoryRoute(args map[string]any) *route {
 		"limit":              intOr(args, "limit", 25),
 		"offset":             intOr(args, "offset", 0),
 		"token_budget":       intOr(args, "token_budget", 0),
+		"cross_repo":         analyzeCodeRelationshipsCrossRepo(args, false),
 	}
 	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
 		body["min_confidence"] = minConfidence
@@ -44,13 +45,23 @@ func resolveAnalyzeCodeRelationshipsRoute(args map[string]any) (*route, error) {
 		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", true), nil
 	case "find_all_callees":
 		return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", true), nil
+	case "find_cross_repo_callers":
+		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", false, true), nil
+	case "find_cross_repo_callees":
+		return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", false, true), nil
 	case "find_importers":
 		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "IMPORTS", false), nil
+	case "find_cross_repo_importers":
+		return analyzeCodeRelationshipsStoryRoute(args, "incoming", "IMPORTS", false, true), nil
 	case "class_hierarchy":
 		return analyzeCodeRelationshipsTypedStoryRoute(args, "class_hierarchy", "both", "INHERITS"), nil
+	case "cross_repo_class_hierarchy":
+		return analyzeCodeRelationshipsStoryRoute(args, "both", "INHERITS", false, true), nil
 	case "overrides":
 		return analyzeCodeRelationshipsTypedStoryRoute(args, "overrides", "both", "OVERRIDES"), nil
-	case "call_chain":
+	case "cross_repo_overrides":
+		return analyzeCodeRelationshipsStoryRoute(args, "both", "OVERRIDES", false, true), nil
+	case "call_chain", "find_cross_repo_call_chain":
 		startEntityID := str(args, "start_entity_id")
 		endEntityID := str(args, "end_entity_id")
 		start, end := "", ""
@@ -70,6 +81,9 @@ func resolveAnalyzeCodeRelationshipsRoute(args map[string]any) (*route, error) {
 			"start":           start,
 			"end":             end,
 			"repo_id":         str(args, "repo_id"),
+			"cross_repo":      analyzeCodeRelationshipsCrossRepo(args, str(args, "query_type") == "find_cross_repo_call_chain"),
+			"start_repo_id":   str(args, "start_repo_id"),
+			"end_repo_id":     str(args, "end_repo_id"),
 			"start_entity_id": startEntityID,
 			"end_entity_id":   endEntityID,
 			"max_depth":       parseMaxDepth(args, 5),
@@ -92,6 +106,7 @@ func analyzeCodeRelationshipsStoryRoute(
 	direction string,
 	relationshipType string,
 	includeTransitive bool,
+	forceCrossRepo ...bool,
 ) *route {
 	body := map[string]any{
 		"target":             str(args, "target"),
@@ -104,6 +119,7 @@ func analyzeCodeRelationshipsStoryRoute(
 		"limit":              intOr(args, "limit", 25),
 		"offset":             intOr(args, "offset", 0),
 		"token_budget":       intOr(args, "token_budget", 0),
+		"cross_repo":         analyzeCodeRelationshipsCrossRepo(args, len(forceCrossRepo) > 0 && forceCrossRepo[0]),
 	}
 	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
 		body["min_confidence"] = minConfidence
@@ -120,6 +136,7 @@ func analyzeCodeRelationshipsTypedStoryRoute(
 	queryType string,
 	direction string,
 	relationshipType string,
+	forceCrossRepo ...bool,
 ) *route {
 	body := map[string]any{
 		"query_type":        queryType,
@@ -132,6 +149,7 @@ func analyzeCodeRelationshipsTypedStoryRoute(
 		"limit":             intOr(args, "limit", 25),
 		"offset":            intOr(args, "offset", 0),
 		"token_budget":      intOr(args, "token_budget", 0),
+		"cross_repo":        analyzeCodeRelationshipsCrossRepo(args, len(forceCrossRepo) > 0 && forceCrossRepo[0]),
 	}
 	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
 		body["min_confidence"] = minConfidence
@@ -141,4 +159,8 @@ func analyzeCodeRelationshipsTypedStoryRoute(
 		path:   "/api/v0/code/relationships/story",
 		body:   body,
 	}
+}
+
+func analyzeCodeRelationshipsCrossRepo(args map[string]any, forced bool) bool {
+	return forced || boolOr(args, "cross_repo", false) || strings.EqualFold(str(args, "scope"), "cross_repo")
 }

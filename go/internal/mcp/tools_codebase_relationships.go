@@ -15,12 +15,18 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 					"find_callees",
 					"find_all_callers",
 					"find_all_callees",
+					"find_cross_repo_callers",
+					"find_cross_repo_callees",
 					"find_importers",
+					"find_cross_repo_importers",
 					"who_modifies",
 					"class_hierarchy",
+					"cross_repo_class_hierarchy",
 					"overrides",
+					"cross_repo_overrides",
 					"dead_code",
 					"call_chain",
+					"find_cross_repo_call_chain",
 					"module_deps",
 					"variable_scope",
 					"find_complexity",
@@ -39,6 +45,19 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 			"repo_id": map[string]any{
 				"type":        "string",
 				"description": "Optional canonical repository identifier",
+			},
+			"cross_repo": map[string]any{
+				"type":        "boolean",
+				"description": "Explicit opt-in for bounded cross-repository relationship traversal; false preserves repo-scoped behavior",
+				"default":     false,
+			},
+			"start_repo_id": map[string]any{
+				"type":        "string",
+				"description": "Optional starting repository selector for cross-repo call_chain queries",
+			},
+			"end_repo_id": map[string]any{
+				"type":        "string",
+				"description": "Optional ending repository selector for cross-repo call_chain queries",
 			},
 			"start_entity_id": map[string]any{
 				"type":        "string",

@@ -192,7 +192,13 @@ func (h *CodeHandler) relationshipStoryGraphRowsForDirection(
 	if h.graphBackend() == GraphBackendNornicDB {
 		return h.nornicDBRelationshipStoryGraphRows(ctx, req, entity, direction)
 	}
-	cypher, params := relationshipStoryGraphCypher(req, entity, direction, graphEntityIDPredicate)
+	cypher, params := relationshipStoryGraphCypher(
+		req,
+		entity,
+		direction,
+		graphEntityIDPredicate,
+		repositoryAccessFilterFromContext(ctx),
+	)
 	return h.Neo4j.Run(ctx, cypher, params)
 }
 
@@ -201,6 +207,7 @@ func relationshipStoryGraphCypher(
 	entity *EntityContent,
 	direction string,
 	predicate func(string, string) string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	relationshipType, _ := req.normalizedRelationshipType()
 	params := map[string]any{
@@ -208,16 +215,22 @@ func relationshipStoryGraphCypher(
 		"limit":     req.normalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
+	params = relationshipStoryAccessParams(req, access, params)
 	if entity != nil && strings.TrimSpace(entity.EntityID) != "" {
 		params["entity_id"] = strings.TrimSpace(entity.EntityID)
 	}
 	relPattern := ":" + relationshipType
 	if direction == "incoming" {
+		predicates := []string{predicate("target", "$entity_id")}
+		predicates = append(predicates, relationshipStoryRepoPredicates(req, access, "targetRepo")...)
 		return `
 		MATCH (source)-[rel` + relPattern + `]->(target)
-		WHERE ` + predicate("target", "$entity_id") + `
+		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)<-[:REPO_CONTAINS]-(sourceRepo:Repository)
+		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
+		WHERE ` + strings.Join(predicates, " AND ") + `
 		RETURN 'incoming' as direction,
 		       type(rel) as type,
+		       'direct_code_edge' as edge_origin,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
 		       rel.confidence as confidence,
@@ -227,18 +240,31 @@ func relationshipStoryGraphCypher(
 		       rel.why_trail_truncated as why_trail_truncated,
 		       coalesce(source.id, source.uid) as source_id,
 		       source.name as source_name,
+		       sourceRepo.id as source_repo_id,
+		       sourceRepo.name as source_repo_name,
+		       sourceFile.relative_path as source_file_path,
+		       coalesce(source.language, sourceFile.language) as source_language,
 		       coalesce(target.id, target.uid) as target_id,
-		       target.name as target_name
+		       target.name as target_name,
+		       targetRepo.id as target_repo_id,
+		       targetRepo.name as target_repo_name,
+		       targetFile.relative_path as target_file_path,
+		       coalesce(target.language, targetFile.language) as target_language
 		ORDER BY source.name, source_id
 		SKIP $offset
 		LIMIT $limit
 	`, params
 	}
+	predicates := []string{predicate("source", "$entity_id")}
+	predicates = append(predicates, relationshipStoryRepoPredicates(req, access, "sourceRepo")...)
 	return `
 		MATCH (source)-[rel` + relPattern + `]->(target)
-		WHERE ` + predicate("source", "$entity_id") + `
+		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)<-[:REPO_CONTAINS]-(sourceRepo:Repository)
+		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)
+		WHERE ` + strings.Join(predicates, " AND ") + `
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
+		       'direct_code_edge' as edge_origin,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
 		       rel.confidence as confidence,
@@ -248,12 +274,55 @@ func relationshipStoryGraphCypher(
 		       rel.why_trail_truncated as why_trail_truncated,
 		       coalesce(source.id, source.uid) as source_id,
 		       source.name as source_name,
+		       sourceRepo.id as source_repo_id,
+		       sourceRepo.name as source_repo_name,
+		       sourceFile.relative_path as source_file_path,
+		       coalesce(source.language, sourceFile.language) as source_language,
 		       coalesce(target.id, target.uid) as target_id,
-		       target.name as target_name
+		       target.name as target_name,
+		       targetRepo.id as target_repo_id,
+		       targetRepo.name as target_repo_name,
+		       targetFile.relative_path as target_file_path,
+		       coalesce(target.language, targetFile.language) as target_language
 		ORDER BY target.name, target_id
 		SKIP $offset
 		LIMIT $limit
 	`, params
+}
+
+func relationshipStoryAccessParams(
+	req relationshipStoryRequest,
+	access repositoryAccessFilter,
+	params map[string]any,
+) map[string]any {
+	if strings.TrimSpace(req.RepoID) != "" {
+		params["repo_id"] = strings.TrimSpace(req.RepoID)
+	}
+	if access.scoped() {
+		params["relationship_repo_ids"] = access.repositorySearchIDs()
+	}
+	return params
+}
+
+func relationshipStoryRepoPredicates(
+	req relationshipStoryRequest,
+	access repositoryAccessFilter,
+	anchorRepoAlias string,
+) []string {
+	predicates := make([]string, 0, 2)
+	if strings.TrimSpace(req.RepoID) != "" {
+		if req.CrossRepo {
+			predicates = append(predicates, anchorRepoAlias+".id = $repo_id")
+		} else {
+			predicates = append(predicates, "sourceRepo.id = $repo_id")
+			predicates = append(predicates, "targetRepo.id = $repo_id")
+		}
+	}
+	if access.scoped() {
+		predicates = append(predicates, "sourceRepo.id IN $relationship_repo_ids")
+		predicates = append(predicates, "targetRepo.id IN $relationship_repo_ids")
+	}
+	return predicates
 }
 
 func relationshipStoryContentRows(row map[string]any, req relationshipStoryRequest) []map[string]any {
