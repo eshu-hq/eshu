@@ -16,9 +16,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/cassette"
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive/vaultapi"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"

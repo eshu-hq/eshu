@@ -1,8 +1,8 @@
-# collector/cassette — agent scope
+# replay/cassette — agent scope
 
 ## Owned surface
 
-- `go/internal/collector/cassette/` — the credential-free replay package.
+- `go/internal/replay/cassette/` — the credential-free replay package.
 - `testdata/cassettes/<collector>/` — the cassette JSON files this package reads.
 
 ## Key invariants
