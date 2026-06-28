@@ -333,3 +333,58 @@ func TestCanonicalizePreservesOpaquePayload(t *testing.T) {
 		t.Errorf("payload api_token = %v, want redacted %q", payload["api_token"], replay.RedactedSentinel)
 	}
 }
+
+// TestCloneIsolatesMapFields proves Clone returns a value whose map fields are
+// independent of the source: mutating the clone's maps must not corrupt the
+// source. A by-value return alone would alias the maps, so this guards the
+// safety contract Canonical() depends on.
+func TestCloneIsolatesMapFields(t *testing.T) {
+	src := replay.DefaultCanonicalOptions().WithRedactedKeys("api_token")
+	clone := src.Clone()
+
+	// Mutate every map field on the clone.
+	clone.VolatileKeys["injected_volatile"] = "x"
+	clone.DerivedKeys["injected_derived"] = "y"
+	clone.SecretKeys["injected_secret"] = "z"
+	clone.SortArrays["injected_array"] = "f"
+	clone.OpaqueValueKeys["injected_opaque"] = struct{}{}
+
+	// The source must NOT see any of the clone's mutations.
+	if _, ok := src.VolatileKeys["injected_volatile"]; ok {
+		t.Error("VolatileKeys aliased: clone mutation leaked into source")
+	}
+	if _, ok := src.DerivedKeys["injected_derived"]; ok {
+		t.Error("DerivedKeys aliased: clone mutation leaked into source")
+	}
+	if _, ok := src.SecretKeys["injected_secret"]; ok {
+		t.Error("SecretKeys aliased: clone mutation leaked into source")
+	}
+	if _, ok := src.SortArrays["injected_array"]; ok {
+		t.Error("SortArrays aliased: clone mutation leaked into source")
+	}
+	if _, ok := src.OpaqueValueKeys["injected_opaque"]; ok {
+		t.Error("OpaqueValueKeys aliased: clone mutation leaked into source")
+	}
+
+	// The clone must still carry the source's original entries (deep copy, not
+	// an empty map).
+	if clone.VolatileKeys["observed_at"] != replay.SentinelObservedAt {
+		t.Errorf("clone lost source VolatileKeys entry; got %v", clone.VolatileKeys["observed_at"])
+	}
+	if clone.SecretKeys["api_token"] != replay.RedactedSentinel {
+		t.Errorf("clone lost source SecretKeys entry; got %v", clone.SecretKeys["api_token"])
+	}
+}
+
+// TestCloneNilMapsStayNil proves Clone preserves nil map fields so a cloned
+// option set is behaviorally identical to a zero-ish source rather than
+// silently substituting empty maps.
+func TestCloneNilMapsStayNil(t *testing.T) {
+	var src replay.CanonicalOptions // all map fields nil
+	clone := src.Clone()
+	if clone.VolatileKeys != nil || clone.DerivedKeys != nil ||
+		clone.SecretKeys != nil || clone.SortArrays != nil ||
+		clone.OpaqueValueKeys != nil {
+		t.Errorf("Clone() of zero value did not preserve nil map fields: %+v", clone)
+	}
+}

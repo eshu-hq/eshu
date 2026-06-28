@@ -1,0 +1,1714 @@
+{
+  "schema_version": "apirecording.v1",
+  "exchanges": [
+    {
+      "request": {
+        "name": "list-playbooks-success",
+        "transport": "mcp",
+        "method": "tools/call",
+        "path": "list_query_playbooks",
+        "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"arguments\":{},\"name\":\"list_query_playbooks\"}}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "is_error": false,
+          "structured_content": {
+            "data": {
+              "count": 13,
+              "playbooks": [
+                {
+                  "description": "Answer a service story prompt and back it with a bounded citation packet built from the evidence handles the dossier returns.",
+                  "failure_modes": [
+                    {
+                      "condition": "service not found",
+                      "fallback": "call investigate_service to plan discovery across related repositories and deployment sources",
+                      "meaning": "no workload matched the service_name selector; the answer is unsupported"
+                    },
+                    {
+                      "condition": "dossier returns no evidence handles",
+                      "fallback": "present the dossier as a partial answer and call get_repository_coverage to check completeness",
+                      "meaning": "the service exists but has no addressable evidence yet; citations cannot be hydrated"
+                    },
+                    {
+                      "condition": "citation packet truncated",
+                      "fallback": "raise the limit (bounded by the tool maximum) or send the next handle batch to build_evidence_citation_packet",
+                      "meaning": "more handles existed than the limit allowed; the citation set is partial"
+                    }
+                  ],
+                  "id": "service_story_citation",
+                  "name": "Service story with citation packet",
+                  "prompt_family": "service.story",
+                  "required_inputs": [
+                    {
+                      "description": "Service name or canonical workload identifier to tell the story for.",
+                      "name": "service_name",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional environment context such as prod or staging.",
+                      "name": "environment",
+                      "required": false,
+                      "type": "string"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "drill into raw service context when the dossier is not enough",
+                          "tool": "get_service_context"
+                        },
+                        {
+                          "reason": "walk the deployment graph when chain details are needed",
+                          "tool": "trace_deployment_chain"
+                        }
+                      ],
+                      "evidence_expected": "one-call service dossier: identity, API surface, deployment lanes, dependencies, consumers, and addressable evidence handles",
+                      "expected_truth": "deterministic",
+                      "id": "service_dossier",
+                      "params": [
+                        {
+                          "from_input": "service_name",
+                          "name": "workload_id"
+                        },
+                        {
+                          "from_input": "environment",
+                          "name": "environment"
+                        }
+                      ],
+                      "tool": "get_service_story"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "dereference durable source evidence for a specific relationship",
+                          "tool": "get_relationship_evidence"
+                        }
+                      ],
+                      "evidence_expected": "ranked source, docs, manifest, and deployment citations hydrated from the dossier evidence handles",
+                      "expected_truth": "code_hint",
+                      "id": "evidence_citations",
+                      "params": [
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "build_evidence_citation_packet"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Investigate a code topic within a repository, return ranked files and symbols, then read the source behind the top evidence.",
+                  "failure_modes": [
+                    {
+                      "condition": "no evidence groups returned",
+                      "fallback": "broaden by dropping repo_id or call search_file_content with a looser query",
+                      "meaning": "the topic matched nothing in scope; the answer is unsupported, not empty fact"
+                    },
+                    {
+                      "condition": "investigation truncated",
+                      "fallback": "page with the offset argument or raise the bounded limit before drilling down",
+                      "meaning": "more evidence existed than the limit allowed; ranking is partial"
+                    },
+                    {
+                      "condition": "relationship story unavailable for the top entity",
+                      "fallback": "present the code-hint evidence as partial and call get_file_lines to read the source directly",
+                      "meaning": "the entity has content-index evidence but no graph relationships yet"
+                    }
+                  ],
+                  "id": "repository_code_topic_investigation",
+                  "name": "Repository code-topic investigation with drilldown",
+                  "prompt_family": "code.topic",
+                  "required_inputs": [
+                    {
+                      "description": "Natural-language topic or behavior to investigate.",
+                      "name": "topic",
+                      "required": true,
+                      "type": "string"
+                    },
+                    {
+                      "description": "Optional canonical repository identifier to scope the investigation.",
+                      "name": "repo_id",
+                      "required": false,
+                      "type": "identifier"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "resolve a specific symbol surfaced in the ranked evidence",
+                          "tool": "find_symbol"
+                        },
+                        {
+                          "reason": "widen the search when ranked evidence is thin",
+                          "tool": "search_file_content"
+                        }
+                      ],
+                      "evidence_expected": "ranked files and symbols with coverage metadata, truncation flag, and next-call handles for source reads",
+                      "expected_truth": "code_hint",
+                      "id": "topic_investigation",
+                      "params": [
+                        {
+                          "from_input": "topic",
+                          "name": "topic"
+                        },
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "const_string": "explain_flow",
+                          "name": "intent"
+                        },
+                        {
+                          "const_int": 25,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "investigate_code_topic"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "read the exact source lines behind a cited entity",
+                          "tool": "get_file_lines"
+                        }
+                      ],
+                      "evidence_expected": "graph-backed relationship story for the top entity, explaining callers, callees, and ownership",
+                      "expected_truth": "deterministic",
+                      "id": "relationship_story",
+                      "params": [
+                        {
+                          "const_int": 25,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_code_relationship_story"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Resolve a documentation finding into a bounded evidence packet and confirm the packet is still current before citing it.",
+                  "failure_modes": [
+                    {
+                      "condition": "finding not found",
+                      "fallback": "call list_documentation_findings to rediscover the correct finding identifier",
+                      "meaning": "no documentation finding matched finding_id; the answer is unsupported"
+                    },
+                    {
+                      "condition": "packet stale on freshness check",
+                      "fallback": "re-fetch get_documentation_evidence_packet and cite the refreshed packet version",
+                      "meaning": "the cited packet version no longer reflects current documentation truth"
+                    }
+                  ],
+                  "id": "documentation_truth_citation",
+                  "name": "Documentation truth with citation",
+                  "prompt_family": "documentation.truth",
+                  "required_inputs": [
+                    {
+                      "description": "Documentation finding identifier to cite.",
+                      "name": "finding_id",
+                      "required": true,
+                      "type": "identifier"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "list neighboring findings when the packet alone is insufficient",
+                          "tool": "list_documentation_findings"
+                        }
+                      ],
+                      "evidence_expected": "bounded documentation evidence packet for the finding, with packet identifier and version",
+                      "expected_truth": "semantic_observation",
+                      "id": "evidence_packet",
+                      "params": [
+                        {
+                          "from_input": "finding_id",
+                          "name": "finding_id"
+                        }
+                      ],
+                      "tool": "get_documentation_evidence_packet"
+                    },
+                    {
+                      "evidence_expected": "current-or-stale verdict for the saved packet version so the citation is not stale",
+                      "expected_truth": "deterministic",
+                      "id": "freshness_check",
+                      "tool": "check_documentation_evidence_packet_freshness"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Build incident context with source evidence, missing-slot explanation, and bounded follow-up paths.",
+                  "failure_modes": [
+                    {
+                      "condition": "unsupported capability",
+                      "fallback": "return an unsupported answer and call get_semantic_capability_status or get_index_status to identify the missing capability",
+                      "meaning": "incident context requires a capability the current runtime does not advertise"
+                    },
+                    {
+                      "condition": "missing evidence",
+                      "fallback": "present a partial answer and use the declared drilldowns to find source or relationship evidence",
+                      "meaning": "incident context matched an entity but returned no addressable evidence handles"
+                    },
+                    {
+                      "condition": "stale freshness",
+                      "fallback": "call get_generation_lifecycle or get_changed_since before citing the answer",
+                      "meaning": "incident context evidence exists but may not reflect the current generation"
+                    },
+                    {
+                      "condition": "building freshness",
+                      "fallback": "surface the building state and retry only after the readiness or lifecycle tool reports convergence",
+                      "meaning": "incident context is still building and the answer may be incomplete"
+                    },
+                    {
+                      "condition": "truncated result set",
+                      "fallback": "increase the bounded limit or page through the next result window before drawing a final conclusion",
+                      "meaning": "incident context returned more rows or handles than the bounded limit allowed"
+                    },
+                    {
+                      "condition": "ambiguous selector",
+                      "fallback": "ask for a narrower selector or use the list/search drilldown to choose an exact identifier",
+                      "meaning": "incident context input matched multiple candidate entities"
+                    }
+                  ],
+                  "id": "incident_context_evidence_path",
+                  "name": "Incident context with evidence path",
+                  "prompt_family": "incident.context",
+                  "required_inputs": [
+                    {
+                      "description": "Incident, alert, or work-item identifier to investigate.",
+                      "name": "incident_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional service or workload selector when the incident is not enough.",
+                      "name": "service_name",
+                      "required": false,
+                      "type": "identifier"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "inspect the work-item evidence when incident context has gaps",
+                          "tool": "list_work_item_evidence"
+                        },
+                        {
+                          "reason": "hydrate returned evidence handles before citing the answer",
+                          "tool": "build_evidence_citation_packet"
+                        }
+                      ],
+                      "evidence_expected": "incident context with linked services, repositories, deployments, observability sources, and explicit missing slots",
+                      "expected_truth": "derived",
+                      "id": "incident_context",
+                      "params": [
+                        {
+                          "from_input": "incident_id",
+                          "name": "incident_id"
+                        },
+                        {
+                          "from_input": "service_name",
+                          "name": "service_name"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_incident_context"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "follow deployment evidence for the impacted service",
+                          "tool": "trace_deployment_chain"
+                        }
+                      ],
+                      "evidence_expected": "service dossier for the impacted workload when the incident identifies one",
+                      "expected_truth": "deterministic",
+                      "id": "service_story_drilldown",
+                      "params": [
+                        {
+                          "from_input": "service_name",
+                          "name": "workload_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_service_story"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Explain vulnerability or package impact while separating provider observations from Eshu-derived state.",
+                  "failure_modes": [
+                    {
+                      "condition": "unsupported capability",
+                      "fallback": "return an unsupported answer and call get_semantic_capability_status or get_index_status to identify the missing capability",
+                      "meaning": "supply-chain impact requires a capability the current runtime does not advertise"
+                    },
+                    {
+                      "condition": "missing evidence",
+                      "fallback": "present a partial answer and use the declared drilldowns to find source or relationship evidence",
+                      "meaning": "supply-chain impact matched an entity but returned no addressable evidence handles"
+                    },
+                    {
+                      "condition": "stale freshness",
+                      "fallback": "call get_generation_lifecycle or get_changed_since before citing the answer",
+                      "meaning": "supply-chain impact evidence exists but may not reflect the current generation"
+                    },
+                    {
+                      "condition": "building freshness",
+                      "fallback": "surface the building state and retry only after the readiness or lifecycle tool reports convergence",
+                      "meaning": "supply-chain impact is still building and the answer may be incomplete"
+                    },
+                    {
+                      "condition": "truncated result set",
+                      "fallback": "increase the bounded limit or page through the next result window before drawing a final conclusion",
+                      "meaning": "supply-chain impact returned more rows or handles than the bounded limit allowed"
+                    },
+                    {
+                      "condition": "ambiguous selector",
+                      "fallback": "ask for a narrower selector or use the list/search drilldown to choose an exact identifier",
+                      "meaning": "supply-chain impact input matched multiple candidate entities"
+                    }
+                  ],
+                  "id": "supply_chain_impact_explanation",
+                  "name": "Supply-chain impact explanation",
+                  "prompt_family": "supply-chain.impact",
+                  "required_inputs": [
+                    {
+                      "description": "Supply-chain finding, advisory, or package identifier.",
+                      "name": "finding_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional repository scope.",
+                      "name": "repo_id",
+                      "required": false,
+                      "type": "identifier"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "list neighboring findings when the selected finding is ambiguous",
+                          "tool": "list_supply_chain_impact_findings"
+                        },
+                        {
+                          "reason": "inspect provider advisory evidence before making a claim",
+                          "tool": "list_advisory_evidence"
+                        }
+                      ],
+                      "evidence_expected": "impact explanation with provider evidence separated from Eshu package, image, repository, and service correlations",
+                      "expected_truth": "derived",
+                      "id": "impact_explanation",
+                      "params": [
+                        {
+                          "from_input": "finding_id",
+                          "name": "finding_id"
+                        },
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "explain_supply_chain_impact"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "explain provider/Eshu state boundaries when confidence is unclear",
+                          "tool": "get_vulnerability_scanner_read_contract"
+                        }
+                      ],
+                      "evidence_expected": "bounded citation packet for package, advisory, image, repository, and service evidence handles",
+                      "expected_truth": "code_hint",
+                      "id": "citation_packet",
+                      "params": [
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "build_evidence_citation_packet"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Inspect identity trust chains, access paths, and posture gaps with exact, partial, and permission-hidden handling.",
+                  "failure_modes": [
+                    {
+                      "condition": "unsupported capability",
+                      "fallback": "return an unsupported answer and call get_semantic_capability_status or get_index_status to identify the missing capability",
+                      "meaning": "secrets/IAM posture requires a capability the current runtime does not advertise"
+                    },
+                    {
+                      "condition": "missing evidence",
+                      "fallback": "present a partial answer and use the declared drilldowns to find source or relationship evidence",
+                      "meaning": "secrets/IAM posture matched an entity but returned no addressable evidence handles"
+                    },
+                    {
+                      "condition": "stale freshness",
+                      "fallback": "call get_generation_lifecycle or get_changed_since before citing the answer",
+                      "meaning": "secrets/IAM posture evidence exists but may not reflect the current generation"
+                    },
+                    {
+                      "condition": "building freshness",
+                      "fallback": "surface the building state and retry only after the readiness or lifecycle tool reports convergence",
+                      "meaning": "secrets/IAM posture is still building and the answer may be incomplete"
+                    },
+                    {
+                      "condition": "truncated result set",
+                      "fallback": "increase the bounded limit or page through the next result window before drawing a final conclusion",
+                      "meaning": "secrets/IAM posture returned more rows or handles than the bounded limit allowed"
+                    },
+                    {
+                      "condition": "ambiguous selector",
+                      "fallback": "ask for a narrower selector or use the list/search drilldown to choose an exact identifier",
+                      "meaning": "secrets/IAM posture input matched multiple candidate entities"
+                    }
+                  ],
+                  "id": "secrets_iam_trust_chain_posture",
+                  "name": "Secrets/IAM trust-chain posture",
+                  "prompt_family": "secrets-iam.posture",
+                  "required_inputs": [
+                    {
+                      "description": "Identity, role, service account, or principal selector.",
+                      "name": "identity_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional account, tenant, repository, or workload scope.",
+                      "name": "scope_id",
+                      "required": false,
+                      "type": "identifier"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "inspect secret access paths for the selected identity",
+                          "tool": "list_secrets_iam_secret_access_paths"
+                        },
+                        {
+                          "reason": "list posture gaps when the trust chain is incomplete",
+                          "tool": "list_secrets_iam_posture_gaps"
+                        }
+                      ],
+                      "evidence_expected": "trust chains with explicit exact, partial, or permission-hidden posture for the selected identity",
+                      "expected_truth": "deterministic",
+                      "id": "trust_chains",
+                      "params": [
+                        {
+                          "from_input": "identity_id",
+                          "name": "identity_id"
+                        },
+                        {
+                          "from_input": "scope_id",
+                          "name": "scope_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "list_secrets_iam_identity_trust_chains"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "inspect privilege observations when counts look incomplete",
+                          "tool": "list_secrets_iam_privilege_posture_observations"
+                        }
+                      ],
+                      "evidence_expected": "bounded posture counts that summarize trust-chain and secret-access coverage",
+                      "expected_truth": "derived",
+                      "id": "posture_count",
+                      "params": [
+                        {
+                          "from_input": "identity_id",
+                          "name": "identity_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "count_secrets_iam_posture"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Investigate stale or building answers with generation lifecycle, changed-since, index, and semantic readiness checks.",
+                  "failure_modes": [
+                    {
+                      "condition": "unsupported capability",
+                      "fallback": "return an unsupported answer and call get_semantic_capability_status or get_index_status to identify the missing capability",
+                      "meaning": "freshness readiness requires a capability the current runtime does not advertise"
+                    },
+                    {
+                      "condition": "missing evidence",
+                      "fallback": "present a partial answer and use the declared drilldowns to find source or relationship evidence",
+                      "meaning": "freshness readiness matched an entity but returned no addressable evidence handles"
+                    },
+                    {
+                      "condition": "stale freshness",
+                      "fallback": "call get_generation_lifecycle or get_changed_since before citing the answer",
+                      "meaning": "freshness readiness evidence exists but may not reflect the current generation"
+                    },
+                    {
+                      "condition": "building freshness",
+                      "fallback": "surface the building state and retry only after the readiness or lifecycle tool reports convergence",
+                      "meaning": "freshness readiness is still building and the answer may be incomplete"
+                    },
+                    {
+                      "condition": "truncated result set",
+                      "fallback": "increase the bounded limit or page through the next result window before drawing a final conclusion",
+                      "meaning": "freshness readiness returned more rows or handles than the bounded limit allowed"
+                    },
+                    {
+                      "condition": "ambiguous selector",
+                      "fallback": "ask for a narrower selector or use the list/search drilldown to choose an exact identifier",
+                      "meaning": "freshness readiness input matched multiple candidate entities"
+                    }
+                  ],
+                  "id": "incremental_freshness_readiness",
+                  "name": "Incremental freshness and readiness investigation",
+                  "prompt_family": "freshness.readiness",
+                  "required_inputs": [
+                    {
+                      "description": "Repository, workload, service, or deployment scope to check for freshness.",
+                      "name": "scope_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional timestamp or generation marker to compare against.",
+                      "name": "since",
+                      "required": false,
+                      "type": "string"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "list changed entities when freshness is stale",
+                          "tool": "get_changed_since"
+                        },
+                        {
+                          "reason": "inspect index convergence before trusting the answer",
+                          "tool": "get_index_status"
+                        }
+                      ],
+                      "evidence_expected": "generation lifecycle state showing fresh, stale, building, failed, or partial readiness",
+                      "expected_truth": "deterministic",
+                      "id": "generation_lifecycle",
+                      "params": [
+                        {
+                          "from_input": "scope_id",
+                          "name": "scope_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_generation_lifecycle"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "narrow freshness checks to a single service when scope is broad",
+                          "tool": "get_service_changed_since"
+                        }
+                      ],
+                      "evidence_expected": "semantic capability status and next checks for stale-answer remediation",
+                      "expected_truth": "derived",
+                      "id": "semantic_readiness",
+                      "params": [
+                        {
+                          "from_input": "scope_id",
+                          "name": "scope_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_semantic_capability_status"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Summarize hosted onboarding readiness, auth scope, collector health, and governance caveats without exposing secrets.",
+                  "failure_modes": [
+                    {
+                      "condition": "unsupported capability",
+                      "fallback": "return an unsupported answer and call get_semantic_capability_status or get_index_status to identify the missing capability",
+                      "meaning": "hosted governance readiness requires a capability the current runtime does not advertise"
+                    },
+                    {
+                      "condition": "missing evidence",
+                      "fallback": "present a partial answer and use the declared drilldowns to find source or relationship evidence",
+                      "meaning": "hosted governance readiness matched an entity but returned no addressable evidence handles"
+                    },
+                    {
+                      "condition": "stale freshness",
+                      "fallback": "call get_generation_lifecycle or get_changed_since before citing the answer",
+                      "meaning": "hosted governance readiness evidence exists but may not reflect the current generation"
+                    },
+                    {
+                      "condition": "building freshness",
+                      "fallback": "surface the building state and retry only after the readiness or lifecycle tool reports convergence",
+                      "meaning": "hosted governance readiness is still building and the answer may be incomplete"
+                    },
+                    {
+                      "condition": "truncated result set",
+                      "fallback": "increase the bounded limit or page through the next result window before drawing a final conclusion",
+                      "meaning": "hosted governance readiness returned more rows or handles than the bounded limit allowed"
+                    },
+                    {
+                      "condition": "ambiguous selector",
+                      "fallback": "ask for a narrower selector or use the list/search drilldown to choose an exact identifier",
+                      "meaning": "hosted governance readiness input matched multiple candidate entities"
+                    }
+                  ],
+                  "id": "hosted_onboarding_governance_status",
+                  "name": "Hosted onboarding governance status",
+                  "prompt_family": "hosted.governance",
+                  "required_inputs": [
+                    {
+                      "description": "Tenant, team, or workspace identifier to check.",
+                      "name": "tenant_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional repository or workload scope.",
+                      "name": "scope_id",
+                      "required": false,
+                      "type": "identifier"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "inspect collector availability for the tenant",
+                          "tool": "list_collectors"
+                        },
+                        {
+                          "reason": "inspect ingestion readiness for hosted onboarding",
+                          "tool": "list_ingesters"
+                        }
+                      ],
+                      "evidence_expected": "hosted index readiness, queue convergence, and explicit auth or scope caveats",
+                      "expected_truth": "deterministic",
+                      "id": "index_readiness",
+                      "params": [
+                        {
+                          "from_input": "tenant_id",
+                          "name": "tenant_id"
+                        },
+                        {
+                          "from_input": "scope_id",
+                          "name": "scope_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_index_status"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "drill into ingester status when onboarding is building or stale",
+                          "tool": "get_ingester_status"
+                        }
+                      ],
+                      "evidence_expected": "component extension diagnostics with hosted policy, auth, and scope caveats",
+                      "expected_truth": "derived",
+                      "id": "extension_diagnostics",
+                      "params": [
+                        {
+                          "from_input": "scope_id",
+                          "name": "scope_id"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_component_extension_diagnostics"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Find a change surface, investigate ranked source drilldowns, and cite the exact source or relationship evidence.",
+                  "failure_modes": [
+                    {
+                      "condition": "unsupported capability",
+                      "fallback": "return an unsupported answer and call get_semantic_capability_status or get_index_status to identify the missing capability",
+                      "meaning": "change surface requires a capability the current runtime does not advertise"
+                    },
+                    {
+                      "condition": "missing evidence",
+                      "fallback": "present a partial answer and use the declared drilldowns to find source or relationship evidence",
+                      "meaning": "change surface matched an entity but returned no addressable evidence handles"
+                    },
+                    {
+                      "condition": "stale freshness",
+                      "fallback": "call get_generation_lifecycle or get_changed_since before citing the answer",
+                      "meaning": "change surface evidence exists but may not reflect the current generation"
+                    },
+                    {
+                      "condition": "building freshness",
+                      "fallback": "surface the building state and retry only after the readiness or lifecycle tool reports convergence",
+                      "meaning": "change surface is still building and the answer may be incomplete"
+                    },
+                    {
+                      "condition": "truncated result set",
+                      "fallback": "increase the bounded limit or page through the next result window before drawing a final conclusion",
+                      "meaning": "change surface returned more rows or handles than the bounded limit allowed"
+                    },
+                    {
+                      "condition": "ambiguous selector",
+                      "fallback": "ask for a narrower selector or use the list/search drilldown to choose an exact identifier",
+                      "meaning": "change surface input matched multiple candidate entities"
+                    }
+                  ],
+                  "id": "change_surface_source_investigation",
+                  "name": "Change-surface source investigation",
+                  "prompt_family": "change.surface",
+                  "required_inputs": [
+                    {
+                      "description": "Pull request, commit, issue, or change identifier.",
+                      "name": "change_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional repository scope.",
+                      "name": "repo_id",
+                      "required": false,
+                      "type": "identifier"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "expand the ranked surface into ownership and dependency evidence",
+                          "tool": "investigate_change_surface"
+                        },
+                        {
+                          "reason": "read exact source lines for a cited file handle",
+                          "tool": "get_file_lines"
+                        }
+                      ],
+                      "evidence_expected": "ranked affected files, entities, relationships, and source handles for the change",
+                      "expected_truth": "code_hint",
+                      "id": "surface_search",
+                      "params": [
+                        {
+                          "from_input": "change_id",
+                          "name": "change_id"
+                        },
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "const_int": 25,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "find_change_surface"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "hydrate selected handles into a bounded citation packet",
+                          "tool": "build_evidence_citation_packet"
+                        }
+                      ],
+                      "evidence_expected": "relationship evidence behind the change surface for citation or reviewer follow-up",
+                      "expected_truth": "deterministic",
+                      "id": "relationship_evidence",
+                      "params": [
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_relationship_evidence"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Discover context with semantic search, then resolve the top service the search recommends into a dossier and cite the evidence.",
+                  "failure_modes": [
+                    {
+                      "condition": "semantic search not ready (semantic_unavailable or index_unready)",
+                      "fallback": "retry the search step in keyword mode and treat the result as lexical-only discovery",
+                      "meaning": "no governed embedder or vector index answered; only keyword discovery is available"
+                    },
+                    {
+                      "condition": "no search hits in scope",
+                      "fallback": "broaden the query, drop source_kinds, or widen the repository scope before any readback",
+                      "meaning": "the query matched nothing in the bounded corpus; there is no context to hand off, not an empty fact"
+                    },
+                    {
+                      "condition": "stale vectors (vector_index_stale)",
+                      "fallback": "use keyword mode or wait for reprojection, and check get_semantic_capability_status",
+                      "meaning": "the vector index is behind the active generation; semantic ranking may be outdated"
+                    },
+                    {
+                      "condition": "ambiguous target across multiple candidates",
+                      "fallback": "narrow with service_id or pick a single recommended_next_call before the readback step",
+                      "meaning": "the top results point at more than one service or workload, so the readback target is not unique"
+                    },
+                    {
+                      "condition": "search or readback result truncated",
+                      "fallback": "raise the bounded limit or page before drilling into a readback",
+                      "meaning": "more results existed than the limit allowed; ranking and handoff are partial"
+                    },
+                    {
+                      "condition": "readback target not yet resolved from search",
+                      "fallback": "run the semantic_search step first and parametrize the readback from its recommended_next_calls, or supply service_id/workload_id up front",
+                      "meaning": "the readback step is a template: its target comes from the search step's recommended_next_calls or a supplied anchor, not from the playbook alone"
+                    }
+                  ],
+                  "id": "query_to_service_context",
+                  "name": "Query to service context",
+                  "prompt_family": "query.service_context",
+                  "required_inputs": [
+                    {
+                      "description": "Repository id that bounds the searchable corpus.",
+                      "name": "repo_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Natural-language question to discover context for.",
+                      "name": "query",
+                      "required": true,
+                      "type": "string"
+                    },
+                    {
+                      "description": "Optional service anchor to bound and rerank the search around.",
+                      "name": "service_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional workload anchor inside the repository corpus.",
+                      "name": "workload_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional environment anchor such as prod or staging.",
+                      "name": "environment",
+                      "required": false,
+                      "type": "string"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "confirm semantic readiness when results are empty or degraded",
+                          "tool": "get_semantic_capability_status"
+                        }
+                      ],
+                      "evidence_expected": "ranked curated context with graph handles, per-result ranking basis, and recommended_next_calls; read-only discovery that never asserts graph truth",
+                      "expected_truth": "derived",
+                      "id": "semantic_search",
+                      "params": [
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "from_input": "query",
+                          "name": "query"
+                        },
+                        {
+                          "from_input": "service_id",
+                          "name": "service_id"
+                        },
+                        {
+                          "from_input": "workload_id",
+                          "name": "workload_id"
+                        },
+                        {
+                          "from_input": "environment",
+                          "name": "environment"
+                        },
+                        {
+                          "const_string": "hybrid",
+                          "name": "mode"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        },
+                        {
+                          "const_int": 2000,
+                          "name": "timeout_ms"
+                        },
+                        {
+                          "const_bool": true,
+                          "name": "rerank"
+                        }
+                      ],
+                      "tool": "search_semantic_context"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "drill into raw service context when the dossier is not enough",
+                          "tool": "get_service_context"
+                        },
+                        {
+                          "reason": "walk the deployment graph when chain details are needed",
+                          "tool": "trace_deployment_chain"
+                        }
+                      ],
+                      "evidence_expected": "service dossier for the service in the search step's recommended_next_calls: identity, deployment lanes, dependencies, and evidence handles",
+                      "expected_truth": "deterministic",
+                      "id": "service_story",
+                      "params": [
+                        {
+                          "from_input": "workload_id",
+                          "name": "workload_id"
+                        },
+                        {
+                          "from_input": "environment",
+                          "name": "environment"
+                        }
+                      ],
+                      "tool": "get_service_story"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "dereference durable source evidence for a specific relationship",
+                          "tool": "get_relationship_evidence"
+                        }
+                      ],
+                      "evidence_expected": "ranked citations hydrated from the dossier evidence handles",
+                      "expected_truth": "code_hint",
+                      "id": "evidence_citations",
+                      "params": [
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "build_evidence_citation_packet"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Discover context with semantic search, then rank the code topic and read the graph-backed relationship story behind the top entity.",
+                  "failure_modes": [
+                    {
+                      "condition": "semantic search not ready (semantic_unavailable or index_unready)",
+                      "fallback": "retry the search step in keyword mode and treat the result as lexical-only discovery",
+                      "meaning": "no governed embedder or vector index answered; only keyword discovery is available"
+                    },
+                    {
+                      "condition": "no search hits in scope",
+                      "fallback": "broaden the query, drop source_kinds, or widen the repository scope before any readback",
+                      "meaning": "the query matched nothing in the bounded corpus; there is no context to hand off, not an empty fact"
+                    },
+                    {
+                      "condition": "stale vectors (vector_index_stale)",
+                      "fallback": "use keyword mode or wait for reprojection, and check get_semantic_capability_status",
+                      "meaning": "the vector index is behind the active generation; semantic ranking may be outdated"
+                    },
+                    {
+                      "condition": "ambiguous target across multiple candidates",
+                      "fallback": "narrow with service_id or pick a single recommended_next_call before the readback step",
+                      "meaning": "the top results point at more than one service or workload, so the readback target is not unique"
+                    },
+                    {
+                      "condition": "search or readback result truncated",
+                      "fallback": "raise the bounded limit or page before drilling into a readback",
+                      "meaning": "more results existed than the limit allowed; ranking and handoff are partial"
+                    },
+                    {
+                      "condition": "readback target not yet resolved from search",
+                      "fallback": "run the semantic_search step first and parametrize the readback from its recommended_next_calls, or supply service_id/workload_id up front",
+                      "meaning": "the readback step is a template: its target comes from the search step's recommended_next_calls or a supplied anchor, not from the playbook alone"
+                    }
+                  ],
+                  "id": "query_to_code_topic_context",
+                  "name": "Query to code-topic context",
+                  "prompt_family": "query.code_topic_context",
+                  "required_inputs": [
+                    {
+                      "description": "Repository id that bounds the searchable corpus.",
+                      "name": "repo_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Natural-language question to discover context for.",
+                      "name": "query",
+                      "required": true,
+                      "type": "string"
+                    },
+                    {
+                      "description": "Optional service anchor to bound and rerank the search around.",
+                      "name": "service_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional workload anchor inside the repository corpus.",
+                      "name": "workload_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional environment anchor such as prod or staging.",
+                      "name": "environment",
+                      "required": false,
+                      "type": "string"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "confirm semantic readiness when results are empty or degraded",
+                          "tool": "get_semantic_capability_status"
+                        }
+                      ],
+                      "evidence_expected": "ranked curated context with graph handles, per-result ranking basis, and recommended_next_calls; read-only discovery that never asserts graph truth",
+                      "expected_truth": "derived",
+                      "id": "semantic_search",
+                      "params": [
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "from_input": "query",
+                          "name": "query"
+                        },
+                        {
+                          "from_input": "service_id",
+                          "name": "service_id"
+                        },
+                        {
+                          "from_input": "workload_id",
+                          "name": "workload_id"
+                        },
+                        {
+                          "from_input": "environment",
+                          "name": "environment"
+                        },
+                        {
+                          "const_string": "hybrid",
+                          "name": "mode"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        },
+                        {
+                          "const_int": 2000,
+                          "name": "timeout_ms"
+                        },
+                        {
+                          "const_bool": true,
+                          "name": "rerank"
+                        }
+                      ],
+                      "tool": "search_semantic_context"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "resolve a specific symbol surfaced in the ranked evidence",
+                          "tool": "find_symbol"
+                        },
+                        {
+                          "reason": "widen the search when ranked evidence is thin",
+                          "tool": "search_file_content"
+                        }
+                      ],
+                      "evidence_expected": "ranked files and symbols for the query, with coverage and next-call handles",
+                      "expected_truth": "code_hint",
+                      "id": "topic_investigation",
+                      "params": [
+                        {
+                          "from_input": "query",
+                          "name": "topic"
+                        },
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "const_string": "explain_flow",
+                          "name": "intent"
+                        },
+                        {
+                          "const_int": 25,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "investigate_code_topic"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "read the exact source lines behind a cited entity",
+                          "tool": "get_file_lines"
+                        }
+                      ],
+                      "evidence_expected": "graph-backed relationship story for the top entity: callers, callees, and ownership",
+                      "expected_truth": "deterministic",
+                      "id": "relationship_story",
+                      "params": [
+                        {
+                          "const_int": 25,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_code_relationship_story"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Discover context with semantic search, then resolve the incident the search recommends into bounded incident context and cite the evidence.",
+                  "failure_modes": [
+                    {
+                      "condition": "semantic search not ready (semantic_unavailable or index_unready)",
+                      "fallback": "retry the search step in keyword mode and treat the result as lexical-only discovery",
+                      "meaning": "no governed embedder or vector index answered; only keyword discovery is available"
+                    },
+                    {
+                      "condition": "no search hits in scope",
+                      "fallback": "broaden the query, drop source_kinds, or widen the repository scope before any readback",
+                      "meaning": "the query matched nothing in the bounded corpus; there is no context to hand off, not an empty fact"
+                    },
+                    {
+                      "condition": "stale vectors (vector_index_stale)",
+                      "fallback": "use keyword mode or wait for reprojection, and check get_semantic_capability_status",
+                      "meaning": "the vector index is behind the active generation; semantic ranking may be outdated"
+                    },
+                    {
+                      "condition": "ambiguous target across multiple candidates",
+                      "fallback": "narrow with service_id or pick a single recommended_next_call before the readback step",
+                      "meaning": "the top results point at more than one service or workload, so the readback target is not unique"
+                    },
+                    {
+                      "condition": "search or readback result truncated",
+                      "fallback": "raise the bounded limit or page before drilling into a readback",
+                      "meaning": "more results existed than the limit allowed; ranking and handoff are partial"
+                    },
+                    {
+                      "condition": "readback target not yet resolved from search",
+                      "fallback": "run the semantic_search step first and parametrize the readback from its recommended_next_calls, or supply service_id/workload_id up front",
+                      "meaning": "the readback step is a template: its target comes from the search step's recommended_next_calls or a supplied anchor, not from the playbook alone"
+                    }
+                  ],
+                  "id": "query_to_incident_context",
+                  "name": "Query to incident context",
+                  "prompt_family": "query.incident_context",
+                  "required_inputs": [
+                    {
+                      "description": "Repository id that bounds the searchable corpus.",
+                      "name": "repo_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Natural-language question to discover context for.",
+                      "name": "query",
+                      "required": true,
+                      "type": "string"
+                    },
+                    {
+                      "description": "Optional service anchor to bound and rerank the search around.",
+                      "name": "service_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional workload anchor inside the repository corpus.",
+                      "name": "workload_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional environment anchor such as prod or staging.",
+                      "name": "environment",
+                      "required": false,
+                      "type": "string"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "confirm semantic readiness when results are empty or degraded",
+                          "tool": "get_semantic_capability_status"
+                        }
+                      ],
+                      "evidence_expected": "ranked curated context with graph handles, per-result ranking basis, and recommended_next_calls; read-only discovery that never asserts graph truth",
+                      "expected_truth": "derived",
+                      "id": "semantic_search",
+                      "params": [
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "from_input": "query",
+                          "name": "query"
+                        },
+                        {
+                          "from_input": "service_id",
+                          "name": "service_id"
+                        },
+                        {
+                          "from_input": "workload_id",
+                          "name": "workload_id"
+                        },
+                        {
+                          "from_input": "environment",
+                          "name": "environment"
+                        },
+                        {
+                          "const_string": "hybrid",
+                          "name": "mode"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        },
+                        {
+                          "const_int": 2000,
+                          "name": "timeout_ms"
+                        },
+                        {
+                          "const_bool": true,
+                          "name": "rerank"
+                        }
+                      ],
+                      "tool": "search_semantic_context"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "drill into the impacted service when one is selected",
+                          "tool": "get_service_story"
+                        }
+                      ],
+                      "evidence_expected": "bounded incident context for the incident in the search step's recommended_next_calls, with linked evidence",
+                      "expected_truth": "derived",
+                      "id": "incident_context",
+                      "params": [
+                        {
+                          "const_int": 25,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "get_incident_context"
+                    },
+                    {
+                      "evidence_expected": "ranked citations hydrated from the incident-context evidence handles",
+                      "expected_truth": "code_hint",
+                      "id": "evidence_citations",
+                      "params": [
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "build_evidence_citation_packet"
+                    }
+                  ],
+                  "version": "1.0.0"
+                },
+                {
+                  "description": "Discover context with semantic search, then explain the supply-chain impact for the package or image the search recommends and cite the evidence.",
+                  "failure_modes": [
+                    {
+                      "condition": "semantic search not ready (semantic_unavailable or index_unready)",
+                      "fallback": "retry the search step in keyword mode and treat the result as lexical-only discovery",
+                      "meaning": "no governed embedder or vector index answered; only keyword discovery is available"
+                    },
+                    {
+                      "condition": "no search hits in scope",
+                      "fallback": "broaden the query, drop source_kinds, or widen the repository scope before any readback",
+                      "meaning": "the query matched nothing in the bounded corpus; there is no context to hand off, not an empty fact"
+                    },
+                    {
+                      "condition": "stale vectors (vector_index_stale)",
+                      "fallback": "use keyword mode or wait for reprojection, and check get_semantic_capability_status",
+                      "meaning": "the vector index is behind the active generation; semantic ranking may be outdated"
+                    },
+                    {
+                      "condition": "ambiguous target across multiple candidates",
+                      "fallback": "narrow with service_id or pick a single recommended_next_call before the readback step",
+                      "meaning": "the top results point at more than one service or workload, so the readback target is not unique"
+                    },
+                    {
+                      "condition": "search or readback result truncated",
+                      "fallback": "raise the bounded limit or page before drilling into a readback",
+                      "meaning": "more results existed than the limit allowed; ranking and handoff are partial"
+                    },
+                    {
+                      "condition": "readback target not yet resolved from search",
+                      "fallback": "run the semantic_search step first and parametrize the readback from its recommended_next_calls, or supply service_id/workload_id up front",
+                      "meaning": "the readback step is a template: its target comes from the search step's recommended_next_calls or a supplied anchor, not from the playbook alone"
+                    }
+                  ],
+                  "id": "query_to_supply_chain_context",
+                  "name": "Query to supply-chain context",
+                  "prompt_family": "query.supply_chain_context",
+                  "required_inputs": [
+                    {
+                      "description": "Repository id that bounds the searchable corpus.",
+                      "name": "repo_id",
+                      "required": true,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Natural-language question to discover context for.",
+                      "name": "query",
+                      "required": true,
+                      "type": "string"
+                    },
+                    {
+                      "description": "Optional service anchor to bound and rerank the search around.",
+                      "name": "service_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional workload anchor inside the repository corpus.",
+                      "name": "workload_id",
+                      "required": false,
+                      "type": "identifier"
+                    },
+                    {
+                      "description": "Optional environment anchor such as prod or staging.",
+                      "name": "environment",
+                      "required": false,
+                      "type": "string"
+                    }
+                  ],
+                  "steps": [
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "confirm semantic readiness when results are empty or degraded",
+                          "tool": "get_semantic_capability_status"
+                        }
+                      ],
+                      "evidence_expected": "ranked curated context with graph handles, per-result ranking basis, and recommended_next_calls; read-only discovery that never asserts graph truth",
+                      "expected_truth": "derived",
+                      "id": "semantic_search",
+                      "params": [
+                        {
+                          "from_input": "repo_id",
+                          "name": "repo_id"
+                        },
+                        {
+                          "from_input": "query",
+                          "name": "query"
+                        },
+                        {
+                          "from_input": "service_id",
+                          "name": "service_id"
+                        },
+                        {
+                          "from_input": "workload_id",
+                          "name": "workload_id"
+                        },
+                        {
+                          "from_input": "environment",
+                          "name": "environment"
+                        },
+                        {
+                          "const_string": "hybrid",
+                          "name": "mode"
+                        },
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        },
+                        {
+                          "const_int": 2000,
+                          "name": "timeout_ms"
+                        },
+                        {
+                          "const_bool": true,
+                          "name": "rerank"
+                        }
+                      ],
+                      "tool": "search_semantic_context"
+                    },
+                    {
+                      "drilldowns": [
+                        {
+                          "reason": "list neighboring findings when the target is ambiguous",
+                          "tool": "list_supply_chain_impact_findings"
+                        }
+                      ],
+                      "evidence_expected": "supply-chain impact for the package or image in the search step's recommended_next_calls, separating provider observations from Eshu-derived state",
+                      "expected_truth": "derived",
+                      "id": "supply_chain_impact",
+                      "params": [
+                        {
+                          "const_int": 25,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "explain_supply_chain_impact"
+                    },
+                    {
+                      "evidence_expected": "ranked citations hydrated from the supply-chain impact evidence handles",
+                      "expected_truth": "code_hint",
+                      "id": "evidence_citations",
+                      "params": [
+                        {
+                          "const_int": 10,
+                          "name": "limit"
+                        }
+                      ],
+                      "tool": "build_evidence_citation_packet"
+                    }
+                  ],
+                  "version": "1.0.0"
+                }
+              ],
+              "schema_version": "query-playbooks.v1",
+              "versions": [
+                {
+                  "id": "service_story_citation",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "repository_code_topic_investigation",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "documentation_truth_citation",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "incident_context_evidence_path",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "supply_chain_impact_explanation",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "secrets_iam_trust_chain_posture",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "incremental_freshness_readiness",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "hosted_onboarding_governance_status",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "change_surface_source_investigation",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "query_to_service_context",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "query_to_code_topic_context",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "query_to_incident_context",
+                  "version": "1.0.0"
+                },
+                {
+                  "id": "query_to_supply_chain_context",
+                  "version": "1.0.0"
+                }
+              ]
+            },
+            "error": null,
+            "truth": {
+              "basis": "runtime_state",
+              "capability": "query.playbooks",
+              "freshness": {
+                "state": "fresh"
+              },
+              "level": "exact",
+              "profile": "production",
+              "reason": "deterministic query playbook catalog; no live backend read"
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "name": "resolve-playbook-success",
+        "transport": "mcp",
+        "method": "tools/call",
+        "path": "resolve_query_playbook",
+        "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"arguments\":{\"inputs\":{\"environment\":\"prod\",\"service_name\":\"payments-api\"},\"playbook_id\":\"service_story_citation\"},\"name\":\"resolve_query_playbook\"}}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "is_error": false,
+          "structured_content": {
+            "data": {
+              "resolved": {
+                "calls": [
+                  {
+                    "arguments": {
+                      "environment": "prod",
+                      "workload_id": "payments-api"
+                    },
+                    "drilldowns": [
+                      {
+                        "reason": "drill into raw service context when the dossier is not enough",
+                        "tool": "get_service_context"
+                      },
+                      {
+                        "reason": "walk the deployment graph when chain details are needed",
+                        "tool": "trace_deployment_chain"
+                      }
+                    ],
+                    "evidence_expected": "one-call service dossier: identity, API surface, deployment lanes, dependencies, consumers, and addressable evidence handles",
+                    "expected_truth": "deterministic",
+                    "step_id": "service_dossier",
+                    "tool": "get_service_story"
+                  },
+                  {
+                    "arguments": {
+                      "limit": 10
+                    },
+                    "drilldowns": [
+                      {
+                        "reason": "dereference durable source evidence for a specific relationship",
+                        "tool": "get_relationship_evidence"
+                      }
+                    ],
+                    "evidence_expected": "ranked source, docs, manifest, and deployment citations hydrated from the dossier evidence handles",
+                    "expected_truth": "code_hint",
+                    "step_id": "evidence_citations",
+                    "tool": "build_evidence_citation_packet"
+                  }
+                ],
+                "failure_modes": [
+                  {
+                    "condition": "service not found",
+                    "fallback": "call investigate_service to plan discovery across related repositories and deployment sources",
+                    "meaning": "no workload matched the service_name selector; the answer is unsupported"
+                  },
+                  {
+                    "condition": "dossier returns no evidence handles",
+                    "fallback": "present the dossier as a partial answer and call get_repository_coverage to check completeness",
+                    "meaning": "the service exists but has no addressable evidence yet; citations cannot be hydrated"
+                  },
+                  {
+                    "condition": "citation packet truncated",
+                    "fallback": "raise the limit (bounded by the tool maximum) or send the next handle batch to build_evidence_citation_packet",
+                    "meaning": "more handles existed than the limit allowed; the citation set is partial"
+                  }
+                ],
+                "playbook_id": "service_story_citation",
+                "prompt_family": "service.story",
+                "version": "1.0.0"
+              },
+              "schema_version": "query-playbooks.v1"
+            },
+            "error": null,
+            "truth": {
+              "basis": "runtime_state",
+              "capability": "query.playbooks",
+              "freshness": {
+                "state": "fresh"
+              },
+              "level": "exact",
+              "profile": "production",
+              "reason": "deterministic query playbook resolver; no live backend read"
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "name": "resolve-playbook-unknown-refusal",
+        "transport": "mcp",
+        "method": "tools/call",
+        "path": "resolve_query_playbook",
+        "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"arguments\":{\"inputs\":{},\"playbook_id\":\"missing\"},\"name\":\"resolve_query_playbook\"}}"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "is_error": true,
+          "structured_content": {
+            "data": null,
+            "error": {
+              "capability": "query.playbooks",
+              "code": "not_found",
+              "message": "query playbook not found"
+            },
+            "truth": null
+          }
+        }
+      }
+    }
+  ]
+}

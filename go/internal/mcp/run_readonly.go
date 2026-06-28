@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -47,4 +48,27 @@ func RunReadOnlyTool(
 		return result.Envelope, nil, result.IsError, nil
 	}
 	return nil, result.Value, result.IsError, nil
+}
+
+// InProcessMessageHandler returns an [http.Handler] that processes MCP JSON-RPC
+// messages backed by the given query handler. It is the exported replay seam for
+// R-9 (#4111): the handler can be driven via httptest without a network server,
+// so mcpreplay records and asserts MCP tool responses offline.
+//
+// The returned handler uses the standalone-POST path of handleHTTPMessage (no
+// SSE session, no sessionId query parameter). Every call is synchronous: the
+// JSON-RPC response is written directly to the HTTP response body and returned
+// to the caller. This matches the standalone-POST behavior a client gets when
+// posting to /mcp/message without a sessionId; the SSE-linked path (202
+// Accepted + channel delivery) is not exercised.
+//
+// logger may be nil; a discard logger is substituted to avoid noise in test
+// output. The discard logger satisfies the nil-guard inside NewServer, so the
+// server is always initialised with a valid logger.
+func InProcessMessageHandler(queryHandler http.Handler, logger *slog.Logger) http.Handler {
+	if logger == nil {
+		logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
+	}
+	s := NewServer(queryHandler, logger)
+	return http.HandlerFunc(s.handleHTTPMessage)
 }
