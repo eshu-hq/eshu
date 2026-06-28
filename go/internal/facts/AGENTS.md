@@ -40,9 +40,11 @@
 - **Add a new field to `Ref`** → same additive-only rule; check that all
   callers that construct `Ref` literals compile without modification.
 
-- **Add a new collector fact kind registry** → add constants, schema-version
-  helpers, tests, and README/doc.go contract text in the same slice. Keep the
-  package leaf-only: no collector imports and no I/O.
+- **Add or change a core fact kind registry entry** → update
+  `specs/fact-kind-registry.v1.yaml`, regenerate
+  `fact_kind_registry.generated.go` and `FACT_KIND_REGISTRIES.md`, and keep the
+  family constants plus schema-version helpers aligned in the same slice. Keep
+  the package leaf-only: no collector imports and no I/O.
 
 - **Change `StableID` normalization** → first understand whether existing stored
   keys must be migrated. If yes, write a migration before merging. The stable key

@@ -19,6 +19,12 @@ documentation.
   feature claims to implementation files, test files, docs, parser-backing
   class, deterministic no-provider posture, read surfaces, and gap-tracking
   issues. It is enforced by `scripts/verify-parser-relationship-kit.sh`.
+- `fact-kind-registry.v1.yaml` maps every first-party fact kind to its schema
+  version, lifecycle owner, reducer domain, projection hook, admission hook,
+  read surface, truth profile, and no-provider posture. It generates
+  `go/internal/facts/fact_kind_registry.generated.go` and
+  `go/internal/facts/FACT_KIND_REGISTRIES.md`, and is enforced by
+  `scripts/verify-fact-kind-registry.sh`.
 - `authorization-catalog.v1.yaml` defines the v1 built-in roles, explicit
   action grants, data classes, permission families, bootstrap-owner posture, and
   custom-policy deferral that enrich every generated capability catalog entry.

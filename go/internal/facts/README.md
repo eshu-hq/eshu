@@ -61,9 +61,14 @@ consume these types as their input or storage shape.
 - `StableID(factType, identity)` — deterministic SHA-256 hex ID derived from
   `factType` and the normalized `identity` map; used to assign a stable fact
   key that survives re-ingestion of the same source record.
-- `CoreFactKinds()` and `IsCoreFactKind(kind)` — the aggregate registry of
-  core-owned fact kinds used by optional component validation to reject
-  extension namespace collisions.
+- `CoreFactKinds()` and `IsCoreFactKind(kind)` — the generated aggregate
+  registry of core-owned fact kinds used by optional component validation to
+  reject extension namespace collisions.
+- `FactKindRegistry()`, `FactKindRegistryEntryFor(kind)`, and
+  `ValidateFactKindRegistry(entries)` — the generated fact-kind contract that
+  records schema version, lifecycle owner, reducer domain, projection hook,
+  admission hook, read surface, truth profile, optional semantic policy gate,
+  and no-provider posture for each core fact kind.
 - Documentation fact payloads — source-neutral payload structs and stable-ID
   helpers for documentation sources, documents, sections, links, entity
   mentions, non-authoritative claim candidates, owner references, ACL
@@ -89,7 +94,9 @@ consume these types as their input or storage shape.
   unsupported majors are rejected with no silent fallback. See
   [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md).
 
-The family-by-family catalogue lives in
+The generated fact-kind contract source is
+`specs/fact-kind-registry.v1.yaml`; it emits
+[`fact_kind_registry.generated.go`](fact_kind_registry.generated.go) and
 [`FACT_KIND_REGISTRIES.md`](FACT_KIND_REGISTRIES.md). Public operator-facing
 descriptions live in
 `docs/public/reference/fact-envelope-reference.md`. See `doc.go` for the full

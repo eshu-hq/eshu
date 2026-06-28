@@ -83,12 +83,12 @@ var schemaVersionFamilies = []schemaVersionFamily{
 // schema-version map. It is built once at init from schemaVersionFamilies so the
 // per-fact lookups SchemaVersion and ValidateSchemaVersion use on the projection
 // hot path are O(1) rather than a per-call scan over every family.
-var supportedSchemaVersionRegistry = buildSupportedSchemaVersionRegistry()
+var supportedSchemaVersionRegistry = buildFactKindSchemaRegistry(factKindRegistryEntries)
 
-// buildSupportedSchemaVersionRegistry flattens every versioned family into one
+// liveSchemaVersionRegistry flattens every versioned family into one
 // map. Two families must never claim the same fact kind; that is a programming
 // error in schemaVersionFamilies, so it panics at init and surfaces in any test.
-func buildSupportedSchemaVersionRegistry() map[string]string {
+func liveSchemaVersionRegistry() map[string]string {
 	registry := make(map[string]string)
 	for _, family := range schemaVersionFamilies {
 		for _, kind := range family.kinds() {
