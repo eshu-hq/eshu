@@ -126,6 +126,17 @@ pass_with_retry="${tmp_root}/pass-with-retry.json"
 jq '.measurements[0].retry_count = 1' "${valid}" >"${pass_with_retry}"
 expect_fail "${specs}" "${pass_with_retry}" "runtime_invariant_failed"
 
+pass_with_failed_measurement="${tmp_root}/pass-with-failed-measurement.json"
+jq '.measurements[0].status = "fail"' "${valid}" >"${pass_with_failed_measurement}"
+expect_fail "${specs}" "${pass_with_failed_measurement}" "runtime_invariant_failed"
+
+digit_heavy_commit="${tmp_root}/digit-heavy-commit.json"
+jq '
+	.run.commit = "aaaaaaaaaa123456789012bbbbbbbbbbbbbbbbbb" |
+	.measurements[0].commit = "aaaaaaaaaa123456789012bbbbbbbbbbbbbbbbbb"
+' "${valid}" >"${digit_heavy_commit}"
+expect_pass "${specs}" "${digit_heavy_commit}"
+
 private_value="${tmp_root}/private-value.json"
 jq '.measurements[0].artifact_handle = ("capability-budget-" + "https" + "://private.example.invalid")' \
 	"${valid}" >"${private_value}"
