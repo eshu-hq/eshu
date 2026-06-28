@@ -72,8 +72,27 @@ type CanonicalOptions struct {
 	// reordered; record replay documents as objects (the cassette format is
 	// {schema_version, scopes: [...]}) so their arrays are orderable.
 	SortArrays map[string]string
+	// OpaqueValueKeys names object keys whose value subtree is opaque,
+	// collector-emitted data — a fact payload. Within such a subtree keys are
+	// still sorted for determinism and configured secrets are still redacted, but
+	// VolatileKeys and DerivedKeys normalization is NOT applied: a payload field
+	// that happens to be named observed_at or generation_id must stay exactly as
+	// the collector emitted it. Without this, normalizing by key name at any depth
+	// would rewrite real payload values and break the recorder's verbatim-payload
+	// contract. Once a subtree is entered it stays opaque all the way down.
+	OpaqueValueKeys map[string]struct{}
 	// Indent is the JSON indent string. Empty means two spaces.
 	Indent string
+}
+
+// withoutVolatileDerived returns a copy of o with volatile and derived
+// normalization disabled (secret redaction and array sorting are retained). It
+// is applied when descending into an OpaqueValueKeys subtree so collector
+// payloads are preserved verbatim.
+func (o CanonicalOptions) withoutVolatileDerived() CanonicalOptions {
+	o.VolatileKeys = nil
+	o.DerivedKeys = nil
+	return o
 }
 
 // DefaultCanonicalOptions returns the canonical defaults for fact-envelope
@@ -95,6 +114,11 @@ func DefaultCanonicalOptions() CanonicalOptions {
 		SortArrays: map[string]string{
 			"scopes": "scope_id",
 			"facts":  "stable_fact_key",
+		},
+		OpaqueValueKeys: map[string]struct{}{
+			// A fact's payload is opaque collector data: preserve it verbatim
+			// (never collapse a payload-level observed_at / generation_id).
+			"payload": {},
 		},
 		Indent: defaultIndent,
 	}
@@ -197,7 +221,11 @@ func transformChild(parent map[string]any, key string, child any, opts Canonical
 	if sentinel, ok := opts.VolatileKeys[key]; ok {
 		return sentinel
 	}
-	transformed := transform(child, opts)
+	childOpts := opts
+	if _, opaque := opts.OpaqueValueKeys[key]; opaque {
+		childOpts = opts.withoutVolatileDerived()
+	}
+	transformed := transform(child, childOpts)
 	if field, ok := opts.SortArrays[key]; ok {
 		if arr, isArr := transformed.([]any); isArr {
 			sortArray(arr, field)
