@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/mod/semver"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/replay/schemareplay"
 )
@@ -118,6 +120,36 @@ func TestSchemaVersionRegistryPinForcesCompatibilityCase(t *testing.T) {
 				"Adding a new fact_schema_version requires a frozen replay case proving the older version still admits "+
 				"(migration path) OR an explicit asserted refusal. Update the frozen cassette + pins in the SAME change.",
 				kind, got, pinned)
+		}
+	}
+}
+
+// TestAllVersionedKindsStayWithinBaselineMajor is the broad companion to the
+// per-kind pin: it asserts EVERY registered core fact kind is still at the
+// baseline major version (v1). A major bump is the silent-wrong risk — an old
+// cassette at the previous major is refused, so a contributor who bumps any
+// kind's major must add a frozen replay case (admit via proven migration, or an
+// explicit refusal) before the bump can land. This closes the gap where a
+// version bump on a kind absent from the focused corpus would otherwise slip by.
+func TestAllVersionedKindsStayWithinBaselineMajor(t *testing.T) {
+	t.Parallel()
+
+	const baselineMajor = "v1"
+	for _, entry := range facts.FactKindRegistry() {
+		sv := entry.SchemaVersion
+		if !strings.HasPrefix(sv, "v") {
+			sv = "v" + sv
+		}
+		if !semver.IsValid(sv) {
+			t.Errorf("fact kind %q has non-semver schema_version %q", entry.Kind, entry.SchemaVersion)
+			continue
+		}
+		if semver.Major(sv) != baselineMajor {
+			t.Fatalf("fact kind %q is now major %s (baseline %s). A major schema_version bump can "+
+				"silently break replay of old-cassette facts at the previous major. Add a frozen "+
+				"replay case (admit via proven migration OR explicit refusal) under "+
+				"testdata/cassettes/replayschema/ and this package, in the same change.",
+				entry.Kind, semver.Major(sv), baselineMajor)
 		}
 	}
 }
