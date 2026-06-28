@@ -2320,7 +2320,17 @@
     },
     {
       "category": "mcp_tool",
+      "name": "list_relationship_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
       "name": "list_repositories_by_language",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_repository_files",
       "readiness": "implemented"
     },
     {

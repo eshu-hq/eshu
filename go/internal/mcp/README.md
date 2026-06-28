@@ -127,7 +127,11 @@ dispatch observability surface.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 147 tools from the tool definition files.
+`ReadOnlyTools` assembles 149 tools from the tool definition files.
+`ReadOnlyTools()` (and the `Verify ReadOnlyTools count` gate) is the authoritative
+count; the per-group table below lists the major static groups for orientation
+and is not an exhaustive enumeration (some groups — e.g. reachability and ask —
+are assembled dynamically and are not broken out here).
 
 | Group | Count | Source file |
 |---|---|---|
@@ -167,6 +171,7 @@ dispatch observability surface.
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
 | `collectorExtractionReadinessTools` | 2 | `tools_collector_extraction_readiness.go` |
 | `runtimeTools` | 8 | `tools_runtime.go` |
+| relationship-edges + repository-files (inline, #4007) | 2 | `tools_relationship_edges.go`, `tools_repository_files.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 
@@ -406,7 +411,7 @@ membership as trust.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 147 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 149 tool definitions |
 
 ## SSE session model
 

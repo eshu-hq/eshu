@@ -53,5 +53,6 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, runtimeTools()...)
 	tools = append(tools, reachabilityTools()...)
 	tools = append(tools, askTools()...)
+	tools = append(tools, []ToolDefinition{relationshipEdgesTool(), repositoryFilesTool()}...)
 	return tools
 }

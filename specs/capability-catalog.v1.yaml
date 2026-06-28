@@ -231,6 +231,9 @@ tool_exemptions:
   - tool: get_freshness_causality
     reason: operator freshness causality surface
     issue: 3187
+  - tool: list_repository_files
+    reason: bounded MCP proxy for GET /api/v0/repositories/{repo_id}/tree with language filter; part of #3997 source-tool provenance epic (#4007)
+    issue: 4007
 
 # Matrix-declared tools that are served through an HTTP API operation rather
 # than the MCP registry. Each name maps 1:1 to an OpenAPI operationId.

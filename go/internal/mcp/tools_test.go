@@ -11,7 +11,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 147
+	expectedCount := 149
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -113,6 +113,8 @@ func TestReadOnlyTools(t *testing.T) {
 		"list_repositories_by_language",
 		"get_repository_language_inventory",
 		"ask",
+		"list_relationship_edges",
+		"list_repository_files",
 	}
 
 	toolNames := make(map[string]bool)
@@ -374,6 +376,10 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 	case "get_repo_summary":
 		// get_repo_summary requires at least one of repo_id or repo_name;
 		// supply the canonical selector so a route can be built.
+		return map[string]any{"repo_id": "sample-repo"}
+	case "list_relationship_edges":
+		return map[string]any{"verb": "DEPENDS_ON"}
+	case "list_repository_files":
 		return map[string]any{"repo_id": "sample-repo"}
 	default:
 		return map[string]any{}
