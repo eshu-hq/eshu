@@ -56,6 +56,22 @@ the change affects dead-code roots.
 For audited family-level closure status and bounded gaps, see
 [`../reference/parity-closure-matrix.md`](../reference/parity-closure-matrix.md).
 
+## Parser Backing Ledger
+
+The machine-readable backing ledger lives at
+`specs/parser-backing-ledger.v1.yaml`. It distinguishes source-language
+tree-sitter parser claims from declarative configuration parsers where a
+structured decoder, official format AST, or bounded manifest scanner is the
+more accurate implementation. These rows are intentionally not "tree-sitter
+debt"; they are documented exceptions with fixture-backed deterministic output.
+
+| Parser Key | Implementation Class | Decision | Evidence |
+| --- | --- | --- | --- |
+| cloudformation | `structured-parser-backed-exception` | CloudFormation and SAM are decoded as YAML/JSON documents, then evaluated with bounded template extraction. | `go/internal/parser/cloudformation/*`, `docs/public/languages/cloudformation.md`, `specs/parser-backing-ledger.v1.yaml` |
+| dockerfile | `structured-parser-backed-exception` | Dockerfile runtime evidence comes from bounded instruction scanning over the build manifest. | `go/internal/parser/dockerfile/*`, `go/internal/parser/dockerfile_language.go`, `specs/parser-backing-ledger.v1.yaml` |
+| hcl | `structured-parser-backed-exception` | Terraform, tfvars, lockfile, and Terragrunt evidence uses HashiCorp's official HCL v2 parser and expression AST. | `go/internal/parser/hcl/*`, `docs/public/languages/terraform.md`, `docs/public/languages/terragrunt.md`, `specs/parser-backing-ledger.v1.yaml` |
+| yaml | `structured-parser-backed-exception` | YAML-family evidence uses YAML v3 document decoding plus bounded Kubernetes, Argo CD, Crossplane, Kustomize, Helm, CloudFormation, GitLab CI, Atlantis, Pub, and observability walkers. | `go/internal/parser/yaml/*`, `docs/public/languages/{argocd,crossplane,helm,kubernetes,kustomize}.md`, `specs/parser-backing-ledger.v1.yaml` |
+
 | Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
 |--------|--------------|-----------------|---------------|----------------------------|------------------|-----------------|----------------------|---------------------|
 | ArgoCD | `DefaultEngine (yaml)` | - | - | unsupported | Application manifests and sync metadata only | - | - | - |

@@ -215,6 +215,42 @@ func TestRuntimeMetadataHonorsEscapeDirective(t *testing.T) {
 	}
 }
 
+func TestRuntimeMetadataEmptyAndUnsupportedInstructionsStayUnclaimed(t *testing.T) {
+	t.Parallel()
+
+	got := RuntimeMetadata(`# syntax=docker/dockerfile:1
+
+ONBUILD RUN echo setup
+ADD archive.tar /opt/app/
+VOLUME /data
+`)
+
+	if len(got.Stages) != 0 ||
+		len(got.Args) != 0 ||
+		len(got.Envs) != 0 ||
+		len(got.Ports) != 0 ||
+		len(got.Labels) != 0 {
+		t.Fatalf("RuntimeMetadata() = %#v, want empty evidence for unsupported-only Dockerfile", got)
+	}
+
+	payload := got.Map()
+	for _, key := range []string{
+		"dockerfile_stages",
+		"dockerfile_ports",
+		"dockerfile_args",
+		"dockerfile_envs",
+		"dockerfile_labels",
+	} {
+		rows, ok := payload[key].([]map[string]any)
+		if !ok {
+			t.Fatalf("%s = %T, want []map[string]any", key, payload[key])
+		}
+		if len(rows) != 0 {
+			t.Fatalf("%s = %#v, want no rows for unsupported-only Dockerfile", key, rows)
+		}
+	}
+}
+
 func TestRuntimeMetadataIgnoresEscapeDirectiveAfterUnknownDirective(t *testing.T) {
 	t.Parallel()
 
