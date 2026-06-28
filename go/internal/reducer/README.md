@@ -3208,7 +3208,7 @@ writes changed):
 
 - **deployment_mapping**: durations `sub_duration_{platform_write,load_facts,infra_extract,infra_graph_write,cross_repo_resolve,workload_replay,phase_publish,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
 - **workload_identity**: durations `sub_duration_{graph_write,phase_publish,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
-- **inheritance_materialization**: durations `sub_duration_{load_facts,build_intents,upsert_intents,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
+- **inheritance_materialization**: durations `sub_duration_{load_facts,build_intents,upsert_intents,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`. An `inheritance materialization fact inputs` log line (emitted on every exit path, including the empty/stall early returns) carries `content_entity_facts` and `entities_with_declared_parent` so an intermittent rc-12 (`INHERITS`) gate flake is root-causable from logs (#3873): low `content_entity_facts` = partial upstream fact set; `entities_with_declared_parent > 0` with `edge_count = 0` = declared parents resolving to no in-corpus entity.
 - **code_call_materialization**: durations `sub_duration_{load_facts,build_context,load_symbols,extract_rows,build_intents,upsert_intents,total}_seconds`; signals `sub_signal_input_ready`, `sub_signal_written_rows`
 
 ### No-Regression Evidence
