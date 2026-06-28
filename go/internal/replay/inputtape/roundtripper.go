@@ -73,6 +73,11 @@ type RoundTripper struct {
 	// order preserves first-seen request-key order so a written tape is stable
 	// across runs that issue the same requests in the same order.
 	order []string
+	// attempts tracks per-key invocation counts in ModeReplay. It is used by
+	// the fault-injection path (FaultKindSequence) to step through fault
+	// sequence entries on successive calls to the same key. Guarded by mu.
+	// Nil in ModeRecord (no fault injection during recording).
+	attempts map[string]int
 }
 
 // New builds a RoundTripper in record mode. The returned tripper proxies through
@@ -115,6 +120,7 @@ func NewReplayer(tape Tape, cfg Config) (*RoundTripper, error) {
 		redaction:    newRedactionConfig(cfg.RedactHeaders, cfg.RedactQueryParams, cfg.VolatileQueryParams),
 		interactions: interactions,
 		order:        order,
+		attempts:     make(map[string]int),
 	}, nil
 }
 
@@ -132,6 +138,12 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 // replay resolves req against the loaded tape. An unmatched request is a hard
 // error: replay never reaches the network, so a collector that drifts off the
 // recorded request set fails loudly instead of silently calling a live endpoint.
+//
+// When the matched interaction carries a Fault directive, faultedReplay is
+// called with the zero-based invocation count for this key so fault sequences
+// advance deterministically across retries. The attempt counter is incremented
+// under the lock before the (potentially blocking or error-returning) fault
+// execution so concurrent callers each see a distinct step.
 func (rt *RoundTripper) replay(req *http.Request) (*http.Response, error) {
 	key, _, _, err := requestKey(req, rt.redaction)
 	if err != nil {
@@ -139,9 +151,18 @@ func (rt *RoundTripper) replay(req *http.Request) (*http.Response, error) {
 	}
 	rt.mu.Lock()
 	interaction, ok := rt.interactions[key]
+	var attempt int
+	if ok && interaction.Fault != nil {
+		attempt = rt.attempts[key]
+		rt.attempts[key] = attempt + 1
+	}
 	rt.mu.Unlock()
+
 	if !ok {
 		return nil, fmt.Errorf("%w: %s %s (key %s)", ErrUnmatchedRequest, req.Method, req.URL.RequestURI(), key)
+	}
+	if interaction.Fault != nil {
+		return faultedReplay(req, interaction, attempt)
 	}
 	return buildResponse(req, interaction.Response)
 }
