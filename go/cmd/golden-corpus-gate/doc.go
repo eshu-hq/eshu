@@ -22,7 +22,11 @@
 //     20-repo mode (-graph-required-only=false, #3866); the ranges are calibrated
 //     to the real deterministic corpus output, not aspirational values.
 //   - query: canonical HTTP responses carry their required shape.
-//   - timing: pipeline wall time stays within a budget multiplier.
+//   - timing: total pipeline wall time stays within a budget multiplier, and —
+//     when -phase-timings-file is given (B-11, #3804) — each gated phase stays
+//     within its testdata/golden/e2e-baseline.json baseline (band OR absolute
+//     slack). The per-phase check is advisory on shared CI runners
+//     (-phase-regression-advisory) and blocking on a controlled host.
 //
 // The command connects to a Postgres DSN, a graph backend, and a running
 // eshu-api using the same environment variables the services under test use

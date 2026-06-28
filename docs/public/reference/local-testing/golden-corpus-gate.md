@@ -19,7 +19,7 @@ The gate asserts the four B-7 acceptance buckets:
 | (a) drains | `fact_work_items` residual rows and `shared_projection_intents` nonterminal rows both reach their snapshot bound. The `shared_projection_intents` check is the decisive one — a zero `fact_work_items` queue alone misses held projection intents (see #3859). To avoid passing on an *unreduced* pipeline, the drain is **populated-then-drained**: it is accepted only after the reducer has been observed to emit the `repo_dependency` domain (`-require-populated-domains`), so a poll that fires before the reducer starts cannot read an empty `0/0` and pass. The `repo_dependency` subset is reported because it is the primary drain signal. |
 | (b) graph truth | Required correlations exist (`rc-1` deployable-unit, `rc-3` cross-repo `DEPENDS_ON`, ...). Per-label node and per-relationship edge counts are reported against the snapshot tolerances. |
 | (c) query truth | Canonical HTTP responses (`GET /api/v0/repositories`, `GET /api/v0/status/operator-control-plane`) carry their required shape. |
-| (d) timing | The pipeline wall time stays within a budget multiple. |
+| (d) timing | The total pipeline wall time stays within a budget multiple, and — when the orchestrator supplies per-phase timings (B-11, #3804) — each gated phase stays within its `e2e-baseline.json` baseline. See [Macro per-phase regression (B-11)](#macro-per-phase-regression-b-11). |
 
 ## Moving parts
 
@@ -48,6 +48,45 @@ surface without blocking.
 The blocking correlation set is configurable
 (`golden-corpus-gate -required-correlations=rc-3,rc-1,rc-2,rc-4`) so the gate can
 be widened one assertion at a time as the underlying behaviour is proven.
+
+## Macro per-phase regression (B-11)
+
+B-2 (#3795) catches a per-*function* `ns/op` regression with benchstat; B-11
+(#3804) catches a per-*phase* wall-clock regression that no single benchmark
+would surface. The orchestrator captures the wall-clock of each pipeline phase
+(`bootstrap`, `collect`, `first_drain`, `maintenance_drains`, `graph_query`),
+emits it as `phase-timings.json`, and the gate compares each phase against the
+committed baseline `testdata/golden/e2e-baseline.json`.
+
+A gated phase passes when
+
+```
+observed <= baseline * (1 + regression_band)   OR   observed <= baseline + absolute_slack_seconds
+```
+
+The dual rule mirrors the reducer claim-latency contract's "1.10x OR +60s": the
+relative band catches real regressions on the larger phases, while the absolute
+slack absorbs integer-second timing jitter on the small phases.
+
+- **`collect`** is recorded but **not gated** — it is dominated by the fixed
+  collector settle window, not pipeline work.
+- **On shared CI runners** the check is **advisory** (`-phase-regression-advisory`):
+  GitHub's hosted runners vary run-to-run by more than the band, so a per-PR
+  regression is reported as a `WARN` without a false red — the same reasoning
+  behind the 2x total-wall-time budget multiplier.
+- **On a controlled host** (consistent hardware) set
+  `GATE_PHASE_REGRESSION_ADVISORY=false` to make the gated phases blocking; the
+  committed baseline is valid there.
+
+Recapture the baseline on the enforcement host after an intentional perf change:
+
+```bash
+bash scripts/refresh-e2e-baseline.sh   # runs the gate, folds observed seconds in
+```
+
+It updates only `baseline_seconds`; `gated` flags, notes, band, slack, and the
+policy blocks are preserved. Review the diff and commit with a before/after
+explanation, the same review bar as the B-12 snapshot.
 
 ## Running it
 

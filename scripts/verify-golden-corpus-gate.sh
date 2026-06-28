@@ -20,6 +20,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
+# B-11 (#3804) per-phase timing/baseline helper (defines emit_phase_timings_and_flags).
+# shellcheck source=scripts/lib/golden-corpus-phase-timings.sh
+. "${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
+
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
 # ----------------------------------------------------------------------------
@@ -261,10 +265,18 @@ if [[ "${use_compose}" -eq 1 ]]; then
 fi
 
 pipeline_start="$(date +%s)"
+# B-11 (#3804) macro per-phase wall-clock capture. Integer-second epochs are used
+# (portable across GNU and BSD date; %N is GNU-only) — the 10-15% regression band
+# absorbs the sub-second rounding. Phase boundaries mirror the orchestration
+# below; the deltas are emitted to phase-timings.json just before the final gate,
+# which compares them against testdata/golden/e2e-baseline.json.
+phase_bootstrap_start="${pipeline_start}"
 
 log "bootstrap-index over minimal corpus (schema + filesystem facts + projection)"
 "${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index.log" 2>&1 \
 	|| { tail -40 "${log_dir}/bootstrap-index.log"; die "bootstrap-index failed"; }
+phase_bootstrap_end="$(date +%s)"
+phase_collect_start="${phase_bootstrap_end}"
 
 log "replay B-10 cassette collectors (credential-free)"
 collector_pids=()
@@ -301,6 +313,8 @@ if [[ -z "${collector_sources}" ]] || (( collector_sources < GATE_MIN_COLLECTOR_
 	die "only ${collector_sources:-0} credentialed collector source(s) landed facts; want >= ${GATE_MIN_COLLECTOR_SOURCES} (cassette replay did not commit)"
 fi
 printf 'cassette facts landed: %s credentialed collector sources\n' "${collector_sources}"
+phase_collect_end="$(date +%s)"
+phase_first_drain_start="${phase_collect_end}"
 
 log "drain projector + reducer — first pass (background; gate polls to terminal)"
 start_bg projector projector_pid "${bin_dir}/eshu-projector"
@@ -322,6 +336,8 @@ if ! "${bin_dir}/eshu-golden-corpus-gate" \
 	die "first drain pass failed"
 fi
 kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+phase_first_drain_end="$(date +%s)"
+phase_maintenance_start="${phase_first_drain_end}"
 
 # Deferred maintenance + drain, run TWICE — the ingester's post-shard-drain
 # pattern (RunDeferredRelationshipMaintenance) loops continuously; the gate
@@ -373,6 +389,8 @@ done
 
 pipeline_end="$(date +%s)"
 elapsed=$(( pipeline_end - pipeline_start ))
+phase_maintenance_end="${pipeline_end}"
+phase_graph_query_start="${pipeline_end}"
 
 log "start eshu-api for query truth"
 start_bg api api_pid "${bin_dir}/eshu-api"
@@ -437,6 +455,12 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # regression. (rc-9 DEPENDS_ON_PACKAGE / rc-10 INVOKES_CLOUD_ACTION reserved —
 # those need fixture/projection work before promotion.)
 # Promote each by adding its ID to -required-correlations.
+# B-11 (#3804): emit the observed per-phase wall-clock and decide the per-phase
+# regression flags. Extracted to scripts/lib/golden-corpus-phase-timings.sh to
+# keep this orchestrator under the 500-line cap; it sets phase_timings_file and
+# the phase_flags array from the phase_* epochs captured inline above.
+emit_phase_timings_and_flags
+
 gate_status=0
 "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=graph,query,timing \
@@ -448,7 +472,8 @@ gate_status=0
 	-required-correlations="rc-3,rc-1,rc-2,rc-4,rc-5,rc-6,rc-7,rc-8,rc-11,rc-12,rc-13,rc-14,rc-15,rc-16,rc-17,rc-18,rc-19,rc-20,rc-21,rc-22,rc-23,rc-10,rc-9,rc-24,rc-25,rc-26,rc-27,rc-28,rc-29,rc-30,rc-31,rc-32,rc-33,rc-34,rc-35,rc-36" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
-	-elapsed-seconds="${elapsed}" || gate_status=$?
+	-elapsed-seconds="${elapsed}" \
+	${phase_flags[@]+"${phase_flags[@]}"} || gate_status=$?
 kill "${api_pid}" >/dev/null 2>&1 || true
 kill "${mcp_pid}" >/dev/null 2>&1 || true
 

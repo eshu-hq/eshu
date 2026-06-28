@@ -41,11 +41,28 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			return fmt.Errorf("query phase: %w", err)
 		}
 	}
-	if phases["timing"] && o.budgetSeconds > 0 {
-		evaluateTiming(
-			time.Duration(o.elapsedSeconds*float64(time.Second)),
-			time.Duration(o.budgetSeconds*float64(time.Second)),
-			o.budgetMultiplier, &r)
+	if phases["timing"] {
+		if o.budgetSeconds > 0 {
+			evaluateTiming(
+				time.Duration(o.elapsedSeconds*float64(time.Second)),
+				time.Duration(o.budgetSeconds*float64(time.Second)),
+				o.budgetMultiplier, &r)
+		}
+		// B-11 (#3804): when the orchestrator emits per-phase timings, assert each
+		// phase against the committed baseline. Complements the total-wall-time
+		// budget above — total catches a gross slowdown, per-phase catches a
+		// regression localized to one phase that the 2x total budget would hide.
+		if o.phaseTimingsPath != "" {
+			observed, err := LoadPhaseTimings(o.phaseTimingsPath)
+			if err != nil {
+				return fmt.Errorf("timing phase: %w", err)
+			}
+			baseline, err := LoadPhaseBaseline(o.phaseBaselinePath)
+			if err != nil {
+				return fmt.Errorf("timing phase: %w", err)
+			}
+			evaluatePhaseTimings(observed, baseline, o.phaseRegressionBand, o.phaseRegressionAdvisory, &r)
+		}
 	}
 
 	r.Write(stdout)
