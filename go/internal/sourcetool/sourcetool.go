@@ -16,6 +16,7 @@ var Canonical = []string{
 	"ansible",
 	"puppet",
 	"chef",
+	"salt",
 	"jenkins",
 	"github_actions",
 	"docker",

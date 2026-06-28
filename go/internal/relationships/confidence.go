@@ -182,6 +182,10 @@ func newDefaultConfidenceRegistry() *ConfidenceRegistry {
 				Confidence: 0.90, Tier: TierStrongReference,
 				Rationale: "a Berksfile cookbook git source names the cookbook-owning repository",
 			},
+			EvidenceKindSaltFormulaReference: {
+				Confidence: 0.90, Tier: TierStrongReference,
+				Rationale: "a Salt gitfs_remotes formula source names the formula-owning repository",
+			},
 			EvidenceKindHelmTemplateValueReference: {
 				Confidence: 0.90, Tier: TierStrongReference,
 				Rationale: "a chart template `{{ .Values.<path> }}` reads a leaf key defined in the same chart's values.yaml",

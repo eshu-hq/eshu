@@ -264,7 +264,7 @@ const openAPIPathsInfrastructure = `
                 "required": ["verb"],
                 "properties": {
                   "verb": {"type": "string", "description": "A relationship verb from the catalog, e.g. CALLS, IMPORTS, RUNS_ON."},
-                  "source_tool": {"type": "string", "description": "Filter edges to one source tool (canonical vocabulary).", "enum": ["terraform", "terragrunt", "helm", "kustomize", "argocd", "ansible", "puppet", "chef", "jenkins", "github_actions", "docker", "docker_compose", "gcp", "atlantis", "gitlab", "gomod", "npm", "pip", "maven", "cargo", "aws", "azure", "kubernetes", "unknown"]},
+                  "source_tool": {"type": "string", "description": "Filter edges to one source tool (canonical vocabulary).", "enum": ["terraform", "terragrunt", "helm", "kustomize", "argocd", "ansible", "puppet", "chef", "salt", "jenkins", "github_actions", "docker", "docker_compose", "gcp", "atlantis", "gitlab", "gomod", "npm", "pip", "maven", "cargo", "aws", "azure", "kubernetes", "unknown"]},
                   "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }

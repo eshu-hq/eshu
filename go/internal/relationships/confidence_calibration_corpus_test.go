@@ -326,6 +326,23 @@ var goldenSet = []goldenCase{
 		ID: "chef-cookbook-neg-1", Kind: EvidenceKindChefCookbookDependency, Label: goldenNegative, GoldenConfidence: 0.792,
 		Rationale: "supermarket-only cookbook 'nginx', '~> 12.0' has no git source and no catalog match",
 	},
+	// Salt formula references. Positive golden score == the registry prior
+	// (0.90); negative == prior x 0.88 (0.792), mirroring the puppet/chef rows. A
+	// Salt config whose gitfs_remotes lists a formula git repository resolves to
+	// that formula-owning repository; a non-gitfs config or unmatched remote does
+	// not.
+	{
+		ID: "salt-formula-pos-1", Kind: EvidenceKindSaltFormulaReference, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "gitfs_remotes lists github.com/acme/deployable-source which resolves to the in-corpus formula repo",
+	},
+	{
+		ID: "salt-formula-pos-2", Kind: EvidenceKindSaltFormulaReference, Label: goldenPositive, GoldenConfidence: 0.90,
+		Rationale: "gitfs_remotes single-key map github.com/acme/network-formulas resolves to the network formula repo",
+	},
+	{
+		ID: "salt-formula-neg-1", Kind: EvidenceKindSaltFormulaReference, Label: goldenNegative, GoldenConfidence: 0.792,
+		Rationale: "a Salt config with no gitfs_remotes formula source has no repository identity and no catalog match",
+	},
 	// Helm template-value references. Positive golden score == the registry prior
 	// (0.90); negative == prior x 0.88 (0.792), mirroring the puppet/chef rows. A
 	// chart template `{{ .Values.<path> }}` whose dotted path matches a leaf key in

@@ -88,6 +88,7 @@ addition, never by free-form values.
 | `ansible` | `ANSIBLE_ROLE_REFERENCE` | Tier 2 |
 | `puppet` | `PUPPET_MODULE_REFERENCE` | Tier 2 |
 | `chef` | `CHEF_COOKBOOK_DEPENDENCY` | Tier 2 |
+| `salt` | `SALT_FORMULA_REFERENCE` | Tier 2 |
 | `jenkins` | `JENKINS_*` evidence kinds | Tier 2 |
 | `github_actions` | `GITHUB_ACTIONS_*` evidence kinds | Tier 2 |
 | `docker` | `DOCKERFILE_SOURCE_LABEL` | Tier 2 |
@@ -149,6 +150,7 @@ separate).
 | `ANSIBLE_ROLE_REFERENCE` | `ansible` |
 | `PUPPET_MODULE_REFERENCE` | `puppet` |
 | `CHEF_COOKBOOK_DEPENDENCY` | `chef` |
+| `SALT_FORMULA_REFERENCE` | `salt` |
 | `GCP_CLOUD_RELATIONSHIP` | `gcp` |
 
 ¹ **`TERRAFORM_MODULE_SOURCE` is the one ambiguous kind** — its doc comment in
@@ -208,7 +210,7 @@ and written through the canonical relationship upserts
 
 | Edge type | Tools observed (via evidence kinds) | Emitter |
 | --- | --- | --- |
-| `DEPENDS_ON` | `ansible`, `puppet`, `chef`, `docker_compose`, `github_actions`, `jenkins`, `gcp`, … | `canonical.go:78` (repo), `:93` (workload) |
+| `DEPENDS_ON` | `ansible`, `puppet`, `chef`, `salt`, `docker_compose`, `github_actions`, `jenkins`, `gcp`, … | `canonical.go:78` (repo), `:93` (workload) |
 | `DEPLOYS_FROM` | `helm`, `kustomize`, `argocd`, `docker`, `docker_compose`, `github_actions` | `canonical_relationships.go:37` |
 | `DISCOVERS_CONFIG_IN` | `terragrunt`, `argocd`, `jenkins` | `canonical_relationships.go:56` |
 | `PROVISIONS_DEPENDENCY_FOR` | `terraform`, `terragrunt` | `canonical_relationships.go:75` |
