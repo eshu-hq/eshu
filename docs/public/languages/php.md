@@ -48,6 +48,8 @@ Supported today:
 
 - Route-backed controller actions, literal route handlers, Symfony route
   attributes, and WordPress hook callbacks are modeled as derived roots.
+  This is reachability/root evidence only; PHP does not emit exact
+  `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges today.
 - Constructors, magic methods, same-file interface methods and implementations,
   and trait methods are also modeled as live root evidence.
 
@@ -56,6 +58,9 @@ Not claimed today:
 - Composer/autoload public surfaces, broader framework route resolution,
   include/require resolution, reflection-heavy flows, and arbitrary dynamic
   dispatch remain outside the exactness boundary.
+- Exact route-to-handler truth for Laravel, Symfony, WordPress, and other PHP
+  frameworks is tracked by
+  [#4098](https://github.com/eshu-hq/eshu/issues/4098).
 
 ## Known Limitations
 

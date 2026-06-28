@@ -49,7 +49,9 @@ Supported today:
 
 - SwiftUI app types and `body`, UIKit application delegate callbacks, Vapor
   route handlers, XCTest methods, and Swift Testing `@Test` functions are
-  modeled as derived roots.
+  modeled as derived roots. Vapor handler roots are not exact route entries;
+  Swift does not emit `framework_semantics.*.route_entries` or `HANDLES_ROUTE`
+  edges today.
 - `@main` types, top-level `main`, protocol methods and same-file
   implementations, constructors, and overrides are modeled as root evidence.
 
@@ -58,3 +60,5 @@ Not claimed today:
 - Macros, conditional compilation, SwiftPM target resolution, protocol witness
   resolution, property-wrapper generated code, result builders, Objective-C
   runtime dispatch, and broad public API surfaces remain exactness blockers.
+- Exact route-to-handler truth for Vapor and other Swift web frameworks is
+  tracked by [#4098](https://github.com/eshu-hq/eshu/issues/4098).

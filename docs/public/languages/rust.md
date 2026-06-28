@@ -53,9 +53,14 @@ Supported today:
 - Cargo entrypoints, tests, exact `pub` API items, direct trait implementation
   methods, conditional derive evidence, and direct module/import declarations
   are modeled as root evidence.
+- Rust web framework handlers are not exact route entries today; Rust does not
+  emit `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges.
 
 Not claimed today:
 
 - Arbitrary macro expansion, `cfg` and Cargo feature solving, cross-crate
   semantic module resolution, and broad trait dispatch remain outside the
   exactness boundary.
+- Exact route-to-handler truth for Axum, Actix, Rocket, and other Rust web
+  frameworks is tracked by
+  [#4098](https://github.com/eshu-hq/eshu/issues/4098).

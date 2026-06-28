@@ -35,11 +35,16 @@ Supported today:
 - Derived root evidence includes `main`, directly included local header
   declarations, signal handlers, callback arguments, and direct
   function-pointer initializer targets.
+- C HTTP callback registries are not exact route entries today; C does not emit
+  `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges.
 
 Not claimed today:
 
 - Transitive include graphs, build-target selection, callback registries,
   dynamic symbol lookup, and external linkage remain exactness blockers.
+- Exact route-to-handler truth for C HTTP frameworks or project-local callback
+  registries is tracked by
+  [#4116](https://github.com/eshu-hq/eshu/issues/4116).
 
 ## Known Limitations
 - Function pointer declarations are not modeled as callable entities

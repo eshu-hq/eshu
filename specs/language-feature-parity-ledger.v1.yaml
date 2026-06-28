@@ -27,12 +27,13 @@ language_features:
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, pointer-returning-functions, structs, unions, enums, typedefs, includes, function-calls, dead-code-roots, variables-initialized-declarations, macros-define]
-    partial_features: []
+    partial_features: [c-http-framework-route-truth]
     derived_features: []
     source_files: [go/internal/parser/c_language.go, go/internal/parser/c/parser.go]
     test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/c_dead_code_roots_test.go]
     docs: [docs/public/languages/c.md]
     read_surfaces: [execute_language_query, find_dead_code]
+    tracking_issues: [4038, 4116]
   - language: cloudformation
     docs_claim: docs/public/languages/cloudformation.md
     parser_backing: structured-parser-backed-exception
@@ -50,12 +51,13 @@ language_features:
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, classes, structs, enums, unions, includes, function-calls, method-calls, variables-initialized, field-declarations, macros-define, lambda-assignments]
-    partial_features: []
+    partial_features: [cpp-http-framework-route-truth]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/cpp_language.go, go/internal/parser/cpp/parser.go]
     test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/cpp_dead_code_roots_test.go]
     docs: [docs/public/languages/cpp.md]
     read_surfaces: [execute_language_query, find_dead_code]
+    tracking_issues: [4038, 4116]
   - language: crossplane
     docs_claim: docs/public/languages/crossplane.md
     parser_backing: structured-parser-backed-exception
@@ -72,13 +74,13 @@ language_features:
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [methods, constructors, local-functions, classes, interfaces, structs, records, enums, properties, using-directives, method-invocations, object-creation, inheritance-base-list]
-    partial_features: [framework-route-parity, outbound-contracts]
+    partial_features: [aspnet-route-truth, outbound-contracts]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/csharp_language.go, go/internal/parser/csharp/language.go]
     test_files: [go/internal/parser/csharp_cfg_dataflow_test.go, go/internal/parser/csharp_dead_code_roots_test.go]
     docs: [docs/public/languages/csharp.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
-    tracking_issues: [4038]
+    tracking_issues: [4038, 4115]
   - language: dart
     docs_claim: docs/public/languages/dart.md
     parser_backing: tree-sitter-backed
@@ -231,25 +233,25 @@ language_features:
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, graph-surface]
-    partial_features: [framework-route-parity]
+    partial_features: [perl-web-framework-route-truth]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/perl_haskell_language.go, go/internal/parser/perl/parser.go]
     test_files: [go/internal/parser/engine_long_tail_test.go, go/internal/parser/perl/parser_test.go]
     docs: [docs/public/languages/perl.md]
     read_surfaces: [execute_language_query, find_dead_code]
-    tracking_issues: [4038]
+    tracking_issues: [4038, 4116]
   - language: php
     docs_claim: docs/public/languages/php.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [core-declarations, trait-adaptation-aliases, static-receiver-families, typed-property-and-alias-receivers, function-return-receiver-chains, method-return-receiver-chains, cross-file-object-call-families, nullsafe-and-anonymous-class-receivers]
-    partial_features: [framework-route-parity, reflection-heavy-dispatch]
+    partial_features: [laravel-symfony-wordpress-route-truth, reflection-heavy-dispatch]
     derived_features: [dead-code-root-hints]
     source_files: [go/internal/parser/php_language.go, go/internal/parser/php/parser.go]
     test_files: [go/internal/parser/php_language_test.go, go/internal/parser/php_dead_code_roots_test.go]
     docs: [docs/public/languages/php.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
-    tracking_issues: [4038]
+    tracking_issues: [4038, 4098]
   - language: python
     docs_claim: docs/public/languages/python.md
     parser_backing: tree-sitter-backed
@@ -267,37 +269,37 @@ language_features:
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [methods-def, classes, modules, require-load-imports, method-calls, instance-variable-assignments, local-variable-assignments, module-inclusions-include-extend, parent-context-class-module]
-    partial_features: [framework-route-parity, dynamic-dispatch]
+    partial_features: [rails-sinatra-route-truth, dynamic-dispatch]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/ruby_language.go, go/internal/parser/ruby/parser.go]
     test_files: [go/internal/parser/engine_ruby_test.go, go/internal/parser/ruby_dead_code_roots_test.go]
     docs: [docs/public/languages/ruby.md]
     read_surfaces: [execute_language_query, find_dead_code]
-    tracking_issues: [4038]
+    tracking_issues: [4038, 4098]
   - language: rust
     docs_claim: docs/public/languages/rust.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [source-entities, impl-blocks, query-metadata, cargo-roots]
-    partial_features: [framework-route-parity, lifetime-aware-graph-semantics, macro-expansion]
+    partial_features: [axum-actix-rocket-route-truth, lifetime-aware-graph-semantics, macro-expansion]
     derived_features: [dead-code-roots]
     source_files: [go/internal/parser/rust_language.go, go/internal/parser/rust/parser.go]
     test_files: [go/internal/parser/engine_systems_test.go, go/internal/query/code_relationships_rust_graph_test.go]
     docs: [docs/public/languages/rust.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
-    tracking_issues: [4038]
+    tracking_issues: [4038, 4098]
   - language: scala
     docs_claim: docs/public/languages/scala.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions-def, classes, objects-object, traits, imports, function-calls, generic-function-calls, val-definitions, var-definitions, parent-context-class-context, dead-code-roots]
-    partial_features: [framework-route-parity, outbound-contracts]
+    partial_features: [play-http4s-route-truth, outbound-contracts]
     derived_features: []
     source_files: [go/internal/parser/scala_language.go, go/internal/parser/scala/language.go]
     test_files: [go/internal/parser/engine_scala_imports_test.go, go/internal/parser/scala_dead_code_roots_test.go]
     docs: [docs/public/languages/scala.md]
     read_surfaces: [execute_language_query, find_dead_code]
-    tracking_issues: [4038]
+    tracking_issues: [4038, 4098]
   - language: sql
     docs_claim: docs/public/languages/sql.md
     parser_backing: tree-sitter-backed
@@ -314,13 +316,13 @@ language_features:
     parser_backing: tree-sitter-backed
     no_provider_required: true
     supported_features: [functions, initializers-init, classes, structs, enums, protocols, actors, imports, function-calls, property-declarations]
-    partial_features: [framework-route-parity, vapor-route-binding]
+    partial_features: [vapor-route-truth]
     derived_features: [dead-code-derived-roots]
     source_files: [go/internal/parser/swift_language.go, go/internal/parser/swift/language.go]
     test_files: [go/internal/parser/engine_swift_ast_migration_test.go, go/internal/parser/swift_dead_code_roots_test.go]
     docs: [docs/public/languages/swift.md]
     read_surfaces: [execute_language_query, find_dead_code]
-    tracking_issues: [4038]
+    tracking_issues: [4038, 4098]
   - language: terraform
     docs_claim: docs/public/languages/terraform.md
     parser_backing: official-format-ast-exception

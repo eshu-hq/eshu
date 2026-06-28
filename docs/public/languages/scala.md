@@ -46,7 +46,9 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 Supported today:
 
 - Play controller actions, Akka actor `receive`, JUnit methods, ScalaTest
-  suites, and lifecycle callbacks are modeled as derived roots.
+  suites, and lifecycle callbacks are modeled as derived roots. Play roots are
+  not exact route entries; Scala does not emit
+  `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges today.
 - `main`, objects extending `App`, traits, same-file trait implementations,
   and overrides are also modeled as root evidence.
 - Maven/Gradle vulnerability reachability can use Scala imports, calls, and
@@ -58,3 +60,5 @@ Not claimed today:
 - Play route files, macros, implicit and given/using resolution, compiler
   plugin output, sbt source sets, dynamic dispatch, reflection, and broad
   public API surfaces remain exactness blockers.
+- Exact route-to-handler truth for Play, http4s, and other Scala web frameworks
+  is tracked by [#4098](https://github.com/eshu-hq/eshu/issues/4098).

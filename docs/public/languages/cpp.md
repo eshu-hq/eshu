@@ -37,12 +37,18 @@ Supported today:
 - Derived root evidence also includes `main`, directly included local header
   declarations, virtual and override methods, callback arguments, and direct
   function-pointer initializer targets.
+- C++ HTTP framework handlers and callback registries are not exact route
+  entries today; C++ does not emit `framework_semantics.*.route_entries` or
+  `HANDLES_ROUTE` edges.
 
 Not claimed today:
 
 - Macro expansion, conditional compilation, build targets, template
   instantiation, overload resolution, broad virtual dispatch, callback
   registries, and dynamic symbol lookup remain exactness blockers.
+- Exact route-to-handler truth for C++ HTTP frameworks such as Crow, Drogon, or
+  Pistache is tracked by
+  [#4116](https://github.com/eshu-hq/eshu/issues/4116).
 
 ## Known Limitations
 - Template specializations are not separately modeled
