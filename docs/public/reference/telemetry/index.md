@@ -202,6 +202,58 @@ Evidence: the count path uses static-label, zero-relationship queries with a
 configured per-label limit and no graph mutation; cleanup mutations run in the
 separate `GraphOrphanSweepRunner`.
 
+## Extraction-provenance drift gauges
+
+The reducer publishes two observable gauges that let an operator see how the
+graph's edge-provenance and file-language composition is shifting over time,
+without exposing any repository identifiers or resource names.
+
+`eshu_dp_edges_by_source_tool` is an observable gauge of the current graph
+edge count partitioned by the `source_tool` label. The only metric label is
+`source_tool`; its value is bounded by the closed `sourcetool.Canonical`
+vocabulary (terraform, ansible, helm, …). Any value from the graph that is not
+in that vocabulary is coerced to `"unknown"` before reaching the label so the
+time-series set stays closed even if the graph holds a stale or unrecognised
+token. A `source_tool` series dropping to zero is the signal that a parser or
+ingester stopped writing that edge type.
+
+`eshu_dp_files_by_language` is an observable gauge of the current `File` node
+count partitioned by language. The only metric label is `language`; its value
+is written by the parser registry at ingest time, so the set is bounded by the
+parsers Eshu ships. Empty language values are skipped. A language series
+dropping to zero is the signal that the corresponding parser stopped indexing
+files.
+
+Both callbacks read through the graph read port (`ProvenanceCountStore`) and
+return **exact** counts, so the drift signal is sound — a series dropping to
+zero is a real "stopped emitting" event, never a sampling artifact. The edge
+gauge runs one aggregate per Tier-2 relationship type that carries
+`source_tool` (`DEPENDS_ON`, `DEPLOYS_FROM`, `USES_MODULE`,
+`READS_CONFIG_FROM`, `PROVISIONS_DEPENDENCY_FOR`, `DISCOVERS_CONFIG_IN`,
+`RUNS_ON`) and sums them; each per-type aggregate is answered by the
+relationship-type index, so there is no unanchored all-edge scan. The file
+gauge is a `File`-label-anchored group. Both filter on the relevant property
+IS NOT NULL, so cost is proportional to the provenance-annotated fraction of
+the graph.
+
+`ESHU_GRAPH_COUNT_LIMIT` (default 10 000) bounds the number of distinct groups
+returned — label cardinality only, **not** the rows counted, so per-group
+counts are always exact. The closed `source_tool` and language vocabularies are
+small, so the cap is a safety valve, not a limit reached in practice.
+
+Observability Evidence: `TestRegisterEdgesBySourceToolObservableGauge_WithObserver`
+proves the gauge emits one datapoint per observed closed label;
+`TestRegisterEdgesBySourceToolObservableGauge_UnknownCoercion` proves
+out-of-vocabulary tokens are coerced to `"unknown"`.
+`TestRegisterFilesByLanguageObservableGauge_WithObserver` proves the files
+gauge emits one datapoint per observed language.
+`TestEdgesBySourceToolCypherIsTypeAnchored` and
+`TestFilesByLanguageCypherIsLabelAnchoredGroupLimited` prove the read queries
+are index-answered and exact (type-anchored edges, label-anchored grouped
+files, no row sampling). No-Regression Evidence: callbacks read through
+`ProvenanceCountStore` using relationship-type-index and File-label-anchored
+aggregates and perform no graph mutations.
+
 ## Generation-liveness signals
 
 The reducer's generation-liveness sweep publishes one observable gauge and three

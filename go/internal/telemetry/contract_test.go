@@ -82,6 +82,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",
+		"source_tool",
 		"field_class",
 	}
 
@@ -304,5 +305,23 @@ func TestLogKeys(t *testing.T) {
 	got := LogKeys()
 	if !slices.Equal(got, want) {
 		t.Fatalf("LogKeys() = %v, want %v", got, want)
+	}
+}
+
+func TestAttrSourceTool(t *testing.T) {
+	t.Parallel()
+	attr := AttrSourceTool("terraform")
+	if string(attr.Key) != MetricDimensionSourceTool {
+		t.Fatalf("AttrSourceTool key = %q, want %q", attr.Key, MetricDimensionSourceTool)
+	}
+	if attr.Value.AsString() != "terraform" {
+		t.Fatalf("AttrSourceTool value = %q, want %q", attr.Value.AsString(), "terraform")
+	}
+}
+
+func TestMetricDimensionSourceToolValue(t *testing.T) {
+	t.Parallel()
+	if MetricDimensionSourceTool != "source_tool" {
+		t.Fatalf("MetricDimensionSourceTool = %q, want %q", MetricDimensionSourceTool, "source_tool")
 	}
 }

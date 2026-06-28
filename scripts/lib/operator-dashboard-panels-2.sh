@@ -172,6 +172,48 @@ operator_dashboard_panels_2() {
         "overrides": []
       },
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Edges by Source Tool (current)",
+      "description": "Current exact graph edge count by closed source_tool label, summed across the Tier-2 relationship types that carry source_tool (relationship-type-index answered). A series dropping to zero means the corresponding parser or ingester stopped writing that edge type. ESHU_GRAPH_COUNT_LIMIT (default 10 000) caps returned label groups, not the rows counted, so per-tool counts are exact.",
+      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 57},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "expr": "${EDGES_BY_SOURCE_TOOL}",
+          "legendFormat": "{{source_tool}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Files by Language (current)",
+      "description": "Current exact File node count by language (File-label-anchored group). A series dropping to zero means the corresponding parser stopped indexing files. ESHU_GRAPH_COUNT_LIMIT (default 10 000) caps returned language groups, not the rows counted, so per-language counts are exact.",
+      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "expr": "${FILES_BY_LANGUAGE}",
+          "legendFormat": "{{language}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     }
 EOF
 }
