@@ -67,7 +67,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Portable evidence bundle schema, CLI, or docs | `cd go && go test ./internal/evidencebundle -count=1`, `cd go && go test ./cmd/eshu -run 'TestEvidenceBundle|TestRootCommandIncludesEvidenceBundle' -count=1`, and the docs build |
 | Performance contract thresholds (`local-performance-envelope.md`, `reducer-claim-latency-gate.md`, `hybrid-retrieval-production-gate.md`) or `go/internal/perfcontract` | `cd go && go test ./internal/perfcontract -count=1` (doc↔code lockstep; fails if a documented threshold drifts from its in-code value) and the docs build if a doc threshold changed |
 | Remote remediation benchmark wrapper | `bash scripts/test-verify-remote-e2e-remediation-benchmark.sh` |
-| Docs, `CLAUDE.md`, `AGENTS.md`, or README files | `cd go && go run ./cmd/capability-inventory -mode docs` and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` |
+| Docs, `CLAUDE.md`, `AGENTS.md`, or README files | `bash scripts/test-verify-docs-build-changed.sh` and `bash scripts/verify-docs-build-changed.sh` (changed-path mkdocs build, mirrors pre-push hook); also `cd go && go run ./cmd/capability-inventory -mode docs` and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` for a full build |
 | GitHub workflow or CodeQL setup guidance | `scripts/test-verify-codeql-setup.sh` and `scripts/verify-codeql-setup.sh` |
 | CLI/runtime wiring | `cd go && go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1` |
 | Pre-change impact or developer change plan API/MCP/CLI surface | `cd go && go test ./internal/query ./internal/mcp ./cmd/eshu -run 'TestDeveloperChangePlan|TestPreChangeImpact|TestChangePlan|TestFetchChangePlan|TestRunChangePlan|TestResolveRouteMapsDeveloperChangePlan|TestOpenAPIDeveloperChangePlan' -count=1` |
@@ -244,4 +244,29 @@ Docs, `CLAUDE.md`, `AGENTS.md`, and README changes require:
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
 git diff --check
+```
+
+### Docs-Change Pre-commit and Pre-Push Gate
+
+Instead of running mkdocs on every commit, the `docs-build-staged` pre-commit hook
+inspects the git index and only invokes mkdocs when staged files under `docs/`,
+root `README.md`, `AGENTS.md`, `CLAUDE.md`, `.opencode/agent/*.md`,
+`.agents/skills/*.md`, or the mkdocs config itself have changed. The
+`docs-build-changed` pre-push hook does the same against the branch diff.
+
+Both hooks use the same verifier as a standalone command:
+
+```bash
+bash scripts/verify-docs-build-changed.sh          # branch-mode: diff vs origin/main
+bash scripts/verify-docs-build-changed.sh --staged # staged-mode: git index only
+```
+
+When no trigger-path files are changed, the verifier exits 0 with a skip message
+and does not invoke mkdocs. When trigger files are changed, it runs the same
+`uv run --with mkdocs ... mkdocs build --strict --clean` command CI uses.
+
+A hermetic self-test is available:
+
+```bash
+bash scripts/test-verify-docs-build-changed.sh
 ```
