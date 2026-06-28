@@ -24,6 +24,9 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Methods (receivers) | `methods-receivers` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathGo` | Compose-backed fixture verification | - |
 | Generics | `generics` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_python_semantics_test.go::TestDefaultEngineParsePathGoRichSemanticMetadata` | Compose-backed fixture verification | - |
 | Embedded SQL queries | `embedded-sql-queries` | supported | `embedded_sql_queries` | `function_name, function_line_number, table_name, operation, line_number, api` | `relationship:SQL link hints consumed by sql_links materialization` | `go/internal/parser/go_embedded_sql_test.go::TestDefaultEngineParsePathGoEmbeddedSQLQueries` | Compose-backed fixture verification | - |
+| net/http route truth | `net-http-route-truth` | supported | `framework_semantics.net_http.route_entries` | `method, path, handler` for exact literal patterns and identifier handlers | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/go_dead_code_registrations_test.go::TestDefaultEngineParsePathGoEmitsDeadCodeRegistrationRoots`, `go/internal/reducer/handles_route_intents_test.go` | Shared reducer route projection proof | Exact standard-library registrations emit route entries; ambiguous wrappers, unknown mux receivers, and nonliteral patterns do not fabricate handlers. |
+| Third-party router route truth | `third-party-router-route-truth` | partial | - | - | - | `go/internal/parser/go_dead_code_registrations_test.go::TestDefaultEngineParsePathGoIgnoresUnknownHandleFuncReceivers` | Explicit unsupported-router wording on this page | Gin, Echo, Chi, Fiber, generated routers, middleware chains, and dynamic registrations are not emitted as route entries or `HANDLES_ROUTE` truth today; tracked by #4096. |
+| Outbound contracts | `outbound-contracts` | partial | - | - | - | Support-maturity guardrails | Explicit unsupported-contract wording on this page | HTTP/gRPC/topic client calls do not create deterministic cross-repo outbound contract edges today. |
 
 ## Framework And Library Support
 
@@ -31,6 +34,10 @@ Supported today:
 
 - Standard-library HTTP registrations and signatures are modeled as derived
   roots.
+- Exact `net/http` route registrations emit `framework_semantics.net_http`
+  route entries for literal patterns and identifier handlers. Go 1.22
+  `METHOD /path` patterns preserve the method; legacy patterns use `ANY`.
+  `HANDLES_ROUTE` is projected only when the reducer resolves the exact handler.
 - Cobra command registrations and signatures are modeled as derived roots.
 - controller-runtime `Reconcile`, exported package API outside `cmd`,
   `internal`, and `vendor`, interface implementations, function values,
@@ -39,9 +46,12 @@ Supported today:
 
 Not claimed today:
 
-- Broader router frameworks, webhook and worker registrations, reflection,
-  build tags, plugin behavior, and broad public API surfaces remain exactness
-  blockers.
+- Gin, Echo, Chi, Fiber, generated routers, middleware chains, dynamic or
+  nonliteral route patterns, webhook and worker registrations, reflection, build
+  tags, plugin behavior, and broad public API surfaces remain exactness
+  blockers. Follow-up framework work is tracked in #4096.
+- HTTP, gRPC, topic, and generated-client outbound contract extraction is not
+  emitted as deterministic cross-repo contract truth today.
 
 ## Known Limitations
 - Generic type constraints may not be fully captured
