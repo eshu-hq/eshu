@@ -74,6 +74,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 
 	appendRubyCalls(payload, syntax)
 	annotateRubyDeadCodeRoots(payload, syntax)
+	payload["framework_semantics"] = buildRubyFrameworkSemantics(syntax)
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "classes")
