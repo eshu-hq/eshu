@@ -36,6 +36,42 @@ func localCmd(cmd string) *cigates.Local {
 	return &cigates.Local{Command: cmd}
 }
 
+// TestSelect_RaceLane proves the #4215 race-gate selection: a graph-write
+// package change selects the targeted race-graph-writes gate (category race),
+// while a non-graph Go change does not — so pre-pr's lane 2 (scoped race) owns
+// the latter.
+func TestSelect_RaceLane(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("race-graph-writes", cigates.TierPrePR, cigates.CategoryRace,
+			[]string{
+				"go/internal/storage/cypher/**", "go/internal/reducer/**",
+				"go/internal/projector/**", "go/internal/correlation/**",
+				"go/internal/content/shape/**", "go/internal/relationships/**",
+			},
+			localCmd("cd go && go test -race ./internal/reducer/..."), ""),
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint-all"), ""),
+	})
+
+	// A reducer (graph-write) change selects the race gate under category=race.
+	graphSel := cigates.FilterByCategory(
+		reg.Select([]string{"go/internal/reducer/handler.go"}, cigates.TierPrePR),
+		[]cigates.Category{cigates.CategoryRace})
+	if _, ok := collectSelected(graphSel)["race-graph-writes"]; !ok {
+		t.Error("reducer change should select race-graph-writes under category=race")
+	}
+
+	// A non-graph Go change does NOT select the targeted race gate (pre-pr lane
+	// 2's scoped race covers it instead).
+	otherSel := cigates.FilterByCategory(
+		reg.Select([]string{"go/internal/queueclient/client.go"}, cigates.TierPrePR),
+		[]cigates.Category{cigates.CategoryRace})
+	if _, ok := collectSelected(otherSel)["race-graph-writes"]; ok {
+		t.Error("non-graph change should NOT select race-graph-writes")
+	}
+}
+
 // TestFilterByCategory_KeepsRequestedDropsOthers proves the #4214 category
 // filter: a Go change selects both a hygiene and an exactness gate, but
 // filtering to "exactness" leaves only the exactness gate selected while the

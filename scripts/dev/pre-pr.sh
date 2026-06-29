@@ -149,6 +149,46 @@ step_exactness() {
 		--base "${base}" --tier pre-pr --category exactness,telemetry
 }
 
+# graph_race_re is the graph-write package set the targeted race-graph-writes
+# gate covers (mirrors .github/workflows/race-graph-writes.yml). Changed packages
+# in this set are raced by that registry gate (lane 1); everything else is raced
+# scoped (lane 2), so no package is double-raced.
+graph_race_re='^\./internal/(storage/cypher|reducer|projector|correlation|content/shape|relationships)(/|$)'
+
+# step_race runs the local race lane for Go code changes (#4215). CI remains the
+# authoritative blocking race gate (whole-module `go test ./... -race`); this is
+# the fast local mirror that catches the common races before the PR waits on CI.
+#   ESHU_PRE_PR_FULL_RACE=1 (make pre-pr-full): whole-module race, for high-risk PRs.
+#   default: (1) targeted graph-write race via the registry (category=race) for
+#     graph changes — and reducer-contention is reported CI-only (Postgres-backed);
+#     (2) scoped `-race` on changed Go packages outside the graph-write set.
+step_race() {
+	if [[ "${ESHU_PRE_PR_FULL_RACE:-0}" == "1" ]]; then
+		printf 'full race: go test ./... -race (whole module)\n'
+		( cd "${go_dir}" && go test ./... -race -count=1 -timeout 1200s )
+		return
+	fi
+	local rc=0
+	printf '== lane 1: targeted graph-write race (registry category=race) ==\n'
+	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
+		--base "${base}" --tier pre-pr --category race || rc=1
+	printf '== lane 2: scoped race (changed non-graph Go packages) ==\n'
+	local dirs=() d
+	while IFS= read -r d; do
+		[[ -n "${d}" ]] || continue
+		printf '%s\n' "${d}" | rg -q "${graph_race_re}" && continue
+		dirs+=("${d}")
+	done < <(changed_go_dirs)
+	if [[ ${#dirs[@]} -eq 0 ]]; then
+		printf 'scoped race: no changed non-graph Go packages\n'
+	else
+		printf 'scoped race: %d changed non-graph package(s)\n' "${#dirs[@]}"
+		( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" ) || rc=1
+	fi
+	printf 'note: CI runs the authoritative full `go test ./... -race`; `make pre-pr-full` runs it locally.\n'
+	return ${rc}
+}
+
 run_step "gofumpt (whole module)" step_fmt
 run_step "golangci-lint (whole module)" step_lint
 run_step "go build ./..." step_build
@@ -157,6 +197,7 @@ run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
 run_step "selected exactness + telemetry gates" step_exactness
+run_step "race lane (Go changes)" step_race
 
 printf '\n\033[1m==== pre-pr summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
