@@ -78,6 +78,99 @@ func TestLoadSnapshotParsesGoldenContract(t *testing.T) {
 	}
 }
 
+func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	for _, key := range []string{
+		"POST /api/v0/code/dead-code",
+		"POST /api/v0/code/dead-code/investigate",
+		"POST /api/v0/code/dead-code/cross-repo",
+	} {
+		shape, ok := snap.QueryShapes.HTTP[key]
+		if !ok {
+			t.Fatalf("query_shapes.http missing %s", key)
+		}
+		assertDeadCodeEnvelopeShape(t, key, shape)
+		if len(shape.RequestBody) == 0 {
+			t.Fatalf("%s missing request_body", key)
+		}
+	}
+
+	for _, key := range []string{
+		"find_dead_code",
+		"investigate_dead_code",
+		"find_cross_repo_dead_code",
+	} {
+		shape, ok := snap.QueryShapes.MCP[key]
+		if !ok {
+			t.Fatalf("query_shapes.mcp missing %s", key)
+		}
+		assertDeadCodeEnvelopeShape(t, key, shape)
+		if len(shape.Arguments) == 0 {
+			t.Fatalf("%s missing MCP arguments", key)
+		}
+	}
+
+	crossRepoHTTP := snap.QueryShapes.HTTP["POST /api/v0/code/dead-code/cross-repo"]
+	crossRepoMCP := snap.QueryShapes.MCP["find_cross_repo_dead_code"]
+	for _, path := range []string{
+		"data.bucket_counts.dead",
+		"data.bucket_counts.live_by_consumer",
+		"data.bucket_counts.unknown",
+		"data.bucket_counts.suppressed",
+		"data.candidate_buckets.dead[]",
+		"data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
+		"data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
+		"data.candidate_buckets.unknown[].needs_evidence_reasons[]",
+		"data.candidate_buckets.suppressed[]",
+	} {
+		if !containsString(crossRepoHTTP.RequiredJSONPaths, path) {
+			t.Fatalf("HTTP cross-repo dead-code shape missing bucket path %q", path)
+		}
+		if !containsString(crossRepoMCP.RequiredJSONPaths, path) {
+			t.Fatalf("MCP cross-repo dead-code shape missing bucket path %q", path)
+		}
+	}
+	for _, shape := range []struct {
+		name  string
+		shape QueryShape
+	}{
+		{name: "HTTP", shape: crossRepoHTTP},
+		{name: "MCP", shape: crossRepoMCP},
+	} {
+		if got := shape.shape.RequiredJSONValues["data.query_shape"]; got != "bounded_cross_repo_dead_code" {
+			t.Fatalf("%s cross-repo query_shape value = %#v, want bounded_cross_repo_dead_code", shape.name, got)
+		}
+		if got := shape.shape.RequiredJSONValues["data.candidate_buckets.live_by_consumer[].classification"]; got != "live_by_consumer" {
+			t.Fatalf("%s cross-repo live_by_consumer classification = %#v, want live_by_consumer", shape.name, got)
+		}
+		if got := shape.shape.RequiredJSONValues["data.candidate_buckets.unknown[].classification"]; got != "unknown_needs_evidence" {
+			t.Fatalf("%s cross-repo unknown classification = %#v, want unknown_needs_evidence", shape.name, got)
+		}
+	}
+}
+
+func assertDeadCodeEnvelopeShape(t *testing.T, key string, shape QueryShape) {
+	t.Helper()
+	if !shape.Envelope {
+		t.Fatalf("%s must preserve the truth envelope", key)
+	}
+	for _, field := range []string{"data", "truth", "error"} {
+		if !containsString(shape.RequiredResponseFields, field) {
+			t.Fatalf("%s missing required response field %q", key, field)
+		}
+	}
+	if got := shape.RequiredJSONValues["truth.level"]; got != "derived" {
+		t.Fatalf("%s truth.level = %#v, want derived", key, got)
+	}
+	if got := shape.RequiredJSONValues["truth.basis"]; got != "hybrid" {
+		t.Fatalf("%s truth.basis = %#v, want hybrid", key, got)
+	}
+}
+
 func TestCountRangeContains(t *testing.T) {
 	r := CountRange{Min: 1, Max: 20}
 	cases := []struct {

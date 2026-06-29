@@ -4,23 +4,23 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 56/163 surfaces satisfied (34.36%)** — mode: advisory.
+**Overall: 57/163 surfaces satisfied (34.97%)** — mode: advisory.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Capability claims | 19 | 126 | 15.08% | 107 | 0 |
+| Capability claims | 20 | 126 | 15.87% | 106 | 0 |
 | Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Collectors | 17 | 17 | 100.00% | 0 | 4 |
-| **Total** | **56** | **163** | **34.36%** | **107** | **6** |
+| **Total** | **57** | **163** | **34.97%** | **106** | **6** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-107 surface(s) uncovered or unresolved:
+106 surface(s) uncovered or unresolved:
 
-### Capability claims (107)
+### Capability claims (106)
 
 - `capability:admission_decisions.list`
 - `capability:answer_narration.status`
@@ -37,7 +37,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:code_flow.taint_path`
 - `capability:code_inventory.structural`
 - `capability:code_quality.complexity`
-- `capability:code_quality.dead_code`
 - `capability:code_quality.refactoring`
 - `capability:code_search.content_search`
 - `capability:code_search.exact_symbol`
@@ -130,7 +129,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (56)
+## Covered surfaces (57)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
@@ -142,6 +141,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `capability:call_graph.route_to_caller` | correlation | golden-corpus-gate | `rc-8` |
 | `capability:call_graph.transitive_callees` | correlation | golden-corpus-gate | `rc-11` |
 | `capability:call_graph.transitive_callers` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:code_quality.dead_code` | api_mcp_golden | golden-corpus-gate | `POST /api/v0/code/dead-code/cross-repo` |
 | `capability:dependencies.list` | correlation | golden-corpus-gate | `rc-9` |
 | `capability:kubernetes.correlations.list` | correlation | golden-corpus-gate | `rc-4` |
 | `capability:package_registry.correlations.list` | correlation | golden-corpus-gate | `rc-9` |

@@ -165,6 +165,21 @@ type QueryShape struct {
 	RequiredResponseFields   []string `json:"required_response_fields"`
 	MinimumResults           int      `json:"minimum_results"`
 	ResultItemRequiredFields []string `json:"result_item_required_fields"`
+	// Envelope keeps a query response wrapped in Eshu's {data,truth,error}
+	// envelope for assertion. The default false preserves the historical
+	// behaviour where MCP envelopes are unwrapped before shape checks.
+	Envelope bool `json:"envelope,omitempty"`
+	// RequestBody is the JSON body for an HTTP query shape. Empty means the gate
+	// sends no body, which is the historical GET-only behaviour.
+	RequestBody map[string]any `json:"request_body,omitempty"`
+	// RequiredJSONPaths are dot-separated response paths that must resolve to at
+	// least one non-empty value. A segment ending in [] traverses a non-empty
+	// array, for example data.candidate_buckets.dead[].
+	RequiredJSONPaths []string `json:"required_json_paths,omitempty"`
+	// RequiredJSONValues pins dot-separated response paths to deterministic
+	// values. Array traversal uses the same [] suffix as RequiredJSONPaths and
+	// passes when any resolved value equals the expected value.
+	RequiredJSONValues map[string]any `json:"required_json_values,omitempty"`
 	// Arguments are the tool-call arguments for an MCP query shape (e.g.
 	// get_repo_summary needs a repo selector). Empty/omitted for argument-less
 	// tools and for HTTP shapes.

@@ -211,6 +211,10 @@ coverage:
     scenario: correlation
     ref: rc-11
     proof_gate: golden-corpus-gate
+  - surface: capability:code_quality.dead_code
+    scenario: api_mcp_golden
+    ref: POST /api/v0/code/dead-code/cross-repo
+    proof_gate: golden-corpus-gate
   - surface: capability:dependencies.list
     scenario: correlation
     ref: rc-9
