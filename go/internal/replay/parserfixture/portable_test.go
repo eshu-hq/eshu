@@ -75,6 +75,33 @@ func TestPortableizeFailsWhenTreeIsOutsideRepoRoot(t *testing.T) {
 	}
 }
 
+// TestPortableizeDoesNotMangleSiblingPrefixPaths guards the separator-anchoring:
+// a path that shares the repo root as a non-boundary prefix (root "/repo" vs an
+// unrelated "/repo-other/x") must be left untouched, so a fixture committed on
+// one machine cannot corrupt such a path when rehydrated on another.
+func TestPortableizeDoesNotMangleSiblingPrefixPaths(t *testing.T) {
+	const root = "/repo"
+	data := []byte(`{"under":"/repo/a/b.tf","sibling":"/repo-other/c.tf"}`)
+	out, err := portableize(data, root)
+	if err != nil {
+		t.Fatalf("portableize: %v", err)
+	}
+	if !bytes.Contains(out, []byte("/repo-other/c.tf")) {
+		t.Fatalf("sibling-prefix path was mangled: %s", out)
+	}
+	if !bytes.Contains(out, []byte(repoRootSentinel+"/a/b.tf")) {
+		t.Fatalf("under-root path was not tokenized: %s", out)
+	}
+	restored, err := rehydrate(out, "/elsewhere/checkout")
+	if err != nil {
+		t.Fatalf("rehydrate: %v", err)
+	}
+	want := `{"under":"/elsewhere/checkout/a/b.tf","sibling":"/repo-other/c.tf"}`
+	if string(restored) != want {
+		t.Fatalf("rebind mismatch:\n want %s\n  got %s", want, restored)
+	}
+}
+
 // TestRehydrateNoSentinelIsIdentity proves a non-portable (absolute-path) fixture
 // loads unchanged, so NewSource and the temp-dir round-trip keep working.
 func TestRehydrateNoSentinelIsIdentity(t *testing.T) {

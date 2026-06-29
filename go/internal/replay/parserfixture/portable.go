@@ -21,6 +21,12 @@ import (
 //
 // The sentinel is chosen to never collide with real path content: no filesystem
 // path or parser payload value contains the literal "{{REPO_ROOT}}".
+//
+// Substitution is anchored at a path separator (the root is matched only as
+// "<root>/", never as a bare substring) so a sibling directory that shares the
+// root as a non-boundary prefix — e.g. root "/repo" and an unrelated path
+// "/repo-other/x" — is never mangled. Every recorded parser path is a file under
+// the tree, hence under "<root>/", so the anchored form covers all real cases.
 const repoRootSentinel = "{{REPO_ROOT}}"
 
 // cleanRoot normalizes a repository root for prefix substitution: it cleans the
@@ -51,8 +57,9 @@ func portableize(canonical []byte, repoRoot string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := bytes.ReplaceAll(canonical, []byte(root), []byte(repoRootSentinel))
-	if bytes.Contains(out, []byte(root)) {
+	anchored := root + string(filepath.Separator)
+	out := bytes.ReplaceAll(canonical, []byte(anchored), []byte(repoRootSentinel+string(filepath.Separator)))
+	if bytes.Contains(out, []byte(anchored)) {
 		return nil, fmt.Errorf("parserfixture: fixture still contains the repository root %q after portableizing; the recorded tree is not under the repo root", root)
 	}
 	return out, nil
@@ -71,7 +78,8 @@ func rehydrate(data []byte, repoRoot string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return bytes.ReplaceAll(data, []byte(repoRootSentinel), []byte(root)), nil
+	sep := string(filepath.Separator)
+	return bytes.ReplaceAll(data, []byte(repoRootSentinel+sep), []byte(root+sep)), nil
 }
 
 // errNoRepoRoot is returned when a rehydrating load is asked for without a root.
