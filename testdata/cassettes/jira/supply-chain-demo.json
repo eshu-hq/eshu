@@ -1,0 +1,60 @@
+{
+  "collector": "jira",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "jira:supply-chain-demo:SCD",
+      "source_system": "jira",
+      "scope_kind": "work_item_source",
+      "collector_kind": "jira",
+      "partition_key": "jira:supply-chain-demo:SCD",
+      "metadata": {
+        "provider": "jira_cloud",
+        "project_key": "SCD"
+      },
+      "generation_id": "cassette-jira-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "work_item.record",
+          "stable_fact_key": "jira:supply-chain-demo:work_item:SCD-1",
+          "schema_version": "1.0.0",
+          "collector_kind": "jira",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-jira-scd",
+            "provider": "jira_cloud",
+            "redaction_policy_version": "jira_work_item_v1",
+            "provider_work_item_id": "10001",
+            "work_item_key": "SCD-1",
+            "summary": "",
+            "summary_present": true,
+            "issue_type_id": "10002",
+            "issue_type_name": "Task",
+            "status_id": "3",
+            "status_name": "In Progress",
+            "project_id": "10000",
+            "project_key": "SCD",
+            "project_name": "",
+            "project_name_present": true,
+            "assignee_account_id": "",
+            "assignee_display_name": "",
+            "assignee_present": false,
+            "reporter_account_id": "",
+            "reporter_display_name": "",
+            "reporter_present": false,
+            "created_at": "2026-06-20T00:00:00Z",
+            "updated_at": "2026-06-24T00:00:00Z",
+            "resolved_at": "",
+            "self_url": "",
+            "self_url_fingerprint": "sha256:7c2d4e5a6f7081920314a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f901",
+            "source_url": "",
+            "source_url_fingerprint": "sha256:8d3e5f6071829304a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9012a3b"
+          }
+        }
+      ]
+    }
+  ]
+}

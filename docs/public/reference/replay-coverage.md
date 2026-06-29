@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 12/163 surfaces satisfied (7.36%)** — mode: advisory.
+**Overall: 21/163 surfaces satisfied (12.88%)** — mode: advisory.
 
 ## Coverage by axis
 
@@ -13,24 +13,12 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Capability claims | 0 | 126 | 0.00% | 126 | 0 |
 | Read surfaces (API/MCP) | 0 | 16 | 0.00% | 16 | 0 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
-| Collectors | 8 | 17 | 47.06% | 9 | 0 |
-| **Total** | **12** | **163** | **7.36%** | **151** | **0** |
+| Collectors | 17 | 17 | 100.00% | 0 | 4 |
+| **Total** | **21** | **163** | **12.88%** | **142** | **4** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-151 surface(s) uncovered or unresolved:
-
-### Collectors (9)
-
-- `collector:documentation`
-- `collector:git`
-- `collector:jira`
-- `collector:pagerduty`
-- `collector:sbom_attestation`
-- `collector:scanner_worker`
-- `collector:security_alert`
-- `collector:vulnerability_intelligence`
-- `collector:webhook`
+142 surface(s) uncovered or unresolved:
 
 ### Read surfaces (API/MCP) (16)
 
@@ -180,7 +168,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (12)
+## Covered surfaces (21)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
@@ -189,10 +177,19 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `parser:hcl` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json` |
 | `parser:yaml` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json` |
 | `collector:aws` | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
+| `collector:documentation` | exempt | — | — |
+| `collector:git` | exempt | — | — |
 | `collector:grafana` | cassette | golden-corpus-gate | `testdata/cassettes/grafana/supply-chain-demo.json` |
+| `collector:jira` | cassette | golden-corpus-gate | `testdata/cassettes/jira/supply-chain-demo.json` |
 | `collector:loki` | cassette | golden-corpus-gate | `testdata/cassettes/loki/supply-chain-demo.json` |
 | `collector:oci_registry` | cassette | golden-corpus-gate | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
 | `collector:package_registry` | cassette | golden-corpus-gate | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
+| `collector:pagerduty` | cassette | golden-corpus-gate | `testdata/cassettes/pagerduty/supply-chain-demo.json` |
 | `collector:prometheus_mimir` | cassette | golden-corpus-gate | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
+| `collector:sbom_attestation` | cassette | golden-corpus-gate | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
+| `collector:scanner_worker` | exempt | — | — |
+| `collector:security_alert` | cassette | golden-corpus-gate | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
 | `collector:tempo` | cassette | golden-corpus-gate | `testdata/cassettes/tempo/supply-chain-demo.json` |
 | `collector:terraform_state` | cassette | golden-corpus-gate | `testdata/cassettes/terraformstate/supply-chain-demo.json` |
+| `collector:vulnerability_intelligence` | cassette | golden-corpus-gate | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
+| `collector:webhook` | exempt | — | — |

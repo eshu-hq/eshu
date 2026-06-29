@@ -1,0 +1,52 @@
+{
+  "collector": "pagerduty",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "pagerduty:supply-chain-demo:supply-chain-demo",
+      "source_system": "pagerduty",
+      "scope_kind": "incident_source",
+      "collector_kind": "pagerduty",
+      "partition_key": "pagerduty:supply-chain-demo:supply-chain-demo",
+      "metadata": {
+        "provider": "pagerduty",
+        "account": "supply-chain-demo"
+      },
+      "generation_id": "cassette-pagerduty-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "incident.record",
+          "stable_fact_key": "pagerduty:supply-chain-demo:incident:PSCD1",
+          "schema_version": "1.0.0",
+          "collector_kind": "pagerduty",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-pagerduty-scd",
+            "provider": "pagerduty",
+            "provider_incident_id": "PSCD1",
+            "incident_number": 1,
+            "title": "Supply-chain-demo synthetic incident",
+            "status": "resolved",
+            "urgency": "high",
+            "service_id": "SVCSCD1",
+            "service": {
+              "id": "SVCSCD1",
+              "type": "service_reference",
+              "summary": "supply-chain-demo",
+              "url": "https://supply-chain-demo.pagerduty.internal/services/SVCSCD1"
+            },
+            "teams": [],
+            "assignments": [],
+            "created_at": "2026-06-20T00:00:00Z",
+            "updated_at": "2026-06-24T00:00:00Z",
+            "resolved_at": "2026-06-24T00:00:00Z",
+            "source_url": "https://supply-chain-demo.pagerduty.internal/incidents/PSCD1"
+          }
+        }
+      ]
+    }
+  ]
+}
