@@ -6,11 +6,10 @@ name: Replay Coverage Gate
 # Docker-free — it composes with (does not replace) the golden-corpus-gate, which
 # actually replays the scenarios this gate counts.
 #
-# ADVISORY: the gate runs without --blocking, so an uncovered surface is reported
-# (and uploaded as the coverage-report artifact for the C-7 dashboard) but does
-# NOT fail this job. Its red output is the C-2..C-6 backfill worklist. Flipping to
-# blocking is a deliberate, separately-reviewed change to this workflow once
-# C-2..C-6 burn the coverage gaps down.
+# BLOCKING: C-2..C-6 have burned the replay coverage gaps down, so any uncovered
+# surface now fails this job and the uploaded C-7 coverage report is the
+# regression artifact. Keep the gate blocking so new supported surfaces land with
+# their replay scenarios.
 
 on:
   push:
@@ -56,7 +55,7 @@ jobs:
         run: bash scripts/test-verify-replay-coverage-gate.sh
 
   coverage-gate:
-    name: coverage-gate (advisory)
+    name: coverage-gate (blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -65,10 +64,10 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-      - name: Run replay coverage gate (advisory)
+      - name: Run replay coverage gate (blocking)
         env:
           RCOV_REPORT_OUT: replay-coverage-report.json
-        run: bash scripts/verify-replay-coverage-gate.sh
+        run: bash scripts/verify-replay-coverage-gate.sh --blocking
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4

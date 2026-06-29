@@ -39,7 +39,8 @@ cd go && go run ./cmd/replay-coverage-gate \
   -report-out /tmp/replay-coverage-report.json
 ```
 
-Add `-blocking` to fail on any gap. The shipped CI default is advisory.
+Add `-blocking` to fail on any gap. CI passes this flag so replay coverage
+regressions block; omit it only for local exploratory reports.
 
 ## Flags
 

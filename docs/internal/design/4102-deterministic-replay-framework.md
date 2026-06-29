@@ -295,16 +295,16 @@ manifest entry's `proof_gate` (golden-corpus-gate, the parser fixture tests). Th
 split keeps the coverage gate static, credential-free, and Docker-free while never
 claiming a green it did not observe.
 
-It ships **advisory**: a coverage gap is reported (and emitted in a JSON
-coverage-report artifact for the C-7 dashboard) but does not fail CI. Its red
-output **is** the C-2..C-6 backfill worklist; its eventual green **is** "we cover
-everything we said we support." A single `-blocking` flag flips every uncovered,
-unresolved, and stale finding to required, applied once C-2..C-6 burn the gaps
-down so coverage never regresses.
+It shipped **advisory** while C-2..C-6 burned down the coverage gaps. After
+those children closed, CI passes `-blocking`: any uncovered, unresolved, or stale
+surface fails the replay-coverage workflow, and the JSON coverage-report artifact
+continues feeding the C-7 dashboard. Local runs can still omit `-blocking` for
+exploratory reports.
 
 ### 12.2 Children
 
-C-1 first (keystone, advisory/red). Then C-2..C-6 in parallel (bulk backfill —
-collectors, parsers, correlations/edges, API+MCP surfaces, capability claims; each
-flips a slice of C-1 green). C-7 (coverage dashboard) builds alongside C-1 on the
-same coverage-report artifact. Flip C-1 to blocking last.
+C-1 first (keystone, initially advisory/red). Then C-2..C-6 in parallel (bulk
+backfill — collectors, parsers, correlations/edges, API+MCP surfaces, capability
+claims; each flips a slice of C-1 green). C-7 (coverage dashboard) builds
+alongside C-1 on the same coverage-report artifact. After C-2..C-6 close, C-1
+flips to blocking last.

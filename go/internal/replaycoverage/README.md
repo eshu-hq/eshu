@@ -56,11 +56,11 @@ did not observe.
 
 ## Advisory → blocking
 
-`Findings` renders the reconciliation as `goldengate.Finding`s. The gate ships
-**advisory**: every gap is reported but never fails CI, so its red output is the
-C-2..C-6 worklist. A single blocking flag flips every uncovered / unresolved /
-stale finding to required, so coverage can never regress once the gaps are burned
-down. `BuildReport` emits the coverage-report artifact, and `RenderDashboard`
+`Findings` renders the reconciliation as `goldengate.Finding`s. Local runs can
+stay **advisory** when `Blocking=false`: every gap is reported but does not fail
+the command. CI now passes the single blocking flag after the C-2..C-6 burn-down,
+so every uncovered / unresolved / stale finding is required and coverage cannot
+regress. `BuildReport` emits the coverage-report artifact, and `RenderDashboard`
 turns it into the committed, docs-discoverable **C-7 dashboard**
 (`docs/public/reference/replay-coverage.md`): the overall %, a per-axis table, the
 named gap list grouped by axis, and the covered-surface table with each surface's

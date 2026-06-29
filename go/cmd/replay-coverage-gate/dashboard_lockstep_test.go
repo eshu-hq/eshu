@@ -39,7 +39,8 @@ func repoRootFromTest(t *testing.T) string {
 }
 
 // renderLiveDashboard builds the coverage report from the real source-of-truth
-// registries, manifest, and snapshot, then renders the dashboard Markdown.
+// registries, manifest, and snapshot, then renders the CI-enforced blocking
+// dashboard Markdown.
 func renderLiveDashboard(t *testing.T) ([]byte, replaycoverage.CoverageReport) {
 	t.Helper()
 	root := repoRootFromTest(t)
@@ -53,6 +54,7 @@ func renderLiveDashboard(t *testing.T) ([]byte, replaycoverage.CoverageReport) {
 	if err != nil {
 		t.Fatalf("loadInputs: %v", err)
 	}
+	inputs.Blocking = true
 	_, report, _ := replaycoverage.RunGate(inputs)
 	return replaycoverage.RenderDashboard(report), report
 }

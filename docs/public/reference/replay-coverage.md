@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 174/174 surfaces satisfied (100.00%)** — mode: advisory.
+**Overall: 174/174 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
