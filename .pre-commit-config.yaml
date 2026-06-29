@@ -21,11 +21,15 @@ repos:
       # pushed contributors to `git commit --no-verify` and so silently skipped
       # the go-lint/go-fmt gates below. Excluding them keeps commits hook-clean.
       - id: trailing-whitespace
+        stages: [pre-commit]
         exclude: '^tests/fixtures/|/testdata/|^testdata/'
       - id: end-of-file-fixer
+        stages: [pre-commit]
         exclude: '^tests/fixtures/|/testdata/|^testdata/'
       - id: check-merge-conflict
+        stages: [pre-commit]
       - id: check-yaml
+        stages: [pre-commit]
         args: ["--allow-multiple-documents"]
         # Exclude the fixture/golden corpora: Helm chart templates/*.yaml carry
         # Go-template syntax ({{ .Values.x }}) that is not valid YAML by design
@@ -41,6 +45,7 @@ repos:
         # `--no-verify` on any nav edit.
         exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$'
       - id: check-added-large-files
+        stages: [pre-commit]
         # Catches an accidentally-committed Go build artifact (e.g. a bare
         # `go build ./cmd/...` dropping a ~28MB binary).
         args: ["--maxkb=1024"]
@@ -194,6 +199,18 @@ repos:
         require_serial: true
         stages: [pre-commit]
 
+      # Keep the console pre-push helper self-tested when its branch-diff
+      # routing or hook wiring changes. The helper must skip cleanly before
+      # requiring node_modules when a branch has no apps/console changes.
+      - id: console-e2e-verifier-tests
+        name: console e2e pre-push verifier tests
+        entry: scripts/test-precommit-console.sh
+        language: script
+        files: '^(\.pre-commit-config\.yaml|scripts/(dev/precommit-console|test-precommit-console)\.sh)$'
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-commit]
+
       # Frontend changed-file Prettier gate (frontend.yml "Prettier format check"):
       # diffs the branch against origin/main and checks only changed JS/TS files,
       # so local pushes fail on the same format drift surfaced in CI without
@@ -230,7 +247,7 @@ repos:
         name: console per-page e2e (apps/console)
         entry: scripts/dev/precommit-console.sh e2e
         language: script
-        files: '^apps/console/'
+        always_run: true
         pass_filenames: false
         require_serial: true
         stages: [pre-push]

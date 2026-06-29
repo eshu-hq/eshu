@@ -19,7 +19,8 @@
 #     coverage is equivalent to CI without the cross-machine fragility.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${script_root}")"
 go_dir="${repo_root}/go"
 # Cache tools/config under the git common dir (works from a worktree, where
 # .git is a file, not a directory; the common dir is shared and never committed).
@@ -179,7 +180,7 @@ case "${cmd}" in
 			note "skipping hot-path evidence gate: needs bash >= 4 (install it, e.g. 'brew install bash'); CI still enforces it"
 			exit 0
 		fi
-		ESHU_PERFORMANCE_EVIDENCE_BASE="${base}" "${bash4}" "${repo_root}/scripts/verify-performance-evidence.sh"
+		ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${repo_root}" ESHU_PERFORMANCE_EVIDENCE_BASE="${base}" "${bash4}" "${repo_root}/scripts/verify-performance-evidence.sh"
 		;;
 	telemetry)
 		# The telemetry-coverage gate (verify-telemetry-coverage.yml): a new metric
