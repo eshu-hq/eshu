@@ -250,6 +250,8 @@ false-green shapes:
   tokened API path fails;
 - replay coverage entries that count an authored scenario but do not name the
   sibling gate that proves the scenario green.
+- replay coverage manifest refs whose artifact paths are not watched by the
+  coverage workflow and `specs/ci-gates.v1.yaml` trigger list.
 
 ## Pass 2: Performance And Storage/Query Shape
 
@@ -319,8 +321,9 @@ For CI or workflow changes, review the parity contract:
 - every prior GHA failure is either reproduced locally or documented as
   Actions-only with the nearest possible local guard;
 - workflow tokens and permissions match the command path that uses them;
-- path filters include the workflow, scripts, source, fixtures, specs, and docs
-  whose drift would make the workflow false-green;
+- path filters include the workflow, scripts, source, manifest-declared proof
+  artifacts, fixtures, specs, and docs whose drift would make the workflow
+  false-green;
 - `gh pr checks --json` is captured after push before any readiness claim.
 
 ## Pass 4: Hostile Read And Abuse Cases
