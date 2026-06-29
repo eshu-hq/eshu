@@ -1,0 +1,220 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package cigates_test
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cigates"
+)
+
+// buildRegistry builds a minimal in-memory registry for selector tests.
+func buildRegistry(gates []cigates.Gate) *cigates.Registry {
+	return &cigates.Registry{
+		Version: "v1",
+		Gates:   gates,
+	}
+}
+
+func gate(id string, tier cigates.Tier, cat cigates.Category, triggers []string, local *cigates.Local, ciOnly string) cigates.Gate {
+	return cigates.Gate{
+		ID:           id,
+		Name:         id,
+		Category:     cat,
+		Tier:         tier,
+		Blocking:     true,
+		Triggers:     triggers,
+		Local:        local,
+		CI:           cigates.CI{Workflow: "test.yml", Job: "test"},
+		Requirements: []cigates.Requirement{cigates.ReqGo},
+		CIOnlyReason: ciOnly,
+	}
+}
+
+func localCmd(cmd string) *cigates.Local {
+	return &cigates.Local{Command: cmd}
+}
+
+func TestSelect_DocOnlyChangeSelectsOnlyDocsGate(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("docs-build-changed", cigates.TierPrePush, cigates.CategoryDocs,
+			[]string{"docs/**"}, localCmd("bash scripts/verify-docs-build-changed.sh"), ""),
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint"), ""),
+	})
+	changed := []string{"docs/public/reference/local-testing.md"}
+	sels := reg.Select(changed, cigates.TierPrePR)
+
+	selected := collectSelected(sels)
+	skipped := collectSkipped(sels)
+
+	if _, ok := selected["docs-build-changed"]; !ok {
+		t.Error("docs-build-changed should be selected")
+	}
+	if _, ok := selected["go-lint"]; ok {
+		t.Error("go-lint should NOT be selected for docs-only change")
+	}
+	if _, ok := skipped["go-lint"]; !ok {
+		t.Error("go-lint should be in skipped")
+	}
+}
+
+func TestSelect_GoChangeSelectsGoGate(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint"), ""),
+		gate("docs-build-changed", cigates.TierPrePush, cigates.CategoryDocs,
+			[]string{"docs/**"}, localCmd("bash scripts/verify-docs-build-changed.sh"), ""),
+	})
+	changed := []string{"go/internal/query/handler.go"}
+	sels := reg.Select(changed, cigates.TierPrePR)
+	selected := collectSelected(sels)
+	if _, ok := selected["go-lint"]; !ok {
+		t.Error("go-lint should be selected for Go file change")
+	}
+	if _, ok := selected["docs-build-changed"]; ok {
+		t.Error("docs-build-changed should not be selected for Go file change")
+	}
+}
+
+func TestSelect_TierPreCommitExcludesPrePROnlyGate(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("pre-commit-gate", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint"), ""),
+		gate("pre-pr-gate", cigates.TierPrePR, cigates.CategoryExactness,
+			[]string{"go/**"}, localCmd("bash scripts/verify-openapi.sh"), ""),
+	})
+	changed := []string{"go/internal/foo.go"}
+	sels := reg.Select(changed, cigates.TierPreCommit)
+	selected := collectSelected(sels)
+	skipped := collectSkipped(sels)
+	if _, ok := selected["pre-commit-gate"]; !ok {
+		t.Error("pre-commit-gate should be selected at tier pre-commit")
+	}
+	if _, ok := selected["pre-pr-gate"]; ok {
+		t.Error("pre-pr-gate should NOT be selected at tier pre-commit")
+	}
+	// pre-pr-gate should appear in skipped with a tier reason
+	if _, ok := skipped["pre-pr-gate"]; !ok {
+		t.Error("pre-pr-gate should be in skipped")
+	}
+}
+
+func TestSelect_CIHeavyNeverSelectedLocally(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("ci-heavy-gate", cigates.TierCIHeavy, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/heavy.sh"), ""),
+	})
+	changed := []string{"go/internal/foo.go"}
+	sels := reg.Select(changed, cigates.TierPrePR)
+	for _, s := range sels {
+		if s.Gate.ID == "ci-heavy-gate" && s.Selected {
+			t.Error("ci-heavy gate must not be selected at pre-pr tier")
+		}
+	}
+}
+
+func TestSelect_CIOnlyGateNotSelected(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("ci-only-gate", cigates.TierPrePR, cigates.CategoryHygiene,
+			[]string{"go/**"}, nil, "needs Docker"),
+	})
+	changed := []string{"go/internal/foo.go"}
+	sels := reg.Select(changed, cigates.TierPrePR)
+	ciOnly := collectCIOnly(sels)
+	if _, ok := ciOnly["ci-only-gate"]; !ok {
+		t.Error("ci-only-gate should appear in ci_only list")
+	}
+	selected := collectSelected(sels)
+	if _, ok := selected["ci-only-gate"]; ok {
+		t.Error("ci-only-gate must not be in selected list")
+	}
+}
+
+func TestSelect_RegistryOrder(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("gate-b", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/b.sh"), ""),
+		gate("gate-a", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/a.sh"), ""),
+	})
+	changed := []string{"go/internal/foo.go"}
+	sels := reg.Select(changed, cigates.TierPrePR)
+	if len(sels) != 2 {
+		t.Fatalf("expected 2 selections, got %d", len(sels))
+	}
+	if sels[0].Gate.ID != "gate-b" || sels[1].Gate.ID != "gate-a" {
+		t.Errorf("order not preserved: got %q, %q", sels[0].Gate.ID, sels[1].Gate.ID)
+	}
+}
+
+func TestSelect_NoChangedPaths(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint"), ""),
+	})
+	sels := reg.Select(nil, cigates.TierPrePR)
+	selected := collectSelected(sels)
+	if _, ok := selected["go-lint"]; ok {
+		t.Error("go-lint should not be selected when no paths changed")
+	}
+}
+
+func TestSelect_ReasonContainsTrigger(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint"), ""),
+	})
+	changed := []string{"go/internal/foo.go"}
+	sels := reg.Select(changed, cigates.TierPrePR)
+	for _, s := range sels {
+		if s.Gate.ID == "go-lint" && s.Selected {
+			if s.Reason == "" {
+				t.Error("selected gate should have non-empty reason")
+			}
+			return
+		}
+	}
+	t.Error("go-lint not found in selections")
+}
+
+// helpers
+
+func collectSelected(sels []cigates.Selection) map[string]cigates.Selection {
+	m := make(map[string]cigates.Selection)
+	for _, s := range sels {
+		if s.Selected && s.Gate.Local != nil {
+			m[s.Gate.ID] = s
+		}
+	}
+	return m
+}
+
+func collectSkipped(sels []cigates.Selection) map[string]cigates.Selection {
+	m := make(map[string]cigates.Selection)
+	for _, s := range sels {
+		if !s.Selected && s.Gate.Local != nil && s.Gate.CIOnlyReason == "" {
+			m[s.Gate.ID] = s
+		}
+	}
+	return m
+}
+
+func collectCIOnly(sels []cigates.Selection) map[string]cigates.Selection {
+	m := make(map[string]cigates.Selection)
+	for _, s := range sels {
+		if s.Gate.CIOnlyReason != "" {
+			m[s.Gate.ID] = s
+		}
+	}
+	return m
+}

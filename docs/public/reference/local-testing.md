@@ -26,6 +26,23 @@ whole module, `go test` on the packages changed versus `origin/main`, plus the
 500-line file cap and package-docs gates. Integration suites that need Postgres
 or NornicDB are not run here — use the focused Compose gates below for those.
 
+To see exactly which credential-free CI verifiers apply to the paths you
+changed — and why — use the gate selector:
+
+```bash
+# Show which gates would run for this branch (with explanations):
+bash scripts/dev/select-gates.sh --base origin/main --tier pre-pr --explain
+
+# Run them:
+bash scripts/dev/run-selected-gates.sh --base origin/main --tier pre-pr
+
+# Verify the registry itself is consistent (refs exist on disk):
+bash scripts/verify-ci-gates-registry.sh
+```
+
+The registry lives at `specs/ci-gates.v1.yaml`. Gates marked CI-only (no local
+command) are always printed with a reason but never executed locally.
+
 ## Common Compose Environment
 
 When running commands directly against the default local Compose stack:
@@ -61,6 +78,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 
 | If you touched | Minimum verification |
 | --- | --- |
+| CI gate registry (`specs/ci-gates.v1.yaml`), `internal/cigates`, or `cmd/ci-gates` | `cd go && go test ./internal/cigates ./cmd/ci-gates -count=1` and `bash scripts/verify-ci-gates-registry.sh` |
 | Answer-quality scorecard criteria, CLI, or docs | `cd go && go test ./internal/answerquality -count=1`, `cd go && go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`, and the docs build |
 | Ask Eshu answer path, guardrail, or local proof | `scripts/test-verify-ask-eshu-local-proof.sh`, `scripts/verify-ask-eshu-local-proof.sh`, and the docs build (see [Ask Eshu Local Proof](local-testing/ask-eshu-local-proof.md)) |
 | Competitive parity gate criteria, CLI, or docs | `cd go && go test ./internal/competitiveparity -count=1`, `cd go && go test ./cmd/eshu -run 'TestCompetitiveParity|TestRootCommandIncludesCompetitiveParity' -count=1`, `cd go && go run ./cmd/eshu competitive-parity validate --repo-root .. --json`, and the docs build |

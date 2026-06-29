@@ -2091,6 +2091,11 @@
     },
     {
       "category": "command",
+      "name": "ci-gates",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "collector-aws-cloud",
       "readiness": "implemented"
     },
