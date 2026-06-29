@@ -46,6 +46,13 @@ esac
 # here rather than producing a wrong coverage report.
 (cd go && go test ./internal/replaycoverage/ ./cmd/replay-coverage-gate/ -count=1)
 
+# The committed C-7 dashboard (docs-discoverable %-covered + gap list). The unit
+# proof above runs TestCommittedDashboardIsCurrent, so a stale dashboard fails
+# before this point; the gate run then refreshes it in place (a no-op when
+# current). Regenerate a stale one with:
+#   cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard
+dashboard_abs="${repo_root}/docs/public/reference/replay-coverage.md"
+
 # Run the gate over the real registries with absolute paths (robust regardless of
 # the working directory go run resolves refs from).
 (cd go && go run ./cmd/replay-coverage-gate \
@@ -53,6 +60,7 @@ esac
 	-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json" \
 	-repo-root "${repo_root}" \
 	-report-out "${report_abs}" \
+	-dashboard-out "${dashboard_abs}" \
 	${blocking})
 
 printf '\nPASS: C-1 replay coverage gate (%s); report at %s\n' "${blocking:-advisory}" "${report_abs}"

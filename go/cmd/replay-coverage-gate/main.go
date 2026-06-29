@@ -24,12 +24,13 @@ func main() {
 }
 
 type options struct {
-	specsDir  string
-	snapshot  string
-	manifest  string
-	repoRoot  string
-	reportOut string
-	blocking  bool
+	specsDir     string
+	snapshot     string
+	manifest     string
+	repoRoot     string
+	reportOut    string
+	dashboardOut string
+	blocking     bool
 }
 
 func parseFlags(args []string, stderr io.Writer) (options, error) {
@@ -41,6 +42,7 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 	fs.StringVar(&o.manifest, "manifest", "", "path to the coverage manifest (default: <specs-dir>/replay-coverage-manifest.v1.yaml)")
 	fs.StringVar(&o.repoRoot, "repo-root", ".", "repository root that cassette/parser-fixture refs resolve against")
 	fs.StringVar(&o.reportOut, "report-out", "", "path to write the JSON coverage report (empty: do not write)")
+	fs.StringVar(&o.dashboardOut, "dashboard-out", "", "path to write the Markdown coverage dashboard (empty: do not write)")
 	fs.BoolVar(&o.blocking, "blocking", false, "fail the gate on any uncovered, unresolved, or stale surface (default: advisory, report only)")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
@@ -71,6 +73,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		_, _ = fmt.Fprintf(stdout, "\ncoverage report written: %s\n", o.reportOut)
+	}
+
+	if o.dashboardOut != "" {
+		if err := writeArtifact(o.dashboardOut, replaycoverage.RenderDashboard(report)); err != nil {
+			return fmt.Errorf("write coverage dashboard %s: %w", o.dashboardOut, err)
+		}
+		_, _ = fmt.Fprintf(stdout, "coverage dashboard written: %s\n", o.dashboardOut)
 	}
 
 	if o.blocking && gate.Failed() {
@@ -124,6 +133,22 @@ func writeReport(path string, report replaycoverage.CoverageReport) error {
 	}
 	if err := os.WriteFile(path, payload, 0o600); err != nil {
 		return fmt.Errorf("write coverage report %s: %w", path, err)
+	}
+	return nil
+}
+
+// writeArtifact writes a committed, world-readable coverage artifact (the
+// Markdown dashboard), creating the parent directory if needed.
+func writeArtifact(path string, payload []byte) error {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create artifact dir %s: %w", dir, err)
+		}
+	}
+	// #nosec G306 -- the coverage dashboard is a committed, docs-discoverable
+	// artifact, not a secret; 0o644 matches the repo's other generated docs.
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
 }
