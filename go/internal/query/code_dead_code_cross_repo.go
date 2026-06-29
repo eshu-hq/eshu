@@ -206,6 +206,10 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 			)
 			addDeadCodePolicyStats(&scan.PolicyStats, stats)
 			scan.Suppressed = append(scan.Suppressed, suppressed...)
+			active, err = h.filterDeadCodeResultsWithoutIncomingEdges(ctx, active, label)
+			if err != nil {
+				return scan, err
+			}
 			scan.Active = append(scan.Active, active...)
 			if len(scan.Active) > req.Limit {
 				scan.DisplayTruncated = true
@@ -303,6 +307,10 @@ func filterCrossRepoDeadCodeEvidence(
 	visible := make([]crossRepoDeadCodeEvidence, 0, len(evidence))
 	hidden := make([]crossRepoDeadCodeEvidence, 0)
 	for _, row := range evidence {
+		if row.NeedsEvidence && row.ConsumerRepoID == "" {
+			visible = append(visible, row)
+			continue
+		}
 		if len(allowedConsumers) > 0 {
 			if _, ok := allowedConsumers[row.ConsumerRepoID]; !ok {
 				continue

@@ -51,17 +51,27 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	defer func() { _ = rows.Close() }()
 
 	result := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
+	rowCount := 0
+	truncated := false
 	for rows.Next() {
 		entityID, evidence, err := scanCrossRepoDeadCodeEvidence(rows)
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
 		}
+		rowCount++
+		if rowCount > maxCrossRepoDeadCodeConsumerEvidenceRows {
+			truncated = true
+			continue
+		}
 		result[entityID] = append(result[entityID], evidence)
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
 		return nil, err
+	}
+	if truncated {
+		markCrossRepoDeadCodeConsumerEvidenceTruncated(result, entityIDs)
 	}
 	return result, nil
 }
@@ -102,8 +112,36 @@ WHERE row.repository_id <> $1
 ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC,
          row.repository_id ASC, row.root_entity_id ASC
 LIMIT %d
-`, maxCrossRepoDeadCodeConsumerEvidenceRows)
+`, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
 	return query, args
+}
+
+func markCrossRepoDeadCodeConsumerEvidenceTruncated(
+	result map[string][]crossRepoDeadCodeEvidence,
+	entityIDs []string,
+) {
+	for _, entityID := range entityIDs {
+		if len(result[entityID]) > 0 {
+			continue
+		}
+		result[entityID] = []crossRepoDeadCodeEvidence{{
+			EvidenceFamily:   "code_reachability",
+			Citation:         "code_reachability_rows:truncated",
+			ConfidenceLabel:  "unknown",
+			GenerationStatus: "active",
+			NeedsEvidence:    true,
+			Reason:           "consumer_evidence_truncated",
+			RelationshipType: "REACHES",
+			ResolutionMethod: "bounded_lookup",
+			ConsumerRepoID:   "",
+			ConsumerRepoName: "",
+			ConsumerEntityID: "",
+			Confidence:       0,
+			Depth:            0,
+			GenerationID:     "",
+			Ambiguous:        false,
+		}}
+	}
 }
 
 type crossRepoDeadCodeRowScanner interface {
