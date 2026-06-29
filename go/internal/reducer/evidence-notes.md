@@ -3,6 +3,125 @@
 Keep this file for scoped reducer evidence that is too detailed for the package
 orientation README.
 
+## #4234 — eshu_search_index_terms document-keyed index (2026-06-29)
+
+### Problem
+
+`eshu_search_index_terms` has PK `(scope_id, generation_id, term_key,
+document_id)` and secondary index `eshu_search_index_terms_lookup_idx
+(scope_id, generation_id, term_key)`. Two hot DELETEs filter by
+`(scope_id, generation_id, document_id)`:
+
+- `eshuSearchIndexRefreshDocumentTermsQuery` — `document_id = ANY($3::text[])`
+  — fired on **every per-page write** (hot path).
+- `eshuSearchIndexRetireTermsQuery` — `document_id <> ALL($3::text[])` —
+  fired on every Finalize (retire pass).
+
+Neither the PK nor the lookup index has `document_id` usable after
+`(scope_id, generation_id)`, so the planner was forced to scan the entire
+`(scope, generation)` PK slice — up to **4.75 M rows per scope** on the
+43 GB / 73.5 M-row table.
+
+### Fix
+
+Added index:
+
+```sql
+CREATE INDEX IF NOT EXISTS eshu_search_index_terms_doc_idx
+    ON eshu_search_index_terms (scope_id, generation_id, document_id);
+```
+
+Migration: `go/internal/storage/postgres/migrations/003b_eshu_search_index.sql`
+(appended after `eshu_search_index_terms_lookup_idx`).
+
+### Hermetic before/after EXPLAIN — `TestEshuSearchIndexTermsDocumentDeletePlanLive`
+
+The gate test creates a throwaway table with the identical schema as
+`eshu_search_index_terms` (same PK, same lookup index, no FK constraints),
+seeds 300 000 rows (20 background scopes × 100 docs × 100 terms, plus 1 proof
+scope × 500 docs × 200 terms), and runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`
+on the `= ANY` DELETE for 10 target documents inside a rolled-back transaction.
+All numbers below are reproduced exactly by running the gate test.
+
+**BEFORE** (no doc index — PK used, full (scope,gen) slice scan):
+
+```
+Node Type:         Index Scan
+Index Name:        <throwaway>_pkey
+Index Cond:        scope_id = $1 AND generation_id = $2 AND document_id = ANY($3)
+Index Searches:    1
+Shared Hit Blocks: 3505   Shared Read Blocks: 0
+Actual Total Time: 13.078 ms
+Total Cost:        2359.95
+```
+
+The PK must traverse the full (scope,gen) range (100k rows, sorted by
+term_key) to find matching document_ids. Each term_key page must be visited
+even though only 10 out of 500 documents are targeted.
+
+**AFTER** (with doc index — direct document seek):
+
+```
+Node Type:         Index Scan
+Index Name:        <throwaway>_doc_idx
+Index Cond:        scope_id = $1 AND generation_id = $2 AND document_id = ANY($3)
+Index Searches:    1
+Shared Hit Blocks: 2000   Shared Read Blocks: 5
+Actual Total Time: 0.718 ms
+Total Cost:        1555.42
+```
+
+**Buffer block improvement: 42.8% (3505 → 2005 blocks) in the hermetic fixture.**
+
+The hermetic fixture is entirely hot in shared_buffers so the absolute
+improvement is modest compared to cold-disk production workloads. The
+structural proof is: the planner selects the doc index (asserted by the test)
+and reads fewer blocks. On the production 43 GB / 73.5 M-row table with
+cold data the improvement is substantially larger (supplementary one-off
+observation below).
+
+### Supplementary production-scale observation (one-off, not the gate)
+
+A single manual run against the live database while the doc index was
+temporarily created on `eshu_search_index_terms` targeting a scope `<scope>`
+/ generation `<generation>` with 4 750 236 term rows:
+
+```
+BEFORE: PK slice scan, 7487 index searches, ~49 307 blocks, 358 ms
+AFTER:  doc index seek, 1 index search, ~12 blocks, 0.064 ms  (~99.97% reduction)
+```
+
+This is supplementary context for the production benefit magnitude. The
+gate (`TestEshuSearchIndexTermsDocumentDeletePlanLive`) is the reproducible proof.
+
+### Write-amplification
+
+One extra B-tree entry per term INSERT/DELETE. Each document has O(200) terms,
+so the overhead is modest and clearly worthwhile given the refresh DELETE fires
+on every per-page write.
+
+### Migration-lock risk
+
+`CREATE INDEX IF NOT EXISTS` takes a table-level lock during the build phase.
+Acceptable for fresh-corpus bootstrap (empty table). An operator adding this
+index to a populated production database should use `CREATE INDEX CONCURRENTLY`
+out-of-band to avoid locking writers.
+
+### Classification
+
+**Handler win + Wall-clock win**: the planner chose a correct but expensive
+full-slice scan. The doc index makes the DELETE semantically identical while
+reducing buffer I/O and execution time.
+
+### Observability
+
+**No-Observability-Change:** existing `eshu_dp_search_index_mutations_total`
+and `eshu_dp_search_index_write_duration_seconds` metrics cover both paths and
+will reflect the improvement automatically.
+
+**No-Regression Evidence:** golden-corpus gate passes; unit test suite
+(3643 tests across `postgres` and `reducer` packages) passes.
+
 ## Code-Call Refresh Fence Memory Bound (#3124)
 
 No-Regression Evidence: the baseline public-repository Helm proof for #2995
