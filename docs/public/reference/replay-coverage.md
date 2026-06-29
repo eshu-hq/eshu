@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 5/163 surfaces satisfied (3.07%)** — mode: advisory.
+**Overall: 9/163 surfaces satisfied (5.52%)** — mode: advisory.
 
 ## Coverage by axis
 
@@ -12,13 +12,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Capability claims | 0 | 126 | 0.00% | 126 | 0 |
 | Read surfaces (API/MCP) | 0 | 16 | 0.00% | 16 | 0 |
-| Parsers | 0 | 4 | 0.00% | 4 | 0 |
+| Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Collectors | 5 | 17 | 29.41% | 12 | 0 |
-| **Total** | **5** | **163** | **3.07%** | **158** | **0** |
+| **Total** | **9** | **163** | **5.52%** | **154** | **0** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-158 surface(s) uncovered or unresolved:
+154 surface(s) uncovered or unresolved:
 
 ### Collectors (12)
 
@@ -53,13 +53,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments`
 - `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations`
 - `read_surface:GET /api/v0/work-items/evidence`
-
-### Parsers (4)
-
-- `parser:cloudformation`
-- `parser:dockerfile`
-- `parser:hcl`
-- `parser:yaml`
 
 ### Capability claims (126)
 
@@ -190,10 +183,14 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (5)
+## Covered surfaces (9)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
+| `parser:cloudformation` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |
+| `parser:dockerfile` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |
+| `parser:hcl` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json` |
+| `parser:yaml` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json` |
 | `collector:aws` | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:oci_registry` | cassette | golden-corpus-gate | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
 | `collector:package_registry` | cassette | golden-corpus-gate | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
