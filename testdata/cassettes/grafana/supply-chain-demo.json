@@ -1,0 +1,87 @@
+{
+  "collector": "grafana",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "grafana:supply-chain-demo:supply-chain-demo",
+      "source_system": "grafana",
+      "scope_kind": "grafana_instance",
+      "collector_kind": "grafana",
+      "partition_key": "grafana:supply-chain-demo:supply-chain-demo",
+      "metadata": {
+        "endpoint": "https://grafana.supply-chain-demo.internal",
+        "instance_id": "supply-chain-demo"
+      },
+      "generation_id": "cassette-grafana-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.source_instance",
+          "stable_fact_key": "grafana:supply-chain-demo:source_instance:grafana-scd",
+          "schema_version": "1.0.0",
+          "collector_kind": "grafana",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-grafana-scd",
+            "provider": "grafana",
+            "source_class": "observed",
+            "source_kind": "grafana",
+            "source_instance_id": "grafana-scd",
+            "scope_id": "grafana:supply-chain-demo:supply-chain-demo",
+            "generation_id": "cassette-grafana-scd-gen1",
+            "observed_at": "2026-06-25T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-grafana-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "grafana",
+              "source_instance_id": "grafana-scd",
+              "scope_id": "grafana:supply-chain-demo:supply-chain-demo"
+            },
+            "resource_count": 1,
+            "rule_count": 0,
+            "warning_count": 0,
+            "pages_fetched": 1,
+            "partial": false,
+            "redaction_state": "applied"
+          }
+        },
+        {
+          "fact_kind": "observability.observed_dashboard",
+          "stable_fact_key": "grafana:supply-chain-demo:observed_dashboard:supply-chain-demo-overview",
+          "schema_version": "1.0.0",
+          "collector_kind": "grafana",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-grafana-scd",
+            "provider": "grafana",
+            "source_class": "observed",
+            "source_kind": "grafana",
+            "source_instance_id": "grafana-scd",
+            "scope_id": "grafana:supply-chain-demo:supply-chain-demo",
+            "generation_id": "cassette-grafana-scd-gen1",
+            "observed_at": "2026-06-25T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-grafana-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "grafana",
+              "source_instance_id": "grafana-scd",
+              "scope_id": "grafana:supply-chain-demo:supply-chain-demo"
+            },
+            "resource_class": "dashboard",
+            "provider_object_uid": "supply-chain-demo-overview",
+            "datasource_type": "prometheus",
+            "declared_match_state": "not_compared",
+            "title_present": true,
+            "title_fingerprint": "sha256:9f2b7c1d4e5a6f7081920314a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8",
+            "redaction_state": "applied"
+          }
+        }
+      ]
+    }
+  ]
+}
