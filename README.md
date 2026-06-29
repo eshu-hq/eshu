@@ -11,6 +11,9 @@ truth — for engineers and the AI assistants working beside them.**
   <a href="https://github.com/eshu-hq/eshu/actions/workflows/test.yml">
     <img src="https://github.com/eshu-hq/eshu/actions/workflows/test.yml/badge.svg" alt="Tests">
   </a>
+  <a href="docs/public/reference/code-coverage.md">
+    <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Feshu-hq%2Feshu%2Fmain%2Fdocs%2Fpublic%2Freference%2Fcode-coverage-shield.json" alt="Go code coverage">
+  </a>
   <a href="docs/public/index.md">
     <img src="https://img.shields.io/badge/docs-MkDocs-blue?style=flat-square" alt="Docs">
   </a>
@@ -59,6 +62,8 @@ MCP tool and the public tool families in
 | AI assistant context | Serve indexed truth through 156 read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> <!-- product-claim: id=readme.mcp-tool-count.indexed-truth --> |
 | Operations visibility | Track ingestion, reducer queues, graph writes, runtime drift, freshness, health, metrics, traces, and logs. <!-- capability-state: id=freshness.changed_since state=general_availability --> <!-- product-claim: id=readme.operations-visibility.freshness --> |
 | Extensibility | Add parsers, collectors, package-registry sources, Terraform providers, and language support with fixture-backed tests. |
+
+The Go code coverage badge links to an advisory package report. It is one signal, not a replacement for replay, golden-corpus, or full-corpus proof.
 
 ## Pick Your First Path
 

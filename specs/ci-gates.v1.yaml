@@ -718,6 +718,28 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: code-coverage-report
+    name: Go Code Coverage Report
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "go/**"
+      - "scripts/generate-code-coverage-report.sh"
+      - "scripts/test-generate-code-coverage-report.sh"
+      - "docs/public/reference/code-coverage.md"
+      - "docs/public/reference/code-coverage-shield.json"
+      - ".github/workflows/code-coverage-report.yml"
+    local:
+      command: "bash scripts/generate-code-coverage-report.sh"
+      test_command: "bash scripts/test-generate-code-coverage-report.sh"
+    ci:
+      workflow: code-coverage-report.yml
+      job: "Generate Go code coverage report"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: e2e-tests
     name: End-to-end tests (Docker stack)
     category: exactness

@@ -11,7 +11,7 @@ claims:
   - id: readme.code-intelligence.language-breadth
     source:
       path: README.md
-      line: 52
+      line: 55
       quote: "| Code intelligence | Find symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages. <!-- capability-state: id=code_search.symbol_lookup state=general_availability --> <!-- product-claim: id=readme.code-intelligence.language-breadth --> |"
     claim_text: "Code intelligence covers symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages."
     capabilities:
@@ -33,7 +33,7 @@ claims:
   - id: readme.code-to-cloud.evidence-continuity
     source:
       path: README.md
-      line: 53
+      line: 56
       quote: "| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=general_availability --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
     claim_text: "Code-to-cloud tracing connects source, image, workload, configuration, Terraform, and cloud observations with evidence at each hop."
     capabilities:
@@ -57,7 +57,7 @@ claims:
   - id: readme.supply-chain.default-gated
     source:
       path: README.md
-      line: 54
+      line: 57
       quote: "| Supply-chain traceability | Track dependencies across 13 package ecosystems, reconcile 4 advisory sources (CISA KEV, FIRST EPSS, OSV, NVD), and follow SBOM-to-image attachments with subject-digest evidence. These reads are served by external collectors (package registry, container registry, CI/CD, SBOM/attestation, advisory feeds, provider security alerts) that are off in a default deploy: enable them with `ESHU_COLLECTOR_INSTANCES_JSON` plus provider credentials, otherwise the `list_*` supply-chain tools return well-formed empty pages. <!-- capability-state: id=supply_chain.impact_findings.list state=gated --> <!-- product-claim: id=readme.supply-chain.default-gated --> |"
     claim_text: "Supply-chain traceability covers package ecosystems, advisory sources, and SBOM-to-image attachments, but list reads are gated in a default deploy."
     capabilities:
@@ -85,7 +85,7 @@ claims:
   - id: readme.security-iam.evidence-backed-findings
     source:
       path: README.md
-      line: 56
+      line: 59
       quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=general_availability --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
     claim_text: "Security and IAM posture reads expose hardcoded secrets, secret-access paths, and IAM trust or privilege chains with backing evidence."
     capabilities:
@@ -112,7 +112,7 @@ claims:
   - id: readme.change-risk.blast-radius
     source:
       path: README.md
-      line: 57
+      line: 60
       quote: "| Change-risk analysis | Ask for blast radius, shared dependencies, change surface, and direct versus transitive relationships before a change lands. <!-- capability-state: id=platform_impact.blast_radius state=general_availability --> <!-- product-claim: id=readme.change-risk.blast-radius --> |"
     claim_text: "Change-risk analysis can return blast radius, shared dependencies, change surface, and direct versus transitive relationships."
     capabilities:
@@ -134,7 +134,7 @@ claims:
   - id: readme.replatforming.plan-readiness
     source:
       path: README.md
-      line: 58
+      line: 61
       quote: "| IaC and re-platforming | Find unmanaged resources, propose Terraform import plans, and compose multi-cloud re-platforming plans. <!-- capability-state: id=replatforming.plan.readiness state=general_availability --> <!-- product-claim: id=readme.replatforming.plan-readiness --> |"
     claim_text: "IaC and re-platforming workflows cover unmanaged-resource discovery, Terraform import plans, and multi-cloud re-platforming plans."
     capabilities:
@@ -156,7 +156,7 @@ claims:
   - id: readme.mcp-tool-count.indexed-truth
     source:
       path: README.md
-      line: 59
+      line: 62
       quote: "| AI assistant context | Serve indexed truth through 156 read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> <!-- product-claim: id=readme.mcp-tool-count.indexed-truth --> |"
     claim_text: "Eshu exposes indexed truth through 156 read-only MCP tools for assistant clients."
     capabilities:
@@ -181,7 +181,7 @@ claims:
   - id: readme.operations-visibility.freshness
     source:
       path: README.md
-      line: 60
+      line: 63
       quote: "| Operations visibility | Track ingestion, reducer queues, graph writes, runtime drift, freshness, health, metrics, traces, and logs. <!-- capability-state: id=freshness.changed_since state=general_availability --> <!-- product-claim: id=readme.operations-visibility.freshness --> |"
     claim_text: "Operations visibility includes ingestion, reducer queues, graph writes, runtime drift, freshness, health, metrics, traces, and logs."
     capabilities:
