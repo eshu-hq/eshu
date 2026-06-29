@@ -1,0 +1,768 @@
+# CI gate registry — single source of truth mapping changed paths to local/CI gates.
+# Version: v1
+# See docs/public/reference/local-testing.md for usage.
+# Managed by: scripts/verify-ci-gates-registry.sh (validate)
+#             scripts/dev/select-gates.sh (select)
+#             scripts/dev/run-selected-gates.sh (run)
+
+version: v1
+
+gates:
+
+  # ─── HYGIENE / GO CORE ─────────────────────────────────────────────────────
+
+  - id: go-fmt
+    name: Go gofumpt formatting
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh fmt"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Check gofumpt formatting"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: go-lint
+    name: Go lint (golangci-lint)
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh lint"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Lint Go"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: go-build
+    name: Go build (all binaries)
+    category: build
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh lint-all"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Build all Go binaries"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: go-vet
+    name: Go vet
+    category: hygiene
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh lint-all"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Lint Go"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: go-file-cap
+    name: Go 500-line file cap
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh filecap"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Lint Go"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: package-docs
+    name: Go package docs coverage
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/verify-package-docs.sh"
+      test_command: "bash scripts/test-verify-package-docs.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify package docs"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: agent-canon
+    name: Agent canon check
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - ".agents/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+    local:
+      command: "bash scripts/verify-agent-canon.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh"
+    ci:
+      workflow: verify-agent-hygiene.yml
+      job: "Verify agent hygiene"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: no-ai-attribution
+    name: No AI attribution in commits/docs
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**"
+      - "docs/**"
+      - "specs/**"
+      - ".agents/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+    local:
+      command: "bash scripts/verify-no-ai-attribution.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Check whitespace hygiene"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: license-header
+    name: Go license header verification
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/verify-license-header.sh"
+      test_command: "bash scripts/test-verify-license-header.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify Go license headers"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── EXACTNESS / CONTRACT ──────────────────────────────────────────────────
+
+  - id: openapi-surface
+    name: Verify OpenAPI Surface
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "specs/surface-inventory.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+    local:
+      command: "bash scripts/verify-openapi.sh"
+      test_command: "bash scripts/test-verify-openapi.sh"
+    ci:
+      workflow: verify-openapi.yml
+      job: "Verify OpenAPI gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: route-coverage
+    name: Verify Route Coverage
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/cmd/api/**"
+    local:
+      command: "bash scripts/verify-route-coverage.sh"
+      test_command: "bash scripts/test-verify-route-coverage.sh"
+    ci:
+      workflow: verify-route-coverage.yml
+      job: "Verify route coverage gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: edge-source-tool-coverage
+    name: Verify Edge Source-Tool Coverage
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/relationships/**"
+      - "go/internal/collector/**"
+      - "specs/surface-inventory.v1.yaml"
+    local:
+      command: "bash scripts/verify-edge-source-tool-coverage.sh"
+      test_command: "bash scripts/test-verify-edge-source-tool-coverage.sh"
+    ci:
+      workflow: verify-edge-source-tool-coverage.yml
+      job: "Verify edge source-tool coverage gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: evidence-continuity
+    name: Verify Evidence Continuity
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/facts/**"
+      - "go/internal/relationships/**"
+      - "specs/evidence-continuity.v1.yaml"
+    local:
+      command: "bash scripts/verify-evidence-continuity.sh"
+      test_command: "bash scripts/test-verify-evidence-continuity.sh"
+    ci:
+      workflow: verify-evidence-continuity.yml
+      job: "Verify evidence continuity gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: skill-roundtrip
+    name: Verify Skill Roundtrip
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/skillgen/**"
+      - "go/internal/skillgen/**"
+      - ".agents/skills/**"
+    local:
+      command: "bash scripts/verify-skill-roundtrip.sh"
+      test_command: "bash scripts/test-verify-skill-roundtrip.sh"
+    ci:
+      workflow: verify-skill-roundtrip.yml
+      job: "Verify skillgen roundtrip gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: fact-kind-registry
+    name: Verify Fact-Kind Registry
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/facts/**"
+      - "specs/fact-kind-registry.v1.yaml"
+    local:
+      command: "bash scripts/verify-fact-kind-registry.sh"
+      test_command: "bash scripts/test-verify-fact-kind-registry.sh"
+    ci:
+      workflow: contract-source-of-truth.yml
+      job: "Verify contract source-of-truth gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: contract-source-of-truth
+    name: Contract Source of Truth (generate + drift)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/facts/**"
+      - "go/internal/collector/contracttest/**"
+      - "specs/fact-kind-registry.v1.yaml"
+      - "specs/collector_fact_contract.v1.yaml"
+    local:
+      command: "bash scripts/verify-contracttest.sh"
+      test_command: "bash scripts/test-verify-contracttest.sh"
+    ci:
+      workflow: contract-source-of-truth.yml
+      job: "Verify contract source-of-truth gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: mcp-schema-drift
+    name: MCP Schema Drift
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/mcp/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/surface-inventory.v1.yaml"
+      - "specs/product-claims.v1.yaml"
+    local:
+      command: "bash scripts/dev/precommit-go.sh surface"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: parser-relationship-kit
+    name: Verify Parser Relationship Kit
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/parser/**"
+      - "go/internal/relationships/**"
+      - "specs/parser-backing-ledger.v1.yaml"
+    local:
+      command: "bash scripts/verify-parser-relationship-kit.sh"
+      test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify parser relationship and language ledger"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: accuracy-golden-gate
+    name: Verify Accuracy Golden Gate
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "go/internal/relationships/**"
+      - "testdata/golden/**"
+    local:
+      command: "bash scripts/verify_accuracy_golden_gate.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Verify accuracy golden gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: query-plan-regression
+    name: Verify Query Plan Regression
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/storage/cypher/**"
+    local:
+      command: "bash scripts/verify-query-plan-regression.sh"
+      test_command: "bash scripts/test-verify-query-plan-regression.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify query-plan regression gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: scale-corpus-suite
+    name: Verify Scale Corpus Suite
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "specs/scale-lab-corpus.v1.yaml"
+    local:
+      command: "bash scripts/verify-scale-corpus-suite.sh"
+      test_command: "bash scripts/test-verify-scale-corpus-suite.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify scale corpus suite"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: scale-benchmark-artifact
+    name: Verify Scale Benchmark Artifact
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/reducer/**"
+      - "specs/scale-benchmark-artifact.v1.yaml"
+    local:
+      command: "bash scripts/verify-scale-benchmark-artifact.sh"
+      test_command: "bash scripts/test-verify-scale-benchmark-artifact.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify scale benchmark artifact"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: capability-budget-proof
+    name: Verify Capability Budget Proof
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/mcp/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-budget-proof.v1.yaml"
+    local:
+      command: "bash scripts/verify-capability-budget-proof.sh"
+      test_command: "bash scripts/test-verify-capability-budget-proof.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify capability budget proof"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: collector-entrypoints-generated
+    name: Verify Generated Collector Entrypoints
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/cmd/ingester/**"
+      - "specs/collector_fact_contract.v1.yaml"
+    local:
+      command: "bash scripts/verify-collector-entrypoints-generated.sh"
+      test_command: "bash scripts/test-verify-collector-entrypoints-generated.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify generated collector entrypoints"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: capability-surface-inventory
+    name: Capability Surface Inventory drift
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/mcp/**"
+      - "specs/surface-inventory.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+    local:
+      command: "bash scripts/dev/precommit-go.sh surface"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── TELEMETRY ─────────────────────────────────────────────────────────────
+
+  - id: telemetry-coverage
+    name: Verify Telemetry Coverage
+    category: telemetry
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/**"
+      - "go/cmd/**"
+    local:
+      command: "bash scripts/verify-telemetry-coverage.sh"
+      test_command: "bash scripts/test-verify-telemetry-coverage.sh"
+    ci:
+      workflow: verify-telemetry-coverage.yml
+      job: "Verify telemetry coverage gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: operator-dashboard
+    name: Generate Operator Dashboard
+    category: telemetry
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "docs/public/observability/**"
+      - "scripts/generate-operator-dashboard.sh"
+    local:
+      command: "bash scripts/generate-operator-dashboard.sh"
+      test_command: "bash scripts/test-generate-operator-dashboard.sh"
+    ci:
+      workflow: generate-operator-dashboard.yml
+      job: "Verify generate-operator-dashboard gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── RACE ──────────────────────────────────────────────────────────────────
+
+  - id: race-graph-writes
+    name: Race detector — graph writes
+    category: race
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/storage/cypher/**"
+      - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/correlation/**"
+      - "go/internal/content/shape/**"
+      - "go/internal/relationships/**"
+    local:
+      command: "cd go && go test -race -count=1 -timeout 600s ./internal/storage/cypher/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/..."
+      test_command: ""
+    ci:
+      workflow: race-graph-writes.yml
+      job: "Run graph-write tests with race detector"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: reducer-contention
+    name: Reducer Contention Gate (real Postgres)
+    category: race
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/storage/postgres/**"
+      - "go/internal/reducer/**"
+      - "schema/data-plane/postgres/**"
+    ci:
+      workflow: reducer-contention-gate.yml
+      job: "reducer contention gate"
+    requirements:
+      - go
+      - postgres
+    ci_only_reason: "needs Postgres service container (GitHub Actions)"
+
+  # ─── DOCS ──────────────────────────────────────────────────────────────────
+
+  - id: docs-build-changed
+    name: Verify Docs Build (changed)
+    category: docs
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "docs/**"
+      - "specs/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "README.md"
+    local:
+      command: "bash scripts/verify-docs-build-changed.sh"
+      test_command: "bash scripts/test-verify-docs-build-changed.sh"
+    ci:
+      workflow: test.yml
+      job: "Verify docs build"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── FRONTEND ──────────────────────────────────────────────────────────────
+
+  - id: frontend-format-changed
+    name: Verify Frontend Format (changed)
+    category: frontend
+    tier: pre-push
+    blocking: false
+    triggers:
+      - "src/**"
+      - "apps/console/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - "wrangler.jsonc"
+      - "eslint.config.js"
+      - ".prettierrc.json"
+      - ".prettierignore"
+    local:
+      command: "bash scripts/verify-frontend-format-changed.sh"
+      test_command: "bash scripts/test-verify-frontend-format-changed.sh"
+    ci:
+      workflow: frontend.yml
+      job: "Prettier format check (issue #3763)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: console-e2e
+    name: Console e2e (mocked)
+    category: frontend
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "apps/console/**"
+      - "src/**"
+    local:
+      command: "bash scripts/dev/precommit-console.sh e2e"
+      test_command: "bash scripts/test-precommit-console.sh"
+    ci:
+      workflow: frontend.yml
+      job: "Console (apps/console)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  # ─── SECURITY ──────────────────────────────────────────────────────────────
+
+  - id: gosec-changed
+    name: gosec static analysis (changed Go files)
+    category: security
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh gosec"
+      test_command: ""
+    ci:
+      workflow: security-scan.yml
+      job: "gosec (Go static analysis)"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  # ─── CI-ONLY (local==null) ─────────────────────────────────────────────────
+
+  - id: golden-corpus-gate
+    name: Golden Corpus Gate (Docker)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "go/internal/projector/**"
+      - "go/internal/reducer/**"
+      - "go/internal/query/**"
+      - "go/internal/storage/**"
+      - "testdata/golden/**"
+      - "testdata/cassettes/**"
+    ci:
+      workflow: golden-corpus-gate.yml
+      job: "Golden corpus gate"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+    ci_only_reason: "requires Docker + NornicDB service stack"
+
+  - id: replay-coverage-gate
+    name: C-1 Replay Coverage Gate
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "go/cmd/replay-coverage-gate/**"
+      - "go/internal/replaycoverage/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/facts/**"
+      - "specs/replay-coverage-manifest.v1.yaml"
+      - "specs/parser-backing-ledger.v1.yaml"
+      - "specs/surface-inventory.v1.yaml"
+      - "testdata/golden/e2e-20repo-snapshot.json"
+    local:
+      command: "bash scripts/verify-replay-coverage-gate.sh"
+      test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
+    ci:
+      workflow: replay-coverage-gate.yml
+      job: "Replay coverage gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: e2e-tests
+    name: End-to-end tests (Docker stack)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/**"
+      - "docker-compose*.yaml"
+      - "docker-compose*.yml"
+    ci:
+      workflow: test.yml
+      job: "Run Go tests with race detector"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+      - postgres
+    ci_only_reason: "requires Docker Compose service stack"
+
+  - id: trivy-image
+    name: Trivy image scan (GHCR)
+    category: security
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/**"
+      - "Dockerfile"
+      - "deploy/helm/**"
+    ci:
+      workflow: security-scan.yml
+      job: "Trivy image scan (ghcr.io/eshu-hq/eshu)"
+    requirements:
+      - credentials
+    ci_only_reason: "requires published container image and GHCR credentials"
+
+  - id: docker-publish
+    name: Docker image publish
+    category: release
+    tier: manual
+    blocking: true
+    triggers:
+      - "go/**"
+      - "Dockerfile"
+      - "deploy/helm/**"
+    ci:
+      workflow: docker-publish.yml
+      job: "Build and push Docker image"
+    requirements:
+      - credentials
+      - release_token
+    ci_only_reason: "requires registry push credentials"
+
+  - id: macos-build
+    name: macOS build verification
+    category: build
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/**"
+    ci:
+      workflow: macos.yml
+      job: "macOS build"
+    requirements:
+      - go
+    ci_only_reason: "requires macOS hosted runner"
