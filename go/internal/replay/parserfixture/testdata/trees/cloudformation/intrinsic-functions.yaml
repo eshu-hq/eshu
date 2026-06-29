@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation intrinsic functions
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, production]
+  EnableMonitoring: !And
+    - !Condition IsProduction
+    - !Equals [!Ref EnableAlarms, "true"]
+
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+  EnableAlarms:
+    Type: String
+    Default: "false"
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-${AWS::Region}-data"
+      Tags:
+        - Key: FullName
+          Value: !Join
+            - "-"
+            - - comprehensive
+              - !Ref Environment
+              - data
+
+  Alarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: EnableMonitoring
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-alarm"
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+Outputs:
+  BucketName:
+    Value: !If [IsProduction, !Ref Bucket, "dev-bucket"]
+  AccountId:
+    Value: !Ref "AWS::AccountId"
+  StackRegion:
+    Value: !Ref "AWS::Region"

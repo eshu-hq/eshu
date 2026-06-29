@@ -1,0 +1,286 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "cloudformation:intrinsic-functions.yaml",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "yaml",
+          "parsed_file_data": {
+            "argocd_applications": [],
+            "argocd_applicationsets": [],
+            "atlantis_projects": [],
+            "atlantis_workflows": [],
+            "classes": [],
+            "cloudformation_conditions": [
+              {
+                "evaluated": true,
+                "evaluated_value": false,
+                "expression": "map[Fn::And:[map[Condition:IsProduction] map[Fn::Equals:[map[Ref:EnableAlarms] true]]]]",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "EnableMonitoring",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
+              },
+              {
+                "evaluated": true,
+                "evaluated_value": false,
+                "expression": "map[Fn::Equals:[map[Ref:Environment] production]]",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "IsProduction",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
+              }
+            ],
+            "cloudformation_cross_stack_exports": [],
+            "cloudformation_cross_stack_imports": [],
+            "cloudformation_outputs": [
+              {
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "AccountId",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+                "value": "map[Ref:AWS::AccountId]"
+              },
+              {
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "BucketName",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+                "value": "map[Fn::If:[IsProduction map[Ref:Bucket] dev-bucket]]"
+              },
+              {
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "StackRegion",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+                "value": "map[Ref:AWS::Region]"
+              }
+            ],
+            "cloudformation_parameters": [
+              {
+                "default": "false",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "EnableAlarms",
+                "param_type": "String",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
+              },
+              {
+                "default": "development",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "Environment",
+                "param_type": "String",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
+              }
+            ],
+            "cloudformation_resources": [
+              {
+                "condition": "EnableMonitoring",
+                "condition_evaluated": true,
+                "condition_value": false,
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "Alarm",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+                "resource_type": "AWS::CloudWatch::Alarm"
+              },
+              {
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "Bucket",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+                "resource_type": "AWS::S3::Bucket"
+              }
+            ],
+            "crossplane_claims": [],
+            "crossplane_compositions": [],
+            "crossplane_xrds": [],
+            "function_calls": [],
+            "functions": [],
+            "gitlab_jobs": [],
+            "gitlab_pipelines": [],
+            "helm_charts": [],
+            "helm_template_value_usages": [],
+            "helm_value_definitions": [],
+            "helm_values": [],
+            "iac_relevant": false,
+            "imports": [],
+            "is_dependency": false,
+            "k8s_resources": [],
+            "kustomize_overlays": [],
+            "lang": "yaml",
+            "observability_applied_resources": [],
+            "observability_applied_sync_states": [],
+            "observability_coverage_warnings": [],
+            "observability_declared_alert_rules": [],
+            "observability_declared_dashboards": [],
+            "observability_declared_datasources": [],
+            "observability_declared_folders": [],
+            "observability_declared_log_routes": [],
+            "observability_declared_metric_routes": [],
+            "observability_declared_metric_rules": [],
+            "observability_declared_scrape_configs": [],
+            "observability_declared_trace_routes": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation",
+            "variables": []
+          },
+          "relative_path": "intrinsic-functions.yaml",
+          "repo_id": "cloudformation"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+        "stable_fact_key": "file:cloudformation:intrinsic-functions.yaml"
+      },
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "cloudformation:simple-stack.yaml",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "yaml",
+          "parsed_file_data": {
+            "argocd_applications": [],
+            "argocd_applicationsets": [],
+            "atlantis_projects": [],
+            "atlantis_workflows": [],
+            "classes": [],
+            "cloudformation_conditions": [],
+            "cloudformation_cross_stack_exports": [
+              {
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "map[Fn::Sub:${AWS::StackName}-RoleArn]",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml"
+              }
+            ],
+            "cloudformation_cross_stack_imports": [],
+            "cloudformation_outputs": [
+              {
+                "description": "ARN of the S3 bucket",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "BucketArn",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
+                "value": "map[Fn::GetAtt:DataBucket.Arn]"
+              },
+              {
+                "description": "ARN of the IAM role",
+                "export_name": "map[Fn::Sub:${AWS::StackName}-RoleArn]",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "RoleArn",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
+                "value": "map[Fn::GetAtt:AppRole.Arn]"
+              }
+            ],
+            "cloudformation_parameters": [
+              {
+                "description": "Name of the S3 bucket",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "BucketName",
+                "param_type": "String",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml"
+              },
+              {
+                "allowed_values": "development,production,staging",
+                "default": "development",
+                "description": "Deployment environment",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "Environment",
+                "param_type": "String",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml"
+              }
+            ],
+            "cloudformation_resources": [
+              {
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "AppRole",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
+                "resource_type": "AWS::IAM::Role"
+              },
+              {
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "DataBucket",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
+                "resource_type": "AWS::S3::Bucket"
+              }
+            ],
+            "crossplane_claims": [],
+            "crossplane_compositions": [],
+            "crossplane_xrds": [],
+            "function_calls": [],
+            "functions": [],
+            "gitlab_jobs": [],
+            "gitlab_pipelines": [],
+            "helm_charts": [],
+            "helm_template_value_usages": [],
+            "helm_value_definitions": [],
+            "helm_values": [],
+            "iac_relevant": false,
+            "imports": [],
+            "is_dependency": false,
+            "k8s_resources": [],
+            "kustomize_overlays": [],
+            "lang": "yaml",
+            "observability_applied_resources": [],
+            "observability_applied_sync_states": [],
+            "observability_coverage_warnings": [],
+            "observability_declared_alert_rules": [],
+            "observability_declared_dashboards": [],
+            "observability_declared_datasources": [],
+            "observability_declared_folders": [],
+            "observability_declared_log_routes": [],
+            "observability_declared_metric_routes": [],
+            "observability_declared_metric_rules": [],
+            "observability_declared_scrape_configs": [],
+            "observability_declared_trace_routes": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation",
+            "variables": []
+          },
+          "relative_path": "simple-stack.yaml",
+          "repo_id": "cloudformation"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
+        "stable_fact_key": "file:cloudformation:simple-stack.yaml"
+      }
+    ],
+    "generation_id": "canonical-generation-85ab4f2d59fff9f4",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "cloudformation",
+    "scope_id": "parser_fixture:cloudformation",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

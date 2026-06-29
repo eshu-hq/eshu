@@ -49,6 +49,29 @@ coverage:
     ref: testdata/cassettes/terraformstate/supply-chain-demo.json
     proof_gate: golden-corpus-gate
 
+  # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
+  # envelope recording (provenance-bearing) produced by the real parser over a
+  # package-local, parser-focused tree; the proof gate replays it credential-free
+  # and asserts the live parser reproduces it byte-for-byte (catching dropped or
+  # mis-attributed facts) and that provenance survives the round trip. proof_gate
+  # parserfixture-tests = `cd go && go test ./internal/replay/parserfixture/`.
+  - surface: parser:cloudformation
+    scenario: parser_fixture
+    ref: go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json
+    proof_gate: parserfixture-tests
+  - surface: parser:dockerfile
+    scenario: parser_fixture
+    ref: go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json
+    proof_gate: parserfixture-tests
+  - surface: parser:hcl
+    scenario: parser_fixture
+    ref: go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json
+    proof_gate: parserfixture-tests
+  - surface: parser:yaml
+    scenario: parser_fixture
+    ref: go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json
+    proof_gate: parserfixture-tests
+
 # Exemptions: supported surfaces deliberately not required to have a replay
 # scenario, each with an auditable reason. Empty at seed time — every gap should
 # be burned down by an authored scenario (C-2..C-6), not exempted away. Add an

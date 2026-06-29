@@ -1,0 +1,63 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "dockerfile:Dockerfile",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "dockerfile",
+          "parsed_file_data": {
+            "artifact_type": "dockerfile",
+            "classes": [],
+            "dockerfile_args": [],
+            "dockerfile_envs": [],
+            "dockerfile_labels": [],
+            "dockerfile_ports": [],
+            "dockerfile_stages": [
+              {
+                "alias": "",
+                "base_image": "gcr.io/distroless/base-debian12",
+                "base_tag": "",
+                "copies_from": "build",
+                "entrypoint": "[\"/app\"]",
+                "lang": "dockerfile",
+                "line_number": 3,
+                "name": "gcr.io/distroless/base-debian12",
+                "path": "base-debian12",
+                "stage_index": 0
+              }
+            ],
+            "function_calls": [],
+            "functions": [],
+            "iac_relevant": true,
+            "imports": [],
+            "is_dependency": false,
+            "lang": "dockerfile",
+            "module_inclusions": [],
+            "modules": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/dockerfile/Dockerfile",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/dockerfile",
+            "variables": []
+          },
+          "relative_path": "Dockerfile",
+          "repo_id": "dockerfile"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/dockerfile/Dockerfile",
+        "stable_fact_key": "file:dockerfile:Dockerfile"
+      }
+    ],
+    "generation_id": "canonical-generation-9b99b4aa4119d93d",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "dockerfile",
+    "scope_id": "parser_fixture:dockerfile",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

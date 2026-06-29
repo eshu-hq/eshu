@@ -1,0 +1,308 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "hcl:main.tf",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "hcl",
+          "parsed_file_data": {
+            "artifact_type": "terraform_hcl",
+            "classes": [],
+            "function_calls": [],
+            "functions": [],
+            "iac_relevant": true,
+            "imports": [],
+            "is_dependency": false,
+            "lang": "hcl",
+            "observability_coverage_warnings": [],
+            "observability_declared_alert_rules": [],
+            "observability_declared_dashboards": [],
+            "observability_declared_datasources": [],
+            "observability_declared_folders": [],
+            "pagerduty_declarations": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl",
+            "terraform_backends": [
+              {
+                "backend_kind": "s3",
+                "bucket": "my-terraform-state",
+                "bucket_is_literal": true,
+                "bucket_line_number": 12,
+                "key": "comprehensive/terraform.tfstate",
+                "key_is_literal": true,
+                "key_line_number": 13,
+                "lang": "hcl",
+                "line_number": 11,
+                "name": "s3",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "region": "us-east-1",
+                "region_is_literal": true,
+                "region_line_number": 14
+              }
+            ],
+            "terraform_blocks": [
+              {
+                "lang": "hcl",
+                "line_number": 1,
+                "name": "terraform",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "required_provider_count": 1,
+                "required_provider_sources": "aws=hashicorp/aws",
+                "required_providers": "aws"
+              }
+            ],
+            "terraform_checks": [],
+            "terraform_data_sources": [
+              {
+                "data_name": "current",
+                "data_type": "aws_caller_identity",
+                "lang": "hcl",
+                "line_number": 48,
+                "name": "aws_caller_identity.current",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "provider": "aws",
+                "resource_category": "governance",
+                "resource_service": "caller_identity"
+              },
+              {
+                "data_name": "trust",
+                "data_type": "aws_iam_policy_document",
+                "lang": "hcl",
+                "line_number": 50,
+                "name": "aws_iam_policy_document.trust",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "provider": "aws",
+                "resource_category": "security",
+                "resource_service": "iam"
+              }
+            ],
+            "terraform_imports": [],
+            "terraform_locals": [],
+            "terraform_lock_providers": [],
+            "terraform_modules": [],
+            "terraform_moved_blocks": [],
+            "terraform_outputs": [],
+            "terraform_providers": [
+              {
+                "alias": "",
+                "lang": "hcl",
+                "line_number": 18,
+                "name": "aws",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "region": "var.aws_region",
+                "source": "hashicorp/aws",
+                "version": "~> 5.0"
+              }
+            ],
+            "terraform_removed_blocks": [],
+            "terraform_resources": [
+              {
+                "attributes": {
+                  "ami": "ami-0c55b159cbfafe1f0"
+                },
+                "lang": "hcl",
+                "line_number": 22,
+                "name": "aws_instance.web",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "provider": "aws",
+                "resource_category": "compute",
+                "resource_name": "web",
+                "resource_service": "instance",
+                "resource_type": "aws_instance",
+                "unknown_attributes": [
+                  "instance_type",
+                  "tags"
+                ]
+              },
+              {
+                "lang": "hcl",
+                "line_number": 32,
+                "name": "aws_s3_bucket.data",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "provider": "aws",
+                "resource_category": "storage",
+                "resource_name": "data",
+                "resource_service": "s3",
+                "resource_type": "aws_s3_bucket",
+                "unknown_attributes": [
+                  "bucket",
+                  "tags"
+                ]
+              },
+              {
+                "attributes": {
+                  "versioning_configuration.status": "Enabled"
+                },
+                "lang": "hcl",
+                "line_number": 40,
+                "name": "aws_s3_bucket_versioning.data",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+                "provider": "aws",
+                "resource_category": "storage",
+                "resource_name": "data",
+                "resource_service": "s3",
+                "resource_type": "aws_s3_bucket_versioning",
+                "unknown_attributes": [
+                  "bucket"
+                ]
+              }
+            ],
+            "terraform_variables": [],
+            "terragrunt_configs": [],
+            "terragrunt_dependencies": [],
+            "terragrunt_include_warnings": null,
+            "terragrunt_inputs": [],
+            "terragrunt_locals": [],
+            "terragrunt_remote_states": [],
+            "variables": []
+          },
+          "relative_path": "main.tf",
+          "repo_id": "hcl"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/main.tf",
+        "stable_fact_key": "file:hcl:main.tf"
+      },
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "hcl:variables.tf",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "hcl",
+          "parsed_file_data": {
+            "artifact_type": "terraform_hcl",
+            "classes": [],
+            "function_calls": [],
+            "functions": [],
+            "iac_relevant": true,
+            "imports": [],
+            "is_dependency": false,
+            "lang": "hcl",
+            "observability_coverage_warnings": [],
+            "observability_declared_alert_rules": [],
+            "observability_declared_dashboards": [],
+            "observability_declared_datasources": [],
+            "observability_declared_folders": [],
+            "pagerduty_declarations": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl",
+            "terraform_backends": [],
+            "terraform_blocks": [],
+            "terraform_checks": [],
+            "terraform_data_sources": [],
+            "terraform_imports": [],
+            "terraform_locals": [],
+            "terraform_lock_providers": [],
+            "terraform_modules": [],
+            "terraform_moved_blocks": [],
+            "terraform_outputs": [],
+            "terraform_providers": [],
+            "terraform_removed_blocks": [],
+            "terraform_resources": [],
+            "terraform_variables": [
+              {
+                "default": "us-east-1",
+                "description": "AWS region for resources",
+                "lang": "hcl",
+                "line_number": 1,
+                "name": "aws_region",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "string"
+              },
+              {
+                "default": "",
+                "description": "Deployment environment",
+                "lang": "hcl",
+                "line_number": 7,
+                "name": "environment",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "string"
+              },
+              {
+                "default": "t3.micro",
+                "description": "EC2 instance type",
+                "lang": "hcl",
+                "line_number": 17,
+                "name": "instance_type",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "string"
+              },
+              {
+                "default": "",
+                "description": "S3 bucket name",
+                "lang": "hcl",
+                "line_number": 23,
+                "name": "bucket_name",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "string"
+              },
+              {
+                "default": "cty.True",
+                "description": "Enable CloudWatch monitoring",
+                "lang": "hcl",
+                "line_number": 28,
+                "name": "enable_monitoring",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "bool"
+              },
+              {
+                "default": "{}",
+                "description": "Common tags for all resources",
+                "lang": "hcl",
+                "line_number": 34,
+                "name": "tags",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "map(string)"
+              },
+              {
+                "default": "[\"10.0.0.0/8\"]",
+                "description": "List of allowed CIDR blocks",
+                "lang": "hcl",
+                "line_number": 40,
+                "name": "allowed_cidrs",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "list(string)"
+              },
+              {
+                "default": "{\n    cidr_block   = \"10.0.0.0/16\"\n    subnet_count = 3\n    enable_nat   = true\n  }",
+                "description": "VPC configuration",
+                "lang": "hcl",
+                "line_number": 46,
+                "name": "vpc_config",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+                "var_type": "object({\n    cidr_block     = string\n    subnet_count   = number\n    enable_nat     = bool\n  })"
+              }
+            ],
+            "terragrunt_configs": [],
+            "terragrunt_dependencies": [],
+            "terragrunt_include_warnings": null,
+            "terragrunt_inputs": [],
+            "terragrunt_locals": [],
+            "terragrunt_remote_states": [],
+            "variables": []
+          },
+          "relative_path": "variables.tf",
+          "repo_id": "hcl"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/hcl/variables.tf",
+        "stable_fact_key": "file:hcl:variables.tf"
+      }
+    ],
+    "generation_id": "canonical-generation-4a1f71a40aa24395",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "hcl",
+    "scope_id": "parser_fixture:hcl",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}
