@@ -43,6 +43,7 @@ func askToolAnnotations() map[string]Annotation {
 		"find_blast_radius":                               {Backend: BackendNornicDB, Cost: CostHigh},
 		"find_change_surface":                             {Backend: BackendNornicDB, Cost: CostHigh},
 		"find_code":                                       {Backend: BackendBoth, Cost: CostModerate},
+		"find_cross_repo_dead_code":                       {Backend: BackendBoth, Cost: CostHigh},
 		"find_dead_code":                                  {Backend: BackendNornicDB, Cost: CostHigh},
 		"find_dead_iac":                                   {Backend: BackendPostgres, Cost: CostModerate},
 		"find_function_call_chain":                        {Backend: BackendNornicDB, Cost: CostHigh},

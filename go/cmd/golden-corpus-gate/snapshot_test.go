@@ -114,19 +114,42 @@ func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
 		}
 	}
 
-	crossRepo := snap.QueryShapes.HTTP["POST /api/v0/code/dead-code/cross-repo"]
+	crossRepoHTTP := snap.QueryShapes.HTTP["POST /api/v0/code/dead-code/cross-repo"]
+	crossRepoMCP := snap.QueryShapes.MCP["find_cross_repo_dead_code"]
 	for _, path := range []string{
 		"data.bucket_counts.dead",
 		"data.bucket_counts.live_by_consumer",
 		"data.bucket_counts.unknown",
 		"data.bucket_counts.suppressed",
+		"data.candidate_buckets.dead[]",
+		"data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
+		"data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
+		"data.candidate_buckets.unknown[].needs_evidence_reasons[]",
+		"data.candidate_buckets.suppressed[]",
 	} {
-		if !containsString(crossRepo.RequiredJSONPaths, path) {
-			t.Fatalf("cross-repo dead-code shape missing bucket path %q", path)
+		if !containsString(crossRepoHTTP.RequiredJSONPaths, path) {
+			t.Fatalf("HTTP cross-repo dead-code shape missing bucket path %q", path)
+		}
+		if !containsString(crossRepoMCP.RequiredJSONPaths, path) {
+			t.Fatalf("MCP cross-repo dead-code shape missing bucket path %q", path)
 		}
 	}
-	if got := crossRepo.RequiredJSONValues["data.query_shape"]; got != "bounded_cross_repo_dead_code" {
-		t.Fatalf("cross-repo query_shape value = %#v, want bounded_cross_repo_dead_code", got)
+	for _, shape := range []struct {
+		name  string
+		shape QueryShape
+	}{
+		{name: "HTTP", shape: crossRepoHTTP},
+		{name: "MCP", shape: crossRepoMCP},
+	} {
+		if got := shape.shape.RequiredJSONValues["data.query_shape"]; got != "bounded_cross_repo_dead_code" {
+			t.Fatalf("%s cross-repo query_shape value = %#v, want bounded_cross_repo_dead_code", shape.name, got)
+		}
+		if got := shape.shape.RequiredJSONValues["data.candidate_buckets.live_by_consumer[].classification"]; got != "live_by_consumer" {
+			t.Fatalf("%s cross-repo live_by_consumer classification = %#v, want live_by_consumer", shape.name, got)
+		}
+		if got := shape.shape.RequiredJSONValues["data.candidate_buckets.unknown[].classification"]; got != "unknown_needs_evidence" {
+			t.Fatalf("%s cross-repo unknown classification = %#v, want unknown_needs_evidence", shape.name, got)
+		}
 	}
 }
 

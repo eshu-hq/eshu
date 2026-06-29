@@ -748,12 +748,19 @@
           "data.bucket_counts.live_by_consumer",
           "data.bucket_counts.unknown",
           "data.bucket_counts.suppressed",
+          "data.candidate_buckets.dead[]",
+          "data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
+          "data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
+          "data.candidate_buckets.unknown[].needs_evidence_reasons[]",
+          "data.candidate_buckets.suppressed[]",
           "data.analysis.dead_code_language_maturity.go"
         ],
         "required_json_values": {
           "truth.level": "derived",
           "truth.basis": "hybrid",
           "data.query_shape": "bounded_cross_repo_dead_code",
+          "data.candidate_buckets.live_by_consumer[].classification": "live_by_consumer",
+          "data.candidate_buckets.unknown[].classification": "unknown_needs_evidence",
           "data.analysis.dead_code_language_maturity.go": "derived"
         },
         "arguments": {
@@ -976,12 +983,19 @@
           "data.bucket_counts.live_by_consumer",
           "data.bucket_counts.unknown",
           "data.bucket_counts.suppressed",
+          "data.candidate_buckets.dead[]",
+          "data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
+          "data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
+          "data.candidate_buckets.unknown[].needs_evidence_reasons[]",
+          "data.candidate_buckets.suppressed[]",
           "data.analysis.dead_code_language_maturity.go"
         ],
         "required_json_values": {
           "truth.level": "derived",
           "truth.basis": "hybrid",
           "data.query_shape": "bounded_cross_repo_dead_code",
+          "data.candidate_buckets.live_by_consumer[].classification": "live_by_consumer",
+          "data.candidate_buckets.unknown[].classification": "unknown_needs_evidence",
           "data.analysis.dead_code_language_maturity.go": "derived"
         }
       }
