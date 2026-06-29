@@ -293,7 +293,7 @@ func TestLocalIdentityInvitationUsesAuthScopeDefaults(t *testing.T) {
 	}
 }
 
-func TestLocalIdentityPublicPathsAreNarrow(t *testing.T) {
+func TestHandleAcceptInvitationHandleBreakGlassSessionLocalIdentityPublicPathsAreNarrow(t *testing.T) {
 	t.Parallel()
 
 	for _, path := range []string{
@@ -308,6 +308,45 @@ func TestLocalIdentityPublicPathsAreNarrow(t *testing.T) {
 	if publicHTTPPaths["/api/v0/auth/local/bootstrap"] ||
 		publicHTTPPaths["/api/v0/auth/local/break-glass"] {
 		t.Fatal("operator local identity routes must not bypass authentication")
+	}
+}
+
+func TestHandleEnableBreakGlassRequiresSharedOperatorBeforePayload(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeLocalIdentityStore{}
+	handler := &LocalIdentityHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/break-glass", bytes.NewBufferString(`{}`))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+	if store.breakGlass.RecoveryID != "" {
+		t.Fatalf("break-glass store was called without shared operator auth: %#v", store.breakGlass)
+	}
+}
+
+func TestHandleBreakGlassSessionReturnsExplicitUnavailableWithoutSession(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeLocalIdentityStore{breakGlassError: context.Canceled}
+	handler := &LocalIdentityHandler{Store: store, Sessions: &fakeBrowserSessionStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/break-glass/session", bytes.NewBufferString(`{}`))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusUnauthorized, rec.Body.String())
 	}
 }
 

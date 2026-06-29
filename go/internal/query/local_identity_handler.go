@@ -128,6 +128,15 @@ func (h *LocalIdentityHandler) handleCreateInvitation(w http.ResponseWriter, r *
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeRoleGrantChange,
+		"identity_admin.invitation_create",
+		permissionFeatureIdentityAdmin,
+	) {
+		return
+	}
 	var req localIdentityInvitationRequest
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid local identity invitation request")
@@ -208,6 +217,15 @@ func (h *LocalIdentityHandler) handleResetPassword(w http.ResponseWriter, r *htt
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeIdentityAuthentication,
+		"identity_admin.password_reset",
+		permissionFeatureIdentityAdmin,
+	) {
+		return
+	}
 	var req localIdentityPasswordResetRequest
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid local identity password reset request")
@@ -238,6 +256,15 @@ func (h *LocalIdentityHandler) handleResetMFA(w http.ResponseWriter, r *http.Req
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeMFALifecycle,
+		"identity_admin.mfa_reset",
+		permissionFeatureIdentityAdmin,
+	) {
+		return
+	}
 	var req localIdentityMFAResetRequest
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid local identity mfa reset request")
@@ -261,6 +288,15 @@ func (h *LocalIdentityHandler) handleResetMFA(w http.ResponseWriter, r *http.Req
 
 func (h *LocalIdentityHandler) handleDisableUser(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
+		return
+	}
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeIdentityAuthentication,
+		"identity_admin.user_disable",
+		permissionFeatureIdentityAdmin,
+	) {
 		return
 	}
 	if err := h.Store.DisableLocalIdentityUser(r.Context(), LocalIdentityDisableUser{
