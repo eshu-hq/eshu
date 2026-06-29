@@ -176,6 +176,25 @@ JSON
 
 expect_fail_with "${private_numeric_input}" 'public-safe'
 
+private_hostname_input="${tmp_root}/private-hostname.json"
+cat >"${private_hostname_input}" <<'JSON'
+{
+  "run": {"id": "private-hostname", "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de"},
+  "startup": {"schema_bootstrap": "passed"},
+  "services": [{"name": "eshu", "state": "running", "health": "healthy"}],
+  "index_status": {"status": "healthy", "queue": {"outstanding": 0}},
+  "postgres": {
+    "active_queries": [
+      {"age_seconds": 1, "query_shape": "select from db.internal.example"}
+    ],
+    "ungranted_locks": 0,
+    "relation_sizes": []
+  }
+}
+JSON
+
+expect_fail_with "${private_hostname_input}" 'public-safe'
+
 healthy_input="${tmp_root}/healthy.json"
 cat >"${healthy_input}" <<'JSON'
 {

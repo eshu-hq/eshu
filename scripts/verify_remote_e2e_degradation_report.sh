@@ -55,7 +55,7 @@ jq -e . "${INPUT_FILE}" >/dev/null
 
 unsafe_match_file="$(mktemp)"
 trap 'rm -f "${unsafe_match_file}"' EXIT
-unsafe_pattern='(/Users/|/home/|/var/folders/|/private/|BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|(^|[^0-9])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9]|$)|(^|[^0-9])[0-9]{12}([^0-9]|$))'
+unsafe_pattern='(/Users/|/home/|/var/folders/|/private/|BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|https?://|(^|[^0-9])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9]|$)|(^|[^0-9])[0-9]{12}([^0-9]|$)|(^|[^A-Za-z0-9_-])([A-Za-z0-9-]+\.)+(internal|corp|local|lan|svc|example)([^A-Za-z0-9_-]|$))'
 if jq -r '
 	def sensitive_path:
 		[.[]
