@@ -6,8 +6,10 @@ package replaycoverage
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
 )
 
@@ -30,7 +32,77 @@ func testResolver(t *testing.T) (ArtifactResolver, string) {
 			MCP:  map[string]goldengate.QueryShape{"get_repo_summary": {}},
 		},
 	}
-	return ArtifactResolver{RepoRoot: root, Snapshot: snap}, root
+	matrix := capabilitycatalog.Matrix{Capabilities: []capabilitycatalog.MatrixCapability{
+		{
+			Capability: "cap.profiled",
+			Profiles: map[string]capabilitycatalog.MatrixProfile{
+				"local_lightweight": {
+					Status:          "unsupported",
+					MaxTruthLevel:   "unsupported",
+					Verification:    []capabilitycatalog.MatrixVerification{{Kind: "go_test", Ref: "./internal/query"}},
+					RequiredRuntime: "local_host",
+				},
+				"production": {
+					Status:          "supported",
+					MaxTruthLevel:   "exact",
+					Verification:    []capabilitycatalog.MatrixVerification{{Kind: "remote_validation", Ref: "prod-profiled"}},
+					RequiredRuntime: "deployed_services",
+				},
+			},
+		},
+		{
+			Capability: "cap.missing_verification",
+			Profiles: map[string]capabilitycatalog.MatrixProfile{
+				"production": {Status: "supported", MaxTruthLevel: "exact"},
+			},
+		},
+		{
+			Capability: "cap.unsupported_only",
+			Profiles: map[string]capabilitycatalog.MatrixProfile{
+				"local_lightweight": {Status: "unsupported", MaxTruthLevel: "unsupported", Verification: []capabilitycatalog.MatrixVerification{{Kind: "go_test", Ref: "./internal/query"}}},
+			},
+		},
+	}}
+	productClaims := capabilitycatalog.ProductClaimLedger{Version: "v1", Claims: []capabilitycatalog.ProductClaim{
+		{
+			ID:           "readme.claim-one",
+			ClaimText:    "README claim one",
+			Capabilities: []capabilitycatalog.ProductClaimCapability{{ID: "cap.profiled"}},
+			Proof: capabilitycatalog.ProductClaimProof{
+				Command: "cd go && go test ./internal/query -count=1",
+				Signals: []capabilitycatalog.ProductClaimProofSignal{
+					{Capability: "cap.profiled", Kind: "go_test", Ref: "./internal/query"},
+				},
+			},
+		},
+		{
+			ID:           "readme.missing-proof",
+			ClaimText:    "README claim without proof",
+			Capabilities: []capabilitycatalog.ProductClaimCapability{{ID: "cap.profiled"}},
+		},
+		{
+			ID:        "readme.missing-capability",
+			ClaimText: "README claim without capability",
+			Proof: capabilitycatalog.ProductClaimProof{
+				Command: "cd go && go test ./internal/query -count=1",
+				Signals: []capabilitycatalog.ProductClaimProofSignal{
+					{Capability: "cap.profiled", Kind: "go_test", Ref: "./internal/query"},
+				},
+			},
+		},
+		{
+			ID:           "readme.unknown-capability",
+			ClaimText:    "README claim with unknown capability",
+			Capabilities: []capabilitycatalog.ProductClaimCapability{{ID: "cap.unknown"}},
+			Proof: capabilitycatalog.ProductClaimProof{
+				Command: "cd go && go test ./internal/query -count=1",
+				Signals: []capabilitycatalog.ProductClaimProofSignal{
+					{Capability: "cap.unknown", Kind: "go_test", Ref: "./internal/query"},
+				},
+			},
+		},
+	}}
+	return ArtifactResolver{RepoRoot: root, Snapshot: snap, Matrix: matrix, ProductClaims: productClaims}, root
 }
 
 func TestResolveCassetteAndFixturePaths(t *testing.T) {
@@ -62,6 +134,55 @@ func TestResolveSnapshotBackedScenarios(t *testing.T) {
 	}
 	if ok, _ := r.Resolve(CoverageEntry{Scenario: ScenarioAPIMCPGolden, Ref: "missing_shape"}); ok {
 		t.Error("absent query shape must not resolve")
+	}
+}
+
+func TestResolveCapabilityClaimUsesMatrixProfileProofs(t *testing.T) {
+	r, _ := testResolver(t)
+	ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioCapabilityClaim, Ref: "cap.profiled"})
+	if !ok {
+		t.Fatalf("profiled capability claim should resolve: %s", detail)
+	}
+	for _, want := range []string{"supported=1", "refusal=1"} {
+		if !strings.Contains(detail, want) {
+			t.Fatalf("detail %q missing %q", detail, want)
+		}
+	}
+
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioCapabilityClaim, Ref: "cap.missing_verification"}); ok || !strings.Contains(detail, "missing verification") {
+		t.Fatalf("capability with missing profile verification resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioCapabilityClaim, Ref: "cap.unsupported_only"}); ok || !strings.Contains(detail, "no supported or experimental profile") {
+		t.Fatalf("unsupported-only capability resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioCapabilityClaim, Ref: "cap.absent"}); ok || !strings.Contains(detail, "no capability") {
+		t.Fatalf("absent capability resolved=%v detail=%q", ok, detail)
+	}
+}
+
+func TestResolveProductClaimUsesLedgerProof(t *testing.T) {
+	r, _ := testResolver(t)
+	ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioProductClaim, Ref: "readme.claim-one"})
+	if !ok {
+		t.Fatalf("product claim should resolve: %s", detail)
+	}
+	for _, want := range []string{"readme.claim-one", "signals=1"} {
+		if !strings.Contains(detail, want) {
+			t.Fatalf("detail %q missing %q", detail, want)
+		}
+	}
+
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioProductClaim, Ref: "readme.missing-proof"}); ok || !strings.Contains(detail, "missing deterministic proof") {
+		t.Fatalf("claim with missing proof resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioProductClaim, Ref: "readme.missing-capability"}); ok || !strings.Contains(detail, "no referenced capabilities") {
+		t.Fatalf("claim with no capabilities resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioProductClaim, Ref: "readme.unknown-capability"}); ok || !strings.Contains(detail, "unknown capability") {
+		t.Fatalf("claim with unknown capability resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioProductClaim, Ref: "readme.absent"}); ok || !strings.Contains(detail, "no product claim") {
+		t.Fatalf("absent product claim resolved=%v detail=%q", ok, detail)
 	}
 }
 

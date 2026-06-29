@@ -102,6 +102,10 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 	if err != nil {
 		return replaycoverage.Inputs{}, fmt.Errorf("load capability matrix: %w", err)
 	}
+	productClaims, err := capabilitycatalog.LoadProductClaimLedger(filepath.Join(o.specsDir, capabilitycatalog.ProductClaimLedgerFileName))
+	if err != nil {
+		return replaycoverage.Inputs{}, fmt.Errorf("load product claims: %w", err)
+	}
 	manifest, err := replaycoverage.LoadManifest(o.manifest)
 	if err != nil {
 		return replaycoverage.Inputs{}, err
@@ -111,13 +115,19 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		return replaycoverage.Inputs{}, fmt.Errorf("load snapshot: %w", err)
 	}
 	return replaycoverage.Inputs{
-		Inventory: inv,
-		FactKinds: facts.FactKindRegistry(),
-		Ledger:    ledger,
-		Matrix:    matrix,
-		Manifest:  manifest,
-		Resolver:  replaycoverage.ArtifactResolver{RepoRoot: o.repoRoot, Snapshot: snapshot},
-		Blocking:  o.blocking,
+		Inventory:     inv,
+		FactKinds:     facts.FactKindRegistry(),
+		Ledger:        ledger,
+		Matrix:        matrix,
+		ProductClaims: productClaims,
+		Manifest:      manifest,
+		Resolver: replaycoverage.ArtifactResolver{
+			RepoRoot:      o.repoRoot,
+			Snapshot:      snapshot,
+			Matrix:        matrix,
+			ProductClaims: productClaims,
+		},
+		Blocking: o.blocking,
 	}, nil
 }
 

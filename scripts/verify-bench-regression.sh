@@ -51,19 +51,19 @@ command -v benchstat >/dev/null 2>&1 || die "missing required tool: benchstat (g
 
 # Resolve the current results. A caller-pinned BENCH_CURRENT is used verbatim
 # (the mirror feeds synthetic files); otherwise always (re)generate so a stale
-# current.txt from a previous run is never silently reused. Same shape as the
-# baseline: run-go-benchmarks.sh auto-discovers the same packages, and count/
-# benchtime match what the baseline was captured with.
+# current.txt from a previous run is never silently reused. The generated sample
+# is runner-bounded by default because this gate is advisory until the weekly
+# refresh establishes an ubuntu-latest baseline.
 if [[ -n "${current_explicit}" ]]; then
 	[[ -f "${current}" ]] || die "BENCH_CURRENT set but not found: ${current}"
 else
 	printf 'verify-bench-regression: generating %s (count=%s time=%s)\n' \
-		"${current}" "${BENCH_COUNT:-6}" "${BENCH_TIME:-100ms}" >&2
+		"${current}" "${BENCH_COUNT:-1}" "${BENCH_TIME:-100ms}" >&2
 	mkdir -p "$(dirname "${current}")"
 	# Capture raw, then filter to clean benchstat input (same as the baseline).
 	raw="$(mktemp)"
 	trap 'rm -f "${raw}" 2>/dev/null || true' EXIT
-	BENCH_OUTPUT="${raw}" BENCH_COUNT="${BENCH_COUNT:-6}" BENCH_TIME="${BENCH_TIME:-100ms}" \
+	BENCH_OUTPUT="${raw}" BENCH_COUNT="${BENCH_COUNT:-1}" BENCH_TIME="${BENCH_TIME:-100ms}" \
 		bash "${repo_root}/scripts/run-go-benchmarks.sh"
 	benchstat_clean_filter "${raw}" "${current}"
 fi

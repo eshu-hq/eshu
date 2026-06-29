@@ -23,7 +23,7 @@ mkdir -p "$(dirname "${baseline}")"
 # benchmark logs to stdout, which would otherwise bloat/corrupt the baseline).
 raw="$(mktemp)"
 trap 'rm -f "${raw}" 2>/dev/null || true' EXIT
-BENCH_OUTPUT="${raw}" BENCH_COUNT="${BENCH_COUNT:-6}" BENCH_TIME="${BENCH_TIME:-100ms}" \
+BENCH_OUTPUT="${raw}" BENCH_COUNT="${BENCH_COUNT:-1}" BENCH_TIME="${BENCH_TIME:-100ms}" \
 	bash "${repo_root}/scripts/run-go-benchmarks.sh"
 benchstat_clean_filter "${raw}" "${baseline}"
 

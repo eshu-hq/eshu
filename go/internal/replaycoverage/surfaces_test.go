@@ -28,6 +28,10 @@ func testInputs() ([]SupportedSurface, map[string]SupportedSurface) {
 		{Kind: "blank_surface", ReadSurface: ""}, // blank read_surface skipped
 	}
 	ledger := ParserLedger{Version: 1, Parsers: []ParserLedgerEntry{{Parser: "hcl"}, {Parser: "dockerfile"}}}
+	productClaims := capabilitycatalog.ProductClaimLedger{Version: "v1", Claims: []capabilitycatalog.ProductClaim{
+		{ID: "readme.claim-one", ClaimText: "README claim one"},
+		{ID: "docs.claim-two", ClaimText: "Docs claim two"},
+	}}
 	matrix := capabilitycatalog.Matrix{Capabilities: []capabilitycatalog.MatrixCapability{
 		{Capability: "cap.supported", Profiles: map[string]capabilitycatalog.MatrixProfile{
 			"local": {Status: "supported"},
@@ -47,7 +51,7 @@ func testInputs() ([]SupportedSurface, map[string]SupportedSurface) {
 		}},
 	}}
 
-	got := EnumerateSupported(inv, factKinds, ledger, matrix)
+	got := EnumerateSupported(inv, factKinds, ledger, matrix, productClaims)
 	byKey := map[string]SupportedSurface{}
 	for _, s := range got {
 		byKey[s.Key] = s
@@ -62,11 +66,13 @@ func TestEnumerateSupportedKeys(t *testing.T) {
 		"collector:aws": RegistrySurfaceInventory,
 		"read_surface:GET /api/v0/cloud/inventory":        RegistryFactKind,
 		"read_surface:GET /api/v0/ci-cd/run-correlations": RegistryFactKind,
-		"parser:hcl":                  RegistryParserLedger,
-		"parser:dockerfile":           RegistryParserLedger,
-		"capability:cap.supported":    RegistryCapabilityMatrix,
-		"capability:cap.experimental": RegistryCapabilityMatrix,
-		"capability:cap.ceiling_only": RegistryCapabilityMatrix,
+		"parser:hcl":                     RegistryParserLedger,
+		"parser:dockerfile":              RegistryParserLedger,
+		"capability:cap.supported":       RegistryCapabilityMatrix,
+		"capability:cap.experimental":    RegistryCapabilityMatrix,
+		"capability:cap.ceiling_only":    RegistryCapabilityMatrix,
+		"product_claim:docs.claim-two":   RegistryProductClaims,
+		"product_claim:readme.claim-one": RegistryProductClaims,
 	}
 	for key, reg := range wantPresent {
 		s, ok := byKey[key]

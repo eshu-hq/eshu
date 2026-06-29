@@ -4,9 +4,13 @@ capabilities:
     profiles:
       local_lightweight:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}, {go_test: ./internal/replay/apirecording}, {go_test: ./internal/replay/mcpreplay}]
       local_authoritative:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}, {go_test: ./internal/replay/apirecording}, {go_test: ./internal/replay/mcpreplay}]
       local_full_stack:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}, {go_test: ./internal/replay/apirecording}, {go_test: ./internal/replay/mcpreplay}]
       production:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}, {go_test: ./internal/replay/apirecording}, {go_test: ./internal/replay/mcpreplay}]

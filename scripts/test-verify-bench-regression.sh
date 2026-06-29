@@ -45,9 +45,29 @@ fi
 # Workflow wiring: PR regression job + weekly refresh schedule.
 [[ -f "${workflow}" ]]; check "bench.yml exists" $?
 rg -q "verify-bench-regression.sh" "${workflow}"; check "bench.yml runs the regression gate" $?
+if rg -q "BENCH_COUNT: 1" "${workflow}"; then
+	check "bench regression workflow uses the bounded one-pass sample" 0
+else
+	check "bench regression workflow uses the bounded one-pass sample" 1
+fi
+if rg -q "BENCH_COUNT: 6" "${workflow}"; then
+	check "bench regression workflow avoids the six-pass sample that exceeds CI budget" 1
+else
+	check "bench regression workflow avoids the six-pass sample that exceeds CI budget" 0
+fi
 [[ -f "${weekly}" ]]; check "weekly refresh workflow exists" $?
 rg -q "schedule:" "${weekly}"; check "weekly workflow is scheduled" $?
 rg -q "refresh-bench-baseline.sh" "${weekly}"; check "weekly workflow refreshes the baseline" $?
+if rg -F -q 'BENCH_COUNT="${BENCH_COUNT:-1}"' "${script}"; then
+	check "gate generation defaults to the bounded one-pass sample" 0
+else
+	check "gate generation defaults to the bounded one-pass sample" 1
+fi
+if rg -F -q 'BENCH_COUNT="${BENCH_COUNT:-1}"' "${refresh}"; then
+	check "baseline refresh defaults to the same bounded one-pass sample" 0
+else
+	check "baseline refresh defaults to the same bounded one-pass sample" 1
+fi
 
 # --- Functional: benchstat regression parser ---------------------------------
 tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}" 2>/dev/null || true' EXIT

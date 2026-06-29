@@ -13,11 +13,17 @@
 #   read_surface:<surface>    (fact-kind-registry read_surface)
 #   parser:<name>             (parser-backing-ledger)
 #   capability:<id>           (capability-matrix positive claim)
+#   product_claim:<id>        (product-claims public claim ledger)
 #
-# scenario types: cassette | parser_fixture | api_mcp_golden | correlation
+# scenario types: cassette | parser_fixture | api_mcp_golden | correlation |
+#   capability_claim | product_claim
 #   - cassette / parser_fixture refs are repo-relative paths to the artifact.
 #   - api_mcp_golden / correlation refs are B-12 snapshot ids (query-shape key /
 #     rc-*).
+#   - capability_claim refs are capability ids whose capability-matrix profile
+#     rows carry supported-answer and refusal verification references.
+#   - product_claim refs are product-claims ledger ids whose deterministic
+#     proof is checked by capability-inventory docs mode.
 # proof_gate (REQUIRED on every coverage entry) names the gate that runs the
 # scenario and proves it green; this gate only verifies the artifact exists, so a
 # coverage entry without a named proof_gate would claim a green nothing verifies.
@@ -259,6 +265,136 @@ coverage:
     scenario: correlation
     ref: rc-12
     proof_gate: golden-corpus-gate
+
+  # C-6 (#4178): remaining capability-matrix claims. The
+  # replay-coverage-gate resolves each ref against the capability matrix and
+  # requires every profile row to name verification, with at least one
+  # supported or experimental profile plus refusal proof for unsupported
+  # profiles. Compact entries keep this reviewable while staying under the
+  # repository line-count limit.
+  - {surface: capability:admission_decisions.list, scenario: capability_claim, ref: admission_decisions.list, proof_gate: capability-inventory}
+  - {surface: capability:answer_narration.status, scenario: capability_claim, ref: answer_narration.status, proof_gate: capability-inventory}
+  - {surface: capability:ask.natural_language_answer, scenario: capability_claim, ref: ask.natural_language_answer, proof_gate: capability-inventory}
+  - {surface: capability:aws_runtime_drift.findings.list, scenario: capability_claim, ref: aws_runtime_drift.findings.list, proof_gate: capability-inventory}
+  - {surface: capability:capability_catalog.list, scenario: capability_claim, ref: capability_catalog.list, proof_gate: capability-inventory}
+  - {surface: capability:ci_cd.run_correlations.aggregate, scenario: capability_claim, ref: ci_cd.run_correlations.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:ci_cd.run_correlations.list, scenario: capability_claim, ref: ci_cd.run_correlations.list, proof_gate: capability-inventory}
+  - {surface: capability:cloud_inventory.readback.list, scenario: capability_claim, ref: cloud_inventory.readback.list, proof_gate: capability-inventory}
+  - {surface: capability:cloud_runtime_drift.readback.list, scenario: capability_claim, ref: cloud_runtime_drift.readback.list, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.cfg_summary, scenario: capability_claim, ref: code_flow.cfg_summary, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.pdg_summary, scenario: capability_claim, ref: code_flow.pdg_summary, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.reaching_def, scenario: capability_claim, ref: code_flow.reaching_def, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.taint_path, scenario: capability_claim, ref: code_flow.taint_path, proof_gate: capability-inventory}
+  - {surface: capability:code_inventory.structural, scenario: capability_claim, ref: code_inventory.structural, proof_gate: capability-inventory}
+  - {surface: capability:code_quality.complexity, scenario: capability_claim, ref: code_quality.complexity, proof_gate: capability-inventory}
+  - {surface: capability:code_quality.refactoring, scenario: capability_claim, ref: code_quality.refactoring, proof_gate: capability-inventory}
+  - {surface: capability:code_search.content_search, scenario: capability_claim, ref: code_search.content_search, proof_gate: capability-inventory}
+  - {surface: capability:code_search.exact_symbol, scenario: capability_claim, ref: code_search.exact_symbol, proof_gate: capability-inventory}
+  - {surface: capability:code_search.fuzzy_symbol, scenario: capability_claim, ref: code_search.fuzzy_symbol, proof_gate: capability-inventory}
+  - {surface: capability:code_search.symbol_lookup, scenario: capability_claim, ref: code_search.symbol_lookup, proof_gate: capability-inventory}
+  - {surface: capability:code_search.topic_investigation, scenario: capability_claim, ref: code_search.topic_investigation, proof_gate: capability-inventory}
+  - {surface: capability:code_search.variable_lookup, scenario: capability_claim, ref: code_search.variable_lookup, proof_gate: capability-inventory}
+  - {surface: capability:code_to_cloud.trace_exposure_path, scenario: capability_claim, ref: code_to_cloud.trace_exposure_path, proof_gate: capability-inventory}
+  - {surface: capability:collector_extraction_readiness.family, scenario: capability_claim, ref: collector_extraction_readiness.family, proof_gate: capability-inventory}
+  - {surface: capability:collector_extraction_readiness.list, scenario: capability_claim, ref: collector_extraction_readiness.list, proof_gate: capability-inventory}
+  - {surface: capability:component_extensions.diagnostics, scenario: capability_claim, ref: component_extensions.diagnostics, proof_gate: capability-inventory}
+  - {surface: capability:component_extensions.inventory, scenario: capability_claim, ref: component_extensions.inventory, proof_gate: capability-inventory}
+  - {surface: capability:documentation_evidence_packet.freshness, scenario: capability_claim, ref: documentation_evidence_packet.freshness, proof_gate: capability-inventory}
+  - {surface: capability:documentation_evidence_packet.read, scenario: capability_claim, ref: documentation_evidence_packet.read, proof_gate: capability-inventory}
+  - {surface: capability:documentation_facts.list, scenario: capability_claim, ref: documentation_facts.list, proof_gate: capability-inventory}
+  - {surface: capability:documentation_findings.aggregate, scenario: capability_claim, ref: documentation_findings.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:documentation_findings.list, scenario: capability_claim, ref: documentation_findings.list, proof_gate: capability-inventory}
+  - {surface: capability:evidence_citation.packet, scenario: capability_claim, ref: evidence_citation.packet, proof_gate: capability-inventory}
+  - {surface: capability:fact_schema_version.detail, scenario: capability_claim, ref: fact_schema_version.detail, proof_gate: capability-inventory}
+  - {surface: capability:fact_schema_version.list, scenario: capability_claim, ref: fact_schema_version.list, proof_gate: capability-inventory}
+  - {surface: capability:freshness.changed_since, scenario: capability_claim, ref: freshness.changed_since, proof_gate: capability-inventory}
+  - {surface: capability:freshness.generation_lifecycle, scenario: capability_claim, ref: freshness.generation_lifecycle, proof_gate: capability-inventory}
+  - {surface: capability:freshness.service_changed_since, scenario: capability_claim, ref: freshness.service_changed_since, proof_gate: capability-inventory}
+  - {surface: capability:graph_query.read_only_cypher, scenario: capability_claim, ref: graph_query.read_only_cypher, proof_gate: capability-inventory}
+  - {surface: capability:hosted_governance.status, scenario: capability_claim, ref: hosted_governance.status, proof_gate: capability-inventory}
+  - {surface: capability:iac_inventory.resources.list, scenario: capability_claim, ref: iac_inventory.resources.list, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.explain_status, scenario: capability_claim, ref: iac_management.explain_status, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.find_unmanaged_resources, scenario: capability_claim, ref: iac_management.find_unmanaged_resources, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.get_status, scenario: capability_claim, ref: iac_management.get_status, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.propose_terraform_import_plan, scenario: capability_claim, ref: iac_management.propose_terraform_import_plan, proof_gate: capability-inventory}
+  - {surface: capability:iac_quality.dead_iac, scenario: capability_claim, ref: iac_quality.dead_iac, proof_gate: capability-inventory}
+  - {surface: capability:incident.context.read, scenario: capability_claim, ref: incident.context.read, proof_gate: capability-inventory}
+  - {surface: capability:observability.coverage.correlations.list, scenario: capability_claim, ref: observability.coverage.correlations.list, proof_gate: capability-inventory}
+  - {surface: capability:package_registry.packages.aggregate, scenario: capability_claim, ref: package_registry.packages.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:package_registry.packages.list, scenario: capability_claim, ref: package_registry.packages.list, proof_gate: capability-inventory}
+  - {surface: capability:package_registry.versions.list, scenario: capability_claim, ref: package_registry.versions.list, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.blast_radius, scenario: capability_claim, ref: platform_impact.blast_radius, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.catalog, scenario: capability_claim, ref: platform_impact.catalog, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.change_surface, scenario: capability_claim, ref: platform_impact.change_surface, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.cloud_resource_list, scenario: capability_claim, ref: platform_impact.cloud_resource_list, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.container_image_list, scenario: capability_claim, ref: platform_impact.container_image_list, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.context_overview, scenario: capability_claim, ref: platform_impact.context_overview, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.contract_impact, scenario: capability_claim, ref: platform_impact.contract_impact, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.deployment_config_influence, scenario: capability_claim, ref: platform_impact.deployment_config_influence, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.developer_change_plan, scenario: capability_claim, ref: platform_impact.developer_change_plan, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.entity_map, scenario: capability_claim, ref: platform_impact.entity_map, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.environment_compare, scenario: capability_claim, ref: platform_impact.environment_compare, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.graph_summary_packet, scenario: capability_claim, ref: platform_impact.graph_summary_packet, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.infra_resource_aggregate, scenario: capability_claim, ref: platform_impact.infra_resource_aggregate, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.pre_change, scenario: capability_claim, ref: platform_impact.pre_change, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.resource_investigation, scenario: capability_claim, ref: platform_impact.resource_investigation, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.resource_to_code, scenario: capability_claim, ref: platform_impact.resource_to_code, proof_gate: capability-inventory}
+  - {surface: capability:platform_metrics.timeseries, scenario: capability_claim, ref: platform_metrics.timeseries, proof_gate: capability-inventory}
+  - {surface: capability:query.investigation_workflows, scenario: capability_claim, ref: query.investigation_workflows, proof_gate: capability-inventory}
+  - {surface: capability:query.playbooks, scenario: capability_claim, ref: query.playbooks, proof_gate: capability-inventory}
+  - {surface: capability:reachability.go.govulncheck, scenario: capability_claim, ref: reachability.go.govulncheck, proof_gate: capability-inventory}
+  - {surface: capability:reachability.jvm.bounded, scenario: capability_claim, ref: reachability.jvm.bounded, proof_gate: capability-inventory}
+  - {surface: capability:replatforming.ownership.candidates, scenario: capability_claim, ref: replatforming.ownership.candidates, proof_gate: capability-inventory}
+  - {surface: capability:replatforming.plan.readiness, scenario: capability_claim, ref: replatforming.plan.readiness, proof_gate: capability-inventory}
+  - {surface: capability:replatforming.rollups.readiness, scenario: capability_claim, ref: replatforming.rollups.readiness, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.identity_trust_chains.list, scenario: capability_claim, ref: secrets_iam.identity_trust_chains.list, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.posture_gaps.list, scenario: capability_claim, ref: secrets_iam.posture_gaps.list, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.posture_summary.read, scenario: capability_claim, ref: secrets_iam.posture_summary.read, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.privilege_posture_observations.list, scenario: capability_claim, ref: secrets_iam.privilege_posture_observations.list, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.secret_access_paths.list, scenario: capability_claim, ref: secrets_iam.secret_access_paths.list, proof_gate: capability-inventory}
+  - {surface: capability:security.hardcoded_secrets, scenario: capability_claim, ref: security.hardcoded_secrets, proof_gate: capability-inventory}
+  - {surface: capability:semantic_evidence.code_hints.list, scenario: capability_claim, ref: semantic_evidence.code_hints.list, proof_gate: capability-inventory}
+  - {surface: capability:semantic_evidence.documentation_observations.list, scenario: capability_claim, ref: semantic_evidence.documentation_observations.list, proof_gate: capability-inventory}
+  - {surface: capability:semantic_extraction.status, scenario: capability_claim, ref: semantic_extraction.status, proof_gate: capability-inventory}
+  - {surface: capability:semantic_search.curated_retrieval, scenario: capability_claim, ref: semantic_search.curated_retrieval, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.advisory_catalog.list, scenario: capability_claim, ref: supply_chain.advisory_catalog.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.advisory_evidence.list, scenario: capability_claim, ref: supply_chain.advisory_evidence.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.container_image_identities.aggregate, scenario: capability_claim, ref: supply_chain.container_image_identities.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.container_image_identities.list, scenario: capability_claim, ref: supply_chain.container_image_identities.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.impact_explanation.read, scenario: capability_claim, ref: supply_chain.impact_explanation.read, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.impact_findings.aggregate, scenario: capability_claim, ref: supply_chain.impact_findings.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.impact_findings.list, scenario: capability_claim, ref: supply_chain.impact_findings.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.sbom_attestation_attachments.aggregate, scenario: capability_claim, ref: supply_chain.sbom_attestation_attachments.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.sbom_attestation_attachments.list, scenario: capability_claim, ref: supply_chain.sbom_attestation_attachments.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.security_alert_reconciliations.aggregate, scenario: capability_claim, ref: supply_chain.security_alert_reconciliations.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.security_alert_reconciliations.list, scenario: capability_claim, ref: supply_chain.security_alert_reconciliations.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.vulnerability_scanner.contract.read, scenario: capability_claim, ref: supply_chain.vulnerability_scanner.contract.read, proof_gate: capability-inventory}
+  - {surface: capability:surface_inventory.list, scenario: capability_claim, ref: surface_inventory.list, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.argument_names, scenario: capability_claim, ref: symbol_graph.argument_names, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.class_methods, scenario: capability_claim, ref: symbol_graph.class_methods, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.decorators, scenario: capability_claim, ref: symbol_graph.decorators, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.import_dependencies, scenario: capability_claim, ref: symbol_graph.import_dependencies, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.imports, scenario: capability_claim, ref: symbol_graph.imports, proof_gate: capability-inventory}
+  - {surface: capability:visualization.graph_query, scenario: capability_claim, ref: visualization.graph_query, proof_gate: capability-inventory}
+  - {surface: capability:visualization.packet_derivation, scenario: capability_claim, ref: visualization.packet_derivation, proof_gate: capability-inventory}
+  - {surface: capability:work_item.evidence.list, scenario: capability_claim, ref: work_item.evidence.list, proof_gate: capability-inventory}
+
+  # C-6 (#4178) scope refinement: broad public product claims from
+  # specs/product-claims.v1.yaml. The replay-coverage gate resolves each ref to
+  # a deterministic proof row; capability-inventory docs mode validates the exact
+  # source quote, capability maturity/truth ceilings, surface references, proof
+  # signals, and no-required-semantic-output contract.
+  - {surface: product_claim:readme.code-intelligence.language-breadth, scenario: product_claim, ref: readme.code-intelligence.language-breadth, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.code-to-cloud.evidence-continuity, scenario: product_claim, ref: readme.code-to-cloud.evidence-continuity, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.supply-chain.default-gated, scenario: product_claim, ref: readme.supply-chain.default-gated, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.security-iam.evidence-backed-findings, scenario: product_claim, ref: readme.security-iam.evidence-backed-findings, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.change-risk.blast-radius, scenario: product_claim, ref: readme.change-risk.blast-radius, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.replatforming.plan-readiness, scenario: product_claim, ref: readme.replatforming.plan-readiness, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.mcp-tool-count.indexed-truth, scenario: product_claim, ref: readme.mcp-tool-count.indexed-truth, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.operations-visibility.freshness, scenario: product_claim, ref: readme.operations-visibility.freshness, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:docs.capability-catalog.auditable-source, scenario: product_claim, ref: docs.capability-catalog.auditable-source, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:docs.capability-catalog.surface-parity, scenario: product_claim, ref: docs.capability-catalog.surface-parity, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:docs.mcp-tool-contract.capability-catalog-read, scenario: product_claim, ref: docs.mcp-tool-contract.capability-catalog-read, proof_gate: capability-inventory-docs}
 
 # Exemptions: supported surfaces deliberately not required to have a replay
 # scenario, each with an auditable reason. Empty at seed time — every gap should

@@ -7381,7 +7381,16 @@
           "max_truth_level": "exact"
         }
       },
-      "proof_signals": [],
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
       "docs": [
         "reference/investigation-workflows.md"
       ],
@@ -7440,7 +7449,24 @@
           "max_truth_level": "exact"
         }
       },
-      "proof_signals": [],
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/replay/apirecording"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/replay/mcpreplay"
+        }
+      ],
       "console": true,
       "authorization": {
         "family": "operations_status",

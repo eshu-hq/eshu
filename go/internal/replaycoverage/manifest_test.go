@@ -29,6 +29,10 @@ coverage:
     scenario: parser_fixture
     ref: go/internal/parser/hcl/testdata/fixture.json
     proof_gate: parser-fixture-tests
+  - surface: capability:cap.profiled
+    scenario: capability_claim
+    ref: cap.profiled
+    proof_gate: capability-inventory
 exemptions:
   - surface: capability:cap.design_only
     reason: research-only capability with no runtime path
@@ -40,11 +44,14 @@ exemptions:
 	if m.Version != "v1" {
 		t.Errorf("version = %q, want v1", m.Version)
 	}
-	if len(m.Coverage) != 2 || len(m.Exemptions) != 1 {
-		t.Fatalf("coverage=%d exemptions=%d, want 2/1", len(m.Coverage), len(m.Exemptions))
+	if len(m.Coverage) != 3 || len(m.Exemptions) != 1 {
+		t.Fatalf("coverage=%d exemptions=%d, want 3/1", len(m.Coverage), len(m.Exemptions))
 	}
 	if m.Coverage[0].Scenario != ScenarioCassette || m.Coverage[0].ProofGate != "golden-corpus-gate" {
 		t.Errorf("entry0 = %+v", m.Coverage[0])
+	}
+	if m.Coverage[2].Scenario != ScenarioCapabilityClaim {
+		t.Errorf("entry2 scenario = %q, want %q", m.Coverage[2].Scenario, ScenarioCapabilityClaim)
 	}
 }
 

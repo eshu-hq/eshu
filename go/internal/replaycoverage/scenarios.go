@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
 )
 
@@ -28,12 +30,18 @@ type Resolver interface {
 // ArtifactResolver resolves scenario references against the repository tree and
 // the loaded B-12 golden snapshot. Path-based scenarios (cassette, parser
 // fixture) are resolved against RepoRoot; snapshot-based scenarios (correlation,
-// api/mcp golden) are resolved against Snapshot.
+// api/mcp golden) are resolved against Snapshot; capability-claim scenarios are
+// resolved against Matrix; product-claim scenarios are resolved against the
+// public product claim ledger.
 type ArtifactResolver struct {
 	// RepoRoot is the repository root that repo-relative refs are joined onto.
 	RepoRoot string
 	// Snapshot is the loaded B-12 golden snapshot for correlation/query-shape refs.
 	Snapshot goldengate.Snapshot
+	// Matrix is the loaded capability matrix for capability claim/refusal refs.
+	Matrix capabilitycatalog.Matrix
+	// ProductClaims is the loaded public product claim-to-proof ledger.
+	ProductClaims capabilitycatalog.ProductClaimLedger
 }
 
 // Resolve implements Resolver.
@@ -56,9 +64,93 @@ func (r ArtifactResolver) Resolve(entry CoverageEntry) (bool, string) {
 			return true, fmt.Sprintf("snapshot MCP query shape %q", entry.Ref)
 		}
 		return false, fmt.Sprintf("snapshot has no query shape %q", entry.Ref)
+	case ScenarioCapabilityClaim:
+		return r.resolveCapabilityClaim(entry.Ref)
+	case ScenarioProductClaim:
+		return r.resolveProductClaim(entry.Ref)
 	default:
 		return false, fmt.Sprintf("unknown scenario type %q", entry.Scenario)
 	}
+}
+
+func (r ArtifactResolver) resolveCapabilityClaim(ref string) (bool, string) {
+	for _, capRow := range r.Matrix.Capabilities {
+		if capRow.Capability != ref {
+			continue
+		}
+		supported, refusal, missing := classifyProfileProofs(capRow)
+		if len(missing) > 0 {
+			return false, fmt.Sprintf("capability %q profile(s) missing verification: %s", ref, strings.Join(missing, ", "))
+		}
+		if supported == 0 {
+			return false, fmt.Sprintf("capability %q has no supported or experimental profile claim", ref)
+		}
+		return true, fmt.Sprintf("capability %q matrix profile proofs present (supported=%d refusal=%d)", ref, supported, refusal)
+	}
+	return false, fmt.Sprintf("matrix has no capability %q", ref)
+}
+
+func (r ArtifactResolver) resolveProductClaim(ref string) (bool, string) {
+	matrixCapabilities := capabilityIDSet(r.Matrix)
+	for _, claim := range r.ProductClaims.Claims {
+		if claim.ID != ref {
+			continue
+		}
+		if len(claim.Capabilities) == 0 {
+			return false, fmt.Sprintf("product claim %q has no referenced capabilities", ref)
+		}
+		for _, capRef := range claim.Capabilities {
+			capID := strings.TrimSpace(capRef.ID)
+			if capID == "" {
+				return false, fmt.Sprintf("product claim %q has a blank referenced capability", ref)
+			}
+			if _, ok := matrixCapabilities[capID]; !ok {
+				return false, fmt.Sprintf("product claim %q references unknown capability %q", ref, capID)
+			}
+		}
+		if strings.TrimSpace(claim.Proof.Command) == "" && strings.TrimSpace(claim.Proof.Artifact) == "" {
+			return false, fmt.Sprintf("product claim %q missing deterministic proof command or artifact", ref)
+		}
+		proofSignals := len(claim.Proof.Signals)
+		proofCounts := len(claim.Proof.Counts)
+		if proofSignals == 0 && proofCounts == 0 {
+			return false, fmt.Sprintf("product claim %q missing proof signals or surface-count proof", ref)
+		}
+		return true, fmt.Sprintf("product claim %q deterministic proof present (capabilities=%d signals=%d counts=%d)", ref, len(claim.Capabilities), proofSignals, proofCounts)
+	}
+	return false, fmt.Sprintf("product claim ledger has no product claim %q", ref)
+}
+
+func capabilityIDSet(matrix capabilitycatalog.Matrix) map[string]struct{} {
+	out := make(map[string]struct{}, len(matrix.Capabilities))
+	for _, capRow := range matrix.Capabilities {
+		capID := strings.TrimSpace(capRow.Capability)
+		if capID == "" {
+			continue
+		}
+		out[capID] = struct{}{}
+	}
+	return out
+}
+
+func classifyProfileProofs(capRow capabilitycatalog.MatrixCapability) (supported int, refusal int, missing []string) {
+	profiles := make([]string, 0, len(capRow.Profiles))
+	for profile := range capRow.Profiles {
+		profiles = append(profiles, profile)
+	}
+	sort.Strings(profiles)
+	for _, profileName := range profiles {
+		profile := capRow.Profiles[profileName]
+		if capabilitycatalog.ProfileClaimsSupport(profile) {
+			supported++
+		} else {
+			refusal++
+		}
+		if len(profile.Verification) == 0 {
+			missing = append(missing, profileName)
+		}
+	}
+	return supported, refusal, missing
 }
 
 // resolvePath reports whether a repo-relative ref exists under RepoRoot. A ref
