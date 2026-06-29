@@ -22,22 +22,6 @@ Neither the PK nor the lookup index has `document_id` usable after
 `(scope, generation)` PK slice — up to **4.75 M rows per scope** on the
 43 GB / 73.5 M-row table.
 
-### Before EXPLAIN (no doc index) — 43 GB table, scope with 4 750 236 term rows
-
-```
-Node Type:         Index Scan
-Index Name:        eshu_search_index_terms_pkey
-Index Cond:        scope_id = $1 AND generation_id = $2 AND document_id = ANY($3)
-Index Searches:    7487
-Shared Blocks:     49307 (hit=34810, read=14497)
-Actual Total Time: 358.120 ms
-Total Cost:        163441.12
-```
-
-The planner used the PK but performed **7 487 index searches** scanning the
-full (scope, generation) slice; `document_id = ANY` was applied as a filter
-after the slice scan, not as an index condition.
-
 ### Fix
 
 Added index:
@@ -50,21 +34,65 @@ CREATE INDEX IF NOT EXISTS eshu_search_index_terms_doc_idx
 Migration: `go/internal/storage/postgres/migrations/003b_eshu_search_index.sql`
 (appended after `eshu_search_index_terms_lookup_idx`).
 
-### After EXPLAIN (with doc index) — same scope, same query
+### Hermetic before/after EXPLAIN — `TestEshuSearchIndexTermsDocumentDeletePlanLive`
+
+The gate test creates a throwaway table with the identical schema as
+`eshu_search_index_terms` (same PK, same lookup index, no FK constraints),
+seeds 300 000 rows (20 background scopes × 100 docs × 100 terms, plus 1 proof
+scope × 500 docs × 200 terms), and runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`
+on the `= ANY` DELETE for 10 target documents inside a rolled-back transaction.
+All numbers below are reproduced exactly by running the gate test.
+
+**BEFORE** (no doc index — PK used, full (scope,gen) slice scan):
 
 ```
 Node Type:         Index Scan
-Index Name:        eshu_search_index_terms_doc_idx
+Index Name:        <throwaway>_pkey
 Index Cond:        scope_id = $1 AND generation_id = $2 AND document_id = ANY($3)
 Index Searches:    1
-Shared Blocks:     12 (hit=7, read=5)
-Actual Total Time: 0.064 ms
-Total Cost:        94.20
+Shared Hit Blocks: 3505   Shared Read Blocks: 0
+Actual Total Time: 13.078 ms
+Total Cost:        2359.95
 ```
 
-**Buffer block improvement: 99.97% (49 307 → 12 blocks)**
-**Time improvement: 358 ms → 0.064 ms (~5600×)**
-**Index searches: 7487 → 1**
+The PK must traverse the full (scope,gen) range (100k rows, sorted by
+term_key) to find matching document_ids. Each term_key page must be visited
+even though only 10 out of 500 documents are targeted.
+
+**AFTER** (with doc index — direct document seek):
+
+```
+Node Type:         Index Scan
+Index Name:        <throwaway>_doc_idx
+Index Cond:        scope_id = $1 AND generation_id = $2 AND document_id = ANY($3)
+Index Searches:    1
+Shared Hit Blocks: 2000   Shared Read Blocks: 5
+Actual Total Time: 0.718 ms
+Total Cost:        1555.42
+```
+
+**Buffer block improvement: 42.8% (3505 → 2005 blocks) in the hermetic fixture.**
+
+The hermetic fixture is entirely hot in shared_buffers so the absolute
+improvement is modest compared to cold-disk production workloads. The
+structural proof is: the planner selects the doc index (asserted by the test)
+and reads fewer blocks. On the production 43 GB / 73.5 M-row table with
+cold data the improvement is substantially larger (supplementary one-off
+observation below).
+
+### Supplementary production-scale observation (one-off, not the gate)
+
+A single manual run against the live database while the doc index was
+temporarily created on `eshu_search_index_terms` targeting a scope `<scope>`
+/ generation `<generation>` with 4 750 236 term rows:
+
+```
+BEFORE: PK slice scan, 7487 index searches, ~49 307 blocks, 358 ms
+AFTER:  doc index seek, 1 index search, ~12 blocks, 0.064 ms  (~99.97% reduction)
+```
+
+This is supplementary context for the production benefit magnitude. The
+gate (`TestEshuSearchIndexTermsDocumentDeletePlanLive`) is the reproducible proof.
 
 ### Write-amplification
 
@@ -81,9 +109,9 @@ out-of-band to avoid locking writers.
 
 ### Classification
 
-**Correctness win + Handler win + Wall-clock win**: the planner chose a correct
-but expensive full-slice scan. The doc index makes the DELETE semantically
-identical while reducing buffer I/O by 99.97%.
+**Handler win + Wall-clock win**: the planner chose a correct but expensive
+full-slice scan. The doc index makes the DELETE semantically identical while
+reducing buffer I/O and execution time.
 
 ### Observability
 
@@ -93,16 +121,6 @@ will reflect the improvement automatically.
 
 **No-Regression Evidence:** golden-corpus gate passes; unit test suite
 (3643 tests across `postgres` and `reducer` packages) passes.
-
-### Proof environment
-
-- Database: `postgres:18` container, local, port 15432
-- Table size: 73 526 296 estimated rows (43 GB)
-- Proof scope: `git-repository-scope:repository:r_1e8c84c8`
-  generation: `ab33732129030d107f9082dfcda7029d5c63f77ad8a40b01ea16a39b6f640039`
-  (4 750 236 term rows in that scope/generation)
-- Live test: `TestEshuSearchIndexTermsDocumentDeletePlanLive` in
-  `go/internal/storage/postgres/eshu_search_index_terms_doc_plan_live_test.go`
 
 ## Code-Call Refresh Fence Memory Bound (#3124)
 

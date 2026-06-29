@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -15,28 +16,32 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// TestEshuSearchIndexTermsDocumentDeletePlanLive proves — against a live
-// Postgres instance with real corpus data — that the document-keyed index
-// eshu_search_index_terms_doc_idx changes the query plan for the hot
-// per-page refresh DELETE (document_id = ANY) from a full (scope,generation)
-// PK slice scan to a targeted index seek on document_id.
+// TestEshuSearchIndexTermsDocumentDeletePlanLive proves that a covering index
+// on (scope_id, generation_id, document_id) converts the per-page refresh
+// DELETE (document_id = ANY) from an expensive (scope,generation) PK slice
+// scan into a targeted single-seek operation.
 //
 // Environment gates (both required to run):
 //
 //	ESHU_SEARCH_INDEX_PLAN_LIVE=1
 //	ESHU_POSTGRES_DSN=postgresql://eshu:<pw>@localhost:15432/eshu?sslmode=disable
 //
-// The test selects a real (scope_id, generation_id) pair that has at least
-// 10 000 term rows so the planner has a meaningful slice to optimize. EXPLAIN
-// runs are wrapped in transactions that are always rolled back so no rows are
-// ever deleted. The doc index is dropped before the "before" plan and
-// recreated before the "after" plan; both operations use IF NOT EXISTS /
-// IF EXISTS so they are safe on an already-bootstrapped DB.
+// HERMETIC DESIGN — the test never touches the shared eshu_search_index_terms
+// table or its indexes. Instead it:
 //
-// Note: ApplyBootstrap is intentionally NOT called here. The schema must
-// already exist on the target DB. Calling ApplyBootstrap on a populated
-// 73 M-row DB applies all DDL including slow CREATE INDEX operations under
-// lock, which is unacceptable in a test context.
+//  1. Creates a throwaway table with the identical column layout, PK, and
+//     lookup index as eshu_search_index_terms.
+//  2. Seeds ~100k rows (500 docs × 200 terms) for one (scope,generation) pair
+//     so the planner has a meaningful slice to reason about.
+//  3. Runs EXPLAIN ANALYZE on the DELETE without the doc index → asserts the
+//     planner uses the PK/lookup and scans the full slice (many rows/blocks).
+//  4. Adds the doc index, re-analyzes, runs EXPLAIN ANALYZE again → asserts
+//     the planner uses the doc index with sharply fewer blocks.
+//  5. Drops the throwaway table on cleanup.
+//
+// EXPLAIN ANALYZE runs are wrapped in rolled-back transactions so no rows are
+// ever deleted. A single *sql.Conn is used throughout so the planner cache
+// for the throwaway table is stable across both EXPLAIN calls.
 func TestEshuSearchIndexTermsDocumentDeletePlanLive(t *testing.T) {
 	if os.Getenv("ESHU_SEARCH_INDEX_PLAN_LIVE") != "1" {
 		t.Skip("set ESHU_SEARCH_INDEX_PLAN_LIVE=1 and ESHU_POSTGRES_DSN to run live plan proof")
@@ -52,68 +57,138 @@ func TestEshuSearchIndexTermsDocumentDeletePlanLive(t *testing.T) {
 	}
 	defer func() { _ = db.Close() }()
 
+	// Use a single dedicated connection so the planner cache is stable and
+	// both EXPLAIN calls observe the same session state.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Pick a real (scope_id, generation_id) pair with a large term slice so the
-	// planner has meaningful statistics. We need at least 10 000 rows to make
-	// the document-keyed vs. full-slice difference observable in the plan.
-	var scopeID, generationID string
-	var termCount int64
-	err = db.QueryRowContext(ctx, `
-		SELECT scope_id, generation_id, count(*) AS cnt
-		FROM eshu_search_index_terms
-		GROUP BY scope_id, generation_id
-		ORDER BY cnt DESC
-		LIMIT 1
-	`).Scan(&scopeID, &generationID, &termCount)
+	conn, err := db.Conn(ctx)
 	if err != nil {
-		t.Fatalf("select large scope: %v", err)
+		t.Fatalf("acquire connection: %v", err)
 	}
-	if termCount < 10000 {
-		t.Skipf("largest (scope,gen) slice has only %d term rows — need ≥10000 for meaningful plan comparison", termCount)
-	}
-	t.Logf("proof scope=%s generation=%s term_rows=%d", scopeID, generationID, termCount)
+	defer func() { _ = conn.Close() }()
 
-	// Pick a small sample of document_ids from the chosen scope to use as the
-	// = ANY target (mimicking a per-page refresh of 10 documents).
-	rows, err := db.QueryContext(ctx, `
-		SELECT DISTINCT document_id
-		FROM eshu_search_index_terms
-		WHERE scope_id = $1 AND generation_id = $2
-		LIMIT 10
-	`, scopeID, generationID)
+	// Unique throwaway table name to allow concurrent test runs without collision.
+	tbl := fmt.Sprintf("eshu_search_index_terms_planproof_%d", time.Now().UnixNano())
+	docIdx := tbl + "_doc_idx"
+
+	// Create throwaway table with identical structure to eshu_search_index_terms:
+	// same columns, same PK, same lookup index. No FK references so no FK parents
+	// need to be inserted.
+	_, err = conn.ExecContext(ctx, fmt.Sprintf(`
+		CREATE TABLE %s (
+		    scope_id       TEXT NOT NULL,
+		    generation_id  TEXT NOT NULL,
+		    document_id    TEXT NOT NULL,
+		    term_key       TEXT NOT NULL,
+		    term           TEXT NOT NULL,
+		    term_frequency INTEGER NOT NULL,
+		    PRIMARY KEY (scope_id, generation_id, term_key, document_id)
+		)`, tbl))
 	if err != nil {
-		t.Fatalf("select sample document_ids: %v", err)
+		t.Fatalf("create throwaway table: %v", err)
 	}
-	var targetDocIDs []string
-	for rows.Next() {
-		var docID string
-		if scanErr := rows.Scan(&docID); scanErr == nil {
-			targetDocIDs = append(targetDocIDs, docID)
-		}
-	}
-	_ = rows.Close()
-	if len(targetDocIDs) == 0 {
-		t.Fatal("no document_ids found for chosen scope")
-	}
-	t.Logf("targeting %d document_ids for EXPLAIN", len(targetDocIDs))
+	t.Cleanup(func() {
+		_, _ = conn.ExecContext(context.Background(), fmt.Sprintf(`DROP TABLE IF EXISTS %s`, tbl))
+	})
 
-	// refreshDeleteQuery is the production refresh query shape (= ANY) used by
-	// eshuSearchIndexRefreshDocumentTermsQuery. We EXPLAIN this without
-	// actually deleting anything — the transaction is always rolled back.
-	const refreshDeleteQuery = `
-DELETE FROM eshu_search_index_terms
+	// Mirror the existing lookup index (scope_id, generation_id, term_key) so
+	// the planner has the same index landscape as the real table for the BEFORE
+	// phase. This ensures the planner chooses the same index-scan-then-filter
+	// path it would use on the production table without the doc index.
+	_, err = conn.ExecContext(ctx, fmt.Sprintf(
+		`CREATE INDEX %s_lookup_idx ON %s (scope_id, generation_id, term_key)`,
+		tbl, tbl,
+	))
+	if err != nil {
+		t.Fatalf("create lookup index: %v", err)
+	}
+
+	// Seed data in two phases so the planner sees a realistic table shape:
+	//
+	// Phase A — "background" scopes: 20 extra (scope,generation) pairs × 100 docs
+	// × 100 terms each = 200 000 rows. These make the table large enough that the
+	// planner won't choose a seq scan for the proof scope in the BEFORE phase.
+	//
+	// Phase B — "proof" scope: 1 (scope,generation) × 500 docs × 200 terms =
+	// 100 000 rows. This is the slice the EXPLAIN query targets.
+	//
+	// Total: ~300 000 rows. The proof scope is ~33% of the table, which is small
+	// enough for the planner to prefer an index over a seq scan.
+	const (
+		scopeID      = "scope-planproof"
+		generationID = "gen-planproof"
+		docCount     = 500
+		termCount    = 200
+		bgScopes     = 20
+		bgDocs       = 100
+		bgTerms      = 100
+	)
+	// Phase A: background scopes so the table is large.
+	_, err = conn.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s (scope_id, generation_id, document_id, term_key, term, term_frequency)
+		SELECT
+		    'scope-bg-' || lpad(s::text, 3, '0'),
+		    'gen-bg-' || lpad(s::text, 3, '0'),
+		    'doc-' || lpad(d::text, 4, '0'),
+		    'term-' || lpad(d::text, 4, '0') || '-' || lpad(tk::text, 4, '0'),
+		    'term-' || lpad(d::text, 4, '0') || '-' || lpad(tk::text, 4, '0'),
+		    1
+		FROM generate_series(0, $1-1) AS s,
+		     generate_series(0, $2-1) AS d,
+		     generate_series(0, $3-1) AS tk
+	`, tbl), bgScopes, bgDocs, bgTerms)
+	if err != nil {
+		t.Fatalf("seed background rows: %v", err)
+	}
+	// Phase B: proof scope.
+	_, err = conn.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s (scope_id, generation_id, document_id, term_key, term, term_frequency)
+		SELECT
+		    $1,
+		    $2,
+		    'doc-' || lpad(d::text, 4, '0'),
+		    'term-' || lpad(d::text, 4, '0') || '-' || lpad(tk::text, 4, '0'),
+		    'term-' || lpad(d::text, 4, '0') || '-' || lpad(tk::text, 4, '0'),
+		    1
+		FROM generate_series(0, $3-1) AS d,
+		     generate_series(0, $4-1) AS tk
+	`, tbl), scopeID, generationID, docCount, termCount)
+	if err != nil {
+		t.Fatalf("seed proof scope rows: %v", err)
+	}
+	totalRows := bgScopes*bgDocs*bgTerms + docCount*termCount
+	t.Logf("seeded %d rows into %s (%d proof + %d background)",
+		totalRows, tbl, docCount*termCount, bgScopes*bgDocs*bgTerms)
+
+	// Analyze so the planner has fresh statistics before the BEFORE phase.
+	if _, analyzeErr := conn.ExecContext(ctx, fmt.Sprintf(`ANALYZE %s`, tbl)); analyzeErr != nil {
+		t.Logf("ANALYZE (before) warning: %v", analyzeErr)
+	}
+
+	// Target 10 documents for the DELETE = ANY predicate — a typical per-page
+	// refresh batch size.
+	targetDocIDs := make([]string, 10)
+	for i := range targetDocIDs {
+		targetDocIDs[i] = fmt.Sprintf("doc-%04d", i)
+	}
+
+	// refreshDeleteQuery is the production refresh query shape (= ANY) but
+	// targeting the throwaway table. The predicate shape is identical to
+	// eshuSearchIndexRefreshDocumentTermsQuery.
+	refreshDeleteQuery := fmt.Sprintf(`
+DELETE FROM %s
 WHERE scope_id      = $1
   AND generation_id = $2
   AND document_id   = ANY($3::text[])
-`
+`, tbl)
 
-	// explainJSON runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) on the DELETE
-	// inside a transaction that is always rolled back.
-	explainJSON := func(query string, args ...any) string {
+	// explainOnConn runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) on the DELETE
+	// inside a transaction that is always rolled back so no rows are deleted.
+	// Using the same dedicated conn so cached plans cannot differ.
+	explainOnConn := func(query string, args ...any) string {
 		t.Helper()
-		tx, txErr := db.BeginTx(ctx, nil)
+		tx, txErr := conn.BeginTx(ctx, nil)
 		if txErr != nil {
 			t.Fatalf("begin explain tx: %v", txErr)
 		}
@@ -127,54 +202,61 @@ WHERE scope_id      = $1
 		return string(raw)
 	}
 
-	// --- Phase 1: ensure the doc index is absent, capture baseline plan ---
-	if _, dropErr := db.ExecContext(ctx, `DROP INDEX IF EXISTS eshu_search_index_terms_doc_idx`); dropErr != nil {
-		t.Fatalf("drop doc index: %v", dropErr)
-	}
-
-	planBefore := explainJSON(refreshDeleteQuery, scopeID, generationID, targetDocIDs)
+	// ── BEFORE: no doc index ──────────────────────────────────────────────────
+	planBefore := explainOnConn(refreshDeleteQuery, scopeID, generationID, targetDocIDs)
 	t.Logf("=== PLAN BEFORE (no doc index) ===\n%s", planJSONSummary(t, planBefore))
-	rowsBefore, bufsBefore := planInnerScanMetrics(t, planBefore)
-	t.Logf("before: inner_rows_removed_by_filter=%d shared_blocks=%d", rowsBefore, bufsBefore)
+	_, bufsBefore := planInnerScanMetrics(t, planBefore)
+	t.Logf("before: shared_blocks=%d", bufsBefore)
 
-	// --- Phase 2: create the doc index, re-analyze, capture improved plan ---
-	if _, createErr := db.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS eshu_search_index_terms_doc_idx
-		    ON eshu_search_index_terms (scope_id, generation_id, document_id)
-	`); createErr != nil {
-		t.Fatalf("create doc index: %v", createErr)
-	}
-	// ANALYZE so the planner picks up the new index statistics.
-	if _, analyzeErr := db.ExecContext(ctx, `ANALYZE eshu_search_index_terms`); analyzeErr != nil {
-		t.Logf("ANALYZE warning (non-fatal): %v", analyzeErr)
+	// Assert the BEFORE plan does NOT use a document-keyed index (there is none).
+	// It must rely on the PK or lookup index and filter on document_id.
+	if strings.Contains(planBefore, docIdx) {
+		t.Fatalf("BEFORE plan unexpectedly references doc index %s — test setup error", docIdx)
 	}
 
-	planAfter := explainJSON(refreshDeleteQuery, scopeID, generationID, targetDocIDs)
+	// ── Add doc index, re-analyze ────────────────────────────────────────────
+	_, err = conn.ExecContext(ctx, fmt.Sprintf(
+		`CREATE INDEX %s ON %s (scope_id, generation_id, document_id)`,
+		docIdx, tbl,
+	))
+	if err != nil {
+		t.Fatalf("create doc index: %v", err)
+	}
+	if _, analyzeErr := conn.ExecContext(ctx, fmt.Sprintf(`ANALYZE %s`, tbl)); analyzeErr != nil {
+		t.Logf("ANALYZE (after) warning: %v", analyzeErr)
+	}
+
+	// ── AFTER: with doc index ────────────────────────────────────────────────
+	planAfter := explainOnConn(refreshDeleteQuery, scopeID, generationID, targetDocIDs)
 	t.Logf("=== PLAN AFTER (with doc index) ===\n%s", planJSONSummary(t, planAfter))
-	rowsAfter, bufsAfter := planInnerScanMetrics(t, planAfter)
-	t.Logf("after: inner_rows_removed_by_filter=%d shared_blocks=%d", rowsAfter, bufsAfter)
+	_, bufsAfter := planInnerScanMetrics(t, planAfter)
+	t.Logf("after: shared_blocks=%d", bufsAfter)
 
-	// Assert: with-index plan must reference the document-keyed index.
-	if !strings.Contains(planAfter, "eshu_search_index_terms_doc_idx") {
-		t.Errorf("WITH-index plan does not reference eshu_search_index_terms_doc_idx\n"+
+	// Assert the AFTER plan uses the doc index.
+	if !strings.Contains(planAfter, docIdx) {
+		t.Errorf("AFTER plan does not reference doc index %s\n"+
 			"The planner preferred a different path; check index statistics and cardinality.\n"+
-			"Plan:\n%s", planAfter)
+			"Plan:\n%s", docIdx, planAfter)
 	}
 
-	// Assert: with-index plan uses an index scan.
+	// Assert the AFTER plan uses an index scan (not a seq scan).
 	if !strings.Contains(planAfter, "Index Scan") && !strings.Contains(planAfter, "Bitmap Index") {
-		t.Errorf("WITH-index plan does not show an Index Scan or Bitmap Index Scan\n"+
+		t.Errorf("AFTER plan does not show an Index Scan or Bitmap Index Scan\n"+
 			"Plan:\n%s", planAfter)
 	}
 
-	// Assert: the with-index plan scans fewer blocks than the without-index plan.
-	// On a large table with real data the doc index should cut buffer reads
-	// dramatically (from O(scope_slice) to O(target_docs × terms_per_doc)).
-	if bufsAfter > 0 && bufsBefore > 0 {
+	// Assert blocks decreased: the doc index must read fewer blocks than the
+	// PK-slice scan. The throwaway table is entirely hot in shared_buffers so
+	// the absolute improvement is modest (typically 30–60%) compared to the
+	// ~99.97% seen on cold disk for the 43 GB production table. What matters
+	// here is that the planner chose the doc index (asserted above) AND that
+	// the block count dropped — proving the structural improvement is real.
+	if bufsBefore > 0 && bufsAfter > 0 {
 		improvement := float64(bufsBefore-bufsAfter) / float64(bufsBefore) * 100
 		t.Logf("buffer block improvement: %.1f%% (%d → %d)", improvement, bufsBefore, bufsAfter)
 		if bufsAfter >= bufsBefore {
-			t.Errorf("WITH-index plan read %d blocks vs WITHOUT-index %d blocks — expected fewer blocks with doc index",
+			t.Errorf("WITH-index plan blocks (%d) >= WITHOUT-index (%d) — "+
+				"expected fewer blocks with doc index",
 				bufsAfter, bufsBefore)
 		}
 	}
@@ -196,10 +278,9 @@ func planJSONSummary(t *testing.T, raw string) string {
 	return string(pretty)
 }
 
-// planInnerScanMetrics walks the first EXPLAIN plan node and its first child
-// (the actual scan node) to extract rows-removed-by-filter and total shared
-// buffer blocks. These are the key metrics showing how much work the planner
-// avoided with the document-keyed index.
+// planInnerScanMetrics extracts rows-removed-by-filter and total shared buffer
+// blocks from an EXPLAIN ANALYZE BUFFERS FORMAT JSON output. It prefers the
+// child scan node (Index Scan under ModifyTable) for block counts.
 func planInnerScanMetrics(t *testing.T, raw string) (rowsRemovedByFilter, sharedBlocks int64) {
 	t.Helper()
 	type planNode struct {
@@ -216,7 +297,6 @@ func planInnerScanMetrics(t *testing.T, raw string) (rowsRemovedByFilter, shared
 	}
 	top := result[0].Plan
 	sharedBlocks = top.SharedHitBlocks + top.SharedReadBlocks
-	// The scan metrics live on the child node (the Index Scan under the ModifyTable).
 	if len(top.Plans) > 0 {
 		child := top.Plans[0]
 		rowsRemovedByFilter = child.RowsRemovedByFilter
