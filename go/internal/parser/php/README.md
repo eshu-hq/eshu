@@ -14,7 +14,9 @@ population. The parent parser package still owns registry dispatch, engine
 orchestration, repo path handling, tree-sitter runtime/grammar caching, and
 parse telemetry. `Engine.parsePHP` obtains a `php` parser from the shared
 runtime and passes it to `Parse`.
-The parser also emits bounded `dead_code_root_kinds` for PHP entrypoints,
+The parser also emits exact `framework_semantics.symfony.route_entries` for
+method-level attributes resolved to Symfony `Route` whose path and HTTP methods
+are literal, and bounded `dead_code_root_kinds` for PHP entrypoints,
 constructors, known magic methods, same-file interface and trait methods,
 route-backed controller actions, literal route handlers, Symfony route
 attributes, and WordPress hook callbacks.
@@ -51,9 +53,11 @@ normalized to `->` and the final `->method` rendered as `.method` in
 calls on different lines remain visible. PreScan sorts names after collecting
 them from the parsed function, class, trait, and interface buckets. Type
 inference resolves receivers through a two-pass walk so declarations later in
-the file still inform earlier call sites. Dead-code roots stay bounded to
-same-file declarations and literal framework registrations; Composer/autoload
-breadth, reflection, and dynamic dispatch remain query-layer exactness blockers.
+the file still inform earlier call sites. Symfony route entries stay bounded to
+source-proven method attributes whose imported, aliased, or fully qualified name
+resolves to Symfony `Route` with literal path and method arguments; dynamic
+attributes, Composer/autoload breadth, reflection, and dynamic dispatch remain
+query-layer exactness blockers.
 
 ## Related docs
 

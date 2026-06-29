@@ -97,6 +97,9 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	if namespace := phpNamespaceName(root, source); namespace != "" {
 		payload["namespace"] = namespace
 	}
+	if semantics := buildPHPFrameworkSemantics(root, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
+		payload["framework_semantics"] = semantics
+	}
 
 	for _, bucket := range []string{
 		"functions", "classes", "traits", "interfaces", "variables", "imports", "function_calls",

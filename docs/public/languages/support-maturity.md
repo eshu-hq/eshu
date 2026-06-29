@@ -110,7 +110,7 @@ feature supported with deterministic proof.
 | Kubernetes | `DefaultEngine (yaml)` | - | - | unsupported | workload and resource evidence only | - | - | - |
 | Kustomize | `DefaultEngine (yaml)` | - | - | unsupported | overlay/resource evidence only | - | - | - |
 | Perl | `DefaultEngine (perl)` | supported | supported | derived roots | Exporter, package namespaces, constructors, special blocks, `AUTOLOAD`, `DESTROY` | supported | supported | supported |
-| PHP | `DefaultEngine (php)` | supported | supported | derived roots | Symfony route attributes, WordPress hooks, route-backed controller actions, magic methods, interfaces, traits | supported | fixture-backed | supported |
+| PHP | `DefaultEngine (php)` | supported | supported | derived roots plus exact Symfony attribute route entries | Symfony route attributes, exact literal Symfony `route_entries`, WordPress hooks, route-backed controller actions, magic methods, interfaces, traits | supported | fixture-backed | supported |
 | Python | `DefaultEngine (python)` | supported | supported | derived roots | FastAPI, Flask, bounded Django/DRF/aiohttp/Tornado route entries, Celery, Click, Typer, AWS Lambda, dataclasses, properties, dunder protocols, `__all__`, package reexports | supported | supported | supported |
 | Ruby | `DefaultEngine (ruby)` | supported | supported | derived roots | Rails controller actions, Rails callbacks, script guards, literal method-reference targets, dynamic dispatch hooks | supported | fixture-backed | supported |
 | Rust | `DefaultEngine (rust)` | supported | supported | derived roots | Cargo entrypoints, tests, Tokio, Criterion, `pub` API, trait implementations, cfg/derive/module evidence | supported | fixture-backed | supported |

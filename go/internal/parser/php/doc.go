@@ -17,7 +17,9 @@
 // Receiver and return-type inference resolves $this property chains, typed
 // parameters, new expressions, self/static/parent scopes, static properties,
 // and method and free-function return types so chained call receivers carry a
-// concrete inferred_obj_type. The package emits bounded dead-code root hints for
+// concrete inferred_obj_type. The package emits exact Symfony Route attribute
+// entries when a method attribute resolves to Symfony Route and carries a
+// literal path and literal HTTP methods, plus bounded dead-code root hints for
 // PHP entrypoints, constructors, known magic methods, same-file interface and
 // trait methods, route-backed controller actions, literal route handlers,
 // Symfony route attributes, and WordPress hook callbacks; broader autoload,

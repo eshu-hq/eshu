@@ -28,12 +28,15 @@ Canonical implementation:
 | Method-return receiver chains | `method-return-receiver-chains` | supported | `go/internal/parser/php_language_method_chain_test.go::TestDefaultEngineParsePathPHPInfersMethodReturnPropertyDereferenceReceiverCalls`, `go/internal/reducer/code_call_materialization_php_method_return_chain_test.go::TestExtractCodeCallRowsResolvesPHPMethodReturnPropertyDereferenceReceiverCallsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_kotlin_php_additional_test.go::TestHandleRelationshipsReturnsGraphBackedPHPSameFileMethodReturnPropertyChainAliasCalls` | Method-return call chains, property dereference chains, and parenthesized method-return chains survive parser inference, reducer materialization, and graph-backed public query proof. |
 | Cross-file object-call families | `cross-file-object-call-families` | supported | `go/internal/reducer/code_call_materialization_cross_file_exact_test.go::TestExtractCodeCallRowsResolvesCrossFilePHPMethodReturnCallChainReceiverCallsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_kotlin_php_test.go::TestHandleRelationshipsReturnsGraphBackedPHPCrossFileReturnTypeAliasedCalls`, `go/internal/query/code_relationships_graph_php_long_tail_test.go::TestHandleRelationshipsReturnsGraphBackedPHPCrossFileChainedStaticFactoryReturnCalls` | Cross-file return-type aliases, cross-file method-return chains, and cross-file chained static factory returns are all query-proven in the current platform. |
 | Nullsafe and anonymous-class receivers | `nullsafe-and-anonymous-class-receivers` | supported | `go/internal/parser/php_language_test.go::TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata`, `go/internal/reducer/code_call_materialization_family_test.go::TestExtractCodeCallRowsResolvesPHPNullsafeReceiverChainsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_php_long_tail_test.go::TestHandleRelationshipsReturnsGraphBackedPHPAnonymousClassReceiverCalls` | Nullsafe receiver chains and anonymous-class receiver calls both survive the full parser/reducer/query path. |
+| Symfony attribute route truth | `symfony-attribute-route-truth` | supported | `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsSymfonyRouteEntries`, `go/internal/reducer/handles_route_php_test.go::TestBuildHandlesRouteIntentRowsEmitsPHPSymfonyRouteMatches`, `go/internal/query/content_reader_framework_routes_php_test.go::TestParseFrameworkSemanticsExtractsPHPSymfonyRoutes` | Method-level attributes resolved to Symfony `Route` emit exact `framework_semantics.symfony.route_entries` when the source proves literal path, literal HTTP method list, and declaring handler method. `HANDLES_ROUTE` is projected only when the reducer resolves that class-qualified handler exactly. |
 | Dead-code root hints | `dead-code-root-hints` | derived | `go/internal/parser/php_dead_code_roots_test.go::TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_php_roots_test.go::TestHandleDeadCodeExcludesPHPRootKindsFromMetadata`, `tests/fixtures/deadcode/php/app.php` | Parser metadata suppresses PHP script entrypoints, constructors, known PHP magic methods, same-file interface methods and implementations, trait methods, route-backed controller actions, literal route handlers, Symfony route attributes, and WordPress hook callbacks from cleanup candidates. |
 
 ## Current Truth
 
 - The Go parser covers the documented PHP object-call and aliasing families end
   to end.
+- Literal method-level Symfony `Route` attributes emit exact route entries and
+  can project exact `HANDLES_ROUTE` edges when the handler method resolves.
 - The public Go `code/relationships` surface has checked-in proof for the
   bounded PHP receiver families covered on this page.
 - `code_quality.dead_code` reports PHP as `derived`, not exact. The current
@@ -48,18 +51,21 @@ Supported today:
 
 - Route-backed controller actions, literal route handlers, Symfony route
   attributes, and WordPress hook callbacks are modeled as derived roots.
-  This is reachability/root evidence only; PHP does not emit exact
-  `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges today.
+- Method-level attributes resolved to Symfony `Route` also emit exact
+  `framework_semantics.symfony.route_entries` when the path and methods are
+  literal and the declaring method is the handler. `HANDLES_ROUTE` projection
+  still requires an exact reducer match to that class-qualified method.
 - Constructors, magic methods, same-file interface methods and implementations,
   and trait methods are also modeled as live root evidence.
 
 Not claimed today:
 
-- Composer/autoload public surfaces, broader framework route resolution,
-  include/require resolution, reflection-heavy flows, and arbitrary dynamic
-  dispatch remain outside the exactness boundary.
-- Exact route-to-handler truth for Laravel, Symfony, WordPress, and other PHP
-  frameworks is tracked by
+- Composer/autoload public surfaces, Laravel router conventions, Symfony
+  dynamic attributes, broader framework route resolution, include/require
+  resolution, reflection-heavy flows, and arbitrary dynamic dispatch remain
+  outside the exactness boundary.
+- Exact route-to-handler truth for Laravel, WordPress, broader Symfony, and
+  other PHP frameworks is tracked by
   [#4162](https://github.com/eshu-hq/eshu/issues/4162).
 
 ## Known Limitations
