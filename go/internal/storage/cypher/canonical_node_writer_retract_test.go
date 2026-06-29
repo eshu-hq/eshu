@@ -147,6 +147,61 @@ func TestCanonicalNodeWriterRefreshesOnlyStaleEntityContainmentEdges(t *testing.
 	}
 }
 
+func TestCanonicalNodeWriterRetractCoversStructuralFamiliesFromIssue3987(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-2",
+		RepoID:       "repo-1",
+		Files: []projector.FileRow{
+			{Path: "/repos/my-repo/current.go"},
+		},
+		Entities: []projector.EntityRow{
+			{EntityID: "class-current", Label: "Class", EntityName: "Handler", FilePath: "/repos/my-repo/current.go"},
+			{EntityID: "method-current", Label: "Function", EntityName: "ServeHTTP", FilePath: "/repos/my-repo/current.go", StartLine: 10},
+		},
+		ClassMembers: []projector.ClassMemberRow{
+			{ClassName: "Handler", FunctionName: "ServeHTTP", FilePath: "/repos/my-repo/current.go", FunctionLine: 10},
+		},
+	}
+
+	var sawImportRefresh, sawParameterRetract, sawClassMemberRefresh bool
+	for _, stmt := range writer.buildRetractStatements(mat) {
+		switch {
+		case strings.Contains(stmt.Cypher, "MATCH (f)-[r:IMPORTS]->(:Module)"):
+			sawImportRefresh = true
+		case strings.Contains(stmt.Cypher, "MATCH (p:Parameter)"):
+			sawParameterRetract = true
+			if !strings.Contains(stmt.Cypher, "p.generation_id <> $generation_id") {
+				t.Fatalf("parameter retract missing generation guard: %s", stmt.Cypher)
+			}
+			if stmt.Parameters["generation_id"] != "gen-2" {
+				t.Fatalf("parameter retract generation_id = %v, want gen-2", stmt.Parameters["generation_id"])
+			}
+		case strings.Contains(stmt.Cypher, "MATCH (n:Class {uid: row.parent_entity_id})-[r:CONTAINS]->(m)"):
+			sawClassMemberRefresh = true
+			rows, ok := stmt.Parameters["rows"].([]map[string]any)
+			if !ok || len(rows) != 1 {
+				t.Fatalf("class-member refresh rows = %#v, want one row", stmt.Parameters["rows"])
+			}
+			childIDs, ok := rows[0]["child_entity_ids"].([]string)
+			if !ok || strings.Join(childIDs, ",") != "method-current" {
+				t.Fatalf("class-member refresh child ids = %#v, want method-current", rows[0]["child_entity_ids"])
+			}
+		}
+	}
+	if !sawImportRefresh {
+		t.Fatal("missing import edge refresh for current file")
+	}
+	if !sawParameterRetract {
+		t.Fatal("missing generation-scoped parameter retract")
+	}
+	if !sawClassMemberRefresh {
+		t.Fatal("missing class-member containment refresh")
+	}
+}
+
 func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 	t.Parallel()
 
