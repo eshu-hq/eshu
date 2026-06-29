@@ -173,7 +173,17 @@ func checkMCPQuery(ctx context.Context, c *mcpClient, snap Snapshot, r *Report) 
 		shape := snap.QueryShapes.MCP[key]
 		body, err := c.callTool(ctx, key, shape.Arguments, shape.Envelope)
 		if err != nil {
+			if shape.ExpectedErrorContains != "" && strings.Contains(err.Error(), shape.ExpectedErrorContains) {
+				r.AddCheck("query", "mcp:"+key, true, true,
+					fmt.Sprintf("expected MCP refusal contained %q", shape.ExpectedErrorContains))
+				continue
+			}
 			r.AddCheck("query", "mcp:"+key, false, true, err.Error())
+			continue
+		}
+		if shape.ExpectedErrorContains != "" {
+			r.AddCheck("query", "mcp:"+key, false, true,
+				fmt.Sprintf("expected MCP refusal containing %q but tool succeeded", shape.ExpectedErrorContains))
 			continue
 		}
 		f := EvaluateQueryShape("mcp:"+key, shape, body)

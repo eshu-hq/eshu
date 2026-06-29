@@ -23,6 +23,8 @@ cd "${repo_root}"
 # B-11 (#3804) per-phase timing/baseline helper (defines emit_phase_timings_and_flags).
 # shellcheck source=scripts/lib/golden-corpus-phase-timings.sh
 . "${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
+# shellcheck source=scripts/lib/golden-corpus-dead-code-fixtures.sh
+. "${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -399,6 +401,9 @@ pipeline_end="$(date +%s)"
 elapsed=$(( pipeline_end - pipeline_start ))
 phase_maintenance_end="${pipeline_end}"
 phase_graph_query_start="${pipeline_end}"
+
+log "seed cross-repo dead-code query fixture"
+seed_cross_repo_dead_code_fixture
 
 log "start eshu-api for query truth"
 start_bg api api_pid "${bin_dir}/eshu-api"

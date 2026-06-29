@@ -110,12 +110,12 @@
       "REPO_CONTAINS": {
         "min": 40,
         "max": 20000,
-        "note": "every Repository\u2192File edge (observed 78, tracks File); floor catches a major projection drop, ceiling wide for corpus growth"
+        "note": "every Repository→File edge (observed 78, tracks File); floor catches a major projection drop, ceiling wide for corpus growth"
       },
       "DEFINES": {
         "min": 1,
         "max": 50000,
-        "note": "File\u2192Function definition edges (observed 5; the demo fixtures are largely config, few code functions); floor 1 catches total loss"
+        "note": "File→Function definition edges (observed 5; the demo fixtures are largely config, few code functions); floor 1 catches total loss"
       },
       "IMPORTS": {
         "min": 0,
@@ -130,12 +130,12 @@
       "DEPENDS_ON": {
         "min": 1,
         "max": 2000,
-        "note": "cross-repo Repository\u2192Repository dependency edges from code-import and package-consumption domains (B-13 fix)"
+        "note": "cross-repo Repository→Repository dependency edges from code-import and package-consumption domains (B-13 fix)"
       },
       "DEPENDS_ON_PACKAGE": {
         "min": 1,
         "max": 5000,
-        "note": "Repository\u2192PackageVersion manifest-level dependency edges"
+        "note": "Repository→PackageVersion manifest-level dependency edges"
       },
       "DECLARES_DEPENDENCY": {
         "min": 1,
@@ -145,22 +145,22 @@
       "HAS_VERSION": {
         "min": 1,
         "max": 200,
-        "note": "Package\u2192PackageVersion version edges from package_registry canonical writer"
+        "note": "Package→PackageVersion version edges from package_registry canonical writer"
       },
       "CORRELATES_DEPLOYABLE_UNIT": {
         "min": 1,
         "max": 20,
-        "note": "Repository(source)\u2192Repository(deployment-config) deployable-unit correlation edge"
+        "note": "Repository(source)→Repository(deployment-config) deployable-unit correlation edge"
       },
       "RUNS_IN": {
         "min": 1,
         "max": 5000,
-        "note": "Function\u2192Workload code-to-workload binding (not WorkloadInstance\u2192CloudResource)"
+        "note": "Function→Workload code-to-workload binding (not WorkloadInstance→CloudResource)"
       },
       "RUNS_IMAGE": {
         "min": 1,
         "max": 30,
-        "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation"
+        "note": "KubernetesWorkload→OciImageManifest supply-chain image correlation"
       },
       "HANDLES_ROUTE": {
         "min": 1,
@@ -175,12 +175,12 @@
       "USES": {
         "min": 0,
         "max": 100,
-        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
+        "note": "WorkloadInstance→CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
       },
       "GRANTS_ACCESS_TO": {
         "min": 0,
         "max": 100,
-        "note": "CloudResource\u2192ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
+        "note": "CloudResource→ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
       },
       "CAN_ASSUME": {
         "min": 0,
@@ -205,12 +205,12 @@
       "PROVISIONS_PLATFORM": {
         "min": 0,
         "max": 20,
-        "note": "Repository\u2192Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
+        "note": "Repository→Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
       },
       "PROVISIONS_DEPENDENCY_FOR": {
         "min": 0,
         "max": 100,
-        "note": "Repository\u2192Repository service materialization dependency edges"
+        "note": "Repository→Repository service materialization dependency edges"
       },
       "SECRETS_IAM_USES_SERVICE_ACCOUNT": {
         "min": 0,
@@ -225,7 +225,7 @@
       "SECRETS_IAM_GRANTS_SECRET_READ": {
         "min": 0,
         "max": 0,
-        "note": "vault_live policy\u2192secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
+        "note": "vault_live policy→secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
       },
       "SECRETS_IAM_USES_VAULT_POLICY": {
         "min": 0,
@@ -249,7 +249,7 @@
       },
       {
         "id": "rc-2",
-        "description": "At least one Function RUNS_IN a Workload; confirms code-to-workload binding ran (RUNS_IN goes Function\u2192Workload, not WorkloadInstance\u2192CloudResource)",
+        "description": "At least one Function RUNS_IN a Workload; confirms code-to-workload binding ran (RUNS_IN goes Function→Workload, not WorkloadInstance→CloudResource)",
         "relationship": "RUNS_IN",
         "from_label": "Function",
         "to_label": "Workload",
@@ -257,7 +257,7 @@
       },
       {
         "id": "rc-3",
-        "description": "Cross-repo Repository DEPENDS_ON Repository edges exist; confirms the B-13 fix \u2014 repo_dependency shared_projection_intents drained correctly",
+        "description": "Cross-repo Repository DEPENDS_ON Repository edges exist; confirms the B-13 fix — repo_dependency shared_projection_intents drained correctly",
         "relationship": "DEPENDS_ON",
         "from_label": "Repository",
         "to_label": "Repository",
@@ -619,7 +619,7 @@
     "required_nodes": [
       {
         "id": "rn-file-language",
-        "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor \u2014 legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.",
+        "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor — legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.",
         "label": "File",
         "minimum_count": 10,
         "required_node_properties": [
@@ -636,49 +636,210 @@
     },
     "shared_projection_intents": {
       "nonterminal_max": 0,
-      "note": "all rows must have completed_at IS NOT NULL; the repo_dependency domain (B-13 #3859) is the primary gate \u2014 nonterminal intents here indicate the activation-gate bypass is not working or the drain budget was exceeded"
+      "note": "all rows must have completed_at IS NOT NULL; the repo_dependency domain (B-13 #3859) is the primary gate — nonterminal intents here indicate the activation-gate bypass is not working or the drain budget was exceeded"
     }
   },
   "query_shapes": {
     "mcp": {
-      "list_indexed_repositories": {
-        "description": "Returns the indexed repository list (under the truth-envelope data); confirms the corpus was ingested. Asserted live through the MCP tool layer (#3866).",
+      "find_code": {
+        "description": "MCP tool coverage shape for find_code; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
-          "repositories"
-        ],
-        "minimum_results": 1
-      },
-      "get_repo_summary": {
-        "description": "Returns a single repo's stats object; confirms graph projection is complete for the queried repo. Object response (minimum_results 0); needs a repo selector.",
-        "required_response_fields": [
-          "repository",
-          "file_count",
-          "languages",
-          "entity_count",
-          "entity_types",
-          "coverage"
+          "matches",
+          "query",
+          "repo_id",
+          "results",
+          "source",
+          "source_backend"
         ],
         "minimum_results": 0,
         "arguments": {
-          "repo_name": "orders-api"
+          "query": "main",
+          "repo_id": "orders-api",
+          "limit": 10
         }
       },
-      "list_kubernetes_correlations": {
-        "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector.",
+      "find_symbol": {
+        "description": "MCP tool coverage shape for find_symbol; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
-          "correlations"
+          "ambiguity",
+          "count",
+          "entity_types",
+          "language",
+          "limit",
+          "match_mode",
+          "matches",
+          "offset",
+          "query",
+          "repo_id",
+          "results",
+          "source_backend",
+          "symbol",
+          "truncated"
         ],
-        "minimum_results": 1,
+        "minimum_results": 0,
         "arguments": {
-          "cluster_id": "supply-chain-demo"
+          "symbol": "main",
+          "repo_id": "orders-api",
+          "limit": 10
         }
       },
-      "list_cloud_resource_inventory": {
-        "description": "Returns cloud resource inventory (AWS/Azure/GCP cassettes); confirms cloud facts were ingested and projected. Route now mounted on the MCP server (#4071); asserted live (#3866).",
+      "inspect_code_inventory": {
+        "description": "MCP tool coverage shape for inspect_code_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
-          "resources"
+          "class_name",
+          "count",
+          "decorator",
+          "entity_kind",
+          "file_path",
+          "inventory_kind",
+          "language",
+          "limit",
+          "matches",
+          "method_name",
+          "next_offset",
+          "offset",
+          "repo_id",
+          "results",
+          "source_backend",
+          "symbol",
+          "truncated"
         ],
-        "minimum_results": 1
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "investigate_import_dependencies": {
+        "description": "MCP tool coverage shape for investigate_import_dependencies; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "coverage",
+          "dependencies",
+          "limit",
+          "next_offset",
+          "offset",
+          "query_type",
+          "scope",
+          "source_backend",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "inspect_call_graph_metrics": {
+        "description": "MCP tool coverage shape for inspect_call_graph_metrics; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "coverage",
+          "functions",
+          "limit",
+          "metric_type",
+          "next_offset",
+          "offset",
+          "scope",
+          "source_backend",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "trace_route_callers": {
+        "description": "MCP tool coverage shape for trace_route_callers; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "route not found",
+        "arguments": {
+          "repo_id": "orders-api",
+          "method": "GET",
+          "path": "/",
+          "limit": 10
+        }
+      },
+      "investigate_code_topic": {
+        "description": "MCP tool coverage shape for investigate_code_topic; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer_metadata",
+          "answer_packet",
+          "call_graph_handles",
+          "count",
+          "coverage",
+          "evidence_groups",
+          "intent",
+          "limit",
+          "matched_files",
+          "matched_symbols",
+          "offset",
+          "recommended_next_calls",
+          "scope",
+          "searched_terms",
+          "source_backend",
+          "topic",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "topic": "runtime readiness",
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "investigate_hardcoded_secrets": {
+        "description": "MCP tool coverage shape for investigate_hardcoded_secrets; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "coverage",
+          "finding_kinds",
+          "findings",
+          "limit",
+          "offset",
+          "recommended_next_calls",
+          "scope",
+          "source_backend",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "get_code_relationship_story": {
+        "description": "MCP tool coverage shape for get_code_relationship_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "coverage",
+          "relationships",
+          "scope",
+          "source_backend",
+          "summary",
+          "target_resolution"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "target": "main",
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "analyze_code_relationships": {
+        "description": "MCP tool coverage shape for analyze_code_relationships; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "coverage",
+          "relationships",
+          "scope",
+          "source_backend",
+          "summary",
+          "target_resolution"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "target": "main",
+          "query_type": "find_callees",
+          "repo_id": "orders-api",
+          "limit": 10
+        }
       },
       "find_dead_code": {
         "description": "Lower-level dead-code candidate scan through MCP; asserts the Eshu truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata.",
@@ -734,6 +895,2314 @@
           "offset": 0
         }
       },
+      "find_dead_iac": {
+        "description": "MCP tool coverage shape for find_dead_iac; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "analysis_status",
+          "findings",
+          "findings_count",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "repo_ids",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "find_unmanaged_resources": {
+        "description": "MCP tool coverage shape for find_unmanaged_resources; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "arn",
+          "finding_groups",
+          "finding_kinds",
+          "findings",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "region",
+          "safety_summary",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "get_iac_management_status": {
+        "description": "MCP tool coverage shape for get_iac_management_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "arn",
+          "finding",
+          "limitations",
+          "management_status",
+          "region",
+          "safety_gate",
+          "scope_id",
+          "story",
+          "total_findings_count"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "resource_id": "aws:s3:us-east-1:123456789012:bucket/supply-chain-demo-artifacts",
+          "limit": 10
+        }
+      },
+      "explain_iac_management_status": {
+        "description": "MCP tool coverage shape for explain_iac_management_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "arn",
+          "evidence_groups",
+          "finding",
+          "limitations",
+          "region",
+          "safety_gate",
+          "scope_id",
+          "story",
+          "total_findings_count"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "resource_id": "aws:s3:us-east-1:123456789012:bucket/supply-chain-demo-artifacts",
+          "limit": 10
+        }
+      },
+      "propose_terraform_import_plan": {
+        "description": "MCP tool coverage shape for propose_terraform_import_plan; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "arn",
+          "candidates",
+          "candidates_count",
+          "finding_kinds",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "ready_count",
+          "refused_count",
+          "region",
+          "scope_id",
+          "story",
+          "terraform_import_plan",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "compose_replatforming_plan": {
+        "description": "MCP tool coverage shape for compose_replatforming_plan; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "arn",
+          "blast_radius_summaries",
+          "finding_kinds",
+          "items_count",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "plan",
+          "plan_truth_level",
+          "ready_import_count",
+          "recommended_next_calls",
+          "refused_import_count",
+          "region",
+          "scope_id",
+          "scope_kind",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis",
+          "wave_summaries"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_kind": "account",
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "list_aws_runtime_drift_findings": {
+        "description": "MCP tool coverage shape for list_aws_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "arn",
+          "drift_findings",
+          "finding_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome_groups",
+          "region",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "get_replatforming_rollups": {
+        "description": "MCP tool coverage shape for get_replatforming_rollups; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "dimensions",
+          "finding_kinds",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "readiness_totals",
+          "recommended_next_checks",
+          "region",
+          "rollup_findings_count",
+          "scope_id",
+          "source_state_totals",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "find_unmanaged_resource_owners": {
+        "description": "MCP tool coverage shape for find_unmanaged_resource_owners; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "account_id",
+          "ambiguous_count",
+          "analysis_status",
+          "finding_kinds",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "ownership_packets",
+          "packets_count",
+          "recommended_next_checks",
+          "region",
+          "rejected_count",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis",
+          "unattributed_count"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "calculate_cyclomatic_complexity": {
+        "description": "MCP tool coverage shape for calculate_cyclomatic_complexity; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "limit",
+          "repo_id",
+          "result_key",
+          "results",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "find_most_complex_functions": {
+        "description": "MCP tool coverage shape for find_most_complex_functions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "limit",
+          "repo_id",
+          "result_key",
+          "results",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "inspect_code_quality": {
+        "description": "MCP tool coverage shape for inspect_code_quality; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "check",
+          "language",
+          "limit",
+          "offset",
+          "recommended_next_calls",
+          "repo_id",
+          "result_key",
+          "results",
+          "source",
+          "source_backend",
+          "thresholds",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "execute_cypher_query": {
+        "description": "MCP tool coverage shape for execute_cypher_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "limit",
+          "results",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "cypher_query": "MATCH (n) RETURN n LIMIT 1",
+          "limit": 1
+        }
+      },
+      "visualize_graph_query": {
+        "description": "MCP tool coverage shape for visualize_graph_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "limit",
+          "truncated",
+          "visualization_packet"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "cypher_query": "MATCH (n) RETURN n LIMIT 1",
+          "limit": 1
+        }
+      },
+      "search_registry_bundles": {
+        "description": "MCP tool coverage shape for search_registry_bundles; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "bundles",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "query": "go",
+          "limit": 10
+        }
+      },
+      "list_indexed_repositories": {
+        "description": "Returns the indexed repository list (under the truth-envelope data); confirms the corpus was ingested. Asserted live through the MCP tool layer (#3866).",
+        "required_response_fields": [
+          "repositories"
+        ],
+        "minimum_results": 1
+      },
+      "get_repository_stats": {
+        "description": "MCP tool coverage shape for get_repository_stats; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "offset",
+          "partial_reasons",
+          "repositories",
+          "result_limits",
+          "total",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "execute_language_query": {
+        "description": "MCP tool coverage shape for execute_language_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "entity_type",
+          "language",
+          "query",
+          "results"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "language": "go",
+          "entity_type": "Function",
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "find_function_call_chain": {
+        "description": "MCP tool coverage shape for find_function_call_chain; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "chains",
+          "cross_repo",
+          "end",
+          "end_entity_id",
+          "end_repo_id",
+          "repo_id",
+          "start",
+          "start_entity_id",
+          "start_repo_id"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "start": "main",
+          "end": "main",
+          "repo_id": "orders-api",
+          "max_depth": 2
+        }
+      },
+      "dispatch_taint_path": {
+        "description": "MCP tool coverage shape for dispatch_taint_path; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "ambiguity",
+          "bounds",
+          "coverage",
+          "paths",
+          "query"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "source": "request",
+          "sink": "response"
+        }
+      },
+      "dispatch_reaching_def": {
+        "description": "MCP tool coverage shape for dispatch_reaching_def; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "ambiguity",
+          "bounds",
+          "coverage",
+          "definitions",
+          "query"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "symbol": "main"
+        }
+      },
+      "dispatch_cfg_summary": {
+        "description": "MCP tool coverage shape for dispatch_cfg_summary; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "ambiguity",
+          "bounds",
+          "coverage",
+          "functions",
+          "query"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "function_name": "main"
+        }
+      },
+      "dispatch_pdg_summary": {
+        "description": "MCP tool coverage shape for dispatch_pdg_summary; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "ambiguity",
+          "bounds",
+          "coverage",
+          "query",
+          "summaries"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "function_name": "main"
+        }
+      },
+      "count_repositories_by_language": {
+        "description": "MCP tool coverage shape for count_repositories_by_language; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "file_count",
+          "language",
+          "last_indexed_at",
+          "limit",
+          "normalized_languages",
+          "offset",
+          "repositories",
+          "repository_count",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "language": "go"
+        }
+      },
+      "list_repositories_by_language": {
+        "description": "MCP tool coverage shape for list_repositories_by_language; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "file_count",
+          "language",
+          "last_indexed_at",
+          "limit",
+          "normalized_languages",
+          "offset",
+          "repositories",
+          "repository_count",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "language": "go",
+          "limit": 10
+        }
+      },
+      "get_repository_language_inventory": {
+        "description": "MCP tool coverage shape for get_repository_language_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "languages",
+          "limit",
+          "offset",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "get_ecosystem_overview": {
+        "description": "MCP tool coverage shape for get_ecosystem_overview; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "instance_count",
+          "platform_count",
+          "repo_count",
+          "workload_count"
+        ],
+        "minimum_results": 0
+      },
+      "get_graph_summary_packet": {
+        "description": "MCP tool coverage shape for get_graph_summary_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "ecosystem_map",
+          "note",
+          "scope"
+        ],
+        "minimum_results": 0
+      },
+      "investigate_contract_impact": {
+        "description": "MCP tool coverage shape for investigate_contract_impact; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "consumers",
+          "coverage",
+          "families",
+          "family",
+          "limit",
+          "providers",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "provider_repo_id": "orders-api",
+          "consumer_repo_id": "lib-common",
+          "limit": 10
+        }
+      },
+      "trace_deployment_chain": {
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "api_surface",
+          "cloud_resources",
+          "controller_driven_paths",
+          "controller_overview",
+          "delivery_paths",
+          "deployment_evidence",
+          "deployment_fact_summary",
+          "deployment_facts",
+          "deployment_overview",
+          "deployment_sources",
+          "documentation_overview",
+          "drilldowns",
+          "gitops_overview",
+          "image_refs",
+          "instances",
+          "k8s_relationships",
+          "k8s_resources",
+          "kind",
+          "name",
+          "provenance_overview",
+          "repo_id",
+          "repo_name",
+          "runtime_overview",
+          "service_name",
+          "story",
+          "story_sections",
+          "subject",
+          "support_overview",
+          "workload_id"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "service_name": "api-svc",
+          "max_depth": 4
+        }
+      },
+      "investigate_deployment_config": {
+        "description": "MCP tool coverage shape for investigate_deployment_config; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "coverage",
+          "environment",
+          "image_tag_sources",
+          "influencing_repositories",
+          "limitations",
+          "read_first_files",
+          "recommended_next_calls",
+          "rendered_targets",
+          "resource_limit_sources",
+          "runtime_setting_sources",
+          "service_name",
+          "story",
+          "subject",
+          "values_layers",
+          "workload_id"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "service_name": "api-svc",
+          "limit": 10
+        }
+      },
+      "find_blast_radius": {
+        "description": "MCP tool coverage shape for find_blast_radius; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "affected",
+          "affected_count",
+          "limit",
+          "target",
+          "target_type",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "target": "orders-api",
+          "target_type": "repository",
+          "limit": 10
+        }
+      },
+      "find_infra_resources": {
+        "description": "MCP tool coverage shape for find_infra_resources; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "results",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "query": "bucket",
+          "limit": 10
+        }
+      },
+      "investigate_resource": {
+        "description": "MCP tool coverage shape for investigate_resource; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "coverage",
+          "limit",
+          "limitations",
+          "max_depth",
+          "missing_evidence",
+          "provisioning_paths",
+          "recommended_next_calls",
+          "scope",
+          "source_backend",
+          "source_handles",
+          "target_resolution",
+          "truncated",
+          "workload_count",
+          "workloads"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "query": "bucket",
+          "limit": 10
+        }
+      },
+      "analyze_infra_relationships": {
+        "description": "MCP tool coverage shape for analyze_infra_relationships; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "entity not found",
+        "arguments": {
+          "target": "aws:s3:us-east-1:123456789012:bucket/supply-chain-demo-artifacts"
+        }
+      },
+      "get_repo_summary": {
+        "description": "Returns a single repo's stats object; confirms graph projection is complete for the queried repo. Object response (minimum_results 0); needs a repo selector.",
+        "required_response_fields": [
+          "repository",
+          "file_count",
+          "languages",
+          "entity_count",
+          "entity_types",
+          "coverage"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_name": "orders-api"
+        }
+      },
+      "get_repo_context": {
+        "description": "MCP tool coverage shape for get_repo_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "consumers",
+          "dependency_count",
+          "entry_points",
+          "file_count",
+          "infrastructure",
+          "language_breakdown",
+          "languages",
+          "platform_count",
+          "relationship_overview",
+          "relationships",
+          "repository",
+          "source_tool_breakdown",
+          "workload_count"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api"
+        }
+      },
+      "get_relationship_evidence": {
+        "description": "MCP tool coverage shape for get_relationship_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "relationship evidence not found",
+        "arguments": {
+          "resolved_id": "golden-corpus:relationship:missing"
+        }
+      },
+      "analyze_pre_change_impact": {
+        "description": "MCP tool coverage shape for analyze_pre_change_impact; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer_metadata",
+          "answer_packet",
+          "change_set",
+          "changed_file_count",
+          "changed_files",
+          "code_surface",
+          "coverage",
+          "direct_impact",
+          "impact_summary",
+          "limit",
+          "missing_evidence",
+          "offset",
+          "recommended_next_calls",
+          "scope",
+          "source_backend",
+          "target_resolution",
+          "transitive_impact",
+          "truncated",
+          "workflow"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "changed_files": [
+            "go/internal/query/contract.go"
+          ],
+          "topic": "query envelope",
+          "limit": 10
+        }
+      },
+      "plan_developer_change": {
+        "description": "MCP tool coverage shape for plan_developer_change; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "actions",
+          "affected_entities",
+          "answer_metadata",
+          "answer_packet",
+          "blocked",
+          "bounded_next_calls",
+          "change_set",
+          "changed_file_count",
+          "changed_files",
+          "coverage",
+          "developer_intent",
+          "missing_evidence",
+          "patch_guidance",
+          "pre_change_impact_ref",
+          "pre_change_summary",
+          "read_only",
+          "recommended_tests",
+          "schema_version",
+          "truncated",
+          "workflow"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "changed_files": [
+            "go/internal/query/contract.go"
+          ],
+          "topic": "query envelope",
+          "limit": 10
+        }
+      },
+      "list_package_registry_packages": {
+        "description": "MCP tool coverage shape for list_package_registry_packages; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "collector_readiness",
+          "count",
+          "identity_issues",
+          "limit",
+          "packages",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "ecosystem": "go",
+          "limit": 10
+        }
+      },
+      "list_package_registry_versions": {
+        "description": "MCP tool coverage shape for list_package_registry_versions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "collector_readiness",
+          "count",
+          "limit",
+          "truncated",
+          "versions"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+          "limit": 10
+        }
+      },
+      "get_repo_story": {
+        "description": "MCP tool coverage shape for get_repo_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer_metadata",
+          "ci_cd_evidence",
+          "coverage_summary",
+          "deployment_overview",
+          "documentation_overview",
+          "drilldowns",
+          "gitops_overview",
+          "infrastructure_overview",
+          "limitations",
+          "relationship_overview",
+          "repository",
+          "story",
+          "story_sections",
+          "subject",
+          "support_overview"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api"
+        }
+      },
+      "get_repository_coverage": {
+        "description": "MCP tool coverage shape for get_repository_coverage; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "completeness_state",
+          "content_gap_count",
+          "content_last_indexed_at",
+          "entity_count",
+          "file_count",
+          "graph_available",
+          "graph_gap_count",
+          "languages",
+          "last_error",
+          "repo_id",
+          "server_content_available",
+          "summary"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api"
+        }
+      },
+      "trace_resource_to_code": {
+        "description": "MCP tool coverage shape for trace_resource_to_code; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "paths",
+          "start",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "start": "aws:s3:us-east-1:123456789012:bucket/supply-chain-demo-artifacts",
+          "limit": 10
+        }
+      },
+      "explain_dependency_path": {
+        "description": "MCP tool coverage shape for explain_dependency_path; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "path",
+          "source",
+          "target"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "source": "orders-api",
+          "target": "lib-common",
+          "limit": 10
+        }
+      },
+      "find_change_surface": {
+        "description": "MCP tool coverage shape for find_change_surface; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "impacted",
+          "limit",
+          "target",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "target": "orders-api",
+          "limit": 10
+        }
+      },
+      "investigate_change_surface": {
+        "description": "MCP tool coverage shape for investigate_change_surface; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer_metadata",
+          "code_surface",
+          "coverage",
+          "direct_impact",
+          "impact_summary",
+          "limit",
+          "offset",
+          "recommended_next_calls",
+          "scope",
+          "source_backend",
+          "target_resolution",
+          "transitive_impact",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "target": "orders-api",
+          "target_type": "repository",
+          "limit": 10
+        }
+      },
+      "compare_environments": {
+        "description": "MCP tool coverage shape for compare_environments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer_metadata",
+          "changed",
+          "confidence",
+          "coverage",
+          "dedicated",
+          "evidence",
+          "left",
+          "limit",
+          "limitations",
+          "reason",
+          "recommended_next_calls",
+          "right",
+          "shared",
+          "story",
+          "summary",
+          "truncated",
+          "workload"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "workload_id": "workload:api-svc",
+          "left": "qa",
+          "right": "prod",
+          "limit": 10
+        }
+      },
+      "count_infra_resources": {
+        "description": "MCP tool coverage shape for count_infra_resources; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "by_environment",
+          "by_label",
+          "by_provider",
+          "scope",
+          "total_resources"
+        ],
+        "minimum_results": 0
+      },
+      "get_infra_resource_inventory": {
+        "description": "MCP tool coverage shape for get_infra_resource_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "list_cloud_resource_inventory": {
+        "description": "Returns cloud resource inventory (AWS/Azure/GCP cassettes); confirms cloud facts were ingested and projected. Route now mounted on the MCP server (#4071); asserted live (#3866).",
+        "required_response_fields": [
+          "resources"
+        ],
+        "minimum_results": 1
+      },
+      "list_cloud_runtime_drift_findings": {
+        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "drift_findings",
+          "findings_count",
+          "total_findings_count"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "list_package_registry_dependencies": {
+        "description": "MCP tool coverage shape for list_package_registry_dependencies; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "collector_readiness",
+          "count",
+          "dependencies",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+          "limit": 10
+        }
+      },
+      "list_package_registry_correlations": {
+        "description": "MCP tool coverage shape for list_package_registry_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "collector_readiness",
+          "correlations",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+          "limit": 10
+        }
+      },
+      "list_admission_decisions": {
+        "description": "MCP tool coverage shape for list_admission_decisions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "decisions",
+          "limit",
+          "recommended_next_calls",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "domain": "repository",
+          "scope_id": "supply-chain-demo",
+          "generation_id": "golden-corpus",
+          "limit": 10
+        }
+      },
+      "count_package_registry_packages": {
+        "description": "MCP tool coverage shape for count_package_registry_packages; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "by_ecosystem",
+          "scope",
+          "total_packages"
+        ],
+        "minimum_results": 0
+      },
+      "get_package_registry_package_inventory": {
+        "description": "MCP tool coverage shape for get_package_registry_package_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "list_ci_cd_run_correlations": {
+        "description": "MCP tool coverage shape for list_ci_cd_run_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "collector_readiness",
+          "correlations",
+          "count",
+          "evidence_summary",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repository_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "count_ci_cd_run_correlations": {
+        "description": "MCP tool coverage shape for count_ci_cd_run_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "by_environment",
+          "by_outcome",
+          "by_provider",
+          "scope",
+          "total_correlations"
+        ],
+        "minimum_results": 0
+      },
+      "get_ci_cd_run_correlation_inventory": {
+        "description": "MCP tool coverage shape for get_ci_cd_run_correlation_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "list_service_catalog_correlations": {
+        "description": "MCP tool coverage shape for list_service_catalog_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "correlations",
+          "count",
+          "evidence_summary",
+          "limit",
+          "missing_evidence",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "list_kubernetes_correlations": {
+        "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector.",
+        "required_response_fields": [
+          "correlations"
+        ],
+        "minimum_results": 1,
+        "arguments": {
+          "cluster_id": "supply-chain-demo"
+        }
+      },
+      "list_secrets_iam_identity_trust_chains": {
+        "description": "MCP tool coverage shape for list_secrets_iam_identity_trust_chains; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "identity_trust_chains",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "list_secrets_iam_privilege_posture_observations": {
+        "description": "MCP tool coverage shape for list_secrets_iam_privilege_posture_observations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "privilege_posture_observations",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "list_secrets_iam_secret_access_paths": {
+        "description": "MCP tool coverage shape for list_secrets_iam_secret_access_paths; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "secret_access_paths",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "list_secrets_iam_posture_gaps": {
+        "description": "MCP tool coverage shape for list_secrets_iam_posture_gaps; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "posture_gaps",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "limit": 10
+        }
+      },
+      "count_secrets_iam_posture": {
+        "description": "MCP tool coverage shape for count_secrets_iam_posture; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "scope_id",
+          "summary"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo"
+        }
+      },
+      "list_observability_coverage_correlations": {
+        "description": "MCP tool coverage shape for list_observability_coverage_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "correlations",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "provider": "tempo",
+          "limit": 10
+        }
+      },
+      "get_vulnerability_scanner_read_contract": {
+        "description": "MCP tool coverage shape for get_vulnerability_scanner_read_contract; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "filters",
+          "remediation_packet",
+          "routes",
+          "schema_version"
+        ],
+        "minimum_results": 0
+      },
+      "list_container_image_identities": {
+        "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "collector_readiness",
+          "count",
+          "identities",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repository_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "list_supply_chain_impact_findings": {
+        "description": "MCP tool coverage shape for list_supply_chain_impact_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "detection_profile",
+          "findings",
+          "limit",
+          "readiness",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "cve_id": "CVE-2026-00000",
+          "limit": 10
+        }
+      },
+      "list_advisory_evidence": {
+        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "advisories",
+          "count",
+          "limit",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "cve_id": "CVE-2026-00000",
+          "limit": 10
+        }
+      },
+      "explain_supply_chain_impact": {
+        "description": "MCP tool coverage shape for explain_supply_chain_impact; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "advisory",
+          "anchors",
+          "component",
+          "evidence",
+          "evidence_packet_handle",
+          "freshness",
+          "input",
+          "missing_evidence",
+          "outcome",
+          "readiness",
+          "version"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "cve_id": "CVE-2026-00000",
+          "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+          "limit": 10
+        }
+      },
+      "list_security_alert_reconciliations": {
+        "description": "MCP tool coverage shape for list_security_alert_reconciliations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "coverage",
+          "limit",
+          "reconciliations",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repository_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "list_sbom_attestation_attachments": {
+        "description": "MCP tool coverage shape for list_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "attachments",
+          "collector_readiness",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "document_id": "scd-sbom",
+          "limit": 10
+        }
+      },
+      "count_supply_chain_impact_findings": {
+        "description": "MCP tool coverage shape for count_supply_chain_impact_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "affected_derived",
+          "affected_exact",
+          "affected_findings",
+          "by_priority_bucket",
+          "by_severity",
+          "detection_profile",
+          "not_affected",
+          "possibly_affected",
+          "scope",
+          "total_findings"
+        ],
+        "minimum_results": 0
+      },
+      "get_supply_chain_impact_inventory": {
+        "description": "MCP tool coverage shape for get_supply_chain_impact_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "detection_profile",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "count_security_alert_reconciliations": {
+        "description": "MCP tool coverage shape for count_security_alert_reconciliations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "by_provider",
+          "by_provider_state",
+          "by_reconciliation_status",
+          "by_source_freshness",
+          "coverage",
+          "scope",
+          "total_reconciliations"
+        ],
+        "minimum_results": 0
+      },
+      "get_security_alert_reconciliation_inventory": {
+        "description": "MCP tool coverage shape for get_security_alert_reconciliation_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "count_container_image_identities": {
+        "description": "MCP tool coverage shape for count_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "by_identity_strength",
+          "by_outcome",
+          "scope",
+          "total_identities"
+        ],
+        "minimum_results": 0
+      },
+      "get_container_image_identity_inventory": {
+        "description": "MCP tool coverage shape for get_container_image_identity_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "count_sbom_attestation_attachments": {
+        "description": "MCP tool coverage shape for count_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "by_artifact_kind",
+          "by_attachment_status",
+          "scope",
+          "total_attachments"
+        ],
+        "minimum_results": 0
+      },
+      "get_sbom_attestation_attachment_inventory": {
+        "description": "MCP tool coverage shape for get_sbom_attestation_attachment_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "get_incident_context": {
+        "description": "MCP tool coverage shape for get_incident_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "ambiguous_evidence",
+          "answer_metadata",
+          "answer_packet",
+          "evidence_path",
+          "incident",
+          "missing_evidence",
+          "query",
+          "related_changes",
+          "timeline",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "provider_incident_id": "PSCD1",
+          "limit": 10
+        }
+      },
+      "list_work_item_evidence": {
+        "description": "MCP tool coverage shape for list_work_item_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "evidence",
+          "limit",
+          "missing_evidence",
+          "states",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "jira:supply-chain-demo:SCD",
+          "limit": 10
+        }
+      },
+      "derive_visualization_packet": {
+        "description": "MCP tool coverage shape for derive_visualization_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "visualization_packet"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "view": "service_story",
+          "source_tool": "get_service_story",
+          "source_arguments": {
+            "workload_id": "workload:api-svc"
+          }
+        }
+      },
+      "get_generation_lifecycle": {
+        "description": "MCP tool coverage shape for get_generation_lifecycle; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "generations",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "get_changed_since": {
+        "description": "MCP tool coverage shape for get_changed_since; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "scope_not_found",
+        "arguments": {
+          "repository": "golden-corpus-missing",
+          "since_generation_id": "golden-corpus-baseline-missing",
+          "sample_limit": 10
+        }
+      },
+      "get_service_changed_since": {
+        "description": "MCP tool coverage shape for get_service_changed_since; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "service_not_found",
+        "arguments": {
+          "service_id": "golden-corpus-missing",
+          "since_generation_id": "golden-corpus-baseline-missing",
+          "sample_limit": 10
+        }
+      },
+      "resolve_entity": {
+        "description": "MCP tool coverage shape for resolve_entity; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "entities",
+          "limit",
+          "matches",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "name": "main",
+          "limit": 10
+        }
+      },
+      "get_entity_context": {
+        "description": "MCP tool coverage shape for get_entity_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "entity not found",
+        "arguments": {
+          "entity_id": "Function:orders-api:main"
+        }
+      },
+      "get_workload_context": {
+        "description": "MCP tool coverage shape for get_workload_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "__service_story_normalized_api_surface",
+          "api_surface",
+          "dependencies",
+          "deployment_evidence",
+          "deployment_overview",
+          "documentation_overview",
+          "id",
+          "infrastructure",
+          "ingress_posture",
+          "instances",
+          "kind",
+          "name",
+          "partial_reasons",
+          "repo_id",
+          "repo_name",
+          "result_limits",
+          "story_sections",
+          "support_overview"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "workload_id": "workload:api-svc"
+        }
+      },
+      "get_workload_story": {
+        "description": "MCP tool coverage shape for get_workload_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "name",
+          "partial_reasons",
+          "result_limits",
+          "story",
+          "workload_id"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "workload_id": "workload:api-svc"
+        }
+      },
+      "get_service_context": {
+        "description": "MCP tool coverage shape for get_service_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "__service_story_normalized_api_surface",
+          "api_surface",
+          "dependencies",
+          "deployment_evidence",
+          "deployment_overview",
+          "documentation_overview",
+          "id",
+          "infrastructure",
+          "ingress_posture",
+          "instances",
+          "kind",
+          "language_breakdown",
+          "name",
+          "repo_id",
+          "repo_name",
+          "story_sections",
+          "support_overview"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "workload_id": "workload:api-svc"
+        }
+      },
+      "get_service_story": {
+        "description": "MCP tool coverage shape for get_service_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer_metadata",
+          "answer_packet",
+          "api_surface",
+          "ci_cd_evidence",
+          "code_to_runtime_trace",
+          "deployment_evidence",
+          "deployment_lanes",
+          "deployment_overview",
+          "documentation_overview",
+          "downstream_consumers",
+          "evidence_graph",
+          "investigation",
+          "raw_context_limits",
+          "result_limits",
+          "service_identity",
+          "service_name",
+          "story",
+          "story_sections",
+          "support_overview",
+          "upstream_dependencies"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "workload_id": "workload:api-svc"
+        }
+      },
+      "investigate_service": {
+        "description": "MCP tool coverage shape for investigate_service; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "coverage_summary",
+          "evidence_families_found",
+          "investigation_findings",
+          "question",
+          "recommended_next_calls",
+          "repositories_considered",
+          "repositories_with_evidence",
+          "service_context_path",
+          "service_name",
+          "service_story_path"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "service_name": "api-svc",
+          "question": "runtime readiness"
+        }
+      },
+      "get_service_intelligence_report": {
+        "description": "MCP tool coverage shape for get_service_intelligence_report; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "limitations",
+          "partial",
+          "recommended_next_calls",
+          "schema",
+          "sections",
+          "subject",
+          "suggested_investigations",
+          "supported",
+          "truth",
+          "truth_class"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "workload_id": "workload:api-svc"
+        }
+      },
+      "get_file_content": {
+        "description": "MCP tool coverage shape for get_file_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "content",
+          "content_hash",
+          "language",
+          "line_count",
+          "relative_path",
+          "repo_id"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "relative_path": "main.go"
+        }
+      },
+      "get_file_lines": {
+        "description": "MCP tool coverage shape for get_file_lines; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "content",
+          "content_hash",
+          "language",
+          "line_count",
+          "relative_path",
+          "repo_id"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "relative_path": "main.go",
+          "start_line": 1,
+          "end_line": 20
+        }
+      },
+      "get_entity_content": {
+        "description": "MCP tool coverage shape for get_entity_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "entity not found",
+        "arguments": {
+          "entity_id": "Function:orders-api:main"
+        }
+      },
+      "build_evidence_citation_packet": {
+        "description": "MCP tool coverage shape for build_evidence_citation_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "citations",
+          "coverage"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "question": "What evidence supports the runtime readiness?",
+          "handles": [
+            {
+              "kind": "file",
+              "repo_id": "orders-api",
+              "relative_path": "main.go",
+              "start_line": 1,
+              "end_line": 20
+            }
+          ],
+          "limit": 10
+        }
+      },
+      "search_file_content": {
+        "description": "MCP tool coverage shape for search_file_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "matches",
+          "offset",
+          "results",
+          "source_backend",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "query": "runtime",
+          "repo_id": "orders-api",
+          "limit": 10
+        }
+      },
+      "search_entity_content": {
+        "description": "MCP tool coverage shape for search_entity_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "matches",
+          "offset",
+          "results",
+          "source_backend",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "query": "runtime",
+          "limit": 10
+        }
+      },
+      "list_documentation_findings": {
+        "description": "MCP tool coverage shape for list_documentation_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "findings",
+          "next_cursor"
+        ],
+        "minimum_results": 0
+      },
+      "list_documentation_facts": {
+        "description": "MCP tool coverage shape for list_documentation_facts; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "facts",
+          "limit",
+          "missing_evidence",
+          "states",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo": "orders-api",
+          "limit": 10
+        }
+      },
+      "get_documentation_evidence_packet": {
+        "description": "MCP tool coverage shape for get_documentation_evidence_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "documentation evidence packet not found",
+        "arguments": {
+          "finding_id": "documentation-finding:runtime-readiness"
+        }
+      },
+      "check_documentation_evidence_packet_freshness": {
+        "description": "MCP tool coverage shape for check_documentation_evidence_packet_freshness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "documentation evidence packet not found",
+        "arguments": {
+          "packet_id": "documentation-packet:runtime-readiness"
+        }
+      },
+      "list_query_playbooks": {
+        "description": "MCP tool coverage shape for list_query_playbooks; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "playbooks",
+          "schema_version",
+          "versions"
+        ],
+        "minimum_results": 0
+      },
+      "resolve_query_playbook": {
+        "description": "MCP tool coverage shape for resolve_query_playbook; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "resolved",
+          "schema_version"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "playbook_id": "service_story_citation",
+          "inputs": {
+            "service_name": "workload:api-svc",
+            "environment": "prod"
+          }
+        }
+      },
+      "list_investigation_workflows": {
+        "description": "MCP tool coverage shape for list_investigation_workflows; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "schema_version",
+          "versions",
+          "workflows"
+        ],
+        "minimum_results": 0
+      },
+      "resolve_investigation_workflow": {
+        "description": "MCP tool coverage shape for resolve_investigation_workflow; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "resolved",
+          "schema_version"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "workflow_id": "guided_incident_context",
+          "inputs": {
+            "incident_id": "PSCD1",
+            "service_id": "workload:api-svc"
+          }
+        }
+      },
+      "export_supply_chain_impact_packet": {
+        "description": "MCP tool coverage shape for export_supply_chain_impact_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer",
+          "bounds",
+          "citations",
+          "freshness",
+          "graph_answers",
+          "identity",
+          "limitations",
+          "missing_evidence",
+          "packet_id",
+          "redaction",
+          "reducer_decisions",
+          "schema",
+          "source_facts",
+          "truth",
+          "validation"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "cve_id": "CVE-2026-00000",
+          "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+          "format": "json",
+          "limit": 10
+        }
+      },
+      "export_deployable_unit_packet": {
+        "description": "MCP tool coverage shape for export_deployable_unit_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "answer",
+          "bounds",
+          "citations",
+          "freshness",
+          "graph_answers",
+          "identity",
+          "missing_evidence",
+          "packet_id",
+          "redaction",
+          "reducer_decisions",
+          "reproduce",
+          "schema",
+          "source_facts",
+          "truth",
+          "validation"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "generation_id": "golden-corpus",
+          "format": "json"
+        }
+      },
+      "export_cloud_runtime_drift_packet": {
+        "description": "MCP tool coverage shape for export_cloud_runtime_drift_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "identity",
+          "source_facts",
+          "reproduce"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "max_source_facts": 10
+        }
+      },
+      "list_semantic_documentation_observations": {
+        "description": "MCP tool coverage shape for list_semantic_documentation_observations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "limit",
+          "observations",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo": "orders-api",
+          "limit": 10
+        }
+      },
+      "list_semantic_code_hints": {
+        "description": "MCP tool coverage shape for list_semantic_code_hints; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "code_hints",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo": "orders-api",
+          "limit": 10
+        }
+      },
+      "search_semantic_context": {
+        "description": "MCP tool coverage shape for search_semantic_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "anchor",
+          "corpus_limit",
+          "corpus_may_be_truncated",
+          "facets",
+          "false_canonical_claim_count",
+          "indexed_document_count",
+          "limit",
+          "mode",
+          "query",
+          "repo_id",
+          "results",
+          "retrieval_state",
+          "search_mode",
+          "timeout_ms",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api",
+          "query": "runtime readiness",
+          "mode": "hybrid",
+          "timeout_ms": 1000,
+          "limit": 10
+        }
+      },
+      "count_documentation_findings": {
+        "description": "MCP tool coverage shape for count_documentation_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "by_freshness_state",
+          "by_status",
+          "by_truth_level",
+          "scope",
+          "total_findings"
+        ],
+        "minimum_results": 0
+      },
+      "get_documentation_finding_inventory": {
+        "description": "MCP tool coverage shape for get_documentation_finding_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "buckets",
+          "count",
+          "group_by",
+          "limit",
+          "next_offset",
+          "offset",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "list_component_extensions": {
+        "description": "MCP tool coverage shape for list_component_extensions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "component extension registry is unavailable"
+      },
+      "get_component_extension_diagnostics": {
+        "description": "MCP tool coverage shape for get_component_extension_diagnostics; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "component extension registry is unavailable",
+        "arguments": {
+          "component_id": "dev.eshu.collector.aws"
+        }
+      },
+      "list_collector_extraction_readiness": {
+        "description": "MCP tool coverage shape for list_collector_extraction_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "families",
+          "limit",
+          "schema_version",
+          "status",
+          "total_count",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "get_collector_extraction_readiness": {
+        "description": "MCP tool coverage shape for get_collector_extraction_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "family",
+          "schema_version",
+          "status"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "family": "pagerduty"
+        }
+      },
+      "list_fact_schema_versions": {
+        "description": "MCP tool coverage shape for list_fact_schema_versions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "fact_schema_versions",
+          "limit",
+          "schema_version",
+          "status",
+          "total_count",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "get_fact_schema_version": {
+        "description": "MCP tool coverage shape for get_fact_schema_version; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "fact_kind",
+          "schema_version",
+          "status",
+          "supported_version"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "fact_kind": "terraform_state_resource"
+        }
+      },
+      "list_collectors": {
+        "description": "MCP tool coverage shape for list_collectors; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "classification_basis",
+          "collectors",
+          "count",
+          "updated_at",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "list_ingesters": {
+        "description": "MCP tool coverage shape for list_ingesters; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "ingesters",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "get_ingester_status": {
+        "description": "MCP tool coverage shape for get_ingester_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "coordinator",
+          "domain_backlogs",
+          "health",
+          "ingester",
+          "queue",
+          "runtime_family",
+          "scope_activity",
+          "stage_summaries",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "get_index_status": {
+        "description": "MCP tool coverage shape for get_index_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "aws_materialization",
+          "coordinator",
+          "queue",
+          "queue_blockages",
+          "reasons",
+          "repository_count",
+          "scope_activity",
+          "semantic_extraction",
+          "status",
+          "terraform_state",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "get_hosted_readiness": {
+        "description": "MCP tool coverage shape for get_hosted_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "checks",
+          "coordinator",
+          "diagnostic_paths",
+          "failure_classes",
+          "generated_at",
+          "queue",
+          "ready",
+          "repository_count",
+          "state",
+          "summary",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "get_collector_readiness": {
+        "description": "MCP tool coverage shape for get_collector_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "generated_at",
+          "readiness",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "get_operator_control_plane": {
+        "description": "MCP tool coverage shape for get_operator_control_plane; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "as_of",
+          "collector_families",
+          "dead_letters",
+          "health",
+          "queue",
+          "reducer_domains",
+          "retry_policies",
+          "scoped",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "get_freshness_causality": {
+        "description": "MCP tool coverage shape for get_freshness_causality; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "as_of",
+          "causes",
+          "generations",
+          "pending_projection",
+          "recent_transitions",
+          "scoped",
+          "state",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "get_hosted_governance_status": {
+        "description": "MCP tool coverage shape for get_hosted_governance_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "aggregates",
+          "audit",
+          "egress",
+          "extensions",
+          "identity",
+          "mode",
+          "policy_revision_hash",
+          "readiness",
+          "reasons",
+          "redaction",
+          "retention",
+          "semantic",
+          "source_kind",
+          "state",
+          "supported_modes",
+          "supported_states",
+          "tenancy"
+        ],
+        "minimum_results": 0
+      },
+      "get_semantic_capability_status": {
+        "description": "MCP tool coverage shape for get_semantic_capability_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "code_hints_enabled",
+          "detail",
+          "deterministic_documentation_unblocked",
+          "deterministic_paths_affected",
+          "documentation_observations_enabled",
+          "provider_configured",
+          "reason",
+          "state",
+          "supported_provider_profile_states",
+          "supported_states"
+        ],
+        "minimum_results": 0
+      },
+      "get_answer_narration_status": {
+        "description": "MCP tool coverage shape for get_answer_narration_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "budget_available",
+          "canonical_truth_affected",
+          "detail",
+          "deterministic_fallback_available",
+          "policy_allowed",
+          "provider_configured",
+          "provider_traffic_enabled",
+          "publish_safety_enabled",
+          "reason",
+          "retention_posture",
+          "state",
+          "supported_reasons",
+          "supported_states",
+          "updated_at",
+          "validator_reason_codes"
+        ],
+        "minimum_results": 0
+      },
+      "get_capability_catalog": {
+        "description": "MCP tool coverage shape for get_capability_catalog; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "authorization",
+          "capabilities",
+          "limit",
+          "offset",
+          "total",
+          "truncated",
+          "version"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "limit": 20
+        }
+      },
+      "get_surface_inventory": {
+        "description": "MCP tool coverage shape for get_surface_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "limit",
+          "offset",
+          "surfaces",
+          "total",
+          "truncated",
+          "version"
+        ],
+        "minimum_results": 0
+      },
+      "trace_exposure_path": {
+        "description": "MCP tool coverage shape for trace_exposure_path; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "coverage",
+          "exposure_rank",
+          "paths",
+          "source",
+          "source_kind",
+          "state",
+          "truth_label"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "source": "api-svc",
+          "repo_id": "orders-api",
+          "max_depth": 4
+        }
+      },
+      "ask": {
+        "description": "MCP tool coverage shape for ask; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [],
+        "minimum_results": 0,
+        "expected_error_contains": "ask is not enabled"
+      },
+      "list_relationship_edges": {
+        "description": "MCP tool coverage shape for list_relationship_edges; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "detail",
+          "edges",
+          "evidence",
+          "layer",
+          "limit",
+          "truncated",
+          "verb"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "verb": "DEPENDS_ON"
+        }
+      },
+      "list_repository_files": {
+        "description": "MCP tool coverage shape for list_repository_files; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "entries",
+          "path",
+          "ref",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api"
+        }
+      },
       "find_cross_repo_dead_code": {
         "description": "Cross-repo producer dead-code classification through MCP; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys.",
         "envelope": true,
@@ -764,11 +3233,11 @@
           "data.analysis.dead_code_language_maturity.go": "derived"
         },
         "arguments": {
-          "repo_id": "lib-common",
+          "repo_id": "python_comprehensive",
           "consumer_repo_ids": [
             "orders-api"
           ],
-          "language": "go",
+          "language": "python",
           "limit": 50
         }
       }
@@ -965,11 +3434,11 @@
         "description": "Cross-repo producer dead-code classification; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys.",
         "envelope": true,
         "request_body": {
-          "repo_id": "lib-common",
+          "repo_id": "python_comprehensive",
           "consumer_repo_ids": [
             "orders-api"
           ],
-          "language": "go",
+          "language": "python",
           "limit": 50
         },
         "required_response_fields": [

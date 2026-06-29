@@ -337,6 +337,10 @@ func TestContentReaderEvidenceCitationFilesHydratesBatch(t *testing.T) {
 				"repo_id", "relative_path", "commit_sha", "content", "content_hash",
 				"line_count", "language", "artifact_type",
 			},
+			queryContainsInOrder: []string{
+				"($1, $2, $3::integer)",
+				"($4, $5, $6::integer)",
+			},
 			rows: [][]driver.Value{
 				{
 					"repo-service", "README.md", "abc123", "# Service\n", "sha256:readme",

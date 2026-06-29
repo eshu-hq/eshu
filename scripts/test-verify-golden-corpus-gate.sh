@@ -54,10 +54,15 @@ require "timing budget" "-budget-multiplier"
 require "phase-timing lib source" "golden-corpus-phase-timings.sh"
 require "phase-timing invocation" "emit_phase_timings_and_flags"
 require "passes phase flags to gate" "phase_flags"
+require "cross-repo dead-code fixture source" "golden-corpus-dead-code-fixtures.sh"
+require "cross-repo dead-code fixture invocation" "seed_cross_repo_dead_code_fixture"
 
 timing_lib="${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
 [[ -f "${timing_lib}" ]] || fail "missing phase-timing lib: ${timing_lib}"
 bash -n "${timing_lib}" || fail "phase-timing lib has a syntax error"
+dead_code_lib="${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
+[[ -f "${dead_code_lib}" ]] || fail "missing dead-code fixture lib: ${dead_code_lib}"
+bash -n "${dead_code_lib}" || fail "dead-code fixture lib has a syntax error"
 require_lib() {
 	rg --fixed-strings --quiet -- "$2" "${timing_lib}" || fail "missing $1 in phase-timing lib: $2"
 }

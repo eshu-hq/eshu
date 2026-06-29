@@ -178,6 +178,28 @@ func TestCheckMCPQueryToolErrorsAreRequiredFailures(t *testing.T) {
 	}
 }
 
+func TestCheckMCPQueryExpectedRefusalPasses(t *testing.T) {
+	t.Parallel()
+
+	doer := &fakeMCPDoer{byTool: map[string]string{
+		"ask": `{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[{"type":"text","text":"HTTP 503: ask is not enabled"}]}}`,
+	}}
+	snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{
+		"ask": {ExpectedErrorContains: "ask is not enabled"},
+	}}}
+	var r Report
+	if err := checkMCPQuery(context.Background(), mcpClientWithDoer(doer), snap, &r); err != nil {
+		t.Fatalf("checkMCPQuery err = %v", err)
+	}
+	f, ok := findingByCheck(r, "mcp:ask")
+	if !ok {
+		t.Fatal("missing mcp:ask finding")
+	}
+	if !f.OK || !f.Required {
+		t.Fatalf("expected refusal must pass as required: %+v", f)
+	}
+}
+
 // TestCheckMCPQueryHTTPErrorFails proves a non-2xx HTTP status fails the finding.
 func TestCheckMCPQueryHTTPErrorFails(t *testing.T) {
 	t.Parallel()

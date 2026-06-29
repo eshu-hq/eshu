@@ -175,6 +175,24 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.SemanticEvidence == nil {
 		t.Fatal("newMCPQueryRouter().SemanticEvidence = nil, want semantic evidence route mounted")
 	}
+	if router.CloudRuntimeDrift == nil {
+		t.Fatal("newMCPQueryRouter().CloudRuntimeDrift = nil, want cloud runtime drift routes mounted")
+	}
+	if router.CloudRuntimeDrift.Store == nil {
+		t.Fatal("newMCPQueryRouter().CloudRuntimeDrift.Store = nil, want Postgres runtime drift store")
+	}
+	if router.Freshness == nil {
+		t.Fatal("newMCPQueryRouter().Freshness = nil, want freshness drilldown routes mounted")
+	}
+	if router.Freshness.Generations == nil {
+		t.Fatal("newMCPQueryRouter().Freshness.Generations = nil, want generation lifecycle reader")
+	}
+	if router.Freshness.ChangedSince == nil {
+		t.Fatal("newMCPQueryRouter().Freshness.ChangedSince = nil, want changed-since reader")
+	}
+	if router.Freshness.ServiceChangedSince == nil {
+		t.Fatal("newMCPQueryRouter().Freshness.ServiceChangedSince = nil, want service changed-since reader")
+	}
 }
 
 func TestNewMCPQueryRouterUsesSuppliedStatusReader(t *testing.T) {
