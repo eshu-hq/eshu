@@ -92,6 +92,7 @@ current turn, stop and ask — do not self-approve and proceed.
   - `telemetry-coverage-discipline` — telemetry instruments/contract/dashboard.
   - `generator-script-discipline` — regenerators and generated artifacts.
   - `eshu-release` — release/version/image/Helm/GitHub Release work.
+  - `eshu-code-review` — proof-tiered pre-push, PR, and merge-readiness review.
   - `eshu-security-scan-gates` — `.github/workflows/security-scan.yml`, a Go
     toolchain bump (the `go` directive in `go/go.mod`), or a red
     Trivy/gosec/govulncheck/nancy gate.
@@ -109,13 +110,14 @@ current turn, stop and ask — do not self-approve and proceed.
   delegation. Orchestrator keeps planning, review arbitration, and merge calls;
   executors own scoped implementation/tests/refactors/docs; lookup agents own
   status polls.
-- **Self-review is allowed and required.** Every PR must have a full
-  severity-tagged review before push/PR/merge. Prefer a separate-context review
-  when delegation is available, but if the active harness forbids subagents or
-  the repo owner explicitly wants the current agent to review, perform the
-  self-review directly. Self-review must cover the complete diff, touched
-  contracts, tests, generated artifacts, docs, private-data leakage, and
-  verification evidence.
+- **Self-review is allowed and required.** Every PR must run
+  `eshu-code-review` before push, PR creation or update, and merge-readiness.
+  Prefer a separate-context review when delegation is available, but if the
+  active harness forbids subagents or the repo owner explicitly wants the
+  current agent to review, perform the `eshu-code-review` pass directly.
+  Self-review must cover the complete diff, touched contracts, tests, generated
+  artifacts, docs, private-data leakage, verification evidence, proof tier, and
+  follow-on routing.
 - **Commit early and often** per worktree. Agent deaths are usage-limit
   boundaries, not load — committed work survives them. Watch agent liveness;
   revive stalled agents, have them commit in-progress work, resume from last
@@ -167,69 +169,41 @@ current turn, stop and ask — do not self-approve and proceed.
    touched packages; cite exact commands + results.
 3. Runtime-affecting -> perf proof or no-regression measurement + operator
    telemetry (spans/metrics/logs).
-4. **Review gate.** Run a severity-tagged review before push/PR/merge. Prefer
-   separate-context reviewers in PARALLEL when the harness permits delegation;
-   otherwise run an explicit self-review in the current agent. Either mode must
-   be prompted to FIND defects (default to reject, not approve):
-   - **Accuracy (Opus):** wrong graph/query/deploy truth, fact loss,
-     fixture-vs-reducer-vs-API disagreement. Skills: `eshu-correlation-truth`,
-     `cypher-query-rigor`, `eshu-mcp-call-rigor`.
-   - **Cross-file drift (Opus):** whole-repo consequences a unified diff hides.
-     When a PR repopulates an aggregator/registry via embed or codegen (e.g.
-     switching `BootstrapDefinitions()` to `//go:embed`), grep for the now-orphaned
-     producer symbols and confirm they are deleted AND that sibling tests asserting
-     the old shape (paths, names, columns) are updated — otherwise `golangci unused`
-     and the test suite fail on the *next* PR, not this one. When a PR edits a
-     SQL/Cypher query string (projected columns, `ORDER BY`, clause shape), open the
-     sibling `*_test.go` that asserts on that query and re-check the invariant still
-     holds (e.g. a security guard scanning for a forbidden bare column). Skills:
-     `golang-engineering`, `cypher-query-rigor`.
-   - **Concurrency (Opus):** races, deadlocks, lock order/duration,
-     MERGE/commit-uniqueness conflicts, missing idempotency under
-     workers/retries/ordering, serialization-as-a-fix. Skill:
-     `concurrency-deadlock-rigor`.
-   - **Reliability (Opus):** silent failures/fallbacks, swallowed errors,
-     partial-failure/rollback/dead-letter gaps, missing runtime telemetry,
-     unmeasured perf regression, false-green tests (a test that asserts against a
-     mock, fake, or re-implementation instead of the real SUT; a negative test
-     that cannot fail when the production assertion is broken; an "audit" run with
-     a check that does not detect the audited property — e.g. SQL-injection
-     claimed clean via staticcheck SA1029, a `context.WithValue` check, instead of
-     gosec G201/G202). Skills: `eshu-diagnostic-rigor`, `golang-engineering`.
-   - **Security:** secret / private-data leakage on the full diff.
-
-   Severity tags (priority order accuracy -> performance -> concurrency/reliability):
-   - **P0** = correctness / data-loss / security / private-data leak / main-break
-     / deadlock. BLOCKS commit and PR. Fix now, re-review, before anything else.
-   - **P1** = concurrency defect under intended load, accuracy regression, missing
-     idempotency/retry/ordering handling, silent failure, missing runtime
-     telemetry, unmeasured perf change on the path, false-green test (asserts a
-     mock/re-implementation instead of the SUT, a negative test that cannot fail,
-     or an audit run with a check that does not detect the audited property).
-     BLOCKS merge. Fix + re-review before opening/merging the PR.
-   - **P2** = edge case, doc drift, genuine missing-coverage test gap (a
-     false-green test is P1, above), minor perf, naming. Fix inline OR file a GH
-     issue and link it; never silently drop.
-
-   Each finding cites `file:line` + the violated rule/skill + the fix. Paste the
-   verdict (counts per severity + resolution). Proceed only when **P0=0 and P1=0
-   with re-review proof**. In self-review mode, explicitly say it was
-   self-review mode and list the evidence inspected.
-5. Ensure `gh` auth can push, then `git fetch origin`, rebase on `origin/main`,
+4. Ensure `gh` auth can push, then `git fetch origin`, rebase on `origin/main`,
    rerun the focused gates affected by the rebase, confirm
-   `git status --short` is clean, inspect `git diff --stat origin/main..HEAD`
-   for unrelated reversions or sibling-PR rollback, and push the rebased head.
+   `git status --short` is clean, and inspect
+   `git diff --stat origin/main..HEAD` for unrelated reversions or sibling-PR
+   rollback.
+5. **Review gate.** Run `eshu-code-review` on the rebased final diff before
+   push, PR creation or update, and merge-readiness. Prefer separate-context
+   reviewers in PARALLEL when the harness permits delegation; otherwise run the
+   skill as an explicit self-review in the current agent. Either mode must be
+   prompted to FIND defects (default to reject, not approve) and must include:
+   - proof tier decision and required evidence,
+   - all required passes including hostile-read verdict and cross-pass
+     contradiction check,
+   - severity, confidence, disposition, file:line, violated rule/skill, and fix
+     for every finding,
+   - generated-artifact, docs, private-data, and verification-evidence scan,
+   - follow-on issue routing for defects outside the PR scope.
+
+   Proceed only when **P0=0 and P1=0 with re-review proof** and every P2 is
+   fixed inline or linked to a tracked repository issue. In self-review mode,
+   explicitly say it was self-review mode and list the evidence inspected.
+6. Push the reviewed rebased head.
    Use `git push --force-with-lease` when rebasing an already-pushed branch.
-6. Open or update the PR only after the rebased head is on GitHub. Use a
+7. Open or update the PR only after the rebased head is on GitHub. Use a
    humanized description and update affected docs in the same PR. Immediately
    check `gh pr view <n> --json mergeable,statusCheckRollup` and fix conflicts
    before waiting on CI.
-7. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
+8. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
    AND the review gate above both land AND all their findings resolve. CI green
    is necessary, not sufficient. During CI waiting, poll mergeability and review
-   threads about every 60 seconds; if main moves and creates conflicts, rebase
-   and push before continuing the CI wait.
-8. **When the goal is "drive to merged-closed", execute the merge.** Do not
+   threads about every 60 seconds. If `origin/main` advances, mergeability
+   changes, or the PR head changes for any reason, rebase on `origin/main`,
+   rerun affected gates, rerun `eshu-code-review` on the new base/head, resolve
+   any findings, push the reviewed head, and then continue the CI wait.
+9. **When the goal is "drive to merged-closed", execute the merge.** Do not
    defer the merge back to the user when all gates are green and all review
    threads are resolved. Use `gh pr merge <n> --repo eshu-hq/eshu --squash
    --delete-branch` and confirm the returned state is `MERGED`. Deferring is
@@ -259,10 +233,13 @@ to the originating issue.
   CI-wait loop polled mergeability about every 60 seconds until merge.
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
-- Latest review verdict shows **P0=0 and P1=0** with re-review proof. If this
-  was self-review mode, the verdict explicitly says so and lists the diff,
-  contracts, tests, docs, generated artifacts, private-data scan, and
-  verification evidence inspected.
+- Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2=0 or every P2
+  fixed inline or linked to a tracked repository issue** with re-review proof,
+  the selected proof tier, all required passes including hostile read,
+  cross-pass contradiction check, generated-artifact/doc/private-data scan,
+  verification evidence, and follow-on routing for any out-of-scope defect. If
+  this was self-review mode, the verdict explicitly says so and lists the
+  inspected evidence.
 - **Before closing any issue as fixed**: run the full verification suite from
   `docs/public/reference/local-testing.md` with exact tool versions. Do NOT
   shortcut by verifying a pre-existing fix, trusting a prior CI run, or
