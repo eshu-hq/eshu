@@ -27,6 +27,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: go-fmt
 
   - id: go-lint
     name: Go lint (golangci-lint)
@@ -44,6 +45,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: go-lint
 
   - id: go-build
     name: Go build (all binaries)
@@ -95,6 +97,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: go-file-cap
 
   - id: package-docs
     name: Go package docs coverage
@@ -112,6 +115,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: go-package-docs
 
   - id: agent-canon
     name: Agent canon check
@@ -132,6 +136,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: agent-canon
 
   - id: no-ai-attribution
     name: No AI attribution in commits/docs
@@ -154,6 +159,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: no-ai-attribution-content
 
   - id: license-header
     name: Go license header verification
@@ -329,6 +335,8 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    # Note: capability-surface-inventory hook also runs this surface check at
+    # commit time; hook_id is on capability-surface-inventory gate below.
 
   - id: parser-relationship-kit
     name: Verify Parser Relationship Kit
@@ -481,6 +489,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: capability-surface-inventory
 
   # ─── TELEMETRY ─────────────────────────────────────────────────────────────
 
@@ -501,6 +510,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: go-telemetry-coverage
 
   - id: operator-dashboard
     name: Generate Operator Dashboard
@@ -585,6 +595,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: docs-build-changed
 
   # ─── FRONTEND ──────────────────────────────────────────────────────────────
 
@@ -614,6 +625,7 @@ gates:
     requirements:
       - node
     ci_only_reason: ""
+    hook_id: frontend-format-changed
 
   - id: console-e2e
     name: Console e2e (mocked)
@@ -632,6 +644,7 @@ gates:
     requirements:
       - node
     ci_only_reason: ""
+    hook_id: console-e2e
 
   # ─── SECURITY ──────────────────────────────────────────────────────────────
 
@@ -654,6 +667,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    hook_id: go-gosec
 
   # ─── CI-ONLY (local==null) ─────────────────────────────────────────────────
 
@@ -769,3 +783,129 @@ gates:
     requirements:
       - go
     ci_only_reason: "requires macOS hosted runner"
+
+  # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
+
+  - id: perf-evidence
+    name: Hot-path performance evidence
+    category: telemetry
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/internal/storage/**"
+      - "go/internal/reducer/**"
+      - "go/internal/collector/**"
+      - "go/internal/query/**"
+      - "go/internal/runtime/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh perf-evidence"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Verify hot-path evidence"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: go-perf-evidence
+
+  - id: product-claim-ledger
+    name: Product Claim Ledger (deterministic verify)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "specs/product-claims.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+    # The deterministic docs-mode verify is credential-free. The live issue-state
+    # variant (ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1 + GITHUB_TOKEN) stays CI-only.
+    local:
+      command: "cd go && go run ./cmd/capability-inventory -mode docs"
+      test_command: ""
+    ci:
+      workflow: product-claim-ledger.yml
+      job: "Run deterministic product-claim verify"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: replay-tier
+    name: Replay tier (offline cassette replay)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/internal/replay/**"
+      - "go/internal/storage/cypher/**"
+      - "go/internal/projector/**"
+      - "go/internal/graph/**"
+      - "go/internal/runtime/**"
+      - "testdata/cassettes/replayoffline/**"
+      - "scripts/verify-replay-tier.sh"
+    ci:
+      workflow: verify-replay-tier.yml
+      job: "Verify replay tier"
+    requirements:
+      - go
+      - docker
+    ci_only_reason: "replays the committed cassette via plain docker run (no Compose); needs Docker"
+
+  - id: ci-gate-registry
+    name: CI gate registry + drift
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "specs/ci-gates.v1.yaml"
+      - "go/internal/cigates/**"
+      - "go/cmd/ci-gates/**"
+      - ".pre-commit-config.yaml"
+      - "scripts/dev/pre-pr.sh"
+      - ".github/workflows/**"
+    local:
+      command: "bash scripts/verify-ci-gates-registry.sh --drift"
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh"
+    ci:
+      workflow: verify-ci-gate-registry.yml
+      job: "Verify ci-gate registry + drift"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: gate-registry-drift
+
+# ─── HYGIENE HOOKS ───────────────────────────────────────────────────────────
+# Local pre-commit hook ids that are basic hygiene or self-tests, intentionally
+# NOT registry gates. The drift check allows these without a gate mapping.
+hygiene_hooks:
+  - id: no-ai-attribution-message
+    reason: "commit-msg-stage variant of the no-ai-attribution gate (same check, different stage)"
+  - id: frontend-format-staged
+    reason: "staged-file variant of frontend-format-changed (same prettier check, pre-commit stage)"
+  - id: frontend-format-verifier-tests
+    reason: "self-test of the frontend-format verifier + hook wiring"
+  - id: docs-build-staged
+    reason: "staged-file variant of docs-build-changed (same mkdocs check, pre-commit stage)"
+  - id: docs-build-verifier-tests
+    reason: "self-test of the docs-build verifier + hook wiring"
+  - id: console-e2e-verifier-tests
+    reason: "self-test of the console-e2e pre-push helper routing"
+
+# ─── NON-GATE WORKFLOWS ──────────────────────────────────────────────────────
+# .github/workflows/*.yml files that are deliberately NOT PR gates (deploy,
+# release, scheduled-refresh, on-demand, or bot workflows). Each must exist on
+# disk; the drift check fails on a stale entry or an unregistered workflow.
+non_gate_workflows:
+  - file: bench.yml
+    reason: "advisory perf benchmark + regression (BENCH_REGRESSION_ENFORCE=false); not a credential-free local-parity gate"
+  - file: bench-baseline-refresh.yml
+    reason: "scheduled benchmark-baseline refresh, not a PR gate"
+  - file: build.yml
+    reason: "release-binary build/publish; PR compile coverage is the go-build gate via test.yml"
+  - file: deploy-root-docs.yml
+    reason: "docs site deploy, not a PR gate"
+  - file: generate-bundle-on-demand.yml
+    reason: "on-demand/dispatch bundle generation, not a PR gate"
+  - file: post_discord_invite.yml
+    reason: "Discord invite bot post, not a review gate"
+  - file: refresh-cassettes.yml
+    reason: "scheduled/manual cassette refresh, not a PR gate"

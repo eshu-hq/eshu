@@ -1,6 +1,6 @@
 # cigates
 
-`cigates` is the typed core of the CI gate registry ([#4213](https://github.com/eshu-hq/eshu/issues/4213)). It provides the loader, selector, validator, and glob matcher that back the `cmd/ci-gates` CLI and the `scripts/dev/select-gates.sh` / `scripts/dev/run-selected-gates.sh` wrappers.
+`cigates` is the typed core of the CI gate registry ([#4213](https://github.com/eshu-hq/eshu/issues/4213), drift [#4220](https://github.com/eshu-hq/eshu/issues/4220)). It provides the loader, selector, validator, drift checker, and glob matcher that back the `cmd/ci-gates` CLI and the `scripts/dev/select-gates.sh` / `scripts/dev/run-selected-gates.sh` wrappers.
 
 It answers one question: **given a set of changed paths and a tier ceiling, which credential-free CI verifiers should run locally — and which are registered but CI-only or out of scope?**
 
@@ -10,7 +10,8 @@ It answers one question: **given a set of changed paths and a tier ceiling, whic
 | --- | --- |
 | `registry.go` | Types (`Registry`, `Gate`, `Tier`, `Category`, `Requirement`, `Local`, `CI`) and `Load` |
 | `select.go` | `(*Registry).Select` — pure path-trigger matcher |
-| `validate.go` | `(*Registry).Validate` — script + workflow existence checks |
+| `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks |
+| `drift.go` | `DriftCheck` — `.pre-commit-config.yaml` / `.github/workflows` lockstep ([#4220](https://github.com/eshu-hq/eshu/issues/4220)) |
 | `glob.go` | `MatchGlob` — doublestar matcher, no external deps |
 
 ## Registry format
@@ -35,6 +36,16 @@ The registry lives at `specs/ci-gates.v1.yaml`. Each gate entry has a stable keb
 - All other characters are literal.
 
 Patterns with a leading `/` or trailing `/` never match.
+
+## Drift semantics ([#4220](https://github.com/eshu-hq/eshu/issues/4220))
+
+`DriftCheck(repoRoot, reg)` keeps the hook/preflight/workflow surfaces in lockstep with the registry. It fails when:
+
+1. a `local` pre-commit hook id is neither a gate's `hook_id` nor a declared `hygiene_hooks` entry;
+2. a gate's `hook_id` is missing from `.pre-commit-config.yaml`, or its hook stage is inconsistent with the gate tier (pre-commit gate ⇒ stage `pre-commit`/default; pre-push gate ⇒ stage `pre-push`);
+3. a `.github/workflows/*.yml` file is referenced by neither a gate `ci.workflow` nor `non_gate_workflows`, appears in both, or is a stale `non_gate_workflows` entry.
+
+It is exposed via `ci-gates validate --drift` and needs no network, Docker, or credentials.
 
 ## Tests
 

@@ -51,12 +51,20 @@ code. CI-only gates are printed as `CI-ONLY` and never executed.
 ```bash
 ci-gates validate \
   --registry specs/ci-gates.v1.yaml \
-  [--repo-root /path/to/repo]
+  [--repo-root /path/to/repo] \
+  [--drift]
 ```
 
-Checks that every script and workflow file referenced by the registry exists on
-disk. Exits non-zero and prints each broken reference. Used by
-`scripts/verify-ci-gates-registry.sh`.
+Checks that every script (`command` and `test_command`) and workflow file
+referenced by the registry exists on disk. Exits non-zero and prints each broken
+reference. Used by `scripts/verify-ci-gates-registry.sh`.
+
+With `--drift` ([#4220](https://github.com/eshu-hq/eshu/issues/4220)) it also
+runs the hook/preflight/workflow lockstep check: every local pre-commit hook
+must map to a gate `hook_id` or a `hygiene_hooks` entry, every gate `hook_id`
+must exist at a tier-consistent stage, and every workflow must be a gate
+`ci.workflow` or a `non_gate_workflows` entry. Used by the `gate-registry-drift`
+pre-commit hook and the `verify-ci-gate-registry.yml` workflow.
 
 ## Thin shell wrappers
 

@@ -325,4 +325,68 @@ func TestValidateSubcommand_PassesOnRealRegistry(t *testing.T) {
 	}
 }
 
+// TestValidateSubcommand_DriftPassesOnRealRegistry verifies that --drift passes
+// against the committed real tree once specs/ci-gates.v1.yaml includes the new
+// #4220 schema fields (hygiene_hooks, non_gate_workflows, hook_id).
+func TestValidateSubcommand_DriftPassesOnRealRegistry(t *testing.T) {
+	t.Parallel()
+	bin := buildBinary(t)
+	root := repoRoot(t)
+	regPath := filepath.Join(root, "specs", "ci-gates.v1.yaml")
+	if _, err := os.Stat(regPath); os.IsNotExist(err) {
+		t.Skip("specs/ci-gates.v1.yaml not yet committed — skipping")
+	}
+
+	cmd := exec.Command(bin, "validate",
+		"--registry", regPath,
+		"--repo-root", root,
+		"--drift",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("validate --drift on real registry failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "PASS") {
+		t.Errorf("expected PASS in output, got: %s", out)
+	}
+}
+
+// TestValidateSubcommand_DriftCatchesUnregisteredWorkflow verifies that --drift
+// reports an error when a workflow file is not registered.
+func TestValidateSubcommand_DriftCatchesUnregisteredWorkflow(t *testing.T) {
+	t.Parallel()
+	bin := buildBinary(t)
+
+	// Build a hermetic repo root with one workflow that is not in the registry.
+	root := t.TempDir()
+	wfDir := filepath.Join(root, ".github", "workflows")
+	if err := os.MkdirAll(wfDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stub := "name: test\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: []\n"
+	if err := os.WriteFile(filepath.Join(wfDir, "orphan.yml"), []byte(stub), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".pre-commit-config.yaml"), []byte("repos: []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	reg := writeRegistry(t, dir, `version: v1
+gates: []
+`)
+	cmd := exec.Command(bin, "validate",
+		"--registry", reg,
+		"--repo-root", root,
+		"--drift",
+	)
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("expected non-zero exit for unregistered workflow, got nil error")
+	}
+	if !strings.Contains(string(out), "orphan.yml") {
+		t.Errorf("expected error mentioning orphan.yml, got: %s", out)
+	}
+}
+
 // selectJSONOutput and selectJSONEntry are declared in main.go (same package).

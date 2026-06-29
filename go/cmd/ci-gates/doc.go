@@ -42,4 +42,9 @@
 // Loads the registry and calls (*cigates.Registry).Validate against the repo
 // root, checking that every script and workflow file referenced in the registry
 // exists on disk. Exits non-zero on any integrity error.
+//
+// With --drift it additionally runs (*cigates.Registry).DriftCheck (#4220),
+// which fails if .pre-commit-config.yaml or .github/workflows/ have drifted from
+// the registry — an unregistered local hook, a gate hook_id missing or at the
+// wrong stage, or a workflow that is in neither a gate nor non_gate_workflows.
 package main
