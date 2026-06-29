@@ -32,6 +32,7 @@ MERGE (u)-[r:REFERENCES]->(d)
 SET r.evidence_source = 'projector/canonical',
     r.generation_id = row.generation_id,
     r.evidence_kinds = row.evidence_kinds,
+    r.source_tool = row.source_tool,
     r.reason = 'Helm template reads a values.yaml definition via .Values',
     r.call_kind = 'helm_template_value_reference'`
 
@@ -111,6 +112,7 @@ func helmTemplateValueEdgeStatements(mat projector.CanonicalMaterialization) []S
 			"target_uid":     targetUID,
 			"generation_id":  mat.GenerationID,
 			"evidence_kinds": []string{helmTemplateValueReferenceEvidenceKind},
+			"source_tool":    "helm",
 		})
 	}
 

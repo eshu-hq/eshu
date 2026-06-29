@@ -472,7 +472,15 @@
         "minimum_count": 1,
         "evidence_kinds": [
           "KUSTOMIZE_RESOURCE_REFERENCE"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "kustomize"
+          ]
+        }
       },
       {
         "id": "rc-30",
@@ -483,7 +491,15 @@
         "minimum_count": 1,
         "evidence_kinds": [
           "ANSIBLE_ROLE_REFERENCE"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "ansible"
+          ]
+        }
       },
       {
         "id": "rc-31",
@@ -494,7 +510,15 @@
         "minimum_count": 1,
         "evidence_kinds": [
           "JENKINS_GITHUB_REPOSITORY"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "jenkins"
+          ]
+        }
       },
       {
         "id": "rc-32",
@@ -505,7 +529,15 @@
         "minimum_count": 1,
         "evidence_kinds": [
           "PUPPET_MODULE_REFERENCE"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "puppet"
+          ]
+        }
       },
       {
         "id": "rc-33",
@@ -516,7 +548,15 @@
         "minimum_count": 1,
         "evidence_kinds": [
           "CHEF_COOKBOOK_DEPENDENCY"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "chef"
+          ]
+        }
       },
       {
         "id": "rc-34",
@@ -527,7 +567,15 @@
         "minimum_count": 1,
         "evidence_kinds": [
           "HELM_CHART_REFERENCE"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "helm"
+          ]
+        }
       },
       {
         "id": "rc-35",
@@ -538,7 +586,15 @@
         "minimum_count": 8,
         "evidence_kinds": [
           "HELM_TEMPLATE_VALUE_REFERENCE"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "helm"
+          ]
+        }
       },
       {
         "id": "rc-36",
@@ -549,7 +605,15 @@
         "minimum_count": 1,
         "evidence_kinds": [
           "SALT_FORMULA_REFERENCE"
-        ]
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "salt"
+          ]
+        }
       }
     ],
     "required_nodes": [

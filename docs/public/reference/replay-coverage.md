@@ -4,39 +4,29 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 37/163 surfaces satisfied (22.70%)** — mode: advisory.
+**Overall: 58/163 surfaces satisfied (35.58%)** — mode: advisory.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Capability claims | 0 | 126 | 0.00% | 126 | 0 |
+| Capability claims | 21 | 126 | 16.67% | 105 | 0 |
 | Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Collectors | 17 | 17 | 100.00% | 0 | 4 |
-| **Total** | **37** | **163** | **22.70%** | **126** | **6** |
+| **Total** | **58** | **163** | **35.58%** | **105** | **6** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-126 surface(s) uncovered or unresolved:
+105 surface(s) uncovered or unresolved:
 
-### Capability claims (126)
+### Capability claims (105)
 
 - `capability:admission_decisions.list`
 - `capability:answer_narration.status`
 - `capability:ask.natural_language_answer`
 - `capability:aws_runtime_drift.findings.list`
-- `capability:call_graph.call_chain_path`
-- `capability:call_graph.direct_callees`
-- `capability:call_graph.direct_callers`
-- `capability:call_graph.metrics`
-- `capability:call_graph.relationship_story`
-- `capability:call_graph.route_to_caller`
-- `capability:call_graph.transitive_callees`
-- `capability:call_graph.transitive_callers`
 - `capability:capability_catalog.list`
-- `capability:ci_cd.run_correlations.aggregate`
-- `capability:ci_cd.run_correlations.list`
 - `capability:cloud_inventory.readback.list`
 - `capability:cloud_runtime_drift.readback.list`
 - `capability:code_flow.cfg_summary`
@@ -58,7 +48,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:collector_extraction_readiness.list`
 - `capability:component_extensions.diagnostics`
 - `capability:component_extensions.inventory`
-- `capability:dependencies.list`
 - `capability:documentation_evidence_packet.freshness`
 - `capability:documentation_evidence_packet.read`
 - `capability:documentation_facts.list`
@@ -79,11 +68,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:iac_management.propose_terraform_import_plan`
 - `capability:iac_quality.dead_iac`
 - `capability:incident.context.read`
-- `capability:kubernetes.correlations.list`
 - `capability:observability.coverage.correlations.list`
-- `capability:package_registry.correlations.list`
-- `capability:package_registry.dependencies.list`
-- `capability:package_registry.dependency_chains.list`
 - `capability:package_registry.packages.aggregate`
 - `capability:package_registry.packages.list`
 - `capability:package_registry.versions.list`
@@ -94,8 +79,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:platform_impact.container_image_list`
 - `capability:platform_impact.context_overview`
 - `capability:platform_impact.contract_impact`
-- `capability:platform_impact.dependency_path`
-- `capability:platform_impact.deployment_chain`
 - `capability:platform_impact.deployment_config_influence`
 - `capability:platform_impact.developer_change_plan`
 - `capability:platform_impact.entity_map`
@@ -103,7 +86,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:platform_impact.graph_summary_packet`
 - `capability:platform_impact.infra_resource_aggregate`
 - `capability:platform_impact.pre_change`
-- `capability:platform_impact.relationships_catalog`
 - `capability:platform_impact.resource_investigation`
 - `capability:platform_impact.resource_to_code`
 - `capability:platform_metrics.timeseries`
@@ -111,7 +93,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:query.playbooks`
 - `capability:reachability.go.govulncheck`
 - `capability:reachability.jvm.bounded`
-- `capability:relationship_evidence.drilldown`
 - `capability:replatforming.ownership.candidates`
 - `capability:replatforming.plan.readiness`
 - `capability:replatforming.rollups.readiness`
@@ -125,7 +106,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:semantic_evidence.documentation_observations.list`
 - `capability:semantic_extraction.status`
 - `capability:semantic_search.curated_retrieval`
-- `capability:service_catalog.correlations.list`
 - `capability:supply_chain.advisory_catalog.list`
 - `capability:supply_chain.advisory_evidence.list`
 - `capability:supply_chain.container_image_identities.aggregate`
@@ -144,15 +124,35 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:symbol_graph.decorators`
 - `capability:symbol_graph.import_dependencies`
 - `capability:symbol_graph.imports`
-- `capability:symbol_graph.inheritance`
 - `capability:visualization.graph_query`
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (37)
+## Covered surfaces (58)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
+| `capability:call_graph.call_chain_path` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:call_graph.direct_callees` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:call_graph.direct_callers` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:call_graph.metrics` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:call_graph.relationship_story` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:call_graph.route_to_caller` | correlation | golden-corpus-gate | `rc-8` |
+| `capability:call_graph.transitive_callees` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:call_graph.transitive_callers` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:ci_cd.run_correlations.aggregate` | correlation | golden-corpus-gate | `rc-27` |
+| `capability:ci_cd.run_correlations.list` | correlation | golden-corpus-gate | `rc-28` |
+| `capability:dependencies.list` | correlation | golden-corpus-gate | `rc-9` |
+| `capability:kubernetes.correlations.list` | correlation | golden-corpus-gate | `rc-4` |
+| `capability:package_registry.correlations.list` | correlation | golden-corpus-gate | `rc-9` |
+| `capability:package_registry.dependencies.list` | correlation | golden-corpus-gate | `rc-25` |
+| `capability:package_registry.dependency_chains.list` | correlation | golden-corpus-gate | `rc-9` |
+| `capability:platform_impact.dependency_path` | correlation | golden-corpus-gate | `rc-3` |
+| `capability:platform_impact.deployment_chain` | correlation | golden-corpus-gate | `rc-19` |
+| `capability:platform_impact.relationships_catalog` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:relationship_evidence.drilldown` | correlation | golden-corpus-gate | `rc-21` |
+| `capability:service_catalog.correlations.list` | correlation | golden-corpus-gate | `rc-1` |
+| `capability:symbol_graph.inheritance` | correlation | golden-corpus-gate | `rc-12` |
 | `read_surface:GET /api/v0/ci-cd/run-correlations` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/cloud/inventory` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
