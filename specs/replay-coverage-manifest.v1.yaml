@@ -69,6 +69,22 @@ coverage:
     scenario: cassette
     ref: testdata/cassettes/securityalerts/supply-chain-demo.json
     proof_gate: golden-corpus-gate
+  - surface: collector:jira
+    scenario: cassette
+    ref: testdata/cassettes/jira/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:pagerduty
+    scenario: cassette
+    ref: testdata/cassettes/pagerduty/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:sbom_attestation
+    scenario: cassette
+    ref: testdata/cassettes/sbomattestation/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:vulnerability_intelligence
+    scenario: cassette
+    ref: testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
 
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
@@ -98,4 +114,31 @@ coverage:
 # be burned down by an authored scenario (C-2..C-6), not exempted away. Add an
 # entry only when a surface genuinely cannot have a credential-free replay
 # scenario, with a reason an operator would accept.
-exemptions: []
+exemptions:
+  # C-2 (#4174): the four implemented-lane collectors that cannot have a
+  # credential-free cassette of the supply-chain-demo kind, each for a structural
+  # reason an operator would accept (not "we didn't get to it").
+  - surface: collector:git
+    reason: >-
+      Filesystem-native collector, not a credentialed upstream API. Git is
+      already exercised end-to-end by the golden-corpus gate's 20-repo
+      bootstrap-index corpus (sync -> discover -> parse -> emit), so a
+      supply-chain-demo cassette would re-record a path the gate already
+      replays from real fixtures. The fixture corpus is its replay scenario.
+  - surface: collector:documentation
+    reason: >-
+      Offline export library, not a polling collector binary. Documentation
+      facts are produced from offline export manifests (go/internal/collector/
+      documentationexport), so there is no credentialed upstream to record into
+      a cassette; the offline-manifest path is the credential-free input.
+  - surface: collector:webhook
+    reason: >-
+      Inbound webhook sink, not a pollable source. The webhook collector
+      verifies and normalizes inbound deliveries into refresh triggers; it never
+      polls an upstream, so there is no generation to record into a cassette.
+  - surface: collector:scanner_worker
+    reason: >-
+      Internal hosted worker with no external upstream. scanner-worker consumes
+      coordinator work items (image refs, rootfs, SBOM targets) and emits
+      analysis facts; it has no credentialed source to record, so a cassette of
+      the supply-chain-demo kind does not apply.

@@ -1,0 +1,72 @@
+{
+  "collector": "sbom_attestation",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "sbom_attestation:supply-chain-demo:supply-chain-demo",
+      "source_system": "sbom_attestation",
+      "scope_kind": "sbom_attestation",
+      "collector_kind": "sbom_attestation",
+      "partition_key": "oci_referrer:sbom",
+      "metadata": {
+        "artifact_kind": "sbom",
+        "document_format": "cyclonedx",
+        "source_type": "oci_referrer"
+      },
+      "generation_id": "cassette-sbom-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "sbom.document",
+          "stable_fact_key": "sbom_attestation:supply-chain-demo:document:scd-sbom",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_document",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "document_id": "scd-sbom",
+            "document_digest": "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090",
+            "format": "cyclonedx",
+            "source_format": "json",
+            "spec_version": "1.4",
+            "serial_number": "urn:uuid:00000000-0000-4000-8000-00000000scd0",
+            "document_name": "supply-chain-demo SBOM",
+            "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+            "subject_digests": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"],
+            "parse_status": "parsed",
+            "verification_status": "unset",
+            "verification_policy": "",
+            "created_at": "2026-06-20T00:00:00Z",
+            "created_by_tool": "syft/1.0.0",
+            "component_count": 1,
+            "dependency_count": 0,
+            "warning_count": 0,
+            "correlation_anchors": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"]
+          }
+        },
+        {
+          "fact_kind": "sbom.component",
+          "stable_fact_key": "sbom_attestation:supply-chain-demo:component:scd-lib",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_document",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "document_id": "scd-sbom",
+            "component_id": "component:scd-lib",
+            "bom_ref": "pkg:npm/supply-chain-demo-lib@1.2.2",
+            "name": "supply-chain-demo-lib",
+            "version": "1.2.2",
+            "type": "library",
+            "purl": "pkg:npm/supply-chain-demo-lib@1.2.2",
+            "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+            "scope": "required",
+            "is_duplicate": false,
+            "correlation_anchors": ["pkg:npm/supply-chain-demo-lib@1.2.2", "npm://registry.npmjs.org/supply-chain-demo-lib"]
+          }
+        }
+      ]
+    }
+  ]
+}

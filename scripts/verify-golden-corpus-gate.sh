@@ -94,6 +94,10 @@ collector_specs=(
 	"collector-grafana:grafana"
 	"collector-loki:loki"
 	"collector-security-alerts:securityalerts"
+	"collector-jira:jira"
+	"collector-pagerduty:pagerduty"
+	"collector-sbom-attestation:sbomattestation"
+	"collector-vulnerability-intelligence:vulnerabilityintelligence"
 )
 
 cassette_recording="supply-chain-demo.json"
