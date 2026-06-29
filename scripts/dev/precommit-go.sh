@@ -19,7 +19,8 @@
 #     coverage is equivalent to CI without the cross-machine fragility.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${script_root}")"
 go_dir="${repo_root}/go"
 # Cache tools/config under the git common dir (works from a worktree, where
 # .git is a file, not a directory; the common dir is shared and never committed).
