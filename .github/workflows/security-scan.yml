@@ -107,10 +107,13 @@ jobs:
           output: trivy-fs.sarif
           # Skip non-product trees: intentionally-vulnerable govuln test
           # fixtures (they embed known CVEs to test the vulnerability-
-          # intelligence collector and MUST NOT be "fixed"), and the example
+          # intelligence collector and MUST NOT be "fixed"), the example
           # collector-extension artifacts (e.g. the scorecard OCI worker that
-          # runs as root by design to read the mounted docker socket).
-          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules
+          # runs as root by design to read the mounted docker socket), and the
+          # replay parser-fixture source trees (synthetic Terraform/Kubernetes/
+          # Dockerfile inputs that exist to exercise the parsers, not to deploy —
+          # Trivy misconfig findings on them are noise, like tests/fixtures).
+          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules
 
       - name: Upload Trivy fs SARIF to GitHub Security tab
         if: always()
