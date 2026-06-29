@@ -4,7 +4,7 @@
 # capability surface-inventory drift) so they are caught at commit time instead
 # of on GitHub.
 #
-# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|gosec|surface> [files...]
+# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|surface> [files...]
 #   lint-all / fmt-all run over the whole module (./...); the pre-pr gate
 #   (scripts/dev/pre-pr.sh) uses them to mirror CI before the first push.
 #
@@ -207,7 +207,46 @@ case "${cmd}" in
 		( cd "${go_dir}" && "${bin}" fmt --diff --config "${cfg}" ./... ) \
 			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
 		;;
+	filecap-all)
+		# Whole-tree 500-line cap over every tracked Go file. This no-arg variant
+		# is what the ci-gates runner invokes (it passes no file list). It mirrors
+		# the authoritative CI plugin's skip() exactly
+		# (tools/golangci-lint-filelength/filelength.go): the cap does NOT apply to
+		# _test.go files or to paths under generated/, vendor/, or testdata/. It
+		# also honours an explicit //nolint:filelength marker.
+		status=0
+		while IFS= read -r f; do
+			[[ "${f}" == *.go ]] || continue
+			[[ "${f}" == *_test.go ]] && continue
+			case "${f}" in
+				*/generated/*|*/vendor/*|*/testdata/*) continue ;;
+			esac
+			[[ -f "${repo_root}/${f}" ]] || continue
+			rg -q 'nolint:filelength' "${repo_root}/${f}" && continue
+			lines="$(wc -l < "${repo_root}/${f}")"
+			if (( lines > 500 )); then
+				note "${f}: ${lines} lines exceeds the 500-line cap (split it, or //nolint:filelength with a reason)"
+				status=1
+			fi
+		done < <(git -C "${repo_root}" ls-files 'go/*.go')
+		exit "${status}"
+		;;
+	gosec-all)
+		# Whole-module gosec (./...), mirroring security-scan.yml's authoritative
+		# scan. Slower than the changed-file `gosec` subcommand (gosec is per-package
+		# SSA-heavy on Go 1.26); used by the ci-gates runner where no file list is
+		# passed. The local security lane in #4217 narrows this to changed packages.
+		bin="$(ensure_gosec)"
+		out="${cache_dir}/gosec-all.sarif"
+		( cd "${go_dir}" && "${bin}" -severity=low -confidence=low -no-fail \
+			-fmt=sarif -out "${out}" ./... >/dev/null 2>&1 )
+		findings="$(jq '[.runs[].results[]] | length' "${out}" 2>/dev/null || echo 0)"
+		if [[ "${findings}" -ne 0 ]]; then
+			jq -r '.runs[].results[] | "  \(.ruleId) \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)"' "${out}" >&2
+			die "gosec: ${findings} finding(s) — fix or annotate with a leading // #nosec <RULE> -- <reason>"
+		fi
+		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|gosec|surface|perf-evidence|telemetry)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|surface|perf-evidence|telemetry)"
 		;;
 esac

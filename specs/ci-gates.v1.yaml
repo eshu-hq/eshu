@@ -19,7 +19,7 @@ gates:
     triggers:
       - "go/**"
     local:
-      command: "bash scripts/dev/precommit-go.sh fmt"
+      command: "bash scripts/dev/precommit-go.sh fmt-all"
       test_command: ""
     ci:
       workflow: test.yml
@@ -36,7 +36,7 @@ gates:
     triggers:
       - "go/**"
     local:
-      command: "bash scripts/dev/precommit-go.sh lint"
+      command: "bash scripts/dev/precommit-go.sh lint-all"
       test_command: ""
     ci:
       workflow: test.yml
@@ -53,7 +53,7 @@ gates:
     triggers:
       - "go/**"
     local:
-      command: "bash scripts/dev/precommit-go.sh lint-all"
+      command: "cd go && go build ./..."
       test_command: ""
     ci:
       workflow: test.yml
@@ -70,7 +70,7 @@ gates:
     triggers:
       - "go/**"
     local:
-      command: "bash scripts/dev/precommit-go.sh lint-all"
+      command: "cd go && go vet ./..."
       test_command: ""
     ci:
       workflow: test.yml
@@ -87,7 +87,7 @@ gates:
     triggers:
       - "go/**"
     local:
-      command: "bash scripts/dev/precommit-go.sh filecap"
+      command: "bash scripts/dev/precommit-go.sh filecap-all"
       test_command: ""
     ci:
       workflow: test.yml
@@ -636,14 +636,17 @@ gates:
   # ─── SECURITY ──────────────────────────────────────────────────────────────
 
   - id: gosec-changed
-    name: gosec static analysis (changed Go files)
+    name: gosec static analysis (whole module)
     category: security
     tier: pre-push
     blocking: true
     triggers:
       - "go/**"
+    # Whole-module gosec here so the ci-gates runner (which passes no file list)
+    # runs a real scan rather than a no-op. #4217 narrows the local security lane
+    # to changed packages for speed while keeping CI authoritative.
     local:
-      command: "bash scripts/dev/precommit-go.sh gosec"
+      command: "bash scripts/dev/precommit-go.sh gosec-all"
       test_command: ""
     ci:
       workflow: security-scan.yml
@@ -711,8 +714,8 @@ gates:
       - "docker-compose*.yaml"
       - "docker-compose*.yml"
     ci:
-      workflow: test.yml
-      job: "Run Go tests with race detector"
+      workflow: e2e-tests.yml
+      job: "test"
     requirements:
       - go
       - docker
