@@ -50,27 +50,29 @@ func TestEshuSearchVectorPendingStoreListsScopes(t *testing.T) {
 	}
 	q := db.queries[0].query
 	for _, fragment := range []string{
+		// active_docs CTE (unchanged from original)
 		"WITH active_docs AS",
 		"scope.scope_kind = 'repository'",
 		"fact.fact_kind = $1",
 		"fact.is_tombstone = FALSE",
 		"fact.payload->'document'->>'id' AS document_id",
 		"fact.payload->>'content_hash' AS content_hash",
+		// NOT EXISTS correlated subquery shape (#4233 rewrite)
+		"WHERE NOT EXISTS",
 		"eshu_search_vector_metadata",
 		"eshu_search_vector_values",
+		"LEFT JOIN eshu_search_vector_values",
 		"meta.provider_profile_id = $2",
 		"meta.source_class = $3",
-		"LEFT JOIN eshu_search_vector_values",
-		"value.provider_profile_id = meta.provider_profile_id",
-		"value.source_class = meta.source_class",
-		"ready.document_id = docs.document_id",
-		"ready.embedding_content_hash = docs.content_hash",
-		"ready.provider_profile_id = $2",
-		"ready.source_class = $3",
+		"meta.embedding_model_id = $4",
+		"meta.vector_index_version = $5",
+		"meta.scope_id = docs.scope_id",
+		"meta.generation_id = docs.generation_id",
+		"meta.document_id = docs.document_id",
+		"meta.embedding_content_hash = docs.content_hash",
 		"meta.build_state = 'ready'",
 		"meta.build_state = 'disabled'",
 		"value.document_id IS NOT NULL",
-		"WHERE ready.document_id IS NULL",
 		"LIMIT $6",
 	} {
 		if !strings.Contains(q, fragment) {
@@ -214,12 +216,13 @@ func TestEshuSearchVectorPendingBoundedPlanLive(t *testing.T) {
 		{scopeA, genA},
 		{scopeB, genB},
 	} {
-		if _, err := sqlDB.ExecContext(ctx, `
+		if _, err := sqlDB.ExecContext(
+			ctx, `
 			INSERT INTO ingestion_scopes
 			  (scope_id, scope_kind, source_system, source_key, collector_kind,
 			   partition_key, observed_at, ingested_at, status, active_generation_id, payload)
-			VALUES ($1, 'repository', 'git', $1, 'git', $1, $2, $2, 'active', $3,
-			        jsonb_build_object('repo_id', $1))
+			VALUES ($1::text, 'repository', 'git', $1::text, 'git', $1::text, $2, $2, 'active', $3::text,
+			        jsonb_build_object('repo_id', $1::text))
 			ON CONFLICT (scope_id) DO NOTHING`,
 			row.scopeID, now, row.genID,
 		); err != nil {
@@ -227,18 +230,26 @@ func TestEshuSearchVectorPendingBoundedPlanLive(t *testing.T) {
 		}
 	}
 
-	// Insert scope_generations (active generations + stale generation for case 7).
-	for _, row := range []struct{ genID, scopeID string }{
-		{genA, scopeA},
-		{genStale, scopeA},
-		{genB, scopeB},
+	// Insert scope_generations. Active generations use status='active';
+	// genStale uses status='superseded' so it does not conflict with the
+	// scope_generations_active_scope_idx UNIQUE (scope_id) WHERE status='active'
+	// partial index — a scope may have at most one active generation at a time.
+	for _, row := range []struct {
+		genID   string
+		scopeID string
+		status  string
+	}{
+		{genA, scopeA, "active"},
+		{genStale, scopeA, "superseded"}, // case 7: different (non-active) generation
+		{genB, scopeB, "active"},
 	} {
-		if _, err := sqlDB.ExecContext(ctx, `
+		if _, err := sqlDB.ExecContext(
+			ctx, `
 			INSERT INTO scope_generations
 			  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
-			VALUES ($1, $2, 'manual', $3, $3, 'active', $3)
+			VALUES ($1, $2, 'manual', $3, $3, $4, $3)
 			ON CONFLICT (generation_id) DO NOTHING`,
-			row.genID, row.scopeID, now,
+			row.genID, row.scopeID, now, row.status,
 		); err != nil {
 			t.Fatalf("insert scope_generation %s: %v", row.genID, err)
 		}
@@ -251,7 +262,8 @@ func TestEshuSearchVectorPendingBoundedPlanLive(t *testing.T) {
 			`{"document":{"id":%q},"content_hash":%q}`,
 			docID, contentHash,
 		)
-		if _, err := sqlDB.ExecContext(ctx, `
+		if _, err := sqlDB.ExecContext(
+			ctx, `
 			INSERT INTO fact_records
 			  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
 			   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
@@ -269,7 +281,8 @@ func TestEshuSearchVectorPendingBoundedPlanLive(t *testing.T) {
 	// Helper: insert a metadata row.
 	insertMeta := func(scopeID, genID, docID, contentHash, buildState string) {
 		t.Helper()
-		if _, err := sqlDB.ExecContext(ctx, `
+		if _, err := sqlDB.ExecContext(
+			ctx, `
 			INSERT INTO eshu_search_vector_metadata
 			  (scope_id, generation_id, document_id, provider_profile_id, source_class,
 			   embedding_model_id, embedding_dimensions, embedding_content_hash,
@@ -296,7 +309,8 @@ func TestEshuSearchVectorPendingBoundedPlanLive(t *testing.T) {
 			vecLit += fmt.Sprintf("%g", v)
 		}
 		vecLit += "}"
-		if _, err := sqlDB.ExecContext(ctx, `
+		if _, err := sqlDB.ExecContext(
+			ctx, `
 			INSERT INTO eshu_search_vector_values
 			  (scope_id, generation_id, document_id, provider_profile_id, source_class,
 			   embedding_model_id, embedding_dimensions, embedding_content_hash,
@@ -391,7 +405,8 @@ func TestEshuSearchVectorPendingBoundedPlanLive(t *testing.T) {
 		`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) %s`,
 		listPendingEshuSearchVectorScopesSQL,
 	)
-	rows, err := sqlDB.QueryContext(ctx, explainSQL,
+	rows, err := sqlDB.QueryContext(
+		ctx, explainSQL,
 		EshuSearchDocumentFactKind,
 		providerProfileID, sourceClass, modelID, vectorVersion, 100,
 	)
