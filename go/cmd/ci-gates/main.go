@@ -216,6 +216,8 @@ func gitChangedPaths(base string) ([]string, error) {
 	}
 
 	run := func(gitArgs ...string) ([]string, error) {
+		// #nosec G204 -- the executable is the literal "git"; gitArgs are internal
+		// literals ("diff", "--name-only", …) plus base, an operator-provided ref.
 		out, err := exec.Command("git", gitArgs...).Output()
 		if err != nil {
 			// git diff returns exit 1 when there are differences but output is valid.
