@@ -128,12 +128,15 @@ func TestBrowserSessionHandleCreateAPITokenHandleRevokeAPITokenHandleRotateAPITo
 
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
 	store := &fakeLocalIdentityStore{}
+	audit := &fakeGovernanceAuditAppender{}
 	secretCalls := 0
 	handler := &LocalIdentityHandler{
 		Store: store,
+		Audit: audit,
 		NewSecret: func() (string, error) {
 			secretCalls++
-			return "unused-generated-value", nil
+			t.Fatal("NewSecret called before token permission check")
+			return "", nil
 		},
 		Now: func() time.Time { return now },
 	}
@@ -168,18 +171,22 @@ func TestBrowserSessionHandleCreateAPITokenHandleRevokeAPITokenHandleRotateAPITo
 	if secretCalls != 0 {
 		t.Fatalf("NewSecret calls = %d, want 0 before token permission check", secretCalls)
 	}
+	assertPermissionCatalogDeniedAuditEvents(t, audit, 3)
 }
 
 func TestBrowserSessionHandleCreateInvitationHandleResetPasswordHandleResetMFAHandleDisableUserRequireCatalogFeature(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeLocalIdentityStore{}
+	audit := &fakeGovernanceAuditAppender{}
 	secretCalls := 0
 	handler := &LocalIdentityHandler{
 		Store: store,
+		Audit: audit,
 		NewSecret: func() (string, error) {
 			secretCalls++
-			return "unused-generated-value", nil
+			t.Fatal("NewSecret called before local identity admin permission check")
+			return "", nil
 		},
 		Now: func() time.Time { return time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC) },
 	}
@@ -216,6 +223,7 @@ func TestBrowserSessionHandleCreateInvitationHandleResetPasswordHandleResetMFAHa
 	if secretCalls != 0 {
 		t.Fatalf("NewSecret calls = %d, want 0 before local identity admin permission check", secretCalls)
 	}
+	assertPermissionCatalogDeniedAuditEvents(t, audit, 4)
 }
 
 func TestBrowserSessionHandleListAuditEventsAuditReadsRequireAuditCatalogFeature(t *testing.T) {
@@ -237,6 +245,19 @@ func TestBrowserSessionHandleListAuditEventsAuditReadsRequireAuditCatalogFeature
 		mux.ServeHTTP(allowed, adminRequest(t, http.MethodGet, path, catalogEnforcedAdminAuth("audit_export")))
 		if allowed.Code != http.StatusOK {
 			t.Fatalf("GET %s allowed feature status = %d, want 200: %s", path, allowed.Code, allowed.Body.String())
+		}
+	}
+}
+
+func assertPermissionCatalogDeniedAuditEvents(t *testing.T, audit *fakeGovernanceAuditAppender, want int) {
+	t.Helper()
+
+	if got := len(audit.events); got != want {
+		t.Fatalf("audit events = %d, want %d permission catalog denials", got, want)
+	}
+	for i, event := range audit.events {
+		if event.ReasonCode != "permission_catalog_denied" {
+			t.Fatalf("audit event %d reason = %q, want permission_catalog_denied", i, event.ReasonCode)
 		}
 	}
 }

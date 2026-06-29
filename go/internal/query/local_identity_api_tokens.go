@@ -148,7 +148,13 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "tokens.create", permissionFeatureTokens) {
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeTokenLifecycle,
+		"tokens.create",
+		permissionFeatureTokens,
+	) {
 		return
 	}
 	var req localIdentityAPITokenCreateRequest
@@ -185,7 +191,13 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "tokens.revoke", permissionFeatureTokens) {
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeTokenLifecycle,
+		"tokens.revoke",
+		permissionFeatureTokens,
+	) {
 		return
 	}
 	var req localIdentityAPITokenRevokeRequest
@@ -220,7 +232,13 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "tokens.rotate", permissionFeatureTokens) {
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeTokenLifecycle,
+		"tokens.rotate",
+		permissionFeatureTokens,
+	) {
 		return
 	}
 	var req localIdentityAPITokenRotateRequest

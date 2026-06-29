@@ -128,7 +128,13 @@ func (h *LocalIdentityHandler) handleCreateInvitation(w http.ResponseWriter, r *
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "identity_admin.invitation_create", permissionFeatureIdentityAdmin) {
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeRoleGrantChange,
+		"identity_admin.invitation_create",
+		permissionFeatureIdentityAdmin,
+	) {
 		return
 	}
 	var req localIdentityInvitationRequest
@@ -211,7 +217,13 @@ func (h *LocalIdentityHandler) handleResetPassword(w http.ResponseWriter, r *htt
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "identity_admin.password_reset", permissionFeatureIdentityAdmin) {
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeIdentityAuthentication,
+		"identity_admin.password_reset",
+		permissionFeatureIdentityAdmin,
+	) {
 		return
 	}
 	var req localIdentityPasswordResetRequest
@@ -244,7 +256,13 @@ func (h *LocalIdentityHandler) handleResetMFA(w http.ResponseWriter, r *http.Req
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "identity_admin.mfa_reset", permissionFeatureIdentityAdmin) {
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeMFALifecycle,
+		"identity_admin.mfa_reset",
+		permissionFeatureIdentityAdmin,
+	) {
 		return
 	}
 	var req localIdentityMFAResetRequest
@@ -272,7 +290,13 @@ func (h *LocalIdentityHandler) handleDisableUser(w http.ResponseWriter, r *http.
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "identity_admin.user_disable", permissionFeatureIdentityAdmin) {
+	if !h.requirePermissionFeature(
+		w,
+		r,
+		governanceaudit.EventTypeIdentityAuthentication,
+		"identity_admin.user_disable",
+		permissionFeatureIdentityAdmin,
+	) {
 		return
 	}
 	if err := h.Store.DisableLocalIdentityUser(r.Context(), LocalIdentityDisableUser{

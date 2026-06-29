@@ -283,6 +283,21 @@ func (h *LocalIdentityHandler) auditLocalIdentity(
 	_ = h.Audit.Append(r.Context(), []governanceaudit.Event{event})
 }
 
+func (h *LocalIdentityHandler) requirePermissionFeature(
+	w http.ResponseWriter,
+	r *http.Request,
+	eventType governanceaudit.EventType,
+	capability string,
+	feature string,
+) bool {
+	if authContextAllowsPermissionFeature(r.Context(), feature) {
+		return true
+	}
+	h.auditLocalIdentity(r, eventType, governanceaudit.DecisionDenied, "permission_catalog_denied", "")
+	writePermissionDeniedEnvelope(w, capability)
+	return false
+}
+
 func localIdentityActorClass(auth AuthContext) governanceaudit.ActorClass {
 	switch auth.Mode {
 	case AuthModeShared:
