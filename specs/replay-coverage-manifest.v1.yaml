@@ -86,6 +86,71 @@ coverage:
     ref: testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json
     proof_gate: golden-corpus-gate
 
+  # C-5 (#4177): fact-kind read surfaces. Each maps to an api_mcp_golden whose ref
+  # is the B-12 snapshot query-shape key; the golden-corpus-gate calls the endpoint
+  # live against the 20-repo corpus and asserts the response shape (truth, not just
+  # schema). HTTP query params, when required, are embedded in the shape key.
+  - surface: read_surface:GET /api/v0/cloud/inventory
+    scenario: api_mcp_golden
+    ref: GET /api/v0/cloud/inventory
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/cloud/resources
+    scenario: api_mcp_golden
+    ref: GET /api/v0/cloud/resources
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/images
+    scenario: api_mcp_golden
+    ref: GET /api/v0/images
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/package-registry/packages
+    scenario: api_mcp_golden
+    ref: GET /api/v0/package-registry/packages?ecosystem=go&limit=50
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/incidents/{incident_id}/context
+    scenario: api_mcp_golden
+    ref: GET /api/v0/incidents/PSCD1/context
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/work-items/evidence
+    scenario: api_mcp_golden
+    ref: GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments
+    scenario: api_mcp_golden
+    ref: GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/supply-chain/impact/findings
+    scenario: api_mcp_golden
+    ref: GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000
+    proof_gate: golden-corpus-gate
+  # observability/coverage: the fact-kind registry read_surface was corrected from
+  # the unmounted bare path to the real mounted route (.../coverage/correlations)
+  # so the surface key and the proven route match (a query-param selector is
+  # required).
+  - surface: read_surface:GET /api/v0/observability/coverage/correlations
+    scenario: api_mcp_golden
+    ref: GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/iac/resources
+    scenario: api_mcp_golden
+    ref: GET /api/v0/iac/resources?limit=50
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/documentation/facts
+    scenario: api_mcp_golden
+    ref: GET /api/v0/documentation/facts?fact_kind=source
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/secrets-iam/posture-summary
+    scenario: api_mcp_golden
+    ref: GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/ci-cd/run-correlations
+    scenario: api_mcp_golden
+    ref: GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/service-catalog/correlations
+    scenario: api_mcp_golden
+    ref: GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo
+    proof_gate: golden-corpus-gate
+
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
   # package-local, parser-focused tree; the proof gate replays it credential-free
@@ -142,3 +207,22 @@ exemptions:
       coordinator work items (image refs, rootfs, SBOM targets) and emits
       analysis facts; it has no credentialed source to record, so a cassette of
       the supply-chain-demo kind does not apply.
+
+  # C-5 (#4177): two fact-kind read surfaces that cannot be asserted by the
+  # golden-corpus gate as-is.
+  - surface: read_surface:GET /api/v0/semantic-evidence
+    reason: >-
+      Registry drift: the fact-kind registry declares read_surface
+      "GET /api/v0/semantic-evidence", but no such route is mounted — the semantic
+      evidence is served by /api/v0/semantic/documentation-observations and
+      /api/v0/semantic/code-hints. A golden cannot call a non-existent route.
+      Tracked by #4197 to reconcile the registry read_surface with the mounted
+      route; exempt until the registry is corrected.
+  - surface: read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations
+    reason: >-
+      Truth-ceiling: the security_alert_reconciliations.list capability is
+      unsupported in the golden-corpus gate's local_full_stack query profile (the
+      route returns the profile-required refusal, HTTP 404), so the gate cannot
+      assert a green response for it. The refusal is correct behavior under the
+      capability matrix; covering it would require a profile that enables the
+      provider security-alert reconciliation read model.

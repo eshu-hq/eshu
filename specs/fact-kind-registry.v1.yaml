@@ -104,7 +104,7 @@ families:
     reducer_domain: observability_coverage_correlation
     projection_hook: observability_coverage_correlation
     admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/observability/coverage"
+    read_surface: "GET /api/v0/observability/coverage/correlations"
     truth_profile: provider_gated
     provider_key_independent: false
     kinds: [observability.applied_resource, observability.applied_sync_state, observability.coverage_warning, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route, observability.observed_dashboard, observability.observed_log_signal, observability.observed_rule, observability.observed_target, observability.observed_trace_signal, observability.source_instance]

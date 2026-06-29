@@ -1422,7 +1422,7 @@
           "observability_coverage_correlation"
         ],
         "read_surfaces": [
-          "GET /api/v0/observability/coverage",
+          "GET /api/v0/observability/coverage/correlations",
           "list_observability_coverage"
         ],
         "proof_gates": [
@@ -1550,7 +1550,7 @@
           "observability_coverage_correlation"
         ],
         "read_surfaces": [
-          "GET /api/v0/observability/coverage",
+          "GET /api/v0/observability/coverage/correlations",
           "list_observability_coverage"
         ],
         "proof_gates": [
@@ -1716,7 +1716,7 @@
           "observability_coverage_correlation"
         ],
         "read_surfaces": [
-          "GET /api/v0/observability/coverage",
+          "GET /api/v0/observability/coverage/correlations",
           "list_observability_coverage"
         ],
         "proof_gates": [
@@ -1906,7 +1906,7 @@
           "observability_coverage_correlation"
         ],
         "read_surfaces": [
-          "GET /api/v0/observability/coverage",
+          "GET /api/v0/observability/coverage/correlations",
           "list_observability_coverage"
         ],
         "proof_gates": [

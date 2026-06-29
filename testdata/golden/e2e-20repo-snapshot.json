@@ -110,12 +110,12 @@
       "REPO_CONTAINS": {
         "min": 40,
         "max": 20000,
-        "note": "every Repository→File edge (observed 78, tracks File); floor catches a major projection drop, ceiling wide for corpus growth"
+        "note": "every Repository\u2192File edge (observed 78, tracks File); floor catches a major projection drop, ceiling wide for corpus growth"
       },
       "DEFINES": {
         "min": 1,
         "max": 50000,
-        "note": "File→Function definition edges (observed 5; the demo fixtures are largely config, few code functions); floor 1 catches total loss"
+        "note": "File\u2192Function definition edges (observed 5; the demo fixtures are largely config, few code functions); floor 1 catches total loss"
       },
       "IMPORTS": {
         "min": 0,
@@ -130,12 +130,12 @@
       "DEPENDS_ON": {
         "min": 1,
         "max": 2000,
-        "note": "cross-repo Repository→Repository dependency edges from code-import and package-consumption domains (B-13 fix)"
+        "note": "cross-repo Repository\u2192Repository dependency edges from code-import and package-consumption domains (B-13 fix)"
       },
       "DEPENDS_ON_PACKAGE": {
         "min": 1,
         "max": 5000,
-        "note": "Repository→PackageVersion manifest-level dependency edges"
+        "note": "Repository\u2192PackageVersion manifest-level dependency edges"
       },
       "DECLARES_DEPENDENCY": {
         "min": 1,
@@ -145,22 +145,22 @@
       "HAS_VERSION": {
         "min": 1,
         "max": 200,
-        "note": "Package→PackageVersion version edges from package_registry canonical writer"
+        "note": "Package\u2192PackageVersion version edges from package_registry canonical writer"
       },
       "CORRELATES_DEPLOYABLE_UNIT": {
         "min": 1,
         "max": 20,
-        "note": "Repository(source)→Repository(deployment-config) deployable-unit correlation edge"
+        "note": "Repository(source)\u2192Repository(deployment-config) deployable-unit correlation edge"
       },
       "RUNS_IN": {
         "min": 1,
         "max": 5000,
-        "note": "Function→Workload code-to-workload binding (not WorkloadInstance→CloudResource)"
+        "note": "Function\u2192Workload code-to-workload binding (not WorkloadInstance\u2192CloudResource)"
       },
       "RUNS_IMAGE": {
         "min": 1,
         "max": 30,
-        "note": "KubernetesWorkload→OciImageManifest supply-chain image correlation"
+        "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation"
       },
       "HANDLES_ROUTE": {
         "min": 1,
@@ -175,12 +175,12 @@
       "USES": {
         "min": 0,
         "max": 100,
-        "note": "WorkloadInstance→CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
+        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
       },
       "GRANTS_ACCESS_TO": {
         "min": 0,
         "max": 100,
-        "note": "CloudResource→ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
+        "note": "CloudResource\u2192ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
       },
       "CAN_ASSUME": {
         "min": 0,
@@ -205,12 +205,12 @@
       "PROVISIONS_PLATFORM": {
         "min": 0,
         "max": 20,
-        "note": "Repository→Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
+        "note": "Repository\u2192Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
       },
       "PROVISIONS_DEPENDENCY_FOR": {
         "min": 0,
         "max": 100,
-        "note": "Repository→Repository service materialization dependency edges"
+        "note": "Repository\u2192Repository service materialization dependency edges"
       },
       "SECRETS_IAM_USES_SERVICE_ACCOUNT": {
         "min": 0,
@@ -225,7 +225,7 @@
       "SECRETS_IAM_GRANTS_SECRET_READ": {
         "min": 0,
         "max": 0,
-        "note": "vault_live policy→secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
+        "note": "vault_live policy\u2192secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
       },
       "SECRETS_IAM_USES_VAULT_POLICY": {
         "min": 0,
@@ -249,7 +249,7 @@
       },
       {
         "id": "rc-2",
-        "description": "At least one Function RUNS_IN a Workload; confirms code-to-workload binding ran (RUNS_IN goes Function→Workload, not WorkloadInstance→CloudResource)",
+        "description": "At least one Function RUNS_IN a Workload; confirms code-to-workload binding ran (RUNS_IN goes Function\u2192Workload, not WorkloadInstance\u2192CloudResource)",
         "relationship": "RUNS_IN",
         "from_label": "Function",
         "to_label": "Workload",
@@ -257,7 +257,7 @@
       },
       {
         "id": "rc-3",
-        "description": "Cross-repo Repository DEPENDS_ON Repository edges exist; confirms the B-13 fix — repo_dependency shared_projection_intents drained correctly",
+        "description": "Cross-repo Repository DEPENDS_ON Repository edges exist; confirms the B-13 fix \u2014 repo_dependency shared_projection_intents drained correctly",
         "relationship": "DEPENDS_ON",
         "from_label": "Repository",
         "to_label": "Repository",
@@ -303,37 +303,265 @@
         "to_label": "Endpoint",
         "minimum_count": 1
       },
-      { "id": "rc-11", "description": "A Function CALLS another Function; the code call graph projected from the comprehensive code fixtures.", "relationship": "CALLS", "from_label": "Function", "to_label": "Function", "minimum_count": 1 },
-      { "id": "rc-12", "description": "A Class INHERITS another Class; class hierarchy projected from the code fixtures.", "relationship": "INHERITS", "from_label": "Class", "to_label": "Class", "minimum_count": 1 },
-      { "id": "rc-13", "description": "A Function REFERENCES a Struct; symbol reference projected from the Go fixtures.", "relationship": "REFERENCES", "from_label": "Function", "to_label": "Struct", "minimum_count": 1 },
-      { "id": "rc-14", "description": "A Repository DEFINES a Workload; workload definition projected from in-repo deploy manifests.", "relationship": "DEFINES", "from_label": "Repository", "to_label": "Workload", "minimum_count": 1 },
-      { "id": "rc-15", "description": "A Function INSTANTIATES a Class; construction edge projected from the code fixtures.", "relationship": "INSTANTIATES", "from_label": "Function", "to_label": "Class", "minimum_count": 1 },
-      { "id": "rc-16", "description": "A WorkloadInstance is an INSTANCE_OF a Workload; runtime instance correlation (workload materialization, same machinery as rc-2).", "relationship": "INSTANCE_OF", "from_label": "WorkloadInstance", "to_label": "Workload", "minimum_count": 1 },
-      { "id": "rc-17", "description": "A Workload EXPOSES_ENDPOINT an Endpoint; runtime endpoint exposure (workload materialization, same machinery as rc-2/rc-8).", "relationship": "EXPOSES_ENDPOINT", "from_label": "Workload", "to_label": "Endpoint", "minimum_count": 1 },
-      { "id": "rc-18", "description": "A WorkloadInstance RUNS_ON a Platform; runtime placement correlation (workload materialization).", "relationship": "RUNS_ON", "from_label": "WorkloadInstance", "to_label": "Platform", "minimum_count": 1 },
-      { "id": "rc-19", "description": "A Repository DEPLOYS_FROM another Repository; deployment-source correlation (same deployable machinery as rc-1).", "relationship": "DEPLOYS_FROM", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1 },
-      { "id": "rc-20", "description": "A WorkloadInstance DEPLOYMENT_SOURCE a Repository; runtime-to-source correlation (workload materialization).", "relationship": "DEPLOYMENT_SOURCE", "from_label": "WorkloadInstance", "to_label": "Repository", "minimum_count": 1 },
-      { "id": "rc-21", "description": "A Repository HAS_DEPLOYMENT_EVIDENCE an EvidenceArtifact; deployment evidence correlation.", "relationship": "HAS_DEPLOYMENT_EVIDENCE", "from_label": "Repository", "to_label": "EvidenceArtifact", "minimum_count": 1 },
-      { "id": "rc-22", "description": "An EvidenceArtifact EVIDENCES_REPOSITORY_RELATIONSHIP a Repository; evidence provenance edge.", "relationship": "EVIDENCES_REPOSITORY_RELATIONSHIP", "from_label": "EvidenceArtifact", "to_label": "Repository", "minimum_count": 1 },
-      { "id": "rc-23", "description": "A Class USES_METACLASS another Class; Python metaclass edge projected from the python fixtures.", "relationship": "USES_METACLASS", "from_label": "Class", "to_label": "Class", "minimum_count": 1 },
-      { "id": "rc-10", "description": "A Function INVOKES_CLOUD_ACTION a CloudAction; the go_comprehensive cloud_actions.go AWS-SDK call site (s3.PutObject) resolves to the s3:putobject CAN_PERFORM catalog action. Regression guard for the filterUpsertRows action-field collision that previously dropped every such upsert.", "relationship": "INVOKES_CLOUD_ACTION", "from_label": "Function", "to_label": "CloudAction", "minimum_count": 1 },
-      { "id": "rc-9", "description": "A PackageDependency DEPENDS_ON_PACKAGE a Package; the package_registry supply-chain-demo cassette carries a package_version + package_dependency fact for github.com/acme/lib-common@1.0.0 declaring a direct dependency on github.com/acme/synthetic-dep, and the package_registry canonical writer materialises the dependency edge. Requires the non-git source-local projector path to run during the gate.", "relationship": "DEPENDS_ON_PACKAGE", "from_label": "PackageDependency", "to_label": "Package", "minimum_count": 1 },
-      { "id": "rc-24", "description": "A Package HAS_VERSION a PackageVersion; the package_registry supply-chain-demo cassette's package + package_version facts project the version node and the HAS_VERSION edge via the deferred package_registry edge group (rc-9 NornicDB fix). Locks in the package_registry canonical version edge.", "relationship": "HAS_VERSION", "from_label": "Package", "to_label": "PackageVersion", "minimum_count": 1 },
-      { "id": "rc-25", "description": "A PackageVersion DECLARES_DEPENDENCY a PackageDependency; the package_registry package_version + package_dependency facts project the dependency node and the DECLARES_DEPENDENCY edge via the deferred package_registry edge group. The version-side companion to rc-9's DEPENDS_ON_PACKAGE.", "relationship": "DECLARES_DEPENDENCY", "from_label": "PackageVersion", "to_label": "PackageDependency", "minimum_count": 1 },
-      { "id": "rc-26", "description": "A Repository PROVISIONS_PLATFORM a Platform; the terragrunt_comprehensive fixture's HCL declares cluster/platform resources (EKS/VPC/RDS module families) that the reducer infrastructure-platform extractor recognises, and the InfrastructurePlatformMaterializer projects the Platform node plus the PROVISIONS_PLATFORM edge. The base terraform_comprehensive fixture alone does not emit it (verified count=0 without terragrunt), so this locks in the terragrunt/IaC platform-provisioning verb.", "relationship": "PROVISIONS_PLATFORM", "from_label": "Repository", "to_label": "Platform", "minimum_count": 1 },
-      { "id": "rc-27", "description": "A GitlabPipeline DEFINES_JOB a GitlabJob; the terraform_comprehensive fixture carries a depth-0 .gitlab-ci.yml whose validate/plan jobs are declared by the single pipeline node. Static-parse edge, no cassette.", "relationship": "DEFINES_JOB", "from_label": "GitlabPipeline", "to_label": "GitlabJob", "minimum_count": 1 },
-      { "id": "rc-28", "description": "A GitlabJob NEEDS another GitlabJob; the terraform_comprehensive .gitlab-ci.yml terraform-plan job declares needs: [terraform-validate], resolved to the sibling job within the same file. Distinct NEEDS edge type, not the generic DEPENDS_ON.", "relationship": "NEEDS", "from_label": "GitlabJob", "to_label": "GitlabJob", "minimum_count": 1 },
-      { "id": "rc-29", "description": "A Repository DEPLOYS_FROM another Repository via Kustomize; the kustomize-deployable-overlay fixture's kustomization.yaml declares a remote Kustomize base github.com/acme/deployable-source//k8s, which the relationships engine emits as KUSTOMIZE_RESOURCE_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPLOYS_FROM is a tool-agnostic edge also emitted by ArgoCD (rc-19), so this correlation filters on evidence_kinds=[KUSTOMIZE_RESOURCE_REFERENCE] to isolate the Kustomize deployment-source verb; the count is provably zero without the kustomize-deployable-overlay fixture.", "relationship": "DEPLOYS_FROM", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1, "evidence_kinds": ["KUSTOMIZE_RESOURCE_REFERENCE"] },
-      { "id": "rc-30", "description": "A Repository DEPENDS_ON another Repository via an Ansible role reference; the ansible-platform-playbooks fixture's playbooks/site.yml applies the ansible-shared-roles role, which the relationships engine emits as ANSIBLE_ROLE_REFERENCE evidence resolving to the in-corpus ansible-shared-roles repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3), so this correlation filters on evidence_kinds=[ANSIBLE_ROLE_REFERENCE] to isolate the Ansible role-dependency verb; the count is provably zero without the ansible-platform-playbooks fixture.", "relationship": "DEPENDS_ON", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1, "evidence_kinds": ["ANSIBLE_ROLE_REFERENCE"] },
-      { "id": "rc-31", "description": "A Repository DISCOVERS_CONFIG_IN another Repository via a Jenkins pipeline; the jenkins-ci-pipelines fixture's Jenkinsfile checks out github.com/acme/deployable-source, which the relationships engine emits as JENKINS_GITHUB_REPOSITORY evidence resolving to the in-corpus deployable-source repository. DISCOVERS_CONFIG_IN is also emitted by Terraform, Terragrunt and GitHub Actions, so this correlation filters on evidence_kinds=[JENKINS_GITHUB_REPOSITORY] to isolate the Jenkins config-discovery verb; the count is provably zero without the jenkins-ci-pipelines fixture.", "relationship": "DISCOVERS_CONFIG_IN", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1, "evidence_kinds": ["JENKINS_GITHUB_REPOSITORY"] },
-      { "id": "rc-32", "description": "A Repository DEPENDS_ON another Repository via a Puppet module reference; the puppet-platform-modules fixture's Puppetfile declares an r10k mod acme-base whose :git source is github.com/acme/deployable-source, which the relationships engine emits as PUPPET_MODULE_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3) and Ansible roles (rc-30), so this correlation filters on evidence_kinds=[PUPPET_MODULE_REFERENCE] to isolate the Puppet module-dependency verb; the count is provably zero without the puppet-platform-modules fixture.", "relationship": "DEPENDS_ON", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1, "evidence_kinds": ["PUPPET_MODULE_REFERENCE"] },
-      { "id": "rc-33", "description": "A Repository DEPENDS_ON another Repository via a Chef cookbook dependency; the chef-cookbooks fixture's Berksfile declares a Berkshelf cookbook acme-base whose git: source is github.com/acme/deployable-source, which the relationships engine emits as CHEF_COOKBOOK_DEPENDENCY evidence resolving to the in-corpus deployable-source repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3), Ansible roles (rc-30) and Puppet modules (rc-32), so this correlation filters on evidence_kinds=[CHEF_COOKBOOK_DEPENDENCY] to isolate the Chef cookbook-dependency verb; the count is provably zero without the chef-cookbooks fixture.", "relationship": "DEPENDS_ON", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1, "evidence_kinds": ["CHEF_COOKBOOK_DEPENDENCY"] },
-      { "id": "rc-34", "description": "A Repository DEPLOYS_FROM another Repository via a Helm chart dependency; the helm-umbrella-chart fixture's Chart.yaml declares a subchart dependency whose repository is github.com/acme/deployable-source, which the relationships engine emits as HELM_CHART_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPLOYS_FROM is a tool-agnostic edge also emitted by ArgoCD (rc-19) and Kustomize (rc-29), so this correlation filters on evidence_kinds=[HELM_CHART_REFERENCE] to isolate the Helm chart-dependency deployment-source verb; the count is provably zero without the helm-umbrella-chart fixture.", "relationship": "DEPLOYS_FROM", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1, "evidence_kinds": ["HELM_CHART_REFERENCE"] },
-      { "id": "rc-35", "description": "A Helm chart template REFERENCES a values.yaml definition via .Values; the helm-template-chart fixture uses {{ .Values.<dotted.path> }} expressions that the parser resolves to the matching leaf keys in the same chart's values.yaml. templates/deployment.yaml contributes 7 usages (replicaCount, image.repository, image.tag, image.pullPolicy, service.port, resources.limits.cpu, resources.limits.memory) and the NESTED templates/config/configmap.yaml contributes service.type (8 total). The nested manifest is the regression guard for #4019: NornicDB previously dropped every file (and its entities) nested >=2 directories deep because the canonical directory write MATCH'd a parent directory MERGE'd in the same transaction; the minimum_count of 8 fails if that depth-2 projection regresses. rc-35 had also been dropped from this snapshot by a merge-order collision while the verify script still required it; it is restored here. Each usage becomes a HelmTemplateValueUsage content entity, each leaf a HelmValueDefinition content entity, and the projector structural-edge phase links usage to definition with a REFERENCES edge. REFERENCES is a tool-agnostic edge also emitted for code-symbol references (rc-13), so this correlation filters on evidence_kinds=[HELM_TEMPLATE_VALUE_REFERENCE] to isolate the Helm template-value usage->definition verb; the count is provably zero without the helm-template-chart fixture (no other corpus repo defines the HelmTemplateValueUsage / HelmValueDefinition node labels).", "relationship": "REFERENCES", "from_label": "HelmTemplateValueUsage", "to_label": "HelmValueDefinition", "minimum_count": 8, "evidence_kinds": ["HELM_TEMPLATE_VALUE_REFERENCE"] },
-      { "id": "rc-36", "description": "A Repository DEPENDS_ON another Repository via a Salt gitfs formula reference; the salt-formulas fixture's master.yaml declares a Salt gitfs_remotes list whose first remote is github.com/acme/deployable-source, which the relationships engine emits as SALT_FORMULA_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3), Ansible roles (rc-30), Puppet modules (rc-32) and Chef cookbooks (rc-33), so this correlation filters on evidence_kinds=[SALT_FORMULA_REFERENCE] to isolate the Salt gitfs formula-dependency verb; the count is provably zero without the salt-formulas fixture.", "relationship": "DEPENDS_ON", "from_label": "Repository", "to_label": "Repository", "minimum_count": 1, "evidence_kinds": ["SALT_FORMULA_REFERENCE"] }
+      {
+        "id": "rc-11",
+        "description": "A Function CALLS another Function; the code call graph projected from the comprehensive code fixtures.",
+        "relationship": "CALLS",
+        "from_label": "Function",
+        "to_label": "Function",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-12",
+        "description": "A Class INHERITS another Class; class hierarchy projected from the code fixtures.",
+        "relationship": "INHERITS",
+        "from_label": "Class",
+        "to_label": "Class",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-13",
+        "description": "A Function REFERENCES a Struct; symbol reference projected from the Go fixtures.",
+        "relationship": "REFERENCES",
+        "from_label": "Function",
+        "to_label": "Struct",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-14",
+        "description": "A Repository DEFINES a Workload; workload definition projected from in-repo deploy manifests.",
+        "relationship": "DEFINES",
+        "from_label": "Repository",
+        "to_label": "Workload",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-15",
+        "description": "A Function INSTANTIATES a Class; construction edge projected from the code fixtures.",
+        "relationship": "INSTANTIATES",
+        "from_label": "Function",
+        "to_label": "Class",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-16",
+        "description": "A WorkloadInstance is an INSTANCE_OF a Workload; runtime instance correlation (workload materialization, same machinery as rc-2).",
+        "relationship": "INSTANCE_OF",
+        "from_label": "WorkloadInstance",
+        "to_label": "Workload",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-17",
+        "description": "A Workload EXPOSES_ENDPOINT an Endpoint; runtime endpoint exposure (workload materialization, same machinery as rc-2/rc-8).",
+        "relationship": "EXPOSES_ENDPOINT",
+        "from_label": "Workload",
+        "to_label": "Endpoint",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-18",
+        "description": "A WorkloadInstance RUNS_ON a Platform; runtime placement correlation (workload materialization).",
+        "relationship": "RUNS_ON",
+        "from_label": "WorkloadInstance",
+        "to_label": "Platform",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-19",
+        "description": "A Repository DEPLOYS_FROM another Repository; deployment-source correlation (same deployable machinery as rc-1).",
+        "relationship": "DEPLOYS_FROM",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-20",
+        "description": "A WorkloadInstance DEPLOYMENT_SOURCE a Repository; runtime-to-source correlation (workload materialization).",
+        "relationship": "DEPLOYMENT_SOURCE",
+        "from_label": "WorkloadInstance",
+        "to_label": "Repository",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-21",
+        "description": "A Repository HAS_DEPLOYMENT_EVIDENCE an EvidenceArtifact; deployment evidence correlation.",
+        "relationship": "HAS_DEPLOYMENT_EVIDENCE",
+        "from_label": "Repository",
+        "to_label": "EvidenceArtifact",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-22",
+        "description": "An EvidenceArtifact EVIDENCES_REPOSITORY_RELATIONSHIP a Repository; evidence provenance edge.",
+        "relationship": "EVIDENCES_REPOSITORY_RELATIONSHIP",
+        "from_label": "EvidenceArtifact",
+        "to_label": "Repository",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-23",
+        "description": "A Class USES_METACLASS another Class; Python metaclass edge projected from the python fixtures.",
+        "relationship": "USES_METACLASS",
+        "from_label": "Class",
+        "to_label": "Class",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-10",
+        "description": "A Function INVOKES_CLOUD_ACTION a CloudAction; the go_comprehensive cloud_actions.go AWS-SDK call site (s3.PutObject) resolves to the s3:putobject CAN_PERFORM catalog action. Regression guard for the filterUpsertRows action-field collision that previously dropped every such upsert.",
+        "relationship": "INVOKES_CLOUD_ACTION",
+        "from_label": "Function",
+        "to_label": "CloudAction",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-9",
+        "description": "A PackageDependency DEPENDS_ON_PACKAGE a Package; the package_registry supply-chain-demo cassette carries a package_version + package_dependency fact for github.com/acme/lib-common@1.0.0 declaring a direct dependency on github.com/acme/synthetic-dep, and the package_registry canonical writer materialises the dependency edge. Requires the non-git source-local projector path to run during the gate.",
+        "relationship": "DEPENDS_ON_PACKAGE",
+        "from_label": "PackageDependency",
+        "to_label": "Package",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-24",
+        "description": "A Package HAS_VERSION a PackageVersion; the package_registry supply-chain-demo cassette's package + package_version facts project the version node and the HAS_VERSION edge via the deferred package_registry edge group (rc-9 NornicDB fix). Locks in the package_registry canonical version edge.",
+        "relationship": "HAS_VERSION",
+        "from_label": "Package",
+        "to_label": "PackageVersion",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-25",
+        "description": "A PackageVersion DECLARES_DEPENDENCY a PackageDependency; the package_registry package_version + package_dependency facts project the dependency node and the DECLARES_DEPENDENCY edge via the deferred package_registry edge group. The version-side companion to rc-9's DEPENDS_ON_PACKAGE.",
+        "relationship": "DECLARES_DEPENDENCY",
+        "from_label": "PackageVersion",
+        "to_label": "PackageDependency",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-26",
+        "description": "A Repository PROVISIONS_PLATFORM a Platform; the terragrunt_comprehensive fixture's HCL declares cluster/platform resources (EKS/VPC/RDS module families) that the reducer infrastructure-platform extractor recognises, and the InfrastructurePlatformMaterializer projects the Platform node plus the PROVISIONS_PLATFORM edge. The base terraform_comprehensive fixture alone does not emit it (verified count=0 without terragrunt), so this locks in the terragrunt/IaC platform-provisioning verb.",
+        "relationship": "PROVISIONS_PLATFORM",
+        "from_label": "Repository",
+        "to_label": "Platform",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-27",
+        "description": "A GitlabPipeline DEFINES_JOB a GitlabJob; the terraform_comprehensive fixture carries a depth-0 .gitlab-ci.yml whose validate/plan jobs are declared by the single pipeline node. Static-parse edge, no cassette.",
+        "relationship": "DEFINES_JOB",
+        "from_label": "GitlabPipeline",
+        "to_label": "GitlabJob",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-28",
+        "description": "A GitlabJob NEEDS another GitlabJob; the terraform_comprehensive .gitlab-ci.yml terraform-plan job declares needs: [terraform-validate], resolved to the sibling job within the same file. Distinct NEEDS edge type, not the generic DEPENDS_ON.",
+        "relationship": "NEEDS",
+        "from_label": "GitlabJob",
+        "to_label": "GitlabJob",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-29",
+        "description": "A Repository DEPLOYS_FROM another Repository via Kustomize; the kustomize-deployable-overlay fixture's kustomization.yaml declares a remote Kustomize base github.com/acme/deployable-source//k8s, which the relationships engine emits as KUSTOMIZE_RESOURCE_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPLOYS_FROM is a tool-agnostic edge also emitted by ArgoCD (rc-19), so this correlation filters on evidence_kinds=[KUSTOMIZE_RESOURCE_REFERENCE] to isolate the Kustomize deployment-source verb; the count is provably zero without the kustomize-deployable-overlay fixture.",
+        "relationship": "DEPLOYS_FROM",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "KUSTOMIZE_RESOURCE_REFERENCE"
+        ]
+      },
+      {
+        "id": "rc-30",
+        "description": "A Repository DEPENDS_ON another Repository via an Ansible role reference; the ansible-platform-playbooks fixture's playbooks/site.yml applies the ansible-shared-roles role, which the relationships engine emits as ANSIBLE_ROLE_REFERENCE evidence resolving to the in-corpus ansible-shared-roles repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3), so this correlation filters on evidence_kinds=[ANSIBLE_ROLE_REFERENCE] to isolate the Ansible role-dependency verb; the count is provably zero without the ansible-platform-playbooks fixture.",
+        "relationship": "DEPENDS_ON",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "ANSIBLE_ROLE_REFERENCE"
+        ]
+      },
+      {
+        "id": "rc-31",
+        "description": "A Repository DISCOVERS_CONFIG_IN another Repository via a Jenkins pipeline; the jenkins-ci-pipelines fixture's Jenkinsfile checks out github.com/acme/deployable-source, which the relationships engine emits as JENKINS_GITHUB_REPOSITORY evidence resolving to the in-corpus deployable-source repository. DISCOVERS_CONFIG_IN is also emitted by Terraform, Terragrunt and GitHub Actions, so this correlation filters on evidence_kinds=[JENKINS_GITHUB_REPOSITORY] to isolate the Jenkins config-discovery verb; the count is provably zero without the jenkins-ci-pipelines fixture.",
+        "relationship": "DISCOVERS_CONFIG_IN",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "JENKINS_GITHUB_REPOSITORY"
+        ]
+      },
+      {
+        "id": "rc-32",
+        "description": "A Repository DEPENDS_ON another Repository via a Puppet module reference; the puppet-platform-modules fixture's Puppetfile declares an r10k mod acme-base whose :git source is github.com/acme/deployable-source, which the relationships engine emits as PUPPET_MODULE_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3) and Ansible roles (rc-30), so this correlation filters on evidence_kinds=[PUPPET_MODULE_REFERENCE] to isolate the Puppet module-dependency verb; the count is provably zero without the puppet-platform-modules fixture.",
+        "relationship": "DEPENDS_ON",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "PUPPET_MODULE_REFERENCE"
+        ]
+      },
+      {
+        "id": "rc-33",
+        "description": "A Repository DEPENDS_ON another Repository via a Chef cookbook dependency; the chef-cookbooks fixture's Berksfile declares a Berkshelf cookbook acme-base whose git: source is github.com/acme/deployable-source, which the relationships engine emits as CHEF_COOKBOOK_DEPENDENCY evidence resolving to the in-corpus deployable-source repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3), Ansible roles (rc-30) and Puppet modules (rc-32), so this correlation filters on evidence_kinds=[CHEF_COOKBOOK_DEPENDENCY] to isolate the Chef cookbook-dependency verb; the count is provably zero without the chef-cookbooks fixture.",
+        "relationship": "DEPENDS_ON",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "CHEF_COOKBOOK_DEPENDENCY"
+        ]
+      },
+      {
+        "id": "rc-34",
+        "description": "A Repository DEPLOYS_FROM another Repository via a Helm chart dependency; the helm-umbrella-chart fixture's Chart.yaml declares a subchart dependency whose repository is github.com/acme/deployable-source, which the relationships engine emits as HELM_CHART_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPLOYS_FROM is a tool-agnostic edge also emitted by ArgoCD (rc-19) and Kustomize (rc-29), so this correlation filters on evidence_kinds=[HELM_CHART_REFERENCE] to isolate the Helm chart-dependency deployment-source verb; the count is provably zero without the helm-umbrella-chart fixture.",
+        "relationship": "DEPLOYS_FROM",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "HELM_CHART_REFERENCE"
+        ]
+      },
+      {
+        "id": "rc-35",
+        "description": "A Helm chart template REFERENCES a values.yaml definition via .Values; the helm-template-chart fixture uses {{ .Values.<dotted.path> }} expressions that the parser resolves to the matching leaf keys in the same chart's values.yaml. templates/deployment.yaml contributes 7 usages (replicaCount, image.repository, image.tag, image.pullPolicy, service.port, resources.limits.cpu, resources.limits.memory) and the NESTED templates/config/configmap.yaml contributes service.type (8 total). The nested manifest is the regression guard for #4019: NornicDB previously dropped every file (and its entities) nested >=2 directories deep because the canonical directory write MATCH'd a parent directory MERGE'd in the same transaction; the minimum_count of 8 fails if that depth-2 projection regresses. rc-35 had also been dropped from this snapshot by a merge-order collision while the verify script still required it; it is restored here. Each usage becomes a HelmTemplateValueUsage content entity, each leaf a HelmValueDefinition content entity, and the projector structural-edge phase links usage to definition with a REFERENCES edge. REFERENCES is a tool-agnostic edge also emitted for code-symbol references (rc-13), so this correlation filters on evidence_kinds=[HELM_TEMPLATE_VALUE_REFERENCE] to isolate the Helm template-value usage->definition verb; the count is provably zero without the helm-template-chart fixture (no other corpus repo defines the HelmTemplateValueUsage / HelmValueDefinition node labels).",
+        "relationship": "REFERENCES",
+        "from_label": "HelmTemplateValueUsage",
+        "to_label": "HelmValueDefinition",
+        "minimum_count": 8,
+        "evidence_kinds": [
+          "HELM_TEMPLATE_VALUE_REFERENCE"
+        ]
+      },
+      {
+        "id": "rc-36",
+        "description": "A Repository DEPENDS_ON another Repository via a Salt gitfs formula reference; the salt-formulas fixture's master.yaml declares a Salt gitfs_remotes list whose first remote is github.com/acme/deployable-source, which the relationships engine emits as SALT_FORMULA_REFERENCE evidence resolving to the in-corpus deployable-source repository. DEPENDS_ON is a tool-agnostic edge also emitted by package consumption (rc-3), Ansible roles (rc-30), Puppet modules (rc-32) and Chef cookbooks (rc-33), so this correlation filters on evidence_kinds=[SALT_FORMULA_REFERENCE] to isolate the Salt gitfs formula-dependency verb; the count is provably zero without the salt-formulas fixture.",
+        "relationship": "DEPENDS_ON",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "SALT_FORMULA_REFERENCE"
+        ]
+      }
     ],
     "required_nodes": [
-      { "id": "rn-file-language", "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor — legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.", "label": "File", "minimum_count": 10, "required_node_properties": ["language"] }
+      {
+        "id": "rn-file-language",
+        "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor \u2014 legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.",
+        "label": "File",
+        "minimum_count": 10,
+        "required_node_properties": [
+          "language"
+        ]
+      }
     ]
   },
   "drain_assertions": {
@@ -344,31 +572,48 @@
     },
     "shared_projection_intents": {
       "nonterminal_max": 0,
-      "note": "all rows must have completed_at IS NOT NULL; the repo_dependency domain (B-13 #3859) is the primary gate — nonterminal intents here indicate the activation-gate bypass is not working or the drain budget was exceeded"
+      "note": "all rows must have completed_at IS NOT NULL; the repo_dependency domain (B-13 #3859) is the primary gate \u2014 nonterminal intents here indicate the activation-gate bypass is not working or the drain budget was exceeded"
     }
   },
   "query_shapes": {
     "mcp": {
       "list_indexed_repositories": {
         "description": "Returns the indexed repository list (under the truth-envelope data); confirms the corpus was ingested. Asserted live through the MCP tool layer (#3866).",
-        "required_response_fields": ["repositories"],
+        "required_response_fields": [
+          "repositories"
+        ],
         "minimum_results": 1
       },
       "get_repo_summary": {
         "description": "Returns a single repo's stats object; confirms graph projection is complete for the queried repo. Object response (minimum_results 0); needs a repo selector.",
-        "required_response_fields": ["repository", "file_count", "languages", "entity_count", "entity_types", "coverage"],
+        "required_response_fields": [
+          "repository",
+          "file_count",
+          "languages",
+          "entity_count",
+          "entity_types",
+          "coverage"
+        ],
         "minimum_results": 0,
-        "arguments": {"repo_name": "orders-api"}
+        "arguments": {
+          "repo_name": "orders-api"
+        }
       },
       "list_kubernetes_correlations": {
         "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector.",
-        "required_response_fields": ["correlations"],
+        "required_response_fields": [
+          "correlations"
+        ],
         "minimum_results": 1,
-        "arguments": {"cluster_id": "supply-chain-demo"}
+        "arguments": {
+          "cluster_id": "supply-chain-demo"
+        }
       },
       "list_cloud_resource_inventory": {
         "description": "Returns cloud resource inventory (AWS/Azure/GCP cassettes); confirms cloud facts were ingested and projected. Route now mounted on the MCP server (#4071); asserted live (#3866).",
-        "required_response_fields": ["resources"],
+        "required_response_fields": [
+          "resources"
+        ],
         "minimum_results": 1
       }
     },
@@ -376,11 +621,134 @@
       "GET /api/v0/repositories": {
         "description": "Repository list endpoint (not /api/v0/repos)",
         "minimum_results": 1,
-        "required_response_fields": ["repositories"]
+        "required_response_fields": [
+          "repositories"
+        ]
       },
       "GET /api/v0/status/operator-control-plane": {
         "description": "Operator control plane status; confirms the status projection is operational",
-        "required_response_fields": ["version", "as_of", "health", "queue", "reducer_domains", "collector_families", "dead_letters", "retry_policies"]
+        "required_response_fields": [
+          "version",
+          "as_of",
+          "health",
+          "queue",
+          "reducer_domains",
+          "collector_families",
+          "dead_letters",
+          "retry_policies"
+        ]
+      },
+      "GET /api/v0/cloud/inventory": {
+        "description": "Cloud resource inventory readback (AWS/Azure/GCP cassettes); confirms cloud facts project to the inventory read surface.",
+        "required_response_fields": [
+          "resources",
+          "count"
+        ],
+        "minimum_results": 1
+      },
+      "GET /api/v0/cloud/resources": {
+        "description": "Cloud resources readback; confirms CloudResource projection is queryable.",
+        "required_response_fields": [
+          "resources",
+          "count"
+        ],
+        "minimum_results": 1
+      },
+      "GET /api/v0/images": {
+        "description": "Container image list (OCI/cloud cassettes); confirms OciImage projection is queryable.",
+        "required_response_fields": [
+          "images",
+          "count"
+        ],
+        "minimum_results": 1
+      },
+      "GET /api/v0/incidents/PSCD1/context": {
+        "description": "Incident context for the pagerduty supply-chain-demo incident; confirms the incident fact is read-queryable.",
+        "required_response_fields": [
+          "incident",
+          "query"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD": {
+        "description": "Work-item evidence for the jira supply-chain-demo scope; confirms work_item facts are read-queryable.",
+        "required_response_fields": [
+          "evidence",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom": {
+        "description": "SBOM attestation attachments for the synthetic supply-chain-demo SBOM document.",
+        "required_response_fields": [
+          "attachments",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {
+        "description": "Supply-chain impact findings for the synthetic supply-chain-demo CVE.",
+        "required_response_fields": [
+          "findings",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50": {
+        "description": "Observability coverage correlations (tempo); confirms the observability coverage read surface is queryable.",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/iac/resources?limit=50": {
+        "description": "IaC resource list from the terraform/IaC corpus; confirms the IaC read surface is queryable.",
+        "required_response_fields": [
+          "resources",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/documentation/facts?fact_kind=source": {
+        "description": "Documentation source facts; confirms the documentation read surface is queryable.",
+        "required_response_fields": [
+          "facts",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/package-registry/packages?ecosystem=go&limit=50": {
+        "description": "Package registry packages (npm ecosystem); confirms package projection is queryable.",
+        "required_response_fields": [
+          "packages",
+          "count"
+        ],
+        "minimum_results": 1
+      },
+      "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo": {
+        "description": "Secrets/IAM posture summary (governed projection, default-off per ADR #1314); confirms the read surface is mounted and returns a valid summary object.",
+        "required_response_fields": [
+          "scope_id",
+          "summary"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo": {
+        "description": "CI/CD run correlations for a scope; confirms the ci-cd read surface is mounted and queryable.",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo": {
+        "description": "Service-catalog correlations for a scope; confirms the service-catalog read surface is mounted and queryable.",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "minimum_results": 0
       }
     }
   },
