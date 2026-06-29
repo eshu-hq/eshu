@@ -9,13 +9,15 @@
 // invocations, calls, selected dead-code root evidence, attributes, derives,
 // conditional derives, nested field and enum-variant annotations, generic
 // parameter evidence, trait declaration context, impl-context evidence, direct
-// parameter receiver type evidence, and structured where-clause evidence. Bare
-// Rust main roots require a Cargo entrypoint path such as src/main.rs, src/bin,
-// examples, or build.rs, or direct runtime macro evidence, so library functions
-// named main do not become roots by name alone. Public API roots require exact pub
-// visibility, and benchmark roots require file-local Criterion identifier
-// targets or direct benchmark attributes; generated or expression-based
-// benchmark targets remain raw macro evidence. Trait declaration methods carry
+// parameter receiver type evidence, structured where-clause evidence, and exact
+// Axum/Actix/Rocket route entries when direct source syntax proves literal path,
+// HTTP method, and handler identifier. Bare Rust main roots require a Cargo
+// entrypoint path such as src/main.rs, src/bin, examples, or build.rs, or direct
+// runtime macro evidence, so library functions named main do not become roots by
+// name alone. Public API roots require exact pub visibility, and benchmark roots
+// require file-local Criterion identifier targets or direct benchmark attributes;
+// generated or expression-based benchmark targets remain raw macro evidence.
+// Trait declaration methods carry
 // their trait context. Trait implementation methods, including unsafe impl
 // blocks, carry rust.trait_impl_method root evidence with their trait context so
 // dead-code callers can keep runtime-dispatched trait surfaces conservative.
@@ -46,7 +48,8 @@
 // PreScan derives repository symbol names from the same payload path so parent
 // parser pre-scan and full parse agree. The package
 // preserves raw attributes and generic clauses as evidence without inferring
-// reachability from arbitrary macro expansion, derives, conditional attributes,
-// Cargo feature selection, manifest-to-lockfile feature resolution, or cfg
-// evaluation.
+// reachability or route truth from arbitrary macro expansion, derives,
+// conditional attributes, Cargo feature selection, manifest-to-lockfile feature
+// resolution, generated route tables, variable-held routers, closure handlers,
+// or cfg evaluation.
 package rust
