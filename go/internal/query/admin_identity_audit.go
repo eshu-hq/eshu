@@ -19,6 +19,9 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 		WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
 		return
 	}
+	if !requirePermissionFeature(w, r, "audit_export.events", permissionFeatureAuditExport) {
+		return
+	}
 	tenantID, ok := h.auditScope(w, r)
 	if !ok {
 		return
@@ -66,6 +69,9 @@ func (h *AdminIdentityReadHandler) handleListAuditEvents(w http.ResponseWriter, 
 func (h *AdminIdentityReadHandler) handleAuditSummary(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.Audit == nil {
 		WriteError(w, http.StatusServiceUnavailable, "admin audit reader is unavailable")
+		return
+	}
+	if !requirePermissionFeature(w, r, "audit_export.summary", permissionFeatureAuditExport) {
 		return
 	}
 	tenantID, ok := h.auditScope(w, r)

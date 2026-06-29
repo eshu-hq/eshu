@@ -148,6 +148,9 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
+	if !requirePermissionFeature(w, r, "tokens.create", permissionFeatureTokens) {
+		return
+	}
 	var req localIdentityAPITokenCreateRequest
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid local identity api token request")
@@ -182,6 +185,9 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
 		return
 	}
+	if !requirePermissionFeature(w, r, "tokens.revoke", permissionFeatureTokens) {
+		return
+	}
 	var req localIdentityAPITokenRevokeRequest
 	if err := readOptionalAPITokenRevokeRequest(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid local identity api token revoke request")
@@ -212,6 +218,9 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 
 func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
+		return
+	}
+	if !requirePermissionFeature(w, r, "tokens.rotate", permissionFeatureTokens) {
 		return
 	}
 	var req localIdentityAPITokenRotateRequest

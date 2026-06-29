@@ -71,6 +71,21 @@ func (h *AdminIdentityMutationHandler) adminScope(
 	return auth.TenantID, auth.WorkspaceID, true
 }
 
+func (h *AdminIdentityMutationHandler) requirePermissionFeature(
+	w http.ResponseWriter,
+	r *http.Request,
+	eventType governanceaudit.EventType,
+	capability string,
+	feature string,
+) bool {
+	if authContextAllowsPermissionFeature(r.Context(), feature) {
+		return true
+	}
+	h.audit(r, eventType, governanceaudit.DecisionDenied, "permission_catalog_denied", "")
+	writePermissionDeniedEnvelope(w, capability)
+	return false
+}
+
 // resolveWorkspace narrows the caller's AuthContext workspace by an optional
 // request workspace_id. A blank request workspace keeps the AuthContext
 // workspace; a non-blank request workspace must match it, so a tenant admin can
@@ -94,6 +109,9 @@ func (h *AdminIdentityMutationHandler) handleRevokeInvitation(w http.ResponseWri
 	// EventTypeRoleGrantChange covers invitation revocation: no
 	// invitation-specific event type exists in the governance audit catalog.
 	const eventType = governanceaudit.EventTypeRoleGrantChange
+	if !h.requirePermissionFeature(w, r, eventType, "identity_admin.invitation_revoke", permissionFeatureIdentityAdmin) {
+		return
+	}
 	tenantID, workspaceID, ok := h.adminScope(w, r, eventType)
 	if !ok {
 		return
@@ -141,6 +159,9 @@ func (h *AdminIdentityMutationHandler) handleGrantRoleAssignment(w http.Response
 		return
 	}
 	const eventType = governanceaudit.EventTypeRoleGrantChange
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.assignment_grant", permissionFeatureRolesGrants) {
+		return
+	}
 	tenantID, authWorkspaceID, ok := h.adminScope(w, r, eventType)
 	if !ok {
 		return
@@ -205,6 +226,9 @@ func (h *AdminIdentityMutationHandler) handleRevokeRoleAssignment(w http.Respons
 		return
 	}
 	const eventType = governanceaudit.EventTypeRoleGrantChange
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.assignment_revoke", permissionFeatureRolesGrants) {
+		return
+	}
 	tenantID, authWorkspaceID, ok := h.adminScope(w, r, eventType)
 	if !ok {
 		return
@@ -259,6 +283,9 @@ func (h *AdminIdentityMutationHandler) handleCreateIdPGroupMapping(w http.Respon
 		return
 	}
 	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.idp_group_mapping_create", permissionFeatureRolesGrants) {
+		return
+	}
 	tenantID, authWorkspaceID, ok := h.adminScope(w, r, eventType)
 	if !ok {
 		return
@@ -334,6 +361,9 @@ func (h *AdminIdentityMutationHandler) handleDeleteIdPGroupMapping(w http.Respon
 		return
 	}
 	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.requirePermissionFeature(w, r, eventType, "roles_grants.idp_group_mapping_delete", permissionFeatureRolesGrants) {
+		return
+	}
 	tenantID, workspaceID, ok := h.adminScope(w, r, eventType)
 	if !ok {
 		return

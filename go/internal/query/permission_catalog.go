@@ -8,7 +8,13 @@ import (
 	"net/http"
 )
 
-const permissionFeatureAskSearch = "ask_search"
+const (
+	permissionFeatureAskSearch     = "ask_search"
+	permissionFeatureAuditExport   = "audit_export"
+	permissionFeatureIdentityAdmin = "identity_admin"
+	permissionFeatureRolesGrants   = "roles_grants"
+	permissionFeatureTokens        = "tokens"
+)
 
 var permissionDataClassesAskSearch = []string{
 	"ask_reasoning",
@@ -18,7 +24,7 @@ var permissionDataClassesAskSearch = []string{
 
 func authContextAllowsPermissionFeature(ctx context.Context, feature string) bool {
 	auth, ok := AuthContextFromContext(ctx)
-	if !ok || !auth.PermissionCatalogEnforced || auth.AllScopes || auth.Mode == AuthModeShared {
+	if !ok || !auth.PermissionCatalogEnforced || auth.Mode == AuthModeShared {
 		return true
 	}
 	for _, allowed := range auth.AllowedPermissionFeatures {
@@ -31,7 +37,7 @@ func authContextAllowsPermissionFeature(ctx context.Context, feature string) boo
 
 func authContextAllowsPermissionDataClasses(ctx context.Context, dataClasses ...string) bool {
 	auth, ok := AuthContextFromContext(ctx)
-	if !ok || !auth.PermissionCatalogEnforced || auth.AllScopes || auth.Mode == AuthModeShared {
+	if !ok || !auth.PermissionCatalogEnforced || auth.Mode == AuthModeShared {
 		return true
 	}
 	allowed := make(map[string]struct{}, len(auth.AllowedPermissionDataClasses))
@@ -47,6 +53,14 @@ func authContextAllowsPermissionDataClasses(ctx context.Context, dataClasses ...
 		}
 	}
 	return true
+}
+
+func requirePermissionFeature(w http.ResponseWriter, r *http.Request, capability string, feature string) bool {
+	if authContextAllowsPermissionFeature(r.Context(), feature) {
+		return true
+	}
+	writePermissionDeniedEnvelope(w, capability)
+	return false
 }
 
 func writePermissionDeniedEnvelope(w http.ResponseWriter, capability string) {

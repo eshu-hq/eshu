@@ -115,6 +115,9 @@ func (h *AdminIdentityReadHandler) handleListInvitations(w http.ResponseWriter, 
 	if !h.storeReady(w) {
 		return
 	}
+	if !requirePermissionFeature(w, r, "identity_admin.invitations", permissionFeatureIdentityAdmin) {
+		return
+	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)
 	if !ok {
 		return
@@ -151,6 +154,9 @@ func (h *AdminIdentityReadHandler) handleListRoleAssignments(w http.ResponseWrit
 	if !h.storeReady(w) {
 		return
 	}
+	if !requirePermissionFeature(w, r, "roles_grants.assignments", permissionFeatureRolesGrants) {
+		return
+	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)
 	if !ok {
 		return
@@ -184,6 +190,9 @@ func (h *AdminIdentityReadHandler) handleListRoleAssignments(w http.ResponseWrit
 
 func (h *AdminIdentityReadHandler) handleListRoles(w http.ResponseWriter, r *http.Request) {
 	if !h.storeReady(w) {
+		return
+	}
+	if !requirePermissionFeature(w, r, "roles_grants.roles", permissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, _, ok := h.adminScope(w, r)
@@ -228,6 +237,9 @@ func (h *AdminIdentityReadHandler) handleListIdPProviders(w http.ResponseWriter,
 	if !h.storeReady(w) {
 		return
 	}
+	if !requirePermissionFeature(w, r, "identity_admin.idp_providers", permissionFeatureIdentityAdmin) {
+		return
+	}
 	tenantID, _, ok := h.adminScope(w, r)
 	if !ok {
 		return
@@ -254,6 +266,9 @@ func (h *AdminIdentityReadHandler) handleListIdPProviders(w http.ResponseWriter,
 
 func (h *AdminIdentityReadHandler) handleListIdPGroupMappings(w http.ResponseWriter, r *http.Request) {
 	if !h.storeReady(w) {
+		return
+	}
+	if !requirePermissionFeature(w, r, "roles_grants.idp_group_mappings", permissionFeatureRolesGrants) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)
@@ -288,6 +303,9 @@ func (h *AdminIdentityReadHandler) handleListIdPGroupMappings(w http.ResponseWri
 
 func (h *AdminIdentityReadHandler) handleListAPITokens(w http.ResponseWriter, r *http.Request) {
 	if !h.storeReady(w) {
+		return
+	}
+	if !requirePermissionFeature(w, r, "tokens.admin_list", permissionFeatureTokens) {
 		return
 	}
 	tenantID, workspaceID, ok := h.adminScope(w, r)
