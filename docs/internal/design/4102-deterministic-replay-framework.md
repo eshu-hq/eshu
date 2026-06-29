@@ -270,16 +270,17 @@ not realized until coverage is complete, and stays complete.
 ### 12.1 C-1 — the keystone coverage gate (#4173)
 
 `go/cmd/replay-coverage-gate` (logic in `go/internal/replaycoverage`) is the
-keystone. It enumerates every surface Eshu claims to support from four
-machine-readable source-of-truth registries and reports any surface lacking a
-green replay scenario:
+keystone. It enumerates every surface Eshu claims to support from
+machine-readable source-of-truth registries and reports any required
+surface/scenario_type pair lacking a green replay scenario:
 
-| Registry | Required surface | Scenario type |
+| Registry | Required surface | Baseline artifact kind |
 | --- | --- | --- |
 | `surface-inventory.v1.yaml` | collectors on the **implemented** readiness lane | cassette |
 | `fact-kind-registry.v1.yaml` | each distinct `read_surface` | api/mcp golden |
 | `parser-backing-ledger.v1.yaml` | each parser | parser fixture |
 | `capability-matrix.v1.yaml` | each positively-claimed capability | claim / refusal |
+| `product-claims.v1.yaml` | each broad public product claim | deterministic proof ledger |
 
 A curated manifest (`specs/replay-coverage-manifest.v1.yaml`) maps each surface to
 the scenario that exercises it — the natural keys differ across registries and
@@ -291,20 +292,41 @@ generated registries) and **reuses** the golden-corpus gate's advisory→blockin
 
 Coverage is **existence-only**: the gate proves a scenario artifact exists and is
 wired, not that it passes. Greenness is proven by the sibling gate named in each
-manifest entry's `proof_gate` (golden-corpus-gate, the parser fixture tests). That
-split keeps the coverage gate static, credential-free, and Docker-free while never
-claiming a green it did not observe.
+manifest entry's `proof_gate` (golden-corpus-gate, replay tier, parser fixture
+tests, capability inventory, Go race tests, or budget proof). That split keeps
+the coverage gate static, credential-free, and Docker-free while never claiming a
+green it did not observe.
 
-It shipped **advisory** while C-2..C-6 burned down the coverage gaps. After
-those children closed, CI passes `-blocking`: any uncovered, unresolved, or stale
-surface fails the replay-coverage workflow, and the JSON coverage-report artifact
-continues feeding the C-7 dashboard. Local runs can still omit `-blocking` for
-exploratory reports.
+### 12.1.1 C-8 — scenario-type depth coverage (#4187)
+
+C-8 extends the C-1 manifest from breadth-only surface coverage to
+`surface × scenario_type` coverage. Every coverage entry carries both an
+artifact kind (`scenario`: cassette, parser_fixture, api_mcp_golden,
+correlation, capability_claim, product_claim, go_test, or proof_artifact) and a
+depth class (`scenario_type`: baseline, delta_tombstone, fault, ordering, crash,
+or cost).
+Surfaces require `baseline` by default; each manifest
+`scenario_requirements` row must include `baseline` and opts a surface into
+additional depth dimensions when a concrete R-11/R-13/R-14/R-16/R-17 proof
+artifact exists.
+
+The C-7 dashboard consumes the v2 report and shows both per-axis and
+per-scenario-type percentages, so one happy-path cassette can no longer hide a
+missing fault, crash, ordering, delta/tombstone, or cost proof for a surface that
+declares that depth requirement.
+
+It shipped **advisory** while the initial C-lane coverage gaps were burned down.
+CI now passes `-blocking`: any uncovered, unresolved, or stale
+surface/scenario_type pair fails the replay-coverage workflow, and the JSON
+coverage-report artifact continues feeding the C-7 dashboard. Local runs can
+still omit `-blocking` for exploratory reports.
 
 ### 12.2 Children
 
 C-1 first (keystone, initially advisory/red). Then C-2..C-6 in parallel (bulk
 backfill — collectors, parsers, correlations/edges, API+MCP surfaces, capability
 claims; each flips a slice of C-1 green). C-7 (coverage dashboard) builds
-alongside C-1 on the same coverage-report artifact. After C-2..C-6 close, C-1
-flips to blocking last.
+alongside C-1 on the same coverage-report artifact. C-8 adds the scenario-depth
+axis so later gates can require delta/tombstone, fault, ordering, crash, and cost
+proof where applicable. After the coverage axes close, C-12 keeps the gate
+blocking.

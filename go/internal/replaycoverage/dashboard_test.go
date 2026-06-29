@@ -18,24 +18,25 @@ func sampleReport(t *testing.T, blocking bool) CoverageReport {
 			{
 				Surface:  SupportedSurface{Registry: RegistrySurfaceInventory, Key: "collector:aws"},
 				Status:   StatusCovered,
-				Scenario: &CoverageEntry{Scenario: ScenarioCassette, Ref: "testdata/cassettes/awscloud/x.json", ProofGate: "golden-corpus-gate"},
+				Scenario: &CoverageEntry{Scenario: ScenarioCassette, ScenarioType: ScenarioTypeBaseline, Ref: "testdata/cassettes/awscloud/x.json", ProofGate: "golden-corpus-gate"},
 				Detail:   "artifact present",
 			},
 			{
-				Surface: SupportedSurface{Registry: RegistrySurfaceInventory, Key: "collector:webhook"},
-				Status:  StatusUncovered,
-				Detail:  "no replay scenario mapped",
+				Surface:      SupportedSurface{Registry: RegistrySurfaceInventory, Key: "collector:webhook"},
+				ScenarioType: ScenarioTypeFault,
+				Status:       StatusUncovered,
+				Detail:       "no replay scenario mapped for required scenario_type fault",
 			},
 			{
 				Surface:  SupportedSurface{Registry: RegistryParserLedger, Key: "parser:hcl"},
 				Status:   StatusCovered,
-				Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, Ref: "go/x/hcl.fixture.json", ProofGate: "parserfixture-tests"},
+				Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "go/x/hcl.fixture.json", ProofGate: "parserfixture-tests"},
 				Detail:   "artifact present",
 			},
 			{
 				Surface:  SupportedSurface{Registry: RegistryFactKind, Key: "read_surface:GET /api/v0/images"},
 				Status:   StatusUnresolved,
-				Scenario: &CoverageEntry{Scenario: ScenarioAPIMCPGolden, Ref: "missing-shape", ProofGate: "golden-corpus-gate"},
+				Scenario: &CoverageEntry{Scenario: ScenarioAPIMCPGolden, ScenarioType: ScenarioTypeBaseline, Ref: "missing-shape", ProofGate: "golden-corpus-gate"},
 				Detail:   "snapshot has no query shape",
 			},
 		},
@@ -59,6 +60,7 @@ func TestRenderDashboardShowsAxesGapsAndCovered(t *testing.T) {
 		DashboardGeneratedMarker,
 		"# Replay coverage",
 		"## Coverage by axis",
+		"## Coverage by scenario type",
 		"Collectors",
 		"Parsers",
 		"Read surfaces (API/MCP)",
@@ -68,6 +70,8 @@ func TestRenderDashboardShowsAxesGapsAndCovered(t *testing.T) {
 		"_unresolved: manifest entry present but artifact missing_",
 		"## Covered surfaces",
 		"`collector:aws`",
+		"baseline",
+		"fault",
 		"golden-corpus-gate",
 		"`testdata/cassettes/awscloud/x.json`",
 		"mode: advisory",
@@ -96,7 +100,7 @@ func TestRenderDashboardAllCoveredCelebrates(t *testing.T) {
 	cov := Coverage{Surfaces: []SurfaceCoverage{{
 		Surface:  SupportedSurface{Registry: RegistryParserLedger, Key: "parser:hcl"},
 		Status:   StatusCovered,
-		Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, Ref: "x", ProofGate: "parserfixture-tests"},
+		Scenario: &CoverageEntry{Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "x", ProofGate: "parserfixture-tests"},
 	}}}
 	out := string(RenderDashboard(BuildReport(cov, true)))
 	if !strings.Contains(out, "Every supported surface has a replay scenario") {

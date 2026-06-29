@@ -37,8 +37,8 @@ func axisLabel(reg Registry) string {
 // dashboard: the overall percentage, a per-axis table, the named gap list grouped
 // by axis, and the covered-surface table with each surface's scenario, proof
 // gate, and artifact ref. It is the C-7 (#4179) visibility deliverable — a
-// committed, docs-discoverable artifact that burns down as C-2..C-6 land. The
-// output is byte-stable for a given report so the lockstep gate can diff it.
+// committed, docs-discoverable artifact that burns down as C-lane coverage lands.
+// The output is byte-stable for a given report so the lockstep gate can diff it.
 func RenderDashboard(rep CoverageReport) []byte {
 	var b strings.Builder
 	b.WriteString("# Replay coverage\n\n")
@@ -54,6 +54,7 @@ func RenderDashboard(rep CoverageReport) []byte {
 		rep.Totals.Covered+rep.Totals.Exempt, rep.Totals.Total, rep.Totals.PercentSatisfied, modeLabel(rep.Blocking))
 
 	writeAxisTable(&b, rep)
+	writeScenarioTypeTable(&b, rep)
 	writeGaps(&b, rep)
 	writeCovered(&b, rep)
 	if len(rep.Stale) > 0 {
@@ -63,6 +64,17 @@ func RenderDashboard(rep CoverageReport) []byte {
 	// end-of-file-fixer hook (which would otherwise rewrite it and break the
 	// lockstep test).
 	return []byte(strings.TrimRight(b.String(), "\n") + "\n")
+}
+
+func writeScenarioTypeTable(b *strings.Builder, rep CoverageReport) {
+	b.WriteString("## Coverage by scenario type\n\n")
+	b.WriteString("| Scenario type | Satisfied | Total | % | Uncovered | Exempt |\n")
+	b.WriteString("| --- | ---: | ---: | ---: | ---: | ---: |\n")
+	for _, s := range rep.ScenarioTypeSummaries {
+		fmt.Fprintf(b, "| %s | %d | %d | %.2f%% | %d | %d |\n",
+			s.ScenarioType, s.Covered+s.Exempt, s.Total, s.PercentSatisfied, s.Uncovered+s.Unresolved, s.Exempt)
+	}
+	b.WriteString("\n")
 }
 
 // modeLabel renders the gate mode for the dashboard header.
@@ -114,7 +126,7 @@ func writeGaps(b *strings.Builder, rep CoverageReport) {
 			if s.Status == StatusUnresolved {
 				suffix = " — _unresolved: manifest entry present but artifact missing_"
 			}
-			fmt.Fprintf(b, "- `%s`%s\n", s.Key, suffix)
+			fmt.Fprintf(b, "- `%s` (%s)%s\n", s.Key, s.ScenarioType, suffix)
 		}
 		b.WriteString("\n")
 	}
@@ -135,8 +147,8 @@ func writeCovered(b *strings.Builder, rep CoverageReport) {
 		b.WriteString("None yet.\n\n")
 		return
 	}
-	b.WriteString("| Surface | Scenario | Proof gate | Artifact |\n")
-	b.WriteString("| --- | --- | --- | --- |\n")
+	b.WriteString("| Surface | Scenario type | Scenario | Proof gate | Artifact |\n")
+	b.WriteString("| --- | --- | --- | --- | --- |\n")
 	for _, s := range covered {
 		scenario := s.Scenario
 		if s.Status == StatusExempt {
@@ -152,7 +164,7 @@ func writeCovered(b *strings.Builder, rep CoverageReport) {
 		if gate == "" {
 			gate = "—"
 		}
-		fmt.Fprintf(b, "| `%s` | %s | %s | %s |\n", s.Key, scenario, gate, ref)
+		fmt.Fprintf(b, "| `%s` | %s | %s | %s | %s |\n", s.Key, s.ScenarioType, scenario, gate, ref)
 	}
 	b.WriteString("\n")
 }

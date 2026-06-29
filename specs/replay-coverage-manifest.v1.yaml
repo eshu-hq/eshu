@@ -2,11 +2,12 @@
 #
 # This is the curated, reviewable mapping from each supported surface to the
 # replay scenario that exercises it. The replay-coverage-gate
-# (go/cmd/replay-coverage-gate) enumerates the supported surfaces from the four
+# (go/cmd/replay-coverage-gate) enumerates the supported surfaces from the five
 # source-of-truth registries — surface-inventory implemented-lane collectors,
 # fact-kind-registry read surfaces, parser-backing-ledger parsers, and
-# capability-matrix claims — and reports any surface with no entry here as
-# UNCOVERED. That uncovered list is the C-2..C-6 backfill worklist.
+# capability-matrix claims, plus product-claims public ledger rows — and reports
+# any required surface/scenario_type pair with no entry here as UNCOVERED. That
+# uncovered list is the C-2..C-8 backfill worklist.
 #
 # Surface keys are "<kind>:<name>":
 #   collector:<name>          (surface-inventory implemented lane)
@@ -15,8 +16,8 @@
 #   capability:<id>           (capability-matrix positive claim)
 #   product_claim:<id>        (product-claims public claim ledger)
 #
-# scenario types: cassette | parser_fixture | api_mcp_golden | correlation |
-#   capability_claim | product_claim
+# scenario artifact kinds: cassette | parser_fixture | api_mcp_golden |
+#   correlation | capability_claim | product_claim | go_test | proof_artifact
 #   - cassette / parser_fixture refs are repo-relative paths to the artifact.
 #   - api_mcp_golden / correlation refs are B-12 snapshot ids (query-shape key /
 #     rc-*).
@@ -24,138 +25,67 @@
 #     rows carry supported-answer and refusal verification references.
 #   - product_claim refs are product-claims ledger ids whose deterministic
 #     proof is checked by capability-inventory docs mode.
+#   - go_test refs are repo-relative Go package or test files run by the named
+#     proof gate.
+#   - proof_artifact refs are repo-relative proof contracts or evidence files
+#     run by the named proof gate.
+# scenario_type (C-8 depth class) is required on every coverage entry:
+#   baseline | delta_tombstone | fault | ordering | crash | cost.
+# Surfaces without an explicit scenario_requirements row require only baseline.
+# Explicit rows must include baseline and opt a surface into additional depth
+# dimensions when the matching R-11/R-13/R-14/R-16/R-17 proof artifact exists.
 # proof_gate (REQUIRED on every coverage entry) names the gate that runs the
 # scenario and proves it green; this gate only verifies the artifact exists, so a
 # coverage entry without a named proof_gate would claim a green nothing verifies.
 #
 # Seed coverage = only what is genuinely green today: the five implemented-lane
 # collectors whose cassettes the golden-corpus-gate already replays. Everything
-# else is intentionally uncovered until C-2..C-6 author its scenario.
+# else is intentionally uncovered until the relevant C-lane child authors its
+# scenario.
 version: "v1"
 
 coverage:
-  - surface: collector:aws
-    scenario: cassette
-    ref: testdata/cassettes/awscloud/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:oci_registry
-    scenario: cassette
-    ref: testdata/cassettes/ociregistry/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:package_registry
-    scenario: cassette
-    ref: testdata/cassettes/packageregistry/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:prometheus_mimir
-    scenario: cassette
-    ref: testdata/cassettes/prometheusmimir/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:terraform_state
-    scenario: cassette
-    ref: testdata/cassettes/terraformstate/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
+  - {surface: "collector:aws", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/awscloud/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:oci_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/ociregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:package_registry", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/packageregistry/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:prometheus_mimir", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/prometheusmimir/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:terraform_state", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/terraformstate/supply-chain-demo.json", proof_gate: golden-corpus-gate}
 
   # C-2 (#4174): implemented-lane collectors backfilled with synthetic
   # supply-chain-demo cassettes (credential-free, matching each collector's real
   # fact schema). The golden-corpus-gate replays them; a wrong fact_kind lands
   # zero facts and fails the gate's collector-source assertion.
-  - surface: collector:tempo
-    scenario: cassette
-    ref: testdata/cassettes/tempo/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:grafana
-    scenario: cassette
-    ref: testdata/cassettes/grafana/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:loki
-    scenario: cassette
-    ref: testdata/cassettes/loki/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:security_alert
-    scenario: cassette
-    ref: testdata/cassettes/securityalerts/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:jira
-    scenario: cassette
-    ref: testdata/cassettes/jira/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:pagerduty
-    scenario: cassette
-    ref: testdata/cassettes/pagerduty/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:sbom_attestation
-    scenario: cassette
-    ref: testdata/cassettes/sbomattestation/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
-  - surface: collector:vulnerability_intelligence
-    scenario: cassette
-    ref: testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json
-    proof_gate: golden-corpus-gate
+  - {surface: "collector:tempo", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/tempo/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:grafana", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/grafana/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:loki", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/loki/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:security_alert", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/securityalerts/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:jira", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/jira/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:pagerduty", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/pagerduty/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:sbom_attestation", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/sbomattestation/supply-chain-demo.json", proof_gate: golden-corpus-gate}
+  - {surface: "collector:vulnerability_intelligence", scenario: cassette, scenario_type: baseline, ref: "testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json", proof_gate: golden-corpus-gate}
 
   # C-5 (#4177): fact-kind read surfaces. Each maps to an api_mcp_golden whose ref
   # is the B-12 snapshot query-shape key; the golden-corpus-gate calls the endpoint
   # live against the 20-repo corpus and asserts the response shape (truth, not just
   # schema). HTTP query params, when required, are embedded in the shape key.
-  - surface: read_surface:GET /api/v0/cloud/inventory
-    scenario: api_mcp_golden
-    ref: GET /api/v0/cloud/inventory
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/cloud/resources
-    scenario: api_mcp_golden
-    ref: GET /api/v0/cloud/resources
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/images
-    scenario: api_mcp_golden
-    ref: GET /api/v0/images
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/package-registry/packages
-    scenario: api_mcp_golden
-    ref: GET /api/v0/package-registry/packages?ecosystem=go&limit=50
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/incidents/{incident_id}/context
-    scenario: api_mcp_golden
-    ref: GET /api/v0/incidents/PSCD1/context
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/work-items/evidence
-    scenario: api_mcp_golden
-    ref: GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments
-    scenario: api_mcp_golden
-    ref: GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/supply-chain/impact/findings
-    scenario: api_mcp_golden
-    ref: GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000
-    proof_gate: golden-corpus-gate
+  - {surface: "read_surface:GET /api/v0/cloud/inventory", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/inventory", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/cloud/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/resources", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/incidents/{incident_id}/context", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/incidents/PSCD1/context", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/work-items/evidence", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/supply-chain/impact/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000", proof_gate: golden-corpus-gate}
   # observability/coverage: the fact-kind registry read_surface was corrected from
   # the unmounted bare path to the real mounted route (.../coverage/correlations)
   # so the surface key and the proven route match (a query-param selector is
   # required).
-  - surface: read_surface:GET /api/v0/observability/coverage/correlations
-    scenario: api_mcp_golden
-    ref: GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/iac/resources
-    scenario: api_mcp_golden
-    ref: GET /api/v0/iac/resources?limit=50
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/documentation/facts
-    scenario: api_mcp_golden
-    ref: GET /api/v0/documentation/facts?fact_kind=source
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/secrets-iam/posture-summary
-    scenario: api_mcp_golden
-    ref: GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/ci-cd/run-correlations
-    scenario: api_mcp_golden
-    ref: GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo
-    proof_gate: golden-corpus-gate
-  - surface: read_surface:GET /api/v0/service-catalog/correlations
-    scenario: api_mcp_golden
-    ref: GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo
-    proof_gate: golden-corpus-gate
+  - {surface: "read_surface:GET /api/v0/observability/coverage/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/iac/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/iac/resources?limit=50", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/documentation/facts", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/documentation/facts?fact_kind=source", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/secrets-iam/posture-summary", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/ci-cd/run-correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/service-catalog/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
 
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
@@ -163,108 +93,36 @@ coverage:
   # and asserts the live parser reproduces it byte-for-byte (catching dropped or
   # mis-attributed facts) and that provenance survives the round trip. proof_gate
   # parserfixture-tests = `cd go && go test ./internal/replay/parserfixture/`.
-  - surface: parser:cloudformation
-    scenario: parser_fixture
-    ref: go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json
-    proof_gate: parserfixture-tests
-  - surface: parser:dockerfile
-    scenario: parser_fixture
-    ref: go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json
-    proof_gate: parserfixture-tests
-  - surface: parser:hcl
-    scenario: parser_fixture
-    ref: go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json
-    proof_gate: parserfixture-tests
-  - surface: parser:yaml
-    scenario: parser_fixture
-    ref: go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json
-    proof_gate: parserfixture-tests
+  - {surface: "parser:cloudformation", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:dockerfile", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:hcl", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:yaml", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json", proof_gate: parserfixture-tests}
 
   # C-4 (#4176): correlation-backed capability claims. These map only the
   # capabilities whose claim is directly exercised by a B-12 required
   # correlation already promoted in scripts/verify-golden-corpus-gate.sh. Shared
   # verbs stay pinned to evidence/source-tool narrowed rc-* rows in the snapshot
   # rather than a bare edge count.
-  - surface: capability:call_graph.call_chain_path
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:call_graph.direct_callees
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:call_graph.direct_callers
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:call_graph.metrics
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:call_graph.relationship_story
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:call_graph.route_to_caller
-    scenario: correlation
-    ref: rc-8
-    proof_gate: golden-corpus-gate
-  - surface: capability:call_graph.transitive_callees
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:call_graph.transitive_callers
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:code_quality.dead_code
-    scenario: api_mcp_golden
-    ref: POST /api/v0/code/dead-code/cross-repo
-    proof_gate: golden-corpus-gate
-  - surface: capability:dependencies.list
-    scenario: correlation
-    ref: rc-9
-    proof_gate: golden-corpus-gate
-  - surface: capability:kubernetes.correlations.list
-    scenario: correlation
-    ref: rc-4
-    proof_gate: golden-corpus-gate
-  - surface: capability:package_registry.correlations.list
-    scenario: correlation
-    ref: rc-9
-    proof_gate: golden-corpus-gate
-  - surface: capability:package_registry.dependencies.list
-    scenario: correlation
-    ref: rc-25
-    proof_gate: golden-corpus-gate
-  - surface: capability:package_registry.dependency_chains.list
-    scenario: correlation
-    ref: rc-9
-    proof_gate: golden-corpus-gate
-  - surface: capability:platform_impact.dependency_path
-    scenario: correlation
-    ref: rc-3
-    proof_gate: golden-corpus-gate
-  - surface: capability:platform_impact.deployment_chain
-    scenario: correlation
-    ref: rc-19
-    proof_gate: golden-corpus-gate
-  - surface: capability:platform_impact.relationships_catalog
-    scenario: correlation
-    ref: rc-11
-    proof_gate: golden-corpus-gate
-  - surface: capability:relationship_evidence.drilldown
-    scenario: correlation
-    ref: rc-21
-    proof_gate: golden-corpus-gate
-  - surface: capability:service_catalog.correlations.list
-    scenario: correlation
-    ref: rc-1
-    proof_gate: golden-corpus-gate
-  - surface: capability:symbol_graph.inheritance
-    scenario: correlation
-    ref: rc-12
-    proof_gate: golden-corpus-gate
+  - {surface: "capability:call_graph.call_chain_path", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.direct_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.direct_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.metrics", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.relationship_story", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.route_to_caller", scenario: correlation, scenario_type: baseline, ref: "rc-8", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.transitive_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.transitive_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:code_quality.dead_code", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/code/dead-code/cross-repo", proof_gate: golden-corpus-gate}
+  - {surface: "capability:dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
+  - {surface: "capability:kubernetes.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-4", proof_gate: golden-corpus-gate}
+  - {surface: "capability:package_registry.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
+  - {surface: "capability:package_registry.dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-25", proof_gate: golden-corpus-gate}
+  - {surface: "capability:package_registry.dependency_chains.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
+  - {surface: "capability:platform_impact.dependency_path", scenario: correlation, scenario_type: baseline, ref: "rc-3", proof_gate: golden-corpus-gate}
+  - {surface: "capability:platform_impact.deployment_chain", scenario: correlation, scenario_type: baseline, ref: "rc-19", proof_gate: golden-corpus-gate}
+  - {surface: "capability:platform_impact.relationships_catalog", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:relationship_evidence.drilldown", scenario: correlation, scenario_type: baseline, ref: "rc-21", proof_gate: golden-corpus-gate}
+  - {surface: "capability:service_catalog.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-1", proof_gate: golden-corpus-gate}
+  - {surface: "capability:symbol_graph.inheritance", scenario: correlation, scenario_type: baseline, ref: "rc-12", proof_gate: golden-corpus-gate}
 
   # C-6 (#4178): remaining capability-matrix claims. The
   # replay-coverage-gate resolves each ref against the capability matrix and
@@ -272,133 +130,149 @@ coverage:
   # supported or experimental profile plus refusal proof for unsupported
   # profiles. Compact entries keep this reviewable while staying under the
   # repository line-count limit.
-  - {surface: capability:admission_decisions.list, scenario: capability_claim, ref: admission_decisions.list, proof_gate: capability-inventory}
-  - {surface: capability:answer_narration.status, scenario: capability_claim, ref: answer_narration.status, proof_gate: capability-inventory}
-  - {surface: capability:ask.natural_language_answer, scenario: capability_claim, ref: ask.natural_language_answer, proof_gate: capability-inventory}
-  - {surface: capability:aws_runtime_drift.findings.list, scenario: capability_claim, ref: aws_runtime_drift.findings.list, proof_gate: capability-inventory}
-  - {surface: capability:capability_catalog.list, scenario: capability_claim, ref: capability_catalog.list, proof_gate: capability-inventory}
-  - {surface: capability:ci_cd.run_correlations.aggregate, scenario: capability_claim, ref: ci_cd.run_correlations.aggregate, proof_gate: capability-inventory}
-  - {surface: capability:ci_cd.run_correlations.list, scenario: capability_claim, ref: ci_cd.run_correlations.list, proof_gate: capability-inventory}
-  - {surface: capability:cloud_inventory.readback.list, scenario: capability_claim, ref: cloud_inventory.readback.list, proof_gate: capability-inventory}
-  - {surface: capability:cloud_runtime_drift.readback.list, scenario: capability_claim, ref: cloud_runtime_drift.readback.list, proof_gate: capability-inventory}
-  - {surface: capability:code_flow.cfg_summary, scenario: capability_claim, ref: code_flow.cfg_summary, proof_gate: capability-inventory}
-  - {surface: capability:code_flow.pdg_summary, scenario: capability_claim, ref: code_flow.pdg_summary, proof_gate: capability-inventory}
-  - {surface: capability:code_flow.reaching_def, scenario: capability_claim, ref: code_flow.reaching_def, proof_gate: capability-inventory}
-  - {surface: capability:code_flow.taint_path, scenario: capability_claim, ref: code_flow.taint_path, proof_gate: capability-inventory}
-  - {surface: capability:code_inventory.structural, scenario: capability_claim, ref: code_inventory.structural, proof_gate: capability-inventory}
-  - {surface: capability:code_quality.complexity, scenario: capability_claim, ref: code_quality.complexity, proof_gate: capability-inventory}
-  - {surface: capability:code_quality.refactoring, scenario: capability_claim, ref: code_quality.refactoring, proof_gate: capability-inventory}
-  - {surface: capability:code_search.content_search, scenario: capability_claim, ref: code_search.content_search, proof_gate: capability-inventory}
-  - {surface: capability:code_search.exact_symbol, scenario: capability_claim, ref: code_search.exact_symbol, proof_gate: capability-inventory}
-  - {surface: capability:code_search.fuzzy_symbol, scenario: capability_claim, ref: code_search.fuzzy_symbol, proof_gate: capability-inventory}
-  - {surface: capability:code_search.symbol_lookup, scenario: capability_claim, ref: code_search.symbol_lookup, proof_gate: capability-inventory}
-  - {surface: capability:code_search.topic_investigation, scenario: capability_claim, ref: code_search.topic_investigation, proof_gate: capability-inventory}
-  - {surface: capability:code_search.variable_lookup, scenario: capability_claim, ref: code_search.variable_lookup, proof_gate: capability-inventory}
-  - {surface: capability:code_to_cloud.trace_exposure_path, scenario: capability_claim, ref: code_to_cloud.trace_exposure_path, proof_gate: capability-inventory}
-  - {surface: capability:collector_extraction_readiness.family, scenario: capability_claim, ref: collector_extraction_readiness.family, proof_gate: capability-inventory}
-  - {surface: capability:collector_extraction_readiness.list, scenario: capability_claim, ref: collector_extraction_readiness.list, proof_gate: capability-inventory}
-  - {surface: capability:component_extensions.diagnostics, scenario: capability_claim, ref: component_extensions.diagnostics, proof_gate: capability-inventory}
-  - {surface: capability:component_extensions.inventory, scenario: capability_claim, ref: component_extensions.inventory, proof_gate: capability-inventory}
-  - {surface: capability:documentation_evidence_packet.freshness, scenario: capability_claim, ref: documentation_evidence_packet.freshness, proof_gate: capability-inventory}
-  - {surface: capability:documentation_evidence_packet.read, scenario: capability_claim, ref: documentation_evidence_packet.read, proof_gate: capability-inventory}
-  - {surface: capability:documentation_facts.list, scenario: capability_claim, ref: documentation_facts.list, proof_gate: capability-inventory}
-  - {surface: capability:documentation_findings.aggregate, scenario: capability_claim, ref: documentation_findings.aggregate, proof_gate: capability-inventory}
-  - {surface: capability:documentation_findings.list, scenario: capability_claim, ref: documentation_findings.list, proof_gate: capability-inventory}
-  - {surface: capability:evidence_citation.packet, scenario: capability_claim, ref: evidence_citation.packet, proof_gate: capability-inventory}
-  - {surface: capability:fact_schema_version.detail, scenario: capability_claim, ref: fact_schema_version.detail, proof_gate: capability-inventory}
-  - {surface: capability:fact_schema_version.list, scenario: capability_claim, ref: fact_schema_version.list, proof_gate: capability-inventory}
-  - {surface: capability:freshness.changed_since, scenario: capability_claim, ref: freshness.changed_since, proof_gate: capability-inventory}
-  - {surface: capability:freshness.generation_lifecycle, scenario: capability_claim, ref: freshness.generation_lifecycle, proof_gate: capability-inventory}
-  - {surface: capability:freshness.service_changed_since, scenario: capability_claim, ref: freshness.service_changed_since, proof_gate: capability-inventory}
-  - {surface: capability:graph_query.read_only_cypher, scenario: capability_claim, ref: graph_query.read_only_cypher, proof_gate: capability-inventory}
-  - {surface: capability:hosted_governance.status, scenario: capability_claim, ref: hosted_governance.status, proof_gate: capability-inventory}
-  - {surface: capability:iac_inventory.resources.list, scenario: capability_claim, ref: iac_inventory.resources.list, proof_gate: capability-inventory}
-  - {surface: capability:iac_management.explain_status, scenario: capability_claim, ref: iac_management.explain_status, proof_gate: capability-inventory}
-  - {surface: capability:iac_management.find_unmanaged_resources, scenario: capability_claim, ref: iac_management.find_unmanaged_resources, proof_gate: capability-inventory}
-  - {surface: capability:iac_management.get_status, scenario: capability_claim, ref: iac_management.get_status, proof_gate: capability-inventory}
-  - {surface: capability:iac_management.propose_terraform_import_plan, scenario: capability_claim, ref: iac_management.propose_terraform_import_plan, proof_gate: capability-inventory}
-  - {surface: capability:iac_quality.dead_iac, scenario: capability_claim, ref: iac_quality.dead_iac, proof_gate: capability-inventory}
-  - {surface: capability:incident.context.read, scenario: capability_claim, ref: incident.context.read, proof_gate: capability-inventory}
-  - {surface: capability:observability.coverage.correlations.list, scenario: capability_claim, ref: observability.coverage.correlations.list, proof_gate: capability-inventory}
-  - {surface: capability:package_registry.packages.aggregate, scenario: capability_claim, ref: package_registry.packages.aggregate, proof_gate: capability-inventory}
-  - {surface: capability:package_registry.packages.list, scenario: capability_claim, ref: package_registry.packages.list, proof_gate: capability-inventory}
-  - {surface: capability:package_registry.versions.list, scenario: capability_claim, ref: package_registry.versions.list, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.blast_radius, scenario: capability_claim, ref: platform_impact.blast_radius, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.catalog, scenario: capability_claim, ref: platform_impact.catalog, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.change_surface, scenario: capability_claim, ref: platform_impact.change_surface, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.cloud_resource_list, scenario: capability_claim, ref: platform_impact.cloud_resource_list, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.container_image_list, scenario: capability_claim, ref: platform_impact.container_image_list, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.context_overview, scenario: capability_claim, ref: platform_impact.context_overview, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.contract_impact, scenario: capability_claim, ref: platform_impact.contract_impact, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.deployment_config_influence, scenario: capability_claim, ref: platform_impact.deployment_config_influence, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.developer_change_plan, scenario: capability_claim, ref: platform_impact.developer_change_plan, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.entity_map, scenario: capability_claim, ref: platform_impact.entity_map, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.environment_compare, scenario: capability_claim, ref: platform_impact.environment_compare, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.graph_summary_packet, scenario: capability_claim, ref: platform_impact.graph_summary_packet, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.infra_resource_aggregate, scenario: capability_claim, ref: platform_impact.infra_resource_aggregate, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.pre_change, scenario: capability_claim, ref: platform_impact.pre_change, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.resource_investigation, scenario: capability_claim, ref: platform_impact.resource_investigation, proof_gate: capability-inventory}
-  - {surface: capability:platform_impact.resource_to_code, scenario: capability_claim, ref: platform_impact.resource_to_code, proof_gate: capability-inventory}
-  - {surface: capability:platform_metrics.timeseries, scenario: capability_claim, ref: platform_metrics.timeseries, proof_gate: capability-inventory}
-  - {surface: capability:query.investigation_workflows, scenario: capability_claim, ref: query.investigation_workflows, proof_gate: capability-inventory}
-  - {surface: capability:query.playbooks, scenario: capability_claim, ref: query.playbooks, proof_gate: capability-inventory}
-  - {surface: capability:reachability.go.govulncheck, scenario: capability_claim, ref: reachability.go.govulncheck, proof_gate: capability-inventory}
-  - {surface: capability:reachability.jvm.bounded, scenario: capability_claim, ref: reachability.jvm.bounded, proof_gate: capability-inventory}
-  - {surface: capability:replatforming.ownership.candidates, scenario: capability_claim, ref: replatforming.ownership.candidates, proof_gate: capability-inventory}
-  - {surface: capability:replatforming.plan.readiness, scenario: capability_claim, ref: replatforming.plan.readiness, proof_gate: capability-inventory}
-  - {surface: capability:replatforming.rollups.readiness, scenario: capability_claim, ref: replatforming.rollups.readiness, proof_gate: capability-inventory}
-  - {surface: capability:secrets_iam.identity_trust_chains.list, scenario: capability_claim, ref: secrets_iam.identity_trust_chains.list, proof_gate: capability-inventory}
-  - {surface: capability:secrets_iam.posture_gaps.list, scenario: capability_claim, ref: secrets_iam.posture_gaps.list, proof_gate: capability-inventory}
-  - {surface: capability:secrets_iam.posture_summary.read, scenario: capability_claim, ref: secrets_iam.posture_summary.read, proof_gate: capability-inventory}
-  - {surface: capability:secrets_iam.privilege_posture_observations.list, scenario: capability_claim, ref: secrets_iam.privilege_posture_observations.list, proof_gate: capability-inventory}
-  - {surface: capability:secrets_iam.secret_access_paths.list, scenario: capability_claim, ref: secrets_iam.secret_access_paths.list, proof_gate: capability-inventory}
-  - {surface: capability:security.hardcoded_secrets, scenario: capability_claim, ref: security.hardcoded_secrets, proof_gate: capability-inventory}
-  - {surface: capability:semantic_evidence.code_hints.list, scenario: capability_claim, ref: semantic_evidence.code_hints.list, proof_gate: capability-inventory}
-  - {surface: capability:semantic_evidence.documentation_observations.list, scenario: capability_claim, ref: semantic_evidence.documentation_observations.list, proof_gate: capability-inventory}
-  - {surface: capability:semantic_extraction.status, scenario: capability_claim, ref: semantic_extraction.status, proof_gate: capability-inventory}
-  - {surface: capability:semantic_search.curated_retrieval, scenario: capability_claim, ref: semantic_search.curated_retrieval, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.advisory_catalog.list, scenario: capability_claim, ref: supply_chain.advisory_catalog.list, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.advisory_evidence.list, scenario: capability_claim, ref: supply_chain.advisory_evidence.list, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.container_image_identities.aggregate, scenario: capability_claim, ref: supply_chain.container_image_identities.aggregate, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.container_image_identities.list, scenario: capability_claim, ref: supply_chain.container_image_identities.list, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.impact_explanation.read, scenario: capability_claim, ref: supply_chain.impact_explanation.read, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.impact_findings.aggregate, scenario: capability_claim, ref: supply_chain.impact_findings.aggregate, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.impact_findings.list, scenario: capability_claim, ref: supply_chain.impact_findings.list, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.sbom_attestation_attachments.aggregate, scenario: capability_claim, ref: supply_chain.sbom_attestation_attachments.aggregate, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.sbom_attestation_attachments.list, scenario: capability_claim, ref: supply_chain.sbom_attestation_attachments.list, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.security_alert_reconciliations.aggregate, scenario: capability_claim, ref: supply_chain.security_alert_reconciliations.aggregate, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.security_alert_reconciliations.list, scenario: capability_claim, ref: supply_chain.security_alert_reconciliations.list, proof_gate: capability-inventory}
-  - {surface: capability:supply_chain.vulnerability_scanner.contract.read, scenario: capability_claim, ref: supply_chain.vulnerability_scanner.contract.read, proof_gate: capability-inventory}
-  - {surface: capability:surface_inventory.list, scenario: capability_claim, ref: surface_inventory.list, proof_gate: capability-inventory}
-  - {surface: capability:symbol_graph.argument_names, scenario: capability_claim, ref: symbol_graph.argument_names, proof_gate: capability-inventory}
-  - {surface: capability:symbol_graph.class_methods, scenario: capability_claim, ref: symbol_graph.class_methods, proof_gate: capability-inventory}
-  - {surface: capability:symbol_graph.decorators, scenario: capability_claim, ref: symbol_graph.decorators, proof_gate: capability-inventory}
-  - {surface: capability:symbol_graph.import_dependencies, scenario: capability_claim, ref: symbol_graph.import_dependencies, proof_gate: capability-inventory}
-  - {surface: capability:symbol_graph.imports, scenario: capability_claim, ref: symbol_graph.imports, proof_gate: capability-inventory}
-  - {surface: capability:visualization.graph_query, scenario: capability_claim, ref: visualization.graph_query, proof_gate: capability-inventory}
-  - {surface: capability:visualization.packet_derivation, scenario: capability_claim, ref: visualization.packet_derivation, proof_gate: capability-inventory}
-  - {surface: capability:work_item.evidence.list, scenario: capability_claim, ref: work_item.evidence.list, proof_gate: capability-inventory}
+  - {surface: capability:admission_decisions.list, scenario: capability_claim, scenario_type: baseline, ref: admission_decisions.list, proof_gate: capability-inventory}
+  - {surface: capability:answer_narration.status, scenario: capability_claim, scenario_type: baseline, ref: answer_narration.status, proof_gate: capability-inventory}
+  - {surface: capability:ask.natural_language_answer, scenario: capability_claim, scenario_type: baseline, ref: ask.natural_language_answer, proof_gate: capability-inventory}
+  - {surface: capability:aws_runtime_drift.findings.list, scenario: capability_claim, scenario_type: baseline, ref: aws_runtime_drift.findings.list, proof_gate: capability-inventory}
+  - {surface: capability:capability_catalog.list, scenario: capability_claim, scenario_type: baseline, ref: capability_catalog.list, proof_gate: capability-inventory}
+  - {surface: capability:ci_cd.run_correlations.aggregate, scenario: capability_claim, scenario_type: baseline, ref: ci_cd.run_correlations.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:ci_cd.run_correlations.list, scenario: capability_claim, scenario_type: baseline, ref: ci_cd.run_correlations.list, proof_gate: capability-inventory}
+  - {surface: capability:cloud_inventory.readback.list, scenario: capability_claim, scenario_type: baseline, ref: cloud_inventory.readback.list, proof_gate: capability-inventory}
+  - {surface: capability:cloud_runtime_drift.readback.list, scenario: capability_claim, scenario_type: baseline, ref: cloud_runtime_drift.readback.list, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.cfg_summary, scenario: capability_claim, scenario_type: baseline, ref: code_flow.cfg_summary, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.pdg_summary, scenario: capability_claim, scenario_type: baseline, ref: code_flow.pdg_summary, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.reaching_def, scenario: capability_claim, scenario_type: baseline, ref: code_flow.reaching_def, proof_gate: capability-inventory}
+  - {surface: capability:code_flow.taint_path, scenario: capability_claim, scenario_type: baseline, ref: code_flow.taint_path, proof_gate: capability-inventory}
+  - {surface: capability:code_inventory.structural, scenario: capability_claim, scenario_type: baseline, ref: code_inventory.structural, proof_gate: capability-inventory}
+  - {surface: capability:code_quality.complexity, scenario: capability_claim, scenario_type: baseline, ref: code_quality.complexity, proof_gate: capability-inventory}
+  - {surface: capability:code_quality.refactoring, scenario: capability_claim, scenario_type: baseline, ref: code_quality.refactoring, proof_gate: capability-inventory}
+  - {surface: capability:code_search.content_search, scenario: capability_claim, scenario_type: baseline, ref: code_search.content_search, proof_gate: capability-inventory}
+  - {surface: capability:code_search.exact_symbol, scenario: capability_claim, scenario_type: baseline, ref: code_search.exact_symbol, proof_gate: capability-inventory}
+  - {surface: capability:code_search.fuzzy_symbol, scenario: capability_claim, scenario_type: baseline, ref: code_search.fuzzy_symbol, proof_gate: capability-inventory}
+  - {surface: capability:code_search.symbol_lookup, scenario: capability_claim, scenario_type: baseline, ref: code_search.symbol_lookup, proof_gate: capability-inventory}
+  - {surface: capability:code_search.topic_investigation, scenario: capability_claim, scenario_type: baseline, ref: code_search.topic_investigation, proof_gate: capability-inventory}
+  - {surface: capability:code_search.variable_lookup, scenario: capability_claim, scenario_type: baseline, ref: code_search.variable_lookup, proof_gate: capability-inventory}
+  - {surface: capability:code_to_cloud.trace_exposure_path, scenario: capability_claim, scenario_type: baseline, ref: code_to_cloud.trace_exposure_path, proof_gate: capability-inventory}
+  - {surface: capability:collector_extraction_readiness.family, scenario: capability_claim, scenario_type: baseline, ref: collector_extraction_readiness.family, proof_gate: capability-inventory}
+  - {surface: capability:collector_extraction_readiness.list, scenario: capability_claim, scenario_type: baseline, ref: collector_extraction_readiness.list, proof_gate: capability-inventory}
+  - {surface: capability:component_extensions.diagnostics, scenario: capability_claim, scenario_type: baseline, ref: component_extensions.diagnostics, proof_gate: capability-inventory}
+  - {surface: capability:component_extensions.inventory, scenario: capability_claim, scenario_type: baseline, ref: component_extensions.inventory, proof_gate: capability-inventory}
+  - {surface: capability:documentation_evidence_packet.freshness, scenario: capability_claim, scenario_type: baseline, ref: documentation_evidence_packet.freshness, proof_gate: capability-inventory}
+  - {surface: capability:documentation_evidence_packet.read, scenario: capability_claim, scenario_type: baseline, ref: documentation_evidence_packet.read, proof_gate: capability-inventory}
+  - {surface: capability:documentation_facts.list, scenario: capability_claim, scenario_type: baseline, ref: documentation_facts.list, proof_gate: capability-inventory}
+  - {surface: capability:documentation_findings.aggregate, scenario: capability_claim, scenario_type: baseline, ref: documentation_findings.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:documentation_findings.list, scenario: capability_claim, scenario_type: baseline, ref: documentation_findings.list, proof_gate: capability-inventory}
+  - {surface: capability:evidence_citation.packet, scenario: capability_claim, scenario_type: baseline, ref: evidence_citation.packet, proof_gate: capability-inventory}
+  - {surface: capability:fact_schema_version.detail, scenario: capability_claim, scenario_type: baseline, ref: fact_schema_version.detail, proof_gate: capability-inventory}
+  - {surface: capability:fact_schema_version.list, scenario: capability_claim, scenario_type: baseline, ref: fact_schema_version.list, proof_gate: capability-inventory}
+  - {surface: capability:freshness.changed_since, scenario: capability_claim, scenario_type: baseline, ref: freshness.changed_since, proof_gate: capability-inventory}
+  - {surface: capability:freshness.generation_lifecycle, scenario: capability_claim, scenario_type: baseline, ref: freshness.generation_lifecycle, proof_gate: capability-inventory}
+  - {surface: capability:freshness.service_changed_since, scenario: capability_claim, scenario_type: baseline, ref: freshness.service_changed_since, proof_gate: capability-inventory}
+  - {surface: capability:graph_query.read_only_cypher, scenario: capability_claim, scenario_type: baseline, ref: graph_query.read_only_cypher, proof_gate: capability-inventory}
+  - {surface: capability:hosted_governance.status, scenario: capability_claim, scenario_type: baseline, ref: hosted_governance.status, proof_gate: capability-inventory}
+  - {surface: capability:iac_inventory.resources.list, scenario: capability_claim, scenario_type: baseline, ref: iac_inventory.resources.list, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.explain_status, scenario: capability_claim, scenario_type: baseline, ref: iac_management.explain_status, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.find_unmanaged_resources, scenario: capability_claim, scenario_type: baseline, ref: iac_management.find_unmanaged_resources, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.get_status, scenario: capability_claim, scenario_type: baseline, ref: iac_management.get_status, proof_gate: capability-inventory}
+  - {surface: capability:iac_management.propose_terraform_import_plan, scenario: capability_claim, scenario_type: baseline, ref: iac_management.propose_terraform_import_plan, proof_gate: capability-inventory}
+  - {surface: capability:iac_quality.dead_iac, scenario: capability_claim, scenario_type: baseline, ref: iac_quality.dead_iac, proof_gate: capability-inventory}
+  - {surface: capability:incident.context.read, scenario: capability_claim, scenario_type: baseline, ref: incident.context.read, proof_gate: capability-inventory}
+  - {surface: capability:observability.coverage.correlations.list, scenario: capability_claim, scenario_type: baseline, ref: observability.coverage.correlations.list, proof_gate: capability-inventory}
+  - {surface: capability:package_registry.packages.aggregate, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:package_registry.packages.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.list, proof_gate: capability-inventory}
+  - {surface: capability:package_registry.versions.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.versions.list, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.blast_radius, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.blast_radius, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.catalog, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.catalog, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.change_surface, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.change_surface, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.cloud_resource_list, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.cloud_resource_list, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.container_image_list, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.container_image_list, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.context_overview, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.context_overview, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.contract_impact, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.contract_impact, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.deployment_config_influence, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.deployment_config_influence, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.developer_change_plan, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.developer_change_plan, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.entity_map, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.entity_map, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.environment_compare, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.environment_compare, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.graph_summary_packet, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.graph_summary_packet, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.infra_resource_aggregate, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.infra_resource_aggregate, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.pre_change, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.pre_change, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.resource_investigation, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.resource_investigation, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.resource_to_code, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.resource_to_code, proof_gate: capability-inventory}
+  - {surface: capability:platform_metrics.timeseries, scenario: capability_claim, scenario_type: baseline, ref: platform_metrics.timeseries, proof_gate: capability-inventory}
+  - {surface: capability:query.investigation_workflows, scenario: capability_claim, scenario_type: baseline, ref: query.investigation_workflows, proof_gate: capability-inventory}
+  - {surface: capability:query.playbooks, scenario: capability_claim, scenario_type: baseline, ref: query.playbooks, proof_gate: capability-inventory}
+  - {surface: capability:reachability.go.govulncheck, scenario: capability_claim, scenario_type: baseline, ref: reachability.go.govulncheck, proof_gate: capability-inventory}
+  - {surface: capability:reachability.jvm.bounded, scenario: capability_claim, scenario_type: baseline, ref: reachability.jvm.bounded, proof_gate: capability-inventory}
+  - {surface: capability:replatforming.ownership.candidates, scenario: capability_claim, scenario_type: baseline, ref: replatforming.ownership.candidates, proof_gate: capability-inventory}
+  - {surface: capability:replatforming.plan.readiness, scenario: capability_claim, scenario_type: baseline, ref: replatforming.plan.readiness, proof_gate: capability-inventory}
+  - {surface: capability:replatforming.rollups.readiness, scenario: capability_claim, scenario_type: baseline, ref: replatforming.rollups.readiness, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.identity_trust_chains.list, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.identity_trust_chains.list, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.posture_gaps.list, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.posture_gaps.list, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.posture_summary.read, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.posture_summary.read, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.privilege_posture_observations.list, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.privilege_posture_observations.list, proof_gate: capability-inventory}
+  - {surface: capability:secrets_iam.secret_access_paths.list, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.secret_access_paths.list, proof_gate: capability-inventory}
+  - {surface: capability:security.hardcoded_secrets, scenario: capability_claim, scenario_type: baseline, ref: security.hardcoded_secrets, proof_gate: capability-inventory}
+  - {surface: capability:semantic_evidence.code_hints.list, scenario: capability_claim, scenario_type: baseline, ref: semantic_evidence.code_hints.list, proof_gate: capability-inventory}
+  - {surface: capability:semantic_evidence.documentation_observations.list, scenario: capability_claim, scenario_type: baseline, ref: semantic_evidence.documentation_observations.list, proof_gate: capability-inventory}
+  - {surface: capability:semantic_extraction.status, scenario: capability_claim, scenario_type: baseline, ref: semantic_extraction.status, proof_gate: capability-inventory}
+  - {surface: capability:semantic_search.curated_retrieval, scenario: capability_claim, scenario_type: baseline, ref: semantic_search.curated_retrieval, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.advisory_catalog.list, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.advisory_catalog.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.advisory_evidence.list, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.advisory_evidence.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.container_image_identities.aggregate, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.container_image_identities.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.container_image_identities.list, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.container_image_identities.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.impact_explanation.read, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.impact_explanation.read, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.impact_findings.aggregate, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.impact_findings.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.impact_findings.list, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.impact_findings.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.sbom_attestation_attachments.aggregate, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.sbom_attestation_attachments.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.sbom_attestation_attachments.list, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.sbom_attestation_attachments.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.security_alert_reconciliations.aggregate, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.security_alert_reconciliations.aggregate, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.security_alert_reconciliations.list, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.security_alert_reconciliations.list, proof_gate: capability-inventory}
+  - {surface: capability:supply_chain.vulnerability_scanner.contract.read, scenario: capability_claim, scenario_type: baseline, ref: supply_chain.vulnerability_scanner.contract.read, proof_gate: capability-inventory}
+  - {surface: capability:surface_inventory.list, scenario: capability_claim, scenario_type: baseline, ref: surface_inventory.list, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.argument_names, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.argument_names, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.class_methods, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.class_methods, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.decorators, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.decorators, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.import_dependencies, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.import_dependencies, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.imports, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.imports, proof_gate: capability-inventory}
+  - {surface: capability:visualization.graph_query, scenario: capability_claim, scenario_type: baseline, ref: visualization.graph_query, proof_gate: capability-inventory}
+  - {surface: capability:visualization.packet_derivation, scenario: capability_claim, scenario_type: baseline, ref: visualization.packet_derivation, proof_gate: capability-inventory}
+  - {surface: capability:work_item.evidence.list, scenario: capability_claim, scenario_type: baseline, ref: work_item.evidence.list, proof_gate: capability-inventory}
 
   # C-6 (#4178) scope refinement: broad public product claims from
   # specs/product-claims.v1.yaml. The replay-coverage gate resolves each ref to
   # a deterministic proof row; capability-inventory docs mode validates the exact
   # source quote, capability maturity/truth ceilings, surface references, proof
   # signals, and no-required-semantic-output contract.
-  - {surface: product_claim:readme.code-intelligence.language-breadth, scenario: product_claim, ref: readme.code-intelligence.language-breadth, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:readme.code-to-cloud.evidence-continuity, scenario: product_claim, ref: readme.code-to-cloud.evidence-continuity, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:readme.supply-chain.default-gated, scenario: product_claim, ref: readme.supply-chain.default-gated, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:readme.security-iam.evidence-backed-findings, scenario: product_claim, ref: readme.security-iam.evidence-backed-findings, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:readme.change-risk.blast-radius, scenario: product_claim, ref: readme.change-risk.blast-radius, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:readme.replatforming.plan-readiness, scenario: product_claim, ref: readme.replatforming.plan-readiness, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:readme.mcp-tool-count.indexed-truth, scenario: product_claim, ref: readme.mcp-tool-count.indexed-truth, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:readme.operations-visibility.freshness, scenario: product_claim, ref: readme.operations-visibility.freshness, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:docs.capability-catalog.auditable-source, scenario: product_claim, ref: docs.capability-catalog.auditable-source, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:docs.capability-catalog.surface-parity, scenario: product_claim, ref: docs.capability-catalog.surface-parity, proof_gate: capability-inventory-docs}
-  - {surface: product_claim:docs.mcp-tool-contract.capability-catalog-read, scenario: product_claim, ref: docs.mcp-tool-contract.capability-catalog-read, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.code-intelligence.language-breadth, scenario: product_claim, scenario_type: baseline, ref: readme.code-intelligence.language-breadth, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.code-to-cloud.evidence-continuity, scenario: product_claim, scenario_type: baseline, ref: readme.code-to-cloud.evidence-continuity, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.supply-chain.default-gated, scenario: product_claim, scenario_type: baseline, ref: readme.supply-chain.default-gated, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.security-iam.evidence-backed-findings, scenario: product_claim, scenario_type: baseline, ref: readme.security-iam.evidence-backed-findings, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.change-risk.blast-radius, scenario: product_claim, scenario_type: baseline, ref: readme.change-risk.blast-radius, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.replatforming.plan-readiness, scenario: product_claim, scenario_type: baseline, ref: readme.replatforming.plan-readiness, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.mcp-tool-count.indexed-truth, scenario: product_claim, scenario_type: baseline, ref: readme.mcp-tool-count.indexed-truth, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:readme.operations-visibility.freshness, scenario: product_claim, scenario_type: baseline, ref: readme.operations-visibility.freshness, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:docs.capability-catalog.auditable-source, scenario: product_claim, scenario_type: baseline, ref: docs.capability-catalog.auditable-source, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:docs.capability-catalog.surface-parity, scenario: product_claim, scenario_type: baseline, ref: docs.capability-catalog.surface-parity, proof_gate: capability-inventory-docs}
+  - {surface: product_claim:docs.mcp-tool-contract.capability-catalog-read, scenario: product_claim, scenario_type: baseline, ref: docs.mcp-tool-contract.capability-catalog-read, proof_gate: capability-inventory-docs}
+
+  # C-8 (#4187): depth scenario coverage. These entries intentionally reuse the
+  # replay framework's existing R-11/R-13/R-14/R-16/R-17 proof artifacts; the
+  # coverage gate verifies they are wired, while the named proof gates execute
+  # the scenarios.
+  - {surface: collector:aws, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_timeout_test.go, proof_gate: go-test-race}
+  - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/scenario_test.go, proof_gate: go-test-race}
+  - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
+  - {surface: capability:freshness.changed_since, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: capability:code_search.content_search, scenario: proof_artifact, scenario_type: cost, ref: specs/capability-budget-proof.v1.yaml, proof_gate: capability-budget-proof}
+
+scenario_requirements:
+  - {surface: collector:aws, scenario_types: [baseline, fault]}
+  - {surface: capability:platform_impact.relationships_catalog, scenario_types: [baseline, ordering, crash]}
+  - {surface: capability:freshness.changed_since, scenario_types: [baseline, delta_tombstone]}
+  - {surface: capability:code_search.content_search, scenario_types: [baseline, cost]}
 
 # Exemptions: supported surfaces deliberately not required to have a replay
 # scenario, each with an auditable reason. Empty at seed time — every gap should
-# be burned down by an authored scenario (C-2..C-6), not exempted away. Add an
+# be burned down by an authored scenario, not exempted away. Add an
 # entry only when a surface genuinely cannot have a credential-free replay
 # scenario, with a reason an operator would accept.
 exemptions:

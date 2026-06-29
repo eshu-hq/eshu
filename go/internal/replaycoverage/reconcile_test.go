@@ -24,13 +24,33 @@ func reconcileFixture() Coverage {
 	}
 	m := Manifest{
 		Coverage: []CoverageEntry{
-			{Surface: "collector:aws", Scenario: ScenarioCassette, Ref: "present-ref"},
-			{Surface: "collector:git", Scenario: ScenarioCassette, Ref: "missing-ref"},
-			{Surface: "collector:ghost", Scenario: ScenarioCassette, Ref: "present-ref"}, // stale: no such surface
+			{Surface: "collector:aws", Scenario: ScenarioCassette, ScenarioType: ScenarioTypeBaseline, Ref: "present-ref"},
+			{Surface: "collector:git", Scenario: ScenarioCassette, ScenarioType: ScenarioTypeBaseline, Ref: "missing-ref"},
+			{Surface: "collector:ghost", Scenario: ScenarioCassette, ScenarioType: ScenarioTypeBaseline, Ref: "present-ref"}, // stale: no such surface
 		},
 		Exemptions: []Exemption{
 			{Surface: "capability:c.x", Reason: "design-only"},
 			{Surface: "parser:ghost", Reason: "no such parser"}, // stale exemption
+		},
+	}
+	r := stubResolver{present: map[string]bool{"present-ref": true}}
+	return Reconcile(supported, m, r)
+}
+
+func depthReconcileFixture() Coverage {
+	supported := []SupportedSurface{
+		{Registry: RegistrySurfaceInventory, Key: "collector:aws"},
+		{Registry: RegistrySurfaceInventory, Key: "collector:git"},
+	}
+	m := Manifest{
+		Coverage: []CoverageEntry{
+			{Surface: "collector:aws", Scenario: ScenarioCassette, ScenarioType: ScenarioTypeBaseline, Ref: "present-ref"},
+			{Surface: "collector:git", Scenario: ScenarioCassette, ScenarioType: ScenarioTypeBaseline, Ref: "present-ref"},
+			{Surface: "collector:git", Scenario: ScenarioCassette, ScenarioType: ScenarioTypeFault, Ref: "missing-ref"},
+		},
+		Requirements: []ScenarioRequirement{
+			{Surface: "collector:aws", ScenarioTypes: []DepthScenarioType{ScenarioTypeBaseline, ScenarioTypeFault}},
+			{Surface: "collector:git", ScenarioTypes: []DepthScenarioType{ScenarioTypeBaseline, ScenarioTypeFault}},
 		},
 	}
 	r := stubResolver{present: map[string]bool{"present-ref": true}}
@@ -105,5 +125,42 @@ func TestFindingsBlockingFailsOnGaps(t *testing.T) {
 	// 1 unresolved + 1 uncovered + 2 stale = 4 required failures in blocking mode.
 	if requiredFail != 4 {
 		t.Errorf("blocking required-fail count = %d, want 4", requiredFail)
+	}
+}
+
+func TestReconcileReportsMissingRequiredDepthScenarioType(t *testing.T) {
+	c := depthReconcileFixture()
+	var found bool
+	for _, sc := range c.Surfaces {
+		if sc.Surface.Key != "collector:aws" || sc.ScenarioType != ScenarioTypeFault {
+			continue
+		}
+		found = true
+		if sc.Status != StatusUncovered {
+			t.Errorf("collector:aws fault status = %q, want %q", sc.Status, StatusUncovered)
+		}
+		if sc.Detail != "no replay scenario mapped for required scenario_type fault" {
+			t.Errorf("collector:aws fault detail = %q", sc.Detail)
+		}
+	}
+	if !found {
+		t.Fatal("missing collector:aws fault requirement row")
+	}
+}
+
+func TestReconcileReportsUnresolvedDepthScenarioType(t *testing.T) {
+	c := depthReconcileFixture()
+	var found bool
+	for _, sc := range c.Surfaces {
+		if sc.Surface.Key != "collector:git" || sc.ScenarioType != ScenarioTypeFault {
+			continue
+		}
+		found = true
+		if sc.Status != StatusUnresolved {
+			t.Errorf("collector:git fault status = %q, want %q", sc.Status, StatusUnresolved)
+		}
+	}
+	if !found {
+		t.Fatal("missing collector:git fault requirement row")
 	}
 }

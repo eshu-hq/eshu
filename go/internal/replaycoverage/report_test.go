@@ -67,6 +67,27 @@ func TestBuildReportSurfaceRefsAndGapList(t *testing.T) {
 	}
 }
 
+func TestBuildReportDepthScenarioTypes(t *testing.T) {
+	rep := BuildReport(depthReconcileFixture(), true)
+	byRequirement := map[string]SurfaceReport{}
+	for _, s := range rep.Surfaces {
+		byRequirement[s.Key+"|"+s.ScenarioType] = s
+	}
+	if got := byRequirement["collector:aws|baseline"]; got.Status != StatusCovered || got.ScenarioType != string(ScenarioTypeBaseline) {
+		t.Errorf("collector:aws baseline report = %+v", got)
+	}
+	if got := byRequirement["collector:aws|fault"]; got.Status != StatusUncovered || got.ScenarioType != string(ScenarioTypeFault) {
+		t.Errorf("collector:aws fault report = %+v", got)
+	}
+	gaps := map[string]bool{}
+	for _, g := range rep.Gaps {
+		gaps[g] = true
+	}
+	if !gaps["collector:aws|fault"] || !gaps["collector:git|fault"] {
+		t.Errorf("gap list = %v, want depth-qualified fault gaps", rep.Gaps)
+	}
+}
+
 func TestMarshalReportDeterministic(t *testing.T) {
 	c := reconcileFixture()
 	a, err := MarshalReport(BuildReport(c, false))
