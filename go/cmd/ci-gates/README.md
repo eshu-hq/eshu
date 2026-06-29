@@ -30,6 +30,9 @@ Prints one selected gate id per line (registry order). Changed paths default to
 - `--json`: emit a structured object `{tier, base, selected, skipped, ci_only}`.
 - `--paths-from <file>`: read changed paths from a file (one per line). Pass
   `-` for stdin. Use this for hermetic tests that bypass git.
+- `--category <list>`: comma-separated category filter (e.g.
+  `exactness,telemetry`). Gates outside the set are reported as skipped, not
+  dropped. Empty means all categories.
 
 ### run
 
@@ -38,8 +41,15 @@ ci-gates run \
   --registry specs/ci-gates.v1.yaml \
   --tier pre-pr \
   [--base origin/main] \
-  [--paths-from paths.txt]
+  [--paths-from paths.txt] \
+  [--category exactness,telemetry] \
+  [--repo-root /path/to/repo]
 ```
+
+`--category` filters the run to the listed categories — `make pre-pr` uses
+`--category exactness,telemetry` to run only the static contract lane (#4214),
+leaving the race lane to #4215 and the heavy pre-push gates (gosec, console
+e2e, frontend) out of pre-pr.
 
 Runs each selected gate's `local.command` via `/bin/sh -c`, accumulates all
 results (does not stop at the first failure), and exits non-zero if any

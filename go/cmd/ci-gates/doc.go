@@ -29,13 +29,17 @@
 //
 // Default output: one selected gate id per line (registry order). --explain
 // adds a human-readable reason for each gate. --json emits a structured
-// object with selected, skipped, and ci_only arrays.
+// object with selected, skipped, and ci_only arrays. --category <list> filters
+// to a comma-separated set of categories (e.g. exactness,telemetry); gates
+// outside the set are reported as skipped rather than dropped.
 //
 // # run
 //
 // Runs each selected gate's local.command via /bin/sh -c, accumulates all
 // results, and exits non-zero if any blocking gate failed. Advisory failures
-// are printed but do not affect the exit code.
+// are printed but do not affect the exit code. --category applies the same
+// filter as select, so a caller such as `make pre-pr` can run only the
+// exactness/telemetry contract lane (#4214).
 //
 // # validate
 //

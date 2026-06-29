@@ -390,3 +390,22 @@ gates: []
 }
 
 // selectJSONOutput and selectJSONEntry are declared in main.go (same package).
+
+// TestParseCategories_RejectsUnknown proves a typo'd category is an error
+// rather than a silent no-op that unselects every gate (#4236 codex P2).
+func TestParseCategories_RejectsUnknown(t *testing.T) {
+	t.Parallel()
+	if _, err := parseCategories("exactnes"); err == nil {
+		t.Error("expected error for unknown category 'exactnes', got nil")
+	}
+	cats, err := parseCategories("exactness,telemetry")
+	if err != nil {
+		t.Fatalf("valid categories should parse, got: %v", err)
+	}
+	if len(cats) != 2 {
+		t.Errorf("expected 2 categories, got %d", len(cats))
+	}
+	if got, err := parseCategories(""); err != nil || got != nil {
+		t.Errorf("empty should be (nil,nil), got (%v,%v)", got, err)
+	}
+}

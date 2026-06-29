@@ -134,6 +134,21 @@ step_docs() {
 	fi
 }
 
+# step_exactness runs the credential-free exactness and telemetry contract gates
+# that the changed paths select, via the shared gate registry (#4213/#4214). This
+# replaces the old "remember the right verifier from the local-testing matrix"
+# workflow: openapi/route-coverage/edge-source-tool/evidence-continuity/
+# fact-kind/contract-source-of-truth/parser-relationship/query-plan/scale/
+# capability-budget/collector-entrypoints/skill-roundtrip/telemetry-coverage/
+# operator-dashboard etc. are now selected automatically. The --category filter
+# keeps this to static contract gates: the race lane is #4215, and heavy
+# pre-push gates (whole-module gosec, console e2e, frontend) stay out of pre-pr.
+# Docker/NornicDB/Postgres/credentialed gates are CI-only and reported, not run.
+step_exactness() {
+	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
+		--base "${base}" --tier pre-pr --category exactness,telemetry
+}
+
 run_step "gofumpt (whole module)" step_fmt
 run_step "golangci-lint (whole module)" step_lint
 run_step "go build ./..." step_build
@@ -141,6 +156,7 @@ run_step "go vet ./..." step_vet
 run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
+run_step "selected exactness + telemetry gates" step_exactness
 
 printf '\n\033[1m==== pre-pr summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done

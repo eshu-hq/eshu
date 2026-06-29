@@ -22,9 +22,19 @@ make pre-pr            # or: bash scripts/dev/pre-pr.sh
 It runs gofumpt and golangci-lint over the **whole** module (catching
 cross-package consequences a changed-package run misses, such as code that
 becomes unused when a sibling package changes), `go build` and `go vet` over the
-whole module, `go test` on the packages changed versus `origin/main`, plus the
-500-line file cap and package-docs gates. Integration suites that need Postgres
-or NornicDB are not run here — use the focused Compose gates below for those.
+whole module, `go test` on the packages changed versus `origin/main`, the
+500-line file cap and package-docs gates, and — driven by the gate registry
+(#4214) — the **selected credential-free exactness and telemetry contract gates**
+for your changed paths (OpenAPI, route coverage, edge source-tool coverage,
+evidence continuity, fact-kind registry, contract source-of-truth, parser
+relationship kit, query-plan regression, scale corpus/benchmark, capability
+budget, collector entrypoints, skill roundtrip, telemetry coverage, operator
+dashboard, and so on). You no longer have to remember which verifier matches
+your change — the changed-path selector picks them. A docs-only or no-op change
+runs none of them. The race lane is added by #4215; Docker/NornicDB/Postgres/
+credentialed gates remain CI-only and are printed (with a reason), never run
+locally. Integration suites that need Postgres or NornicDB are not run here —
+use the focused Compose gates below for those.
 
 To see exactly which credential-free CI verifiers apply to the paths you
 changed — and why — use the gate selector:
