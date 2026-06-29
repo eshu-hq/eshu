@@ -85,6 +85,43 @@ func TestCheckMCPQueryStructuredContentPasses(t *testing.T) {
 	}
 }
 
+func TestCheckMCPQueryCanAssertTruthEnvelope(t *testing.T) {
+	t.Parallel()
+
+	doer := &fakeMCPDoer{byTool: map[string]string{
+		"find_cross_repo_dead_code": `{"jsonrpc":"2.0","id":1,"result":{"content":[],"structuredContent":{"data":{"query_shape":"bounded_cross_repo_dead_code","candidate_buckets":{"live_by_consumer":[{"consumer_evidence":[{"citation":"code_reachability_rows:scope/gen/consumer/root/entity"}]}]}},"truth":{"level":"derived","basis":"hybrid"},"error":null}}}`,
+	}}
+	snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{
+		"find_cross_repo_dead_code": {
+			Envelope:               true,
+			RequiredResponseFields: []string{"data", "truth", "error"},
+			RequiredJSONPaths: []string{
+				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
+			},
+			RequiredJSONValues: map[string]any{
+				"truth.level":      "derived",
+				"truth.basis":      "hybrid",
+				"data.query_shape": "bounded_cross_repo_dead_code",
+			},
+			Arguments: map[string]any{"repo_id": "deadcode-producer", "language": "go", "limit": float64(20)},
+		},
+	}}}
+	var r Report
+	if err := checkMCPQuery(context.Background(), mcpClientWithDoer(doer), snap, &r); err != nil {
+		t.Fatalf("checkMCPQuery err = %v", err)
+	}
+	f, ok := findingByCheck(r, "mcp:find_cross_repo_dead_code")
+	if !ok {
+		t.Fatal("missing mcp:find_cross_repo_dead_code finding")
+	}
+	if !f.OK || !f.Required {
+		t.Fatalf("enveloped dead-code shape must pass as required: %+v", f)
+	}
+	if !strings.Contains(doer.lastBody, `"repo_id":"deadcode-producer"`) {
+		t.Errorf("tools/call did not forward dead-code arguments: %s", doer.lastBody)
+	}
+}
+
 // TestCheckMCPQueryTextContentFallback proves the text-content fallback when a
 // tool returns no structuredContent.
 func TestCheckMCPQueryTextContentFallback(t *testing.T) {

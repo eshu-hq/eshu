@@ -32,6 +32,7 @@ tests are unchanged.
 | `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`) plus `LoadSnapshot`. |
 | `report.go` | `Finding` and `Report` — the pass/fail accumulator with the required/advisory split. |
 | `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, node/edge counts, query shape, timing). |
+| `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
 
 ## Assertion semantics worth knowing
 
@@ -46,6 +47,11 @@ tests are unchanged.
   carry a non-empty (optionally pinned) value. A label legitimately contains
   property-less nodes (a `LICENSE` has no language), so the gate asserts a floor
   of tagged nodes rather than the absence of any untagged node.
+- **Query path assertions are explicit.** `RequiredJSONPaths` and
+  `RequiredJSONValues` walk only the dot paths named by the snapshot. A `[]`
+  suffix traverses a non-empty array, which lets the dead-code replay library
+  assert evidence citations and confidence labels without an unbounded response
+  scan.
 - **An empty `Report` is a failure.** A gate that asserted nothing has not proven
   anything.
 

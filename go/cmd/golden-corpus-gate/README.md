@@ -12,7 +12,7 @@ buckets.
 |--------|-----------|-------------------|-------------------|
 | drains | B-7(a)    | `fact_work_items` residual ≤ bound; `shared_projection_intents` nonterminal ≤ bound (B-13 / #3859 gate, incl. `repo_dependency` subset detail) | — |
 | graph  | B-7(b)    | required correlations exist (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...); required edge/node **properties** present (e.g. `source_tool` on Tier-2 edges, `language` on `File` nodes) | per-label node / per-relationship edge counts vs snapshot tolerances |
-| query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields / minimum results | — |
+| query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields, minimum results, and declared deep JSON fields / values | — |
 | timing | B-7(d)    | total pipeline wall time ≤ `budget-multiplier` × baseline; with `-phase-timings-file` (B-11 / #3804) each **gated** phase ≤ baseline band/slack in `e2e-baseline.json` | per-phase findings are advisory under `-phase-regression-advisory` (shared CI) |
 
 **Node/edge count tolerances are required (#3866):** the gate runs the full
@@ -83,6 +83,22 @@ Both are additive and default to off, so an entry without property fields behave
 exactly as before. A missing or un-normalized property fails the gate with a
 message naming the verb/label, the property, and the offending/short count — so a
 provenance regression can no longer pass silently.
+
+## Query shapes
+
+`query_shapes.http` supports bounded `GET` reads and read-style `POST` queries
+with a declared JSON `request_body`. Shapes that set `envelope: true` ask the API
+for `application/eshu.envelope+json` and assert the returned `{data, truth,
+error}` object directly. MCP shapes use the same flag to keep the tool envelope
+instead of unwrapping `data`.
+
+Deep assertions use explicit dot paths. A segment ending in `[]` traverses a
+non-empty array, so
+`data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation`
+proves at least one cited consumer evidence row exists. `required_json_values`
+pins deterministic values such as `truth.level`, `truth.basis`, and
+`data.query_shape`. The matcher evaluates only the declared paths; it never
+scans an entire response.
 
 ## Files
 

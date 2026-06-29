@@ -203,6 +203,70 @@ func TestEvaluateQueryShape(t *testing.T) {
 			t.Errorf("object-shaped response with all fields must pass: %s", f.Detail)
 		}
 	})
+
+	t.Run("nested dead-code bucket paths and values", func(t *testing.T) {
+		shape := QueryShape{
+			RequiredResponseFields: []string{"data", "truth", "error"},
+			RequiredJSONPaths: []string{
+				"data.candidate_buckets.dead[]",
+				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
+				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
+				"data.candidate_buckets.unknown[].needs_evidence_reasons[]",
+				"data.candidate_buckets.suppressed[]",
+			},
+			RequiredJSONValues: map[string]any{
+				"truth.level":      "derived",
+				"truth.basis":      "hybrid",
+				"data.query_shape": "bounded_cross_repo_dead_code",
+				"data.candidate_buckets.live_by_consumer[].classification": "live_by_consumer",
+				"data.candidate_buckets.unknown[].classification":          "unknown_needs_evidence",
+			},
+		}
+		body := []byte(`{
+		  "data": {
+		    "query_shape": "bounded_cross_repo_dead_code",
+		    "candidate_buckets": {
+		      "dead": [{"entity_id": "producer-dead"}],
+		      "live_by_consumer": [{
+		        "entity_id": "producer-live",
+		        "classification": "live_by_consumer",
+		        "consumer_evidence": [{
+		          "citation": "code_reachability_rows:scope/gen/consumer/root/producer-live",
+		          "confidence_label": "high"
+		        }]
+		      }],
+		      "unknown": [{
+		        "entity_id": "producer-unknown",
+		        "classification": "unknown_needs_evidence",
+		        "needs_evidence_reasons": ["ambiguous_consumer_ownership"]
+		      }],
+		      "suppressed": [{"entity_id": "producer-root"}]
+		    }
+		  },
+		  "truth": {"level": "derived", "basis": "hybrid"},
+		  "error": null
+		}`)
+		if f := EvaluateQueryShape("dead-code-cross-repo", shape, body); !f.OK {
+			t.Fatalf("dead-code query shape failed: %s", f.Detail)
+		}
+
+		missingCitation := []byte(`{
+		  "data": {
+		    "query_shape": "bounded_cross_repo_dead_code",
+		    "candidate_buckets": {
+		      "dead": [{"entity_id": "producer-dead"}],
+		      "live_by_consumer": [{"classification": "live_by_consumer", "consumer_evidence": [{}]}],
+		      "unknown": [{"classification": "unknown_needs_evidence", "needs_evidence_reasons": ["ambiguous_consumer_ownership"]}],
+		      "suppressed": [{"entity_id": "producer-root"}]
+		    }
+		  },
+		  "truth": {"level": "derived", "basis": "hybrid"},
+		  "error": null
+		}`)
+		if f := EvaluateQueryShape("dead-code-cross-repo", shape, missingCitation); f.OK {
+			t.Fatalf("missing nested citation passed unexpectedly: %s", f.Detail)
+		}
+	})
 }
 
 func TestEvaluateTiming(t *testing.T) {

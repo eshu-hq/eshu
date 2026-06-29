@@ -679,6 +679,91 @@
           "resources"
         ],
         "minimum_results": 1
+      },
+      "find_dead_code": {
+        "description": "Lower-level dead-code candidate scan through MCP; asserts the Eshu truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.analysis.root_categories_used[]",
+          "data.analysis.dead_code_language_maturity.go",
+          "data.candidate_scan_limit",
+          "data.candidate_scan_pages",
+          "data.candidate_scan_rows"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.analysis.iac_reachability_mode": "not_modeled_by_code_dead_code",
+          "data.analysis.dead_code_language_maturity.go": "derived"
+        },
+        "arguments": {
+          "repo_id": "orders-api",
+          "limit": 50
+        }
+      },
+      "investigate_dead_code": {
+        "description": "Prompt-facing dead-code investigation packet through MCP; asserts cleanup/ambiguous/suppressed bucket counts, coverage query shape, and truth envelope.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.coverage.query_shape",
+          "data.bucket_counts.cleanup_ready",
+          "data.bucket_counts.ambiguous",
+          "data.bucket_counts.suppressed",
+          "data.language_maturity.go"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation",
+          "data.language_maturity.go": "derived"
+        },
+        "arguments": {
+          "repo_id": "orders-api",
+          "language": "go",
+          "limit": 50,
+          "offset": 0
+        }
+      },
+      "find_cross_repo_dead_code": {
+        "description": "Cross-repo producer dead-code classification through MCP; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.candidate_buckets",
+          "data.bucket_counts.dead",
+          "data.bucket_counts.live_by_consumer",
+          "data.bucket_counts.unknown",
+          "data.bucket_counts.suppressed",
+          "data.analysis.dead_code_language_maturity.go"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.query_shape": "bounded_cross_repo_dead_code",
+          "data.analysis.dead_code_language_maturity.go": "derived"
+        },
+        "arguments": {
+          "repo_id": "lib-common",
+          "consumer_repo_ids": [
+            "orders-api"
+          ],
+          "language": "go",
+          "limit": 50
+        }
       }
     },
     "http": {
@@ -813,6 +898,92 @@
           "count"
         ],
         "minimum_results": 0
+      },
+      "POST /api/v0/code/dead-code": {
+        "description": "Lower-level dead-code candidate scan; asserts the truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "orders-api",
+          "language": "go",
+          "limit": 50
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.analysis.root_categories_used[]",
+          "data.analysis.dead_code_language_maturity.go",
+          "data.candidate_scan_limit",
+          "data.candidate_scan_pages",
+          "data.candidate_scan_rows"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.analysis.iac_reachability_mode": "not_modeled_by_code_dead_code",
+          "data.analysis.dead_code_language_maturity.go": "derived"
+        }
+      },
+      "POST /api/v0/code/dead-code/investigate": {
+        "description": "Prompt-facing dead-code investigation packet; asserts cleanup/ambiguous/suppressed bucket counts, coverage query shape, and truth envelope.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "orders-api",
+          "language": "go",
+          "limit": 50,
+          "offset": 0
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.coverage.query_shape",
+          "data.bucket_counts.cleanup_ready",
+          "data.bucket_counts.ambiguous",
+          "data.bucket_counts.suppressed",
+          "data.language_maturity.go"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation",
+          "data.language_maturity.go": "derived"
+        }
+      },
+      "POST /api/v0/code/dead-code/cross-repo": {
+        "description": "Cross-repo producer dead-code classification; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "lib-common",
+          "consumer_repo_ids": [
+            "orders-api"
+          ],
+          "language": "go",
+          "limit": 50
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.candidate_buckets",
+          "data.bucket_counts.dead",
+          "data.bucket_counts.live_by_consumer",
+          "data.bucket_counts.unknown",
+          "data.bucket_counts.suppressed",
+          "data.analysis.dead_code_language_maturity.go"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.query_shape": "bounded_cross_repo_dead_code",
+          "data.analysis.dead_code_language_maturity.go": "derived"
+        }
       }
     }
   },

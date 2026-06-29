@@ -301,9 +301,17 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 		}
 	}
 
+	pathDetailOK, pathDetail := evaluateJSONPathRequirements(shape, body)
+	if !pathDetailOK {
+		return mk(false, pathDetail)
+	}
+
 	detail := fmt.Sprintf("fields %v present", shape.RequiredResponseFields)
 	if arrayField != "" {
 		detail = fmt.Sprintf("%q has %d results; item fields %v present", arrayField, len(items), shape.ResultItemRequiredFields)
+	}
+	if pathDetail != "" {
+		detail += "; " + pathDetail
 	}
 	return mk(true, detail)
 }

@@ -75,7 +75,7 @@ type mcpContentEntry struct {
 // falling back to the first text content entry. A transport error, a JSON-RPC
 // error, or a tool-reported isError is returned as an error so the caller records
 // a failing required finding.
-func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]any) ([]byte, error) {
+func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]any, preserveEnvelope bool) ([]byte, error) {
 	c.id++
 	if args == nil {
 		args = map[string]any{}
@@ -119,12 +119,19 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 		return nil, fmt.Errorf("tools/call %s: tool reported isError; content=%q", name, firstText(rpc.Result.Content))
 	}
 	if len(rpc.Result.StructuredContent) > 0 {
-		return unwrapTruthEnvelope(rpc.Result.StructuredContent), nil
+		return maybeUnwrapTruthEnvelope(rpc.Result.StructuredContent, preserveEnvelope), nil
 	}
 	if t := firstText(rpc.Result.Content); t != "" {
-		return unwrapTruthEnvelope([]byte(t)), nil
+		return maybeUnwrapTruthEnvelope([]byte(t), preserveEnvelope), nil
 	}
 	return nil, fmt.Errorf("tools/call %s: result carried no structuredContent or text content", name)
+}
+
+func maybeUnwrapTruthEnvelope(raw []byte, preserveEnvelope bool) []byte {
+	if preserveEnvelope {
+		return raw
+	}
+	return unwrapTruthEnvelope(raw)
 }
 
 // unwrapTruthEnvelope returns the tool payload to assert the query shape against.
@@ -164,7 +171,7 @@ func checkMCPQuery(ctx context.Context, c *mcpClient, snap Snapshot, r *Report) 
 
 	for _, key := range keys {
 		shape := snap.QueryShapes.MCP[key]
-		body, err := c.callTool(ctx, key, shape.Arguments)
+		body, err := c.callTool(ctx, key, shape.Arguments, shape.Envelope)
 		if err != nil {
 			r.AddCheck("query", "mcp:"+key, false, true, err.Error())
 			continue
