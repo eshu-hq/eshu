@@ -102,6 +102,45 @@ coverage:
     scenario: api_mcp_golden
     ref: GET /api/v0/images
     proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/package-registry/packages
+    scenario: api_mcp_golden
+    ref: GET /api/v0/package-registry/packages?ecosystem=go&limit=50
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/incidents/{incident_id}/context
+    scenario: api_mcp_golden
+    ref: GET /api/v0/incidents/PSCD1/context
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/work-items/evidence
+    scenario: api_mcp_golden
+    ref: GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments
+    scenario: api_mcp_golden
+    ref: GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/supply-chain/impact/findings
+    scenario: api_mcp_golden
+    ref: GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000
+    proof_gate: golden-corpus-gate
+  # observability/coverage: the fact-kind registry surface key is the bare path,
+  # but the mounted route is .../coverage/correlations — the ref targets the real
+  # route (a query-param selector is required).
+  - surface: read_surface:GET /api/v0/observability/coverage
+    scenario: api_mcp_golden
+    ref: GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/iac/resources
+    scenario: api_mcp_golden
+    ref: GET /api/v0/iac/resources?limit=50
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/documentation/facts
+    scenario: api_mcp_golden
+    ref: GET /api/v0/documentation/facts?fact_kind=source
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/secrets-iam/posture-summary
+    scenario: api_mcp_golden
+    ref: GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo
+    proof_gate: golden-corpus-gate
 
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a

@@ -661,6 +661,78 @@
           "count"
         ],
         "minimum_results": 1
+      },
+      "GET /api/v0/incidents/PSCD1/context": {
+        "description": "Incident context for the pagerduty supply-chain-demo incident; confirms the incident fact is read-queryable.",
+        "required_response_fields": [
+          "incident",
+          "query"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD": {
+        "description": "Work-item evidence for the jira supply-chain-demo scope; confirms work_item facts are read-queryable.",
+        "required_response_fields": [
+          "evidence",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom": {
+        "description": "SBOM attestation attachments for the synthetic supply-chain-demo SBOM document.",
+        "required_response_fields": [
+          "attachments",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {
+        "description": "Supply-chain impact findings for the synthetic supply-chain-demo CVE.",
+        "required_response_fields": [
+          "findings",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50": {
+        "description": "Observability coverage correlations (tempo); confirms the observability coverage read surface is queryable.",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/iac/resources?limit=50": {
+        "description": "IaC resource list from the terraform/IaC corpus; confirms the IaC read surface is queryable.",
+        "required_response_fields": [
+          "resources",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/documentation/facts?fact_kind=source": {
+        "description": "Documentation source facts; confirms the documentation read surface is queryable.",
+        "required_response_fields": [
+          "facts",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/package-registry/packages?ecosystem=go&limit=50": {
+        "description": "Package registry packages (npm ecosystem); confirms package projection is queryable.",
+        "required_response_fields": [
+          "packages",
+          "count"
+        ],
+        "minimum_results": 1
+      },
+      "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo": {
+        "description": "Secrets/IAM posture summary (governed projection, default-off per ADR #1314); confirms the read surface is mounted and returns a valid summary object.",
+        "required_response_fields": [
+          "scope_id",
+          "summary"
+        ],
+        "minimum_results": 0
       }
     }
   },
