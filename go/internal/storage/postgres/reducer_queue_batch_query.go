@@ -314,10 +314,7 @@ candidate AS (
 claimed AS (
     UPDATE fact_work_items AS work
     SET status = 'claimed',
-        attempt_count = CASE
-            WHEN work.status = 'retrying' AND work.failure_class = 'secrets_iam_endpoint_not_ready' THEN work.attempt_count
-            ELSE work.attempt_count + 1
-        END,
+        attempt_count = ` + reducerClaimAttemptCountCaseSQL() + `,
         lease_owner = $3,
         claim_until = $4,
         last_attempt_at = $1,

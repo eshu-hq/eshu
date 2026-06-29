@@ -178,7 +178,12 @@ func (q ReducerQueue) retryable(cause error, failureClass string, attemptCount i
 }
 
 func isNonCountingReducerRetryFailureClass(failureClass string) bool {
-	return failureClass == reducer.SecretsIAMEndpointNotReadyFailureClass
+	for _, class := range nonCountingReducerRetryFailureClasses {
+		if failureClass == class {
+			return true
+		}
+	}
+	return false
 }
 
 func (q ReducerQueue) failIntent(

@@ -50,6 +50,17 @@ func kubernetesCorrelationMaterializationDomainDefinition() DomainDefinition {
 // live-workload image edges and never touches edges owned by other writers.
 const kubernetesCorrelationEdgeEvidenceSource = "reducer/kubernetes-correlation"
 
+// KubernetesCorrelationNodesNotReadyFailureClass identifies an in-handler
+// readiness-gate miss: the RUNS_IMAGE edge intent ran before the #388 workload
+// node slice published its canonical-nodes-committed phase. The durable claim gate
+// normally holds the intent until the phase commits, so this class is the
+// defense-in-depth path for a claim-gate / handler-derivation disagreement or a
+// phase retracted between claim and handle. The reducer queue treats it as a
+// non-counting retry class so a readiness miss never erodes the retry budget and
+// dead-letters a still-pending edge intent the succeeded-only reopen path would not
+// reopen (issue #4142 item 3), mirroring SecretsIAMEndpointNotReadyFailureClass.
+const KubernetesCorrelationNodesNotReadyFailureClass = "kubernetes_correlation_nodes_not_ready"
+
 // KubernetesCorrelationEdgeWriter persists and retracts canonical RUNS_IMAGE
 // edges between a live KubernetesWorkload node and the digest-addressed OCI source
 // node it was observed running. Implementations MUST be idempotent by
@@ -330,7 +341,7 @@ func (e kubernetesCorrelationNodesNotReadyError) Error() string {
 func (kubernetesCorrelationNodesNotReadyError) Retryable() bool { return true }
 
 func (kubernetesCorrelationNodesNotReadyError) FailureClass() string {
-	return "kubernetes_correlation_nodes_not_ready"
+	return KubernetesCorrelationNodesNotReadyFailureClass
 }
 
 // kubernetesCorrelationMaterializationTiming groups stage durations and the edge
