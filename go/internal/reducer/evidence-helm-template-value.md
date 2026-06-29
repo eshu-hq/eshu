@@ -24,10 +24,11 @@ the hot-path-by-location files this change touches
 - The usage -> definition edge is resolved in Go in the projector
   structural-edge phase (mirroring the Atlantis `MANAGES` and GitLab
   `DEFINES_JOB` edges), matched by uid, scoped per chart, and written as
-  `(HelmTemplateValueUsage)-[:REFERENCES {evidence_kinds:["HELM_TEMPLATE_VALUE_REFERENCE"]}]->(HelmValueDefinition)`.
+  `(HelmTemplateValueUsage)-[:REFERENCES {evidence_kinds:["HELM_TEMPLATE_VALUE_REFERENCE"], source_tool:"helm"}]->(HelmValueDefinition)`.
   The generic `REFERENCES` type is reused (usage -> definition, the same semantic
-  as a code-symbol reference); the `evidence_kinds` property and the
-  `helm_template_value_reference` `call_kind` isolate it from code REFERENCES.
+  as a code-symbol reference); the `evidence_kinds` property, normalized
+  `source_tool`, and the `helm_template_value_reference` `call_kind` isolate it
+  from code REFERENCES.
 
 ## No-Regression Evidence
 
@@ -48,6 +49,11 @@ No-Regression Evidence:
   scans or deletes the code-symbol `REFERENCES` edges that share the edge type;
   re-projection is idempotent (MERGE re-writes the current edge after the stale
   prior-generation edge is dropped).
+- The `source_tool` write is one additional scalar `SET` on the same bounded
+  `UNWIND` row used for `evidence_kinds`; it does not add a match, merge,
+  traversal, batch, or transaction. The C-4 snapshot now asserts this property
+  for rc-35, so a missing or non-canonical token fails the same graph proof that
+  already checks the Helm template-value `REFERENCES` edge.
 - Baseline vs after: the B-7 golden corpus gate
   (`scripts/verify-golden-corpus-gate.sh`) over the 18-repo corpus on the
   NornicDB backend stays within its existing 900s baseline / 1800s ceiling

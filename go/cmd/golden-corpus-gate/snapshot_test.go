@@ -91,6 +91,35 @@ func TestCountRangeContains(t *testing.T) {
 	}
 }
 
+func TestEvidenceNarrowedCorrelationsRequireSourceTool(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	for _, rc := range snap.Graph.RequiredCorrelations {
+		if len(rc.EvidenceKinds) == 0 {
+			continue
+		}
+		if !containsString(rc.RequiredEdgeProperties, "source_tool") {
+			t.Errorf("%s evidence-filtered correlation must require source_tool", rc.ID)
+			continue
+		}
+		if len(rc.AllowedEdgePropertyValues["source_tool"]) == 0 {
+			t.Errorf("%s source_tool assertion must pin allowed values", rc.ID)
+		}
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestLoadSnapshotMissingFile(t *testing.T) {
 	if _, err := LoadSnapshot(filepath.Join(t.TempDir(), "nope.json")); err == nil {
 		t.Fatal("expected error for missing snapshot file")

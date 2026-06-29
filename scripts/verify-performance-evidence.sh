@@ -116,11 +116,11 @@ is_runtime_config_by_content() {
 # instead of one git invocation per file. Empty if the diff is unavailable.
 _perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base"...HEAD 2>/dev/null || true)"
 
-# Map of changed files whose diff contains at least one non-comment,
-# non-whitespace added/removed line. Files absent from the map had no
-# diff at all; files mapped to 0 had only comments/blanks; files mapped
-# to 1 had real code changes.
-declare -A _perf_code_change_map=()
+# Newline-delimited map of changed files whose diff contains at least one
+# non-comment, non-whitespace added/removed line. Files absent from the map had
+# no diff at all; files mapped to 0 had only comments/blanks; files mapped to 1
+# had real code changes. Keep this Bash-3 compatible for macOS hook runners.
+_perf_code_change_map=""
 if [ -n "${_perf_diff_cache}" ]; then
   _perf_cur=""
   while IFS= read -r line; do
@@ -129,7 +129,7 @@ if [ -n "${_perf_diff_cache}" ]; then
         _perf_cur="${line#+++ b/}"
         # Deleted files show /dev/null; rename targets show new path.
         if [ "${_perf_cur}" != "/dev/null" ] && [ "${_perf_cur}" != "b/dev/null" ]; then
-          _perf_code_change_map["${_perf_cur}"]=0
+          _perf_code_change_map="${_perf_code_change_map}${_perf_cur}"$'\t'"0"$'\n'
         else
           _perf_cur=""
         fi
@@ -142,7 +142,7 @@ if [ -n "${_perf_diff_cache}" ]; then
         case "${_perf_payload}" in
           "//"*|"/"*"|"*"*"|"#"*|"") continue ;;
         esac
-        _perf_code_change_map["${_perf_cur}"]=1
+        _perf_code_change_map="${_perf_code_change_map}${_perf_cur}"$'\t'"1"$'\n'
         ;;
     esac
   done <<< "${_perf_diff_cache}"
@@ -162,7 +162,11 @@ fi
 # those cheaply, and defaulting to "gate fires" is the safe side.
 is_comment_only_change() {
   local path="$1"
-  [ "${_perf_code_change_map[${path}]:-1}" = "0" ]
+  [ -n "${_perf_code_change_map}" ] || return 1
+  printf '%s' "${_perf_code_change_map}" | awk -F '\t' -v path="$path" '
+    $1 == path { value = $2 }
+    END { exit !(value == "0") }
+  '
 }
 
 is_evidence_file() {

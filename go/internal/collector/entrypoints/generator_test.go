@@ -57,6 +57,10 @@ func TestGenerateClaimedCollectorEntrypoint(t *testing.T) {
 	for _, want := range []string{
 		`const runtimeName = "collector-pagerduty"`,
 		`buildinfo.PrintVersionFlag(os.Args[1:], os.Stdout, "eshu-collector-pagerduty")`,
+		`launchModeCassette    launchMode = "cassette"`,
+		`opts, err := parseArgs(os.Args[1:])`,
+		`if err := run(context.Background(), opts); err != nil {`,
+		`runner, err = buildCassetteService(storeDB, opts.cassetteFile, tracer, instruments, logger)`,
 		`app.NewHostedWithStatusServer(`,
 		`StoreName:   "collector_pagerduty",`,
 		`// Managed collector entrypoint. Update go/internal/collector/entrypoints/collector_entrypoints.yaml, then rerun scripts/generate-collector-entrypoints.sh.`,
@@ -81,6 +85,10 @@ func TestGenerateClaimedCollectorEntrypoint(t *testing.T) {
 
 	serviceFile := generatedFile(t, files, "service.go")
 	for _, want := range []string{
+		`"github.com/eshu-hq/eshu/go/internal/replay/cassette"`,
+		`func buildCassetteService(`,
+		`src, err := cassette.NewSource(cassettePath)`,
+		`PollInterval: 24 * time.Hour,`,
 		`attachPagerDutyRuntimeSignals(&config.Source, tracer, instruments)`,
 		`func attachPagerDutyRuntimeSignals(config *pagerduty.SourceConfig, tracer trace.Tracer, instruments *telemetry.Instruments) {`,
 		`source, err := pagerduty.NewClaimedSource(config.Source)`,

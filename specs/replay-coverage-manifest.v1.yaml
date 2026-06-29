@@ -174,6 +174,88 @@ coverage:
     ref: go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json
     proof_gate: parserfixture-tests
 
+  # C-4 (#4176): correlation-backed capability claims. These map only the
+  # capabilities whose claim is directly exercised by a B-12 required
+  # correlation already promoted in scripts/verify-golden-corpus-gate.sh. Shared
+  # verbs stay pinned to evidence/source-tool narrowed rc-* rows in the snapshot
+  # rather than a bare edge count.
+  - surface: capability:call_graph.call_chain_path
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:call_graph.direct_callees
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:call_graph.direct_callers
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:call_graph.metrics
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:call_graph.relationship_story
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:call_graph.route_to_caller
+    scenario: correlation
+    ref: rc-8
+    proof_gate: golden-corpus-gate
+  - surface: capability:call_graph.transitive_callees
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:call_graph.transitive_callers
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:dependencies.list
+    scenario: correlation
+    ref: rc-9
+    proof_gate: golden-corpus-gate
+  - surface: capability:kubernetes.correlations.list
+    scenario: correlation
+    ref: rc-4
+    proof_gate: golden-corpus-gate
+  - surface: capability:package_registry.correlations.list
+    scenario: correlation
+    ref: rc-9
+    proof_gate: golden-corpus-gate
+  - surface: capability:package_registry.dependencies.list
+    scenario: correlation
+    ref: rc-25
+    proof_gate: golden-corpus-gate
+  - surface: capability:package_registry.dependency_chains.list
+    scenario: correlation
+    ref: rc-9
+    proof_gate: golden-corpus-gate
+  - surface: capability:platform_impact.dependency_path
+    scenario: correlation
+    ref: rc-3
+    proof_gate: golden-corpus-gate
+  - surface: capability:platform_impact.deployment_chain
+    scenario: correlation
+    ref: rc-19
+    proof_gate: golden-corpus-gate
+  - surface: capability:platform_impact.relationships_catalog
+    scenario: correlation
+    ref: rc-11
+    proof_gate: golden-corpus-gate
+  - surface: capability:relationship_evidence.drilldown
+    scenario: correlation
+    ref: rc-21
+    proof_gate: golden-corpus-gate
+  - surface: capability:service_catalog.correlations.list
+    scenario: correlation
+    ref: rc-1
+    proof_gate: golden-corpus-gate
+  - surface: capability:symbol_graph.inheritance
+    scenario: correlation
+    ref: rc-12
+    proof_gate: golden-corpus-gate
+
 # Exemptions: supported surfaces deliberately not required to have a replay
 # scenario, each with an auditable reason. Empty at seed time — every gap should
 # be burned down by an authored scenario (C-2..C-6), not exempted away. Add an

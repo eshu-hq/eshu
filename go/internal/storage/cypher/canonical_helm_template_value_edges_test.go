@@ -4,6 +4,7 @@
 package cypher
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -56,6 +57,9 @@ func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) 
 		t.Fatalf("stmts[0].Operation = %v, want retract", retract.Operation)
 	}
 	upsert := stmts[1]
+	if !strings.Contains(upsert.Cypher, "r.source_tool = row.source_tool") {
+		t.Fatalf("upsert Cypher missing source_tool SET: %s", upsert.Cypher)
+	}
 	rows, ok := upsert.Parameters["rows"].([]map[string]any)
 	if !ok {
 		t.Fatalf("rows type = %T, want []map[string]any", upsert.Parameters["rows"])
@@ -78,6 +82,9 @@ func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) 
 	kinds, ok := imageRow["evidence_kinds"].([]string)
 	if !ok || len(kinds) != 1 || kinds[0] != "HELM_TEMPLATE_VALUE_REFERENCE" {
 		t.Errorf("evidence_kinds = %v, want [HELM_TEMPLATE_VALUE_REFERENCE]", imageRow["evidence_kinds"])
+	}
+	if imageRow["source_tool"] != "helm" {
+		t.Errorf("source_tool = %v, want helm", imageRow["source_tool"])
 	}
 }
 

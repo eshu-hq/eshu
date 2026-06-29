@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -217,27 +218,36 @@ func TestCheckGraphRequiredFailsWhenCorrelationMissing(t *testing.T) {
 }
 
 func TestQueryClientChecksHTTPShapes(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	shapesByPath := make(map[string]QueryShape, len(snap.QueryShapes.HTTP))
+	for key, shape := range snap.QueryShapes.HTTP {
+		_, path, err := parseHTTPShapeKey(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		shapesByPath[path] = shape
+	}
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Authorization") != "Bearer k" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		switch req.URL.Path {
-		case "/api/v0/repositories":
-			_, _ = w.Write([]byte(`{"repositories":[{"id":"r1","name":"a"}]}`))
-		case "/api/v0/status/operator-control-plane":
-			_, _ = w.Write([]byte(`{"version":"1","as_of":"now","health":"ok","queue":{},"reducer_domains":[],"collector_families":[],"dead_letters":[],"retry_policies":[]}`))
-		default:
+		shape, ok := shapesByPath[req.URL.RequestURI()]
+		if !ok {
 			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(fakeQueryShapeResponse(shape)); err != nil {
+			t.Errorf("write query shape response: %v", err)
 		}
 	}))
 	defer srv.Close()
 
-	snap, err := LoadSnapshot(goldenSnapshotPath())
-	if err != nil {
-		t.Fatal(err)
-	}
 	client := newQueryClient(srv.URL, "k")
 	var r Report
 	if err := checkQuery(context.Background(), client, snap, &r); err != nil {
@@ -246,6 +256,31 @@ func TestQueryClientChecksHTTPShapes(t *testing.T) {
 	if r.Failed() {
 		t.Fatalf("expected query shapes to pass; findings: %+v", r.Findings)
 	}
+}
+
+func fakeQueryShapeResponse(shape QueryShape) map[string]any {
+	resp := make(map[string]any, len(shape.RequiredResponseFields))
+	arrayField := ""
+	if shape.MinimumResults > 0 || len(shape.ResultItemRequiredFields) > 0 {
+		arrayField = shape.RequiredResponseFields[0]
+	}
+	for _, field := range shape.RequiredResponseFields {
+		if field == arrayField {
+			count := max(shape.MinimumResults, 1)
+			items := make([]map[string]any, count)
+			for i := range items {
+				item := make(map[string]any, len(shape.ResultItemRequiredFields))
+				for _, itemField := range shape.ResultItemRequiredFields {
+					item[itemField] = "value"
+				}
+				items[i] = item
+			}
+			resp[field] = items
+			continue
+		}
+		resp[field] = map[string]any{}
+	}
+	return resp
 }
 
 func TestQueryClientFailsOnNon2xx(t *testing.T) {
