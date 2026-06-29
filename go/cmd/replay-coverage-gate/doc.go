@@ -26,7 +26,10 @@
 // the gate, so its red output is the C-2..C-6 backfill worklist. The single
 // -blocking flag flips every uncovered, unresolved, and stale finding to required
 // so coverage can never regress once the gaps are burned down. A machine-readable
-// coverage report is written on every run for the C-7 dashboard.
+// coverage report (-report-out) and the committed, docs-discoverable C-7
+// dashboard (-dashboard-out, docs/public/reference/replay-coverage.md) are
+// written on every run; TestCommittedDashboardIsCurrent holds the dashboard in
+// lockstep (refresh with -update-dashboard).
 //
 // Coverage is existence-only: the gate proves a scenario artifact exists and is
 // wired, not that it passes. Greenness is proven by the sibling gate named in

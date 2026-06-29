@@ -20,8 +20,9 @@ logic lives in [`internal/replaycoverage`](../../internal/replaycoverage).
    parsers, positive capability claims).
 3. Reconciles each against `specs/replay-coverage-manifest.v1.yaml` and the
    on-disk / snapshot scenario artifacts.
-4. Writes a JSON coverage report (C-7 input) and prints per-registry satisfied
-   percentages.
+4. Writes a JSON coverage report and the committed, docs-discoverable C-7
+   Markdown dashboard (`docs/public/reference/replay-coverage.md`), and prints
+   per-registry satisfied percentages.
 5. Exits non-zero only in `-blocking` mode when a surface is uncovered,
    unresolved, or a manifest entry is stale.
 
@@ -46,7 +47,12 @@ Add `-blocking` to fail on any gap. The shipped CI default is advisory.
 | `-manifest` | `<specs-dir>/replay-coverage-manifest.v1.yaml` | the curated coverage manifest |
 | `-repo-root` | `.` | root that cassette/parser-fixture refs resolve against |
 | `-report-out` | (none) | path to write the JSON coverage report |
+| `-dashboard-out` | (none) | path to write the Markdown coverage dashboard (the committed C-7 artifact) |
 | `-blocking` | `false` | fail on any uncovered/unresolved/stale surface |
+
+The committed dashboard is held in lockstep by `TestCommittedDashboardIsCurrent`;
+regenerate it after a coverage-moving change with
+`go test ./cmd/replay-coverage-gate/ -update-dashboard`.
 
 ## Greenness is proven elsewhere
 

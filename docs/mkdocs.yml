@@ -113,6 +113,7 @@ nav:
       - Remote Representative Acceptance: reference/local-testing/remote-representative-acceptance.md
       - Representative Corpus Suite: reference/local-testing/representative-corpus-suite.md
       - Golden Corpus Gate (B-7): reference/local-testing/golden-corpus-gate.md
+      - Replay Coverage Dashboard: reference/replay-coverage.md
       - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
       - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
       - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
