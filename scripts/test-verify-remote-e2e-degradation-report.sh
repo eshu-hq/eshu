@@ -158,6 +158,24 @@ JSON
 
 expect_fail_with "${private_input}" 'public-safe'
 
+private_numeric_input="${tmp_root}/private-numeric.json"
+cat >"${private_numeric_input}" <<'JSON'
+{
+  "run": {"id": "private-numeric", "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de"},
+  "startup": {"schema_bootstrap": "passed"},
+  "services": [{"name": "eshu", "state": "running", "health": "healthy"}],
+  "index_status": {"status": "healthy", "queue": {"outstanding": 0}},
+  "work": {
+    "pending_domains": [
+      {"domain": "search_document_readiness", "pending": 0, "oldest_age_seconds": 0, "account_id": 123456789012}
+    ]
+  },
+  "postgres": {"active_queries": [], "ungranted_locks": 0, "relation_sizes": []}
+}
+JSON
+
+expect_fail_with "${private_numeric_input}" 'public-safe'
+
 healthy_input="${tmp_root}/healthy.json"
 cat >"${healthy_input}" <<'JSON'
 {
@@ -187,7 +205,9 @@ cat >"${healthy_input}" <<'JSON'
   "postgres": {
     "active_queries": [],
     "ungranted_locks": 0,
-    "relation_sizes": []
+    "relation_sizes": [
+      {"name": "eshu_search_index_terms", "bytes": 3328599654}
+    ]
   }
 }
 JSON

@@ -53,19 +53,43 @@ fi
 
 jq -e . "${INPUT_FILE}" >/dev/null
 
+unsafe_match_file="$(mktemp)"
+trap 'rm -f "${unsafe_match_file}"' EXIT
 unsafe_pattern='(/Users/|/home/|/var/folders/|/private/|BEGIN [A-Z ]*PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|(^|[^0-9])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9]|$)|(^|[^0-9])[0-9]{12}([^0-9]|$))'
-if jq -r '.. | strings' "${INPUT_FILE}" | rg -n "${unsafe_pattern}" >/tmp/eshu-degradation-report-unsafe.txt; then
+if jq -r '
+	def sensitive_path:
+		[.[]
+			| tostring
+			| select(test("account|tenant|customer|secret|token|password|credential|key"; "i"))
+		] | length > 0;
+
+	paths(scalars) as $path
+	| getpath($path) as $value
+	| if ($value | type) == "string" then
+		$value
+	elif (($value | type) == "number")
+		and (($value | tostring) | test("^[0-9]{12}$"))
+		and ($path | sensitive_path) then
+		($value | tostring)
+	else
+		empty
+	end
+' "${INPUT_FILE}" | rg -n "${unsafe_pattern}" >"${unsafe_match_file}"; then
 	echo "input evidence bundle is not public-safe; redact host paths, IPs, credentials, and account identifiers first" >&2
-	sed -n '1,20p' /tmp/eshu-degradation-report-unsafe.txt >&2
+	sed -n '1,20p' "${unsafe_match_file}" >&2
 	exit 1
 fi
-rm -f /tmp/eshu-degradation-report-unsafe.txt
 
 mkdir -p "$(dirname "${OUTPUT_JSON}")" "$(dirname "${OUTPUT_MARKDOWN}")"
 
 jq '
-	def lower_text:
-		.. | scalars | tostring | ascii_downcase;
+	def evidence_text:
+		.work.retrying_by_failure_class[]?.failure_class,
+		.work.retrying_by_failure_class[]?.message,
+		.work.pending_domains[]?.domain,
+		.work.pending_domains[]?.reason,
+		.postgres.active_queries[]?.query_shape,
+		.logs[]?.message;
 
 	def count_queue($name):
 		(.index_status.queue[$name] // 0);
@@ -76,8 +100,8 @@ jq '
 			count_queue("retrying")
 		] | add // 0);
 
-	def has_text($pattern):
-		[lower_text | select(test($pattern))] | length > 0;
+	def evidence_has_text($pattern):
+		[evidence_text | tostring | ascii_downcase | select(test($pattern))] | length > 0;
 
 	def startup_failed:
 		[.startup[]? | tostring | ascii_downcase | select(. != "passed" and . != "ok" and . != "healthy")] | length > 0;
@@ -93,13 +117,13 @@ jq '
 		];
 
 	def graph_timeout_observed:
-		has_text("graph.*timeout|canonical.*retract.*timeout|canonical source-local retract|graph_canonical_retract_timeout");
+		evidence_has_text("graph.*timeout|canonical.*retract.*timeout|canonical source-local retract|graph_canonical_retract_timeout");
 
 	def search_tail_observed:
-		has_text("active_docs|eshu_search_index_terms|search_document_readiness|search index|search-index");
+		evidence_has_text("active_docs|eshu_search_index_terms|search_document_readiness|search index|search-index");
 
 	def schema_lock_observed:
-		((.postgres.ungranted_locks // 0) > 0) or has_text("schema.*lock|ddl.*lock|database is locked|lock wait");
+		((.postgres.ungranted_locks // 0) > 0) or evidence_has_text("schema.*lock|ddl.*lock|database is locked|lock wait");
 
 	def finite_degraded:
 		((.index_status.status // "unknown") as $status
@@ -169,6 +193,53 @@ jq '
 			"passed"
 		end;
 
+	def pending_domain_summary:
+		[
+			.work.pending_domains[]?
+			| {
+				domain: (.domain // "unknown"),
+				pending: (.pending // 0),
+				oldest_age_seconds: (.oldest_age_seconds // 0)
+			}
+		];
+
+	def retrying_failure_summary:
+		[
+			.work.retrying_by_failure_class[]?
+			| {
+				failure_class: (.failure_class // "unknown"),
+				count: (.count // 0)
+			}
+		];
+
+	def relation_size_summary:
+		[
+			.postgres.relation_sizes[]?
+			| {
+				name: (.name // "unknown"),
+				bytes: (.bytes // 0)
+			}
+		];
+
+	def service_health_summary:
+		[
+			.services[]?
+			| {
+				name: (.name // "unknown"),
+				state: (.state // "unknown"),
+				health: (.health // "unknown")
+			}
+		];
+
+	def active_query_summary:
+		[
+			.postgres.active_queries[]?
+			| {
+				age_seconds: (.age_seconds // 0),
+				query_shape: (.query_shape // "unknown")
+			}
+		] | sort_by(.age_seconds) | reverse | .[0:5];
+
 	{
 		startup: startup_class,
 		graph_write_timeout: graph_class,
@@ -188,11 +259,11 @@ jq '
 		summary: {
 			status: report_status($classes),
 			queue: (.index_status.queue // {}),
-			top_pending_domains: (.work.pending_domains // []),
-			retrying_by_failure_class: (.work.retrying_by_failure_class // []),
-			relation_sizes: (.postgres.relation_sizes // []),
-			service_health: (.services // []),
-			oldest_active_queries: ((.postgres.active_queries // []) | sort_by(.age_seconds // 0) | reverse | .[0:5]),
+			top_pending_domains: pending_domain_summary,
+			retrying_by_failure_class: retrying_failure_summary,
+			relation_sizes: relation_size_summary,
+			service_health: service_health_summary,
+			oldest_active_queries: active_query_summary,
 			active_query_count: ((.postgres.active_queries // []) | length),
 			ungranted_locks: (.postgres.ungranted_locks // 0)
 		},
