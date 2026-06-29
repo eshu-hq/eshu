@@ -86,7 +86,7 @@ func Parse(
 		"function_calls",
 		"impl_blocks",
 	)
-	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
+	payload["framework_semantics"] = buildRustFrameworkSemantics(root, source, payload)
 
 	return payload, nil
 }

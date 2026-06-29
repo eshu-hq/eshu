@@ -6,8 +6,9 @@ This package owns Rust-specific tree-sitter payload extraction for functions,
 types, modules, traits, impl blocks, imports, macro definitions and invocations,
 calls, constants, statics, type aliases, root metadata, attributes, derives, and
 generic parameter metadata, conditional derive evidence, nested field and enum
-variant attributes, structured where-clause evidence, and Cargo dependency
-evidence for `Cargo.toml` and `Cargo.lock`.
+variant attributes, structured where-clause evidence, exact Axum/Actix/Rocket
+route entries for source-proven direct syntax, and Cargo dependency evidence for
+`Cargo.toml` and `Cargo.lock`.
 
 ## Rust parse flow
 
@@ -33,9 +34,12 @@ flowchart LR
 ```
 
 The adapter records syntactic Rust evidence, bounded module candidates, direct
-Cargo manifest dependency rows, and exact lockfile dependency rows. It does not
-expand macros, solve Cargo features, or infer transitive dependency paths unless
-`Cargo.lock` proves the path from a workspace root package.
+Cargo manifest dependency rows, exact lockfile dependency rows, and exact
+`framework_semantics.*.route_entries` only when direct Axum route calls or
+Actix/Rocket attributes prove literal path, HTTP method, and handler identifier.
+It does not expand macros, solve Cargo features, infer transitive dependency
+paths unless `Cargo.lock` proves the path from a workspace root package, or
+claim route truth for generated/dynamic framework behavior.
 
 ## Ownership Boundary
 
@@ -112,6 +116,15 @@ declarations inside macro invocation bodies are modeled with
 Items gated by `cfg` or `cfg_attr` carry `exactness_blockers=cfg_unresolved`;
 macro-origin module and import rows carry
 `exactness_blockers=macro_expansion_unavailable`.
+
+Framework route entries are intentionally narrower than root evidence. Axum
+entries require a direct `Router::new().route("...", method(handler))` chain, a
+literal path, a method helper resolved to `axum::routing`, and a bare handler
+identifier. Actix and Rocket entries require a function attribute that is
+crate-qualified or imported/aliased from `actix_web` or `rocket` and carries a
+literal path. Cfg-gated declarations, closure handlers, variable-held routers,
+macro-expanded routes, and generated route tables are skipped instead of
+guessed.
 
 `parseCargoCfgManifest` is an intentionally bounded Cargo.toml scanner for the
 signals future cfg resolution needs: package name, workspace members, feature
