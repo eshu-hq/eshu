@@ -12,6 +12,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 
+# --repo-root is passed explicitly so selected gate commands (which are
+# repo-root-relative, e.g. "bash scripts/...", "cd go && ...") run from the repo
+# root, not from go/ where `go -C` places this process.
 exec go -C "${repo_root}/go" run ./cmd/ci-gates run \
 	--registry "${registry}" \
+	--repo-root "${repo_root}" \
 	"$@"

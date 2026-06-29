@@ -45,7 +45,7 @@ func buildHermeticRepo(t *testing.T, scripts []string, workflows []string) strin
 func TestValidate_AllRefsPresent(t *testing.T) {
 	t.Parallel()
 	root := buildHermeticRepo(t,
-		[]string{"scripts/verify-openapi.sh"},
+		[]string{"scripts/verify-openapi.sh", "scripts/test-verify-openapi.sh"},
 		[]string{"verify-openapi.yml"},
 	)
 	reg := buildRegistry([]cigates.Gate{
@@ -67,6 +67,36 @@ func TestValidate_AllRefsPresent(t *testing.T) {
 	errs := reg.Validate(root)
 	if len(errs) != 0 {
 		t.Errorf("expected no errors, got: %v", errs)
+	}
+}
+
+// TestValidate_MissingTestCommandScript proves the integrity check also catches
+// a renamed or mistyped local.test_command script, not just local.command.
+func TestValidate_MissingTestCommandScript(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(t,
+		[]string{"scripts/verify-openapi.sh"}, // command script present, test_command script absent
+		[]string{"verify-openapi.yml"},
+	)
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"go/internal/query/openapi*.go"},
+			Local: &cigates.Local{
+				Command:     "bash scripts/verify-openapi.sh",
+				TestCommand: "bash scripts/test-verify-openapi.sh",
+			},
+			CI:           cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+			Requirements: []cigates.Requirement{cigates.ReqGo},
+		},
+	})
+	errs := reg.Validate(root)
+	if len(errs) == 0 {
+		t.Error("expected error for missing test_command script, got none")
 	}
 }
 

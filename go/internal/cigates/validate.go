@@ -16,8 +16,8 @@ import (
 // repository.
 //
 // Checks performed (#4213 AC):
-//   - For gates with Local set: the leading script path in Local.Command exists
-//     on disk relative to repoRoot.
+//   - For gates with Local set: the leading script path in Local.Command (and
+//     Local.TestCommand, when present) exists on disk relative to repoRoot.
 //   - For gates with CI.Workflow set: the workflow file exists under
 //     .github/workflows/ relative to repoRoot.
 //
@@ -29,6 +29,11 @@ func (r *Registry) Validate(repoRoot string) []error {
 		if g.Local != nil {
 			if err := checkScript(repoRoot, g.ID, g.Local.Command); err != nil {
 				errs = append(errs, err)
+			}
+			if g.Local.TestCommand != "" {
+				if err := checkScript(repoRoot, g.ID, g.Local.TestCommand); err != nil {
+					errs = append(errs, err)
+				}
 			}
 		}
 		if g.CI.Workflow != "" {

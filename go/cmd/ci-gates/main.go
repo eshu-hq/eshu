@@ -102,12 +102,22 @@ func runRun(args []string) error {
 	tier := fs.String("tier", "pre-pr", "tier ceiling (pre-commit|pre-push|pre-pr|ci-heavy|manual)")
 	base := fs.String("base", "origin/main", "git base ref for changed-path detection")
 	pathsFrom := fs.String("paths-from", "", "file of changed paths, one per line ('-' for stdin)")
+	repoRoot := fs.String("repo-root", "", "repository root to run gate commands from (default: git toplevel)")
 	_ = fs.Bool("json", false, "emit JSON summary (reserved for future use)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *registry == "" {
 		return fmt.Errorf("--registry is required")
+	}
+
+	// Gate commands in the registry are repo-root-relative ("bash scripts/...",
+	// "cd go && ..."). Resolve the repo root so they run from there regardless of
+	// this process's own working directory (e.g. the wrappers invoke us via
+	// `go -C go run`, which would otherwise leave commands running from go/).
+	root, err := resolveRepoRoot(*repoRoot)
+	if err != nil {
+		return fmt.Errorf("resolve repo root: %w", err)
 	}
 
 	reg, err := cigates.Load(*registry)
@@ -121,7 +131,20 @@ func runRun(args []string) error {
 	}
 
 	sels := reg.Select(changed, cigates.Tier(*tier))
-	return executeGates(os.Stdout, sels)
+	return executeGates(os.Stdout, sels, root)
+}
+
+// resolveRepoRoot returns the explicit root when provided, otherwise the git
+// working-tree top level.
+func resolveRepoRoot(explicit string) (string, error) {
+	if explicit != "" {
+		return explicit, nil
+	}
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", fmt.Errorf("--repo-root not provided and git rev-parse failed: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // --- validate subcommand ---
@@ -136,14 +159,11 @@ func runValidate(args []string) error {
 	if *registry == "" {
 		return fmt.Errorf("--registry is required")
 	}
-	if *repoRoot == "" {
-		// Default to git rev-parse when not provided.
-		out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-		if err != nil {
-			return fmt.Errorf("--repo-root not provided and git rev-parse failed: %w", err)
-		}
-		*repoRoot = strings.TrimSpace(string(out))
+	root, err := resolveRepoRoot(*repoRoot)
+	if err != nil {
+		return err
 	}
+	*repoRoot = root
 
 	reg, err := cigates.Load(*registry)
 	if err != nil {
@@ -197,6 +217,12 @@ func readPathsFrom(path string) ([]string, error) {
 	return paths, scanner.Err()
 }
 
+// gitRefExists reports whether ref resolves in the current repository.
+func gitRefExists(ref string) bool {
+	// #nosec G204 -- ref is the operator-provided base or the literal "HEAD~1".
+	return exec.Command("git", "rev-parse", "--verify", "-q", ref+"^{commit}").Run() == nil
+}
+
 // gitChangedPaths returns the union of committed-vs-base, staged, and unstaged
 // changed paths, mirroring the changed_all_files logic in scripts/dev/pre-pr.sh.
 func gitChangedPaths(base string) ([]string, error) {
@@ -229,11 +255,25 @@ func gitChangedPaths(base string) ([]string, error) {
 		return strings.Split(string(out), "\n"), nil
 	}
 
-	// committed vs base
-	committed, err := run("diff", "--name-only", base+"...HEAD")
+	// Resolve an effective base before diffing. If the requested base is not
+	// present locally (shallow/fork checkout), fall back to HEAD~1 — the same
+	// fallback scripts/dev/pre-pr.sh uses. If neither resolves (a single-commit
+	// repo with no parent), fail loudly rather than silently dropping the
+	// committed diff: a dispatcher that reports "nothing changed" when it simply
+	// could not compute the base is a false green.
+	effectiveBase := base
+	if !gitRefExists(base) {
+		if gitRefExists("HEAD~1") {
+			effectiveBase = "HEAD~1"
+		} else {
+			return nil, fmt.Errorf("cannot resolve a changed-path base: %q is not available and HEAD has no parent; pass --base <ref> or --paths-from", base)
+		}
+	}
+
+	// committed vs the resolved base
+	committed, err := run("diff", "--name-only", effectiveBase+"...HEAD")
 	if err != nil {
-		// Non-fatal: base may not exist locally (e.g. shallow clone).
-		committed = nil
+		return nil, fmt.Errorf("git diff against base %q: %w", effectiveBase, err)
 	}
 	add(committed)
 
@@ -318,7 +358,7 @@ func printSelectText(w io.Writer, sels []cigates.Selection, explain bool) {
 // executeGates runs all selected gates, accumulates results, and returns an
 // error if any blocking gate failed. Advisory failures are printed but do not
 // affect the exit code.
-func executeGates(w io.Writer, sels []cigates.Selection) error {
+func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error {
 	anyBlockingFail := false
 	for _, s := range sels {
 		if s.Gate.CIOnlyReason != "" {
@@ -330,7 +370,7 @@ func executeGates(w io.Writer, sels []cigates.Selection) error {
 			continue
 		}
 		_, _ = fmt.Fprintf(w, "RUN      %s: %s\n", s.Gate.ID, s.Gate.Local.Command)
-		if err := runShellCommand(s.Gate.Local.Command); err != nil {
+		if err := runShellCommand(s.Gate.Local.Command, repoRoot); err != nil {
 			if s.Gate.Blocking {
 				_, _ = fmt.Fprintf(w, "FAIL     %s (blocking): %v\n", s.Gate.ID, err)
 				anyBlockingFail = true
@@ -347,10 +387,12 @@ func executeGates(w io.Writer, sels []cigates.Selection) error {
 	return nil
 }
 
-// runShellCommand executes a shell command string via /bin/sh -c and returns any
-// non-zero exit as an error.
-func runShellCommand(command string) error {
+// runShellCommand executes a shell command string via /bin/sh -c from repoRoot
+// (the registry's commands are repo-root-relative) and returns any non-zero exit
+// as an error.
+func runShellCommand(command, repoRoot string) error {
 	cmd := exec.Command("/bin/sh", "-c", command) // #nosec G204 -- command comes from the operator-controlled gate registry
+	cmd.Dir = repoRoot
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
