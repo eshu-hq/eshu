@@ -11,6 +11,12 @@ signatures. Same-file interface evidence records method arity and qualified
 type context so overloaded methods and duplicate class names do not become
 roots by name alone.
 
+`framework_routes.go` owns exact ASP.NET route entries. It emits parser
+payload only for literal ASP.NET Core MVC/Web API attributes and literal
+minimal API `Map*` calls with named handlers. Convention routes, token
+substitution, lambdas, generated routes, implicit global usings, and runtime
+endpoint discovery stay outside the contract.
+
 The `dataflow_*.go` files own the opt-in value-flow/taint subsystem, gated on
 `Options.EmitDataflow`:
 
@@ -54,6 +60,8 @@ Exports:
   common parser payload fields. It also emits bounded dead-code root metadata
   for C# entrypoints, constructors, overrides, interface methods, ASP.NET
   controller actions, hosted-service callbacks, test methods, and serialization
-  callbacks. When `Options.EmitDataflow` is set it additionally emits the
-  value-flow/taint buckets described above.
+  callbacks. It emits exact ASP.NET route entries only for local source-proven
+  literal routes and named handlers; those entries feed existing endpoint and
+  `HANDLES_ROUTE` projection. When `Options.EmitDataflow` is set it
+  additionally emits the value-flow/taint buckets described above.
 - `PreScan` returns deterministic names for import-map pre-scan.

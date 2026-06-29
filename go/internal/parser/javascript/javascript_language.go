@@ -339,7 +339,7 @@ func Parse(
 		sortNamedBucket(payload, "type_aliases")
 		sortNamedBucket(payload, "enums")
 	}
-	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, root, source, payload)
+	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, root, source, payload, parents)
 
 	emitValueFlowBuckets(payload, root, source, outputLanguage, options)
 

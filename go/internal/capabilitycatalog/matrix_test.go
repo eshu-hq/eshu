@@ -111,3 +111,27 @@ func TestLoadMatrixReadsRealSpecs(t *testing.T) {
 		}
 	}
 }
+
+func TestProfileClaimsSupport(t *testing.T) {
+	cases := []struct {
+		name    string
+		profile MatrixProfile
+		want    bool
+	}{
+		{"explicit supported", MatrixProfile{Status: "supported"}, true},
+		{"explicit experimental", MatrixProfile{Status: "experimental"}, true},
+		{"explicit unsupported", MatrixProfile{Status: "unsupported"}, false},
+		// Truth-ceiling-only rows omit status; effectiveStatus infers supported
+		// from a non-unsupported ceiling, so ProfileClaimsSupport must agree.
+		{"blank status with truth ceiling", MatrixProfile{MaxTruthLevel: "exact"}, true},
+		{"blank status no ceiling", MatrixProfile{}, false},
+		{"blank status unsupported ceiling", MatrixProfile{MaxTruthLevel: "unsupported"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ProfileClaimsSupport(tc.profile); got != tc.want {
+				t.Errorf("ProfileClaimsSupport(%+v) = %v, want %v", tc.profile, got, tc.want)
+			}
+		})
+	}
+}

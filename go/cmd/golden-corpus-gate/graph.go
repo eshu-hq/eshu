@@ -266,7 +266,7 @@ func checkRequiredNodes(ctx context.Context, c graphCounter, requiredLabels []st
 		if err != nil {
 			return fmt.Errorf("count nodes %s: %w", label, err)
 		}
-		r.Add(evaluateNodePresent(label, count))
+		r.Add(EvaluateNodePresent(label, count))
 	}
 	return nil
 }
@@ -282,13 +282,13 @@ func checkRequiredNodeAssertions(ctx context.Context, c graphCounter, nodes []Re
 		if err != nil {
 			return fmt.Errorf("count nodes %s: %w", rn.Label, err)
 		}
-		r.Add(evaluateRequiredNode(rn, count))
+		r.Add(EvaluateRequiredNode(rn, count))
 		for _, prop := range rn.RequiredNodeProperties {
 			values, err := c.ListNodeProperty(ctx, rn.Label, prop)
 			if err != nil {
 				return fmt.Errorf("list node %s property %s: %w", rn.Label, prop, err)
 			}
-			r.Add(evaluateNodeProperty(rn, prop, values, rn.AllowedNodePropertyValues[prop]))
+			r.Add(EvaluateNodeProperty(rn, prop, values, rn.AllowedNodePropertyValues[prop]))
 		}
 	}
 	return nil
@@ -314,13 +314,13 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 		if err != nil {
 			return fmt.Errorf("count correlation %s: %w", rc.ID, err)
 		}
-		r.Add(evaluateRequiredCorrelation(rc, count, blockingCorrelations[rc.ID]))
+		r.Add(EvaluateRequiredCorrelation(rc, count, blockingCorrelations[rc.ID]))
 		for _, prop := range rc.RequiredEdgeProperties {
 			values, err := c.ListCorrelationEdgeProperty(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel, rc.EvidenceKinds, prop)
 			if err != nil {
 				return fmt.Errorf("list correlation %s edge property %s: %w", rc.ID, prop, err)
 			}
-			r.Add(evaluateEdgeProperty(rc, prop, values, rc.AllowedEdgePropertyValues[prop], blockingCorrelations[rc.ID]))
+			r.Add(EvaluateEdgeProperty(rc, prop, values, rc.AllowedEdgePropertyValues[prop], blockingCorrelations[rc.ID]))
 		}
 	}
 	// Required-node assertions (existence + optional property) are corpus-size
@@ -341,14 +341,14 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 		if err != nil {
 			return fmt.Errorf("count nodes %s: %w", label, err)
 		}
-		r.Add(evaluateNodeCount(label, snap.Graph.NodeCounts[label], count, true))
+		r.Add(EvaluateNodeCount(label, snap.Graph.NodeCounts[label], count, true))
 	}
 	for _, rel := range sortedKeys(snap.Graph.EdgeCounts) {
 		count, err := c.CountEdges(ctx, rel)
 		if err != nil {
 			return fmt.Errorf("count edges %s: %w", rel, err)
 		}
-		r.Add(evaluateEdgeCount(rel, snap.Graph.EdgeCounts[rel], count, true))
+		r.Add(EvaluateEdgeCount(rel, snap.Graph.EdgeCounts[rel], count, true))
 	}
 	return nil
 }

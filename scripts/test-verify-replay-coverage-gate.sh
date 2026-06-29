@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Static structural test for the C-1 replay coverage gate (#4173): the verify
+# script, its CI workflow, and the coverage manifest. Fast, no Docker, no Go
+# build — it validates the contract that cannot silently drift: the verifier runs
+# the gate over all four registries, ships advisory, emits the C-7 report
+# artifact, and the workflow uploads it.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+script="${repo_root}/scripts/verify-replay-coverage-gate.sh"
+workflow="${repo_root}/.github/workflows/replay-coverage-gate.yml"
+manifest="${repo_root}/specs/replay-coverage-manifest.v1.yaml"
+
+fail() {
+	printf 'test-verify-replay-coverage-gate: %s\n' "$*" >&2
+	exit 1
+}
+
+[[ -f "${script}" ]] || fail "missing ${script}"
+[[ -x "${script}" ]] || fail "verify-replay-coverage-gate.sh must be executable"
+bash -n "${script}" || fail "verify-replay-coverage-gate.sh has a syntax error"
+
+require() {
+	local label="$1" needle="$2" file="$3"
+	rg --fixed-strings --quiet -- "${needle}" "${file}" || fail "missing ${label}: ${needle}"
+}
+
+# The verifier: strict mode, runs the gate command, asserts the gate logic first.
+require "strict mode" "set -euo pipefail" "${script}"
+require "gate command" "go run ./cmd/replay-coverage-gate" "${script}"
+require "unit proof" "go test ./internal/replaycoverage/ ./cmd/replay-coverage-gate/" "${script}"
+
+# All four registries are wired in: surface-inventory + fact-kind registry come
+# from the embedded artifacts the command loads, the parser ledger and capability
+# matrix come from specs-dir, and the snapshot backs correlation/query scenarios.
+require "specs dir input" "-specs-dir" "${script}"
+require "snapshot input" "e2e-20repo-snapshot.json" "${script}"
+require "repo root for refs" "-repo-root" "${script}"
+require "report artifact" "-report-out" "${script}"
+
+# Advisory by default: the verifier initializes blocking empty and only sets it
+# from the opt-in --blocking flag. The flip to blocking CI is a deliberate,
+# separately-reviewed workflow change after C-2..C-6.
+require "advisory default" 'blocking=""' "${script}"
+require "blocking is opt-in" "--blocking) blocking=" "${script}"
+
+# The workflow: invokes the verifier and uploads the coverage report artifact.
+[[ -f "${workflow}" ]] || fail "missing ${workflow}"
+require "workflow runs verifier" "scripts/verify-replay-coverage-gate.sh" "${workflow}"
+require "workflow uploads report" "upload-artifact" "${workflow}"
+require "workflow report name" "replay-coverage-report" "${workflow}"
+# Advisory in CI: the workflow must not pass --blocking yet.
+if rg --fixed-strings --quiet -- 'verify-replay-coverage-gate.sh --blocking' "${workflow}"; then
+	fail "CI workflow must run the gate in advisory mode until C-2..C-6 land"
+fi
+
+# The manifest exists, parses as the expected schema, and is not accidentally
+# empty of its version marker.
+[[ -f "${manifest}" ]] || fail "missing ${manifest}"
+require "manifest version" "version:" "${manifest}"
+require "manifest coverage section" "coverage:" "${manifest}"
+
+printf 'PASS: replay-coverage-gate static contract\n'

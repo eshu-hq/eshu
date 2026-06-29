@@ -2231,6 +2231,11 @@
     },
     {
       "category": "command",
+      "name": "replay-coverage-gate",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "scanner-worker",
       "readiness": "implemented"
     },

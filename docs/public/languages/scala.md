@@ -61,4 +61,4 @@ Not claimed today:
   plugin output, sbt source sets, dynamic dispatch, reflection, and broad
   public API surfaces remain exactness blockers.
 - Exact route-to-handler truth for Play, http4s, and other Scala web frameworks
-  is tracked by [#4098](https://github.com/eshu-hq/eshu/issues/4098).
+  is tracked by [#4164](https://github.com/eshu-hq/eshu/issues/4164).

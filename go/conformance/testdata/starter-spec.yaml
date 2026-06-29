@@ -1,0 +1,62 @@
+# Starter conformance spec (#4112 / R-10).
+#
+# This YAML is the contributor-facing twin of the in-repo B-12 golden snapshot
+# (testdata/golden/e2e-20repo-snapshot.json). It is parsed via sigs.k8s.io/yaml
+# into the SAME goldengate.Snapshot struct the in-repo gate uses, so the same
+# Evaluate* assertions run against it — only the corpus is smaller and the
+# observed values come from an offline cassette replay instead of a live graph.
+#
+# Edit this file to describe what YOUR collector's facts must project. The
+# fields below mirror the golden snapshot's `graph` block: per-label node count
+# tolerances, per-edge count tolerances, existence-style required correlations,
+# and required nodes (with an optional property floor).
+#
+# The starter ranges are pinned exactly (min == max) to the deterministic
+# hello-eshu starter tape so a regression is obvious. For a growing corpus,
+# widen the ceilings (keep the floors meaningful so a projection drop fails).
+schema_version: "1"
+corpus_id: starter-hello-eshu
+
+graph:
+  node_counts:
+    Repository: { min: 1, max: 1, note: "exactly one repository per scope" }
+    Directory: { min: 2, max: 2, note: "src, src/util" }
+    File: { min: 3, max: 3, note: "README.md, src/main.go, src/util/util.go" }
+    Package: { min: 1, max: 1, note: "left-pad" }
+  edge_counts:
+    CONTAINS: { min: 5, max: 5, note: "2 directory parents + 3 file parents" }
+    DEPENDS_ON: { min: 1, max: 1, note: "hello-eshu -> left-pad" }
+  required_correlations:
+    - id: rc-repo-contains-dir
+      description: a repository directly contains its top-level directories
+      relationship: CONTAINS
+      from_label: Repository
+      to_label: Directory
+      minimum_count: 1
+    # Evidence-narrowed correlation with an edge-property assertion — the same
+    # qualifier path the in-repo gate uses for tool-agnostic shared edge types
+    # (DEPENDS_ON, DEPLOYS_FROM). The bare triple is not enough: the assertion
+    # only counts DEPENDS_ON edges carrying the manifest-reference evidence kind,
+    # and every matching edge must be stamped source_tool=starter. An unrelated
+    # emitter's DEPENDS_ON edge (different evidence, or a different source_tool)
+    # does not satisfy it — offline, exactly as in the live gate.
+    - id: rc-repo-depends-pkg
+      description: the repository declares a package dependency stamped by the starter tool
+      relationship: DEPENDS_ON
+      from_label: Repository
+      to_label: Package
+      minimum_count: 1
+      evidence_kinds:
+        - starter_manifest_reference
+      required_edge_properties:
+        - source_tool
+      allowed_edge_property_values:
+        source_tool:
+          - starter
+  required_nodes:
+    - id: rn-file-language
+      description: at least two files carry a detected language
+      label: File
+      minimum_count: 2
+      required_node_properties:
+        - language

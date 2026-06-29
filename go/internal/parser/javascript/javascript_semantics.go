@@ -170,11 +170,17 @@ func javaScriptLooksLikeComponent(node *tree_sitter.Node, source []byte, outputL
 		javaScriptContainsJSXReturn(node)
 }
 
-func buildJavaScriptFrameworkSemantics(path string, root *tree_sitter.Node, source []byte, payload map[string]any) map[string]any {
+func buildJavaScriptFrameworkSemantics(
+	path string,
+	root *tree_sitter.Node,
+	source []byte,
+	payload map[string]any,
+	parents *javaScriptParentLookup,
+) map[string]any {
 	semantics := map[string]any{
 		"frameworks": []string{},
 	}
-	frameworks := make([]string, 0, 6)
+	frameworks := make([]string, 0, 9)
 
 	if nextjs, ok := detectNextJSSemantics(path, root, source); ok {
 		frameworks = append(frameworks, "nextjs")
@@ -183,6 +189,18 @@ func buildJavaScriptFrameworkSemantics(path string, root *tree_sitter.Node, sour
 	if express, ok := detectExpressSemantics(root, source); ok {
 		frameworks = append(frameworks, "express")
 		semantics["express"] = express
+	}
+	if koa, ok := detectKoaSemantics(root, source); ok {
+		frameworks = append(frameworks, "koa")
+		semantics["koa"] = koa
+	}
+	if fastify, ok := detectFastifySemantics(root, source); ok {
+		frameworks = append(frameworks, "fastify")
+		semantics["fastify"] = fastify
+	}
+	if nestjs, ok := detectNestJSSemantics(root, source, parents); ok {
+		frameworks = append(frameworks, "nestjs")
+		semantics["nestjs"] = nestjs
 	}
 	if aws, ok := detectAWSSemantics(root, source); ok {
 		frameworks = append(frameworks, "aws")

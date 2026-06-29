@@ -14,7 +14,8 @@ File layout:
 - `ast_nodes.go` — AST node helpers (children, declaration keyword, parameters,
   property names, type annotations).
 - `tree_sitter_syntax.go` — parse helper plus the AST-built semantic facts
-  (conformances, protocol methods, Vapor route handlers) and extension naming.
+  (conformances, protocol methods, Vapor route handlers, exact Vapor route
+  entries) and extension naming.
 - `helpers.go` — pure dead-code root classification and short-name helpers.
 
 Preserve existing payload keys and sorting unless a parser contract change is
@@ -30,8 +31,11 @@ and red-proves it against pre-migration `main`.
 
 Permanent exception: the Vapor `use:` route hint has no symbol-node form. It is
 read as framework evidence from the `value_argument_label` `use`
-(`collectSwiftVaporRouteHandlers`) to feed the `swift.vapor_route_handler`
-dead-code root. Do not migrate it to a symbol row.
+(`collectSwiftVaporRoutes`) to feed the `swift.vapor_route_handler` dead-code
+root. The same AST-backed pass may emit `framework_semantics.vapor.route_entries`
+only when the receiver is typed `Application` or `RoutesBuilder` and the route
+method, path, and handler are exact from syntax. Do not migrate this evidence to
+a symbol row or source-text scan.
 
 Dead-code reachability hints belong in parser metadata as
 `dead_code_root_kinds`. Keep Swift root modeling bounded to syntax and

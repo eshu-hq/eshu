@@ -85,7 +85,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 		shared.SortNamedBucket(payload, bucket)
 	}
 	emitCSharpValueFlowBuckets(payload, root, source, options)
-	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
+	payload["framework_semantics"] = buildCSharpFrameworkSemantics(root, source)
 
 	return payload, nil
 }

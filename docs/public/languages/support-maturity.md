@@ -96,7 +96,7 @@ feature supported with deterministic proof.
 | CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
 | C++ | `DefaultEngine (cpp)` | supported | supported | derived roots | `main`, local header API, virtual/override methods, callbacks, function pointers, Node native add-ons | supported | fixture-backed | supported |
 | Crossplane | `DefaultEngine (yaml)` | - | - | unsupported | composition and resource evidence only | - | - | - |
-| C# | `DefaultEngine (c_sharp)` | supported | supported | derived roots | ASP.NET controller actions, hosted-service callbacks, tests, serialization, constructors, overrides, same-file interfaces | supported | fixture-backed | supported |
+| C# | `DefaultEngine (c_sharp)` | supported | supported | derived roots plus exact ASP.NET route entries | ASP.NET controller actions, hosted-service callbacks, tests, serialization, constructors, overrides, same-file interfaces, literal ASP.NET attributes, literal minimal API handlers | supported | fixture-backed | supported |
 | Dart | `DefaultEngine (dart)` | supported | supported | derived roots | Flutter `build`/`createState`, public `lib/` API, constructors, overrides | supported | supported | supported |
 | Elixir | `DefaultEngine (elixir)` | supported | supported | derived roots | Phoenix, LiveView, GenServer, Supervisor, Mix, protocols, behaviours, public macros/guards | supported | fixture-backed | supported |
 | Go | `DefaultEngine (go)` | supported | supported | derived roots | `net/http`, Cobra, controller-runtime `Reconcile`, package exports, interfaces, function values, dependency-injection callbacks | supported | supported | supported |

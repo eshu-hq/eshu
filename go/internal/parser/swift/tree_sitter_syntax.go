@@ -5,6 +5,7 @@ package swift
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -39,9 +40,10 @@ func collectSwiftSemanticFacts(root *tree_sitter.Node, source []byte) swiftSeman
 		protocolMethods:    make(map[string]map[string]struct{}),
 		typeConformances:   make(map[string]map[string]struct{}),
 		vaporRouteHandlers: make(map[string]struct{}),
+		vaporRouteEntries:  []map[string]string{},
 	}
 	collectSwiftConformancesAndMethods(root, source, "", "", facts)
-	collectSwiftVaporRouteHandlers(root, source, facts)
+	collectSwiftVaporRoutes(root, source, &facts)
 	return facts
 }
 
@@ -104,33 +106,256 @@ func collectSwiftConformancesAndMethods(
 	}
 }
 
-// collectSwiftVaporRouteHandlers records the handler names passed to a Vapor
-// `use:` route registration. The grammar models the labeled argument as a
-// value_argument whose value_argument_label is `use`, so the trailing identifier
-// is the handler name. This is content/evidence classification, not symbol
-// extraction, and is the documented permanent exception for Swift.
-func collectSwiftVaporRouteHandlers(root *tree_sitter.Node, source []byte, facts swiftSemanticFacts) {
+// collectSwiftVaporRoutes records handler names and exact route entries passed
+// to Vapor route registrations. The grammar models the labeled handler as a
+// value_argument whose value_argument_label is `use`, so both root evidence and
+// route_entries come from syntax-backed framework evidence rather than symbol
+// rows or line scans.
+func collectSwiftVaporRoutes(root *tree_sitter.Node, source []byte, facts *swiftSemanticFacts) {
+	hasVaporImport := swiftHasImport(root, source, "Vapor")
+	routeReceivers := swiftVaporRouteReceivers(root, source)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "value_argument" {
-			return
-		}
-		label := swiftFirstChildOfKind(node, "value_argument_label")
-		if label == nil {
-			return
-		}
-		if strings.TrimSpace(shared.NodeText(label, source)) != "use" {
-			return
-		}
-		for _, child := range swiftNamedChildren(node) {
-			child := child
-			if child.Kind() == "simple_identifier" {
-				name := strings.TrimSpace(shared.NodeText(&child, source))
-				if name != "" {
-					facts.vaporRouteHandlers[name] = struct{}{}
-				}
+		switch node.Kind() {
+		case "value_argument":
+			collectSwiftVaporRouteHandler(node, source, facts)
+		case "call_expression":
+			if !hasVaporImport {
+				return
+			}
+			if entry := swiftVaporRouteEntry(node, source, routeReceivers); entry != nil {
+				facts.vaporRouteEntries = append(facts.vaporRouteEntries, entry)
 			}
 		}
 	})
+}
+
+func swiftHasImport(root *tree_sitter.Node, source []byte, module string) bool {
+	hasImport := false
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		if hasImport || node.Kind() != "import_declaration" {
+			return
+		}
+		identifier := swiftFirstChildOfKind(node, "identifier")
+		if identifier == nil {
+			return
+		}
+		hasImport = strings.TrimSpace(shared.NodeText(identifier, source)) == module
+	})
+	return hasImport
+}
+
+func swiftVaporRouteReceivers(root *tree_sitter.Node, source []byte) map[string]struct{} {
+	receivers := make(map[string]struct{})
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		var name string
+		switch node.Kind() {
+		case "parameter":
+			name = swiftParameterName(node, source)
+		case "property_declaration":
+			pattern := swiftFirstChildOfKind(node, "pattern", "simple_identifier")
+			name = swiftPatternName(pattern, source)
+		default:
+			return
+		}
+		if name == "" {
+			return
+		}
+		switch swiftVaporReceiverTypeName(node, source) {
+		case "Application", "RoutesBuilder":
+			receivers[name] = struct{}{}
+		}
+	})
+	return receivers
+}
+
+func swiftVaporReceiverTypeName(node *tree_sitter.Node, source []byte) string {
+	typeName := swiftTypeAnnotationText(node, source)
+	if typeName == "" && node.Kind() == "parameter" {
+		text := strings.TrimSpace(shared.NodeText(node, source))
+		if _, after, ok := strings.Cut(text, ":"); ok {
+			typeName = strings.TrimSpace(after)
+		}
+	}
+	if index := strings.IndexAny(typeName, " =,"); index >= 0 {
+		typeName = typeName[:index]
+	}
+	return swiftShortTypeName(typeName)
+}
+
+func collectSwiftVaporRouteHandler(node *tree_sitter.Node, source []byte, facts *swiftSemanticFacts) {
+	label := swiftFirstChildOfKind(node, "value_argument_label")
+	if label == nil {
+		return
+	}
+	if strings.TrimSpace(shared.NodeText(label, source)) != "use" {
+		return
+	}
+	for _, child := range swiftNamedChildren(node) {
+		child := child
+		if child.Kind() == "simple_identifier" {
+			name := strings.TrimSpace(shared.NodeText(&child, source))
+			if name != "" {
+				facts.vaporRouteHandlers[name] = struct{}{}
+			}
+		}
+	}
+}
+
+func swiftVaporRouteEntry(
+	node *tree_sitter.Node,
+	source []byte,
+	routeReceivers map[string]struct{},
+) map[string]string {
+	receiver, callName := swiftCallTarget(node, source)
+	if receiver == "" {
+		return nil
+	}
+	if _, ok := routeReceivers[receiver]; !ok {
+		return nil
+	}
+	httpMethod := swiftVaporHTTPMethod(callName)
+	if httpMethod == "" {
+		return nil
+	}
+
+	args := swiftCallArguments(node, source)
+	handler, ok := swiftVaporUseHandler(args)
+	if !ok {
+		return nil
+	}
+	pathArgs := args
+	if callName == "on" {
+		method, rest, ok := swiftVaporOnMethodAndPathArgs(args)
+		if !ok {
+			return nil
+		}
+		httpMethod = method
+		pathArgs = rest
+	}
+	segments, ok := swiftVaporPathSegments(pathArgs)
+	if !ok {
+		return nil
+	}
+	return map[string]string{
+		"method":  httpMethod,
+		"path":    swiftVaporRoutePath(segments),
+		"handler": handler,
+	}
+}
+
+func swiftVaporHTTPMethod(callName string) string {
+	switch callName {
+	case "get", "post", "put", "patch", "delete", "options", "head":
+		return strings.ToUpper(callName)
+	case "on":
+		return "ON"
+	default:
+		return ""
+	}
+}
+
+func swiftVaporUseHandler(args []string) (string, bool) {
+	for _, arg := range args {
+		label, value, ok := strings.Cut(arg, ":")
+		if !ok || strings.TrimSpace(label) != "use" {
+			continue
+		}
+		handler := strings.TrimSpace(value)
+		if swiftSimpleIdentifier(handler) {
+			return handler, true
+		}
+		return "", false
+	}
+	return "", false
+}
+
+func swiftVaporOnMethodAndPathArgs(args []string) (string, []string, bool) {
+	if len(args) == 0 {
+		return "", nil, false
+	}
+	method := swiftVaporMethodToken(args[0])
+	if method == "" {
+		return "", nil, false
+	}
+	return method, args[1:], true
+}
+
+func swiftVaporMethodToken(arg string) string {
+	arg = strings.TrimSpace(arg)
+	arg = strings.TrimPrefix(arg, ".")
+	arg = strings.TrimPrefix(arg, "HTTPMethod.")
+	arg = strings.TrimPrefix(arg, "HTTPMethod(")
+	arg = strings.TrimSuffix(arg, ")")
+	if !swiftSimpleIdentifier(arg) {
+		return ""
+	}
+	return strings.ToUpper(arg)
+}
+
+func swiftVaporPathSegments(args []string) ([]string, bool) {
+	segments := make([]string, 0, len(args))
+	for _, arg := range args {
+		if strings.HasPrefix(strings.TrimSpace(arg), "use:") {
+			break
+		}
+		segment, ok := swiftExactStringArgument(arg)
+		if !ok {
+			return nil, false
+		}
+		segments = append(segments, segment)
+	}
+	if len(segments) == 0 {
+		return nil, false
+	}
+	return segments, true
+}
+
+func swiftExactStringArgument(arg string) (string, bool) {
+	arg = strings.TrimSpace(arg)
+	if !strings.HasPrefix(arg, "\"") || strings.Contains(arg, `\(`) {
+		return "", false
+	}
+	segment, err := strconv.Unquote(arg)
+	if err != nil {
+		return "", false
+	}
+	return segment, true
+}
+
+func swiftVaporRoutePath(segments []string) string {
+	parts := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		for _, part := range strings.Split(segment, "/") {
+			part = strings.Trim(part, "/")
+			if part == "" {
+				continue
+			}
+			if strings.HasPrefix(part, ":") && len(part) > 1 {
+				part = "{" + strings.TrimPrefix(part, ":") + "}"
+			}
+			parts = append(parts, part)
+		}
+	}
+	if len(parts) == 0 {
+		return "/"
+	}
+	return "/" + strings.Join(parts, "/")
+}
+
+func swiftSimpleIdentifier(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index, char := range value {
+		if char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' {
+			continue
+		}
+		if index > 0 && char >= '0' && char <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // swiftExtensionTypeName returns the extended type name for an `extension`
