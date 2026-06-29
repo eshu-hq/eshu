@@ -57,7 +57,10 @@ type CoverageEntry struct {
 	// Ref is the scenario artifact: a repo-relative path (cassette dir,
 	// parser-fixture file) or a snapshot id (rc-* / query-shape key).
 	Ref string
-	// ProofGate names the CI gate that runs the scenario and proves it green.
+	// ProofGate names the CI gate that runs the scenario and proves it green. It
+	// is required on every coverage entry: it is what ties existence-only coverage
+	// to an actual passing verifier, so a covered surface always has a named gate
+	// proving its scenario green.
 	ProofGate string
 }
 
@@ -102,8 +105,9 @@ type manifestFileExempt struct {
 // LoadManifest reads the replay coverage manifest from path. A missing file is an
 // empty manifest (every surface then reports uncovered — the keystone's honest
 // red state), not an error. The loader rejects blank surfaces/refs/reasons,
-// invalid scenario types, duplicate surfaces, and a surface declared both covered
-// and exempt, because any of those silently corrupts the coverage truth.
+// blank proof_gates, invalid scenario types, duplicate surfaces, and a surface
+// declared both covered and exempt, because any of those silently corrupts the
+// coverage truth.
 func LoadManifest(path string) (Manifest, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured coverage manifest under specs/, not external input
 	if err != nil {
@@ -123,6 +127,7 @@ func LoadManifest(path string) (Manifest, error) {
 	for _, entry := range parsed.Coverage {
 		surface := strings.TrimSpace(entry.Surface)
 		ref := strings.TrimSpace(entry.Ref)
+		proofGate := strings.TrimSpace(entry.ProofGate)
 		scenario := ScenarioType(strings.TrimSpace(entry.Scenario))
 		if surface == "" {
 			return Manifest{}, fmt.Errorf("coverage manifest %s: entry has blank surface", path)
@@ -133,6 +138,13 @@ func LoadManifest(path string) (Manifest, error) {
 		if _, ok := validScenarioTypes[scenario]; !ok {
 			return Manifest{}, fmt.Errorf("coverage manifest %s: surface %q has invalid scenario type %q", path, surface, entry.Scenario)
 		}
+		// proof_gate is required, not optional: it is the gate that proves the
+		// scenario green. Without it, Reconcile would mark the surface covered on
+		// artifact existence alone — a false green that lets the blocking gate and
+		// the C-7 report claim a passing replay scenario nothing actually verifies.
+		if proofGate == "" {
+			return Manifest{}, fmt.Errorf("coverage manifest %s: surface %q has blank proof_gate (every coverage entry must name the gate that proves its scenario green)", path, surface)
+		}
 		if origin, dup := declared[surface]; dup {
 			return Manifest{}, fmt.Errorf("coverage manifest %s: surface %q declared twice (already a %s entry)", path, surface, origin)
 		}
@@ -141,7 +153,7 @@ func LoadManifest(path string) (Manifest, error) {
 			Surface:   surface,
 			Scenario:  scenario,
 			Ref:       ref,
-			ProofGate: strings.TrimSpace(entry.ProofGate),
+			ProofGate: proofGate,
 		})
 	}
 

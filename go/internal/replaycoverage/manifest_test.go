@@ -28,6 +28,7 @@ coverage:
   - surface: parser:hcl
     scenario: parser_fixture
     ref: go/internal/parser/hcl/testdata/fixture.json
+    proof_gate: parser-fixture-tests
 exemptions:
   - surface: capability:cap.design_only
     reason: research-only capability with no runtime path
@@ -86,6 +87,12 @@ coverage:
     scenario: cassette
     ref: ""
 `,
+		"blank proof_gate": `version: "v1"
+coverage:
+  - surface: collector:aws
+    scenario: cassette
+    ref: x
+`,
 		"blank exemption reason": `version: "v1"
 exemptions:
   - surface: collector:aws
@@ -102,14 +109,18 @@ exemptions:
 }
 
 func TestLoadManifestRejectsDuplicateAndConflictingSurface(t *testing.T) {
+	// proof_gate is set on every entry so the duplicate/conflict paths are the
+	// ones that fire, not the blank-proof_gate guard that precedes them.
 	dup := `version: "v1"
 coverage:
   - surface: collector:aws
     scenario: cassette
     ref: a
+    proof_gate: golden-corpus-gate
   - surface: collector:aws
     scenario: cassette
     ref: b
+    proof_gate: golden-corpus-gate
 `
 	if _, err := LoadManifest(writeManifest(t, dup)); err == nil {
 		t.Fatal("expected error for duplicate coverage surface")
@@ -119,6 +130,7 @@ coverage:
   - surface: collector:aws
     scenario: cassette
     ref: a
+    proof_gate: golden-corpus-gate
 exemptions:
   - surface: collector:aws
     reason: cannot be both covered and exempt

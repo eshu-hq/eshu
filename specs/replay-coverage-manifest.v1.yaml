@@ -18,8 +18,9 @@
 #   - cassette / parser_fixture refs are repo-relative paths to the artifact.
 #   - api_mcp_golden / correlation refs are B-12 snapshot ids (query-shape key /
 #     rc-*).
-# proof_gate names the gate that runs the scenario and proves it green; this gate
-# only verifies the artifact exists.
+# proof_gate (REQUIRED on every coverage entry) names the gate that runs the
+# scenario and proves it green; this gate only verifies the artifact exists, so a
+# coverage entry without a named proof_gate would claim a green nothing verifies.
 #
 # Seed coverage = only what is genuinely green today: the five implemented-lane
 # collectors whose cassettes the golden-corpus-gate already replays. Everything
