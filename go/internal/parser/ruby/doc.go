@@ -7,9 +7,10 @@
 // Parse reads one Ruby source file through shared.ReadSource, parses it with the
 // tree-sitter-ruby grammar, and emits the parser payload buckets for modules,
 // classes, methods, imports, module inclusions, variables, method calls, block
-// end lines, and bounded dead-code root metadata. Modules, classes, singleton
-// classes, method definitions, imports, inclusions, and variable assignments are
-// recovered from AST nodes; block `end_line` values come from node end
+// end lines, exact literal Rails/Sinatra route entries, and bounded dead-code
+// root metadata. Modules, classes, singleton classes, method definitions,
+// imports, inclusions, route entries, and variable assignments are recovered
+// from AST nodes; block `end_line` values come from node end
 // positions. Method calls are recovered from tree-sitter `call` nodes during the
 // same AST walk: the dotted full name is composed from the call's receiver and
 // method nodes (recursing through chained call receivers), and the enclosing
@@ -24,5 +25,8 @@
 // dispatcher internals. The package keeps constants in the existing variable
 // bucket and treats unmodeled framework DSL chains as bounded call evidence, not
 // framework-root truth. The package is deterministic and depends only on shared
-// parser helpers and the tree-sitter runtime.
+// parser helpers and the tree-sitter runtime. Route entries are exact-only:
+// Rails requires a literal `to: "controller#action"` route target inside
+// `Rails.application.routes.draw`, and Sinatra requires a named
+// `&method(:handler)` block on a literal route.
 package ruby

@@ -6,9 +6,10 @@ This package owns the Ruby parser adapter used by the parent parser engine. It
 parses Ruby source with the tree-sitter-ruby grammar and extracts module and
 class declarations, method signatures, require/load imports, module inclusions,
 local and instance variables, bounded method-call evidence, parser-backed
-dead-code root metadata, and Bundler dependency evidence from `Gemfile` and
-`Gemfile.lock`. All Ruby source evidence (modules, classes, singleton classes,
-methods, imports, inclusions, variables, block end lines, and method calls)
+dead-code root metadata, exact literal Rails/Sinatra route entries, and Bundler
+dependency evidence from `Gemfile` and `Gemfile.lock`. All Ruby source evidence
+(modules, classes, singleton classes, methods, imports, inclusions, variables,
+block end lines, method calls, and route entries)
 comes from the tree-sitter AST. Only the Bundler `Gemfile`/`Gemfile.lock`
 manifest path still uses line-oriented scanning, which is appropriate for those
 non-Ruby-grammar manifest formats.
@@ -69,6 +70,17 @@ body are read from the tree rather than from a line scan. Other Rails-style DSL
 chains are captured as bounded call evidence only. `def self.name` and
 `class << self` are covered, while `def ClassName.name` is not part of the
 current contract.
+
+Literal Rails routes inside `Rails.application.routes.draw` emit
+`framework_semantics.rails.route_entries` only when the HTTP method, path, and
+`to: "controller#action"` target are source literals. Literal Sinatra routes
+emit `framework_semantics.sinatra.route_entries` only when a Sinatra import or
+`Sinatra::Base` subclass is present and the route block is a named
+`&method(:handler)` reference. Dynamic paths, dynamic targets, namespaced Rails
+controller strings, anonymous Sinatra route blocks, generated route files, and
+autoload/eager-load behavior remain outside this parser's exactness boundary;
+the reducer may project `HANDLES_ROUTE` only after the emitted handler resolves
+to exactly one indexed function.
 
 ## Performance and observability evidence
 
