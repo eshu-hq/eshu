@@ -4,28 +4,21 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 33/163 surfaces satisfied (20.25%)** — mode: advisory.
+**Overall: 37/163 surfaces satisfied (22.70%)** — mode: advisory.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Capability claims | 0 | 126 | 0.00% | 126 | 0 |
-| Read surfaces (API/MCP) | 12 | 16 | 75.00% | 4 | 0 |
+| Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Collectors | 17 | 17 | 100.00% | 0 | 4 |
-| **Total** | **33** | **163** | **20.25%** | **130** | **4** |
+| **Total** | **37** | **163** | **22.70%** | **126** | **6** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-130 surface(s) uncovered or unresolved:
-
-### Read surfaces (API/MCP) (4)
-
-- `read_surface:GET /api/v0/ci-cd/run-correlations`
-- `read_surface:GET /api/v0/semantic-evidence`
-- `read_surface:GET /api/v0/service-catalog/correlations`
-- `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations`
+126 surface(s) uncovered or unresolved:
 
 ### Capability claims (126)
 
@@ -156,10 +149,11 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (33)
+## Covered surfaces (37)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
+| `read_surface:GET /api/v0/ci-cd/run-correlations` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/cloud/inventory` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
 | `read_surface:GET /api/v0/documentation/facts` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/documentation/facts?fact_kind=source` |
@@ -169,8 +163,11 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `read_surface:GET /api/v0/observability/coverage` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
 | `read_surface:GET /api/v0/package-registry/packages` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |
 | `read_surface:GET /api/v0/secrets-iam/posture-summary` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |
+| `read_surface:GET /api/v0/semantic-evidence` | exempt | — | — |
+| `read_surface:GET /api/v0/service-catalog/correlations` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/supply-chain/impact/findings` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000` |
 | `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom` |
+| `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | exempt | — | — |
 | `read_surface:GET /api/v0/work-items/evidence` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
 | `parser:cloudformation` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |
 | `parser:dockerfile` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |

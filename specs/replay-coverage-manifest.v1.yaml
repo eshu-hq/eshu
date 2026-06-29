@@ -141,6 +141,14 @@ coverage:
     scenario: api_mcp_golden
     ref: GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo
     proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/ci-cd/run-correlations
+    scenario: api_mcp_golden
+    ref: GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/service-catalog/correlations
+    scenario: api_mcp_golden
+    ref: GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo
+    proof_gate: golden-corpus-gate
 
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
@@ -198,3 +206,22 @@ exemptions:
       coordinator work items (image refs, rootfs, SBOM targets) and emits
       analysis facts; it has no credentialed source to record, so a cassette of
       the supply-chain-demo kind does not apply.
+
+  # C-5 (#4177): two fact-kind read surfaces that cannot be asserted by the
+  # golden-corpus gate as-is.
+  - surface: read_surface:GET /api/v0/semantic-evidence
+    reason: >-
+      Registry drift: the fact-kind registry declares read_surface
+      "GET /api/v0/semantic-evidence", but no such route is mounted — the semantic
+      evidence is served by /api/v0/semantic/documentation-observations and
+      /api/v0/semantic/code-hints. A golden cannot call a non-existent route.
+      Tracked by #4197 to reconcile the registry read_surface with the mounted
+      route; exempt until the registry is corrected.
+  - surface: read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations
+    reason: >-
+      Truth-ceiling: the security_alert_reconciliations.list capability is
+      unsupported in the golden-corpus gate's local_full_stack query profile (the
+      route returns the profile-required refusal, HTTP 404), so the gate cannot
+      assert a green response for it. The refusal is correct behavior under the
+      capability matrix; covering it would require a profile that enables the
+      provider security-alert reconciliation read model.

@@ -733,6 +733,22 @@
           "summary"
         ],
         "minimum_results": 0
+      },
+      "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo": {
+        "description": "CI/CD run correlations for a scope; confirms the ci-cd read surface is mounted and queryable.",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo": {
+        "description": "Service-catalog correlations for a scope; confirms the service-catalog read surface is mounted and queryable.",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "minimum_results": 0
       }
     }
   },
