@@ -22,12 +22,12 @@ const (
 // ready_docs CTE (cost ~225k rows at full corpus) and Merge Anti Joined it
 // against active_docs regardless of how many active scopes needed checking
 // (~2000). The NOT EXISTS rewrite drives the readiness probe per active_doc
-// row using the eshu_search_vector_metadata primary key index
-// (scope_id, generation_id, document_id, provider_profile_id, source_class,
-// embedding_model_id, vector_index_version); the planner emits a Nested Loop
-// Anti Join / Index Scan with cost bounded by the active_docs cardinality
-// (~493 at LIMIT / ~10026 full) instead of materialising the whole table.
-// No schema change is required; the existing PK backs the probe.
+// row using a covering metadata index (the primary key or
+// eshu_search_vector_metadata_model_v2_idx, both keyed by scope/generation +
+// the provider tuple); the planner observed using model_v2_idx on the 43 GB
+// corpus. The planner emits a Nested Loop Anti Join / Index Scan bounded by
+// the active_docs cardinality (~17 at LIMIT / ~14 399 full) instead of
+// materialising the whole table. No schema change is required.
 const listPendingEshuSearchVectorScopesSQL = `
 WITH active_docs AS (
     SELECT fact.scope_id, fact.generation_id,

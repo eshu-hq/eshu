@@ -666,10 +666,10 @@ Planner LIMIT cost: ~9 465. Full-scan cost: ~225 399.
 ### After (NOT EXISTS correlated probe)
 
 The `ready_docs` CTE is replaced with a correlated `NOT EXISTS` subquery.
-The planner drives the readiness probe per `active_docs` row using the
-`eshu_search_vector_metadata` primary-key index
-`(scope_id, generation_id, document_id, provider_profile_id, source_class,
-embedding_model_id, vector_index_version)`. No schema change required.
+The planner drives the readiness probe per `active_docs` row using a covering
+metadata index (the primary key or `eshu_search_vector_metadata_model_v2_idx`,
+both keyed by scope/generation + the provider tuple); the planner observed
+using `model_v2_idx` on the 43 GB corpus. No schema change required.
 
 EXPLAIN (cost only) on same corpus:
 ```
