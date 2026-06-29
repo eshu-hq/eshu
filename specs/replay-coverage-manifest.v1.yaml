@@ -211,14 +211,6 @@ coverage:
     scenario: correlation
     ref: rc-11
     proof_gate: golden-corpus-gate
-  - surface: capability:ci_cd.run_correlations.aggregate
-    scenario: correlation
-    ref: rc-27
-    proof_gate: golden-corpus-gate
-  - surface: capability:ci_cd.run_correlations.list
-    scenario: correlation
-    ref: rc-28
-    proof_gate: golden-corpus-gate
   - surface: capability:dependencies.list
     scenario: correlation
     ref: rc-9

@@ -4,29 +4,31 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 58/163 surfaces satisfied (35.58%)** — mode: advisory.
+**Overall: 56/163 surfaces satisfied (34.36%)** — mode: advisory.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Capability claims | 21 | 126 | 16.67% | 105 | 0 |
+| Capability claims | 19 | 126 | 15.08% | 107 | 0 |
 | Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Collectors | 17 | 17 | 100.00% | 0 | 4 |
-| **Total** | **58** | **163** | **35.58%** | **105** | **6** |
+| **Total** | **56** | **163** | **34.36%** | **107** | **6** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-105 surface(s) uncovered or unresolved:
+107 surface(s) uncovered or unresolved:
 
-### Capability claims (105)
+### Capability claims (107)
 
 - `capability:admission_decisions.list`
 - `capability:answer_narration.status`
 - `capability:ask.natural_language_answer`
 - `capability:aws_runtime_drift.findings.list`
 - `capability:capability_catalog.list`
+- `capability:ci_cd.run_correlations.aggregate`
+- `capability:ci_cd.run_correlations.list`
 - `capability:cloud_inventory.readback.list`
 - `capability:cloud_runtime_drift.readback.list`
 - `capability:code_flow.cfg_summary`
@@ -128,7 +130,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (58)
+## Covered surfaces (56)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
@@ -140,8 +142,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `capability:call_graph.route_to_caller` | correlation | golden-corpus-gate | `rc-8` |
 | `capability:call_graph.transitive_callees` | correlation | golden-corpus-gate | `rc-11` |
 | `capability:call_graph.transitive_callers` | correlation | golden-corpus-gate | `rc-11` |
-| `capability:ci_cd.run_correlations.aggregate` | correlation | golden-corpus-gate | `rc-27` |
-| `capability:ci_cd.run_correlations.list` | correlation | golden-corpus-gate | `rc-28` |
 | `capability:dependencies.list` | correlation | golden-corpus-gate | `rc-9` |
 | `capability:kubernetes.correlations.list` | correlation | golden-corpus-gate | `rc-4` |
 | `capability:package_registry.correlations.list` | correlation | golden-corpus-gate | `rc-9` |

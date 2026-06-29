@@ -39,9 +39,7 @@ type launchOptions struct {
 	cassetteFile string
 }
 
-// parseArgs parses the collector launch mode. The default is claimed-live;
-// cassette mode replays a -cassette-file credential-free for the golden-corpus
-// gate.
+// parseArgs parses the claimed-live or credential-free cassette launch mode.
 func parseArgs(args []string) (launchOptions, error) {
 	flags := flag.NewFlagSet(runtimeName, flag.ContinueOnError)
 	mode := flags.String("mode", string(launchModeClaimedLive), "collector mode: claimed-live or cassette")
@@ -87,7 +85,6 @@ func main() {
 		logger.Error(runtimeName+" argument parsing failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
 	}
-
 	if err := run(context.Background(), opts); err != nil {
 		logger.Error("collector-pagerduty failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)

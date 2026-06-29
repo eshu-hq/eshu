@@ -131,7 +131,7 @@ func writeReport(path string, report replaycoverage.CoverageReport) error {
 			return fmt.Errorf("create report dir %s: %w", dir, err)
 		}
 	}
-	if err := os.WriteFile(path, payload, 0o600); err != nil {
+	if err := os.WriteFile(path, payload, 0o600); err != nil { // #nosec G703 -- report-out is an explicit operator-controlled CLI output path for this local/CI gate.
 		return fmt.Errorf("write coverage report %s: %w", path, err)
 	}
 	return nil
@@ -141,12 +141,13 @@ func writeReport(path string, report replaycoverage.CoverageReport) error {
 // Markdown dashboard), creating the parent directory if needed.
 func writeArtifact(path string, payload []byte) error {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return fmt.Errorf("create artifact dir %s: %w", dir, err)
 		}
 	}
-	// #nosec G306 -- the coverage dashboard is a committed, docs-discoverable
-	// artifact, not a secret; 0o644 matches the repo's other generated docs.
+	// #nosec G306 G703 -- dashboard-out is an explicit operator-controlled CLI
+	// output path for a committed docs artifact; 0o644 matches the repo's other
+	// generated docs.
 	if err := os.WriteFile(path, payload, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}

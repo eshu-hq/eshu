@@ -26,9 +26,7 @@ import (
 
 var fallbackClaimSequence uint64
 
-// buildCassetteService wires a credential-free cassette source onto the shared
-// collector commit boundary, replacing the live claimed source. It requires no
-// jira provider credentials and is used by the golden-corpus gate.
+// buildCassetteService wires a credential-free cassette source onto the shared collector commit boundary.
 func buildCassetteService(
 	database postgres.ExecQueryer,
 	cassettePath string,
