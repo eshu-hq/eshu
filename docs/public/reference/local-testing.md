@@ -108,6 +108,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Portable evidence bundle schema, CLI, or docs | `cd go && go test ./internal/evidencebundle -count=1`, `cd go && go test ./cmd/eshu -run 'TestEvidenceBundle|TestRootCommandIncludesEvidenceBundle' -count=1`, and the docs build |
 | Performance contract thresholds (`local-performance-envelope.md`, `reducer-claim-latency-gate.md`, `hybrid-retrieval-production-gate.md`) or `go/internal/perfcontract` | `cd go && go test ./internal/perfcontract -count=1` (doc↔code lockstep; fails if a documented threshold drifts from its in-code value) and the docs build if a doc threshold changed |
 | Remote remediation benchmark wrapper | `bash scripts/test-verify-remote-e2e-remediation-benchmark.sh` |
+| Remote full-corpus degradation report classifier | `bash scripts/test-verify-remote-e2e-degradation-report.sh` |
 | Docs, `CLAUDE.md`, `AGENTS.md`, or README files | `bash scripts/test-verify-docs-build-changed.sh` and `bash scripts/verify-docs-build-changed.sh` (changed-path mkdocs build, mirrors pre-push hook); also `cd go && go run ./cmd/capability-inventory -mode docs` and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` for a full build |
 | GitHub workflow or CodeQL setup guidance | `scripts/test-verify-codeql-setup.sh` and `scripts/verify-codeql-setup.sh` |
 | CLI/runtime wiring | `cd go && go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1` |
