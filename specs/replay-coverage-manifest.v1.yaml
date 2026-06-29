@@ -86,6 +86,23 @@ coverage:
     ref: testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json
     proof_gate: golden-corpus-gate
 
+  # C-5 (#4177): fact-kind read surfaces. Each maps to an api_mcp_golden whose ref
+  # is the B-12 snapshot query-shape key; the golden-corpus-gate calls the endpoint
+  # live against the 20-repo corpus and asserts the response shape (truth, not just
+  # schema). HTTP query params, when required, are embedded in the shape key.
+  - surface: read_surface:GET /api/v0/cloud/inventory
+    scenario: api_mcp_golden
+    ref: GET /api/v0/cloud/inventory
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/cloud/resources
+    scenario: api_mcp_golden
+    ref: GET /api/v0/cloud/resources
+    proof_gate: golden-corpus-gate
+  - surface: read_surface:GET /api/v0/images
+    scenario: api_mcp_golden
+    ref: GET /api/v0/images
+    proof_gate: golden-corpus-gate
+
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
   # package-local, parser-focused tree; the proof gate replays it credential-free

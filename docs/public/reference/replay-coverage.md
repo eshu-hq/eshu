@@ -4,30 +4,27 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 21/163 surfaces satisfied (12.88%)** — mode: advisory.
+**Overall: 24/163 surfaces satisfied (14.72%)** — mode: advisory.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Capability claims | 0 | 126 | 0.00% | 126 | 0 |
-| Read surfaces (API/MCP) | 0 | 16 | 0.00% | 16 | 0 |
+| Read surfaces (API/MCP) | 3 | 16 | 18.75% | 13 | 0 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Collectors | 17 | 17 | 100.00% | 0 | 4 |
-| **Total** | **21** | **163** | **12.88%** | **142** | **4** |
+| **Total** | **24** | **163** | **14.72%** | **139** | **4** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-142 surface(s) uncovered or unresolved:
+139 surface(s) uncovered or unresolved:
 
-### Read surfaces (API/MCP) (16)
+### Read surfaces (API/MCP) (13)
 
 - `read_surface:GET /api/v0/ci-cd/run-correlations`
-- `read_surface:GET /api/v0/cloud/inventory`
-- `read_surface:GET /api/v0/cloud/resources`
 - `read_surface:GET /api/v0/documentation/facts`
 - `read_surface:GET /api/v0/iac/resources`
-- `read_surface:GET /api/v0/images`
 - `read_surface:GET /api/v0/incidents/{incident_id}/context`
 - `read_surface:GET /api/v0/observability/coverage`
 - `read_surface:GET /api/v0/package-registry/packages`
@@ -168,10 +165,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (21)
+## Covered surfaces (24)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
+| `read_surface:GET /api/v0/cloud/inventory` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
+| `read_surface:GET /api/v0/cloud/resources` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
+| `read_surface:GET /api/v0/images` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
 | `parser:cloudformation` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |
 | `parser:dockerfile` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |
 | `parser:hcl` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json` |
