@@ -6,7 +6,8 @@
 2. doc.go - godoc contract for the Perl adapter
 3. parser.go - tree-sitter parser entrypoint and pre-scan behavior
 4. tree_sitter_syntax.go - Perl syntax-tree extraction and bucket mapping
-5. parser_test.go - behavior coverage for payload shape
+5. framework_routes.go - exact Mojolicious::Lite and Dancer route entries
+6. parser_test.go - behavior coverage for payload shape
 
 ## Invariants this package enforces
 
@@ -17,6 +18,9 @@
   `dead_code_root_kinds` metadata for the query dead-code policy.
 - Perl special blocks are modeled as derived roots, not ordinary callable
   subroutines.
+- Framework route entries are exact only for one active Mojolicious::Lite or
+  Dancer/Dancer2 DSL import, literal paths, concrete HTTP verbs, and named code
+  references such as `\&handler`.
 - PreScan derives names from Parse so parent pre-scan and full parse agree.
 
 ## Common changes and how to scope them
@@ -35,6 +39,9 @@
 - Dead-code false positives around `main`, `new`, `@EXPORT`, `@EXPORT_OK`,
   `AUTOLOAD`, `DESTROY`, or special blocks usually mean parser metadata did not
   survive into the content entity row.
+- Route false positives usually mean `framework_routes.go` accepted a dynamic
+  path, inline subroutine, controller string, wrapper name, dual DSL import, or
+  non-verb helper that should stay unsupported.
 
 ## Anti-patterns specific to this package
 
@@ -42,6 +49,8 @@
 - Changing package rows from classes to a new bucket without downstream shape
   work.
 - Adding repository-specific Perl conventions without fixture evidence.
+- Claiming Catalyst, Mojolicious controller/action strings, Dancer `any`, inline
+  subs, or generated route tables as exact route-to-handler truth.
 
 ## What NOT to change without an ADR
 

@@ -232,13 +232,13 @@ language_features:
     docs_claim: docs/public/languages/perl.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [source-entities, graph-surface]
-    partial_features: [perl-web-framework-route-truth]
+    supported_features: [source-entities, graph-surface, perl-literal-mojolicious-dancer-route-truth]
+    partial_features: [perl-catalyst-controller-convention-route-truth, perl-generated-dynamic-route-truth]
     derived_features: [dead-code-roots]
-    source_files: [go/internal/parser/perl_haskell_language.go, go/internal/parser/perl/parser.go]
-    test_files: [go/internal/parser/engine_long_tail_test.go, go/internal/parser/perl/parser_test.go]
+    source_files: [go/internal/parser/perl_haskell_language.go, go/internal/parser/perl/parser.go, go/internal/parser/perl/framework_routes.go]
+    test_files: [go/internal/parser/engine_long_tail_test.go, go/internal/parser/engine_perl_route_semantics_test.go, go/internal/parser/perl/parser_test.go, go/internal/reducer/handles_route_perl_test.go, go/internal/query/content_reader_framework_routes_test.go]
     docs: [docs/public/languages/perl.md]
-    read_surfaces: [execute_language_query, find_dead_code]
+    read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4116]
   - language: php
     docs_claim: docs/public/languages/php.md

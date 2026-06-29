@@ -4,7 +4,8 @@
 
 This package owns the tree-sitter-backed Perl parser adapter used by the parent
 parser engine. It extracts package declarations, use imports, subroutines,
-variables, simple call evidence, and bounded dead-code root metadata.
+variables, simple call evidence, bounded dead-code root metadata, and exact
+Perl web route entries for narrow literal DSL forms.
 
 ## Ownership boundary
 
@@ -46,6 +47,14 @@ change adds no queue workers, batches, leases, graph writes, Cypher, or storage
 backend operations; it only enriches parser facts and in-memory resolver
 selection before the existing repository fallback.
 
+No-Regression Evidence: exact Mojolicious::Lite and Dancer route support reads
+only tree-sitter-located call-expression node text after imports prove one DSL
+owner for the file. It emits `framework_semantics.{mojolicious,dancer}` only for
+literal path strings and named code references (`\&handler`). Dynamic paths,
+inline subroutines, controller/action strings, `any`, prefixed wrappers, and
+files importing both DSL families stay unclaimed. Focused proof:
+`go test ./internal/parser ./internal/parser/perl ./internal/reducer ./internal/query -count=1`.
+
 No-Observability-Change: this package still emits no telemetry directly.
 Operators continue to diagnose parser throughput and failures through the
 parent parser engine timing/error path, and code-call materialization continues
@@ -63,6 +72,11 @@ Subroutines carry root metadata for script `main`, Exporter `@EXPORT` /
 payload shape while deriving calls from syntax-tree call nodes. Function source
 spans cover the full subroutine node when source indexing is enabled. PreScan
 sorts names after collecting them from the parsed function and class buckets.
+Route entries are exact-only: one active Mojolicious::Lite or Dancer/Dancer2
+import family per file, literal paths, concrete HTTP verbs, and a named code
+reference handler. Catalyst dispatcher conventions, Mojolicious controller
+strings, Dancer `any`, inline handlers, generated route tables, and dynamic
+symbol lookup stay outside this package boundary.
 
 ## Related docs
 

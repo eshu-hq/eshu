@@ -258,6 +258,48 @@ func TestParseFrameworkSemanticsExtractsJavaScriptFrameworkRoutes(t *testing.T) 
 	}
 }
 
+func TestParseFrameworkSemanticsExtractsPerlFrameworkRoutes(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["mojolicious", "dancer"],
+		"mojolicious": {
+			"route_methods": ["GET"],
+			"route_paths": ["/health"],
+			"route_entries": [{"method": "GET", "path": "/health", "handler": "health"}]
+		},
+		"dancer": {
+			"route_methods": ["POST"],
+			"route_paths": ["/orders"],
+			"route_entries": [{"method": "POST", "path": "/orders", "handler": "create_order"}]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("app.pl", raw)
+	if len(results) != 2 {
+		t.Fatalf("len(results) = %d, want 2", len(results))
+	}
+	wantHandlers := map[string]string{
+		"mojolicious": "health",
+		"dancer":      "create_order",
+	}
+	for _, route := range results {
+		if route.RelativePath != "app.pl" {
+			t.Fatalf("RelativePath = %q, want app.pl", route.RelativePath)
+		}
+		if len(route.RouteEntries) != 1 {
+			t.Fatalf("%s RouteEntries = %#v, want exactly one entry", route.Framework, route.RouteEntries)
+		}
+		want, ok := wantHandlers[route.Framework]
+		if !ok {
+			t.Fatalf("unexpected framework %q in results %#v", route.Framework, results)
+		}
+		if got := route.RouteEntries[0].Handler; got != want {
+			t.Fatalf("%s handler = %q, want %q", route.Framework, got, want)
+		}
+	}
+}
+
 func TestParseFrameworkSemanticsExtractsCSharpASPNetRoutes(t *testing.T) {
 	t.Parallel()
 

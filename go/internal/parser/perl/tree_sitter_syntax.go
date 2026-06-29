@@ -16,12 +16,17 @@ type perlFunctionSpan struct {
 	item        map[string]any
 }
 
+type perlRouteCall struct {
+	text string
+}
+
 type perlSyntaxIndex struct {
 	classes          []map[string]any
 	imports          []map[string]any
 	functions        []perlFunctionSpan
 	variables        []map[string]any
 	calls            []map[string]any
+	routeCalls       []perlRouteCall
 	exportsByPackage map[string]map[string]struct{}
 	seenVariables    map[string]struct{}
 	seenCalls        map[string]struct{}
@@ -119,6 +124,9 @@ func (i *perlSyntaxIndex) collect(node *tree_sitter.Node, source []byte, path st
 	case "function_call_expression", "ambiguous_function_call_expression", "func0op_call_expression", "func1op_call_expression", "method_call_expression":
 		if name := perlCallName(node, source); name != "" {
 			i.appendCall(name, shared.NodeLine(node))
+			if perlRouteCallName(name) {
+				i.routeCalls = append(i.routeCalls, perlRouteCall{text: shared.NodeText(node, source)})
+			}
 		}
 	}
 

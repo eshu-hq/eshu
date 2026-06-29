@@ -60,6 +60,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	for _, call := range syntax.calls {
 		shared.AppendBucket(payload, "function_calls", call)
 	}
+	payload["framework_semantics"] = buildPerlFrameworkSemantics(syntax.imports, syntax.routeCalls)
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "classes")
