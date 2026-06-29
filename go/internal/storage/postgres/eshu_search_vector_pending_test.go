@@ -44,27 +44,29 @@ func TestEshuSearchVectorPendingStoreListsScopes(t *testing.T) {
 	}
 	q := db.queries[0].query
 	for _, fragment := range []string{
+		// active_docs CTE (unchanged from original)
 		"WITH active_docs AS",
 		"scope.scope_kind = 'repository'",
 		"fact.fact_kind = $1",
 		"fact.is_tombstone = FALSE",
 		"fact.payload->'document'->>'id' AS document_id",
 		"fact.payload->>'content_hash' AS content_hash",
+		// NOT EXISTS correlated subquery shape (#4233 rewrite)
+		"WHERE NOT EXISTS",
 		"eshu_search_vector_metadata",
 		"eshu_search_vector_values",
+		"LEFT JOIN eshu_search_vector_values",
 		"meta.provider_profile_id = $2",
 		"meta.source_class = $3",
-		"LEFT JOIN eshu_search_vector_values",
-		"value.provider_profile_id = meta.provider_profile_id",
-		"value.source_class = meta.source_class",
-		"ready.document_id = docs.document_id",
-		"ready.embedding_content_hash = docs.content_hash",
-		"ready.provider_profile_id = $2",
-		"ready.source_class = $3",
+		"meta.embedding_model_id = $4",
+		"meta.vector_index_version = $5",
+		"meta.scope_id = docs.scope_id",
+		"meta.generation_id = docs.generation_id",
+		"meta.document_id = docs.document_id",
+		"meta.embedding_content_hash = docs.content_hash",
 		"meta.build_state = 'ready'",
 		"meta.build_state = 'disabled'",
 		"value.document_id IS NOT NULL",
-		"WHERE ready.document_id IS NULL",
 		"LIMIT $6",
 	} {
 		if !strings.Contains(q, fragment) {

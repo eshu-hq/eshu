@@ -13,11 +13,24 @@ const (
 	eshuSearchVectorPendingMaxLimit     = 1000
 )
 
+// listPendingEshuSearchVectorScopesSQL lists active repository scopes whose
+// curated search documents do not yet have a complete ready vector row for the
+// requested provider/model/version tuple.
+//
+// Performance design (#4233): the previous implementation materialised the
+// entire corpus-wide eshu_search_vector_metadata table via a SELECT DISTINCT
+// ready_docs CTE (cost ~225k rows at full corpus) and Merge Anti Joined it
+// against active_docs regardless of how many active scopes needed checking
+// (~2000). The NOT EXISTS rewrite drives the readiness probe per active_doc
+// row using a covering metadata index (the primary key or
+// eshu_search_vector_metadata_model_v2_idx, both keyed by scope/generation +
+// the provider tuple); the planner observed using model_v2_idx on the 43 GB
+// corpus. The planner emits a Nested Loop Anti Join / Index Scan bounded by
+// the active_docs cardinality (~17 at LIMIT / ~14 399 full) instead of
+// materialising the whole table. No schema change is required.
 const listPendingEshuSearchVectorScopesSQL = `
 WITH active_docs AS (
-    SELECT
-        fact.scope_id,
-        fact.generation_id,
+    SELECT fact.scope_id, fact.generation_id,
         COALESCE(scope.payload->>'repo_id', '') AS repo_id,
         fact.payload->'document'->>'id' AS document_id,
         fact.payload->>'content_hash' AS content_hash
@@ -28,44 +41,28 @@ WITH active_docs AS (
     WHERE scope.scope_kind = 'repository'
       AND fact.fact_kind = $1
       AND fact.is_tombstone = FALSE
-),
-ready_docs AS (
-    SELECT DISTINCT
-        meta.scope_id,
-        meta.generation_id,
-        meta.document_id,
-        meta.provider_profile_id,
-        meta.source_class,
-        meta.embedding_content_hash
-    FROM eshu_search_vector_metadata meta
-    LEFT JOIN eshu_search_vector_values value
-      ON value.scope_id = meta.scope_id
-     AND value.generation_id = meta.generation_id
-     AND value.document_id = meta.document_id
-     AND value.provider_profile_id = meta.provider_profile_id
-     AND value.source_class = meta.source_class
-     AND value.embedding_model_id = meta.embedding_model_id
-     AND value.vector_index_version = meta.vector_index_version
-     AND value.embedding_content_hash = meta.embedding_content_hash
-    WHERE meta.provider_profile_id = $2
-      AND meta.source_class = $3
-      AND meta.embedding_model_id = $4
-      AND meta.vector_index_version = $5
-      AND (
-        meta.build_state = 'disabled'
-        OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL)
-      )
 )
 SELECT docs.scope_id, docs.generation_id, docs.repo_id
 FROM active_docs docs
-LEFT JOIN ready_docs ready
-  ON ready.scope_id = docs.scope_id
- AND ready.generation_id = docs.generation_id
- AND ready.document_id = docs.document_id
- AND ready.provider_profile_id = $2
- AND ready.source_class = $3
- AND ready.embedding_content_hash = docs.content_hash
-WHERE ready.document_id IS NULL
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM eshu_search_vector_metadata meta
+    LEFT JOIN eshu_search_vector_values value
+      ON value.scope_id = meta.scope_id AND value.generation_id = meta.generation_id
+     AND value.document_id = meta.document_id AND value.provider_profile_id = meta.provider_profile_id
+     AND value.source_class = meta.source_class AND value.embedding_model_id = meta.embedding_model_id
+     AND value.vector_index_version = meta.vector_index_version
+     AND value.embedding_content_hash = meta.embedding_content_hash
+    WHERE meta.scope_id = docs.scope_id
+      AND meta.generation_id = docs.generation_id
+      AND meta.document_id = docs.document_id
+      AND meta.provider_profile_id = $2
+      AND meta.source_class = $3
+      AND meta.embedding_model_id = $4
+      AND meta.vector_index_version = $5
+      AND meta.embedding_content_hash = docs.content_hash
+      AND (meta.build_state = 'disabled' OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))
+)
 GROUP BY docs.scope_id, docs.generation_id, docs.repo_id
 ORDER BY docs.scope_id
 LIMIT $6

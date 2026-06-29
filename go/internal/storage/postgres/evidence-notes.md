@@ -626,3 +626,109 @@ token persistence, or raw group persistence. Operators continue to diagnose the
 path through existing OIDC login HTTP status, Postgres query spans and
 `eshu_dp_postgres_query_duration_seconds`, browser-session rows, and the OIDC
 session refresh counters/logs.
+
+## Active-Docs-Bound Search-Vector Pending Query Rewrite (#4233)
+
+Date: 2026-06-29
+
+File changed: `go/internal/storage/postgres/eshu_search_vector_pending.go`,
+const `listPendingEshuSearchVectorScopesSQL`.
+
+### Root Cause
+
+The original query built a `ready_docs` CTE using `SELECT DISTINCT` over the
+entire `eshu_search_vector_metadata` table filtered only by
+`(provider_profile_id, source_class, embedding_model_id, vector_index_version)`
+— a corpus-wide materialisation. On a 43 GB local corpus (478k metadata rows,
+~200k active search-document facts across ~117 active repository scopes), the
+planner emitted a Merge Anti Join with a full-corpus Unique+Sort pass over the
+metadata table regardless of how many active scopes needed checking.
+
+### Before (old `ready_docs` CTE + Merge Anti Join)
+
+EXPLAIN (cost only) on local corpus:
+```
+Limit  (cost=9465.36..9798.60 rows=100 width=139)
+  ->  Group  (cost=9465.36..16606.75 rows=2143 ...)
+        ->  Incremental Sort  (cost=9457.93..16585.32 ...)
+              ->  Merge Anti Join  (cost=9457.93..16526.95 ...)
+                    ->  Nested Loop  [active_docs]  (cost=0.83..7058.97 ...)
+                    ->  Subquery Scan on ready_docs  (cost=9457.10..9459.10 ...)
+                          ->  Unique  (cost=9457.10..9459.10 ...)
+                            [materialises full metadata table ~478k rows]
+```
+
+EXPLAIN ANALYZE (warm buffers): Execution Time ~122 ms, shared hits 53 215.
+EXPLAIN ANALYZE (cold buffers, pre-fix): many minutes on large corpora
+(per issue #4233 root-cause investigation).
+Planner LIMIT cost: ~9 465. Full-scan cost: ~225 399.
+
+### After (NOT EXISTS correlated probe)
+
+The `ready_docs` CTE is replaced with a correlated `NOT EXISTS` subquery.
+The planner drives the readiness probe per `active_docs` row using a covering
+metadata index (the primary key or `eshu_search_vector_metadata_model_v2_idx`,
+both keyed by scope/generation + the provider tuple); the planner observed
+using `model_v2_idx` on the 43 GB corpus. No schema change required.
+
+EXPLAIN (cost only) on same corpus:
+```
+Limit  (cost=16.97..688.08 rows=100 width=139)
+  ->  Group  (cost=16.97..14398.94 rows=2143 ...)
+        ->  Incremental Sort  (cost=16.97..14377.51 ...)
+              ->  Nested Loop Anti Join  (cost=1.93..14319.13 ...)
+                    ->  Nested Loop  [active_docs]  (cost=0.83..7058.97 ...)
+                    ->  Nested Loop Left Join  (cost=1.09..3.38 per active row)
+                          ->  Index Scan using eshu_search_vector_metadata_model_v2_idx
+                                Index Cond: (scope_id=..., generation_id=...,
+                                  provider_profile_id=..., source_class=...,
+                                  embedding_model_id=..., vector_index_version=...)
+                          ->  Index Scan using eshu_search_vector_values_pkey
+```
+
+EXPLAIN ANALYZE (cold buffers, post-fix): Execution Time 579 ms (48 850 blocks
+read, first run cold). Planner LIMIT cost: ~16.97. Full-scan cost: ~14 399.
+Planner cost improvement at LIMIT: ~9 465 → ~17 (~556x estimated reduction).
+No corpus-wide `Unique` or full-set `Sort` over `eshu_search_vector_metadata`
+in the outer plan.
+
+### Equivalence Argument
+
+`eshu_search_vector_metadata` has at most one row per
+`(scope_id, generation_id, document_id, provider_profile_id, source_class,
+embedding_model_id, vector_index_version)` (primary key unique). The original
+`SELECT DISTINCT ready_docs` therefore produced at most one row per
+`(scope_id, generation_id, document_id, provider_profile_id, source_class,
+embedding_content_hash)` tuple. The NOT EXISTS probe is semantically identical:
+it finds a metadata row for the same doc that satisfies the same
+`build_state`/value-present/content_hash conditions, and the LEFT JOIN to
+`eshu_search_vector_values` uses the same columns as the original. The
+`GROUP BY + ORDER BY docs.scope_id` and `LIMIT $6` are preserved unchanged.
+
+### Live Equivalence Proof
+
+`TestEshuSearchVectorPendingBoundedPlanLive` (gated on
+`ESHU_SEARCH_VECTOR_PENDING_PLAN_LIVE=1` + `ESHU_POSTGRES_DSN`) seeds eight
+equivalence cases under a throwaway scope/generation, asserts
+`ListPendingSearchVectorScopes` returns exactly the scopes with ≥1 pending doc,
+and verifies the EXPLAIN plan contains no corpus-wide `Unique` over
+`eshu_search_vector_metadata`.
+
+Result against local corpus: PASS (1 test, ~0.6 s).
+
+### Performance Evidence
+
+- Before: planner LIMIT cost 9 465, full cost 225 399, ANALYZE many minutes
+  on large corpora (cold).
+- After: planner LIMIT cost 17, full cost 14 399, ANALYZE ~580 ms (cold
+  buffers, 43 GB corpus, ~200k active search-document facts, ~117 active
+  repository scopes). No corpus-wide Unique/Sort over metadata table.
+
+### No-Observability-Change
+
+`listPendingEshuSearchVectorScopesSQL` is an internal readiness-probe query
+called by `EshuSearchVectorPendingStore.ListPendingSearchVectorScopes` from the
+`searchVectorPendingAdapter` in `cmd/reducer`. It has no metric instrument, span
+name, log field, wire-contract column, API route, CLI flag, or environment
+variable. The Go API surface, parameter order ($1..$6), scan columns, and return
+type are identical. No metric, span, trace, or log change is needed.
