@@ -51,10 +51,107 @@ Inputs required:
 - files changed, including generated artifacts;
 - commands and runtime proof actually run;
 - current open review findings;
+- current GitHub review threads from the review-thread API, not only
+  `gh pr view` summaries, when a PR already exists;
+- current GitHub check rollup from `gh pr checks --json` or GraphQL, with
+  pending checks separated from failed checks, when a PR already exists;
+- explicit `no PR exists yet` disposition for first-time pre-PR reviews, followed
+  by a live PR truth collection immediately after PR creation;
 - pinned backend versions and current NornicDB source/docs when Cypher,
   graph-backed reads/writes, schema, or backend behavior is touched.
 
 If any input is missing, the review verdict is `blocked`, not "looks good".
+
+## Mandatory Live PR Truth Collection
+
+When reviewing an open PR, collect live GitHub truth before the verdict and
+again after every pushed review fix. Do not rely on the compact `gh pr view`
+review summary; it can omit inline thread bodies.
+
+For first-time pre-PR review of a branch that has not been published as a PR,
+record `no PR exists yet` with the branch, base SHA, and head SHA instead of
+treating absent PR APIs as a blocker. After creating the PR, immediately collect
+the live review-thread and check-rollup snapshots below and re-run the review if
+GitHub reports new comments, red checks, mergeability problems, or base drift.
+
+Required commands or equivalent GraphQL/API calls:
+
+```bash
+gh pr view <pr> --json headRefOid,baseRefOid,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup
+gh pr checks <pr> --json name,state,bucket,link,startedAt,completedAt,workflow
+gh api graphql -F owner=<owner> -F repo=<repo> -F number=<pr> -f query='<reviewThreads query>'
+```
+
+Classify results exactly:
+
+- unresolved latest-head review threads are findings until fixed and resolved;
+- outdated threads still need a disposition when they named a real bug;
+- queued or in-progress checks are pending, not failures;
+- completed red checks are concrete CI findings and need log evidence;
+- skipped checks are acceptable only when the workflow condition explains them.
+
+For every red GitHub Actions check, fetch the job log or artifact, name the
+failing step, and connect the fix to a local reproducer. If the failure can only
+be proven in Actions, say why and add the smallest static workflow-contract
+mirror that can catch future drift.
+
+## Review Packet And Read-Only Contract
+
+Before asking a separate reviewer or running self-review, build a bounded review
+packet. Do not ask a reviewer to infer scope from chat history, branch names, or
+the author's summary.
+
+Use this packet shape:
+
+```text
+Review target:
+- repo/worktree:
+- branch:
+- base SHA:
+- head SHA:
+- PR:
+- no PR exists yet: yes|no
+
+Intent:
+- issue/PR requirement:
+- acceptance criteria:
+- out of scope:
+
+Diff:
+- commands to inspect: git diff --stat <base>..<head>; git diff <base>..<head>
+- files changed:
+- generated artifacts changed:
+
+Eshu surfaces:
+- packages/services:
+- API/MCP/CLI contracts:
+- graph/reducer/query/cassette/golden surfaces:
+- workflow/docs/agent-rule surfaces:
+
+Proof:
+- selected proof tier:
+- commands actually run:
+- commands not run and why:
+- performance or observability evidence:
+
+GitHub truth:
+- review-thread API snapshot or no-PR disposition:
+- check-rollup snapshot or no-PR disposition:
+- mergeability/base-drift snapshot:
+```
+
+Reviewer mode is read-only until the verdict is written. The reviewer may run
+read-only commands such as `git diff`, `git show`, `rg`, `gh pr view`, `gh pr
+checks`, GraphQL/API review-thread queries, and CI log fetches. The reviewer
+must not edit files, stage, commit, rebase, push, resolve threads, rerun
+generators, or mutate PR state while forming the verdict. Fixes happen after the
+verdict, then the review repeats on the new base/head.
+
+If delegating to a separate reviewer, include the review packet verbatim plus
+this instruction: "Start from reject. Return findings first, with pass, class,
+severity, confidence, disposition, file:line, violated Eshu rule or proof tier,
+and concrete verification. Do not approve from intent, summary, or partial
+evidence."
 
 ## Reviewer Stance
 
@@ -142,6 +239,18 @@ performance. Check:
 - cross-repo/live-if-used-by-consumer semantics and evidence citations;
 - OpenAPI, HTTP, MCP, CLI, docs, and capability inventory lockstep.
 
+Capability, replay, and product-claim reviews must explicitly attack
+false-green shapes:
+
+- blank or whitespace-only proof refs or proof kinds;
+- unknown capability ids, stale maturity, stale source-line anchors, or stale
+  generated surface counts;
+- proof signals that no longer match catalog rows;
+- product claims whose deterministic docs path passes while the live issue or
+  tokened API path fails;
+- replay coverage entries that count an authored scenario but do not name the
+  sibling gate that proves the scenario green.
+
 ## Pass 2: Performance And Storage/Query Shape
 
 Review the same diff for cost and backend shape after correctness is understood.
@@ -203,6 +312,16 @@ Review for production operation and delivery safety:
   and `.claude/skills` discovery, hooks, pre-commit, pre-push, and GHA parity;
 - follow-on validation needs when the PR cannot honestly prove a separate runtime,
   backend-version, cassette, full-corpus, or performance condition.
+
+For CI or workflow changes, review the parity contract:
+
+- every workflow-only behavior change has a local static mirror or test script;
+- every prior GHA failure is either reproduced locally or documented as
+  Actions-only with the nearest possible local guard;
+- workflow tokens and permissions match the command path that uses them;
+- path filters include the workflow, scripts, source, fixtures, specs, and docs
+  whose drift would make the workflow false-green;
+- `gh pr checks --json` is captured after push before any readiness claim.
 
 ## Pass 4: Hostile Read And Abuse Cases
 
@@ -296,14 +415,21 @@ The verdict is `blocked` when any of these are true:
   attribution;
 - review comments exist on the latest head and are unresolved;
 - CI/check evidence does not match the changed surface.
+- no final live check-rollup snapshot was collected after the last push or
+  rebase.
 
 ## Output Template
 
 ```text
 Eshu code review verdict: self-review|separate-review
 Base/head: <base>..<head>
+Review packet inspected: yes|no
+Reviewer mode: read-only|self-review
 Proof tier decision: <one tier>
 Why sufficient: <rationale; name cassette/golden assertions or missing runtime condition>
+
+Proof already established:
+- <facts proven by current diff/tests/checks; no praise, only evidence>
 
 Pass 0 - Scope, ownership, and diff integrity:
 - Findings: <pass, class, severity, confidence, disposition, file:line, rule/skill, fix>
@@ -328,6 +454,8 @@ Cross-pass comparison:
 - Hostile-read classes checked: ...
 - Generated artifacts checked: ...
 - Private-data/AI-attribution scan: ...
+- GitHub review threads checked: ...
+- GitHub check rollup checked: ...
 - Follow-on validation required: ...
 
 Disposition:
@@ -337,6 +465,11 @@ Disposition:
 
 Verification evidence inspected:
 - <commands and runtime proof>
+
+Final readiness:
+- ready to push/create PR/merge: yes|no
+- latest GitHub truth timestamp:
+- verdict becomes stale if: <base moves, head changes, generated artifacts rerun, new review thread, red/pending required check, or named condition>
 ```
 
 Ready means `P0=0`, `P1=0`, every P2 fixed or linked to a tracked repository
