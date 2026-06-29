@@ -1,11 +1,11 @@
 # AGENTS — replaycoverage
 
-Scoped rules for editing the C-1 replay coverage gate core. Load
+Scoped rules for editing the C-1/C-8 replay coverage gate core. Load
 `eshu-golden-corpus-rigor`, `eshu-diagnostic-rigor`, and `golang-engineering`.
 
 ## Invariants
 
-- **Four registries, one enumeration.** `EnumerateSupported` is the single place
+- **Registry enumeration stays centralized.** `EnumerateSupported` is the single place
   the supported set is derived. Add a registry source here, keyed
   `<kind>:<name>`, and cover it with a `surfaces_test.go` case. Never widen the
   surface-inventory scope past the `implemented` lane — other lanes do not assert
@@ -17,12 +17,14 @@ Scoped rules for editing the C-1 replay coverage gate core. Load
   scenario's greenness is proven by the gate named in `proof_gate`. Do not make
   this gate run pipelines, hit a backend, or need credentials.
 - **No silent green.** A missing manifest is an empty manifest (everything
-  uncovered), never an error that skips the gate. Blank fields, invalid scenario
-  types, duplicate surfaces, and covered+exempt conflicts are hard load errors.
+  uncovered), never an error that skips the gate. Blank fields, invalid artifact
+  kinds, invalid scenario types, duplicate surface+scenario_type pairs,
+  requirements that drop baseline, and covered/required+exempt conflicts are
+  hard load errors.
 - **One severity knob.** `Blocking=false` remains the local advisory mode, while
-  CI passes the single blocking flag now that C-2..C-6 have burned the gaps
-  down. Keep that the only severity control — do not add per-finding `Required`
-  overrides.
+  CI passes the single blocking flag now that the C-lane coverage gaps have
+  burned down. Keep that the only severity control — do not add per-finding
+  `Required` overrides.
 - **Determinism.** Enumeration sorts by registry then key; the report and stale
   list are sorted; `MarshalReport` is byte-stable with a trailing newline. No
   timestamps or wall-clock in the artifact.

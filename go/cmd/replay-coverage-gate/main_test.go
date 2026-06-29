@@ -61,7 +61,7 @@ func TestRunAdvisoryReportsGapsWithoutFailing(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("report not written: %v", readErr)
 	}
-	if !strings.Contains(string(data), "\"schema_version\": \"replay-coverage-report.v1\"") {
+	if !strings.Contains(string(data), "\"schema_version\": \"replay-coverage-report.v2\"") {
 		t.Errorf("report payload missing schema version:\n%s", data)
 	}
 	// The real embedded registries enumerate uncovered surfaces -> non-empty gaps.

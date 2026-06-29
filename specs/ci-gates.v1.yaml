@@ -695,15 +695,19 @@ gates:
     ci_only_reason: "requires Docker + NornicDB service stack"
 
   - id: replay-coverage-gate
-    name: C-1 Replay Coverage Gate
+    name: C-1/C-8 Replay Coverage Gate
     category: exactness
     tier: pre-pr
     blocking: true
     triggers:
       - "go/cmd/replay-coverage-gate/**"
       - "go/internal/replaycoverage/**"
+      - "go/internal/replay/inputtape/**"
+      - "go/internal/replay/schedulereplay/**"
+      - "go/internal/replay/crashreplay/**"
       - "go/internal/capabilitycatalog/**"
       - "go/internal/facts/**"
+      - "specs/capability-budget-proof.v1.yaml"
       - "specs/replay-coverage-manifest.v1.yaml"
       - "specs/parser-backing-ledger.v1.yaml"
       - "specs/surface-inventory.v1.yaml"
@@ -863,6 +867,7 @@ gates:
       - "go/internal/graph/**"
       - "go/internal/runtime/**"
       - "testdata/cassettes/replayoffline/**"
+      - "testdata/cassettes/replaydelta/**"
       - "scripts/verify-replay-tier.sh"
     ci:
       workflow: verify-replay-tier.yml
@@ -871,6 +876,26 @@ gates:
       - go
       - docker
     ci_only_reason: "replays the committed cassette via plain docker run (no Compose); needs Docker"
+
+  - id: go-test-race
+    name: Go tests with race detector
+    category: race
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/replay/inputtape/**"
+      - "go/internal/replay/schedulereplay/**"
+      - "go/internal/replay/crashreplay/**"
+      - ".github/workflows/test.yml"
+    local:
+      command: "cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/..."
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Run Go tests with race detector"
+    requirements:
+      - go
+    ci_only_reason: ""
 
   - id: ci-gate-registry
     name: CI gate registry + drift

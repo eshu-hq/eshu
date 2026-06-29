@@ -1,11 +1,13 @@
 # replay-coverage-gate
 
-The **C-1 replay coverage manifest + lockstep gate**
-([#4173](https://github.com/eshu-hq/eshu/issues/4173), epic
+The **C-1/C-8 replay coverage manifest + lockstep gate**
+([#4173](https://github.com/eshu-hq/eshu/issues/4173),
+[#4187](https://github.com/eshu-hq/eshu/issues/4187), epic
 [#4172](https://github.com/eshu-hq/eshu/issues/4172)). It is the keystone of the
-replay-coverage-completeness epic: it proves that every surface Eshu claims to
-support has a green, credential-free, Docker-free replay scenario — and fails CI
-(once blocking) on any supported-but-uncovered surface.
+replay-coverage-completeness epic: it proves that every surface and required
+scenario-depth class Eshu claims to support has a green, credential-free,
+Docker-free replay scenario — and fails CI on any supported-but-uncovered
+surface/scenario_type pair.
 
 This command is the thin orchestrator; the typed, unit-tested reconciliation
 logic lives in [`internal/replaycoverage`](../../internal/replaycoverage).
@@ -19,15 +21,17 @@ logic lives in [`internal/replaycoverage`](../../internal/replaycoverage).
 2. Enumerates the supported surfaces (implemented-lane collectors, read surfaces,
    parsers, positive capability claims, and public product claims).
 3. Reconciles each against `specs/replay-coverage-manifest.v1.yaml` and the
-   on-disk / snapshot scenario artifacts. `capability_claim` entries resolve
-   against the capability matrix itself and require every profile row to carry a
-   verification reference. `product_claim` entries resolve against
+   on-disk / snapshot scenario artifacts. Each coverage entry carries an artifact
+   kind (`scenario`) and a C-8 depth class (`scenario_type`: baseline,
+   delta_tombstone, fault, ordering, crash, or cost). `capability_claim` entries
+   resolve against the capability matrix itself and require every profile row to
+   carry a verification reference. `product_claim` entries resolve against
    `specs/product-claims.v1.yaml` and require deterministic proof metadata.
 4. Writes a JSON coverage report and the committed, docs-discoverable C-7
    Markdown dashboard (`docs/public/reference/replay-coverage.md`), and prints
-   per-registry satisfied percentages.
-5. Exits non-zero only in `-blocking` mode when a surface is uncovered,
-   unresolved, or a manifest entry is stale.
+   per-registry and per-scenario-type satisfied percentages.
+5. Exits non-zero only in `-blocking` mode when a required surface/scenario_type
+   pair is uncovered, unresolved, or a manifest entry is stale.
 
 ## Run
 
@@ -39,8 +43,8 @@ cd go && go run ./cmd/replay-coverage-gate \
   -report-out /tmp/replay-coverage-report.json
 ```
 
-Add `-blocking` to fail on any gap. CI passes this flag so replay coverage
-regressions block; omit it only for local exploratory reports.
+Add `-blocking` to fail on any gap. CI passes this flag so breadth or depth
+coverage regressions block; omit it only for local exploratory reports.
 
 ## Flags
 
@@ -62,6 +66,7 @@ regenerate it after a coverage-moving change with
 
 This gate verifies a scenario artifact **exists**; it does not run it. Each
 manifest entry names the `proof_gate` that runs the scenario and proves it green
-(`golden-corpus-gate`, the parser fixture tests, `capability-inventory`,
-`capability-inventory-docs`). Keeping existence here and greenness there is what
-makes this gate fast and credential-free.
+(`golden-corpus-gate`, replay tier, Go race tests, parser fixture tests,
+`capability-inventory`, `capability-inventory-docs`, or capability-budget
+proof). Keeping existence here and greenness there is what makes this gate fast
+and credential-free.

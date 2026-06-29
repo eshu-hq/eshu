@@ -19,7 +19,7 @@ func gateInputs(blocking bool) Inputs {
 		Ledger:    ParserLedger{Parsers: []ParserLedgerEntry{{Parser: "hcl"}}},
 		Matrix:    capabilitycatalog.Matrix{},
 		Manifest: Manifest{Coverage: []CoverageEntry{
-			{Surface: "collector:aws", Scenario: ScenarioCassette, Ref: "present"},
+			{Surface: "collector:aws", Scenario: ScenarioCassette, ScenarioType: ScenarioTypeBaseline, Ref: "present"},
 		}},
 		Resolver: stubResolver{present: map[string]bool{"present": true}},
 		Blocking: blocking,

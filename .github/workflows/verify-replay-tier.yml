@@ -24,6 +24,7 @@ on:
       - 'go/internal/graph/**'
       - 'go/internal/runtime/**'
       - 'testdata/cassettes/replayoffline/**'
+      - 'testdata/cassettes/replaydelta/**'
       - 'scripts/verify-replay-tier.sh'
       - '.github/workflows/verify-replay-tier.yml'
 

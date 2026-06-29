@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package replaycoverage reconciles the surfaces Eshu claims to support against
-// the replay scenarios that exercise them, producing the C-1 coverage-manifest
-// lockstep gate (issue #4173, epic #4172).
+// Package replaycoverage reconciles the surfaces Eshu claims to support, and the
+// scenario-depth classes each surface requires, against the replay scenarios that
+// exercise them. It produces the C-1/C-8 coverage-manifest lockstep gate (issues
+// #4173 and #4187, epic #4172).
 //
 // # The source registries
 //
@@ -24,35 +25,40 @@
 //     whose row carries deterministic proof.
 //
 // EnumerateSupported flattens these into a deterministic SupportedSurface set,
-// each with a canonical "<kind>:<name>" coverage key.
+// each with a canonical "<kind>:<name>" coverage key. Manifest
+// scenario_requirements then expand each supported surface into one or more
+// required depth classes: baseline, delta_tombstone, fault, ordering, crash, and
+// cost. Surfaces without an explicit requirement row require baseline only;
+// explicit requirement rows must still include baseline.
 //
 // # The manifest and reconciliation
 //
 // The coverage manifest (specs/replay-coverage-manifest.v1.yaml, loaded by
-// LoadManifest) is the curated declaration mapping each supported surface to the
-// replay scenario that covers it, plus audited exemptions. Reconcile maps every
-// supported surface to a Status (covered, uncovered, unresolved, exempt) using
-// the manifest and a Resolver that verifies the referenced scenario artifact
-// actually exists. Manifest entries that map no supported surface are reported as
-// stale drift.
+// LoadManifest) is the curated declaration mapping each supported surface and
+// scenario_type to the replay scenario that covers it, plus audited exemptions.
+// Reconcile maps every required surface/scenario_type pair to a Status (covered,
+// uncovered, unresolved, exempt) using the manifest and a Resolver that verifies
+// the referenced scenario artifact actually exists. Manifest entries that map no
+// supported requirement are reported as stale drift.
 //
 // Resolution is existence-only by design: this gate proves a scenario is authored
 // and wired, not that it passes — its greenness is proven by the sibling gate
-// named in the entry's proof_gate (golden-corpus-gate, the parser fixture tests,
-// capability-inventory, capability-inventory-docs). Capability-claim entries are
-// resolved against the capability matrix and require profile verification
-// references before they can count as covered. Product-claim entries are resolved
-// against the public claim ledger and require deterministic proof metadata;
-// capability-inventory docs mode validates the full quote/surface/proof contract.
-// That split keeps the coverage gate fast and credential-free while never
-// claiming a green it did not observe.
+// named in the entry's proof_gate (golden-corpus-gate, replay tier, Go race
+// tests, parser fixture tests, capability-inventory, capability-inventory-docs,
+// or capability-budget proof). Capability-claim entries are resolved against the
+// capability matrix and require profile verification references before they can
+// count as covered. Product-claim entries are resolved against the public claim
+// ledger and require deterministic proof metadata; capability-inventory docs mode
+// validates the full quote/surface/proof contract. That split keeps the coverage
+// gate fast and credential-free while never claiming a green it did not observe.
 //
 // # Advisory to blocking
 //
 // Findings reuse the shared goldengate.Finding/Report machinery. Local advisory
 // mode (Blocking=false) reports every coverage gap without failing the command.
-// CI now passes the single blocking flag after the C-2..C-6 burn-down, so every
+// CI now passes the single blocking flag after the C-2..C-8 burn-down, so every
 // uncovered, unresolved, and stale finding is required and coverage cannot
-// regress. BuildReport emits the machine-readable coverage-report artifact the
-// C-7 dashboard consumes on every run.
+// regress. BuildReport emits the machine-readable coverage-report artifact,
+// including per-scenario_type summaries, that the C-7 dashboard consumes on
+// every run.
 package replaycoverage

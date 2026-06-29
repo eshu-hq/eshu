@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Static structural test for the C-1 replay coverage gate (#4173): the verify
+# Static structural test for the C-1/C-8 replay coverage gate (#4173, #4187): the verify
 # script, its CI workflow, and the coverage manifest. Fast, no Docker, no Go
 # build — it validates the contract that cannot silently drift: the verifier runs
-# the gate over all four registries, enforces blocking CI, emits the C-7 report
-# artifact, and the workflow uploads it.
+# the gate over all registries, enforces blocking CI, emits the C-7 report
+# artifact with C-8 depth summaries, and the workflow uploads it.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -61,13 +61,21 @@ require "workflow runs verifier" "scripts/verify-replay-coverage-gate.sh" "${wor
 require "workflow runs blocking gate" "verify-replay-coverage-gate.sh --blocking" "${workflow}"
 require "workflow uploads report" "upload-artifact" "${workflow}"
 require "workflow report name" "replay-coverage-report" "${workflow}"
+require "workflow watches inputtape depth proofs" "go/internal/replay/inputtape/**" "${workflow}"
+require "workflow watches schedule depth proofs" "go/internal/replay/schedulereplay/**" "${workflow}"
+require "workflow watches crash depth proofs" "go/internal/replay/crashreplay/**" "${workflow}"
+require "workflow watches budget proof artifact" "specs/capability-budget-proof.v1.yaml" "${workflow}"
 
 # The CI gate registry must agree with the workflow. The registry powers local
 # gate selection, so it must fail on the same replay coverage gaps CI rejects.
 [[ -f "${ci_gates}" ]] || fail "missing ${ci_gates}"
 require "ci registry replay gate" "id: replay-coverage-gate" "${ci_gates}"
 require "ci registry blocking command" 'command: "bash scripts/verify-replay-coverage-gate.sh --blocking"' "${ci_gates}"
-if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1 Replay Coverage Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
+require "ci registry watches inputtape depth proofs" "go/internal/replay/inputtape/**" "${ci_gates}"
+require "ci registry watches schedule depth proofs" "go/internal/replay/schedulereplay/**" "${ci_gates}"
+require "ci registry watches crash depth proofs" "go/internal/replay/crashreplay/**" "${ci_gates}"
+require "ci registry watches budget proof artifact" "specs/capability-budget-proof.v1.yaml" "${ci_gates}"
+if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8 Replay Coverage Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
 	fail "replay-coverage-gate registry entry must be blocking"
 fi
 

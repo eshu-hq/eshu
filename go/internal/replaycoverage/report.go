@@ -12,7 +12,7 @@ import (
 // ReportSchemaVersion is the coverage-report artifact schema version. C-7
 // (coverage dashboard) consumes this artifact, so the version is bumped when the
 // report shape changes.
-const ReportSchemaVersion = "replay-coverage-report.v1"
+const ReportSchemaVersion = "replay-coverage-report.v2"
 
 // RegistrySummary is the per-registry (or grand-total) coverage tally. The grand
 // total uses an empty Registry.
@@ -26,15 +26,28 @@ type RegistrySummary struct {
 	PercentSatisfied float64  `json:"percent_satisfied"`
 }
 
+// ScenarioTypeSummary is the per-depth-scenario coverage tally. It lets the C-7
+// dashboard show depth coverage separately from breadth/axis coverage.
+type ScenarioTypeSummary struct {
+	ScenarioType     string  `json:"scenario_type"`
+	Total            int     `json:"total"`
+	Covered          int     `json:"covered"`
+	Uncovered        int     `json:"uncovered"`
+	Unresolved       int     `json:"unresolved"`
+	Exempt           int     `json:"exempt"`
+	PercentSatisfied float64 `json:"percent_satisfied"`
+}
+
 // SurfaceReport is the report row for one supported surface.
 type SurfaceReport struct {
-	Registry  Registry `json:"registry"`
-	Key       string   `json:"key"`
-	Status    Status   `json:"status"`
-	Scenario  string   `json:"scenario,omitempty"`
-	Ref       string   `json:"ref,omitempty"`
-	ProofGate string   `json:"proof_gate,omitempty"`
-	Detail    string   `json:"detail"`
+	Registry     Registry `json:"registry"`
+	Key          string   `json:"key"`
+	ScenarioType string   `json:"scenario_type"`
+	Status       Status   `json:"status"`
+	Scenario     string   `json:"scenario,omitempty"`
+	Ref          string   `json:"ref,omitempty"`
+	ProofGate    string   `json:"proof_gate,omitempty"`
+	Detail       string   `json:"detail"`
 }
 
 // CoverageReport is the machine-readable coverage artifact emitted on every gate
@@ -45,7 +58,9 @@ type CoverageReport struct {
 	Blocking      bool              `json:"blocking"`
 	Totals        RegistrySummary   `json:"totals"`
 	Summaries     []RegistrySummary `json:"registry_summaries"`
-	Surfaces      []SurfaceReport   `json:"surfaces"`
+	// ScenarioTypeSummaries are per-depth tallies for C-8 coverage.
+	ScenarioTypeSummaries []ScenarioTypeSummary `json:"scenario_type_summaries"`
+	Surfaces              []SurfaceReport       `json:"surfaces"`
 	// Gaps are the uncovered and unresolved surface keys (the actionable
 	// worklist), sorted.
 	Gaps []string `json:"gaps"`
@@ -65,6 +80,7 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 	for _, reg := range allRegistries {
 		perRegistry[reg] = &RegistrySummary{Registry: reg}
 	}
+	perScenarioType := map[string]*ScenarioTypeSummary{}
 
 	for _, sc := range c.Surfaces {
 		sum := perRegistry[sc.Surface.Registry]
@@ -74,12 +90,21 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 		}
 		tally(sum, sc.Status)
 		tally(&rep.Totals, sc.Status)
+		depthType := surfaceCoverageScenarioType(sc)
+		scenarioType := string(depthType)
+		typeSum := perScenarioType[scenarioType]
+		if typeSum == nil {
+			typeSum = &ScenarioTypeSummary{ScenarioType: scenarioType}
+			perScenarioType[scenarioType] = typeSum
+		}
+		tallyScenarioType(typeSum, sc.Status)
 
 		row := SurfaceReport{
-			Registry: sc.Surface.Registry,
-			Key:      sc.Surface.Key,
-			Status:   sc.Status,
-			Detail:   sc.Detail,
+			Registry:     sc.Surface.Registry,
+			Key:          sc.Surface.Key,
+			ScenarioType: scenarioType,
+			Status:       sc.Status,
+			Detail:       sc.Detail,
 		}
 		if sc.Scenario != nil {
 			row.Scenario = string(sc.Scenario.Scenario)
@@ -89,7 +114,7 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 		rep.Surfaces = append(rep.Surfaces, row)
 
 		if sc.Status == StatusUncovered || sc.Status == StatusUnresolved {
-			rep.Gaps = append(rep.Gaps, sc.Surface.Key)
+			rep.Gaps = append(rep.Gaps, coverageDisplayKey(sc.Surface.Key, depthType))
 		}
 	}
 
@@ -101,9 +126,40 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 	sort.Slice(rep.Summaries, func(i, j int) bool {
 		return rep.Summaries[i].Registry < rep.Summaries[j].Registry
 	})
+	for _, sum := range perScenarioType {
+		finalizeScenarioTypePercent(sum)
+		rep.ScenarioTypeSummaries = append(rep.ScenarioTypeSummaries, *sum)
+	}
+	sort.Slice(rep.ScenarioTypeSummaries, func(i, j int) bool {
+		return rep.ScenarioTypeSummaries[i].ScenarioType < rep.ScenarioTypeSummaries[j].ScenarioType
+	})
 	finalizePercent(&rep.Totals)
 	sort.Strings(rep.Gaps)
 	return rep
+}
+
+func surfaceCoverageScenarioType(sc SurfaceCoverage) DepthScenarioType {
+	if sc.ScenarioType != "" {
+		return sc.ScenarioType
+	}
+	if sc.Scenario != nil && sc.Scenario.ScenarioType != "" {
+		return sc.Scenario.ScenarioType
+	}
+	return ScenarioTypeBaseline
+}
+
+func tallyScenarioType(sum *ScenarioTypeSummary, status Status) {
+	sum.Total++
+	switch status {
+	case StatusCovered:
+		sum.Covered++
+	case StatusUncovered:
+		sum.Uncovered++
+	case StatusUnresolved:
+		sum.Unresolved++
+	case StatusExempt:
+		sum.Exempt++
+	}
 }
 
 func tally(sum *RegistrySummary, status Status) {
@@ -124,6 +180,15 @@ func tally(sum *RegistrySummary, status Status) {
 // rounded to two decimals. A registry with no surfaces is reported as 100% so an
 // empty registry never drags the dashboard down with a false 0.
 func finalizePercent(sum *RegistrySummary) {
+	if sum.Total == 0 {
+		sum.PercentSatisfied = 100
+		return
+	}
+	satisfied := float64(sum.Covered + sum.Exempt)
+	sum.PercentSatisfied = float64(int((satisfied/float64(sum.Total))*10000+0.5)) / 100
+}
+
+func finalizeScenarioTypePercent(sum *ScenarioTypeSummary) {
 	if sum.Total == 0 {
 		sum.PercentSatisfied = 100
 		return

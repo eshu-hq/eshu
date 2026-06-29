@@ -11,8 +11,9 @@ writes the report, and sets the exit code.
   `internal/replaycoverage` with a focused unit test, not in `run`. This command
   is exercised by `main_test.go` through the real loaders.
 - **Blocking is the shipped CI default.** `-blocking` still defaults to false for
-  local exploratory runs, but CI must pass `--blocking`; C-2..C-6 have burned
-  the gaps down and new supported surfaces must land with replay scenarios.
+  local exploratory runs, but CI must pass `--blocking`; C-lane coverage gaps
+  have burned down and new supported surface/scenario_type pairs must land with
+  replay scenarios.
 - **Always write the report.** The coverage report is written before the blocking
   exit check, so the C-7 dashboard always has data even on a failing run. Keep it
   that way.

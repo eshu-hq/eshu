@@ -1,15 +1,15 @@
 name: Replay Coverage Gate
 
-# C-1 replay coverage manifest + lockstep gate (#4173, epic #4172). Enumerates
-# every surface Eshu claims to support from the four source-of-truth registries
-# and reports any surface lacking a green replay scenario. Static, credential-free,
-# Docker-free — it composes with (does not replace) the golden-corpus-gate, which
-# actually replays the scenarios this gate counts.
+# C-1/C-8 replay coverage manifest + lockstep gate (#4173, #4187, epic #4172).
+# Enumerates every surface Eshu claims to support from the source-of-truth
+# registries and reports any required surface/scenario_type pair lacking a green
+# replay scenario. Static, credential-free, Docker-free — it composes with (does
+# not replace) the gates that actually replay the scenarios it counts.
 #
-# BLOCKING: C-2..C-6 have burned the replay coverage gaps down, so any uncovered
-# surface now fails this job and the uploaded C-7 coverage report is the
-# regression artifact. Keep the gate blocking so new supported surfaces land with
-# their replay scenarios.
+# BLOCKING: C-2..C-8 have burned the replay coverage gaps down, so any uncovered
+# surface/scenario_type pair now fails this job and the uploaded C-7 coverage
+# report is the regression artifact. Keep the gate blocking so new supported
+# surfaces and required scenario types land with their replay scenarios.
 
 on:
   push:
@@ -19,9 +19,13 @@ on:
     paths:
       - 'go/cmd/replay-coverage-gate/**'
       - 'go/internal/replaycoverage/**'
+      - 'go/internal/replay/inputtape/**'
+      - 'go/internal/replay/schedulereplay/**'
+      - 'go/internal/replay/crashreplay/**'
       - 'go/internal/capabilitycatalog/**'
       - 'go/internal/facts/**'
       - 'go/internal/goldengate/**'
+      - 'specs/capability-budget-proof.v1.yaml'
       - 'specs/replay-coverage-manifest.v1.yaml'
       - 'specs/parser-backing-ledger.v1.yaml'
       - 'specs/fact-kind-registry.v1.yaml'

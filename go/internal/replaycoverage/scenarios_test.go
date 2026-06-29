@@ -135,6 +135,40 @@ func TestResolveCassetteAndFixturePaths(t *testing.T) {
 	}
 }
 
+func TestResolveGoTestPath(t *testing.T) {
+	r, root := testResolver(t)
+	goTest := filepath.Join(root, "internal", "replay", "fault_test.go")
+	if err := os.MkdirAll(filepath.Dir(goTest), 0o750); err != nil {
+		t.Fatalf("mkdir go test dir: %v", err)
+	}
+	if err := os.WriteFile(goTest, []byte("package replay\n"), 0o600); err != nil {
+		t.Fatalf("write go test file: %v", err)
+	}
+	if ok, _ := r.Resolve(CoverageEntry{Scenario: ScenarioGoTest, Ref: "internal/replay/fault_test.go"}); !ok {
+		t.Error("present go_test file should resolve")
+	}
+	if ok, _ := r.Resolve(CoverageEntry{Scenario: ScenarioGoTest, Ref: "internal/replay/missing_test.go"}); ok {
+		t.Error("missing go_test file must not resolve")
+	}
+}
+
+func TestResolveProofArtifactPath(t *testing.T) {
+	r, root := testResolver(t)
+	proof := filepath.Join(root, "specs", "capability-budget-proof.v1.yaml")
+	if err := os.MkdirAll(filepath.Dir(proof), 0o750); err != nil {
+		t.Fatalf("mkdir proof dir: %v", err)
+	}
+	if err := os.WriteFile(proof, []byte("version: v1\n"), 0o600); err != nil {
+		t.Fatalf("write proof artifact: %v", err)
+	}
+	if ok, _ := r.Resolve(CoverageEntry{Scenario: ScenarioProofArtifact, Ref: "specs/capability-budget-proof.v1.yaml"}); !ok {
+		t.Error("present proof_artifact file should resolve")
+	}
+	if ok, _ := r.Resolve(CoverageEntry{Scenario: ScenarioProofArtifact, Ref: "specs/missing.yaml"}); ok {
+		t.Error("missing proof_artifact file must not resolve")
+	}
+}
+
 func TestResolveSnapshotBackedScenarios(t *testing.T) {
 	r, _ := testResolver(t)
 	if ok, _ := r.Resolve(CoverageEntry{Scenario: ScenarioCorrelation, Ref: "rc-1"}); !ok {

@@ -47,7 +47,7 @@ type ArtifactResolver struct {
 // Resolve implements Resolver.
 func (r ArtifactResolver) Resolve(entry CoverageEntry) (bool, string) {
 	switch entry.Scenario {
-	case ScenarioCassette, ScenarioParserFixture:
+	case ScenarioCassette, ScenarioParserFixture, ScenarioGoTest, ScenarioProofArtifact:
 		return r.resolvePath(entry.Ref)
 	case ScenarioCorrelation:
 		for _, c := range r.Snapshot.Graph.RequiredCorrelations {
