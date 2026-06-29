@@ -1,0 +1,95 @@
+{
+  "collector": "loki",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "loki:supply-chain-demo-logs:supply-chain-demo",
+      "source_system": "loki",
+      "scope_kind": "log_source",
+      "collector_kind": "loki",
+      "partition_key": "loki:supply-chain-demo-logs:supply-chain-demo",
+      "metadata": {
+        "endpoint": "https://loki.supply-chain-demo.internal",
+        "namespace": "supply-chain-demo"
+      },
+      "generation_id": "cassette-loki-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.source_instance",
+          "stable_fact_key": "loki:supply-chain-demo-logs:source_instance:loki-scd",
+          "schema_version": "1.0.0",
+          "collector_kind": "loki",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-loki-scd",
+            "provider": "loki",
+            "source_class": "observed",
+            "source_kind": "loki",
+            "source_instance_id": "loki-scd",
+            "scope_id": "loki:supply-chain-demo-logs:supply-chain-demo",
+            "generation_id": "cassette-loki-scd-gen1",
+            "observed_at": "2026-06-25T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-loki-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "loki",
+              "source_instance_id": "loki-scd",
+              "scope_id": "loki:supply-chain-demo-logs:supply-chain-demo"
+            },
+            "resource_count": 1,
+            "rule_count": 0,
+            "warning_count": 0,
+            "pages_fetched": 1,
+            "partial": false,
+            "high_cardinality_rejected": 0,
+            "redaction_state": "applied"
+          }
+        },
+        {
+          "fact_kind": "observability.observed_log_signal",
+          "stable_fact_key": "loki:supply-chain-demo-logs:observed_log_signal:supply-chain-demo-app-labels",
+          "schema_version": "1.0.0",
+          "collector_kind": "loki",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-loki-scd",
+            "provider": "loki",
+            "source_class": "observed",
+            "source_kind": "loki",
+            "source_instance_id": "loki-scd",
+            "scope_id": "loki:supply-chain-demo-logs:supply-chain-demo",
+            "generation_id": "cassette-loki-scd-gen1",
+            "observed_at": "2026-06-25T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-loki-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "loki",
+              "source_instance_id": "loki-scd",
+              "scope_id": "loki:supply-chain-demo-logs:supply-chain-demo"
+            },
+            "resource_class": "log_signal",
+            "provider_object_uid": "supply-chain-demo-app-labels",
+            "signal_kind": "label_set",
+            "declared_match_state": "not_compared",
+            "label_keys": ["app", "namespace", "pod"],
+            "label_value_counts": {
+              "app": 1,
+              "namespace": 1,
+              "pod": 2
+            },
+            "label_value_hashes": {
+              "app": ["sha256:1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809a"]
+            },
+            "redaction_state": "applied"
+          }
+        }
+      ]
+    }
+  ]
+}

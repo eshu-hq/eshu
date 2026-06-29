@@ -90,6 +90,9 @@ collector_specs=(
 	"collector-package-registry:packageregistry"
 	"collector-terraform-state:terraformstate"
 	"collector-prometheus-mimir:prometheusmimir"
+	"collector-tempo:tempo"
+	"collector-grafana:grafana"
+	"collector-loki:loki"
 )
 
 cassette_recording="supply-chain-demo.json"

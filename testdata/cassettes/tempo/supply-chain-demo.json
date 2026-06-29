@@ -1,0 +1,121 @@
+{
+  "collector": "tempo",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "tempo:supply-chain-demo-traces:supply-chain-demo",
+      "source_system": "tempo",
+      "scope_kind": "trace_source",
+      "collector_kind": "tempo",
+      "partition_key": "tempo:supply-chain-demo-traces:supply-chain-demo",
+      "metadata": {
+        "endpoint": "https://tempo.supply-chain-demo.internal",
+        "namespace": "supply-chain-demo"
+      },
+      "generation_id": "cassette-tempo-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "observability.source_instance",
+          "stable_fact_key": "tempo:supply-chain-demo-traces:source_instance:tempo-scd",
+          "schema_version": "1.0.0",
+          "collector_kind": "tempo",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-tempo-scd",
+            "provider": "tempo",
+            "source_class": "observed",
+            "source_kind": "tempo",
+            "source_instance_id": "tempo-scd",
+            "scope_id": "tempo:supply-chain-demo-traces:supply-chain-demo",
+            "generation_id": "cassette-tempo-scd-gen1",
+            "observed_at": "2026-06-25T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-tempo-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "tempo",
+              "source_instance_id": "tempo-scd",
+              "scope_id": "tempo:supply-chain-demo-traces:supply-chain-demo"
+            },
+            "resource_count": 2,
+            "warning_count": 0,
+            "pages_fetched": 1,
+            "partial": false,
+            "high_cardinality_rejected": 0,
+            "redaction_state": "applied"
+          }
+        },
+        {
+          "fact_kind": "observability.observed_trace_signal",
+          "stable_fact_key": "tempo:supply-chain-demo-traces:observed_trace_signal:service-name-tagset",
+          "schema_version": "1.0.0",
+          "collector_kind": "tempo",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-tempo-scd",
+            "provider": "tempo",
+            "source_class": "observed",
+            "source_kind": "tempo",
+            "source_instance_id": "tempo-scd",
+            "scope_id": "tempo:supply-chain-demo-traces:supply-chain-demo",
+            "generation_id": "cassette-tempo-scd-gen1",
+            "observed_at": "2026-06-25T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-tempo-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "tempo",
+              "source_instance_id": "tempo-scd",
+              "scope_id": "tempo:supply-chain-demo-traces:supply-chain-demo"
+            },
+            "resource_class": "trace_signal",
+            "provider_object_uid": "service-name-tagset",
+            "signal_kind": "tag_set",
+            "tag_scope": "resource",
+            "tag_keys": ["cluster", "namespace", "service.name"],
+            "declared_match_state": "not_compared",
+            "redaction_state": "applied"
+          }
+        },
+        {
+          "fact_kind": "observability.observed_trace_signal",
+          "stable_fact_key": "tempo:supply-chain-demo-traces:observed_trace_signal:service-name-tagvalues",
+          "schema_version": "1.0.0",
+          "collector_kind": "tempo",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-tempo-scd",
+            "provider": "tempo",
+            "source_class": "observed",
+            "source_kind": "tempo",
+            "source_instance_id": "tempo-scd",
+            "scope_id": "tempo:supply-chain-demo-traces:supply-chain-demo",
+            "generation_id": "cassette-tempo-scd-gen1",
+            "observed_at": "2026-06-25T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-tempo-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "tempo",
+              "source_instance_id": "tempo-scd",
+              "scope_id": "tempo:supply-chain-demo-traces:supply-chain-demo"
+            },
+            "resource_class": "trace_signal",
+            "provider_object_uid": "service-name-tagvalues",
+            "signal_kind": "tag_values",
+            "tag_name": "service.name",
+            "tag_value_count": 1,
+            "tag_value_hashes": ["sha256:5e0e9a1c2d3b4a5f6071829304a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7"],
+            "declared_match_state": "not_compared",
+            "redaction_state": "applied"
+          }
+        }
+      ]
+    }
+  ]
+}

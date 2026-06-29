@@ -49,6 +49,23 @@ coverage:
     ref: testdata/cassettes/terraformstate/supply-chain-demo.json
     proof_gate: golden-corpus-gate
 
+  # C-2 (#4174): implemented-lane collectors backfilled with synthetic
+  # supply-chain-demo cassettes (credential-free, matching each collector's real
+  # fact schema). The golden-corpus-gate replays them; a wrong fact_kind lands
+  # zero facts and fails the gate's collector-source assertion.
+  - surface: collector:tempo
+    scenario: cassette
+    ref: testdata/cassettes/tempo/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:grafana
+    scenario: cassette
+    ref: testdata/cassettes/grafana/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+  - surface: collector:loki
+    scenario: cassette
+    ref: testdata/cassettes/loki/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
+
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
   # package-local, parser-focused tree; the proof gate replays it credential-free
