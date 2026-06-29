@@ -131,6 +131,27 @@ type Gate struct {
 	// CIOnlyReason is required and non-empty when Local is nil; it explains why
 	// the gate cannot run locally.
 	CIOnlyReason string
+	// HookID is the .pre-commit-config.yaml hook id that this gate corresponds to.
+	// Empty when the gate has no direct local hook equivalent.
+	HookID string
+}
+
+// HygieneHook declares a .pre-commit-config.yaml local hook id that is
+// intentional basic hygiene and deliberately NOT a registry gate.
+type HygieneHook struct {
+	// ID is the pre-commit hook id.
+	ID string
+	// Reason explains why this hook is hygiene rather than a gate.
+	Reason string
+}
+
+// NonGateWorkflow declares a .github/workflows/*.yml filename that is
+// intentionally not a PR gate (e.g. a deploy, release, schedule, or bot workflow).
+type NonGateWorkflow struct {
+	// File is the workflow filename (basename only, e.g. "deploy-root-docs.yml").
+	File string
+	// Reason explains why this workflow is not a PR gate.
+	Reason string
 }
 
 // Registry is the parsed ci-gates registry.
@@ -139,13 +160,20 @@ type Registry struct {
 	Version string
 	// Gates is the ordered list of gate entries.
 	Gates []Gate
+	// HygieneHooks lists pre-commit hook ids that are basic hygiene and
+	// intentionally not registry gates.
+	HygieneHooks []HygieneHook
+	// NonGateWorkflows lists .github/workflows/*.yml files that are not PR gates.
+	NonGateWorkflows []NonGateWorkflow
 }
 
 // --- YAML parse types ---
 
 type registryFile struct {
-	Version string     `yaml:"version"`
-	Gates   []gateFile `yaml:"gates"`
+	Version          string                `yaml:"version"`
+	Gates            []gateFile            `yaml:"gates"`
+	HygieneHooks     []hygieneHookFile     `yaml:"hygiene_hooks"`
+	NonGateWorkflows []nonGateWorkflowFile `yaml:"non_gate_workflows"`
 }
 
 type gateFile struct {
@@ -159,6 +187,7 @@ type gateFile struct {
 	CI           ciFile     `yaml:"ci"`
 	Requirements []string   `yaml:"requirements"`
 	CIOnlyReason string     `yaml:"ci_only_reason"`
+	HookID       string     `yaml:"hook_id"`
 }
 
 type localFile struct {
@@ -169,6 +198,16 @@ type localFile struct {
 type ciFile struct {
 	Workflow string `yaml:"workflow"`
 	Job      string `yaml:"job"`
+}
+
+type hygieneHookFile struct {
+	ID     string `yaml:"id"`
+	Reason string `yaml:"reason"`
+}
+
+type nonGateWorkflowFile struct {
+	File   string `yaml:"file"`
+	Reason string `yaml:"reason"`
 }
 
 // validCategories is the closed set of allowed Category values.
@@ -269,6 +308,31 @@ func Load(path string) (*Registry, error) {
 			CI:           CI{Workflow: strings.TrimSpace(gf.CI.Workflow), Job: strings.TrimSpace(gf.CI.Job)},
 			Requirements: reqs,
 			CIOnlyReason: ciOnlyReason,
+			HookID:       strings.TrimSpace(gf.HookID),
+		})
+	}
+
+	// Parse hygiene_hooks (back-compatible: absent list is valid).
+	for i, hf := range parsed.HygieneHooks {
+		id := strings.TrimSpace(hf.ID)
+		if id == "" {
+			return nil, fmt.Errorf("ci-gates registry %s: hygiene_hooks[%d] has blank id", path, i)
+		}
+		reg.HygieneHooks = append(reg.HygieneHooks, HygieneHook{
+			ID:     id,
+			Reason: strings.TrimSpace(hf.Reason),
+		})
+	}
+
+	// Parse non_gate_workflows (back-compatible: absent list is valid).
+	for i, nf := range parsed.NonGateWorkflows {
+		file := strings.TrimSpace(nf.File)
+		if file == "" {
+			return nil, fmt.Errorf("ci-gates registry %s: non_gate_workflows[%d] has blank file", path, i)
+		}
+		reg.NonGateWorkflows = append(reg.NonGateWorkflows, NonGateWorkflow{
+			File:   file,
+			Reason: strings.TrimSpace(nf.Reason),
 		})
 	}
 

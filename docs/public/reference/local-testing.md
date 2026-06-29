@@ -38,10 +38,23 @@ bash scripts/dev/run-selected-gates.sh --base origin/main --tier pre-pr
 
 # Verify the registry itself is consistent (refs exist on disk):
 bash scripts/verify-ci-gates-registry.sh
+
+# Also verify hooks/pre-pr/workflows have not drifted from the registry:
+bash scripts/verify-ci-gates-registry.sh --drift
 ```
 
 The registry lives at `specs/ci-gates.v1.yaml`. Gates marked CI-only (no local
 command) are always printed with a reason but never executed locally.
+
+The `--drift` check (#4220) keeps `.pre-commit-config.yaml` and
+`.github/workflows/` in lockstep with the registry: every local pre-commit hook
+must map to a gate's `hook_id` or a declared `hygiene_hooks` entry, and every
+workflow must be referenced by a gate or listed in `non_gate_workflows` with a
+reason. It runs in pre-commit (the `gate-registry-drift` hook) and in CI
+(`verify-ci-gate-registry.yml`), so adding a workflow or hook without registering
+it fails fast. (Reconciling `make pre-pr`'s step set against the registry is
+[#4214](https://github.com/eshu-hq/eshu/issues/4214), which makes `pre-pr.sh`
+registry-driven via the gate selector instead of a hard-coded step list.)
 
 ## Common Compose Environment
 
@@ -78,7 +91,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 
 | If you touched | Minimum verification |
 | --- | --- |
-| CI gate registry (`specs/ci-gates.v1.yaml`), `internal/cigates`, or `cmd/ci-gates` | `cd go && go test ./internal/cigates ./cmd/ci-gates -count=1` and `bash scripts/verify-ci-gates-registry.sh` |
+| CI gate registry (`specs/ci-gates.v1.yaml`), `internal/cigates`, `cmd/ci-gates`, `.pre-commit-config.yaml`, `scripts/dev/pre-pr.sh`, or `.github/workflows/*` | `cd go && go test ./internal/cigates ./cmd/ci-gates -count=1`, `bash scripts/verify-ci-gates-registry.sh --drift`, and `bash scripts/test-verify-ci-gates-registry.sh` |
 | Answer-quality scorecard criteria, CLI, or docs | `cd go && go test ./internal/answerquality -count=1`, `cd go && go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`, and the docs build |
 | Ask Eshu answer path, guardrail, or local proof | `scripts/test-verify-ask-eshu-local-proof.sh`, `scripts/verify-ask-eshu-local-proof.sh`, and the docs build (see [Ask Eshu Local Proof](local-testing/ask-eshu-local-proof.md)) |
 | Competitive parity gate criteria, CLI, or docs | `cd go && go test ./internal/competitiveparity -count=1`, `cd go && go test ./cmd/eshu -run 'TestCompetitiveParity|TestRootCommandIncludesCompetitiveParity' -count=1`, `cd go && go run ./cmd/eshu competitive-parity validate --repo-root .. --json`, and the docs build |

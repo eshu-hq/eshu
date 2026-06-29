@@ -112,6 +112,20 @@ repos:
         pass_filenames: false
         require_serial: true
 
+      # Gate-registry drift (mirrors verify-ci-gate-registry.yml): when the gate
+      # registry, its loader/CLI, this hook config, pre-pr, or any workflow
+      # changes, verify the pre-commit hooks and .github/workflows/ stay in
+      # lockstep with specs/ci-gates.v1.yaml. Credential-free, Docker-free.
+      # (pre-pr step reconciliation lands in #4214 via the registry-driven
+      # selector; pre-pr.sh is a trigger here so this re-runs when it changes.)
+      - id: gate-registry-drift
+        name: ci-gate registry + hook/workflow drift
+        entry: scripts/verify-ci-gates-registry.sh --drift
+        language: script
+        files: '^(specs/ci-gates\.v1\.yaml|go/internal/cigates/|go/cmd/ci-gates/|\.pre-commit-config\.yaml|scripts/dev/pre-pr\.sh|\.github/workflows/.*\.ya?ml)$'
+        pass_filenames: false
+        require_serial: true
+
       # gosec is slow on Go 1.26 (per-package SSA); run it at push time, not on
       # every commit.
       - id: go-gosec

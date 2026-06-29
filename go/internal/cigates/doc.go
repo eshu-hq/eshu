@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package cigates is the typed core of the CI gate registry (#4213).
+// Package cigates is the typed core of the CI gate registry (#4213, drift #4220).
 //
 // It answers one question: given the set of paths changed in a PR and a tier
 // ceiling, which credential-free CI verifiers should run locally — and which
@@ -25,8 +25,19 @@
 // # Validation
 //
 // (*Registry).Validate(repoRoot string) checks that every local command's script
-// file and every CI workflow file exist on disk. It accumulates all errors so a
-// single pass surfaces every broken reference.
+// file (and test_command, when present) and every CI workflow file exist on
+// disk. It accumulates all errors so a single pass surfaces every broken
+// reference.
+//
+// # Drift (#4220)
+//
+// DriftCheck(repoRoot, *Registry) keeps .pre-commit-config.yaml and
+// .github/workflows/ in lockstep with the registry. It fails when a local hook
+// is neither a gate's HookID nor a declared HygieneHook, when a gate's HookID is
+// missing from the hook config or sits at a stage inconsistent with its tier, or
+// when a workflow file is registered in neither a gate nor NonGateWorkflows (or
+// in both, or is a stale allowlist entry). Like the rest of the package it needs
+// no network, Docker, or credentials.
 //
 // # Glob matching
 //

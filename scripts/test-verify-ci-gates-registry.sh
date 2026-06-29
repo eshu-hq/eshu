@@ -35,6 +35,7 @@ require "strict mode"    "set -euo pipefail"          "${script}"
 require "validate call"  "go run ./cmd/ci-gates validate" "${script}"
 require "registry arg"   "--registry"                  "${script}"
 require "repo-root arg"  "--repo-root"                 "${script}"
+require "drift flag"     "--drift"                     "${script}"
 
 # ── 2. Registry YAML structural checks ─────────────────────────────────────
 
@@ -51,11 +52,18 @@ require "pre-push tier"    "tier: pre-push"   "${registry}"
 require "pre-pr tier"      "tier: pre-pr"     "${registry}"
 require "ci-heavy tier"    "tier: ci-heavy"   "${registry}"
 
-# ── 3. Live validate — proves every script + workflow ref exists on disk ────
+# #4220 drift surfaces: hook mappings + the two reconciliation allowlists.
+require "hook_id mapping"     "hook_id:"            "${registry}"
+require "hygiene_hooks list"  "hygiene_hooks:"      "${registry}"
+require "non_gate_workflows"  "non_gate_workflows:" "${registry}"
 
-printf 'test-verify-ci-gates-registry: running live validate on committed registry...\n'
+# ── 3. Live validate + drift — proves every script + workflow ref exists AND
+#       that .pre-commit-config.yaml / .github/workflows stay in lockstep ─────
+
+printf 'test-verify-ci-gates-registry: running live validate --drift on committed registry...\n'
 (cd "${repo_root}/go" && go run ./cmd/ci-gates validate \
 	--registry "${registry}" \
-	--repo-root "${repo_root}") || fail "live validate failed — see errors above"
+	--repo-root "${repo_root}" \
+	--drift) || fail "live validate --drift failed — see errors above"
 
-printf 'PASS: ci-gates registry static contract\n'
+printf 'PASS: ci-gates registry static contract + drift\n'

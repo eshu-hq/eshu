@@ -54,7 +54,7 @@ func usage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "usage: ci-gates <select|run|validate> [flags]")
 	_, _ = fmt.Fprintln(w, "  select   --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--explain] [--json]")
 	_, _ = fmt.Fprintln(w, "  run      --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--json]")
-	_, _ = fmt.Fprintln(w, "  validate --registry <path> --repo-root <path>")
+	_, _ = fmt.Fprintln(w, "  validate --registry <path> --repo-root <path> [--drift]")
 }
 
 // --- select subcommand ---
@@ -153,6 +153,7 @@ func runValidate(args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	registry := fs.String("registry", "", "path to ci-gates.v1.yaml registry")
 	repoRoot := fs.String("repo-root", "", "repository root directory")
+	drift := fs.Bool("drift", false, "also run hook/workflow drift check against .pre-commit-config.yaml and .github/workflows/")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -170,15 +171,28 @@ func runValidate(args []string) error {
 		return fmt.Errorf("load registry: %w", err)
 	}
 
-	errs := reg.Validate(*repoRoot)
-	if len(errs) == 0 {
-		_, _ = fmt.Fprintln(os.Stdout, "PASS: ci-gates registry integrity check")
+	var allErrs []error
+
+	// #4213 integrity check (script + workflow file existence).
+	allErrs = append(allErrs, reg.Validate(*repoRoot)...)
+
+	// #4220 drift check (hook/workflow registry completeness).
+	if *drift {
+		allErrs = append(allErrs, cigates.DriftCheck(*repoRoot, reg)...)
+	}
+
+	if len(allErrs) == 0 {
+		if *drift {
+			_, _ = fmt.Fprintln(os.Stdout, "PASS: ci-gates registry integrity + drift check")
+		} else {
+			_, _ = fmt.Fprintln(os.Stdout, "PASS: ci-gates registry integrity check")
+		}
 		return nil
 	}
-	for _, e := range errs {
+	for _, e := range allErrs {
 		_, _ = fmt.Fprintf(os.Stderr, "  ERROR: %v\n", e)
 	}
-	return fmt.Errorf("%d integrity error(s) found", len(errs))
+	return fmt.Errorf("%d error(s) found", len(allErrs))
 }
 
 // --- helpers ---
