@@ -85,8 +85,12 @@ func runSelect(args []string) error {
 		return fmt.Errorf("resolve changed paths: %w", err)
 	}
 
+	cats, err := parseCategories(*category)
+	if err != nil {
+		return err
+	}
 	t := cigates.Tier(*tier)
-	sels := cigates.FilterByCategory(reg.Select(changed, t), parseCategories(*category))
+	sels := cigates.FilterByCategory(reg.Select(changed, t), cats)
 
 	if *asJSON {
 		return printSelectJSON(os.Stdout, sels, t, *base)
@@ -132,24 +136,35 @@ func runRun(args []string) error {
 		return fmt.Errorf("resolve changed paths: %w", err)
 	}
 
-	sels := cigates.FilterByCategory(reg.Select(changed, cigates.Tier(*tier)), parseCategories(*category))
+	cats, err := parseCategories(*category)
+	if err != nil {
+		return err
+	}
+	sels := cigates.FilterByCategory(reg.Select(changed, cigates.Tier(*tier)), cats)
 	return executeGates(os.Stdout, sels, root)
 }
 
 // parseCategories splits a comma-separated category list into typed categories,
 // dropping blanks. An empty or whitespace-only string yields nil (no filter).
-func parseCategories(s string) []cigates.Category {
+// An unknown category (e.g. a typo like "exactnes") is rejected with an error
+// rather than silently unselecting every gate — which would let the command
+// exit successfully without running the intended checks.
+func parseCategories(s string) ([]cigates.Category, error) {
 	if strings.TrimSpace(s) == "" {
-		return nil
+		return nil, nil
 	}
 	parts := strings.Split(s, ",")
 	cats := make([]cigates.Category, 0, len(parts))
 	for _, p := range parts {
 		if p = strings.TrimSpace(p); p != "" {
-			cats = append(cats, cigates.Category(p))
+			c := cigates.Category(p)
+			if !cigates.KnownCategory(c) {
+				return nil, fmt.Errorf("unknown category %q (valid: %s)", p, strings.Join(cigates.CategoryNames(), ", "))
+			}
+			cats = append(cats, c)
 		}
 	}
-	return cats
+	return cats, nil
 }
 
 // resolveRepoRoot returns the explicit root when provided, otherwise the git

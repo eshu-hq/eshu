@@ -6,6 +6,7 @@ package cigates
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -221,6 +222,25 @@ var validCategories = map[Category]struct{}{
 	CategoryTelemetry: {},
 	CategoryHygiene:   {},
 	CategoryRelease:   {},
+}
+
+// KnownCategory reports whether c is one of the registry's enumerated categories.
+// Callers that accept a category filter from the command line use this to reject
+// a typo (e.g. "exactnes") rather than silently unselecting every gate.
+func KnownCategory(c Category) bool {
+	_, ok := validCategories[c]
+	return ok
+}
+
+// CategoryNames returns the enumerated category values in a stable, sorted order
+// for use in error messages.
+func CategoryNames() []string {
+	names := make([]string, 0, len(validCategories))
+	for c := range validCategories {
+		names = append(names, string(c))
+	}
+	sort.Strings(names)
+	return names
 }
 
 // validRequirements is the closed set of allowed Requirement values.
