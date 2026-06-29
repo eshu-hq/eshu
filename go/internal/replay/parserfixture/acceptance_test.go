@@ -5,6 +5,7 @@ package parserfixture_test
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -159,4 +160,25 @@ func assertEnvelopeEqual(t *testing.T, want, got facts.Envelope) {
 	if want.SourceRef.FactKey != got.SourceRef.FactKey {
 		t.Errorf("provenance fact_key for %q: want %q got %q", want.StableFactKey, want.SourceRef.FactKey, got.SourceRef.FactKey)
 	}
+	// The full parser payload must round-trip verbatim, including any absolute
+	// path the parser embedded under parsed_file_data: a portable committed
+	// fixture rehydrates those paths, so a rehydration miss (e.g. a {{REPO_ROOT}}
+	// left unbound inside the payload) or a dropped payload field would otherwise
+	// slip past the field-by-field checks above. Compare the JSON encodings (which
+	// sort map keys and normalize numeric types) so the check is exact on content
+	// without tripping on the int-vs-float64 coercion a JSON round trip introduces.
+	if wantJSON, gotJSON := mustJSON(t, want.Payload), mustJSON(t, got.Payload); wantJSON != gotJSON {
+		t.Errorf("payload mismatch for %q:\n want %s\n  got %s", want.StableFactKey, wantJSON, gotJSON)
+	}
+}
+
+// mustJSON marshals a payload to canonical (key-sorted) JSON for content
+// comparison, failing the test on a marshal error.
+func mustJSON(t *testing.T, payload map[string]any) string {
+	t.Helper()
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	return string(raw)
 }
