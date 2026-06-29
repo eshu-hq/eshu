@@ -31,6 +31,21 @@ Before making code or documentation changes, agents MUST:
 Skipping any startup step is not acceptable. Treat these rules as active for the
 entire session, not as one-time context.
 
+## Mandatory Pre-PR Code Review
+
+Before creating any PR, pushing changes intended for an existing PR, or marking
+an Eshu PR merge-ready, agents MUST run `eshu-code-review` against the final
+diff. This applies to separate-context review and self-review. The verdict MUST
+include the selected proof tier, all required passes including hostile read,
+cross-pass contradiction check, severity/confidence/disposition for every
+finding, generated-artifact and private-data scans, verification evidence, and
+follow-on issue routing.
+
+PRs MUST NOT be created, updated, pushed, or merged from unreviewed diffs. If
+the review finds any P0/P1 issue, fix it, rerun affected verification, and
+repeat `eshu-code-review`. P2 issues MUST be fixed inline or linked to a
+tracked repository issue before proceeding.
+
 ## Runtime Shape
 
 - **API** serves HTTP reads and admin/query surfaces.
