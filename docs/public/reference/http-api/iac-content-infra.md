@@ -11,6 +11,7 @@ comparison. The route list is verified against `go/internal/query`.
 | IaC inventory | `GET /api/v0/iac/resources` |
 | IaC quality | `POST /api/v0/iac/dead` |
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
+| Provider-neutral cloud runtime drift | `POST /api/v0/cloud/runtime-drift/findings` |
 | Replatforming | `POST /api/v0/replatforming/plans` |
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
 | Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
@@ -230,6 +231,34 @@ Management status values are:
 - `stale_iac_candidate`
 
 Raw tag values that look credential-like are redacted as `[REDACTED]`.
+
+## Provider-Neutral Cloud Runtime Drift
+
+`POST /api/v0/cloud/runtime-drift/findings` reads active
+`reducer_multi_cloud_runtime_drift_finding` rows for a bounded canonical cloud
+scope across AWS, GCP, and Azure. It requires one scope selector:
+`scope_id`, `account_id`, `project_id`, or `subscription_id`.
+
+Optional `provider`, `cloud_resource_uid`, and `finding_kinds` filters narrow
+the page. `finding_kinds` accepts the provider-neutral drift taxonomy values
+such as `orphaned_cloud_resource`, `unmanaged_cloud_resource`,
+`unknown_cloud_resource`, and `ambiguous_cloud_resource`. `limit` defaults to
+100 and is capped at 500; use `offset` with `next_offset` when `truncated` is
+true.
+
+Each `drift_findings[]` item carries a provider-neutral identity, finding kind,
+management status, source state, missing evidence, recommended action, and
+safety gate. Raw provider locators and raw evidence atoms are not returned.
+Unsafe or ambiguous findings are reported with rejected source state and refused
+actions rather than silently omitted. Lightweight local profiles return
+`501 unsupported_capability`.
+
+### Provider-neutral cloud runtime drift observability
+
+No-Observability-Change: this read uses the shared query-handler request metrics
+and `query.cloud_runtime_drift_findings` span with stable `http.route` and
+`eshu.capability` attributes. Per-resource identifiers stay in the bounded
+response body and out of metric labels.
 
 ## Replatforming Rollups
 

@@ -6,6 +6,8 @@ package main
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
 // goldenSnapshotPath returns the repo-relative path to the committed B-12
@@ -145,10 +147,10 @@ func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
 			t.Fatalf("%s cross-repo query_shape value = %#v, want bounded_cross_repo_dead_code", shape.name, got)
 		}
 		if got := shape.shape.RequiredJSONValues["data.candidate_buckets.live_by_consumer[].classification"]; got != "live_by_consumer" {
-			t.Fatalf("%s cross-repo live_by_consumer classification = %#v, want live_by_consumer", shape.name, got)
+			t.Fatalf("%s cross-repo live classification value = %#v, want live_by_consumer", shape.name, got)
 		}
 		if got := shape.shape.RequiredJSONValues["data.candidate_buckets.unknown[].classification"]; got != "unknown_needs_evidence" {
-			t.Fatalf("%s cross-repo unknown classification = %#v, want unknown_needs_evidence", shape.name, got)
+			t.Fatalf("%s cross-repo unknown classification value = %#v, want unknown_needs_evidence", shape.name, got)
 		}
 	}
 }
@@ -202,6 +204,49 @@ func TestEvidenceNarrowedCorrelationsRequireSourceTool(t *testing.T) {
 			t.Errorf("%s source_tool assertion must pin allowed values", rc.ID)
 		}
 	}
+}
+
+func TestGoldenSnapshotCoversEveryMCPTool(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	for _, tool := range mcp.ReadOnlyTools() {
+		if _, ok := snap.QueryShapes.MCP[tool.Name]; !ok {
+			t.Errorf("query_shapes.mcp missing %s", tool.Name)
+		}
+	}
+	for name := range snap.QueryShapes.MCP {
+		if !mcpToolExists(name) {
+			t.Errorf("query_shapes.mcp has stale tool %s", name)
+		}
+	}
+}
+
+func TestGoldenSnapshotMCPShapesAssertResponseFields(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	for name, shape := range snap.QueryShapes.MCP {
+		if shape.ExpectedErrorContains != "" {
+			continue
+		}
+		if len(shape.RequiredResponseFields) == 0 {
+			t.Errorf("query_shapes.mcp[%s] has no required_response_fields", name)
+		}
+	}
+}
+
+func mcpToolExists(name string) bool {
+	for _, tool := range mcp.ReadOnlyTools() {
+		if tool.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func containsString(values []string, want string) bool {

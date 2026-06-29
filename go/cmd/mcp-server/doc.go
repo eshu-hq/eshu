@@ -15,15 +15,17 @@
 // before runtime setup. Otherwise the binary boots OTEL telemetry, wires the
 // query mux with Postgres-backed package, CI/CD, supply-chain attachment,
 // advisory evidence, work-item evidence, impact finding, impact explanation
-// read models, admission decision readback, optional redacted semantic provider
-// profile status, optional semantic extraction source policy, optional hosted
-// governance status readback from safe ESHU_GOVERNANCE_* metadata, optional
+// read models, admission decision readback, cloud runtime drift readback,
+// generation freshness drilldowns, optional redacted semantic provider profile
+// status, optional semantic extraction source policy, optional hosted governance
+// status readback from safe ESHU_GOVERNANCE_* metadata, optional
 // component-extension registry diagnostics when ESHU_COMPONENT_HOME is set, and
 // the shared runtime admin mux, and dispatches MCP tool calls through
 // mcp.Server. The transport is selected by ESHU_MCP_TRANSPORT (`http` by
 // default, also `stdio`); HTTP mode listens on ESHU_MCP_ADDR (default :8080)
-// and exposes `/sse`, `/mcp/message`, `/health`, the mounted `/api/*` routes, and the
-// shared `/healthz`, `/readyz`, `/metrics`, `/admin/status` admin surface.
+// and exposes `/sse`, `/mcp/message`, `/health`, the mounted `/api/*` routes,
+// and the shared `/healthz`, `/readyz`, `/metrics`, `/admin/status` admin
+// surface.
 // SIGINT and SIGTERM trigger context cancellation and clean shutdown.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in

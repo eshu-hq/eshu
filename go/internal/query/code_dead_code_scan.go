@@ -273,25 +273,7 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 	ctx context.Context,
 	results []map[string]any,
 ) (map[string]deadCodeIncomingEdge, error) {
-	content, ok := h.Content.(deadCodeIncomingContentStore)
-	if !ok {
-		return nil, nil
-	}
-	entityIDsByRepo := make(map[string][]string)
-	seen := make(map[string]struct{}, len(results))
-	for _, result := range results {
-		repoID := strings.TrimSpace(StringVal(result, "repo_id"))
-		entityID := strings.TrimSpace(StringVal(result, "entity_id"))
-		if repoID == "" || entityID == "" {
-			continue
-		}
-		seenKey := repoID + "\x00" + entityID
-		if _, ok := seen[seenKey]; ok {
-			continue
-		}
-		seen[seenKey] = struct{}{}
-		entityIDsByRepo[repoID] = append(entityIDsByRepo[repoID], entityID)
-	}
+	content, entityIDsByRepo := h.deadCodeIncomingGroups(results)
 	if len(entityIDsByRepo) == 0 {
 		return nil, nil
 	}
@@ -333,6 +315,52 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 		}
 	}
 	return incoming, nil
+}
+
+func (h *CodeHandler) legacyDeadCodeIncomingEntityIDs(
+	ctx context.Context,
+	results []map[string]any,
+) (map[string]deadCodeIncomingEdge, error) {
+	content, entityIDsByRepo := h.deadCodeIncomingGroups(results)
+	if len(entityIDsByRepo) == 0 {
+		return nil, nil
+	}
+	incoming := make(map[string]deadCodeIncomingEdge)
+	for repoID, entityIDs := range entityIDsByRepo {
+		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, entityIDs)
+		if err != nil {
+			return nil, err
+		}
+		for entityID, edge := range repoIncoming {
+			mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
+		}
+	}
+	return incoming, nil
+}
+
+func (h *CodeHandler) deadCodeIncomingGroups(
+	results []map[string]any,
+) (deadCodeIncomingContentStore, map[string][]string) {
+	content, ok := h.Content.(deadCodeIncomingContentStore)
+	if !ok {
+		return nil, nil
+	}
+	entityIDsByRepo := make(map[string][]string)
+	seen := make(map[string]struct{}, len(results))
+	for _, result := range results {
+		repoID := strings.TrimSpace(StringVal(result, "repo_id"))
+		entityID := strings.TrimSpace(StringVal(result, "entity_id"))
+		if repoID == "" || entityID == "" {
+			continue
+		}
+		seenKey := repoID + "\x00" + entityID
+		if _, ok := seen[seenKey]; ok {
+			continue
+		}
+		seen[seenKey] = struct{}{}
+		entityIDsByRepo[repoID] = append(entityIDsByRepo[repoID], entityID)
+	}
+	return content, entityIDsByRepo
 }
 
 func missingDeadCodeIncomingEntityIDs(

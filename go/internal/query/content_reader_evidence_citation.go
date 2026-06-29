@@ -36,7 +36,7 @@ func (cr *ContentReader) evidenceCitationFiles(
 	args := make([]any, 0, len(lookups)*3)
 	for i, lookup := range lookups {
 		base := i*3 + 1
-		values = append(values, fmt.Sprintf("($%d, $%d, $%d)", base, base+1, base+2))
+		values = append(values, fmt.Sprintf("($%d, $%d, $%d::integer)", base, base+1, base+2))
 		args = append(args, lookup.RepoID, lookup.RelativePath, i)
 	}
 	rows, err := cr.db.QueryContext(ctx, `

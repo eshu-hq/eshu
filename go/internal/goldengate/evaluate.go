@@ -6,6 +6,7 @@ package goldengate
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -307,6 +308,9 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 	}
 
 	detail := fmt.Sprintf("fields %v present", shape.RequiredResponseFields)
+	if len(shape.RequiredResponseFields) == 0 {
+		detail = fmt.Sprintf("fields [] present; response keys %v", responseKeys(resp))
+	}
 	if arrayField != "" {
 		detail = fmt.Sprintf("%q has %d results; item fields %v present", arrayField, len(items), shape.ResultItemRequiredFields)
 	}
@@ -314,6 +318,15 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 		detail += "; " + pathDetail
 	}
 	return mk(true, detail)
+}
+
+func responseKeys(resp map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(resp))
+	for key := range resp {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // EvaluateTiming produces a required finding asserting the live pipeline wall

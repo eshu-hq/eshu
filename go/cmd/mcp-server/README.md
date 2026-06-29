@@ -69,12 +69,12 @@ flowchart TB
 3. `newMCPQueryRouter` wires the MCP-backed `query` handlers
    (`RepositoryHandler`, `EntityHandler`, `CodeHandler`, `ContentHandler`,
    `InfraHandler`, `IaCHandler`, `ImpactHandler`, `EvidenceHandler`,
-   `PackageRegistryHandler`, `CICDHandler`, `SupplyChainHandler`,
-   `IncidentHandler`, `WorkItemHandler`, `StatusHandler`,
-   `ComponentExtensionsHandler`, `CompareHandler`) into a `query.APIRouter` and
-   mounts it. Component-extension routes read the configured component registry
-   only when `ESHU_COMPONENT_HOME` is set; otherwise they return an unavailable
-   envelope.
+   `PackageRegistryHandler`, `CICDHandler`, `CloudRuntimeDriftHandler`,
+   `SupplyChainHandler`, `IncidentHandler`, `WorkItemHandler`,
+   `FreshnessHandler`, `StatusHandler`, `ComponentExtensionsHandler`,
+   `CompareHandler`) into a `query.APIRouter` and mounts it.
+   Component-extension routes read the configured component registry only when
+   `ESHU_COMPONENT_HOME` is set; otherwise they return an unavailable envelope.
 4. The mounted handler is wrapped by `query.AuthMiddleware`.
 5. `mountRuntimeSurface` creates a shared admin mux via
    `internalruntime.NewStatusAdminMux` exposing `/healthz`, `/readyz`,
@@ -167,6 +167,10 @@ or spans beyond the startup/connection events.
   `SupplyChainHandler.AdvisoryEvidence`, `SupplyChainHandler.ImpactFindings`,
   `SupplyChainHandler.ImpactExplanations`, and
   `SupplyChainHandler.SecurityAlerts` must be non-nil because MCP exposes read
+  tools for those routes.
+- `CloudRuntimeDriftHandler.Store`, `FreshnessHandler.Generations`,
+  `FreshnessHandler.ChangedSince`, and `FreshnessHandler.ServiceChangedSince`
+  must be non-nil because MCP exposes runtime drift and freshness drilldown
   tools for those routes.
 - `EvidenceHandler.AdmissionDecisions` must be non-nil because MCP exposes the
   `list_admission_decisions` readback tool.

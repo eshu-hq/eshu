@@ -365,6 +365,10 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Correlations: query.NewPostgresObservabilityCoverageCorrelationStore(db),
 			Profile:      queryProfile,
 		},
+		CloudRuntimeDrift: &query.CloudRuntimeDriftHandler{
+			Store:   query.NewPostgresMultiCloudRuntimeDriftStore(db),
+			Profile: queryProfile,
+		},
 		SupplyChain: &query.SupplyChainHandler{
 			Neo4j:                    neo4jReader,
 			Content:                  contentReader,
@@ -406,6 +410,12 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			ComponentHome: componentHome,
 			Policy:        componentPolicy,
 			Profile:       queryProfile,
+		},
+		Freshness: &query.FreshnessHandler{
+			Generations:         pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			ChangedSince:        pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			ServiceChangedSince: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			Profile:             queryProfile,
 		},
 		ExtractionReadiness:    &query.CollectorExtractionReadinessHandler{Profile: queryProfile},
 		FactSchemaVersions:     &query.FactSchemaVersionHandler{Profile: queryProfile},

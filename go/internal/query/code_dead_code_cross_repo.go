@@ -206,7 +206,7 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 			)
 			addDeadCodePolicyStats(&scan.PolicyStats, stats)
 			scan.Suppressed = append(scan.Suppressed, suppressed...)
-			active, err = h.filterDeadCodeResultsWithoutIncomingEdges(ctx, active, label)
+			active, err = h.filterCrossRepoDeadCodeResultsWithoutProducerLocalIncomingEdges(ctx, active, label)
 			if err != nil {
 				return scan, err
 			}
