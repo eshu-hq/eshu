@@ -112,11 +112,11 @@ func Reconcile(supported []SupportedSurface, m Manifest, r Resolver) Coverage {
 }
 
 // Findings renders the reconciliation as goldengate findings so the coverage gate
-// reuses the shared advisory→blocking report machinery. When blocking is false
-// (the shipped default) every finding is advisory and the gate never fails on a
-// coverage gap; the single blocking flag flips uncovered, unresolved, and stale
-// findings to required so coverage can never regress once C-2..C-6 burn the gaps
-// down. Covered and exempt surfaces are always OK.
+// reuses the shared advisory→blocking report machinery. When blocking is false,
+// every finding is advisory and the gate never fails on a coverage gap; CI passes
+// the single blocking flag so uncovered, unresolved, and stale findings are
+// required now that C-2..C-6 burned the gaps down. Covered and exempt surfaces
+// are always OK.
 func Findings(c Coverage, blocking bool) []goldengate.Finding {
 	var findings []goldengate.Finding
 	for _, sc := range c.Surfaces {

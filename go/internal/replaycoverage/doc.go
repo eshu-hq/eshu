@@ -49,10 +49,10 @@
 //
 // # Advisory to blocking
 //
-// Findings reuse the shared goldengate.Finding/Report machinery. The gate ships
-// advisory (Blocking=false): every coverage gap is reported but never fails CI,
-// so its red output is the C-2..C-6 worklist. A single blocking flag flips every
-// uncovered, unresolved, and stale finding to required so coverage can never
-// regress once the gaps are burned down. BuildReport emits the machine-readable
-// coverage-report artifact the C-7 dashboard consumes on every run.
+// Findings reuse the shared goldengate.Finding/Report machinery. Local advisory
+// mode (Blocking=false) reports every coverage gap without failing the command.
+// CI now passes the single blocking flag after the C-2..C-6 burn-down, so every
+// uncovered, unresolved, and stale finding is required and coverage cannot
+// regress. BuildReport emits the machine-readable coverage-report artifact the
+// C-7 dashboard consumes on every run.
 package replaycoverage

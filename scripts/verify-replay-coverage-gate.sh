@@ -10,10 +10,9 @@
 # Docker-free, and needs no running service — unlike the golden-corpus-gate it
 # composes with, which actually replays the scenarios this gate counts.
 #
-# Ships ADVISORY: by default a coverage gap is reported but the gate still
-# succeeds, so its red output is the C-2..C-6 backfill worklist. Pass --blocking
-# to fail on any uncovered/unresolved/stale surface — the flip happens after
-# C-2..C-6 burn the gaps down.
+# Local runs default to advisory so a developer can inspect a coverage report
+# without failing the command. CI passes --blocking now that C-2..C-6 burned the
+# gaps down, so any uncovered, unresolved, or stale surface fails the workflow.
 #
 # Usage:
 #   scripts/verify-replay-coverage-gate.sh [--blocking]
@@ -48,19 +47,23 @@ esac
 
 # The committed C-7 dashboard (docs-discoverable %-covered + gap list). The unit
 # proof above runs TestCommittedDashboardIsCurrent, so a stale dashboard fails
-# before this point; the gate run then refreshes it in place (a no-op when
-# current). Regenerate a stale one with:
+# before this point. Blocking runs refresh it in place (a no-op when current);
+# local advisory runs write only the JSON report so they cannot dirty the
+# committed dashboard back to advisory mode. Regenerate a stale one with:
 #   cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard
 dashboard_abs="${repo_root}/docs/public/reference/replay-coverage.md"
+gate_args=(
+	-specs-dir "${repo_root}/specs"
+	-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"
+	-repo-root "${repo_root}"
+	-report-out "${report_abs}"
+)
+if [[ -n "${blocking}" ]]; then
+	gate_args+=(-dashboard-out "${dashboard_abs}" "${blocking}")
+fi
 
 # Run the gate over the real registries with absolute paths (robust regardless of
 # the working directory go run resolves refs from).
-(cd go && go run ./cmd/replay-coverage-gate \
-	-specs-dir "${repo_root}/specs" \
-	-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json" \
-	-repo-root "${repo_root}" \
-	-report-out "${report_abs}" \
-	-dashboard-out "${dashboard_abs}" \
-	${blocking})
+(cd go && go run ./cmd/replay-coverage-gate "${gate_args[@]}")
 
 printf '\nPASS: C-1 replay coverage gate (%s); report at %s\n' "${blocking:-advisory}" "${report_abs}"

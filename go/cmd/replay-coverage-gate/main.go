@@ -43,7 +43,7 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 	fs.StringVar(&o.repoRoot, "repo-root", ".", "repository root that cassette/parser-fixture refs resolve against")
 	fs.StringVar(&o.reportOut, "report-out", "", "path to write the JSON coverage report (empty: do not write)")
 	fs.StringVar(&o.dashboardOut, "dashboard-out", "", "path to write the Markdown coverage dashboard (empty: do not write)")
-	fs.BoolVar(&o.blocking, "blocking", false, "fail the gate on any uncovered, unresolved, or stale surface (default: advisory, report only)")
+	fs.BoolVar(&o.blocking, "blocking", false, "fail the gate on any uncovered, unresolved, or stale surface (default: local advisory report; CI passes -blocking)")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

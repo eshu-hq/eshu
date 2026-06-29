@@ -19,9 +19,10 @@ Scoped rules for editing the C-1 replay coverage gate core. Load
 - **No silent green.** A missing manifest is an empty manifest (everything
   uncovered), never an error that skips the gate. Blank fields, invalid scenario
   types, duplicate surfaces, and covered+exempt conflicts are hard load errors.
-- **Advisory by default.** `Blocking=false` is the shipped state. The single
-  blocking flag is the only knob that turns gaps into failures. Keep that the
-  only severity control — do not add per-finding `Required` overrides.
+- **One severity knob.** `Blocking=false` remains the local advisory mode, while
+  CI passes the single blocking flag now that C-2..C-6 have burned the gaps
+  down. Keep that the only severity control — do not add per-finding `Required`
+  overrides.
 - **Determinism.** Enumeration sorts by registry then key; the report and stale
   list are sorted; `MarshalReport` is byte-stable with a trailing newline. No
   timestamps or wall-clock in the artifact.

@@ -10,10 +10,9 @@ writes the report, and sets the exit code.
 - **Keep it thin.** New reconciliation behavior belongs in
   `internal/replaycoverage` with a focused unit test, not in `run`. This command
   is exercised by `main_test.go` through the real loaders.
-- **Advisory is the shipped default.** `-blocking` defaults to false. Do not flip
-  the CI default to blocking until C-2..C-6 have burned the gaps down; that flip
-  is a deliberate, separately-reviewed change to
-  `.github/workflows/replay-coverage-gate.yml`.
+- **Blocking is the shipped CI default.** `-blocking` still defaults to false for
+  local exploratory runs, but CI must pass `--blocking`; C-2..C-6 have burned
+  the gaps down and new supported surfaces must land with replay scenarios.
 - **Always write the report.** The coverage report is written before the blocking
   exit check, so the C-7 dashboard always has data even on a failing run. Keep it
   that way.

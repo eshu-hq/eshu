@@ -26,9 +26,9 @@ type Inputs struct {
 	Manifest Manifest
 	// Resolver verifies a manifest entry's scenario artifact exists.
 	Resolver Resolver
-	// Blocking flips every coverage finding from advisory to required. The gate
-	// ships with Blocking=false (advisory) and is flipped to true once C-2..C-6
-	// burn the coverage gaps down.
+	// Blocking flips every coverage finding from advisory to required. Local
+	// exploratory runs can leave it false; CI sets it true now that C-2..C-6
+	// burned the coverage gaps down.
 	Blocking bool
 }
 

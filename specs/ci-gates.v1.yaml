@@ -698,7 +698,7 @@ gates:
     name: C-1 Replay Coverage Gate
     category: exactness
     tier: pre-pr
-    blocking: false
+    blocking: true
     triggers:
       - "go/cmd/replay-coverage-gate/**"
       - "go/internal/replaycoverage/**"
@@ -709,7 +709,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"
     local:
-      command: "bash scripts/verify-replay-coverage-gate.sh"
+      command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
       test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
     ci:
       workflow: replay-coverage-gate.yml

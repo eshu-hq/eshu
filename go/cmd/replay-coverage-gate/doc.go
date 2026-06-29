@@ -22,14 +22,14 @@
 // artifact is missing is unresolved; a mapping for a surface no registry claims
 // is stale drift.
 //
-// It ships advisory: by default every coverage gap is reported but never fails
-// the gate, so its red output is the C-2..C-6 backfill worklist. The single
-// -blocking flag flips every uncovered, unresolved, and stale finding to required
-// so coverage can never regress once the gaps are burned down. A machine-readable
-// coverage report (-report-out) and the committed, docs-discoverable C-7
-// dashboard (-dashboard-out, docs/public/reference/replay-coverage.md) are
-// written on every run; TestCommittedDashboardIsCurrent holds the dashboard in
-// lockstep (refresh with -update-dashboard).
+// Local runs are advisory by default; the single -blocking flag flips every
+// uncovered, unresolved, and stale finding to required. CI passes -blocking now
+// that C-2..C-6 have burned the gaps down, so coverage can never regress. When
+// requested, the command writes a machine-readable coverage report (-report-out)
+// and the committed, docs-discoverable C-7 dashboard (-dashboard-out,
+// docs/public/reference/replay-coverage.md);
+// TestCommittedDashboardIsCurrent holds the dashboard in lockstep (refresh with
+// -update-dashboard).
 //
 // Coverage is existence-only: the gate proves a scenario artifact exists and is
 // wired, not that it passes. Greenness is proven by the sibling gate named in
@@ -44,6 +44,5 @@
 //	  -repo-root . \
 //	  -report-out coverage-report.json
 //
-// Add -blocking once C-2..C-6 burn the gaps down to make a coverage regression
-// fail CI.
+// Add -blocking to make a coverage regression fail the run.
 package main
