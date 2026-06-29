@@ -146,11 +146,20 @@ func classifyProfileProofs(capRow capabilitycatalog.MatrixCapability) (supported
 		} else {
 			refusal++
 		}
-		if len(profile.Verification) == 0 {
+		if !profileHasVerificationProof(profile) {
 			missing = append(missing, profileName)
 		}
 	}
 	return supported, refusal, missing
+}
+
+func profileHasVerificationProof(profile capabilitycatalog.MatrixProfile) bool {
+	for _, verification := range profile.Verification {
+		if strings.TrimSpace(verification.Kind) != "" && strings.TrimSpace(verification.Ref) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // resolvePath reports whether a repo-relative ref exists under RepoRoot. A ref

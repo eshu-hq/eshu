@@ -57,6 +57,23 @@ func testResolver(t *testing.T) (ArtifactResolver, string) {
 			},
 		},
 		{
+			Capability: "cap.blank_verification",
+			Profiles: map[string]capabilitycatalog.MatrixProfile{
+				"local_lightweight": {
+					Status:          "unsupported",
+					MaxTruthLevel:   "unsupported",
+					Verification:    []capabilitycatalog.MatrixVerification{{Kind: "go_test", Ref: "./internal/query"}},
+					RequiredRuntime: "local_host",
+				},
+				"production": {
+					Status:          "supported",
+					MaxTruthLevel:   "exact",
+					Verification:    []capabilitycatalog.MatrixVerification{{Kind: "", Ref: "  "}},
+					RequiredRuntime: "deployed_services",
+				},
+			},
+		},
+		{
 			Capability: "cap.unsupported_only",
 			Profiles: map[string]capabilitycatalog.MatrixProfile{
 				"local_lightweight": {Status: "unsupported", MaxTruthLevel: "unsupported", Verification: []capabilitycatalog.MatrixVerification{{Kind: "go_test", Ref: "./internal/query"}}},
@@ -151,6 +168,9 @@ func TestResolveCapabilityClaimUsesMatrixProfileProofs(t *testing.T) {
 
 	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioCapabilityClaim, Ref: "cap.missing_verification"}); ok || !strings.Contains(detail, "missing verification") {
 		t.Fatalf("capability with missing profile verification resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioCapabilityClaim, Ref: "cap.blank_verification"}); ok || !strings.Contains(detail, "missing verification") {
+		t.Fatalf("capability with blank profile verification resolved=%v detail=%q", ok, detail)
 	}
 	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioCapabilityClaim, Ref: "cap.unsupported_only"}); ok || !strings.Contains(detail, "no supported or experimental profile") {
 		t.Fatalf("unsupported-only capability resolved=%v detail=%q", ok, detail)

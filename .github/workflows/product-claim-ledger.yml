@@ -50,6 +50,12 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      - name: Install workflow test dependencies
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run product claim workflow contract mirror
+        run: scripts/test-product-claim-ledger-workflow.sh
+
       - name: Run deterministic product-claim verify
         working-directory: go
         shell: bash
@@ -63,6 +69,7 @@ jobs:
         shell: bash
         env:
           ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE: "1"
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
           go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-live-issues.log

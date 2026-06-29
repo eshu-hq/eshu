@@ -68,8 +68,8 @@ go run ./cmd/capability-inventory -mode budget-proof \
   expectations, proof paths, and catalog proof signals. Set
   `ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1` to also check recorded issue states
   against GitHub with a bounded run-level timeout; `.github/workflows/product-claim-ledger.yml`
-  enables that without `GITHUB_TOKEN` on pull requests and with `GITHUB_TOKEN`
-  on trusted claim-relevant push, schedule, and manual-dispatch events.
+  enables that with the read-only Actions token on pull requests and trusted
+  claim-relevant push, schedule, and manual-dispatch events.
 - `generate` writes deterministic JSON for both the catalog and the surface
   inventory; the same inputs always produce the same bytes, so a regenerated
   artifact only changes when the matrix, overlay, registry, or a live surface
