@@ -113,8 +113,27 @@ test_console_change_runs_e2e_with_dependencies() {
   assert_contains "precommit-console: console gate passed." "${out}"
 }
 
+test_console_delete_runs_e2e_with_dependencies() {
+  local repo_dir="${tmp_root}/delete-runs"
+  local out="${tmp_root}/delete-runs.out"
+  git_init "${repo_dir}"
+  mkdir -p "${repo_dir}/apps/console/src" "${repo_dir}/node_modules/playwright" "${repo_dir}/node_modules/vite"
+  printf 'export const page = true;\n' >"${repo_dir}/apps/console/src/page.ts"
+  git_in "${repo_dir}" add apps/console/src/page.ts
+  git_in "${repo_dir}" commit -q -m "console page"
+  git_in "${repo_dir}" update-ref refs/remotes/origin/main HEAD
+  rm "${repo_dir}/apps/console/src/page.ts"
+  git_in "${repo_dir}" add apps/console/src/page.ts
+  git_in "${repo_dir}" commit -q -m "delete console page"
+  run_helper "${repo_dir}" "${out}"
+  assert_contains "fake-npx:playwright install chromium" "${out}"
+  assert_contains "fake-npm:run console:e2e:mock" "${out}"
+  assert_contains "precommit-console: console gate passed." "${out}"
+}
+
 test_no_console_changes_skips_without_node_modules
 test_console_change_requires_node_modules
 test_console_change_runs_e2e_with_dependencies
+test_console_delete_runs_e2e_with_dependencies
 
 echo "test-precommit-console: all tests passed"

@@ -75,7 +75,7 @@ has_console_changes() {
 
   while IFS= read -r -d '' file_path; do
     [[ -n "${file_path}" ]] && return 0
-  done < <(git diff --name-only -z --diff-filter=ACMR "${diff_left}" HEAD -- apps/console)
+  done < <(git diff --name-only -z --diff-filter=ACMRD "${diff_left}" HEAD -- apps/console)
 
   return 1
 }
