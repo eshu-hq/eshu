@@ -51,6 +51,47 @@ func deleteWidget(req: Request) async throws -> HTTPStatus {
 	})
 }
 
+func TestDefaultEngineParsePathSwiftVaporRouteEntriesLiteralGroups(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
+	writeTestFile(t, filePath, `import Vapor
+
+func routes(_ app: Application) throws {
+    app.group("api") { api in
+        api.get("users", use: listUsers)
+        api.on(.PATCH, "users", ":id", use: updateUser)
+    }
+    let api = ShadowRoutes()
+    api.get("leaked", use: listUsers)
+}
+
+func listUsers(req: Request) async throws -> String {
+    "[]"
+}
+
+func updateUser(req: Request) async throws -> HTTPStatus {
+    .ok
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
+		{"method": "GET", "path": "/api/users", "handler": "listUsers"},
+		{"method": "PATCH", "path": "/api/users/{id}", "handler": "updateUser"},
+	})
+}
+
 func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipNonExactHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -92,6 +133,54 @@ func health(req: Request) async throws -> String {
 	}
 	if _, ok := nested["route_entries"]; ok {
 		t.Fatalf("framework_semantics.vapor.route_entries = %#v, want absent for non-exact Vapor routes", nested["route_entries"])
+	}
+}
+
+func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipNonExactGroups(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
+	writeTestFile(t, filePath, `import Vapor
+
+let prefix = "api"
+
+func routes(_ app: Application) throws {
+    app.group(prefix) { api in
+        api.get("users", use: listUsers)
+    }
+    app.group("admin") { admin in
+        admin.get("users") { req in
+            "[]"
+        }
+    }
+}
+
+func listUsers(req: Request) async throws -> String {
+    "[]"
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	semantics, ok := got["framework_semantics"].(map[string]any)
+	if !ok {
+		return
+	}
+	nested, ok := semantics["vapor"].(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok := nested["route_entries"]; ok {
+		t.Fatalf("framework_semantics.vapor.route_entries = %#v, want absent for non-exact Vapor route groups", nested["route_entries"])
 	}
 }
 

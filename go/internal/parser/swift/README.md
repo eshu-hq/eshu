@@ -63,9 +63,11 @@ dead-code root without emitting a symbol row. The same AST-backed pass emits
 exact calls on receivers typed `Application` or `RoutesBuilder` with literal
 path segments and a simple handler identifier, such as
 `app.get("health", use: health)` or `app.on(.DELETE, "widgets", ":id", use:
-deleteWidget)`. Closure handlers, dynamic path expressions, computed route
-groups, generated routes, and non-Vapor Swift web frameworks remain unsupported
-for exact route-to-handler truth.
+deleteWidget)`. Literal route groups are exact when the parent receiver is
+already proven, the group prefix is literal, and the closure parameter is a
+simple identifier. Closure handlers, dynamic path expressions, nonliteral or
+computed route groups, generated routes, and non-Vapor Swift web frameworks
+remain unsupported for exact route-to-handler truth.
 
 Dead-code roots must be emitted as `dead_code_root_kinds` metadata, not query
 source fallbacks. Current roots cover `@main` types, `main`, SwiftUI `App` types

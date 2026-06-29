@@ -122,6 +122,10 @@ func collectSwiftVaporRoutes(root *tree_sitter.Node, source []byte, facts *swift
 			if !hasVaporImport {
 				return
 			}
+			facts.vaporRouteEntries = append(
+				facts.vaporRouteEntries,
+				swiftVaporGroupRouteEntries(node, source, routeReceivers)...,
+			)
 			if entry := swiftVaporRouteEntry(node, source, routeReceivers); entry != nil {
 				facts.vaporRouteEntries = append(facts.vaporRouteEntries, entry)
 			}
@@ -144,8 +148,12 @@ func swiftHasImport(root *tree_sitter.Node, source []byte, module string) bool {
 	return hasImport
 }
 
-func swiftVaporRouteReceivers(root *tree_sitter.Node, source []byte) map[string]struct{} {
-	receivers := make(map[string]struct{})
+type swiftVaporRouteReceiver struct {
+	pathSegments []string
+}
+
+func swiftVaporRouteReceivers(root *tree_sitter.Node, source []byte) map[string]swiftVaporRouteReceiver {
+	receivers := make(map[string]swiftVaporRouteReceiver)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		var name string
 		switch node.Kind() {
@@ -162,7 +170,7 @@ func swiftVaporRouteReceivers(root *tree_sitter.Node, source []byte) map[string]
 		}
 		switch swiftVaporReceiverTypeName(node, source) {
 		case "Application", "RoutesBuilder":
-			receivers[name] = struct{}{}
+			receivers[name] = swiftVaporRouteReceiver{}
 		}
 	})
 	return receivers
@@ -204,13 +212,14 @@ func collectSwiftVaporRouteHandler(node *tree_sitter.Node, source []byte, facts 
 func swiftVaporRouteEntry(
 	node *tree_sitter.Node,
 	source []byte,
-	routeReceivers map[string]struct{},
+	routeReceivers map[string]swiftVaporRouteReceiver,
 ) map[string]string {
 	receiver, callName := swiftCallTarget(node, source)
 	if receiver == "" {
 		return nil
 	}
-	if _, ok := routeReceivers[receiver]; !ok {
+	receiverInfo, ok := routeReceivers[receiver]
+	if !ok {
 		return nil
 	}
 	httpMethod := swiftVaporHTTPMethod(callName)
@@ -236,11 +245,111 @@ func swiftVaporRouteEntry(
 	if !ok {
 		return nil
 	}
+	if len(receiverInfo.pathSegments) > 0 {
+		prefixed := make([]string, 0, len(receiverInfo.pathSegments)+len(segments))
+		prefixed = append(prefixed, receiverInfo.pathSegments...)
+		prefixed = append(prefixed, segments...)
+		segments = prefixed
+	}
 	return map[string]string{
 		"method":  httpMethod,
 		"path":    swiftVaporRoutePath(segments),
 		"handler": handler,
 	}
+}
+
+func swiftVaporGroupRouteReceiver(
+	node *tree_sitter.Node,
+	source []byte,
+	routeReceivers map[string]swiftVaporRouteReceiver,
+) (string, swiftVaporRouteReceiver, bool) {
+	receiver, callName := swiftCallTarget(node, source)
+	if receiver == "" || callName != "group" {
+		return "", swiftVaporRouteReceiver{}, false
+	}
+	parent, ok := routeReceivers[receiver]
+	if !ok {
+		return "", swiftVaporRouteReceiver{}, false
+	}
+	segments, ok := swiftVaporPathSegments(swiftCallArguments(node, source))
+	if !ok {
+		return "", swiftVaporRouteReceiver{}, false
+	}
+	alias := swiftVaporGroupClosureReceiver(node, source)
+	if alias == "" {
+		return "", swiftVaporRouteReceiver{}, false
+	}
+	pathSegments := make([]string, 0, len(parent.pathSegments)+len(segments))
+	pathSegments = append(pathSegments, parent.pathSegments...)
+	pathSegments = append(pathSegments, segments...)
+	return alias, swiftVaporRouteReceiver{pathSegments: pathSegments}, true
+}
+
+func swiftVaporGroupRouteEntries(
+	node *tree_sitter.Node,
+	source []byte,
+	routeReceivers map[string]swiftVaporRouteReceiver,
+) []map[string]string {
+	alias, info, ok := swiftVaporGroupRouteReceiver(node, source, routeReceivers)
+	if !ok {
+		return nil
+	}
+	groupReceivers := make(map[string]swiftVaporRouteReceiver, len(routeReceivers)+1)
+	for receiver, receiverInfo := range routeReceivers {
+		groupReceivers[receiver] = receiverInfo
+	}
+	groupReceivers[alias] = info
+
+	var entries []map[string]string
+	shared.WalkNamed(node, func(candidate *tree_sitter.Node) {
+		if candidate.Kind() != "call_expression" || swiftSameNode(candidate, node) {
+			return
+		}
+		entries = append(entries, swiftVaporGroupRouteEntries(candidate, source, groupReceivers)...)
+		if entry := swiftVaporRouteEntry(candidate, source, groupReceivers); entry != nil {
+			entries = append(entries, entry)
+		}
+	})
+	return entries
+}
+
+func swiftVaporGroupClosureReceiver(node *tree_sitter.Node, source []byte) string {
+	lambda := swiftFirstDescendantOfKind(node, "lambda_literal")
+	functionType := swiftFirstDescendantOfKind(lambda, "lambda_function_type")
+	if functionType == nil {
+		return ""
+	}
+	identifier := swiftFirstDescendantOfKind(functionType, "simple_identifier")
+	if identifier == nil {
+		return ""
+	}
+	name := strings.TrimSpace(shared.NodeText(identifier, source))
+	if !swiftSimpleIdentifier(name) {
+		return ""
+	}
+	return name
+}
+
+func swiftFirstDescendantOfKind(node *tree_sitter.Node, kind string) *tree_sitter.Node {
+	if node == nil {
+		return nil
+	}
+	var found *tree_sitter.Node
+	shared.WalkNamed(node, func(candidate *tree_sitter.Node) {
+		if found != nil || candidate.Kind() != kind {
+			return
+		}
+		found = shared.CloneNode(candidate)
+	})
+	return found
+}
+
+func swiftSameNode(left, right *tree_sitter.Node) bool {
+	return left != nil &&
+		right != nil &&
+		left.Kind() == right.Kind() &&
+		left.StartByte() == right.StartByte() &&
+		left.EndByte() == right.EndByte()
 }
 
 func swiftVaporHTTPMethod(callName string) string {
