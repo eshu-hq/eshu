@@ -121,3 +121,144 @@ func TestReducerQueueClaimWaitsForKubernetesWorkloadReadinessBehavior(t *testing
 		t.Fatalf("claimed entity keys = %v, want %v", got, want)
 	}
 }
+
+// kubernetesCorrelationNodesNotReadyTestError stands in for the handler's
+// kubernetesCorrelationNodesNotReadyError: a retryable readiness-gate miss that
+// self-classifies with the kubernetes-correlation not-ready failure class. The
+// queue must defer it without consuming the retry budget (issue #4142 item 3), so
+// an in-handler readiness miss can never dead-letter a still-pending edge intent
+// that the succeeded-only reopen path would not reopen.
+type kubernetesCorrelationNodesNotReadyTestError struct{}
+
+func (kubernetesCorrelationNodesNotReadyTestError) Error() string {
+	return "canonical kubernetes workload nodes not committed"
+}
+
+func (kubernetesCorrelationNodesNotReadyTestError) Retryable() bool { return true }
+
+func (kubernetesCorrelationNodesNotReadyTestError) FailureClass() string {
+	return reducer.KubernetesCorrelationNodesNotReadyFailureClass
+}
+
+// TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget proves
+// the Go retry classifier treats a kubernetes-correlation readiness miss as
+// non-counting: even at an attempt count far past MaxAttempts, Fail re-queues the
+// row as retrying rather than dead-lettering it. Mirrors the secrets/IAM endpoint
+// readiness contract.
+func TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 2, 11, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	queue := ReducerQueue{
+		db:            db,
+		LeaseOwner:    "reducer-1",
+		LeaseDuration: time.Minute,
+		RetryDelay:    2 * time.Minute,
+		MaxAttempts:   3,
+		Now:           func() time.Time { return now },
+	}
+
+	intent := reducer.Intent{
+		IntentID:     "intent-k8s-edge-1",
+		AttemptCount: 42,
+	}
+
+	if err := queue.Fail(context.Background(), intent, kubernetesCorrelationNodesNotReadyTestError{}); err != nil {
+		t.Fatalf("Fail() error = %v, want nil", err)
+	}
+
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+
+	query := db.execs[0].query
+	for _, want := range []string{
+		"UPDATE fact_work_items",
+		"status = 'retrying'",
+		"next_attempt_at = $5",
+		"visible_at = $5",
+		"failure_class = $2",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
+		}
+	}
+	if got, want := db.execs[0].args[1], reducer.KubernetesCorrelationNodesNotReadyFailureClass; got != want {
+		t.Fatalf("failure class = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[4], now.Add(2*time.Minute); got != want {
+		t.Fatalf("next attempt = %v, want %v", got, want)
+	}
+}
+
+// TestReducerQueueClaimDoesNotCountKubernetesCorrelationReadinessDefers asserts the
+// single-claim attempt-count CASE leaves a kubernetes-correlation readiness defer's
+// attempt count unchanged, so a row that briefly re-enters the in-handler readiness
+// gate does not erode its retry budget on claim.
+func TestReducerQueueClaimDoesNotCountKubernetesCorrelationReadinessDefers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 2, 12, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: nil},
+		},
+	}
+	queue := ReducerQueue{
+		db:            db,
+		LeaseOwner:    "test-owner",
+		LeaseDuration: 30 * time.Second,
+		Now:           func() time.Time { return now },
+	}
+
+	if _, claimed, err := queue.Claim(context.Background()); err != nil {
+		t.Fatalf("Claim() error = %v", err)
+	} else if claimed {
+		t.Fatal("Claim() claimed = true, want false from empty rows")
+	}
+
+	assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+}
+
+// TestClaimBatchDoesNotCountKubernetesCorrelationReadinessDefers asserts the batch
+// claim query carries the same non-counting attempt-count CASE, since both claim
+// paths must agree on which readiness classes are exempt from the retry budget.
+func TestClaimBatchDoesNotCountKubernetesCorrelationReadinessDefers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 2, 12, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: nil},
+		},
+	}
+	queue := ReducerQueue{
+		db:            db,
+		LeaseOwner:    "test",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+	}
+
+	if _, err := queue.ClaimBatch(context.Background(), 5); err != nil {
+		t.Fatalf("ClaimBatch() error = %v", err)
+	}
+
+	assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+}
+
+func assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t *testing.T, query string) {
+	t.Helper()
+
+	for _, want := range []string{
+		"attempt_count = CASE",
+		"work.status = 'retrying'",
+		"work.failure_class = 'kubernetes_correlation_nodes_not_ready'",
+		"THEN work.attempt_count",
+		"ELSE work.attempt_count + 1",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("claim query missing non-counting defer attempt predicate %q:\n%s", want, query)
+		}
+	}
+}

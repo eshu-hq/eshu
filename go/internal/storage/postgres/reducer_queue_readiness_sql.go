@@ -3,12 +3,59 @@
 
 package postgres
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+)
 
 const (
 	readinessAcceptancePayloadEntityKey = "payload_entity_key"
 	readinessAcceptanceScopePrefix      = "scope_prefix"
 )
+
+// nonCountingReducerRetryFailureClasses lists the durable failure_class values a
+// readiness-gate miss self-classifies with. A retrying row in one of these classes
+// is deferred until its upstream phase or endpoint commits, not failing on its own
+// merits, so it is exempt from the retry budget on BOTH the Go retry decision
+// (isNonCountingReducerRetryFailureClass) and the SQL claim attempt-count CASE
+// (reducerClaimAttemptCountCaseSQL). Counting it toward maxAttempts would
+// dead-letter still-pending work that the succeeded-only reopen path
+// (ReopenSucceeded / ReplayDomain) would never reopen. This is the single source
+// both the Go and SQL claim paths derive from so the exempt set cannot drift
+// between them.
+var nonCountingReducerRetryFailureClasses = []string{
+	reducer.SecretsIAMEndpointNotReadyFailureClass,
+	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
+}
+
+// reducerClaimAttemptCountCaseSQL renders the attempt_count assignment for the
+// claim UPDATE: a retrying row whose failure_class is a non-counting readiness
+// class keeps its attempt_count; every other claim increments it. Both the
+// single-claim and batch-claim queries alias the updated table as "work" and call
+// this helper so the exempt-class set stays byte-identical across both claim
+// paths.
+func reducerClaimAttemptCountCaseSQL() string {
+	return "CASE\n" +
+		"            WHEN work.status = 'retrying' AND " +
+		reducerNonCountingFailureClassPredicateSQL("work") +
+		" THEN work.attempt_count\n" +
+		"            ELSE work.attempt_count + 1\n" +
+		"        END"
+}
+
+// reducerNonCountingFailureClassPredicateSQL renders the disjunction matching any
+// non-counting readiness failure class for the given row alias. The chained-OR
+// equality form (rather than IN (...)) keeps each class as a discrete
+// "alias.failure_class = '...'" predicate so callers and tests can assert one
+// class at a time.
+func reducerNonCountingFailureClassPredicateSQL(alias string) string {
+	predicates := make([]string, 0, len(nonCountingReducerRetryFailureClasses))
+	for _, class := range nonCountingReducerRetryFailureClasses {
+		predicates = append(predicates, alias+".failure_class = '"+class+"'")
+	}
+	return "(" + strings.Join(predicates, " OR ") + ")"
+}
 
 func reducerClaimReadinessRequirementsCTE() string {
 	return "reducer_claim_readiness_requirements(domain, keyspace, phase, acceptance_unit_source, acceptance_unit_prefix) AS (\n" +
