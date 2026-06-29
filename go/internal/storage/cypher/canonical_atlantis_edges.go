@@ -46,6 +46,31 @@ MATCH (w:AtlantisWorkflow {uid: row.target_uid})
 MERGE (p)-[r:USES_WORKFLOW]->(w)
 SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id`
 
+// retractAtlantisManagesEdgesCypher deletes stale MANAGES edges from this
+// materialization's AtlantisProject source nodes. MANAGES, ATLANTIS_DEPENDS_ON,
+// and USES_WORKFLOW are MERGE-only edges between surviving nodes, so neither
+// repository_cleanup nor entity_retract removes a stale edge when the endpoints
+// survive but the relationship changes. The subsequent MERGE rewrites current
+// edges with the current generation.
+const retractAtlantisManagesEdgesCypher = `UNWIND $source_uids AS uid
+MATCH (p:AtlantisProject {uid: uid})-[r:MANAGES]->(:Directory)
+WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
+DELETE r`
+
+// retractAtlantisDependsOnEdgesCypher deletes stale ATLANTIS_DEPENDS_ON edges
+// from this materialization's AtlantisProject source nodes.
+const retractAtlantisDependsOnEdgesCypher = `UNWIND $source_uids AS uid
+MATCH (p:AtlantisProject {uid: uid})-[r:ATLANTIS_DEPENDS_ON]->(:AtlantisProject)
+WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
+DELETE r`
+
+// retractAtlantisUsesWorkflowEdgesCypher deletes stale USES_WORKFLOW edges from
+// this materialization's AtlantisProject source nodes.
+const retractAtlantisUsesWorkflowEdgesCypher = `UNWIND $source_uids AS uid
+MATCH (p:AtlantisProject {uid: uid})-[r:USES_WORKFLOW]->(:AtlantisWorkflow)
+WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
+DELETE r`
+
 // atlantisProjectEntity is one AtlantisProject content entity reduced to the
 // fields the governance edges need.
 type atlantisProjectEntity struct {
@@ -116,6 +141,24 @@ func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement 
 	}
 
 	var stmts []Statement
+	if !mat.FirstGeneration {
+		if sourceUIDs := atlantisProjectSourceUIDs(projects); len(sourceUIDs) > 0 {
+			for _, cypher := range []string{
+				retractAtlantisManagesEdgesCypher,
+				retractAtlantisDependsOnEdgesCypher,
+				retractAtlantisUsesWorkflowEdgesCypher,
+			} {
+				stmts = append(stmts, Statement{
+					Operation: OperationCanonicalRetract,
+					Cypher:    cypher,
+					Parameters: map[string]any{
+						"source_uids":   sourceUIDs,
+						"generation_id": mat.GenerationID,
+					},
+				})
+			}
+		}
+	}
 	if len(manages) > 0 {
 		stmts = append(stmts, Statement{
 			Operation:  OperationCanonicalUpsert,
@@ -138,6 +181,20 @@ func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement 
 		})
 	}
 	return stmts
+}
+
+// atlantisProjectSourceUIDs returns every AtlantisProject uid in the
+// materialization. Every project is a potential source for all Atlantis
+// relationship families, including a project that lost its last relationship in
+// the current generation and therefore produces no MERGE row.
+func atlantisProjectSourceUIDs(projects []atlantisProjectEntity) []string {
+	uids := make([]string, 0, len(projects))
+	for _, project := range projects {
+		if project.uid != "" {
+			uids = append(uids, project.uid)
+		}
+	}
+	return uids
 }
 
 // collectAtlantisWorkflowUIDs maps "<filePath>\x00<workflowName>" -> uid for

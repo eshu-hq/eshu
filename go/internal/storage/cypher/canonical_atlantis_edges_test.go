@@ -44,11 +44,11 @@ func TestAtlantisEdgeStatementsResolvesManagesAndDependsOn(t *testing.T) {
 	}
 
 	stmts := atlantisEdgeStatements(mat)
-	if len(stmts) != 2 {
-		t.Fatalf("atlantisEdgeStatements() returned %d statements, want 2 (MANAGES + DEPENDS_ON)", len(stmts))
+	if len(stmts) != 5 {
+		t.Fatalf("atlantisEdgeStatements() returned %d statements, want 5 (3 retract + MANAGES + DEPENDS_ON)", len(stmts))
 	}
 
-	manages := stmts[0]
+	manages := mergeStatementContaining(t, stmts, "MERGE (p)-[r:MANAGES]->(d)")
 	if !strings.Contains(manages.Cypher, "MANAGES") || !strings.Contains(manages.Cypher, "AtlantisProject {uid:") || !strings.Contains(manages.Cypher, "Directory {path:") {
 		t.Fatalf("MANAGES cypher should match by uid + Directory.path: %s", manages.Cypher)
 	}
@@ -63,7 +63,7 @@ func TestAtlantisEdgeStatementsResolvesManagesAndDependsOn(t *testing.T) {
 		}
 	}
 
-	dependsOn := stmts[1]
+	dependsOn := mergeStatementContaining(t, stmts, "MERGE (p)-[r:ATLANTIS_DEPENDS_ON]->(q)")
 	if !strings.Contains(dependsOn.Cypher, "ATLANTIS_DEPENDS_ON") {
 		t.Fatalf("DEPENDS_ON cypher missing ATLANTIS_DEPENDS_ON edge type: %s", dependsOn.Cypher)
 	}
@@ -112,12 +112,8 @@ func TestAtlantisEdgeStatementsResolvesUsesWorkflow(t *testing.T) {
 	}
 
 	stmts := atlantisEdgeStatements(mat)
-	var usesRows []map[string]any
-	for _, stmt := range stmts {
-		if strings.Contains(stmt.Cypher, "USES_WORKFLOW") {
-			usesRows = stmt.Parameters["rows"].([]map[string]any)
-		}
-	}
+	usesWorkflow := mergeStatementContaining(t, stmts, "MERGE (p)-[r:USES_WORKFLOW]->(w)")
+	usesRows := usesWorkflow.Parameters["rows"].([]map[string]any)
 	if len(usesRows) != 1 {
 		t.Fatalf("USES_WORKFLOW rows = %d, want 1; stmts=%d", len(usesRows), len(stmts))
 	}
@@ -130,8 +126,117 @@ func TestAtlantisEdgeStatementsResolvesUsesWorkflow(t *testing.T) {
 		Entities: []projector.EntityRow{project},
 	}
 	for _, stmt := range atlantisEdgeStatements(matNoWf) {
-		if strings.Contains(stmt.Cypher, "USES_WORKFLOW") {
+		if stmt.Operation == OperationCanonicalUpsert && strings.Contains(stmt.Cypher, "USES_WORKFLOW") {
 			t.Fatalf("USES_WORKFLOW emitted with no AtlantisWorkflow node present")
+		}
+	}
+}
+
+// TestAtlantisEdgeStatementsRetractsStaleEdgesBeforeMerge proves the builder
+// emits generation-scoped retraction for Atlantis structural edges BEFORE the
+// MERGE statements. This covers the stale-edge case where the project, workflow,
+// and target project nodes all survive into the next generation but a project's
+// dir, depends_on, or workflow relationship changes.
+func TestAtlantisEdgeStatementsRetractsStaleEdgesBeforeMerge(t *testing.T) {
+	t.Parallel()
+
+	const file = "/repo/atlantis.yaml"
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-2",
+		RepoPath:     "/repo",
+		Entities: []projector.EntityRow{
+			atlantisProjectRowEntity("uid-network", "network", file, "network", ""),
+			atlantisProjectRowEntity("uid-app", "app", file, "app", "network"),
+			{
+				Label:      "AtlantisWorkflow",
+				EntityID:   "uid-wf-custom",
+				EntityName: "custom",
+				FilePath:   file,
+			},
+			{
+				Label:      "AtlantisProject",
+				EntityID:   "uid-api",
+				EntityName: "api",
+				FilePath:   file,
+				Metadata: map[string]any{
+					"dir":      "api",
+					"workflow": "custom",
+				},
+			},
+		},
+	}
+
+	stmts := atlantisEdgeStatements(mat)
+	if len(stmts) != 6 {
+		t.Fatalf("atlantisEdgeStatements() returned %d statements, want 6 (3 retract + 3 merge)", len(stmts))
+	}
+
+	for i, relType := range []string{"MANAGES", "ATLANTIS_DEPENDS_ON", "USES_WORKFLOW"} {
+		stmt := stmts[i]
+		if stmt.Operation != OperationCanonicalRetract {
+			t.Fatalf("statement %d Operation = %q, want %q", i, stmt.Operation, OperationCanonicalRetract)
+		}
+		if !strings.Contains(stmt.Cypher, "AtlantisProject {uid: uid}") ||
+			!strings.Contains(stmt.Cypher, "[r:"+relType+"]") ||
+			!strings.Contains(stmt.Cypher, "r.evidence_source = 'projector/canonical'") ||
+			!strings.Contains(stmt.Cypher, "r.generation_id <> $generation_id") ||
+			!strings.Contains(stmt.Cypher, "DELETE r") {
+			t.Fatalf("%s retract cypher wrong shape: %s", relType, stmt.Cypher)
+		}
+		sourceUIDs, ok := stmt.Parameters["source_uids"].([]string)
+		if !ok {
+			t.Fatalf("%s retract source_uids type = %T, want []string", relType, stmt.Parameters["source_uids"])
+		}
+		wantSources := map[string]bool{"uid-network": true, "uid-app": true, "uid-api": true}
+		if len(sourceUIDs) != len(wantSources) {
+			t.Fatalf("%s retract source_uids = %#v, want all project uids", relType, sourceUIDs)
+		}
+		for _, uid := range sourceUIDs {
+			if !wantSources[uid] {
+				t.Fatalf("%s retract unexpected source uid %q", relType, uid)
+			}
+		}
+		if stmt.Parameters["generation_id"] != "gen-2" {
+			t.Fatalf("%s retract generation_id = %v, want gen-2", relType, stmt.Parameters["generation_id"])
+		}
+	}
+
+	if stmts[3].Operation != OperationCanonicalUpsert || !strings.Contains(stmts[3].Cypher, "MERGE (p)-[r:MANAGES]->(d)") {
+		t.Fatalf("statement 3 should be the MANAGES merge: op=%q cypher=%s", stmts[3].Operation, stmts[3].Cypher)
+	}
+	if stmts[4].Operation != OperationCanonicalUpsert || !strings.Contains(stmts[4].Cypher, "MERGE (p)-[r:ATLANTIS_DEPENDS_ON]->(q)") {
+		t.Fatalf("statement 4 should be the ATLANTIS_DEPENDS_ON merge: op=%q cypher=%s", stmts[4].Operation, stmts[4].Cypher)
+	}
+	if stmts[5].Operation != OperationCanonicalUpsert || !strings.Contains(stmts[5].Cypher, "MERGE (p)-[r:USES_WORKFLOW]->(w)") {
+		t.Fatalf("statement 5 should be the USES_WORKFLOW merge: op=%q cypher=%s", stmts[5].Operation, stmts[5].Cypher)
+	}
+}
+
+// TestAtlantisEdgeStatementsFirstGenerationSkipsStaleEdgeRetract proves the
+// generation-scoped cleanup preserves first-generation behavior. There cannot
+// be older-generation Atlantis edges to retract on the first projection for a
+// repo, so the builder emits only current MERGE statements.
+func TestAtlantisEdgeStatementsFirstGenerationSkipsStaleEdgeRetract(t *testing.T) {
+	t.Parallel()
+
+	const file = "/repo/atlantis.yaml"
+	mat := projector.CanonicalMaterialization{
+		FirstGeneration: true,
+		GenerationID:    "gen-1",
+		RepoPath:        "/repo",
+		Entities: []projector.EntityRow{
+			atlantisProjectRowEntity("uid-network", "network", file, "network", ""),
+			atlantisProjectRowEntity("uid-app", "app", file, "app", "network"),
+		},
+	}
+
+	stmts := atlantisEdgeStatements(mat)
+	if len(stmts) != 2 {
+		t.Fatalf("atlantisEdgeStatements() returned %d statements, want 2 merge-only statements", len(stmts))
+	}
+	for i, stmt := range stmts {
+		if stmt.Operation == OperationCanonicalRetract {
+			t.Fatalf("statement %d should not retract on first generation: %s", i, stmt.Cypher)
 		}
 	}
 }
@@ -156,12 +261,8 @@ func TestAtlantisEdgeStatementsScopesDependsOnPerFile(t *testing.T) {
 	}
 
 	stmts := atlantisEdgeStatements(mat)
-	var dependsRows []map[string]any
-	for _, stmt := range stmts {
-		if strings.Contains(stmt.Cypher, "ATLANTIS_DEPENDS_ON") {
-			dependsRows = stmt.Parameters["rows"].([]map[string]any)
-		}
-	}
+	dependsOn := mergeStatementContaining(t, stmts, "MERGE (p)-[r:ATLANTIS_DEPENDS_ON]->(q)")
+	dependsRows := dependsOn.Parameters["rows"].([]map[string]any)
 	if len(dependsRows) != 1 {
 		t.Fatalf("DEPENDS_ON rows = %d, want 1 (only the in-file fileA app->network); %+v", len(dependsRows), dependsRows)
 	}
