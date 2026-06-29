@@ -4,7 +4,9 @@
 
 This package owns C++-specific tree-sitter payload extraction for functions,
 classes, structs, enums, unions, includes, macros, typedef aliases, calls, and
-dead-code root metadata.
+dead-code root metadata. It also emits exact route entries for bounded literal
+Crow, Drogon, and Pistache registrations when the source proves method, path,
+and handler.
 
 ## Ownership Boundary
 
@@ -41,6 +43,16 @@ direct local header declarations can match implementations under namespace
 prefixes. It does not recurse through include graphs or resolve build targets,
 template instantiations, overload sets, broad virtual dispatch, dynamic symbol
 lookup, or external linkage.
+
+HTTP route truth is intentionally narrower than general C++ reachability.
+`framework_routes.go` reads already-located tree-sitter `call_expression` node
+text for literal Crow, Drogon, and Pistache route declarations, then emits
+`framework_semantics.{crow,drogon,pistache}.route_entries` only when the HTTP
+method, route path, and handler are all exact. Dynamic paths or methods, inline
+lambdas, generated routes, project-local callback registries, macro expansion,
+plugin loading, and runtime symbol lookup stay unclaimed. Downstream
+`HANDLES_ROUTE` projection still depends on the reducer resolving the handler
+name to one Function entity.
 
 ### Regex disposition (issue #3540)
 

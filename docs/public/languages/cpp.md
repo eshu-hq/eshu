@@ -27,6 +27,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Field declarations | `field-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathCPP` | Compose-backed fixture verification | - |
 | Macros (`#define`) | `macros-define` | supported | `macros` | `name, line_number` | `node:Macro` | `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathCPP` | Compose-backed fixture verification | - |
 | Lambda assignments | `lambda-assignments` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathCPP` | Compose-backed fixture verification | - |
+| Literal HTTP framework route truth | `cpp-literal-http-framework-route-truth` | supported | `framework_semantics.{crow,drogon,pistache}.route_entries` | `method, path, handler` for literal route registrations with named handlers | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/engine_cpp_route_semantics_test.go`, `go/internal/reducer/handles_route_cpp_test.go`, `go/internal/query/content_reader_framework_routes_test.go` | Parser-to-reducer-to-query route-entry proof | Literal Crow, Drogon, and Pistache registrations emit exact route entries only when source proves the HTTP method, route path, and handler target. |
 | Dead-code roots | `dead-code-roots` | derived | `functions.metadata.dead_code_root_kinds` | `cpp.main_function, cpp.public_header_api, cpp.virtual_method, cpp.override_method, cpp.callback_argument_target, cpp.function_pointer_target, cpp.node_addon_entrypoint` | `code_quality.dead_code` root suppression | `go/internal/parser/cpp_dead_code_roots_test.go` | Compose-backed C++ dogfood verification | Entry points, directly included local header declarations, virtual and override methods, direct callback arguments, direct function-pointer initializer targets, and Node native-addon entrypoints are modeled as non-exact roots. |
 
 ## Framework And Library Support
@@ -37,18 +38,22 @@ Supported today:
 - Derived root evidence also includes `main`, directly included local header
   declarations, virtual and override methods, callback arguments, and direct
   function-pointer initializer targets.
-- C++ HTTP framework handlers and callback registries are not exact route
-  entries today; C++ does not emit `framework_semantics.*.route_entries` or
-  `HANDLES_ROUTE` edges.
+- Literal Crow, Drogon, and Pistache route declarations emit exact
+  `framework_semantics.{crow,drogon,pistache}.route_entries` when the parser can
+  prove the HTTP method, literal path, and named handler target in source.
+  `HANDLES_ROUTE` is projected only when the reducer resolves that handler to
+  one Function entity.
 
 Not claimed today:
 
 - Macro expansion, conditional compilation, build targets, template
   instantiation, overload resolution, broad virtual dispatch, callback
-  registries, and dynamic symbol lookup remain exactness blockers.
-- Exact route-to-handler truth for C++ HTTP frameworks such as Crow, Drogon, or
-  Pistache is tracked by
-  [#4116](https://github.com/eshu-hq/eshu/issues/4116).
+  registries, generated routes, dynamic route paths or methods, lambda/inline
+  handlers, runtime plugin loading, and dynamic symbol lookup remain exactness
+  blockers.
+- C++ project-local callback registries remain source/dead-code/root evidence
+  only and do not emit route-to-handler truth unless they match the literal
+  framework shapes above.
 
 ## Known Limitations
 - Template specializations are not separately modeled

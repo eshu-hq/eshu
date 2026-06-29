@@ -77,7 +77,7 @@ func Parse(
 		"function_calls",
 		"macros",
 	)
-	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
+	payload["framework_semantics"] = buildCPPFrameworkSemantics(root, source)
 
 	return payload, nil
 }
