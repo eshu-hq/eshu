@@ -27,6 +27,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Val definitions | `val-definitions` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
 | Var definitions | `var-definitions` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
 | Parent context (class_context) | `parent-context-class-context` | supported | `functions` | `name, line_number, class_context` | `property:Function.class_context` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
+| Exact Play/http4s route entries | `play-http4s-literal-route-truth` | supported | `framework_semantics.{play,http4s}.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` when the reducer resolves one exact handler | `go/internal/parser/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactPlayRouteEntries`, `go/internal/parser/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactHttp4sRouteEntries`, `go/internal/reducer/handles_route_scala_test.go::TestBuildHandlesRouteIntentRowsEmitsScalaPlayRouteMatches`, `go/internal/query/content_reader_framework_routes_scala_test.go::TestParseFrameworkSemanticsExtractsScalaRoutes` | Golden corpus gate | Exact Play `conf/routes` and `.routes` rows plus literal http4s `HttpRoutes.of` cases emit route entries. Reducer projection stays exact-only and skips unresolved or ambiguous handlers. |
 | Dead-code roots | `dead-code-roots` | supported | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` exclusion metadata | `go/internal/parser/scala_dead_code_roots_test.go` | Fixture-backed dead-code validation plus Play Framework and Scala compiler dogfood | Derived roots for main, `App`, traits, overrides, Play, Akka, JUnit, ScalaTest, and lifecycle callbacks |
 
 ## Known Limitations
@@ -46,9 +47,15 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 Supported today:
 
 - Play controller actions, Akka actor `receive`, JUnit methods, ScalaTest
-  suites, and lifecycle callbacks are modeled as derived roots. Play roots are
-  not exact route entries; Scala does not emit
-  `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges today.
+  suites, and lifecycle callbacks are modeled as derived roots.
+- Play `conf/routes` and `.routes` files emit exact route entries only for
+  literal HTTP rows whose path is a deterministic Play path pattern and whose
+  handler is a direct `controllers.Controller.method` target. The reducer only
+  projects `HANDLES_ROUTE` when that handler resolves to one indexed function.
+- http4s source emits exact route entries only for literal `HttpRoutes.of`
+  cases shaped like `METHOD -> Root / "segment"` with a direct named handler
+  identifier in the case body. Extractor routes, dynamic roots, nested response
+  wrappers, and anonymous handler bodies are skipped.
 - `main`, objects extending `App`, traits, same-file trait implementations,
   and overrides are also modeled as root evidence.
 - Maven/Gradle vulnerability reachability can use Scala imports, calls, and
@@ -57,8 +64,10 @@ Supported today:
 
 Not claimed today:
 
-- Play route files, macros, implicit and given/using resolution, compiler
-  plugin output, sbt source sets, dynamic dispatch, reflection, and broad
-  public API surfaces remain exactness blockers.
-- Exact route-to-handler truth for Play, http4s, and other Scala web frameworks
-  is tracked by [#4164](https://github.com/eshu-hq/eshu/issues/4164).
+- Dynamic Play routes, namespaced Play controller targets, reverse routers,
+  generated route files, broader http4s extractor/dsl shapes, macros, implicit
+  and given/using resolution, compiler plugin output, sbt source sets, dynamic
+  dispatch, reflection, and broad public API surfaces remain exactness
+  blockers.
+- Exact route-to-handler truth for Scala frameworks beyond the literal Play and
+  http4s subset is not claimed.

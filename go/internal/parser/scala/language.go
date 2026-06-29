@@ -18,6 +18,9 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	if err != nil {
 		return nil, err
 	}
+	if isScalaPlayRoutesPath(path) {
+		return parseScalaPlayRoutesPayload(path, source, isDependency), nil
+	}
 	tree := parser.Parse(source, nil)
 	if tree == nil {
 		return nil, fmt.Errorf("parse scala file %q: parser returned nil tree", path)
@@ -76,7 +79,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	for _, bucket := range []string{"functions", "classes", "traits", "variables", "imports", "function_calls"} {
 		shared.SortNamedBucket(payload, bucket)
 	}
-	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
+	payload["framework_semantics"] = buildScalaFrameworkSemantics(root, source, payloadMapSlice(payload["imports"]))
 
 	return payload, nil
 }
@@ -318,4 +321,9 @@ func appendCall(payload map[string]any, nameNode *tree_sitter.Node, source []byt
 		"line_number": shared.NodeLine(nameNode),
 		"lang":        lang,
 	})
+}
+
+func payloadMapSlice(value any) []map[string]any {
+	items, _ := value.([]map[string]any)
+	return items
 }
