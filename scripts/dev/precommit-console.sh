@@ -24,11 +24,64 @@ set -euo pipefail
 
 mode="${1:-e2e}"
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${script_root}")"
 cd "${repo_root}"
 
 if [[ "${ESHU_SKIP_CONSOLE_E2E:-}" == "1" ]]; then
   echo "precommit-console: ESHU_SKIP_CONSOLE_E2E=1 set — skipping console gate (NOT verified locally)." >&2
+  exit 0
+fi
+
+commit_exists() {
+  git rev-parse --verify --quiet "$1^{commit}" >/dev/null
+}
+
+maybe_fetch_base_ref() {
+  local base_name="$1"
+  [[ -z "${base_name}" ]] && return 0
+  git fetch --no-tags --depth=50 origin "${base_name}" >/dev/null 2>&1 || true
+}
+
+resolve_diff_left() {
+  local base_ref="${ESHU_CONSOLE_E2E_BASE_REF:-origin/main}"
+  local merge_base=""
+
+  if [[ "${base_ref}" == origin/* ]]; then
+    maybe_fetch_base_ref "${base_ref#origin/}"
+  fi
+
+  if commit_exists "${base_ref}"; then
+    if merge_base="$(git merge-base "${base_ref}" HEAD 2>/dev/null)"; then
+      printf '%s\n' "${merge_base}"
+      return 0
+    fi
+
+    printf '%s\n' "${base_ref}"
+    return 0
+  fi
+
+  if commit_exists "HEAD~1"; then
+    printf '%s\n' "HEAD~1"
+    return 0
+  fi
+
+  git hash-object -t tree /dev/null
+}
+
+has_console_changes() {
+  local diff_left="$1"
+  local file_path=""
+
+  while IFS= read -r -d '' file_path; do
+    [[ -n "${file_path}" ]] && return 0
+  done < <(git diff --name-only -z --diff-filter=ACMR "${diff_left}" HEAD -- apps/console)
+
+  return 1
+}
+
+if ! has_console_changes "$(resolve_diff_left)"; then
+  echo "precommit-console: no apps/console changes in this branch; skipping console gate."
   exit 0
 fi
 
