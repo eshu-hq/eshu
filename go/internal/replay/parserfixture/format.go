@@ -117,6 +117,32 @@ func LoadFile(path string) (File, error) {
 	return f, nil
 }
 
+// LoadFileRehydrated reads a portable parser fixture from path and rehydrates its
+// repo-root sentinel against repoRoot before validating, so a committed fixture's
+// tokenized provenance and payload paths become the local absolute paths the live
+// parser produces. A fixture without a sentinel (an absolute-path temp-dir
+// recording) loads unchanged. repoRoot is required.
+func LoadFileRehydrated(path, repoRoot string) (File, error) {
+	if strings.TrimSpace(repoRoot) == "" {
+		return File{}, errNoRepoRoot
+	}
+	// #nosec G304 -- path is an operator-supplied fixture location (repo-shipped
+	// testdata / recorder output), not user- or request-derived input.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return File{}, fmt.Errorf("read parser fixture %q: %w", path, err)
+	}
+	data, err = rehydrate(data, repoRoot)
+	if err != nil {
+		return File{}, fmt.Errorf("parser fixture %q: %w", path, err)
+	}
+	f, err := ParseAndValidate(data)
+	if err != nil {
+		return File{}, fmt.Errorf("parser fixture %q: %w", path, err)
+	}
+	return f, nil
+}
+
 // ParseAndValidate decodes parser-fixture bytes and runs structural validation
 // without touching the filesystem, so on-disk fixtures and in-memory candidates
 // (the recorder's load-back guard) go through one validation path.

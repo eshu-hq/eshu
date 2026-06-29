@@ -46,6 +46,10 @@ production-faithful.
 - `File`/`Scope`/`Fact` (`format.go`) — the fixture JSON schema and validation.
   `SourceURI` is a required fact field: a fixture that drops provenance is
   rejected at load.
+- `portable.go` — the portability seam. `portableize` replaces the absolute
+  repository root with a `{{REPO_ROOT}}` sentinel on record; `rehydrate` binds it
+  back to the local checkout on replay. This is what makes a committed fixture
+  machine-independent.
 
 ## Fixture format
 
@@ -79,10 +83,40 @@ generation_id already equals its recorded/replayed form (record is a no-op on
 it, and live == replayed exactly).
 
 Note: a `file` fact's payload embeds the parser output under `parsed_file_data`,
-which carries the absolute `path`. Recordings driven over an absolute tree are
-therefore machine-specific; the round-trip test records to a temp dir and
-compares live-vs-replayed in the same process. A committed, portable corpus is
-left to the R-5 wiring step (see below).
+which carries the absolute `path`, and `source_uri` is the absolute file path.
+Recordings driven over an absolute tree are therefore machine-specific. A
+committed fixture must instead be portable: record with `RecordOptions.RepoRoot`
+so the repository root is tokenized to `{{REPO_ROOT}}`, and replay it with
+`NewSourceRehydrated(path, repoRoot)` so the sentinel binds back to the local
+checkout and the envelopes match the live parser byte-for-byte. A temp-dir
+recording (no `RepoRoot`) keeps absolute paths and replays through `NewSource`.
+
+## Committed fixtures (C-3, #4175)
+
+Every parser in `specs/parser-backing-ledger.v1.yaml` (cloudformation,
+dockerfile, hcl, yaml) has a portable committed fixture under
+`testdata/fixtures/<parser>.fixture.json`, recorded over a package-local,
+parser-focused tree in `testdata/trees/<parser>/`. These back the C-1
+replay-coverage manifest's `parser:<name>` surfaces, taking parser coverage to
+100% of the ledger.
+
+`committed_fixtures_test.go` is the proof gate (`proof_gate: parserfixture-tests`
+in the manifest):
+
+- `TestCommittedParserFixturesAreCurrent` re-records each tree with the live
+  parser and asserts it byte-matches the committed fixture, so a parser change
+  that drops or mis-attributes a fact shows up as a fixture diff in CI.
+- `TestCommittedParserFixturesReplayGreenWithProvenance` replays each committed
+  fixture (rehydrated) and asserts the envelopes + `SourceRef` provenance match
+  the live parser and that the intended parser's domain extraction ran.
+- `TestLedgerCasesMatchSpec` fails if the ledger gains or loses a parser without
+  a matching fixture, keeping coverage at 100%.
+
+Regenerate after a deliberate parser change, then review the diff:
+
+```bash
+cd go && go test ./internal/replay/parserfixture/ -update-fixtures -count=1
+```
 
 ## R-5 integration status
 
@@ -92,7 +126,9 @@ gate for this flavor. The R-5 offline replay tier (#4107) is not yet on `main`,
 so this package is intentionally NOT coupled to it. The clean seam for R-5 to
 exercise these fixtures is `parserfixture.Source` (a `replay.Source`) plus
 `parserfixture.NewSource(path)`; when R-5 lands, a thin adapter registers the
-parser fixtures into that tier with no change to this package's contract.
+parser fixtures into that tier with no change to this package's contract. A
+committed, portable fixture exposes `parserfixture.NewSourceRehydrated(path,
+repoRoot)` for the same purpose.
 
 ## Validate
 
@@ -106,10 +142,13 @@ cd go && go test ./internal/replay/parserfixture/... -count=1
 `Source` performs no parser run, no network call, and no filesystem read beyond
 loading the fixture; it holds no shared mutable state beyond a single drained
 flag advanced single-threaded per `collector.Service`. The record→replay
-round-trip reproduces identical envelopes including provenance for the Go and
-HCL parsers; a changed or dropped `SourceURI` is caught by the round-trip and
-loader gates (proven failing-capable by a false-green probe). Re-record is
-byte-identical (canonical determinism). Verified by
+round-trip reproduces identical envelopes including provenance for every
+parser-backing-ledger parser (cloudformation, dockerfile, hcl, yaml) plus the Go
+demo; a changed or dropped `SourceURI` is caught by the round-trip and loader
+gates (proven failing-capable by a false-green probe), and the portability seam
+is proven the inverse of itself with a mutation check. Re-record is
+byte-identical (canonical determinism), and committed fixtures carry no
+machine-specific checkout path. Verified by
 `go test ./internal/replay/parserfixture/... -count=1`.
 
 ## No-Observability-Change

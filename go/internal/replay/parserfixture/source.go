@@ -38,9 +38,23 @@ type Source struct {
 	drained bool
 }
 
-// NewSource loads a parser fixture from path and returns a ready Source.
+// NewSource loads a parser fixture from path and returns a ready Source. Use it
+// for non-portable (absolute-path) fixtures such as a temp-dir recording.
 func NewSource(path string) (*Source, error) {
 	f, err := LoadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return &Source{File: f}, nil
+}
+
+// NewSourceRehydrated loads a portable committed fixture from path, rehydrating
+// its repo-root sentinel against repoRoot, and returns a ready Source. This is
+// the replay entry point for committed fixtures, whose provenance and payload
+// paths are stored machine-independently and must be rebound to the local
+// checkout to reproduce the live parser's absolute paths exactly.
+func NewSourceRehydrated(path, repoRoot string) (*Source, error) {
+	f, err := LoadFileRehydrated(path, repoRoot)
 	if err != nil {
 		return nil, err
 	}

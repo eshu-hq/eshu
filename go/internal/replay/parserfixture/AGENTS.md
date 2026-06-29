@@ -26,10 +26,19 @@
   so the live generation_id already equals its canonical form (live == replayed).
 - `Source` MUST implement `replay.Source` (which embeds `collector.Source`) and
   emit one `CollectedGeneration`, then return `ok=false` to signal exhaustion.
-- Synthetic/portable identities only in any COMMITTED fixture. The `file` payload
-  embeds the parser output, which carries an absolute `path`; do not commit a
-  recording made over an absolute tree as a portable corpus. The round-trip test
-  records to a temp dir. A committed corpus needs path normalization first.
+- Portable identities only in any COMMITTED fixture. The `file` payload embeds
+  the parser output, which carries an absolute `path`, and `source_uri` is
+  absolute. A committed fixture MUST be recorded with `RecordOptions.RepoRoot` so
+  the repo root is tokenized to `{{REPO_ROOT}}` (`portable.go`), and replayed with
+  `NewSourceRehydrated`/`LoadFileRehydrated`. `TestCommittedParserFixturesAreCurrent`
+  asserts no committed fixture leaks an absolute checkout path; do not weaken it.
+  A temp-dir round-trip recording (no `RepoRoot`) keeps absolute paths and is not
+  committed.
+- Ledger lockstep. Every parser in `specs/parser-backing-ledger.v1.yaml` MUST
+  have a committed fixture under `testdata/fixtures/` and a case in
+  `committed_fixtures_test.go`; `TestLedgerCasesMatchSpec` enforces this so C-1
+  parser coverage cannot silently drop below 100%. Regenerate fixtures with
+  `-update-fixtures` and review the diff — never hand-edit a fixture.
 - Fixture format version is `"1"`. Increment with a migration note for breaking
   changes; do not silently change the shape.
 
@@ -48,4 +57,4 @@
 - Allow `LoadFile` to succeed when `source_uri` or other required fields are
   missing.
 - Couple this package to the R-5 offline tier before R-5 is on `main`; expose the
-  `Source`/`NewSource` seam and let R-5 adapt to it.
+  `Source`/`NewSource`/`NewSourceRehydrated` seam and let R-5 adapt to it.
