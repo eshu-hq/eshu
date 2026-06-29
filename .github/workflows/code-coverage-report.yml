@@ -44,7 +44,7 @@ jobs:
           cache-dependency-path: go/go.sum
       - name: Generate advisory Go coverage report
         env:
-          ESHU_CODE_COVERAGE_PROFILE_OUT: go-code-coverage.out
+          ESHU_CODE_COVERAGE_PROFILE_OUT: ${{ github.workspace }}/go-code-coverage.out
           ESHU_CODE_COVERAGE_REPORT_OUT: code-coverage.md
           ESHU_CODE_COVERAGE_SHIELD_OUT: code-coverage-shield.json
         run: bash scripts/generate-code-coverage-report.sh

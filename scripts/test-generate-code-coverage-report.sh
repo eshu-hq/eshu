@@ -96,6 +96,7 @@ require "README proof caveat" "one signal, not a replacement" "${repo_root}/READ
 [[ -f "${workflow}" ]] && record_pass "coverage workflow exists" || record_fail "coverage workflow is missing"
 require "workflow runs test mirror" "scripts/test-generate-code-coverage-report.sh" "${workflow}"
 require "workflow runs generator" "scripts/generate-code-coverage-report.sh" "${workflow}"
+require "workflow writes coverage profile at workspace root" 'ESHU_CODE_COVERAGE_PROFILE_OUT: ${{ github.workspace }}/go-code-coverage.out' "${workflow}"
 require "workflow uploads report artifact" "code-coverage-report" "${workflow}"
 require "workflow safe for forks" "permissions:" "${workflow}"
 
