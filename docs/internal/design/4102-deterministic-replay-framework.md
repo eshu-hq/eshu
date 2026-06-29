@@ -257,3 +257,54 @@ case directly (looped, `-race`).
   held-pending-retract class, #3859 / #2340).
 - **R-18 (#4127) — schema-version compatibility replay** (old cassette vs new
   code, never silent-wrong).
+
+## 12. Coverage completeness (epic #4172) — the gate that keeps the library full
+
+The framework (this epic, #4102) is the replay *player*; epic
+[#4172](https://github.com/eshu-hq/eshu/issues/4172) builds the *tape library* and
+the *coverage proof* on top of it. The player can replay anything, but scenarios
+have been authored for only a fraction of the supported surface (≈9 of 21
+collector binaries have a cassette, ≈2 of 17 parsers an R-7 fixture). The value is
+not realized until coverage is complete, and stays complete.
+
+### 12.1 C-1 — the keystone coverage gate (#4173)
+
+`go/cmd/replay-coverage-gate` (logic in `go/internal/replaycoverage`) is the
+keystone. It enumerates every surface Eshu claims to support from four
+machine-readable source-of-truth registries and reports any surface lacking a
+green replay scenario:
+
+| Registry | Required surface | Scenario type |
+| --- | --- | --- |
+| `surface-inventory.v1.yaml` | collectors on the **implemented** readiness lane | cassette |
+| `fact-kind-registry.v1.yaml` | each distinct `read_surface` | api/mcp golden |
+| `parser-backing-ledger.v1.yaml` | each parser | parser fixture |
+| `capability-matrix.v1.yaml` | each positively-claimed capability | claim / refusal |
+
+A curated manifest (`specs/replay-coverage-manifest.v1.yaml`) maps each surface to
+the scenario that exercises it — the natural keys differ across registries and
+artifacts (the `collector:aws` surface is exercised by the cassette under
+`testdata/cassettes/awscloud`), a mapping no single registry can express. The gate
+**composes with** the existing capability-inventory drift gate (it reuses the same
+generated registries) and **reuses** the golden-corpus gate's advisory→blocking
+`goldengate.Finding`/`Report` machinery.
+
+Coverage is **existence-only**: the gate proves a scenario artifact exists and is
+wired, not that it passes. Greenness is proven by the sibling gate named in each
+manifest entry's `proof_gate` (golden-corpus-gate, the parser fixture tests). That
+split keeps the coverage gate static, credential-free, and Docker-free while never
+claiming a green it did not observe.
+
+It ships **advisory**: a coverage gap is reported (and emitted in a JSON
+coverage-report artifact for the C-7 dashboard) but does not fail CI. Its red
+output **is** the C-2..C-6 backfill worklist; its eventual green **is** "we cover
+everything we said we support." A single `-blocking` flag flips every uncovered,
+unresolved, and stale finding to required, applied once C-2..C-6 burn the gaps
+down so coverage never regresses.
+
+### 12.2 Children
+
+C-1 first (keystone, advisory/red). Then C-2..C-6 in parallel (bulk backfill —
+collectors, parsers, correlations/edges, API+MCP surfaces, capability claims; each
+flips a slice of C-1 green). C-7 (coverage dashboard) builds alongside C-1 on the
+same coverage-report artifact. Flip C-1 to blocking last.
