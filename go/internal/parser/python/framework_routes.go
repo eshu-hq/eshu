@@ -44,7 +44,9 @@ func buildPythonFrameworkSemantics(root *tree_sitter.Node, source []byte) map[st
 	flask := detectPythonFlaskSemantics(root, source)
 	django := detectPythonDjangoSemantics(root, source)
 	drf := detectPythonDRFSemantics(root, source)
-	frameworks := make([]string, 0, 4)
+	aiohttp := detectPythonAioHTTPSemantics(root, source)
+	tornado := detectPythonTornadoSemantics(root, source)
+	frameworks := make([]string, 0, 6)
 	semantics := map[string]any{
 		"frameworks": []string{},
 	}
@@ -63,6 +65,14 @@ func buildPythonFrameworkSemantics(root *tree_sitter.Node, source []byte) map[st
 	if drf != nil {
 		frameworks = append(frameworks, "drf")
 		semantics["drf"] = drf
+	}
+	if aiohttp != nil {
+		frameworks = append(frameworks, "aiohttp")
+		semantics["aiohttp"] = aiohttp
+	}
+	if tornado != nil {
+		frameworks = append(frameworks, "tornado")
+		semantics["tornado"] = tornado
 	}
 	semantics["frameworks"] = frameworks
 	return semantics
