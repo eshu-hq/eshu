@@ -121,6 +121,10 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 		definition, ok := r.byKey["java_metadata"]
 		return cloneDefinition(definition), ok
 	}
+	if isScalaPlayRoutesPath(path) {
+		definition, ok := r.byKey["scala"]
+		return cloneDefinition(definition), ok
+	}
 
 	base := strings.ToLower(filepath.Base(path))
 	if strings.HasSuffix(base, ".tfvars.json") {
@@ -142,6 +146,13 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 	}
 	definition, ok := r.byExtension[extension]
 	return cloneDefinition(definition), ok
+}
+
+func isScalaPlayRoutesPath(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
+	return normalized == "conf/routes" ||
+		strings.HasSuffix(normalized, "/conf/routes") ||
+		strings.HasSuffix(normalized, ".routes")
 }
 
 func isJavaMetadataPath(path string) bool {

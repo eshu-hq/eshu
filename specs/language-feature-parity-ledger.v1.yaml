@@ -292,13 +292,13 @@ language_features:
     docs_claim: docs/public/languages/scala.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [functions-def, classes, objects-object, traits, imports, function-calls, generic-function-calls, val-definitions, var-definitions, parent-context-class-context, dead-code-roots]
-    partial_features: [play-http4s-route-truth, outbound-contracts]
+    supported_features: [functions-def, classes, objects-object, traits, imports, function-calls, generic-function-calls, val-definitions, var-definitions, parent-context-class-context, dead-code-roots, play-http4s-literal-route-truth]
+    partial_features: [broader-play-http4s-route-truth, outbound-contracts]
     derived_features: []
-    source_files: [go/internal/parser/scala_language.go, go/internal/parser/scala/language.go]
-    test_files: [go/internal/parser/engine_scala_imports_test.go, go/internal/parser/scala_dead_code_roots_test.go]
+    source_files: [go/internal/parser/scala_language.go, go/internal/parser/scala/language.go, go/internal/parser/scala/framework_routes.go]
+    test_files: [go/internal/parser/engine_scala_imports_test.go, go/internal/parser/scala_dead_code_roots_test.go, go/internal/parser/scala_route_entries_test.go, go/internal/reducer/handles_route_scala_test.go, go/internal/query/content_reader_framework_routes_scala_test.go]
     docs: [docs/public/languages/scala.md]
-    read_surfaces: [execute_language_query, find_dead_code]
+    read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4164]
   - language: sql
     docs_claim: docs/public/languages/sql.md

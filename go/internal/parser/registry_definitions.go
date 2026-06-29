@@ -171,7 +171,7 @@ func defaultDefinitions() []Definition {
 		{
 			ParserKey:  "scala",
 			Language:   "scala",
-			Extensions: []string{".sc", ".scala"},
+			Extensions: []string{".sc", ".scala", ".routes"},
 		},
 		{
 			ParserKey:  "sql",
