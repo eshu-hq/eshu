@@ -195,7 +195,7 @@ surfaces:
     collector_contract:
       fact_kinds: &observability_fact_kinds [observability.applied_resource, observability.applied_sync_state, observability.coverage_warning, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route, observability.observed_dashboard, observability.observed_log_signal, observability.observed_rule, observability.observed_target, observability.observed_trace_signal, observability.source_instance]
       projection_surfaces: [observability_coverage_correlation]
-      read_surfaces: [GET /api/v0/observability/coverage, list_observability_coverage]
+      read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
       proof_gates: [cd go && go test ./cmd/collector-grafana ./internal/collector/grafana ./internal/reducer ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/grafana/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
@@ -208,7 +208,7 @@ surfaces:
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
-      read_surfaces: [GET /api/v0/observability/coverage, list_observability_coverage]
+      read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
       proof_gates: [cd go && go test ./cmd/collector-loki ./internal/collector/loki ./internal/reducer ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/loki/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
@@ -221,7 +221,7 @@ surfaces:
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
-      read_surfaces: [GET /api/v0/observability/coverage, list_observability_coverage]
+      read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
       proof_gates: [cd go && go test ./cmd/collector-prometheus-mimir ./internal/collector/prometheusmimir ./internal/reducer ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/prometheusmimir/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
@@ -234,7 +234,7 @@ surfaces:
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
-      read_surfaces: [GET /api/v0/observability/coverage, list_observability_coverage]
+      read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
       proof_gates: [cd go && go test ./cmd/collector-tempo ./internal/collector/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/collector/tempo/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated

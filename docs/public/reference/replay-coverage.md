@@ -160,7 +160,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `read_surface:GET /api/v0/iac/resources` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50` |
 | `read_surface:GET /api/v0/images` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
 | `read_surface:GET /api/v0/incidents/{incident_id}/context` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/incidents/PSCD1/context` |
-| `read_surface:GET /api/v0/observability/coverage` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
+| `read_surface:GET /api/v0/observability/coverage/correlations` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
 | `read_surface:GET /api/v0/package-registry/packages` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |
 | `read_surface:GET /api/v0/secrets-iam/posture-summary` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/semantic-evidence` | exempt | — | — |

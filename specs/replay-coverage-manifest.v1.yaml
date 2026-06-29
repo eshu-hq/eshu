@@ -122,10 +122,11 @@ coverage:
     scenario: api_mcp_golden
     ref: GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000
     proof_gate: golden-corpus-gate
-  # observability/coverage: the fact-kind registry surface key is the bare path,
-  # but the mounted route is .../coverage/correlations — the ref targets the real
-  # route (a query-param selector is required).
-  - surface: read_surface:GET /api/v0/observability/coverage
+  # observability/coverage: the fact-kind registry read_surface was corrected from
+  # the unmounted bare path to the real mounted route (.../coverage/correlations)
+  # so the surface key and the proven route match (a query-param selector is
+  # required).
+  - surface: read_surface:GET /api/v0/observability/coverage/correlations
     scenario: api_mcp_golden
     ref: GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50
     proof_gate: golden-corpus-gate
