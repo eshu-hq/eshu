@@ -39,7 +39,7 @@ Patterns with a leading `/` or trailing `/` never match.
 
 ## Drift semantics ([#4220](https://github.com/eshu-hq/eshu/issues/4220))
 
-`DriftCheck(repoRoot, reg)` keeps the hook/preflight/workflow surfaces in lockstep with the registry. It fails when:
+`DriftCheck(repoRoot, reg)` keeps the pre-commit-hook and workflow surfaces in lockstep with the registry. (Reconciling `make pre-pr`'s step set is [#4214](https://github.com/eshu-hq/eshu/issues/4214), which makes `pre-pr.sh` registry-driven.) It fails when:
 
 1. a `local` pre-commit hook id is neither a gate's `hook_id` nor a declared `hygiene_hooks` entry;
 2. a gate's `hook_id` is missing from `.pre-commit-config.yaml`, or its hook stage is inconsistent with the gate tier (pre-commit gate ⇒ stage `pre-commit`/default; pre-push gate ⇒ stage `pre-push`);

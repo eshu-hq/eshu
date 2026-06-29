@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # CI gate registry integrity checker (#4213, drift extension #4220). Verifies
 # that every entry in specs/ci-gates.v1.yaml references a script and workflow
-# file that exists on disk. With --drift it ALSO checks hook/preflight/workflow
-# registry completeness against .pre-commit-config.yaml and .github/workflows/.
-# Credential-free, Docker-free, network-free.
+# file that exists on disk. With --drift it ALSO checks pre-commit-hook and
+# workflow registry completeness against .pre-commit-config.yaml and
+# .github/workflows/. Credential-free, Docker-free, network-free.
 #
 # Usage:
 #   scripts/verify-ci-gates-registry.sh           # integrity only

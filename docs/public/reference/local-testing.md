@@ -46,13 +46,15 @@ bash scripts/verify-ci-gates-registry.sh --drift
 The registry lives at `specs/ci-gates.v1.yaml`. Gates marked CI-only (no local
 command) are always printed with a reason but never executed locally.
 
-The `--drift` check (#4220) keeps `.pre-commit-config.yaml`, `scripts/dev/pre-pr.sh`,
-and `.github/workflows/` in lockstep with the registry: every local pre-commit
-hook must map to a gate's `hook_id` or a declared `hygiene_hooks` entry, and
-every workflow must be referenced by a gate or listed in `non_gate_workflows`
-with a reason. It runs in pre-commit (the `gate-registry-drift` hook) and in CI
+The `--drift` check (#4220) keeps `.pre-commit-config.yaml` and
+`.github/workflows/` in lockstep with the registry: every local pre-commit hook
+must map to a gate's `hook_id` or a declared `hygiene_hooks` entry, and every
+workflow must be referenced by a gate or listed in `non_gate_workflows` with a
+reason. It runs in pre-commit (the `gate-registry-drift` hook) and in CI
 (`verify-ci-gate-registry.yml`), so adding a workflow or hook without registering
-it fails fast.
+it fails fast. (Reconciling `make pre-pr`'s step set against the registry is
+[#4214](https://github.com/eshu-hq/eshu/issues/4214), which makes `pre-pr.sh`
+registry-driven via the gate selector instead of a hard-coded step list.)
 
 ## Common Compose Environment
 

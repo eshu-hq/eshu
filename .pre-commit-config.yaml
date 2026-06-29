@@ -114,8 +114,10 @@ repos:
 
       # Gate-registry drift (mirrors verify-ci-gate-registry.yml): when the gate
       # registry, its loader/CLI, this hook config, pre-pr, or any workflow
-      # changes, verify .pre-commit-config.yaml / pre-pr / workflows stay in
+      # changes, verify the pre-commit hooks and .github/workflows/ stay in
       # lockstep with specs/ci-gates.v1.yaml. Credential-free, Docker-free.
+      # (pre-pr step reconciliation lands in #4214 via the registry-driven
+      # selector; pre-pr.sh is a trigger here so this re-runs when it changes.)
       - id: gate-registry-drift
         name: ci-gate registry + hook/workflow drift
         entry: scripts/verify-ci-gates-registry.sh --drift

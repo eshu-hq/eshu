@@ -16,6 +16,12 @@ import (
 // consistent with the gate registry. It accumulates all errors rather than
 // stopping at the first; a nil or empty slice means the tree is drift-free.
 //
+// Scope: this reconciles the two surfaces with discrete, enumerable entries —
+// pre-commit hooks and workflow files. Reconciling scripts/dev/pre-pr.sh's step
+// set against the registry is #4214, which replaces pre-pr.sh's hard-coded steps
+// with the registry-driven gate selector; until then pre-pr.sh is only a trigger
+// for re-running this check, not a surface it parses.
+//
 // Checks performed (#4220 AC):
 //
 //  1. Hook → registry/hygiene: every local repo hook id in
