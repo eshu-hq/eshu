@@ -175,9 +175,9 @@ is_evidence_file() {
     docs/public/adrs/*.md) return 0 ;;
     docs/public/reference/*.md) return 0 ;;
     docs/public/reference/**/*.md) return 0 ;;
-    go/**/evidence-*.md) return 0 ;;
-    go/**/README.md) return 0 ;;
-    go/**/AGENTS.md) return 0 ;;
+    go/*/evidence-*.md|go/*/*/evidence-*.md|go/*/*/*/evidence-*.md|go/*/*/*/*/evidence-*.md|go/*/*/*/*/*/evidence-*.md) return 0 ;;
+    go/*/README.md|go/*/*/README.md|go/*/*/*/README.md|go/*/*/*/*/README.md|go/*/*/*/*/*/README.md) return 0 ;;
+    go/*/AGENTS.md|go/*/*/AGENTS.md|go/*/*/*/AGENTS.md|go/*/*/*/*/AGENTS.md|go/*/*/*/*/*/AGENTS.md) return 0 ;;
     *) return 1 ;;
   esac
 }
