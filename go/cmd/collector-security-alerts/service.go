@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts/alertruntime"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -22,6 +23,32 @@ import (
 )
 
 var fallbackClaimSequence uint64
+
+// buildCassetteService wires a credential-free cassette source onto the shared
+// collector commit boundary, replacing the live claimed source. It requires no
+// security-alert provider credentials and is used by the golden-corpus gate.
+func buildCassetteService(
+	database postgres.ExecQueryer,
+	cassettePath string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.Service, error) {
+	src, err := cassette.NewSource(cassettePath)
+	if err != nil {
+		return collector.Service{}, fmt.Errorf("load cassette: %w", err)
+	}
+	committer := postgres.NewIngestionStore(database)
+	committer.Logger = logger
+	return collector.Service{
+		Source:       src,
+		Committer:    committer,
+		PollInterval: 24 * time.Hour,
+		Tracer:       tracer,
+		Instruments:  instruments,
+		Logger:       logger,
+	}, nil
+}
 
 func buildClaimedService(
 	database postgres.ExecQueryer,

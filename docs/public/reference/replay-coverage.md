@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 12/163 surfaces satisfied (7.36%)** — mode: advisory.
+**Overall: 13/163 surfaces satisfied (7.98%)** — mode: advisory.
 
 ## Coverage by axis
 
@@ -13,14 +13,14 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Capability claims | 0 | 126 | 0.00% | 126 | 0 |
 | Read surfaces (API/MCP) | 0 | 16 | 0.00% | 16 | 0 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
-| Collectors | 8 | 17 | 47.06% | 9 | 0 |
-| **Total** | **12** | **163** | **7.36%** | **151** | **0** |
+| Collectors | 9 | 17 | 52.94% | 8 | 0 |
+| **Total** | **13** | **163** | **7.98%** | **150** | **0** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-151 surface(s) uncovered or unresolved:
+150 surface(s) uncovered or unresolved:
 
-### Collectors (9)
+### Collectors (8)
 
 - `collector:documentation`
 - `collector:git`
@@ -28,7 +28,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `collector:pagerduty`
 - `collector:sbom_attestation`
 - `collector:scanner_worker`
-- `collector:security_alert`
 - `collector:vulnerability_intelligence`
 - `collector:webhook`
 
@@ -180,7 +179,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 - `capability:visualization.packet_derivation`
 - `capability:work_item.evidence.list`
 
-## Covered surfaces (12)
+## Covered surfaces (13)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
@@ -194,5 +193,6 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `collector:oci_registry` | cassette | golden-corpus-gate | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
 | `collector:package_registry` | cassette | golden-corpus-gate | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
 | `collector:prometheus_mimir` | cassette | golden-corpus-gate | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
+| `collector:security_alert` | cassette | golden-corpus-gate | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
 | `collector:tempo` | cassette | golden-corpus-gate | `testdata/cassettes/tempo/supply-chain-demo.json` |
 | `collector:terraform_state` | cassette | golden-corpus-gate | `testdata/cassettes/terraformstate/supply-chain-demo.json` |

@@ -93,6 +93,7 @@ collector_specs=(
 	"collector-tempo:tempo"
 	"collector-grafana:grafana"
 	"collector-loki:loki"
+	"collector-security-alerts:securityalerts"
 )
 
 cassette_recording="supply-chain-demo.json"

@@ -1,0 +1,76 @@
+{
+  "collector": "security_alert",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "security_alert:supply-chain-demo:supply-chain-demo",
+      "source_system": "security_alert",
+      "scope_kind": "repository_alert_source",
+      "collector_kind": "security_alert",
+      "partition_key": "security_alert:supply-chain-demo:supply-chain-demo",
+      "metadata": {
+        "provider": "github_dependabot",
+        "repository": "supply-chain-demo"
+      },
+      "generation_id": "cassette-security-alert-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "security_alert.repository_alert",
+          "stable_fact_key": "security_alert:supply-chain-demo:repository_alert:42",
+          "schema_version": "1.0.0",
+          "collector_kind": "security_alert",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "collector-security-alert-scd",
+            "provider": "github_dependabot",
+            "provider_alert_id": "github_dependabot:security_alert:supply-chain-demo:supply-chain-demo:42",
+            "provider_alert_number": 42,
+            "provider_state": "open",
+            "repository_id": "security_alert:supply-chain-demo:supply-chain-demo",
+            "ecosystem": "npm",
+            "package_name": "supply-chain-demo-lib",
+            "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+            "manifest_path": "package-lock.json",
+            "dependency_scope": "runtime",
+            "relationship": "direct",
+            "ghsa_ids": ["GHSA-scd0-0000-demo"],
+            "cve_ids": ["CVE-2026-00000"],
+            "vulnerable_range": "<1.2.3",
+            "patched_version": "1.2.3",
+            "severity": "high",
+            "cvss": {
+              "score": 7.5,
+              "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+            },
+            "epss": {
+              "percentage": "0.004",
+              "percentile": "0.55"
+            },
+            "cwes": [
+              {
+                "cwe_id": "CWE-79",
+                "name": "Improper Neutralization of Input During Web Page Generation"
+              }
+            ],
+            "summary": "Synthetic supply-chain-demo advisory for replay coverage",
+            "description": "Synthetic Dependabot alert used by the golden-corpus replay cassette.",
+            "created_at": "2026-06-20T00:00:00Z",
+            "updated_at": "2026-06-24T00:00:00Z",
+            "fixed_at": "",
+            "dismissed_at": "",
+            "source_url": "https://github.com/supply-chain-demo/app/security/dependabot/42",
+            "correlation_anchors": [
+              "github_dependabot:security_alert:supply-chain-demo:supply-chain-demo:42",
+              "npm://registry.npmjs.org/supply-chain-demo-lib",
+              "GHSA-scd0-0000-demo",
+              "CVE-2026-00000"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

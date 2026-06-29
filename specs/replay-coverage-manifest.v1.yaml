@@ -65,6 +65,10 @@ coverage:
     scenario: cassette
     ref: testdata/cassettes/loki/supply-chain-demo.json
     proof_gate: golden-corpus-gate
+  - surface: collector:security_alert
+    scenario: cassette
+    ref: testdata/cassettes/securityalerts/supply-chain-demo.json
+    proof_gate: golden-corpus-gate
 
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
