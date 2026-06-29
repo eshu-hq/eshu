@@ -107,6 +107,49 @@ func TestParseFrameworkSemanticsSurfacesRouteHandlerSymbol(t *testing.T) {
 	}
 }
 
+func TestParseFrameworkSemanticsExtractsSwiftVaporGroupedRoutes(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["vapor"],
+		"vapor": {
+			"route_methods": ["GET", "PATCH"],
+			"route_paths": ["/api/users", "/api/users/{id}"],
+			"route_entries": [
+				{"method": "GET", "path": "/api/users", "handler": "listUsers"},
+				{"method": "PATCH", "path": "/api/users/{id}", "handler": "updateUser"}
+			]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("Sources/App/Routes.swift", raw)
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	vapor := results[0]
+	if got, want := vapor.Framework, "vapor"; got != want {
+		t.Fatalf("Framework = %q, want %q", got, want)
+	}
+	if got, want := vapor.RelativePath, "Sources/App/Routes.swift"; got != want {
+		t.Fatalf("RelativePath = %q, want %q", got, want)
+	}
+	if len(vapor.RouteEntries) != 2 {
+		t.Fatalf("len(RouteEntries) = %d, want 2", len(vapor.RouteEntries))
+	}
+	if got, want := vapor.RouteEntries[0].Path, "/api/users"; got != want {
+		t.Fatalf("RouteEntries[0].Path = %q, want %q", got, want)
+	}
+	if got, want := vapor.RouteEntries[0].Handler, "listUsers"; got != want {
+		t.Fatalf("RouteEntries[0].Handler = %q, want %q", got, want)
+	}
+	if got, want := vapor.RouteEntries[1].Method, "PATCH"; got != want {
+		t.Fatalf("RouteEntries[1].Method = %q, want %q", got, want)
+	}
+	if got, want := vapor.RouteEntries[1].Path, "/api/users/{id}"; got != want {
+		t.Fatalf("RouteEntries[1].Path = %q, want %q", got, want)
+	}
+}
+
 func TestParseFrameworkSemanticsExtractsGoFrameworkRoutes(t *testing.T) {
 	t.Parallel()
 

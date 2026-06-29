@@ -34,8 +34,10 @@ read as framework evidence from the `value_argument_label` `use`
 (`collectSwiftVaporRoutes`) to feed the `swift.vapor_route_handler` dead-code
 root. The same AST-backed pass may emit `framework_semantics.vapor.route_entries`
 only when the receiver is typed `Application` or `RoutesBuilder` and the route
-method, path, and handler are exact from syntax. Do not migrate this evidence to
-a symbol row or source-text scan.
+method, path, and handler are exact from syntax. Literal route groups are exact
+only when the parent receiver is already proven, the group prefix is literal,
+and the closure parameter is a simple identifier. Do not migrate this evidence
+to a symbol row or source-text scan.
 
 Dead-code reachability hints belong in parser metadata as
 `dead_code_root_kinds`. Keep Swift root modeling bounded to syntax and
