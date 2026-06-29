@@ -27,7 +27,7 @@ func catalogEnforcedAdminAuth(features ...string) AuthContext {
 // TestBrowserSessionAdminReadsRequireCatalogFeature proves that an all-scope
 // browser session with an enforced catalog snapshot must still carry the route's
 // permission family. The denial must happen before the tenant-scoped store read.
-func TestBrowserSessionAdminReadsRequireCatalogFeature(t *testing.T) {
+func TestBrowserSessionHandleListInvitationsHandleListRoleAssignmentsHandleListRolesHandleListIdPProvidersHandleListIdPGroupMappingsHandleListAPITokensRequireCatalogFeature(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -123,7 +123,7 @@ func TestBrowserSessionAdminMutationsRequireCatalogFeature(t *testing.T) {
 	}
 }
 
-func TestBrowserSessionAPITokenMutationsRequireTokenCatalogFeature(t *testing.T) {
+func TestBrowserSessionHandleCreateAPITokenHandleRevokeAPITokenHandleRotateAPITokenMutationsRequireTokenCatalogFeature(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
@@ -170,7 +170,7 @@ func TestBrowserSessionAPITokenMutationsRequireTokenCatalogFeature(t *testing.T)
 	}
 }
 
-func TestBrowserSessionLocalIdentityAdminRoutesRequireCatalogFeature(t *testing.T) {
+func TestBrowserSessionHandleCreateInvitationHandleResetPasswordHandleResetMFAHandleDisableUserRequireCatalogFeature(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeLocalIdentityStore{}
@@ -218,7 +218,7 @@ func TestBrowserSessionLocalIdentityAdminRoutesRequireCatalogFeature(t *testing.
 	}
 }
 
-func TestBrowserSessionAuditReadsRequireAuditCatalogFeature(t *testing.T) {
+func TestBrowserSessionHandleListAuditEventsAuditReadsRequireAuditCatalogFeature(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeAdminAuditReader{}
