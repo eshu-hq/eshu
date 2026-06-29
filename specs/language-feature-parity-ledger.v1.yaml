@@ -50,13 +50,13 @@ language_features:
     docs_claim: docs/public/languages/cpp.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [functions, classes, structs, enums, unions, includes, function-calls, method-calls, variables-initialized, field-declarations, macros-define, lambda-assignments]
-    partial_features: [cpp-http-framework-route-truth]
+    supported_features: [functions, classes, structs, enums, unions, includes, function-calls, method-calls, variables-initialized, field-declarations, macros-define, lambda-assignments, cpp-literal-http-framework-route-truth]
+    partial_features: [cpp-generated-dynamic-http-route-truth]
     derived_features: [dead-code-roots]
-    source_files: [go/internal/parser/cpp_language.go, go/internal/parser/cpp/parser.go]
-    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/cpp_dead_code_roots_test.go]
+    source_files: [go/internal/parser/cpp_language.go, go/internal/parser/cpp/parser.go, go/internal/parser/cpp/framework_routes.go]
+    test_files: [go/internal/parser/engine_systems_test.go, go/internal/parser/cpp_dead_code_roots_test.go, go/internal/parser/engine_cpp_route_semantics_test.go, go/internal/reducer/handles_route_cpp_test.go, go/internal/query/content_reader_framework_routes_test.go]
     docs: [docs/public/languages/cpp.md]
-    read_surfaces: [execute_language_query, find_dead_code]
+    read_surfaces: [execute_language_query, find_dead_code, trace_route_callers]
     tracking_issues: [4038, 4116]
   - language: crossplane
     docs_claim: docs/public/languages/crossplane.md

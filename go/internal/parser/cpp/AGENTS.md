@@ -5,10 +5,12 @@
 1. README.md - package boundary and parser responsibilities
 2. doc.go - godoc contract
 3. parser.go - C++ payload extraction
-4. dead_code_roots.go - C++ parser-backed dead-code root metadata
-5. qualified_method.go - AST extraction of out-of-line `Class::method` names
-6. header_roots.go - bounded direct local-header public API roots
-7. helpers.go - local helper functions copied out of the parent package
+4. framework_routes.go - exact literal Crow, Drogon, and Pistache route entries
+5. call_markers.go - bounded exact call-marker matching helpers
+6. dead_code_roots.go - C++ parser-backed dead-code root metadata
+7. qualified_method.go - AST extraction of out-of-line `Class::method` names
+8. header_roots.go - bounded direct local-header public API roots
+9. helpers.go - local helper functions copied out of the parent package
 
 ## Invariants This Package Enforces
 
@@ -19,6 +21,11 @@
 - Dead-code roots are parser evidence only. Keep `cpp.public_header_api`
   bounded to headers directly included by the current file and inside the
   repository root.
+- Framework route entries are exact route truth only for bounded literal Crow,
+  Drogon, and Pistache call shapes. Do not emit `route_entries` for dynamic
+  paths or methods, inline lambdas, generated routes, project-local callback
+  registries, plugin loading, macro-expanded behavior, or prefixed wrapper
+  macros that only contain a framework marker as a suffix.
 - Out-of-line `Class::method` name and class context come from tree-sitter
   declarator fields (`cppQualifiedFunctionNameAndClassFromNode` in
   `qualified_method.go`), not a regex over node text. Do not reintroduce a

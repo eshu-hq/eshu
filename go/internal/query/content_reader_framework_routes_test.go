@@ -257,6 +257,54 @@ func TestParseFrameworkSemanticsExtractsCSharpASPNetRoutes(t *testing.T) {
 	}
 }
 
+func TestParseFrameworkSemanticsExtractsCPPFrameworkRoutes(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["crow", "drogon", "pistache"],
+		"crow": {
+			"route_methods": ["GET"],
+			"route_paths": ["/health"],
+			"route_entries": [{"method": "GET", "path": "/health", "handler": "health"}]
+		},
+		"drogon": {
+			"route_methods": ["POST"],
+			"route_paths": ["/orders"],
+			"route_entries": [{"method": "POST", "path": "/orders", "handler": "createOrder"}]
+		},
+		"pistache": {
+			"route_methods": ["GET"],
+			"route_paths": ["/orders/:id"],
+			"route_entries": [{"method": "GET", "path": "/orders/:id", "handler": "OrdersController.show"}]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("src/routes.cpp", raw)
+	if len(results) != 3 {
+		t.Fatalf("len(results) = %d, want 3", len(results))
+	}
+	wantHandlers := map[string]string{
+		"crow":     "health",
+		"drogon":   "createOrder",
+		"pistache": "OrdersController.show",
+	}
+	for _, route := range results {
+		if route.RelativePath != "src/routes.cpp" {
+			t.Fatalf("RelativePath = %q, want src/routes.cpp", route.RelativePath)
+		}
+		if len(route.RouteEntries) != 1 {
+			t.Fatalf("%s RouteEntries = %#v, want exactly one entry", route.Framework, route.RouteEntries)
+		}
+		want, ok := wantHandlers[route.Framework]
+		if !ok {
+			t.Fatalf("unexpected framework %q in results %#v", route.Framework, results)
+		}
+		if got := route.RouteEntries[0].Handler; got != want {
+			t.Fatalf("%s handler = %q, want %q", route.Framework, got, want)
+		}
+	}
+}
+
 func TestParseFrameworkSemanticsExtractsNextJSRouteModules(t *testing.T) {
 	t.Parallel()
 

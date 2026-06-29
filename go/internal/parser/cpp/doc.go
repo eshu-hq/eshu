@@ -10,8 +10,9 @@
 // direct function-pointer initializer targets. Qualified out-of-class method
 // definitions are keyed by the rightmost class qualifier so direct local header
 // declarations can match namespace-scoped implementations. The package also
-// recognizes bounded Node native-addon entrypoint macros. It does not claim
-// exact C++ reachability because broader macro expansion, build-target
-// selection, template instantiation, overload resolution, and broad dynamic
-// dispatch are outside this package boundary.
+// recognizes bounded Node native-addon entrypoint macros and exact literal
+// Crow, Drogon, and Pistache route declarations. It does not claim exact C++
+// reachability because broader macro expansion, build-target selection,
+// template instantiation, overload resolution, generated routes, and broad
+// dynamic dispatch are outside this package boundary.
 package cpp
