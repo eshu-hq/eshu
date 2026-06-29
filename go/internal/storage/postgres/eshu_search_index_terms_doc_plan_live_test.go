@@ -55,7 +55,10 @@ func TestEshuSearchIndexTermsDocumentDeletePlanLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	// Close the pool last (registered first since t.Cleanup runs LIFO). The DROP
+	// cleanup registered after this will fire before db.Close, so the pool is
+	// still open when the throwaway table is dropped.
+	t.Cleanup(func() { _ = db.Close() })
 
 	// Use a single dedicated connection so the planner cache is stable and
 	// both EXPLAIN calls observe the same session state.
@@ -88,8 +91,14 @@ func TestEshuSearchIndexTermsDocumentDeletePlanLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create throwaway table: %v", err)
 	}
+	// Register cleanup via the pool (db), not the dedicated conn. t.Cleanup runs
+	// after the function's defers, so conn is already closed by the time cleanup
+	// fires; using the closed conn would silently skip the DROP. Using db ensures
+	// the throwaway table is always removed even if the test fails mid-way.
 	t.Cleanup(func() {
-		_, _ = conn.ExecContext(context.Background(), fmt.Sprintf(`DROP TABLE IF EXISTS %s`, tbl))
+		if _, dropErr := db.ExecContext(context.Background(), fmt.Sprintf(`DROP TABLE IF EXISTS %s`, tbl)); dropErr != nil {
+			t.Errorf("cleanup: failed to drop throwaway table %s: %v", tbl, dropErr)
+		}
 	})
 
 	// Mirror the existing lookup index (scope_id, generation_id, term_key) so

@@ -56,4 +56,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"supply_chain_impact_winners_materialization",
 	"content_entities_repo_entity_idx",
 	"collector_evidence_summary",
+	"eshu_search_index_terms_doc_idx",
 }

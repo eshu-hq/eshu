@@ -62,22 +62,3 @@ CREATE INDEX IF NOT EXISTS eshu_search_index_documents_repo_idx
 
 CREATE INDEX IF NOT EXISTS eshu_search_index_terms_lookup_idx
     ON eshu_search_index_terms (scope_id, generation_id, term_key);
-
--- eshu_search_index_terms_doc_idx covers the two hot document-keyed DELETEs:
---   eshuSearchIndexRefreshDocumentTermsQuery  (document_id = ANY($3::text[]))
---   eshuSearchIndexRetireTermsQuery           (document_id <> ALL($3::text[]))
--- Without this index both queries scan the entire (scope_id, generation_id)
--- PK slice — up to 4.75M rows per scope on the 43 GB / 73.5 M-row table.
--- With this index the planner seeks directly to a document's term rows.
---
--- Applied at bootstrap startup via the idempotent IF NOT EXISTS pattern used
--- throughout this file. On an existing large table a plain CREATE INDEX takes
--- a table-level lock during the build phase; an operator adding this index to
--- a populated production database should use CREATE INDEX CONCURRENTLY
--- out-of-band to avoid locking writers. Fresh-corpus bootstrap is unaffected.
---
--- Write-amplification: one extra B-tree entry per term INSERT/DELETE.
--- Cardinality: (scope_id, generation_id, document_id) is a good prefix —
--- each document has O(200) terms, so each document_id maps to ~200 leaf rows.
-CREATE INDEX IF NOT EXISTS eshu_search_index_terms_doc_idx
-    ON eshu_search_index_terms (scope_id, generation_id, document_id);
