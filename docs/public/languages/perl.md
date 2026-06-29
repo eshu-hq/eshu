@@ -20,6 +20,7 @@ This page describes the current Go parser and query contract for Perl.
 | Source entities | Subroutines, packages, imports, method calls, plain or ambiguous calls, and scalar/array/hash variables. |
 | Graph surface | Parsed functions, classes, imports, calls, and variables use the shared graph/content entity model. |
 | Dead-code roots | Parser metadata marks known live Perl entrypoints and package surfaces as roots. |
+| Exact web route entries | Literal Mojolicious::Lite and Dancer/Dancer2 verb routes with named code-reference handlers emit exact route entries. |
 
 ## Dead-Code Support
 
@@ -35,20 +36,25 @@ broad public API surfaces remain blockers.
 
 Supported today:
 
-- This parser does not claim framework-level support.
+- Literal Mojolicious::Lite and Dancer/Dancer2 route declarations emit
+  `framework_semantics.{mojolicious,dancer}.route_entries` when the file has one
+  active DSL owner, the HTTP verb and route path are literal, and the handler is
+  a named code reference such as `\&health`.
 - Exporter declarations, package namespaces, constructors, special blocks,
   `AUTOLOAD`, `DESTROY`, and script entrypoints are modeled as derived roots.
-- Perl web framework handlers are not exact route entries today; Perl does not
-  emit `framework_semantics.*.route_entries` or `HANDLES_ROUTE` edges.
+- `HANDLES_ROUTE` is projected only when the reducer resolves the emitted
+  handler name to exactly one Function entity.
 
 Not claimed today:
 
 - Moose/Moo metadata, symbolic references, `AUTOLOAD` target resolution,
   import side effects, runtime `eval`, and broad public API surfaces remain
   exactness blockers.
-- Exact route-to-handler truth for Mojolicious, Dancer, Catalyst, and other
-  Perl web frameworks is tracked by
-  [#4116](https://github.com/eshu-hq/eshu/issues/4116).
+- Catalyst dispatcher conventions, Mojolicious `controller#action` strings,
+  Dancer `any`, inline subroutines, generated route tables, dynamic paths,
+  dynamic methods, wrappers, files importing both route DSL families, and other
+  runtime framework conventions remain unsupported or partial rather than
+  guessed.
 
 ## Related Docs
 

@@ -7,7 +7,8 @@
 // emits the legacy parser payload buckets for packages, imports, subroutines,
 // variables, and function calls. It also marks bounded dead-code roots for
 // public packages, Exporter declarations, script entrypoints, constructors,
-// special blocks, AUTOLOAD, and DESTROY. PreScan returns declaration names from
-// the same payload path. The package is deterministic and does not import the
-// parent parser package.
+// special blocks, AUTOLOAD, and DESTROY. Exact Mojolicious::Lite and Dancer DSL
+// route entries are emitted only for literal paths and named code-reference
+// handlers. PreScan returns declaration names from the same payload path. The
+// package is deterministic and does not import the parent parser package.
 package perl
