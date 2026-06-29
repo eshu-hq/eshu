@@ -21,6 +21,7 @@ var axisLabels = map[Registry]string{
 	RegistryFactKind:         "Read surfaces (API/MCP)",
 	RegistryParserLedger:     "Parsers",
 	RegistryCapabilityMatrix: "Capability claims",
+	RegistryProductClaims:    "Product claims",
 }
 
 // axisLabel returns the friendly axis name for a registry, falling back to the
@@ -90,7 +91,7 @@ func writeAxisTable(b *strings.Builder, rep CoverageReport) {
 func writeGaps(b *strings.Builder, rep CoverageReport) {
 	b.WriteString("## Gaps — surfaces still needing a replay scenario\n\n")
 	if len(rep.Gaps) == 0 {
-		b.WriteString("None. Every supported surface has a replay scenario. 🎉\n\n")
+		b.WriteString("None. Every supported surface has a replay scenario.\n\n")
 		return
 	}
 	fmt.Fprintf(b, "%d surface(s) uncovered or unresolved:\n\n", len(rep.Gaps))

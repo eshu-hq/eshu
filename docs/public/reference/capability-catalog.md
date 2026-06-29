@@ -178,8 +178,8 @@ referenced capability in the generated catalog, so free-form commands cannot be
 the only evidence. The deterministic docs gate runs without provider keys or
 network access. The separate Product Claim Ledger CI workflow sets
 `ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1` on claim-relevant paths; pull requests
-run the live issue-state pass without `GITHUB_TOKEN`, while push, schedule, and
-manual dispatch use the tokened GitHub API path.
+run the live issue-state pass with the read-only Actions token, and push,
+schedule, and manual dispatch use the same tokened GitHub API path.
 
 ## Workflow
 

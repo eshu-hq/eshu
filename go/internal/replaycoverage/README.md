@@ -17,7 +17,8 @@ writes the report, and sets the exit code lives in
 | surface-inventory implemented-lane collectors | `collector:<name>` | cassette |
 | fact-kind registry read surfaces | `read_surface:<surface>` | api/mcp golden |
 | parser-backing ledger parsers | `parser:<name>` | parser fixture |
-| capability-matrix positive claims | `capability:<id>` | claim / refusal |
+| capability-matrix positive claims | `capability:<id>` | capability claim |
+| product-claims public ledger rows | `product_claim:<id>` | product claim |
 
 `EnumerateSupported` flattens the four registries into a deterministic
 `SupportedSurface` set. `LoadManifest` reads the curated
@@ -32,17 +33,26 @@ The natural keys differ across registries and artifacts: the `collector:aws`
 surface is exercised by the cassette under `testdata/cassettes/awscloud`. No
 single registry can express that mapping, so the manifest is the curated,
 reviewable bridge. It composes with — does not fork — the existing
-capability-inventory drift gate: collectors, read surfaces, parsers, and claims
-all come from the same generated registries that gate already owns.
+capability-inventory drift gate: collectors, read surfaces, parsers, capability
+claims, and product claims all come from the same generated registries and
+ledger that gate already owns.
 
 ## Existence, not greenness
 
 The `Resolver` checks that a scenario artifact exists (a cassette dir, a parser
-fixture file, an rc-* / query shape in the B-12 snapshot). It deliberately does
-**not** run the scenario. Greenness is proven by the sibling gate named in each
-manifest entry's `proof_gate` (`golden-corpus-gate`, the parser fixture tests).
-That split keeps this gate fast and credential-free while never claiming a green
-it did not observe.
+fixture file, an rc-* / query shape in the B-12 snapshot). For
+`capability_claim` entries it resolves the `ref` against the capability matrix
+and requires every profile row to name verification, with at least one supported
+or experimental profile and refusal proof for unsupported profiles. For
+`product_claim` entries it resolves the `ref` against the public product claim
+ledger and requires deterministic proof metadata; the `capability-inventory`
+docs gate validates the exact source quote, surfaces, proof signals, and semantic
+posture. It
+deliberately does **not** run the scenario. Greenness is proven by the sibling
+gate named in each manifest entry's `proof_gate` (`golden-corpus-gate`, the
+parser fixture tests, `capability-inventory`, `capability-inventory-docs`). That
+split keeps this gate fast and credential-free while never claiming a green it
+did not observe.
 
 ## Advisory → blocking
 

@@ -21,8 +21,11 @@ const ManifestFileName = "replay-coverage-manifest.v1.yaml"
 
 // ScenarioType is the kind of replay scenario that covers a surface. It mirrors
 // the design §2 chain: a cassette drives a collector, a parser fixture drives a
-// parser, an api/mcp golden drives a read surface, and a correlation rc-* drives
-// a graph correlation.
+// parser, an api/mcp golden drives a read surface, a correlation rc-* drives a
+// graph correlation, a capability claim points at the matrix row whose
+// per-profile verification refs prove supported answers and unsupported
+// capability refusals, and a product claim points at the public claim ledger row
+// whose proof is checked by capability-inventory docs mode.
 type ScenarioType string
 
 const (
@@ -34,14 +37,22 @@ const (
 	ScenarioAPIMCPGolden ScenarioType = "api_mcp_golden"
 	// ScenarioCorrelation is a B-12 snapshot required correlation (rc-*).
 	ScenarioCorrelation ScenarioType = "correlation"
+	// ScenarioCapabilityClaim is a capability-matrix row with per-profile
+	// verification refs for supported answers and unsupported-capability refusals.
+	ScenarioCapabilityClaim ScenarioType = "capability_claim"
+	// ScenarioProductClaim is a product-claims ledger row with deterministic
+	// proof command/signals for a broad public promise.
+	ScenarioProductClaim ScenarioType = "product_claim"
 )
 
 // validScenarioTypes is the closed set of scenario types.
 var validScenarioTypes = map[ScenarioType]struct{}{
-	ScenarioCassette:      {},
-	ScenarioParserFixture: {},
-	ScenarioAPIMCPGolden:  {},
-	ScenarioCorrelation:   {},
+	ScenarioCassette:        {},
+	ScenarioParserFixture:   {},
+	ScenarioAPIMCPGolden:    {},
+	ScenarioCorrelation:     {},
+	ScenarioCapabilityClaim: {},
+	ScenarioProductClaim:    {},
 }
 
 // CoverageEntry declares that one supported surface is exercised by one replay

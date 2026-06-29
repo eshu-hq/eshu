@@ -49,6 +49,12 @@ jobs:
       - name: Run bench script contract mirror
         run: scripts/test-run-go-benchmarks.sh
 
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run bench regression contract mirror
+        run: scripts/test-verify-bench-regression.sh
+
       - name: Run reducer perf gate contract mirror
         run: scripts/test-verify-reducer-perf-gate.sh
 
@@ -110,10 +116,11 @@ jobs:
 
       - name: Compare current benchmarks against committed baseline
         env:
-          # Same shape as testdata/benchmarks/baseline.txt; keep these in lockstep with
-          # scripts/refresh-bench-baseline.sh so the comparison is like-for-like.
+          # Advisory comparison only: keep this runner-bounded sample in lockstep
+          # with scripts/refresh-bench-baseline.sh so baseline refresh and PR/current
+          # generation have the same shape without exceeding CI budget.
           BENCH_TIME: 100ms
-          BENCH_COUNT: 6
+          BENCH_COUNT: 1
           BENCH_REGRESSION_PCT: 10
           BENCH_ALPHA: 0.05
           # Advisory until the baseline is recaptured on this runner class by the

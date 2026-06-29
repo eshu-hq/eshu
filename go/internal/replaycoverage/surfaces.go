@@ -13,7 +13,7 @@ import (
 )
 
 // Registry identifies which source-of-truth registry a required surface is
-// enumerated from. The coverage gate proves every surface across these four
+// enumerated from. The coverage gate proves every surface across these
 // registries has a green replay scenario.
 type Registry string
 
@@ -30,6 +30,9 @@ const (
 	// RegistryCapabilityMatrix is specs/capability-matrix.v1.yaml: each positively
 	// claimed capability is a required claim-or-refusal-replay target.
 	RegistryCapabilityMatrix Registry = "capability_matrix"
+	// RegistryProductClaims is specs/product-claims.v1.yaml: each public product
+	// claim is a required deterministic proof-ledger replay target.
+	RegistryProductClaims Registry = "product_claim_ledger"
 )
 
 // allRegistries is the closed, ordered set of coverage registries.
@@ -38,6 +41,7 @@ var allRegistries = []Registry{
 	RegistryFactKind,
 	RegistryParserLedger,
 	RegistryCapabilityMatrix,
+	RegistryProductClaims,
 }
 
 // AllRegistries returns every coverage registry in a stable order.
@@ -57,7 +61,7 @@ type SupportedSurface struct {
 	Detail string
 }
 
-// EnumerateSupported reconciles the four source-of-truth registries into the flat,
+// EnumerateSupported reconciles the source-of-truth registries into the flat,
 // deterministic set of surfaces that must each have a green replay scenario:
 //
 //   - surface-inventory: collectors on the implemented readiness lane (only that
@@ -66,7 +70,9 @@ type SupportedSurface struct {
 //     "read_surface:<surface>";
 //   - parser-backing ledger: each parser, keyed "parser:<name>";
 //   - capability matrix: each capability with at least one positively-claimed
-//     profile, keyed "capability:<id>".
+//     profile, keyed "capability:<id>";
+//   - product claim ledger: each broad public product claim, keyed
+//     "product_claim:<id>".
 //
 // The result is sorted by registry then key so gate output and the coverage
 // report are byte-stable across runs.
@@ -75,6 +81,7 @@ func EnumerateSupported(
 	factKinds []facts.FactKindRegistryEntry,
 	ledger ParserLedger,
 	matrix capabilitycatalog.Matrix,
+	productClaims capabilitycatalog.ProductClaimLedger,
 ) []SupportedSurface {
 	var out []SupportedSurface
 
@@ -130,6 +137,18 @@ func EnumerateSupported(
 			Registry: RegistryCapabilityMatrix,
 			Key:      "capability:" + capRow.Capability,
 			Detail:   fmt.Sprintf("capability %q", capRow.Capability),
+		})
+	}
+
+	for _, claim := range productClaims.Claims {
+		id := strings.TrimSpace(claim.ID)
+		if id == "" {
+			continue
+		}
+		out = append(out, SupportedSurface{
+			Registry: RegistryProductClaims,
+			Key:      "product_claim:" + id,
+			Detail:   fmt.Sprintf("product claim %q", id),
 		})
 	}
 

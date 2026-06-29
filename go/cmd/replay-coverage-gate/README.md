@@ -12,14 +12,17 @@ logic lives in [`internal/replaycoverage`](../../internal/replaycoverage).
 
 ## What it does
 
-1. Loads the four source-of-truth registries: the embedded surface inventory and
+1. Loads the source-of-truth registries: the embedded surface inventory and
    fact-kind registry (the same generated artifacts the capability-inventory
-   drift gate owns — composed, not forked), the parser-backing ledger, and the
-   capability matrix.
+   drift gate owns — composed, not forked), the parser-backing ledger, the
+   capability matrix, and the public product-claim ledger.
 2. Enumerates the supported surfaces (implemented-lane collectors, read surfaces,
-   parsers, positive capability claims).
+   parsers, positive capability claims, and public product claims).
 3. Reconciles each against `specs/replay-coverage-manifest.v1.yaml` and the
-   on-disk / snapshot scenario artifacts.
+   on-disk / snapshot scenario artifacts. `capability_claim` entries resolve
+   against the capability matrix itself and require every profile row to carry a
+   verification reference. `product_claim` entries resolve against
+   `specs/product-claims.v1.yaml` and require deterministic proof metadata.
 4. Writes a JSON coverage report and the committed, docs-discoverable C-7
    Markdown dashboard (`docs/public/reference/replay-coverage.md`), and prints
    per-registry satisfied percentages.
@@ -58,5 +61,6 @@ regenerate it after a coverage-moving change with
 
 This gate verifies a scenario artifact **exists**; it does not run it. Each
 manifest entry names the `proof_gate` that runs the scenario and proves it green
-(`golden-corpus-gate`, the parser fixture tests). Keeping existence here and
-greenness there is what makes this gate fast and credential-free.
+(`golden-corpus-gate`, the parser fixture tests, `capability-inventory`,
+`capability-inventory-docs`). Keeping existence here and greenness there is what
+makes this gate fast and credential-free.

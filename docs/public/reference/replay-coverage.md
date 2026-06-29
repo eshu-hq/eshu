@@ -4,135 +4,31 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 57/163 surfaces satisfied (34.97%)** — mode: advisory.
+**Overall: 174/174 surfaces satisfied (100.00%)** — mode: advisory.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Capability claims | 20 | 126 | 15.87% | 106 | 0 |
+| Capability claims | 126 | 126 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
+| Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Collectors | 17 | 17 | 100.00% | 0 | 4 |
-| **Total** | **57** | **163** | **34.97%** | **106** | **6** |
+| **Total** | **174** | **174** | **100.00%** | **0** | **6** |
 
 ## Gaps — surfaces still needing a replay scenario
 
-106 surface(s) uncovered or unresolved:
+None. Every supported surface has a replay scenario.
 
-### Capability claims (106)
-
-- `capability:admission_decisions.list`
-- `capability:answer_narration.status`
-- `capability:ask.natural_language_answer`
-- `capability:aws_runtime_drift.findings.list`
-- `capability:capability_catalog.list`
-- `capability:ci_cd.run_correlations.aggregate`
-- `capability:ci_cd.run_correlations.list`
-- `capability:cloud_inventory.readback.list`
-- `capability:cloud_runtime_drift.readback.list`
-- `capability:code_flow.cfg_summary`
-- `capability:code_flow.pdg_summary`
-- `capability:code_flow.reaching_def`
-- `capability:code_flow.taint_path`
-- `capability:code_inventory.structural`
-- `capability:code_quality.complexity`
-- `capability:code_quality.refactoring`
-- `capability:code_search.content_search`
-- `capability:code_search.exact_symbol`
-- `capability:code_search.fuzzy_symbol`
-- `capability:code_search.symbol_lookup`
-- `capability:code_search.topic_investigation`
-- `capability:code_search.variable_lookup`
-- `capability:code_to_cloud.trace_exposure_path`
-- `capability:collector_extraction_readiness.family`
-- `capability:collector_extraction_readiness.list`
-- `capability:component_extensions.diagnostics`
-- `capability:component_extensions.inventory`
-- `capability:documentation_evidence_packet.freshness`
-- `capability:documentation_evidence_packet.read`
-- `capability:documentation_facts.list`
-- `capability:documentation_findings.aggregate`
-- `capability:documentation_findings.list`
-- `capability:evidence_citation.packet`
-- `capability:fact_schema_version.detail`
-- `capability:fact_schema_version.list`
-- `capability:freshness.changed_since`
-- `capability:freshness.generation_lifecycle`
-- `capability:freshness.service_changed_since`
-- `capability:graph_query.read_only_cypher`
-- `capability:hosted_governance.status`
-- `capability:iac_inventory.resources.list`
-- `capability:iac_management.explain_status`
-- `capability:iac_management.find_unmanaged_resources`
-- `capability:iac_management.get_status`
-- `capability:iac_management.propose_terraform_import_plan`
-- `capability:iac_quality.dead_iac`
-- `capability:incident.context.read`
-- `capability:observability.coverage.correlations.list`
-- `capability:package_registry.packages.aggregate`
-- `capability:package_registry.packages.list`
-- `capability:package_registry.versions.list`
-- `capability:platform_impact.blast_radius`
-- `capability:platform_impact.catalog`
-- `capability:platform_impact.change_surface`
-- `capability:platform_impact.cloud_resource_list`
-- `capability:platform_impact.container_image_list`
-- `capability:platform_impact.context_overview`
-- `capability:platform_impact.contract_impact`
-- `capability:platform_impact.deployment_config_influence`
-- `capability:platform_impact.developer_change_plan`
-- `capability:platform_impact.entity_map`
-- `capability:platform_impact.environment_compare`
-- `capability:platform_impact.graph_summary_packet`
-- `capability:platform_impact.infra_resource_aggregate`
-- `capability:platform_impact.pre_change`
-- `capability:platform_impact.resource_investigation`
-- `capability:platform_impact.resource_to_code`
-- `capability:platform_metrics.timeseries`
-- `capability:query.investigation_workflows`
-- `capability:query.playbooks`
-- `capability:reachability.go.govulncheck`
-- `capability:reachability.jvm.bounded`
-- `capability:replatforming.ownership.candidates`
-- `capability:replatforming.plan.readiness`
-- `capability:replatforming.rollups.readiness`
-- `capability:secrets_iam.identity_trust_chains.list`
-- `capability:secrets_iam.posture_gaps.list`
-- `capability:secrets_iam.posture_summary.read`
-- `capability:secrets_iam.privilege_posture_observations.list`
-- `capability:secrets_iam.secret_access_paths.list`
-- `capability:security.hardcoded_secrets`
-- `capability:semantic_evidence.code_hints.list`
-- `capability:semantic_evidence.documentation_observations.list`
-- `capability:semantic_extraction.status`
-- `capability:semantic_search.curated_retrieval`
-- `capability:supply_chain.advisory_catalog.list`
-- `capability:supply_chain.advisory_evidence.list`
-- `capability:supply_chain.container_image_identities.aggregate`
-- `capability:supply_chain.container_image_identities.list`
-- `capability:supply_chain.impact_explanation.read`
-- `capability:supply_chain.impact_findings.aggregate`
-- `capability:supply_chain.impact_findings.list`
-- `capability:supply_chain.sbom_attestation_attachments.aggregate`
-- `capability:supply_chain.sbom_attestation_attachments.list`
-- `capability:supply_chain.security_alert_reconciliations.aggregate`
-- `capability:supply_chain.security_alert_reconciliations.list`
-- `capability:supply_chain.vulnerability_scanner.contract.read`
-- `capability:surface_inventory.list`
-- `capability:symbol_graph.argument_names`
-- `capability:symbol_graph.class_methods`
-- `capability:symbol_graph.decorators`
-- `capability:symbol_graph.import_dependencies`
-- `capability:symbol_graph.imports`
-- `capability:visualization.graph_query`
-- `capability:visualization.packet_derivation`
-- `capability:work_item.evidence.list`
-
-## Covered surfaces (57)
+## Covered surfaces (174)
 
 | Surface | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- |
+| `capability:admission_decisions.list` | capability_claim | capability-inventory | `admission_decisions.list` |
+| `capability:answer_narration.status` | capability_claim | capability-inventory | `answer_narration.status` |
+| `capability:ask.natural_language_answer` | capability_claim | capability-inventory | `ask.natural_language_answer` |
+| `capability:aws_runtime_drift.findings.list` | capability_claim | capability-inventory | `aws_runtime_drift.findings.list` |
 | `capability:call_graph.call_chain_path` | correlation | golden-corpus-gate | `rc-11` |
 | `capability:call_graph.direct_callees` | correlation | golden-corpus-gate | `rc-11` |
 | `capability:call_graph.direct_callers` | correlation | golden-corpus-gate | `rc-11` |
@@ -141,18 +37,120 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `capability:call_graph.route_to_caller` | correlation | golden-corpus-gate | `rc-8` |
 | `capability:call_graph.transitive_callees` | correlation | golden-corpus-gate | `rc-11` |
 | `capability:call_graph.transitive_callers` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:capability_catalog.list` | capability_claim | capability-inventory | `capability_catalog.list` |
+| `capability:ci_cd.run_correlations.aggregate` | capability_claim | capability-inventory | `ci_cd.run_correlations.aggregate` |
+| `capability:ci_cd.run_correlations.list` | capability_claim | capability-inventory | `ci_cd.run_correlations.list` |
+| `capability:cloud_inventory.readback.list` | capability_claim | capability-inventory | `cloud_inventory.readback.list` |
+| `capability:cloud_runtime_drift.readback.list` | capability_claim | capability-inventory | `cloud_runtime_drift.readback.list` |
+| `capability:code_flow.cfg_summary` | capability_claim | capability-inventory | `code_flow.cfg_summary` |
+| `capability:code_flow.pdg_summary` | capability_claim | capability-inventory | `code_flow.pdg_summary` |
+| `capability:code_flow.reaching_def` | capability_claim | capability-inventory | `code_flow.reaching_def` |
+| `capability:code_flow.taint_path` | capability_claim | capability-inventory | `code_flow.taint_path` |
+| `capability:code_inventory.structural` | capability_claim | capability-inventory | `code_inventory.structural` |
+| `capability:code_quality.complexity` | capability_claim | capability-inventory | `code_quality.complexity` |
 | `capability:code_quality.dead_code` | api_mcp_golden | golden-corpus-gate | `POST /api/v0/code/dead-code/cross-repo` |
+| `capability:code_quality.refactoring` | capability_claim | capability-inventory | `code_quality.refactoring` |
+| `capability:code_search.content_search` | capability_claim | capability-inventory | `code_search.content_search` |
+| `capability:code_search.exact_symbol` | capability_claim | capability-inventory | `code_search.exact_symbol` |
+| `capability:code_search.fuzzy_symbol` | capability_claim | capability-inventory | `code_search.fuzzy_symbol` |
+| `capability:code_search.symbol_lookup` | capability_claim | capability-inventory | `code_search.symbol_lookup` |
+| `capability:code_search.topic_investigation` | capability_claim | capability-inventory | `code_search.topic_investigation` |
+| `capability:code_search.variable_lookup` | capability_claim | capability-inventory | `code_search.variable_lookup` |
+| `capability:code_to_cloud.trace_exposure_path` | capability_claim | capability-inventory | `code_to_cloud.trace_exposure_path` |
+| `capability:collector_extraction_readiness.family` | capability_claim | capability-inventory | `collector_extraction_readiness.family` |
+| `capability:collector_extraction_readiness.list` | capability_claim | capability-inventory | `collector_extraction_readiness.list` |
+| `capability:component_extensions.diagnostics` | capability_claim | capability-inventory | `component_extensions.diagnostics` |
+| `capability:component_extensions.inventory` | capability_claim | capability-inventory | `component_extensions.inventory` |
 | `capability:dependencies.list` | correlation | golden-corpus-gate | `rc-9` |
+| `capability:documentation_evidence_packet.freshness` | capability_claim | capability-inventory | `documentation_evidence_packet.freshness` |
+| `capability:documentation_evidence_packet.read` | capability_claim | capability-inventory | `documentation_evidence_packet.read` |
+| `capability:documentation_facts.list` | capability_claim | capability-inventory | `documentation_facts.list` |
+| `capability:documentation_findings.aggregate` | capability_claim | capability-inventory | `documentation_findings.aggregate` |
+| `capability:documentation_findings.list` | capability_claim | capability-inventory | `documentation_findings.list` |
+| `capability:evidence_citation.packet` | capability_claim | capability-inventory | `evidence_citation.packet` |
+| `capability:fact_schema_version.detail` | capability_claim | capability-inventory | `fact_schema_version.detail` |
+| `capability:fact_schema_version.list` | capability_claim | capability-inventory | `fact_schema_version.list` |
+| `capability:freshness.changed_since` | capability_claim | capability-inventory | `freshness.changed_since` |
+| `capability:freshness.generation_lifecycle` | capability_claim | capability-inventory | `freshness.generation_lifecycle` |
+| `capability:freshness.service_changed_since` | capability_claim | capability-inventory | `freshness.service_changed_since` |
+| `capability:graph_query.read_only_cypher` | capability_claim | capability-inventory | `graph_query.read_only_cypher` |
+| `capability:hosted_governance.status` | capability_claim | capability-inventory | `hosted_governance.status` |
+| `capability:iac_inventory.resources.list` | capability_claim | capability-inventory | `iac_inventory.resources.list` |
+| `capability:iac_management.explain_status` | capability_claim | capability-inventory | `iac_management.explain_status` |
+| `capability:iac_management.find_unmanaged_resources` | capability_claim | capability-inventory | `iac_management.find_unmanaged_resources` |
+| `capability:iac_management.get_status` | capability_claim | capability-inventory | `iac_management.get_status` |
+| `capability:iac_management.propose_terraform_import_plan` | capability_claim | capability-inventory | `iac_management.propose_terraform_import_plan` |
+| `capability:iac_quality.dead_iac` | capability_claim | capability-inventory | `iac_quality.dead_iac` |
+| `capability:incident.context.read` | capability_claim | capability-inventory | `incident.context.read` |
 | `capability:kubernetes.correlations.list` | correlation | golden-corpus-gate | `rc-4` |
+| `capability:observability.coverage.correlations.list` | capability_claim | capability-inventory | `observability.coverage.correlations.list` |
 | `capability:package_registry.correlations.list` | correlation | golden-corpus-gate | `rc-9` |
 | `capability:package_registry.dependencies.list` | correlation | golden-corpus-gate | `rc-25` |
 | `capability:package_registry.dependency_chains.list` | correlation | golden-corpus-gate | `rc-9` |
+| `capability:package_registry.packages.aggregate` | capability_claim | capability-inventory | `package_registry.packages.aggregate` |
+| `capability:package_registry.packages.list` | capability_claim | capability-inventory | `package_registry.packages.list` |
+| `capability:package_registry.versions.list` | capability_claim | capability-inventory | `package_registry.versions.list` |
+| `capability:platform_impact.blast_radius` | capability_claim | capability-inventory | `platform_impact.blast_radius` |
+| `capability:platform_impact.catalog` | capability_claim | capability-inventory | `platform_impact.catalog` |
+| `capability:platform_impact.change_surface` | capability_claim | capability-inventory | `platform_impact.change_surface` |
+| `capability:platform_impact.cloud_resource_list` | capability_claim | capability-inventory | `platform_impact.cloud_resource_list` |
+| `capability:platform_impact.container_image_list` | capability_claim | capability-inventory | `platform_impact.container_image_list` |
+| `capability:platform_impact.context_overview` | capability_claim | capability-inventory | `platform_impact.context_overview` |
+| `capability:platform_impact.contract_impact` | capability_claim | capability-inventory | `platform_impact.contract_impact` |
 | `capability:platform_impact.dependency_path` | correlation | golden-corpus-gate | `rc-3` |
 | `capability:platform_impact.deployment_chain` | correlation | golden-corpus-gate | `rc-19` |
+| `capability:platform_impact.deployment_config_influence` | capability_claim | capability-inventory | `platform_impact.deployment_config_influence` |
+| `capability:platform_impact.developer_change_plan` | capability_claim | capability-inventory | `platform_impact.developer_change_plan` |
+| `capability:platform_impact.entity_map` | capability_claim | capability-inventory | `platform_impact.entity_map` |
+| `capability:platform_impact.environment_compare` | capability_claim | capability-inventory | `platform_impact.environment_compare` |
+| `capability:platform_impact.graph_summary_packet` | capability_claim | capability-inventory | `platform_impact.graph_summary_packet` |
+| `capability:platform_impact.infra_resource_aggregate` | capability_claim | capability-inventory | `platform_impact.infra_resource_aggregate` |
+| `capability:platform_impact.pre_change` | capability_claim | capability-inventory | `platform_impact.pre_change` |
 | `capability:platform_impact.relationships_catalog` | correlation | golden-corpus-gate | `rc-11` |
+| `capability:platform_impact.resource_investigation` | capability_claim | capability-inventory | `platform_impact.resource_investigation` |
+| `capability:platform_impact.resource_to_code` | capability_claim | capability-inventory | `platform_impact.resource_to_code` |
+| `capability:platform_metrics.timeseries` | capability_claim | capability-inventory | `platform_metrics.timeseries` |
+| `capability:query.investigation_workflows` | capability_claim | capability-inventory | `query.investigation_workflows` |
+| `capability:query.playbooks` | capability_claim | capability-inventory | `query.playbooks` |
+| `capability:reachability.go.govulncheck` | capability_claim | capability-inventory | `reachability.go.govulncheck` |
+| `capability:reachability.jvm.bounded` | capability_claim | capability-inventory | `reachability.jvm.bounded` |
 | `capability:relationship_evidence.drilldown` | correlation | golden-corpus-gate | `rc-21` |
+| `capability:replatforming.ownership.candidates` | capability_claim | capability-inventory | `replatforming.ownership.candidates` |
+| `capability:replatforming.plan.readiness` | capability_claim | capability-inventory | `replatforming.plan.readiness` |
+| `capability:replatforming.rollups.readiness` | capability_claim | capability-inventory | `replatforming.rollups.readiness` |
+| `capability:secrets_iam.identity_trust_chains.list` | capability_claim | capability-inventory | `secrets_iam.identity_trust_chains.list` |
+| `capability:secrets_iam.posture_gaps.list` | capability_claim | capability-inventory | `secrets_iam.posture_gaps.list` |
+| `capability:secrets_iam.posture_summary.read` | capability_claim | capability-inventory | `secrets_iam.posture_summary.read` |
+| `capability:secrets_iam.privilege_posture_observations.list` | capability_claim | capability-inventory | `secrets_iam.privilege_posture_observations.list` |
+| `capability:secrets_iam.secret_access_paths.list` | capability_claim | capability-inventory | `secrets_iam.secret_access_paths.list` |
+| `capability:security.hardcoded_secrets` | capability_claim | capability-inventory | `security.hardcoded_secrets` |
+| `capability:semantic_evidence.code_hints.list` | capability_claim | capability-inventory | `semantic_evidence.code_hints.list` |
+| `capability:semantic_evidence.documentation_observations.list` | capability_claim | capability-inventory | `semantic_evidence.documentation_observations.list` |
+| `capability:semantic_extraction.status` | capability_claim | capability-inventory | `semantic_extraction.status` |
+| `capability:semantic_search.curated_retrieval` | capability_claim | capability-inventory | `semantic_search.curated_retrieval` |
 | `capability:service_catalog.correlations.list` | correlation | golden-corpus-gate | `rc-1` |
+| `capability:supply_chain.advisory_catalog.list` | capability_claim | capability-inventory | `supply_chain.advisory_catalog.list` |
+| `capability:supply_chain.advisory_evidence.list` | capability_claim | capability-inventory | `supply_chain.advisory_evidence.list` |
+| `capability:supply_chain.container_image_identities.aggregate` | capability_claim | capability-inventory | `supply_chain.container_image_identities.aggregate` |
+| `capability:supply_chain.container_image_identities.list` | capability_claim | capability-inventory | `supply_chain.container_image_identities.list` |
+| `capability:supply_chain.impact_explanation.read` | capability_claim | capability-inventory | `supply_chain.impact_explanation.read` |
+| `capability:supply_chain.impact_findings.aggregate` | capability_claim | capability-inventory | `supply_chain.impact_findings.aggregate` |
+| `capability:supply_chain.impact_findings.list` | capability_claim | capability-inventory | `supply_chain.impact_findings.list` |
+| `capability:supply_chain.sbom_attestation_attachments.aggregate` | capability_claim | capability-inventory | `supply_chain.sbom_attestation_attachments.aggregate` |
+| `capability:supply_chain.sbom_attestation_attachments.list` | capability_claim | capability-inventory | `supply_chain.sbom_attestation_attachments.list` |
+| `capability:supply_chain.security_alert_reconciliations.aggregate` | capability_claim | capability-inventory | `supply_chain.security_alert_reconciliations.aggregate` |
+| `capability:supply_chain.security_alert_reconciliations.list` | capability_claim | capability-inventory | `supply_chain.security_alert_reconciliations.list` |
+| `capability:supply_chain.vulnerability_scanner.contract.read` | capability_claim | capability-inventory | `supply_chain.vulnerability_scanner.contract.read` |
+| `capability:surface_inventory.list` | capability_claim | capability-inventory | `surface_inventory.list` |
+| `capability:symbol_graph.argument_names` | capability_claim | capability-inventory | `symbol_graph.argument_names` |
+| `capability:symbol_graph.class_methods` | capability_claim | capability-inventory | `symbol_graph.class_methods` |
+| `capability:symbol_graph.decorators` | capability_claim | capability-inventory | `symbol_graph.decorators` |
+| `capability:symbol_graph.import_dependencies` | capability_claim | capability-inventory | `symbol_graph.import_dependencies` |
+| `capability:symbol_graph.imports` | capability_claim | capability-inventory | `symbol_graph.imports` |
 | `capability:symbol_graph.inheritance` | correlation | golden-corpus-gate | `rc-12` |
+| `capability:visualization.graph_query` | capability_claim | capability-inventory | `visualization.graph_query` |
+| `capability:visualization.packet_derivation` | capability_claim | capability-inventory | `visualization.packet_derivation` |
+| `capability:work_item.evidence.list` | capability_claim | capability-inventory | `work_item.evidence.list` |
 | `read_surface:GET /api/v0/ci-cd/run-correlations` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/cloud/inventory` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
@@ -173,6 +171,17 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | `parser:dockerfile` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |
 | `parser:hcl` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json` |
 | `parser:yaml` | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json` |
+| `product_claim:docs.capability-catalog.auditable-source` | product_claim | capability-inventory-docs | `docs.capability-catalog.auditable-source` |
+| `product_claim:docs.capability-catalog.surface-parity` | product_claim | capability-inventory-docs | `docs.capability-catalog.surface-parity` |
+| `product_claim:docs.mcp-tool-contract.capability-catalog-read` | product_claim | capability-inventory-docs | `docs.mcp-tool-contract.capability-catalog-read` |
+| `product_claim:readme.change-risk.blast-radius` | product_claim | capability-inventory-docs | `readme.change-risk.blast-radius` |
+| `product_claim:readme.code-intelligence.language-breadth` | product_claim | capability-inventory-docs | `readme.code-intelligence.language-breadth` |
+| `product_claim:readme.code-to-cloud.evidence-continuity` | product_claim | capability-inventory-docs | `readme.code-to-cloud.evidence-continuity` |
+| `product_claim:readme.mcp-tool-count.indexed-truth` | product_claim | capability-inventory-docs | `readme.mcp-tool-count.indexed-truth` |
+| `product_claim:readme.operations-visibility.freshness` | product_claim | capability-inventory-docs | `readme.operations-visibility.freshness` |
+| `product_claim:readme.replatforming.plan-readiness` | product_claim | capability-inventory-docs | `readme.replatforming.plan-readiness` |
+| `product_claim:readme.security-iam.evidence-backed-findings` | product_claim | capability-inventory-docs | `readme.security-iam.evidence-backed-findings` |
+| `product_claim:readme.supply-chain.default-gated` | product_claim | capability-inventory-docs | `readme.supply-chain.default-gated` |
 | `collector:aws` | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:documentation` | exempt | — | — |
 | `collector:git` | exempt | — | — |

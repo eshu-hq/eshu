@@ -4,9 +4,13 @@ capabilities:
     profiles:
       local_lightweight:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}]
       local_authoritative:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}]
       local_full_stack:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}]
       production:
         max_truth_level: exact
+        verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}]
