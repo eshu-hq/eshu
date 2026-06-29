@@ -52,8 +52,8 @@ func main() {
 
 func usage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "usage: ci-gates <select|run|validate> [flags]")
-	_, _ = fmt.Fprintln(w, "  select   --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--explain] [--json]")
-	_, _ = fmt.Fprintln(w, "  run      --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--json]")
+	_, _ = fmt.Fprintln(w, "  select   --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--explain] [--json]")
+	_, _ = fmt.Fprintln(w, "  run      --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--repo-root <path>]")
 	_, _ = fmt.Fprintln(w, "  validate --registry <path> --repo-root <path> [--drift]")
 }
 
@@ -65,6 +65,7 @@ func runSelect(args []string) error {
 	tier := fs.String("tier", "pre-pr", "tier ceiling (pre-commit|pre-push|pre-pr|ci-heavy|manual)")
 	base := fs.String("base", "origin/main", "git base ref for changed-path detection")
 	pathsFrom := fs.String("paths-from", "", "file of changed paths, one per line ('-' for stdin)")
+	category := fs.String("category", "", "comma-separated category filter (e.g. exactness,telemetry); empty = all")
 	explain := fs.Bool("explain", false, "print human-readable explanation for each gate")
 	asJSON := fs.Bool("json", false, "emit JSON output")
 	if err := fs.Parse(args); err != nil {
@@ -85,7 +86,7 @@ func runSelect(args []string) error {
 	}
 
 	t := cigates.Tier(*tier)
-	sels := reg.Select(changed, t)
+	sels := cigates.FilterByCategory(reg.Select(changed, t), parseCategories(*category))
 
 	if *asJSON {
 		return printSelectJSON(os.Stdout, sels, t, *base)
@@ -103,6 +104,7 @@ func runRun(args []string) error {
 	base := fs.String("base", "origin/main", "git base ref for changed-path detection")
 	pathsFrom := fs.String("paths-from", "", "file of changed paths, one per line ('-' for stdin)")
 	repoRoot := fs.String("repo-root", "", "repository root to run gate commands from (default: git toplevel)")
+	category := fs.String("category", "", "comma-separated category filter (e.g. exactness,telemetry); empty = all")
 	_ = fs.Bool("json", false, "emit JSON summary (reserved for future use)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -130,8 +132,24 @@ func runRun(args []string) error {
 		return fmt.Errorf("resolve changed paths: %w", err)
 	}
 
-	sels := reg.Select(changed, cigates.Tier(*tier))
+	sels := cigates.FilterByCategory(reg.Select(changed, cigates.Tier(*tier)), parseCategories(*category))
 	return executeGates(os.Stdout, sels, root)
+}
+
+// parseCategories splits a comma-separated category list into typed categories,
+// dropping blanks. An empty or whitespace-only string yields nil (no filter).
+func parseCategories(s string) []cigates.Category {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	cats := make([]cigates.Category, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			cats = append(cats, cigates.Category(p))
+		}
+	}
+	return cats
 }
 
 // resolveRepoRoot returns the explicit root when provided, otherwise the git

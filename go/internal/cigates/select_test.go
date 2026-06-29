@@ -36,6 +36,47 @@ func localCmd(cmd string) *cigates.Local {
 	return &cigates.Local{Command: cmd}
 }
 
+// TestFilterByCategory_KeepsRequestedDropsOthers proves the #4214 category
+// filter: a Go change selects both a hygiene and an exactness gate, but
+// filtering to "exactness" leaves only the exactness gate selected while the
+// hygiene gate becomes skipped with a category reason (not dropped from the
+// list). This is what lets `make pre-pr` run only the exactness/telemetry lane.
+func TestFilterByCategory_KeepsRequestedDropsOthers(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("openapi-surface", cigates.TierPrePR, cigates.CategoryExactness,
+			[]string{"go/internal/query/**"}, localCmd("bash scripts/verify-openapi.sh"), ""),
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint-all"), ""),
+	})
+	changed := []string{"go/internal/query/handler.go"}
+
+	// Without a filter both are selected.
+	base := reg.Select(changed, cigates.TierPrePR)
+	if s := collectSelected(base); len(s) != 2 {
+		t.Fatalf("expected 2 selected without filter, got %d", len(s))
+	}
+
+	// Filtered to exactness, only openapi-surface remains selected.
+	filtered := cigates.FilterByCategory(base, []cigates.Category{cigates.CategoryExactness})
+	selected := collectSelected(filtered)
+	skipped := collectSkipped(filtered)
+	if _, ok := selected["openapi-surface"]; !ok {
+		t.Error("openapi-surface (exactness) should stay selected")
+	}
+	if _, ok := selected["go-lint"]; ok {
+		t.Error("go-lint (hygiene) should be filtered out")
+	}
+	if _, ok := skipped["go-lint"]; !ok {
+		t.Error("go-lint should be reported as skipped, not dropped")
+	}
+
+	// Empty category list is a no-op.
+	if got := len(collectSelected(cigates.FilterByCategory(base, nil))); got != 2 {
+		t.Errorf("empty filter should be a no-op; expected 2 selected, got %d", got)
+	}
+}
+
 func TestSelect_DocOnlyChangeSelectsOnlyDocsGate(t *testing.T) {
 	t.Parallel()
 	reg := buildRegistry([]cigates.Gate{

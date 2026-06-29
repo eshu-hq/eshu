@@ -84,3 +84,30 @@ func selectGate(g Gate, changed []string, requestedTier Tier) Selection {
 		Reason:   "no trigger matched changed paths",
 	}
 }
+
+// FilterByCategory marks any currently-selected gate whose category is not in
+// the requested set as not-selected, with an explanatory reason. The selection
+// list is preserved (and its order) so skipped gates are still reported. An
+// empty categories slice is a no-op (no category filtering). This lets a caller
+// such as `make pre-pr` run only, say, the exactness and telemetry gates while
+// the same selection pass still shows what the other categories would have run.
+func FilterByCategory(sels []Selection, categories []Category) []Selection {
+	if len(categories) == 0 {
+		return sels
+	}
+	want := make(map[Category]struct{}, len(categories))
+	for _, c := range categories {
+		want[c] = struct{}{}
+	}
+	out := make([]Selection, len(sels))
+	for i, s := range sels {
+		if s.Selected {
+			if _, ok := want[s.Gate.Category]; !ok {
+				s.Selected = false
+				s.Reason = fmt.Sprintf("category %s not in requested set", s.Gate.Category)
+			}
+		}
+		out[i] = s
+	}
+	return out
+}
