@@ -1155,6 +1155,44 @@ cloud-action batch is attributable to the domain at 3 AM without new metric
 names or labels. Provenance (`confidence`, `resolution_method`,
 `evidence_source`) is carried as edge properties, not as new instrumentation.
 
+## Statement-parameter sanitization (`phase_group_sanitize.go`)
+
+`SanitizeStatement`/`SanitizeStatements`/`SanitizeStatementParameters` strip the
+`_eshu_*` diagnostic parameters (`StatementMetadataPhaseKey` and siblings) that
+`annotateCanonicalWritePhases` and the per-writer phase taggers attach for
+grouping, ordering, and logging. Those keys are never referenced by a Cypher
+template and MUST NOT reach the Bolt driver: on NornicDB an unreferenced
+parameter on a grouped `DETACH DELETE` makes the delete silently no-op.
+`StatementsAllUseOperation` lets an executor detect an all-retract phase, which
+must run as sequential auto-commit statements rather than one managed
+transaction. These are the single source of truth for the backend executors in
+`cmd/ingester` (`nornicDBPhaseGroupExecutor`) and `cmd/bootstrap-index`, and for
+the offline replay tier's `livePhaseGroupExecutor`; see issue #4186.
+
+No-Regression Evidence: #4186 (PR #4192) extracts the strip-`_`-prefixed-keys
+logic that `cmd/ingester` and `cmd/bootstrap-index` already ran inline into the
+shared `Sanitize*`/`StatementsAllUseOperation` helpers and routes both callers
+through them. Baseline = `origin/main` `cb5a79a28`; after = this change. The
+production NornicDB graph-write path is byte-for-byte unchanged: the same keys
+are stripped at the same call sites, and the empty/non-empty/all-retract
+semantics are identical (verified by `go test ./cmd/ingester ./cmd/bootstrap-index
+./internal/storage/cypher -count=1`, all green, plus the live tier on the pinned
+NornicDB image `timothyswt/nornicdb-cpu-bge:v1.1.6`). The only behavioral change
+is in the test-only `livePhaseGroupExecutor` (an `_test.go` mirror, not a
+production hot path), which now matches production. Input shape: the R-17 delta
+cassette (repo + 3 directories, one tombstone); terminal graph truth is the gen2
+read-back (tombstoned directory count 0, survivors count 1) asserted by
+`scripts/verify-replay-tier.sh`, which passes after the change and failed before.
+The sanitizer adds no graph round-trip and only allocates a replacement map when
+a diagnostic key is present (the no-diagnostics path returns the input map), so
+there is no added hot-path cost over the prior inline implementations.
+
+No-Observability-Change: the change adds no graph query, graph write, queue
+domain, worker, runtime knob, metric, span, log field, or status field.
+Per-phase canonical-write logging (`canonical phase group completed`) and the
+existing write-duration/atomic-write telemetry are untouched; operators continue
+to attribute a slow or failed retract phase exactly as before.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

@@ -264,15 +264,7 @@ func entityStatementLabel(stmt sourcecypher.Statement) string {
 }
 
 func allStatementsUseOperation(stmts []sourcecypher.Statement, operation sourcecypher.Operation) bool {
-	if len(stmts) == 0 {
-		return false
-	}
-	for _, stmt := range stmts {
-		if stmt.Operation != operation {
-			return false
-		}
-	}
-	return true
+	return sourcecypher.StatementsAllUseOperation(stmts, operation)
 }
 
 func summarizePhaseGroupChunk(stmts []sourcecypher.Statement) string {
@@ -286,42 +278,11 @@ func summarizePhaseGroupChunk(stmts []sourcecypher.Statement) string {
 }
 
 func sanitizedPhaseGroupChunk(stmts []sourcecypher.Statement) []sourcecypher.Statement {
-	sanitized := make([]sourcecypher.Statement, len(stmts))
-	for i, stmt := range stmts {
-		sanitized[i] = sanitizedStatement(stmt)
-	}
-	return sanitized
+	return sourcecypher.SanitizeStatements(stmts)
 }
 
 func sanitizedStatement(stmt sourcecypher.Statement) sourcecypher.Statement {
-	stmt.Parameters = sanitizedStatementParameters(stmt.Parameters)
-	return stmt
-}
-
-func sanitizedStatementParameters(params map[string]any) map[string]any {
-	if len(params) == 0 {
-		return params
-	}
-
-	hasDiagnostics := false
-	for key := range params {
-		if strings.HasPrefix(key, "_") {
-			hasDiagnostics = true
-			break
-		}
-	}
-	if !hasDiagnostics {
-		return params
-	}
-
-	sanitized := make(map[string]any, len(params))
-	for key, value := range params {
-		if strings.HasPrefix(key, "_") {
-			continue
-		}
-		sanitized[key] = value
-	}
-	return sanitized
+	return sourcecypher.SanitizeStatement(stmt)
 }
 
 func summarizePhaseGroupStatement(cypher string) string {
