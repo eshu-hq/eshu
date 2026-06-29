@@ -108,7 +108,7 @@ func TestCodeFlowTaintPathSurfacesDerivedEvidence(t *testing.T) {
 	}
 }
 
-func TestCodeFlowUnsupportedLanguageReturnsExplicitUnsupportedCoverage(t *testing.T) {
+func TestCodeFlowReachingDefUnsupportedLanguageReturnsExplicitUnsupportedCoverage(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeCodeFlowStore{}
@@ -138,7 +138,7 @@ func TestCodeFlowUnsupportedLanguageReturnsExplicitUnsupportedCoverage(t *testin
 	}
 }
 
-func TestCodeFlowAmbiguousSymbolAndStaleGenerationStayExplicit(t *testing.T) {
+func TestCodeFlowPDGSummaryAmbiguousSymbolAndStaleGenerationStayExplicit(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeCodeFlowStore{model: CodeFlowReadModel{

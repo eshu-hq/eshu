@@ -135,6 +135,7 @@ func codebaseTools() []ToolDefinition {
 			},
 		},
 		deadCodeInvestigationTool(),
+		crossRepoDeadCodeTool(),
 		{
 			Name:        "find_dead_iac",
 			Description: "Find unused or ambiguous Terraform modules, Helm charts, Kustomize paths, Ansible roles, and Docker Compose services across an explicit set of canonical repository identifiers.",

@@ -2618,6 +2618,10 @@
       "derived_maturity": "general_availability",
       "surfaces": [
         {
+          "tool": "find_cross_repo_dead_code",
+          "kind": "mcp"
+        },
+        {
           "tool": "find_dead_code",
           "kind": "mcp"
         },
@@ -2632,7 +2636,7 @@
           "max_truth_level": "derived",
           "required_runtime": "local_host_plus_graph",
           "p95_latency_ms": 10000,
-          "max_scope_size": "active_repo"
+          "max_scope_size": "indexed_workspace"
         },
         "local_full_stack": {
           "status": "supported",

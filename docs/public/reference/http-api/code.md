@@ -29,6 +29,7 @@ absolute server paths are not portable client identifiers.
 | `POST /api/v0/code/relationships/story` | Narrative relationship packet with ambiguity handling and recommended follow-up calls. |
 | `POST /api/v0/code/call-chain` | Bounded path between start and end symbols or entity IDs. |
 | `POST /api/v0/code/dead-code` | Lower-level graph-backed dead-code candidate scan. |
+| `POST /api/v0/code/dead-code/cross-repo` | Producer-repository dead-code candidates classified against deterministic consumer evidence. |
 | `POST /api/v0/code/dead-code/investigate` | Dead-code investigation packet with cleanup-ready and ambiguous buckets. |
 | `POST /api/v0/code/complexity` | Single-function relationship metrics or a bounded list of complex functions. |
 | `POST /api/v0/code/quality/inspect` | Complexity, function length, argument count, or refactoring-candidate inspections. |

@@ -18,7 +18,9 @@ The capability is exposed through:
 
 - `POST /api/v0/code/dead-code`
 - `POST /api/v0/code/dead-code/investigate`
-- MCP tools `find_dead_code` and `investigate_dead_code`
+- `POST /api/v0/code/dead-code/cross-repo`
+- MCP tools `find_dead_code`, `investigate_dead_code`, and
+  `find_cross_repo_dead_code`
 - CLI command `eshu analyze dead-code`
 
 The capability matrix marks `local_authoritative`, `local_full_stack`, and
@@ -29,6 +31,14 @@ The implementation scans graph or content-backed entity candidates, removes
 symbols with incoming `CALLS`, `IMPORTS`, `REFERENCES`, `INHERITS`, or
 `EXECUTES` edges, applies the default root policy, and returns bounded results
 with truncation metadata.
+
+`POST /api/v0/code/dead-code/cross-repo` keeps the producer candidate scan
+bounded to an explicit `repo_id`, then classifies each active candidate against
+active-generation consumer evidence from the materialized reachability read
+model. A deterministic consumer row marks the symbol `live_by_consumer`.
+Ambiguous ownership, stale generations, missing evidence coverage, and
+scoped-token-hidden consumers are returned as `unknown_needs_evidence`; they
+are never converted into dead-code truth.
 
 ## Exactness Rule
 
@@ -92,6 +102,14 @@ Important response fields:
 | `analysis.generated_code_excluded` | Whether generated code is excluded by default. |
 | `analysis.user_overrides_applied` | Whether request-level exclusions were applied. |
 | `analysis.iac_reachability_mode` | Always `not_modeled_by_code_dead_code` for this capability. |
+
+Cross-repo packets return `candidate_buckets.dead`,
+`candidate_buckets.live_by_consumer`, `candidate_buckets.unknown`, and
+`candidate_buckets.suppressed`. Consumer evidence rows include
+`consumer_repo_id`, `consumer_entity_id`, `evidence_family`, `citation`,
+`confidence`, `confidence_label`, `resolution_method`, `generation_id`, and
+`generation_status` so callers can cite why a symbol was kept live or why a
+result needs more evidence.
 
 See [Dead Code Language Maturity](dead-code-language-maturity.md) for the
 current language-by-language model.
