@@ -162,6 +162,40 @@ func TestBuildCodeReachabilityRowsComputesTransitiveReachableSet(t *testing.T) {
 	}
 }
 
+func TestBuildCodeReachabilityRowsHandlesCyclesOnce(t *testing.T) {
+	rows := BuildCodeReachabilityRows(CodeReachabilityProjectionInput{
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+		RepositoryID: "repo-1",
+		Roots: []CodeReachabilityRoot{{
+			EntityID:  "entity:root",
+			RootKinds: []string{"go.main_function"},
+		}},
+		Edges: []CodeReachabilityEdge{
+			{SourceEntityID: "entity:root", TargetEntityID: "entity:a", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			{SourceEntityID: "entity:a", TargetEntityID: "entity:b", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			{SourceEntityID: "entity:b", TargetEntityID: "entity:a", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			{SourceEntityID: "entity:b", TargetEntityID: "entity:target", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+		},
+		MaxDepth:   10,
+		MaxVisited: 10,
+	})
+
+	byEntity := make(map[string]CodeReachabilityRow)
+	for _, row := range rows {
+		if _, ok := byEntity[row.EntityID]; ok {
+			t.Fatalf("duplicate reachable row for %q: %#v", row.EntityID, rows)
+		}
+		byEntity[row.EntityID] = row
+	}
+	if got, want := len(rows), 4; got != want {
+		t.Fatalf("rows = %d, want %d: %#v", got, want, rows)
+	}
+	if got, want := byEntity["entity:target"].Depth, 3; got != want {
+		t.Fatalf("target depth = %d, want %d", got, want)
+	}
+}
+
 func TestBuildCodeReachabilityRowsDeltaScopesAffectedSlice(t *testing.T) {
 	rows := BuildCodeReachabilityRows(CodeReachabilityProjectionInput{
 		ScopeID:      "scope-1",

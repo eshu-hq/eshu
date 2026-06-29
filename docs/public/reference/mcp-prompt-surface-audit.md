@@ -21,7 +21,7 @@ only in diagnostics sections and local graph debugging.
 | Call-chain prompts | `find_function_call_chain` | Ready | Use `max_depth`; compatibility through `analyze_code_relationships` is still supported. |
 | Recursive and hub-function prompts | `inspect_call_graph_metrics` | Ready | Requires repository scope, returns canonical `functions` rows, reports recursion or hub-degree evidence, and includes truncation metadata. |
 | Code quality and refactoring prompts | `inspect_code_quality`, `find_most_complex_functions`, `calculate_cyclomatic_complexity` | Ready | Prefer `inspect_code_quality` for list-style prompts because it returns source handles and truncation. |
-| Dead-code prompts | `investigate_dead_code` | Ready | Use the investigation packet first; `find_dead_code` remains the lower-level candidate scan. |
+| Dead-code prompts | `investigate_dead_code`, `find_cross_repo_dead_code` | Ready | Use the investigation packet first for one repository; use `find_cross_repo_dead_code` when another repository or service boundary may keep a producer symbol live. `find_dead_code` remains the lower-level candidate scan. |
 | Hardcoded-secret prompts | `investigate_hardcoded_secrets` | Ready | Returns redacted evidence only, with suppression notes and paging. |
 | Repository explanation and context | `get_repo_story`, `get_repo_context` | Ready | Use `get_repo_story` for the narrative repository dossier and `get_repo_context` for durable drilldown after story or search results identify the repository. |
 | Service explanation and onboarding | `get_service_story`, `investigate_service` | Ready | Use story first for the normal dossier path; use investigation first when coverage must be inspected before answering. |

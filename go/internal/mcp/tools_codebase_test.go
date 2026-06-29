@@ -16,7 +16,7 @@ func TestCodebaseToolsAreRegistered(t *testing.T) {
 		"investigate_import_dependencies", "inspect_call_graph_metrics",
 		"investigate_code_topic", "investigate_hardcoded_secrets",
 		"get_code_relationship_story", "analyze_code_relationships",
-		"find_dead_code", "investigate_dead_code", "find_dead_iac",
+		"find_dead_code", "investigate_dead_code", "find_cross_repo_dead_code", "find_dead_iac",
 		"find_unmanaged_resources", "get_iac_management_status",
 		"explain_iac_management_status", "propose_terraform_import_plan",
 		"compose_replatforming_plan", "list_aws_runtime_drift_findings",

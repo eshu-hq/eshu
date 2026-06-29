@@ -79,3 +79,46 @@ func TestOpenAPIDeadCodeInvestigationDocumentsReturnedFields(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenAPICrossRepoDeadCodeDocumentsEvidenceBuckets(t *testing.T) {
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	crossRepoPath := mustMapField(t, paths, "/api/v0/code/dead-code/cross-repo")
+	post := mustMapField(t, crossRepoPath, "post")
+	description, ok := post["description"].(string)
+	if !ok {
+		t.Fatalf("description type = %T, want string", post["description"])
+	}
+	for _, want := range []string{"live_by_consumer", "unknown_needs_evidence", "stale generations"} {
+		if !strings.Contains(description, want) {
+			t.Fatalf("description = %q, want %q", description, want)
+		}
+	}
+	requestProperties := mustMapField(
+		t,
+		mustMapField(t, mustMapField(t, mustMapField(t, post, "requestBody"), "content"), "application/json"),
+		"schema",
+	)
+	requestFields := mustMapField(t, requestProperties, "properties")
+	for _, field := range []string{"repo_id", "consumer_repo_ids", "language", "limit"} {
+		if _, ok := requestFields[field]; !ok {
+			t.Fatalf("cross-repo dead-code request schema missing %s", field)
+		}
+	}
+	responses := mustMapField(t, post, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	properties := mustMapField(
+		t,
+		mustMapField(t, mustMapField(t, mustMapField(t, okResponse, "content"), "application/json"), "schema"),
+		"properties",
+	)
+	for _, field := range []string{"query_shape", "candidate_buckets", "bucket_counts"} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("cross-repo dead-code response schema missing %s", field)
+		}
+	}
+}
