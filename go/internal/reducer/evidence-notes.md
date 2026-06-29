@@ -3,6 +3,107 @@
 Keep this file for scoped reducer evidence that is too detailed for the package
 orientation README.
 
+## #4234 — eshu_search_index_terms document-keyed index (2026-06-29)
+
+### Problem
+
+`eshu_search_index_terms` has PK `(scope_id, generation_id, term_key,
+document_id)` and secondary index `eshu_search_index_terms_lookup_idx
+(scope_id, generation_id, term_key)`. Two hot DELETEs filter by
+`(scope_id, generation_id, document_id)`:
+
+- `eshuSearchIndexRefreshDocumentTermsQuery` — `document_id = ANY($3::text[])`
+  — fired on **every per-page write** (hot path).
+- `eshuSearchIndexRetireTermsQuery` — `document_id <> ALL($3::text[])` —
+  fired on every Finalize (retire pass).
+
+Neither the PK nor the lookup index has `document_id` usable after
+`(scope_id, generation_id)`, so the planner was forced to scan the entire
+`(scope, generation)` PK slice — up to **4.75 M rows per scope** on the
+43 GB / 73.5 M-row table.
+
+### Before EXPLAIN (no doc index) — 43 GB table, scope with 4 750 236 term rows
+
+```
+Node Type:         Index Scan
+Index Name:        eshu_search_index_terms_pkey
+Index Cond:        scope_id = $1 AND generation_id = $2 AND document_id = ANY($3)
+Index Searches:    7487
+Shared Blocks:     49307 (hit=34810, read=14497)
+Actual Total Time: 358.120 ms
+Total Cost:        163441.12
+```
+
+The planner used the PK but performed **7 487 index searches** scanning the
+full (scope, generation) slice; `document_id = ANY` was applied as a filter
+after the slice scan, not as an index condition.
+
+### Fix
+
+Added index:
+
+```sql
+CREATE INDEX IF NOT EXISTS eshu_search_index_terms_doc_idx
+    ON eshu_search_index_terms (scope_id, generation_id, document_id);
+```
+
+Migration: `go/internal/storage/postgres/migrations/003b_eshu_search_index.sql`
+(appended after `eshu_search_index_terms_lookup_idx`).
+
+### After EXPLAIN (with doc index) — same scope, same query
+
+```
+Node Type:         Index Scan
+Index Name:        eshu_search_index_terms_doc_idx
+Index Cond:        scope_id = $1 AND generation_id = $2 AND document_id = ANY($3)
+Index Searches:    1
+Shared Blocks:     12 (hit=7, read=5)
+Actual Total Time: 0.064 ms
+Total Cost:        94.20
+```
+
+**Buffer block improvement: 99.97% (49 307 → 12 blocks)**
+**Time improvement: 358 ms → 0.064 ms (~5600×)**
+**Index searches: 7487 → 1**
+
+### Write-amplification
+
+One extra B-tree entry per term INSERT/DELETE. Each document has O(200) terms,
+so the overhead is modest and clearly worthwhile given the refresh DELETE fires
+on every per-page write.
+
+### Migration-lock risk
+
+`CREATE INDEX IF NOT EXISTS` takes a table-level lock during the build phase.
+Acceptable for fresh-corpus bootstrap (empty table). An operator adding this
+index to a populated production database should use `CREATE INDEX CONCURRENTLY`
+out-of-band to avoid locking writers.
+
+### Classification
+
+**Correctness win + Handler win + Wall-clock win**: the planner chose a correct
+but expensive full-slice scan. The doc index makes the DELETE semantically
+identical while reducing buffer I/O by 99.97%.
+
+### Observability
+
+**No-Observability-Change:** existing `eshu_dp_search_index_mutations_total`
+and `eshu_dp_search_index_write_duration_seconds` metrics cover both paths and
+will reflect the improvement automatically.
+
+**No-Regression Evidence:** golden-corpus gate passes; unit test suite
+(3643 tests across `postgres` and `reducer` packages) passes.
+
+### Proof environment
+
+- Database: `postgres:18` container, local, port 15432
+- Table size: 73 526 296 estimated rows (43 GB)
+- Proof scope: `git-repository-scope:repository:r_1e8c84c8`
+  generation: `ab33732129030d107f9082dfcda7029d5c63f77ad8a40b01ea16a39b6f640039`
+  (4 750 236 term rows in that scope/generation)
+- Live test: `TestEshuSearchIndexTermsDocumentDeletePlanLive` in
+  `go/internal/storage/postgres/eshu_search_index_terms_doc_plan_live_test.go`
+
 ## Code-Call Refresh Fence Memory Bound (#3124)
 
 No-Regression Evidence: the baseline public-repository Helm proof for #2995
