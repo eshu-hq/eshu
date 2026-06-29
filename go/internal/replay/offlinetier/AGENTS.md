@@ -23,6 +23,17 @@
   `ExecuteGroup`). Driving it through the full-atomic `GroupExecutor` path is
   the Neo4j path, not production NornicDB, and silently drops the directory
   CONTAINS edges once the schema's uid indexes exist — the #4019 bug class.
+- `livePhaseGroupExecutor` MUST stay a FAITHFUL mirror of the production
+  `cmd/ingester` `nornicDBPhaseGroupExecutor`, not just a thin `ExecuteGroup`
+  wrapper. Two production behaviors are load-bearing on NornicDB and MUST be
+  reproduced (see #4186): (1) strip the `_eshu_*` diagnostic params that
+  `annotateCanonicalWritePhases` injects (via `cypher.SanitizeStatement`) before
+  any statement reaches the driver — an unreferenced param on a grouped
+  `DETACH DELETE` makes the delete silently no-op; (2) run an all-retract phase
+  SEQUENTIALLY as per-statement auto-commit `Execute` (mirroring
+  `executeSequentialRetractPhase`), NEVER as one grouped transaction. Omitting
+  either masks correct gen2 directory retraction and reds
+  `TestDeltaTombstoneGraphTruth`.
 - Cleanup MUST run before AND after the write (DETACH DELETE by repo identity)
   so re-runs are deterministic.
 - The assertion MUST fail when the projection writes nothing (no false green).

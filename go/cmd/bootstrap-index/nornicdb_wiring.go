@@ -298,49 +298,15 @@ func bootstrapStatementPhaseGroupMode(stmt sourcecypher.Statement) string {
 }
 
 func allBootstrapStatementsUseOperation(stmts []sourcecypher.Statement, operation sourcecypher.Operation) bool {
-	for _, stmt := range stmts {
-		if stmt.Operation != operation {
-			return false
-		}
-	}
-	return len(stmts) > 0
+	return sourcecypher.StatementsAllUseOperation(stmts, operation)
 }
 
 func bootstrapSanitizedPhaseGroupChunk(stmts []sourcecypher.Statement) []sourcecypher.Statement {
-	sanitized := make([]sourcecypher.Statement, len(stmts))
-	for i, stmt := range stmts {
-		sanitized[i] = bootstrapSanitizedStatement(stmt)
-	}
-	return sanitized
+	return sourcecypher.SanitizeStatements(stmts)
 }
 
 func bootstrapSanitizedStatement(stmt sourcecypher.Statement) sourcecypher.Statement {
-	stmt.Parameters = bootstrapSanitizedParameters(stmt.Parameters)
-	return stmt
-}
-
-func bootstrapSanitizedParameters(params map[string]any) map[string]any {
-	if len(params) == 0 {
-		return params
-	}
-	hasDiagnosticKeys := false
-	for key := range params {
-		if strings.HasPrefix(key, "_") {
-			hasDiagnosticKeys = true
-			break
-		}
-	}
-	if !hasDiagnosticKeys {
-		return params
-	}
-	sanitized := make(map[string]any, len(params))
-	for key, value := range params {
-		if strings.HasPrefix(key, "_") {
-			continue
-		}
-		sanitized[key] = value
-	}
-	return sanitized
+	return sourcecypher.SanitizeStatement(stmt)
 }
 
 func bootstrapStatementSummary(stmt sourcecypher.Statement) string {

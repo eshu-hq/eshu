@@ -42,20 +42,58 @@ type liveExecutor struct {
 // ExecuteGroup, so directory nodes commit before the directory-edge phase MATCHes
 // them, exactly as in production. This is the real backend write path; it is not
 // a fake.
+//
+// To stay faithful to production it reproduces two behaviors of the real
+// nornicDBPhaseGroupExecutor that are load-bearing on NornicDB:
+//
+//  1. It strips the `_eshu_*` diagnostic parameters that
+//     annotateCanonicalWritePhases injects (via cypher.SanitizeStatement) before
+//     any statement reaches the driver. Production strips them with
+//     sanitizedStatement; passing them through is not just wasteful — on NornicDB
+//     an unreferenced parameter on a grouped DETACH DELETE makes the delete
+//     silently no-op, which previously masked correct gen2 directory retraction
+//     and failed TestDeltaTombstoneGraphTruth (#4186).
+//  2. It runs an all-retract phase SEQUENTIALLY as per-statement auto-commit
+//     Execute (mirroring executeSequentialRetractPhase), not as one managed
+//     ExecuteGroup transaction. NornicDB does not reliably apply a multi-statement
+//     grouped DETACH DELETE; production therefore never groups retracts.
+//
+// Non-retract phases still run as one grouped transaction so the directory-edge
+// MATCH sees the directory nodes MERGE'd earlier in the same group — the #4019
+// single-label read-your-writes contract.
 type livePhaseGroupExecutor struct {
 	inner liveExecutor
 }
 
-// Execute runs a singleton statement through the inner driver-backed executor.
+// Execute runs a singleton statement through the inner driver-backed executor,
+// stripping diagnostic metadata params first, exactly as production does.
 func (e livePhaseGroupExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
-	return e.inner.Execute(ctx, stmt)
+	return e.inner.Execute(ctx, cypher.SanitizeStatement(stmt))
 }
 
-// ExecutePhaseGroup runs one canonical write phase as a single real transaction.
-// It does NOT span phases, which is the production NornicDB contract the #4019
-// directory phase-split depends on.
+// ExecutePhaseGroup runs one canonical write phase. An all-retract phase runs as
+// sequential per-statement auto-commit Execute (mirroring production's
+// executeSequentialRetractPhase); every other phase runs as a single real
+// transaction. It does NOT span phases, which is the production NornicDB contract
+// the #4019 directory phase-split depends on. Every statement is sanitized of
+// `_eshu_*` diagnostic params before it reaches the driver.
 func (e livePhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []cypher.Statement) error {
-	return e.inner.ExecuteGroup(ctx, stmts)
+	// The canonical writer's buildPhases never emits a phase that mixes retract
+	// and upsert statements, so an all-retract check is sufficient to match
+	// production: pure-retract phases run sequentially, everything else groups.
+	if cypher.StatementsAllUseOperation(stmts, cypher.OperationCanonicalRetract) {
+		for _, stmt := range stmts {
+			for _, chunk := range cypher.ChunkPositiveStringSliceRetractStatement(
+				stmt, cypher.DefaultPositiveRetractStringSliceBatchSize,
+			) {
+				if err := e.inner.Execute(ctx, cypher.SanitizeStatement(chunk)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	return e.inner.ExecuteGroup(ctx, cypher.SanitizeStatements(stmts))
 }
 
 // Execute runs one write statement in its own auto-commit session.
