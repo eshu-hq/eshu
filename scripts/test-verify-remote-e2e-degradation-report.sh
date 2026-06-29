@@ -195,6 +195,25 @@ JSON
 
 expect_fail_with "${private_hostname_input}" 'public-safe'
 
+private_mixed_case_hostname_input="${tmp_root}/private-mixed-case-hostname.json"
+cat >"${private_mixed_case_hostname_input}" <<'JSON'
+{
+  "run": {"id": "private-mixed-case-hostname", "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de"},
+  "startup": {"schema_bootstrap": "passed"},
+  "services": [{"name": "eshu", "state": "running", "health": "healthy"}],
+  "index_status": {"status": "healthy", "queue": {"outstanding": 0}},
+  "postgres": {
+    "active_queries": [
+      {"age_seconds": 1, "query_shape": "select from DB.INTERNAL.EXAMPLE via HTTPS://SVC.CORP/path"}
+    ],
+    "ungranted_locks": 0,
+    "relation_sizes": []
+  }
+}
+JSON
+
+expect_fail_with "${private_mixed_case_hostname_input}" 'public-safe'
+
 healthy_input="${tmp_root}/healthy.json"
 cat >"${healthy_input}" <<'JSON'
 {

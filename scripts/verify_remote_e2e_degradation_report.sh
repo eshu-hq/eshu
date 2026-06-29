@@ -74,7 +74,7 @@ if jq -r '
 	else
 		empty
 	end
-' "${INPUT_FILE}" | rg -n "${unsafe_pattern}" >"${unsafe_match_file}"; then
+' "${INPUT_FILE}" | rg -in "${unsafe_pattern}" >"${unsafe_match_file}"; then
 	echo "input evidence bundle is not public-safe; redact host paths, IPs, credentials, and account identifiers first" >&2
 	sed -n '1,20p' "${unsafe_match_file}" >&2
 	exit 1
