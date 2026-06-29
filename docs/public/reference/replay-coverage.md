@@ -4,24 +4,25 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 179/179 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 186/186 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Capability claims | 130 | 130 | 100.00% | 0 | 0 |
+| Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Collectors | 18 | 18 | 100.00% | 0 | 4 |
-| **Total** | **179** | **179** | **100.00%** | **0** | **6** |
+| **Total** | **186** | **186** | **100.00%** | **0** | **6** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 174 | 174 | 100.00% | 0 | 6 |
+| baseline | 181 | 181 | 100.00% | 0 | 6 |
 | cost | 1 | 1 | 100.00% | 0 | 0 |
 | crash | 1 | 1 | 100.00% | 0 | 0 |
 | delta_tombstone | 1 | 1 | 100.00% | 0 | 0 |
@@ -32,7 +33,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (179)
+## Covered surfaces (186)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -166,6 +167,13 @@ None. Every supported surface has a replay scenario.
 | `capability:visualization.graph_query` | baseline | capability_claim | capability-inventory | `visualization.graph_query` |
 | `capability:visualization.packet_derivation` | baseline | capability_claim | capability-inventory | `visualization.packet_derivation` |
 | `capability:work_item.evidence.list` | baseline | capability_claim | capability-inventory | `work_item.evidence.list` |
+| `cli_surface:eshu component inventory --json` | baseline | cli_golden | golden-corpus-gate | `eshu component inventory --json` |
+| `cli_surface:eshu hosted-onboard --json` | baseline | cli_golden | golden-corpus-gate | `eshu hosted-onboard --json` |
+| `cli_surface:eshu index-status` | baseline | cli_golden | golden-corpus-gate | `eshu index-status` |
+| `cli_surface:eshu list` | baseline | cli_golden | golden-corpus-gate | `eshu list` |
+| `cli_surface:eshu playbooks list` | baseline | cli_golden | golden-corpus-gate | `eshu playbooks list` |
+| `cli_surface:eshu trace service --json` | baseline | cli_golden | golden-corpus-gate | `eshu trace service --json` |
+| `cli_surface:eshu vuln-scan repo --json` | baseline | cli_golden | golden-corpus-gate | `eshu vuln-scan repo --json` |
 | `read_surface:GET /api/v0/ci-cd/run-correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/cloud/inventory` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |

@@ -68,6 +68,8 @@ var (
 	EvaluateEdgeCount = gg.EvaluateEdgeCount
 	// EvaluateQueryShape validates a raw JSON response against a query shape.
 	EvaluateQueryShape = gg.EvaluateQueryShape
+	// EvaluateQuerySurfaceParity validates offline API/MCP/CLI parity metadata.
+	EvaluateQuerySurfaceParity = gg.EvaluateQuerySurfaceParity
 	// EvaluateTiming produces a required wall-time finding.
 	EvaluateTiming = gg.EvaluateTiming
 )

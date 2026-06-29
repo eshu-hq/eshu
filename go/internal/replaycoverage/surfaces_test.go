@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/goldengate"
 )
 
 func testInputs() ([]SupportedSurface, map[string]SupportedSurface) {
@@ -51,7 +52,7 @@ func testInputs() ([]SupportedSurface, map[string]SupportedSurface) {
 		}},
 	}}
 
-	got := EnumerateSupported(inv, factKinds, ledger, matrix, productClaims)
+	got := EnumerateSupported(inv, factKinds, ledger, matrix, productClaims, nil)
 	byKey := map[string]SupportedSurface{}
 	for _, s := range got {
 		byKey[s.Key] = s
@@ -94,6 +95,39 @@ func TestEnumerateSupportedKeys(t *testing.T) {
 		if _, ok := byKey[key]; ok {
 			t.Errorf("surface %q must not be enumerated", key)
 		}
+	}
+}
+
+func TestEnumerateSupportedIncludesCLIReadSurfaces(t *testing.T) {
+	inv := capabilitycatalog.SurfaceInventory{}
+	cliShapes := map[string]goldengate.QueryShape{
+		"eshu list":                 {},
+		"eshu playbooks list":       {},
+		"  ":                        {},
+		"eshu trace service --json": {},
+	}
+
+	got := EnumerateSupported(inv, nil, ParserLedger{}, capabilitycatalog.Matrix{}, capabilitycatalog.ProductClaimLedger{}, cliShapes)
+	byKey := map[string]SupportedSurface{}
+	for _, s := range got {
+		byKey[s.Key] = s
+	}
+
+	for _, key := range []string{
+		"cli_surface:eshu list",
+		"cli_surface:eshu playbooks list",
+		"cli_surface:eshu trace service --json",
+	} {
+		s, ok := byKey[key]
+		if !ok {
+			t.Fatalf("missing CLI read surface %q", key)
+		}
+		if s.Registry != RegistryCLIReadSurface {
+			t.Fatalf("%q registry = %q, want %q", key, s.Registry, RegistryCLIReadSurface)
+		}
+	}
+	if _, ok := byKey["cli_surface:"]; ok {
+		t.Fatal("blank CLI read surface must not enumerate")
 	}
 }
 

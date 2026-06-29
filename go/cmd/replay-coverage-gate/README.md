@@ -1,8 +1,9 @@
 # replay-coverage-gate
 
-The **C-1/C-8 replay coverage manifest + lockstep gate**
+The **C-1/C-8/C-9 replay coverage manifest + lockstep gate**
 ([#4173](https://github.com/eshu-hq/eshu/issues/4173),
-[#4187](https://github.com/eshu-hq/eshu/issues/4187), epic
+[#4187](https://github.com/eshu-hq/eshu/issues/4187),
+[#4188](https://github.com/eshu-hq/eshu/issues/4188), epic
 [#4172](https://github.com/eshu-hq/eshu/issues/4172)). It is the keystone of the
 replay-coverage-completeness epic: it proves that every surface and required
 scenario-depth class Eshu claims to support has a green, credential-free,
@@ -16,10 +17,12 @@ logic lives in [`internal/replaycoverage`](../../internal/replaycoverage).
 
 1. Loads the source-of-truth registries: the embedded surface inventory and
    fact-kind registry (the same generated artifacts the capability-inventory
-   drift gate owns — composed, not forked), the parser-backing ledger, the
-   capability matrix, and the public product-claim ledger.
+   drift gate owns — composed, not forked), the B-12 CLI query-shape catalog, the
+   parser-backing ledger, the capability matrix, and the public product-claim
+   ledger.
 2. Enumerates the supported surfaces (implemented-lane collectors, read surfaces,
-   parsers, positive capability claims, and public product claims).
+   CLI read surfaces, parsers, positive capability claims, and public product
+   claims).
 3. Reconciles each against `specs/replay-coverage-manifest.v1.yaml` and the
    on-disk / snapshot scenario artifacts. Each coverage entry carries an artifact
    kind (`scenario`) and a C-8 depth class (`scenario_type`: baseline,

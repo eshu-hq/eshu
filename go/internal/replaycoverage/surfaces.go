@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/goldengate"
 )
 
 // Registry identifies which source-of-truth registry a required surface is
@@ -24,6 +25,9 @@ const (
 	// RegistryFactKind is specs/fact-kind-registry.v1.yaml: each distinct
 	// read_surface is a required API/MCP golden-replay target.
 	RegistryFactKind Registry = "fact_kind_registry"
+	// RegistryCLIReadSurface is the B-12 snapshot query_shapes.cli catalog: each
+	// CLI read command is a required CLI golden-replay target.
+	RegistryCLIReadSurface Registry = "cli_read_surface"
 	// RegistryParserLedger is specs/parser-backing-ledger.v1.yaml: each parser is
 	// a required parser-fixture-replay target.
 	RegistryParserLedger Registry = "parser_backing_ledger"
@@ -39,6 +43,7 @@ const (
 var allRegistries = []Registry{
 	RegistrySurfaceInventory,
 	RegistryFactKind,
+	RegistryCLIReadSurface,
 	RegistryParserLedger,
 	RegistryCapabilityMatrix,
 	RegistryProductClaims,
@@ -68,6 +73,8 @@ type SupportedSurface struct {
 //     lane asserts production readiness), keyed "collector:<name>";
 //   - fact-kind registry: each distinct non-blank read_surface, keyed
 //     "read_surface:<surface>";
+//   - B-12 CLI query shapes: each distinct non-blank CLI read surface, keyed
+//     "cli_surface:<command>";
 //   - parser-backing ledger: each parser, keyed "parser:<name>";
 //   - capability matrix: each capability with at least one positively-claimed
 //     profile, keyed "capability:<id>";
@@ -82,6 +89,7 @@ func EnumerateSupported(
 	ledger ParserLedger,
 	matrix capabilitycatalog.Matrix,
 	productClaims capabilitycatalog.ProductClaimLedger,
+	cliShapes map[string]goldengate.QueryShape,
 ) []SupportedSurface {
 	var out []SupportedSurface
 
@@ -118,6 +126,18 @@ func EnumerateSupported(
 			Registry: RegistryFactKind,
 			Key:      "read_surface:" + rs,
 			Detail:   fmt.Sprintf("read surface %q (%d fact kind(s))", rs, n),
+		})
+	}
+
+	for key := range cliShapes {
+		command := strings.TrimSpace(key)
+		if command == "" {
+			continue
+		}
+		out = append(out, SupportedSurface{
+			Registry: RegistryCLIReadSurface,
+			Key:      "cli_surface:" + command,
+			Detail:   fmt.Sprintf("CLI read surface %q", command),
 		})
 	}
 

@@ -92,6 +92,13 @@ for `application/eshu.envelope+json` and assert the returned `{data, truth,
 error}` object directly. MCP shapes use the same flag to keep the tool envelope
 instead of unwrapping `data`.
 
+`query_shapes.cli` makes the CLI a first-class read surface for C-9. CLI rows
+declare the `eshu` argv, required response fields, truth class, and optional
+`parity_with` peers such as `http:GET /api/v0/repositories` or
+`mcp:list_indexed_repositories`. The query phase evaluates this metadata
+offline, so a CLI row cannot claim API/MCP parity without naming the exact peers
+and matching their truth class.
+
 Deep assertions use explicit dot paths. A segment ending in `[]` traverses a
 non-empty array, so
 `data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation`

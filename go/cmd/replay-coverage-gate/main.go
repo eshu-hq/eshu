@@ -120,6 +120,7 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		Ledger:        ledger,
 		Matrix:        matrix,
 		ProductClaims: productClaims,
+		CLIShapes:     snapshot.QueryShapes.CLI,
 		Manifest:      manifest,
 		Resolver: replaycoverage.ArtifactResolver{
 			RepoRoot:      o.repoRoot,

@@ -2,25 +2,27 @@
 #
 # This is the curated, reviewable mapping from each supported surface to the
 # replay scenario that exercises it. The replay-coverage-gate
-# (go/cmd/replay-coverage-gate) enumerates the supported surfaces from the five
+# (go/cmd/replay-coverage-gate) enumerates the supported surfaces from the six
 # source-of-truth registries — surface-inventory implemented-lane collectors,
-# fact-kind-registry read surfaces, parser-backing-ledger parsers, and
-# capability-matrix claims, plus product-claims public ledger rows — and reports
-# any required surface/scenario_type pair with no entry here as UNCOVERED. That
-# uncovered list is the C-2..C-8 backfill worklist.
+# fact-kind-registry read surfaces, B-12 CLI query shapes, parser-backing-ledger
+# parsers, capability-matrix claims, plus product-claims public ledger rows —
+# and reports any required surface/scenario_type pair with no entry here as
+# UNCOVERED. That uncovered list is the C-2..C-9 backfill worklist.
 #
 # Surface keys are "<kind>:<name>":
 #   collector:<name>          (surface-inventory implemented lane)
 #   read_surface:<surface>    (fact-kind-registry read_surface)
+#   cli_surface:<command>     (B-12 query_shapes.cli)
 #   parser:<name>             (parser-backing-ledger)
 #   capability:<id>           (capability-matrix positive claim)
 #   product_claim:<id>        (product-claims public claim ledger)
 #
 # scenario artifact kinds: cassette | parser_fixture | api_mcp_golden |
-#   correlation | capability_claim | product_claim | go_test | proof_artifact
+#   cli_golden | correlation | capability_claim | product_claim | go_test |
+#   proof_artifact
 #   - cassette / parser_fixture refs are repo-relative paths to the artifact.
-#   - api_mcp_golden / correlation refs are B-12 snapshot ids (query-shape key /
-#     rc-*).
+#   - api_mcp_golden / cli_golden / correlation refs are B-12 snapshot ids
+#     (query-shape key / rc-*).
 #   - capability_claim refs are capability ids whose capability-matrix profile
 #     rows carry supported-answer and refusal verification references.
 #   - product_claim refs are product-claims ledger ids whose deterministic
@@ -86,6 +88,18 @@ coverage:
   - {surface: "read_surface:GET /api/v0/secrets-iam/posture-summary", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/ci-cd/run-correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/service-catalog/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
+
+  # C-9 (#4188): CLI read surfaces. Each maps to a B-12 query_shapes.cli key;
+  # the golden-corpus-gate asserts offline command/truth-class parity metadata,
+  # while the CLI package tests keep the committed keys in lockstep with the
+  # public command tree.
+  - {surface: "cli_surface:eshu list", scenario: cli_golden, scenario_type: baseline, ref: "eshu list", proof_gate: golden-corpus-gate}
+  - {surface: "cli_surface:eshu index-status", scenario: cli_golden, scenario_type: baseline, ref: "eshu index-status", proof_gate: golden-corpus-gate}
+  - {surface: "cli_surface:eshu trace service --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu trace service --json", proof_gate: golden-corpus-gate}
+  - {surface: "cli_surface:eshu playbooks list", scenario: cli_golden, scenario_type: baseline, ref: "eshu playbooks list", proof_gate: golden-corpus-gate}
+  - {surface: "cli_surface:eshu vuln-scan repo --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu vuln-scan repo --json", proof_gate: golden-corpus-gate}
+  - {surface: "cli_surface:eshu component inventory --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu component inventory --json", proof_gate: golden-corpus-gate}
+  - {surface: "cli_surface:eshu hosted-onboard --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu hosted-onboard --json", proof_gate: golden-corpus-gate}
 
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
