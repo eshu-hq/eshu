@@ -92,6 +92,74 @@ func updateUser(req: Request) async throws -> HTTPStatus {
 	})
 }
 
+func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipOuterReceiverForGroupedDescendants(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
+	writeTestFile(t, filePath, `import Vapor
+
+func routes(_ routes: RoutesBuilder) throws {
+    routes.group("api") { routes in
+        routes.get("users", use: listUsers)
+    }
+}
+
+func listUsers(req: Request) async throws -> String {
+    "[]"
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
+		{"method": "GET", "path": "/api/users", "handler": "listUsers"},
+	})
+}
+
+func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipParentScopeForNestedGroups(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Sources", "App", "Routes.swift")
+	writeTestFile(t, filePath, `import Vapor
+
+func routes(_ routes: RoutesBuilder) throws {
+    routes.group("api") { routes in
+        routes.group("v1") { routes in
+            routes.get("users", use: listUsers)
+        }
+    }
+}
+
+func listUsers(req: Request) async throws -> String {
+    "[]"
+}
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertNestedRouteEntriesEqual(t, got, "vapor", []map[string]string{
+		{"method": "GET", "path": "/api/v1/users", "handler": "listUsers"},
+	})
+}
+
 func TestDefaultEngineParsePathSwiftVaporRouteEntriesSkipNonExactHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -153,6 +221,12 @@ func routes(_ app: Application) throws {
         admin.get("users") { req in
             "[]"
         }
+    }
+}
+
+func scopedRoutes(_ routes: RoutesBuilder) throws {
+    routes.group(prefix) { routes in
+        routes.get("leaked", use: listUsers)
     }
 }
 
