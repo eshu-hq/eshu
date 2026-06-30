@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 208/208 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 209/209 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -13,17 +13,17 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | authorization_catalog | 22 | 22 | 100.00% | 0 | 0 |
 | Capability claims | 130 | 130 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
+| Read surfaces (API/MCP) | 17 | 17 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Collectors | 18 | 18 | 100.00% | 0 | 4 |
-| **Total** | **208** | **208** | **100.00%** | **0** | **6** |
+| **Total** | **209** | **209** | **100.00%** | **0** | **5** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 203 | 203 | 100.00% | 0 | 6 |
+| baseline | 204 | 204 | 100.00% | 0 | 5 |
 | cost | 1 | 1 | 100.00% | 0 | 0 |
 | crash | 1 | 1 | 100.00% | 0 | 0 |
 | delta_tombstone | 1 | 1 | 100.00% | 0 | 0 |
@@ -34,7 +34,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (208)
+## Covered surfaces (209)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -207,7 +207,8 @@ None. Every supported surface has a replay scenario.
 | `read_surface:GET /api/v0/observability/coverage/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
 | `read_surface:GET /api/v0/package-registry/packages` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |
 | `read_surface:GET /api/v0/secrets-iam/posture-summary` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |
-| `read_surface:GET /api/v0/semantic-evidence` | baseline | exempt | — | — |
+| `read_surface:GET /api/v0/semantic/code-hints` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25` |
+| `read_surface:GET /api/v0/semantic/documentation-observations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25` |
 | `read_surface:GET /api/v0/service-catalog/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/supply-chain/impact/findings` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000` |
 | `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom` |

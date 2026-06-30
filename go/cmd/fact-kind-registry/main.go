@@ -41,6 +41,7 @@ type familySpec struct {
 	ProjectionHook         string            `yaml:"projection_hook"`
 	AdmissionHook          string            `yaml:"admission_hook"`
 	ReadSurface            string            `yaml:"read_surface"`
+	ReadSurfaceOverrides   map[string]string `yaml:"read_surface_overrides"`
 	TruthProfile           string            `yaml:"truth_profile"`
 	PolicyGate             string            `yaml:"policy_gate"`
 	ProviderKeyIndependent bool              `yaml:"provider_key_independent"`
@@ -189,6 +190,9 @@ func buildFamilyEntries(name string, live liveFamily, spec familySpec) ([]facts.
 	if !stringSlicesEqual(liveKinds, specKinds) {
 		return nil, fmt.Errorf("family %q kinds drifted: spec=%v live=%v", name, specKinds, liveKinds)
 	}
+	if err := validateKindOverrides(name, "read_surface_overrides", spec.ReadSurfaceOverrides, specKinds); err != nil {
+		return nil, err
+	}
 	entries := make([]facts.FactKindRegistryEntry, 0, len(specKinds))
 	for _, kind := range specKinds {
 		wantVersion, ok := live.version(kind)
@@ -202,6 +206,10 @@ func buildFamilyEntries(name string, live liveFamily, spec familySpec) ([]facts.
 		if specVersion != wantVersion {
 			return nil, fmt.Errorf("family %q kind %q schema_version = %q, live helper returns %q", name, kind, specVersion, wantVersion)
 		}
+		readSurface := spec.ReadSurface
+		if override := strings.TrimSpace(spec.ReadSurfaceOverrides[kind]); override != "" {
+			readSurface = override
+		}
 		entries = append(entries, facts.FactKindRegistryEntry{
 			Kind:                   kind,
 			SchemaVersion:          specVersion,
@@ -209,7 +217,7 @@ func buildFamilyEntries(name string, live liveFamily, spec familySpec) ([]facts.
 			ReducerDomain:          spec.ReducerDomain,
 			ProjectionHook:         spec.ProjectionHook,
 			AdmissionHook:          spec.AdmissionHook,
-			ReadSurface:            spec.ReadSurface,
+			ReadSurface:            readSurface,
 			TruthProfile:           facts.FactKindTruthProfile(spec.TruthProfile),
 			PolicyGate:             spec.PolicyGate,
 			ProviderKeyIndependent: spec.ProviderKeyIndependent,
@@ -244,6 +252,25 @@ func validateFamilyMetadata(name string, spec familySpec) error {
 		}
 	default:
 		return fmt.Errorf("family %q unsupported truth_profile %q", name, spec.TruthProfile)
+	}
+	return nil
+}
+
+func validateKindOverrides(name, field string, overrides map[string]string, specKinds []string) error {
+	if len(overrides) == 0 {
+		return nil
+	}
+	known := make(map[string]struct{}, len(specKinds))
+	for _, kind := range specKinds {
+		known[kind] = struct{}{}
+	}
+	for kind, value := range overrides {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("family %q %s for kind %q is blank", name, field, kind)
+		}
+		if _, ok := known[kind]; !ok {
+			return fmt.Errorf("family %q %s references unknown kind %q", name, field, kind)
+		}
 	}
 	return nil
 }

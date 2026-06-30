@@ -204,7 +204,9 @@ families:
     reducer_domain: semantic_entity_materialization
     projection_hook: semantic_evidence
     admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/semantic-evidence"
+    read_surface: "GET /api/v0/semantic/documentation-observations"
+    read_surface_overrides:
+      semantic.code_hint: "GET /api/v0/semantic/code-hints"
     truth_profile: optional_semantic
     policy_gate: semanticpolicy
     provider_key_independent: false
