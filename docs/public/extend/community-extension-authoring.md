@@ -146,6 +146,7 @@ admission, graph truth, or query truth.
 | --- | --- |
 | Docs or navigation only | Strict MkDocs build and `git diff --check`. |
 | Collector family or hosted collector runtime | Collector authoring gate plus focused collector, fact, reducer, and runtime tests for the changed surface. |
+| Collector cassette or no-provider replay proof | The five-command conformance flow and the replay gates in [Cassette and Replay Proof](../reference/cassette-replay.md). |
 | Parser or language support | Parser tests, integration or query proof, affected language docs, `scripts/verify-parser-relationship-kit.sh`, and docs build. |
 | Relationship mapping | Extractor/evidence tests with positive, negative, and ambiguous fixtures, reducer/materialization tests, query or story proof, `scripts/verify-parser-relationship-kit.sh`, and docs build. |
 | Runtime performance or hosted activation | Before/after or no-regression evidence plus observable metrics, traces, logs, or status fields. |

@@ -9,6 +9,10 @@ state.
 A collector is not production-ready just because its binary exists. The
 deployment path must also prove bounded collection, durable facts, reducer
 drain, and operator-visible status.
+For credential-free collector extraction and replay authoring, use
+[Cassette and Replay Proof](cassette-replay.md); that proof can establish
+deterministic fact and read-shape behavior, but it does not replace the live
+runtime and reducer-drain promotion evidence described on this page.
 For a current, public-safe cross-collector proof run plus the operator-gated
 reproduction commands, see the
 [All-Collector Readiness Proof Matrix](collector-readiness-proof-matrix.md).
