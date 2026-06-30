@@ -158,6 +158,9 @@ skills are active.
 
 - MUST use `eshu-diagnostic-rigor` for runtime diagnostics, reducer throughput,
   graph backend performance, queue behavior, local/CI proof runs, and evidence.
+- MUST add `eshu-postgres-rigor` for Postgres SQL, schema DDL, indexes,
+  migrations, queue/liveness/status queries, transactions, locks, or relational
+  performance diagnostics.
 - MUST add `golang-engineering` for Go edits and tests.
 - MUST add `cypher-query-rigor` for Cypher, graph query/write/index, or backend
   dialect work.
