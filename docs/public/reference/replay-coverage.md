@@ -30,6 +30,38 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | fault | 1 | 1 | 100.00% | 0 | 0 |
 | ordering | 1 | 1 | 100.00% | 0 | 0 |
 
+## Language parser coverage
+
+Visibility-only scoreboard (C-11, [#4364](https://github.com/eshu-hq/eshu/issues/4364)) over every language in `specs/language-feature-parity-ledger.v1.yaml`. A language is *exempt* when it is exercised end-to-end by the golden-corpus 20-repo corpus; the rest are *uncovered* — the C-12 ([#4365](https://github.com/eshu-hq/eshu/issues/4365)) fixture-backfill worklist. This scoreboard does not gate the build.
+
+**9/32 languages exercised by the corpus (28.13%); 23 uncovered.**
+
+Uncovered (23) — needs a parser-fixture replay scenario:
+
+- `atlantis`
+- `c`
+- `cloudformation`
+- `cpp`
+- `crossplane`
+- `csharp`
+- `dart`
+- `elixir`
+- `gitlab-ci`
+- `haskell`
+- `java`
+- `javascript`
+- `json`
+- `kotlin`
+- `perl`
+- `php`
+- `ruby`
+- `rust`
+- `scala`
+- `sql`
+- `swift`
+- `typescript`
+- `typescriptjsx`
+
 ## Gaps — surfaces still needing a replay scenario
 
 None. Every supported surface has a replay scenario.

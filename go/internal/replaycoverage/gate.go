@@ -21,6 +21,13 @@ type Inputs struct {
 	FactKinds []facts.FactKindRegistryEntry
 	// Ledger is the parser-backing ledger (parsers).
 	Ledger ParserLedger
+	// LanguageLedger is the language-feature-parity ledger: the denominator for
+	// the C-11 (#4364) language-parser scoreboard. It is visibility-only and does
+	// not feed the blocking surface reconcile.
+	LanguageLedger LanguageLedger
+	// LanguageExemptions are the manifest's language-scoreboard exemptions
+	// (corpus-exercised languages), keyed "language:<name>".
+	LanguageExemptions []Exemption
 	// Matrix is the capability matrix (claims).
 	Matrix capabilitycatalog.Matrix
 	// ProductClaims is the public product claim-to-proof ledger.
@@ -55,6 +62,11 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 		cov = applyProofGateValidation(cov, proofGateValidationDetailsByScenario(in.Manifest, in.AuthzProofs, in.ProofGates))
 	}
 	rep := BuildReport(cov, in.Blocking)
+	// The language-parser scoreboard is computed alongside the surface report but
+	// kept out of the blocking findings below: C-11 (#4364) is visibility-only, so
+	// the uncovered languages (the C-12 #4365 worklist) are listed without failing
+	// the gate, and the single Blocking knob stays the only severity control.
+	rep.LanguageScoreboard = BuildLanguageScoreboard(in.LanguageLedger, in.LanguageExemptions)
 	gr := &goldengate.Report{}
 	for _, f := range Findings(cov, in.Blocking) {
 		gr.Add(f)

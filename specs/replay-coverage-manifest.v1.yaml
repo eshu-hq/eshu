@@ -361,3 +361,64 @@ exemptions:
       assert a green response for it. The refusal is correct behavior under the
       capability matrix; covering it would require a profile that enables the
       provider security-alert reconciliation read model.
+
+# C-11 (#4364): language-parser coverage scoreboard. The denominator is every
+# language in specs/language-feature-parity-ledger.v1.yaml (32 languages). This
+# is a SEPARATE, visibility-only scoreboard from the blocking surface reconcile
+# above — it does not gate the build (see go/internal/replaycoverage and the C-7
+# dashboard's "Language parser coverage" section). A language listed here is
+# exercised end-to-end by the golden-corpus 20-repo corpus (sync -> discover ->
+# parse -> emit), the same structural reason as the collector:git exemption, so a
+# dedicated parser fixture would re-record a path the corpus already replays.
+# Every ledger language NOT listed here is rendered as uncovered on the
+# scoreboard — the C-12 (#4365) parser-fixture backfill worklist. Add a language
+# only when its files genuinely appear in the staged corpus
+# (scripts/verify-golden-corpus-gate.sh corpus_fixtures), never to silence a gap.
+language_exemptions:
+  - surface: language:argocd
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: the
+      helm_argocd_platform fixture carries an Argo CD `kind: Application`
+      (argoproj.io) manifest that flows sync -> discover -> parse -> emit. The
+      fixture corpus is its replay scenario.
+  - surface: language:go
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: go_comprehensive,
+      lib-common, orders-api, and deployable-source contribute Go sources parsed
+      and emitted by the gate. The fixture corpus is its replay scenario.
+  - surface: language:groovy
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: the
+      jenkins-ci-pipelines fixture's Jenkinsfile is discovered as Groovy and its
+      JENKINS_GITHUB_REPOSITORY evidence path is asserted by the gate. The fixture
+      corpus is its replay scenario.
+  - surface: language:helm
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: helm_argocd_platform,
+      helm-umbrella-chart, and helm-template-chart contribute Chart.yaml/values
+      parsed and emitted by the gate. The fixture corpus is its replay scenario.
+  - surface: language:kubernetes
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: kubernetes_comprehensive
+      and deployable-config contribute Kubernetes manifests parsed and emitted by
+      the gate. The fixture corpus is its replay scenario.
+  - surface: language:kustomize
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: the
+      kustomize-deployable-overlay fixture contributes kustomization overlays
+      parsed and emitted by the gate. The fixture corpus is its replay scenario.
+  - surface: language:python
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: python_comprehensive
+      and api-svc contribute Python sources parsed and emitted by the gate. The
+      fixture corpus is its replay scenario.
+  - surface: language:terraform
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: terraform_comprehensive
+      contributes Terraform HCL parsed and emitted by the gate. The fixture corpus
+      is its replay scenario.
+  - surface: language:terragrunt
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: terragrunt_comprehensive
+      contributes Terragrunt HCL (include/dependency chains) parsed and emitted by
+      the gate. The fixture corpus is its replay scenario.

@@ -107,3 +107,36 @@ func TestRenderDashboardAllCoveredCelebrates(t *testing.T) {
 		t.Errorf("all-covered dashboard should show the no-gaps message; got:\n%s", out)
 	}
 }
+
+func TestRenderDashboardLanguageScoreboardSection(t *testing.T) {
+	rep := sampleReport(t, true)
+	rep.LanguageScoreboard = BuildLanguageScoreboard(
+		LanguageLedger{Languages: []LanguageLedgerEntry{{Language: "go"}, {Language: "rust"}, {Language: "c"}}},
+		[]Exemption{{Surface: "language:go", Reason: "exercised end-to-end by the golden-corpus 20-repo corpus"}},
+	)
+	out := string(RenderDashboard(rep))
+	for _, want := range []string{
+		"## Language parser coverage",
+		"1/3 languages exercised by the corpus",
+		"Uncovered (2)",
+		"`rust`",
+		"`c`",
+		"#4365", // the C-12 worklist pointer
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("scoreboard dashboard missing %q", want)
+		}
+	}
+	// An exempt language is not listed as uncovered.
+	if strings.Contains(out, "- `go`") {
+		t.Error("exempt language go must not appear in the uncovered list")
+	}
+}
+
+func TestRenderDashboardOmitsEmptyLanguageScoreboard(t *testing.T) {
+	// Renderer-only reports (no ledger loaded) must not emit the section.
+	out := string(RenderDashboard(sampleReport(t, false)))
+	if strings.Contains(out, "## Language parser coverage") {
+		t.Error("empty language scoreboard must be omitted, not rendered")
+	}
+}
