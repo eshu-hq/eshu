@@ -13,6 +13,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ci-gates-registry.sh"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
+static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
 
 fail() {
 	printf 'test-verify-ci-gates-registry: %s\n' "$*" >&2
@@ -56,6 +57,25 @@ require "ci-heavy tier"    "tier: ci-heavy"   "${registry}"
 require "hook_id mapping"     "hook_id:"            "${registry}"
 require "hygiene_hooks list"  "hygiene_hooks:"      "${registry}"
 require "non_gate_workflows"  "non_gate_workflows:" "${registry}"
+
+# #4218 workflow contract: dorny/paths-filter needs pull-request read
+# permission, matrix context cannot be used at jobs.<job_id>.if, and main
+# pushes must keep the old all-gates backstop instead of path-filtering only
+# the changed files.
+[[ -f "${static_contract_workflow}" ]] || fail "missing ${static_contract_workflow}"
+require "paths-filter PR permission" "pull-requests: read" "${static_contract_workflow}"
+if rg --quiet '^    if:.*matrix\.' "${static_contract_workflow}"; then
+	fail "static-contract-gates.yml must not use matrix context in jobs.<job_id>.if"
+fi
+require "main-push all-gates selector" \
+	'[[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]' \
+	"${static_contract_workflow}"
+require "selected gate matrix" \
+	"fromJSON(needs.changes.outputs.matrix)" \
+	"${static_contract_workflow}"
+require "empty-selection job guard" \
+	"needs.changes.outputs.any == 'true'" \
+	"${static_contract_workflow}"
 
 # ── 3. Live validate + drift — proves every script + workflow ref exists AND
 #       that .pre-commit-config.yaml / .github/workflows stay in lockstep ─────

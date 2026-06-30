@@ -5,6 +5,15 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    # Path-filtered (#4218): the Docker E2E stack only needs to run when Go code,
+    # Compose, or deploy shape changes. main runs unconditionally above as the
+    # backstop. Docs-only / frontend-only PRs skip this heavy job.
+    paths:
+      - "go/**"
+      - "docker-compose*.yaml"
+      - "docker-compose*.yml"
+      - "deploy/**"
+      - ".github/workflows/e2e-tests.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

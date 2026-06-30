@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    # Path-filtered (#4218): the macOS build only needs to run on Go changes.
+    # main runs unconditionally above as the backstop.
+    paths:
+      - "go/**"
+      - ".github/workflows/macos.yml"
   workflow_dispatch:
 
 concurrency:

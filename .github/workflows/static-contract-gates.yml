@@ -1,0 +1,176 @@
+name: Static Contract Gates
+
+# Consolidates the credential-free static contract verifiers (#4218) that
+# previously lived in one workflow file each (verify-openapi, verify-route-
+# coverage, verify-edge-source-tool-coverage, verify-evidence-continuity,
+# verify-skill-roundtrip, verify-telemetry-coverage, generate-operator-dashboard,
+# contract-source-of-truth). One `changes` job (dorny/paths-filter) decides which
+# gates the PR's changed paths select — mirroring specs/ci-gates.v1.yaml triggers
+# — and a single matrix job runs only the selected gates, sharing one
+# checkout + Go + ripgrep/jq setup instead of duplicating it across eight
+# workflows. Each matrix entry keeps a readable, stable check name. On push to
+# main every gate is included in the selected matrix.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detect changed gate paths
+    runs-on: ubuntu-latest
+    outputs:
+      openapi: ${{ steps.filter.outputs.openapi }}
+      route: ${{ steps.filter.outputs.route }}
+      edge: ${{ steps.filter.outputs.edge }}
+      evidence: ${{ steps.filter.outputs.evidence }}
+      skill: ${{ steps.filter.outputs.skill }}
+      telemetry: ${{ steps.filter.outputs.telemetry }}
+      dashboard: ${{ steps.filter.outputs.dashboard }}
+      contract: ${{ steps.filter.outputs.contract }}
+      matrix: ${{ steps.gate-matrix.outputs.matrix }}
+      any: ${{ steps.gate-matrix.outputs.any }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Filter changed paths against gate triggers
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # On push (no base), dorny treats everything as changed → all gates run.
+          # Path sets mirror the gate triggers in specs/ci-gates.v1.yaml; the
+          # gate-registry-drift check keeps the two in lockstep. Every filter
+          # also includes this workflow + the registry so a change to either
+          # re-runs all gates. (Self-check paths are inlined per filter rather
+          # than via a YAML anchor — dorny's handling of an anchored *list* item
+          # is version-dependent, and inlining is unambiguous.)
+          filters: |
+            openapi:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/query/**'
+              - 'go/internal/mcp/**'
+              - 'specs/surface-inventory.v1.yaml'
+              - 'specs/capability-catalog.v1.yaml'
+              - 'specs/capability-matrix.v1.yaml'
+              - 'scripts/*verify-openapi*.sh'
+            route:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/query/**'
+              - 'go/cmd/api/**'
+              - 'scripts/*verify-route-coverage*.sh'
+            edge:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/relationships/**'
+              - 'go/internal/collector/**'
+              - 'specs/surface-inventory.v1.yaml'
+              - 'scripts/*verify-edge-source-tool-coverage*.sh'
+            evidence:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/collector/**'
+              - 'go/internal/facts/**'
+              - 'go/internal/relationships/**'
+              - 'specs/evidence-continuity.v1.yaml'
+              - 'scripts/*verify-evidence-continuity*.sh'
+            skill:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/cmd/skillgen/**'
+              - 'go/internal/extensions/skillgen/**'
+              - '.agents/skills/**'
+              - 'skill-fragments/**'
+              - 'scripts/*verify-skill-roundtrip*.sh'
+            telemetry:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/**'
+              - 'go/cmd/**'
+              - 'docs/public/observability/telemetry-coverage.md'
+              - 'scripts/*verify-telemetry-coverage*.sh'
+            dashboard:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/query/**'
+              - 'go/internal/mcp/**'
+              - 'docs/public/observability/**'
+              - 'scripts/*generate-operator-dashboard*.sh'
+            contract:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/facts/**'
+              - 'go/internal/collector/contracttest/**'
+              - 'specs/fact-kind-registry.v1.yaml'
+              - 'specs/collector_fact_contract.v1.yaml'
+              - 'scripts/*verify-contracttest*.sh'
+              - 'scripts/*fact-kind-registry*.sh'
+      - name: Build selected gate matrix
+        id: gate-matrix
+        run: |
+          matrix_items=""
+          any=false
+
+          append_gate() {
+            local selected="$1"
+            local key="$2"
+            local display="$3"
+            local test="$4"
+            local gate="$5"
+
+            if [[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]; then
+              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\"}"
+              if [[ -n "${matrix_items}" ]]; then
+                matrix_items="${matrix_items},${item}"
+              else
+                matrix_items="${item}"
+              fi
+              any=true
+            fi
+          }
+
+          append_gate "${{ steps.filter.outputs.openapi }}" "openapi" "Verify OpenAPI gate" "scripts/test-verify-openapi.sh" "scripts/verify-openapi.sh"
+          append_gate "${{ steps.filter.outputs.route }}" "route" "Verify route coverage gate" "scripts/test-verify-route-coverage.sh" "scripts/verify-route-coverage.sh"
+          append_gate "${{ steps.filter.outputs.edge }}" "edge" "Verify edge source-tool coverage gate" "bash scripts/test-verify-edge-source-tool-coverage.sh" "scripts/verify-edge-source-tool-coverage.sh"
+          append_gate "${{ steps.filter.outputs.evidence }}" "evidence" "Verify evidence continuity gate" "scripts/test-verify-evidence-continuity.sh" "scripts/verify-evidence-continuity.sh"
+          append_gate "${{ steps.filter.outputs.skill }}" "skill" "Verify skillgen roundtrip gate" "scripts/test-verify-skill-roundtrip.sh" "scripts/verify-skill-roundtrip.sh"
+          append_gate "${{ steps.filter.outputs.telemetry }}" "telemetry" "Verify telemetry coverage gate" "scripts/test-verify-telemetry-coverage.sh" "scripts/verify-telemetry-coverage.sh"
+          append_gate "${{ steps.filter.outputs.dashboard }}" "dashboard" "Verify generate-operator-dashboard gate" "scripts/test-generate-operator-dashboard.sh" "scripts/generate-operator-dashboard.sh && git diff --exit-code -- docs/public/observability/dashboards/eshu-operator-overview.json"
+          append_gate "${{ steps.filter.outputs.contract }}" "contract" "Verify contract source-of-truth gate" "scripts/test-verify-contracttest.sh && scripts/test-verify-fact-kind-registry.sh" "scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh && git diff --exit-code -- go/internal/collector/contracttest/contract_data.go go/internal/facts/fact_kind_registry.generated.go go/internal/facts/FACT_KIND_REGISTRIES.md"
+
+          printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
+          printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
+
+  gate:
+    name: ${{ matrix.display }}
+    needs: changes
+    if: ${{ needs.changes.outputs.any == 'true' }}
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Install ripgrep and jq
+        run: sudo apt-get update && sudo apt-get install -y ripgrep jq
+      - name: Run test mirror (${{ matrix.key }})
+        run: ${{ matrix.test }}
+      - name: Run gate (${{ matrix.key }})
+        run: ${{ matrix.gate }}

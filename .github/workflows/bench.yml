@@ -17,6 +17,15 @@ name: Benchmarks
 
 on:
   pull_request:
+    # Path-filtered (#4218): benchmarks only need to run when Go code or the
+    # benchmark harness changes. main runs unconditionally below as the backstop.
+    paths:
+      - "go/**"
+      - "scripts/run-go-benchmarks.sh"
+      - "scripts/verify-bench-regression.sh"
+      - "scripts/refresh-bench-baseline.sh"
+      - "testdata/benchmarks/**"
+      - ".github/workflows/bench.yml"
   push:
     branches:
       - main
