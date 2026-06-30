@@ -24,7 +24,7 @@ change needs their domain:
 - `cypher-query-rigor`: graph query, write shape, indexes, or backend dialect.
 - `concurrency-deadlock-rigor`: workers, leases, retries, conflict keys, or queue ordering.
 - `eshu-correlation-truth`: correlation, materialization truth, or query truth.
-- `superpowers:writing-skills`: creating or updating skills.
+- `skill-creator`: creating or updating skills.
 
 ## Operating Rules
 
