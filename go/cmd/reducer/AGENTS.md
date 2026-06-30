@@ -15,6 +15,13 @@ before touching any file in this directory.
    ordering.
 5. `CLAUDE.md` "Concurrency Workflow" — before changing worker counts,
    leases, retry delays, or batch sizes.
+6. `main.go` holds `buildReducerService` (config + dependency setup + the
+   `reducer.DefaultHandlers` composition root + the returned `reducer.Service`).
+   The adapter-gated handler groups (`DriftHandlers`, `SearchDocumentHandlers`,
+   `CloudInventoryHandlers`, `KubernetesHandlers`, `SupplyChainSecurityHandlers`,
+   `IncidentRoutingHandlers`, `CodeEvidenceHandlers`) are built by the
+   `buildReducer*Handlers` helpers in the sibling `wiring_handlers.go`; add a new
+   adapter group there, not inline in the `DefaultHandlers` literal.
 
 ## Invariants (cite file:line)
 
@@ -30,7 +37,8 @@ before touching any file in this directory.
   `HeartbeatInterval: workQueue.LeaseDuration / 2`; do not set
   `ESHU_REDUCER_RETRY_DELAY` shorter than the lease TTL or claims will churn.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
-  `PriorConfigDepth` is set from `parsePriorConfigDepth` at `main.go:294`.
+  `PriorConfigDepth` is set from `parsePriorConfigDepth` in
+  `buildReducerDriftHandlers` (`wiring_handlers.go`).
   Invalid input (non-integer, negative) returns `0` and emits a WARN log via
   `slog` with `failure_class="env_parse"`. Empty input and explicit `"0"` both
   return `0` silently — they are documented sentinels for "use default", not
