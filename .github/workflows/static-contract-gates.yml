@@ -9,7 +9,7 @@ name: Static Contract Gates
 # — and a single matrix job runs only the selected gates, sharing one
 # checkout + Go + ripgrep/jq setup instead of duplicating it across eight
 # workflows. Each matrix entry keeps a readable, stable check name. On push to
-# main every gate runs (the changes filter is PR-only).
+# main every gate is included in the selected matrix.
 on:
   pull_request:
   push:
@@ -22,6 +22,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   changes:
@@ -36,6 +37,8 @@ jobs:
       telemetry: ${{ steps.filter.outputs.telemetry }}
       dashboard: ${{ steps.filter.outputs.dashboard }}
       contract: ${{ steps.filter.outputs.contract }}
+      matrix: ${{ steps.gate-matrix.outputs.matrix }}
+      any: ${{ steps.gate-matrix.outputs.any }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -112,49 +115,51 @@ jobs:
               - 'specs/collector_fact_contract.v1.yaml'
               - 'scripts/*verify-contracttest*.sh'
               - 'scripts/*fact-kind-registry*.sh'
+      - name: Build selected gate matrix
+        id: gate-matrix
+        run: |
+          matrix_items=""
+          any=false
+
+          append_gate() {
+            local selected="$1"
+            local key="$2"
+            local display="$3"
+            local test="$4"
+            local gate="$5"
+
+            if [[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]; then
+              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\"}"
+              if [[ -n "${matrix_items}" ]]; then
+                matrix_items="${matrix_items},${item}"
+              else
+                matrix_items="${item}"
+              fi
+              any=true
+            fi
+          }
+
+          append_gate "${{ steps.filter.outputs.openapi }}" "openapi" "Verify OpenAPI gate" "scripts/test-verify-openapi.sh" "scripts/verify-openapi.sh"
+          append_gate "${{ steps.filter.outputs.route }}" "route" "Verify route coverage gate" "scripts/test-verify-route-coverage.sh" "scripts/verify-route-coverage.sh"
+          append_gate "${{ steps.filter.outputs.edge }}" "edge" "Verify edge source-tool coverage gate" "bash scripts/test-verify-edge-source-tool-coverage.sh" "scripts/verify-edge-source-tool-coverage.sh"
+          append_gate "${{ steps.filter.outputs.evidence }}" "evidence" "Verify evidence continuity gate" "scripts/test-verify-evidence-continuity.sh" "scripts/verify-evidence-continuity.sh"
+          append_gate "${{ steps.filter.outputs.skill }}" "skill" "Verify skillgen roundtrip gate" "scripts/test-verify-skill-roundtrip.sh" "scripts/verify-skill-roundtrip.sh"
+          append_gate "${{ steps.filter.outputs.telemetry }}" "telemetry" "Verify telemetry coverage gate" "scripts/test-verify-telemetry-coverage.sh" "scripts/verify-telemetry-coverage.sh"
+          append_gate "${{ steps.filter.outputs.dashboard }}" "dashboard" "Verify generate-operator-dashboard gate" "scripts/test-generate-operator-dashboard.sh" "scripts/generate-operator-dashboard.sh && git diff --exit-code -- docs/public/observability/dashboards/eshu-operator-overview.json"
+          append_gate "${{ steps.filter.outputs.contract }}" "contract" "Verify contract source-of-truth gate" "scripts/test-verify-contracttest.sh && scripts/test-verify-fact-kind-registry.sh" "scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh && git diff --exit-code -- go/internal/collector/contracttest/contract_data.go go/internal/facts/fact_kind_registry.generated.go go/internal/facts/FACT_KIND_REGISTRIES.md"
+
+          printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
+          printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
 
   gate:
     name: ${{ matrix.display }}
     needs: changes
-    if: ${{ needs.changes.outputs[matrix.key] == 'true' }}
+    if: ${{ needs.changes.outputs.any == 'true' }}
     timeout-minutes: 15
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - key: openapi
-            display: Verify OpenAPI gate
-            test: scripts/test-verify-openapi.sh
-            gate: scripts/verify-openapi.sh
-          - key: route
-            display: Verify route coverage gate
-            test: scripts/test-verify-route-coverage.sh
-            gate: scripts/verify-route-coverage.sh
-          - key: edge
-            display: Verify edge source-tool coverage gate
-            test: bash scripts/test-verify-edge-source-tool-coverage.sh
-            gate: scripts/verify-edge-source-tool-coverage.sh
-          - key: evidence
-            display: Verify evidence continuity gate
-            test: scripts/test-verify-evidence-continuity.sh
-            gate: scripts/verify-evidence-continuity.sh
-          - key: skill
-            display: Verify skillgen roundtrip gate
-            test: scripts/test-verify-skill-roundtrip.sh
-            gate: scripts/verify-skill-roundtrip.sh
-          - key: telemetry
-            display: Verify telemetry coverage gate
-            test: scripts/test-verify-telemetry-coverage.sh
-            gate: scripts/verify-telemetry-coverage.sh
-          - key: dashboard
-            display: Verify generate-operator-dashboard gate
-            test: scripts/test-generate-operator-dashboard.sh
-            gate: scripts/generate-operator-dashboard.sh && git diff --exit-code -- docs/public/observability/dashboards/eshu-operator-overview.json
-          - key: contract
-            display: Verify contract source-of-truth gate
-            test: scripts/test-verify-contracttest.sh && scripts/test-verify-fact-kind-registry.sh
-            gate: scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh && git diff --exit-code -- go/internal/collector/contracttest/contract_data.go go/internal/facts/fact_kind_registry.generated.go go/internal/facts/FACT_KIND_REGISTRIES.md
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
