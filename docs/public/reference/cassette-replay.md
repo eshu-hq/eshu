@@ -138,6 +138,7 @@ Use the smallest command that proves the touched surface, then run the local
 pre-PR gate before pushing.
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 (cd go && go test ./conformance -count=1)
 (cd go && go test ./internal/replay/... -count=1)
 (cd go && go test ./cmd/replay-coverage-gate ./internal/replaycoverage -count=1)
@@ -149,6 +150,7 @@ make pre-pr
 For generated replay dashboard updates, refresh through the owning test:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 (cd go && go test ./cmd/replay-coverage-gate/ -update-dashboard)
 ```
 
