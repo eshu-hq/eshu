@@ -15,10 +15,11 @@ import (
 const DefaultPositiveRetractStringSliceBatchSize = 25
 
 // ChunkPositiveStringSliceRetractStatement splits a canonical retract statement
-// when exactly one string-slice parameter is used by a positive `IN $param`
-// predicate. Negative `NOT IN` cleanup statements must stay intact because
-// splitting their keep-list would make each chunk delete valid current nodes
-// that happen to live in another chunk.
+// when exactly one string-slice parameter is used as a positive worklist by an
+// `IN $param` predicate or an `UNWIND $param AS ...` seed. Negative `NOT IN`
+// cleanup statements must stay intact because splitting their keep-list would
+// make each chunk delete valid current nodes that happen to live in another
+// chunk.
 func ChunkPositiveStringSliceRetractStatement(stmt Statement, batchSize int) []Statement {
 	paramName, values, ok := positiveStringSliceRetractParam(stmt)
 	if !ok || len(values) == 0 || batchSize <= 0 || len(values) <= batchSize {
@@ -51,7 +52,7 @@ func positiveStringSliceRetractParam(stmt Statement) (string, []string, bool) {
 		if !ok || len(values) == 0 {
 			continue
 		}
-		if !cypherHasPositiveInPredicate(cypher, key) {
+		if !cypherHasPositiveStringSliceWorklist(cypher, key) {
 			continue
 		}
 		matches = append(matches, key)
@@ -61,6 +62,11 @@ func positiveStringSliceRetractParam(stmt Statement) (string, []string, bool) {
 	}
 	values := stmt.Parameters[matches[0]].([]string)
 	return matches[0], values, true
+}
+
+func cypherHasPositiveStringSliceWorklist(cypher string, paramName string) bool {
+	return cypherHasPositiveInPredicate(cypher, paramName) ||
+		cypherHasPositiveUnwindSeed(cypher, paramName)
 }
 
 func cypherHasPositiveInPredicate(cypher string, paramName string) bool {
@@ -74,6 +80,11 @@ func cypherHasPositiveInPredicate(cypher string, paramName string) bool {
 	}
 	negativeToken = fmt.Sprintf("NOT (d.path IN $%s", paramName)
 	return !strings.Contains(cypher, negativeToken)
+}
+
+func cypherHasPositiveUnwindSeed(cypher string, paramName string) bool {
+	token := fmt.Sprintf("UNWIND $%s AS ", paramName)
+	return strings.Contains(cypher, token)
 }
 
 func sortedParameterKeys(params map[string]any) []string {

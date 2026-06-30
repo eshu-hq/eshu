@@ -125,6 +125,29 @@ place, now-empty deleted-file ancestor directories are removed leaf-first, and
 post-upsert entity cleanup is label-scoped plus `n.path IN $file_paths` so
 unchanged files and entities survive a file-scoped resync.
 
+No-Regression Evidence: Current-main full-corpus validation on NornicDB v1.1.9
+reached post-bootstrap `source_local` refresh and then retried 12 projector
+items after the delta deleted-file retract statement
+`UNWIND $file_paths AS file_path MATCH (f:File {path: file_path}) ... DETACH
+DELETE f` hit the 2 minute canonical write budget. The failing input shape was
+positive file-path worklists with source-local fact counts from hundreds to
+about 10k, while ungranted Postgres locks stayed at 0. The red tests
+`TestChunkPositiveStringSliceRetractStatementSplitsPositiveUnwindList` and
+`TestNornicDBPhaseGroupExecutorChunksDeltaDeletedFileRetractPaths` failed with
+one chunk/execute call before the fix. Green evidence:
+`GOCACHE=$WORKTREE/.gocache go test ./internal/storage/cypher ./cmd/ingester
+-run 'TestChunkPositiveStringSliceRetractStatement|TestNornicDBPhaseGroupExecutor(ChunksPositiveRetractFilePaths|ChunksDeltaDeletedFileRetractPaths|DoesNotChunkNegativeRetractFilePaths|NoDrainFallsBackToExistingPath)'
+-count=1` and `GOCACHE=$WORKTREE/.gocache go test ./internal/storage/cypher
+./cmd/ingester -count=1` pass. The change preserves the emitted Cypher and
+only splits the existing positive worklist into the established 25-path
+statement chunks; negative keep-list cleanup remains a single statement.
+
+No-Observability-Change: chunked delta retracts still flow through the existing
+NornicDB phase-group sequential retract path, statement summaries, retry/error
+wrapping, canonical write spans, phase duration metrics, and `canonical phase
+failed` logs. The change adds no metric name, metric label, worker, queue
+domain, runtime knob, backend branch, or new graph-write route.
+
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath|TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks|TestCanonicalNodeWriterDeduplicatesRetractFilePaths|TestCanonicalNodeWriterKeepsEmptyDirectoryPathList'
 -count=1` proves the indexed `UNWIND` seed shape, protects the current-file

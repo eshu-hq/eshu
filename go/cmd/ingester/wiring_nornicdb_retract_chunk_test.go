@@ -44,6 +44,49 @@ DELETE r`,
 	assertIngesterStringSliceParamLen(t, inner.executeStatements[1], "file_paths", 1)
 }
 
+func TestNornicDBPhaseGroupExecutorChunksDeltaDeletedFileRetractPaths(t *testing.T) {
+	t.Parallel()
+
+	inner := &recordingGroupChunkExecutor{}
+	executor := nornicDBPhaseGroupExecutor{
+		inner:         inner,
+		maxStatements: 5,
+	}
+	paths := make([]string, sourcecypher.DefaultPositiveRetractStringSliceBatchSize+1)
+	for i := range paths {
+		paths[i] = string(rune('a'+i%26)) + ".go"
+	}
+
+	stmts := []sourcecypher.Statement{
+		{
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher: `UNWIND $file_paths AS file_path
+MATCH (f:File {path: file_path})
+WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
+DETACH DELETE f`,
+			Parameters: map[string]any{
+				"file_paths": paths,
+				"repo_id":    "repo-1",
+			},
+		},
+	}
+
+	if err := executor.ExecutePhaseGroup(context.Background(), stmts); err != nil {
+		t.Fatalf("ExecutePhaseGroup() error = %v, want nil", err)
+	}
+	if got, want := len(inner.executeStatements), 2; got != want {
+		t.Fatalf("execute statement count = %d, want %d", got, want)
+	}
+	assertIngesterStringSliceParamLen(t, inner.executeStatements[0], "file_paths", sourcecypher.DefaultPositiveRetractStringSliceBatchSize)
+	assertIngesterStringSliceParamLen(t, inner.executeStatements[1], "file_paths", 1)
+	if got, want := inner.executeStatements[0].Parameters["repo_id"], "repo-1"; got != want {
+		t.Fatalf("first repo_id = %#v, want %#v", got, want)
+	}
+	if got, want := inner.executeStatements[1].Parameters["repo_id"], "repo-1"; got != want {
+		t.Fatalf("second repo_id = %#v, want %#v", got, want)
+	}
+}
+
 func TestNornicDBPhaseGroupExecutorDoesNotChunkNegativeRetractFilePaths(t *testing.T) {
 	t.Parallel()
 
