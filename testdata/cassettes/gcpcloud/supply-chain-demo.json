@@ -17,50 +17,68 @@
       "trigger_kind": "snapshot",
       "facts": [
         {
-          "fact_kind": "gcp_resource",
-          "stable_fact_key": "gcp:project:supply-chain-demo-project:container.googleapis.com/Cluster:supply-chain-demo",
-          "schema_version": "1.0.0",
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:bigquery.googleapis.com/Dataset:supply-chain-demo-project:US:analytics",
+          "schema_version": "1.1.0",
           "collector_kind": "gcp",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
-            "asset_type": "container.googleapis.com/Cluster",
-            "name": "//container.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/clusters/supply-chain-demo",
-            "resource_id": "supply-chain-demo",
+            "full_resource_name": "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics",
+            "asset_type": "bigquery.googleapis.com/Dataset",
             "project_id": "supply-chain-demo-project",
-            "location": "us-central1",
-            "state": "RUNNING",
+            "location": "US",
+            "display_name": "analytics",
+            "state": "",
+            "asset_type_family": "bigquery",
+            "correlation_anchors": [],
+            "attributes": {}
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:bigquery.googleapis.com/Table:supply-chain-demo-project:US:analytics/events",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics/tables/events",
+            "asset_type": "bigquery.googleapis.com/Table",
+            "project_id": "supply-chain-demo-project",
+            "location": "US",
+            "display_name": "events",
+            "state": "",
+            "asset_type_family": "bigquery",
             "correlation_anchors": [
-              "//container.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/clusters/supply-chain-demo"
+              "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics"
             ],
-            "properties": {
-              "node_count": 3,
-              "node_machine_type": "n2-standard-4",
-              "kubernetes_version": "1.28.6-gke.1369000"
+            "attributes": {
+              "table_type": "TABLE",
+              "schema_field_count": 3,
+              "time_partitioning_type": "DAY",
+              "clustering_fields": ["region", "id"],
+              "num_rows": 1000,
+              "num_bytes": 204800
             }
           }
         },
         {
-          "fact_kind": "gcp_resource",
-          "stable_fact_key": "gcp:project:supply-chain-demo-project:artifactregistry.googleapis.com/Repository:supply-chain-demo",
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:bigquery_table_in_dataset:analytics/events->analytics",
           "schema_version": "1.0.0",
           "collector_kind": "gcp",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
-            "asset_type": "artifactregistry.googleapis.com/Repository",
-            "name": "//artifactregistry.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/repositories/supply-chain-demo",
-            "resource_id": "supply-chain-demo",
-            "project_id": "supply-chain-demo-project",
-            "location": "us-central1",
-            "state": "active",
-            "correlation_anchors": [
-              "us-central1-docker.pkg.dev/supply-chain-demo-project/supply-chain-demo"
-            ],
-            "properties": {
-              "format": "DOCKER",
-              "mode": "STANDARD_REPOSITORY"
-            }
+            "source_full_resource_name": "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics/tables/events",
+            "source_asset_type": "bigquery.googleapis.com/Table",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "bigquery_table_in_dataset",
+            "target_full_resource_name": "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics",
+            "target_asset_type": "bigquery.googleapis.com/Dataset",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
           }
         }
       ]
