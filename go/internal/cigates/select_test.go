@@ -36,6 +36,42 @@ func localCmd(cmd string) *cigates.Local {
 	return &cigates.Local{Command: cmd}
 }
 
+// TestSelect_FrontendLane proves the #4216 frontend-gate selection: an
+// apps/console change selects the console frontend gates under category=frontend
+// while a Go-only gate stays out, and a root-site change selects the site gate.
+func TestSelect_FrontendLane(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("frontend-site", cigates.TierPrePush, cigates.CategoryFrontend,
+			[]string{"src/**", "index.html"}, localCmd("npm run typecheck && npm test && npm run build"), ""),
+		gate("console-a11y", cigates.TierPrePush, cigates.CategoryFrontend,
+			[]string{"apps/console/**"}, localCmd("npm run console:a11y"), ""),
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash x"), ""),
+	})
+
+	consoleSel := cigates.FilterByCategory(
+		reg.Select([]string{"apps/console/src/App.tsx"}, cigates.TierPrePush),
+		[]cigates.Category{cigates.CategoryFrontend})
+	sel := collectSelected(consoleSel)
+	if _, ok := sel["console-a11y"]; !ok {
+		t.Error("apps/console change should select console-a11y under category=frontend")
+	}
+	if _, ok := sel["frontend-site"]; ok {
+		t.Error("apps/console change should NOT select frontend-site (src trigger)")
+	}
+	if _, ok := sel["go-lint"]; ok {
+		t.Error("go-lint (hygiene) should be filtered out of the frontend lane")
+	}
+
+	siteSel := cigates.FilterByCategory(
+		reg.Select([]string{"src/main.ts"}, cigates.TierPrePush),
+		[]cigates.Category{cigates.CategoryFrontend})
+	if _, ok := collectSelected(siteSel)["frontend-site"]; !ok {
+		t.Error("root src change should select frontend-site")
+	}
+}
+
 // TestSelect_RaceLane proves the #4215 race-gate selection: a graph-write
 // package change selects the targeted race-graph-writes gate (category race),
 // while a non-graph Go change does not — so pre-pr's lane 2 (scoped race) owns
