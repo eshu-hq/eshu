@@ -136,18 +136,26 @@ coverage:
     ref: testdata/cassettes/awscloud/supply-chain-demo.json
     proof_gate: stale-proof-gate
 `
-	specsDir, snapshot, manifest, _ := testEnv(t, manifestBody)
+	specsDir, snapshot, manifest, reportOut := testEnv(t, manifestBody)
 	var out, errOut bytes.Buffer
 	err := run([]string{
 		"-specs-dir", specsDir,
 		"-snapshot", snapshot,
 		"-manifest", manifest,
 		"-repo-root", t.TempDir(),
+		"-report-out", reportOut,
 	}, &out, &errOut)
 	if err == nil {
-		t.Fatal("run must reject unknown proof_gate before reporting coverage")
+		t.Fatal("run must reject unknown proof_gate")
 	}
 	if !strings.Contains(err.Error(), `unknown proof_gate "stale-proof-gate"`) {
 		t.Fatalf("error = %v, want unknown proof_gate", err)
+	}
+	data, readErr := os.ReadFile(reportOut)
+	if readErr != nil {
+		t.Fatalf("report should be written before returning proof_gate validation error: %v", readErr)
+	}
+	if !strings.Contains(string(data), `"status": "unresolved"`) {
+		t.Fatalf("report should mark stale proof gate unresolved:\n%s", data)
 	}
 }

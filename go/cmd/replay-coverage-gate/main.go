@@ -66,6 +66,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
+	proofGateErrs := replaycoverage.ValidateRequiredProofGates(inputs.Manifest, inputs.AuthzProofs, inputs.ProofGates)
 	cov, report, gate := replaycoverage.RunGate(inputs)
 	gate.Write(stdout)
 	writeCoverageSummary(stdout, report)
@@ -84,6 +85,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		_, _ = fmt.Fprintf(stdout, "coverage dashboard written: %s\n", o.dashboardOut)
 	}
 
+	if len(proofGateErrs) > 0 {
+		return fmt.Errorf("validate replay proof gates: %w", errors.Join(proofGateErrs...))
+	}
 	if o.blocking && gate.Failed() {
 		return fmt.Errorf("replay coverage gate failed (blocking): %d surface(s) uncovered/unresolved, %d stale manifest entr(ies)",
 			len(report.Gaps), len(cov.Stale))
@@ -123,9 +127,6 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 	proofGates, err := cigates.Load(filepath.Join(o.specsDir, "ci-gates.v1.yaml"))
 	if err != nil {
 		return replaycoverage.Inputs{}, fmt.Errorf("load ci gate registry: %w", err)
-	}
-	if errs := replaycoverage.ValidateRequiredProofGates(manifest, authzProofs, proofGates); len(errs) > 0 {
-		return replaycoverage.Inputs{}, fmt.Errorf("validate replay proof gates: %w", errors.Join(errs...))
 	}
 	snapshot, err := goldengate.LoadSnapshot(o.snapshot)
 	if err != nil {
