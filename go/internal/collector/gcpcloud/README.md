@@ -62,7 +62,8 @@ a redacted fact, a bounded warning, or a normalized identity.
 - `RegisterAssetExtractor`, `AssetAttributeExtractor`, `AttributeExtraction`,
   `ExtractContext` — the per-asset-type typed-depth extractor registry. Each
   supported asset type registers its extractor in its own file (see
-  `extractor_bigquery_table.go` for the reference BigQuery Table extractor);
+  `extractor_bigquery_table.go` for the reference BigQuery Table extractor and
+  `extractor_compute_network.go` for the VPC Network extractor);
   `ResourceObservation.Attributes` and `.CorrelationAnchors` carry the bounded,
   redaction-safe result into the `gcp_cloud_resource` fact.
 - `AssetTypeFamily`, `LocationBucket`, `NormalizeAncestry`, `Ancestry`,

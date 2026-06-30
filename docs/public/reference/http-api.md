@@ -365,7 +365,7 @@ Each resource item in the `resources` array carries:
 | `tag_value_fingerprints` | Optional keyed non-reversible tag value markers; raw tag values are never returned |
 | `identity_policy_evidence` | Optional bounded Azure identity-policy rows (keyed fingerprints only; no raw principal GUIDs or assignment scopes) |
 | `resource_change_freshness` | Optional sanitized Azure Resource Graph change rows (no raw provider targets or actor ids) |
-| `attributes` | Optional bounded provider-specific typed-depth attributes (e.g. `table_type`, `schema_field_count`, `kms_key_name`, `clustering_fields`). Values are redaction-safe scalars and string-arrays; no raw locators or secrets are present. |
+| `attributes` | Optional bounded provider-specific typed-depth attributes (e.g. `table_type`, `schema_field_count`, `kms_key_name`, `clustering_fields` for BigQuery tables; `routing_mode`, `auto_create_subnetworks`, `mtu`, `subnetwork_count` for VPC networks). Values are redaction-safe scalars and string-arrays; no raw locators or secrets are present. |
 
 The `attributes` field is present only when the provider source fact carried
 bounded typed-depth metadata. It is currently populated for GCP resources

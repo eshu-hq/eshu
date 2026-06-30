@@ -25,6 +25,9 @@
    (`RegisterAssetExtractor`, `AttributeExtraction`, `ExtractContext`).
 14. `extractor_bigquery_table.go` - reference extractor for
    `bigquery.googleapis.com/Table`; the model to copy for a new asset type.
+15. `extractor_compute_network.go` - typed-depth extractor for
+   `compute.googleapis.com/Network` (VPC) emitting contained-subnetwork and
+   peering edges.
 
 ## Invariants
 

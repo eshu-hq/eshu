@@ -300,6 +300,17 @@ signal: the primary range is kept only as a prefix length (subnet size, not
 address), and the gateway address, secondary range CIDRs, and IPv6 ranges are
 dropped, so no public or private IP address reaches a fact.
 
+**VPC Network** (`compute.googleapis.com/Network`) captures the auto-subnetwork
+mode flag, routing mode, MTU, creation timestamp, and subnetwork/peering counts;
+emits typed contained-subnetwork (`compute.googleapis.com/Subnetwork`) and VPC
+peering (`compute.googleapis.com/Network`) edges; and surfaces the contained
+subnetwork and peer network full resource names as correlation anchors. Only the
+edges derivable from the Network resource itself are emitted here — firewalls,
+routes, and attached instances reference the network from their own
+`resource.data` and are emitted by those asset types' extractors. Legacy IPv4
+ranges, gateway IPs, and peering public-IP export flags are data-plane fields and
+are never decoded or surfaced.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
