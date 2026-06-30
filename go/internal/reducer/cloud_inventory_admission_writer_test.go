@@ -193,6 +193,60 @@ func TestPostgresCloudInventoryAdmissionWriterIsIdempotentByUID(t *testing.T) {
 	}
 }
 
+// TestCloudInventoryAdmissionPayloadIncludesAttributesWhenPresent proves that
+// cloudInventoryAdmissionPayload includes the attributes map when the resource
+// carries one, and omits the key entirely when attributes is empty.
+func TestCloudInventoryAdmissionPayloadIncludesAttributesWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	write := CloudInventoryAdmissionWrite{
+		IntentID:     "intent-1",
+		ScopeID:      "gcp:org:eshu:project:prod",
+		GenerationID: "gen-1",
+		SourceSystem: "gcp",
+	}
+
+	// Resource with attributes.
+	withAttrs := AdmittedCloudResource{
+		CloudResourceUID: "cloud_resource:bq-1",
+		Provider:         "gcp",
+		RawIdentity:      "//bigquery.googleapis.com/projects/p/datasets/d/tables/t",
+		ResourceType:     "bigquery.googleapis.com/Table",
+		FactKinds:        []string{"gcp_cloud_resource"},
+		ManagementOrigin: ManagementOriginObserved,
+		Attributes: map[string]any{
+			"table_type":         "TABLE",
+			"schema_field_count": float64(5),
+		},
+	}
+	payload := cloudInventoryAdmissionPayload(write, withAttrs)
+	raw, ok := payload["attributes"]
+	if !ok {
+		t.Fatal("payload missing 'attributes' key when resource has attributes")
+	}
+	attrs, ok := raw.(map[string]any)
+	if !ok {
+		t.Fatalf("payload['attributes'] type = %T, want map[string]any", raw)
+	}
+	if attrs["table_type"] != "TABLE" {
+		t.Fatalf("attributes[table_type] = %#v, want TABLE", attrs["table_type"])
+	}
+
+	// Resource without attributes.
+	noAttrs := AdmittedCloudResource{
+		CloudResourceUID: "cloud_resource:compute-1",
+		Provider:         "gcp",
+		RawIdentity:      "//compute.googleapis.com/projects/p/zones/z/instances/i",
+		ResourceType:     "compute.googleapis.com/Instance",
+		FactKinds:        []string{"gcp_cloud_resource"},
+		ManagementOrigin: ManagementOriginObserved,
+	}
+	payloadEmpty := cloudInventoryAdmissionPayload(write, noAttrs)
+	if _, present := payloadEmpty["attributes"]; present {
+		t.Fatal("payload must not contain 'attributes' key when resource has no attributes")
+	}
+}
+
 func TestCloudInventoryAdmissionFactIDIsStableAndUIDPartitioned(t *testing.T) {
 	t.Parallel()
 

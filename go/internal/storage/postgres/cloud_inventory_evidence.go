@@ -146,7 +146,55 @@ func cloudInventoryRecordFromRow(
 		// a follow-up slice; the admission handler already keeps declared and
 		// applied strictly above observed when those layers are wired.
 		SourceLayer: reducer.SourceLayerObserved,
+		Attributes:  boundedCloudInventoryAttributes(decoded["attributes"]),
 	}, true
+}
+
+// boundedCloudInventoryAttributes extracts the bounded attributes map from the
+// decoded provider payload. It keeps only non-blank string keys (cap 64 keys)
+// whose values are string, bool, json.Number, float64, or []any of strings.
+// Everything else is dropped. This is defense-in-depth; the collector already
+// bounds attributes before emission.
+func boundedCloudInventoryAttributes(raw any) map[string]any {
+	const maxKeys = 64
+	object, ok := raw.(map[string]any)
+	if !ok || len(object) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(object))
+	for key, value := range object {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		if len(out) >= maxKeys {
+			break
+		}
+		switch v := value.(type) {
+		case string:
+			out[key] = v
+		case bool:
+			out[key] = v
+		case float64:
+			out[key] = v
+		case json.Number:
+			out[key] = v
+		case []any:
+			// Keep only string-typed elements; drop blank strings.
+			strs := make([]string, 0, len(v))
+			for _, elem := range v {
+				if s, ok := elem.(string); ok && strings.TrimSpace(s) != "" {
+					strs = append(strs, s)
+				}
+			}
+			if len(strs) > 0 {
+				out[key] = strs
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // logSkippedRow records a bounded diagnostic for one source-fact row the loader

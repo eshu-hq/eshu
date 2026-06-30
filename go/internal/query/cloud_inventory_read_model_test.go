@@ -116,6 +116,108 @@ func TestCloudInventoryResourceViewSurfacesBoundedIdentityPolicyEvidence(t *test
 	}
 }
 
+// TestCloudInventoryResourceViewSurfacesAttributes proves the readback
+// projection surfaces the attributes map when present, omits it when absent,
+// and drops any nested-map value so no unexpected structured content leaks.
+func TestCloudInventoryResourceViewSurfacesAttributes(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"generation_id": "gen-1",
+		"scope_id":      "gcp:org:eshu:project:prod",
+		"payload": map[string]any{
+			"cloud_resource_uid":    "cloud_resource:bq-1",
+			"provider":              "gcp",
+			"resource_type":         "bigquery.googleapis.com/Table",
+			"management_origin":     "observed",
+			"has_observed_evidence": true,
+			"attributes": map[string]any{
+				"table_type":         "TABLE",
+				"schema_field_count": float64(12),
+				"clustering_fields":  []any{"project_id", "date"},
+				"nested_drop":        map[string]any{"inner": "secret"},
+			},
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	raw, present := view["attributes"]
+	if !present {
+		t.Fatal("attributes key absent from view, want present")
+	}
+	attrs, ok := raw.(map[string]any)
+	if !ok {
+		t.Fatalf("attributes type = %T, want map[string]any", raw)
+	}
+	if attrs["table_type"] != "TABLE" {
+		t.Fatalf("attributes[table_type] = %#v, want TABLE", attrs["table_type"])
+	}
+	if attrs["schema_field_count"] != float64(12) {
+		t.Fatalf("attributes[schema_field_count] = %#v, want 12", attrs["schema_field_count"])
+	}
+	fields, ok := attrs["clustering_fields"].([]string)
+	if !ok || len(fields) != 2 {
+		t.Fatalf("clustering_fields = %#v, want []string{project_id, date}", attrs["clustering_fields"])
+	}
+	if _, present := attrs["nested_drop"]; present {
+		t.Fatalf("nested_drop must be dropped, got %#v", attrs["nested_drop"])
+	}
+}
+
+// TestCloudInventoryResourceViewOmitsAttributesWhenAbsent proves a resource
+// without attributes in the payload produces no attributes key in the view.
+func TestCloudInventoryResourceViewOmitsAttributesWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"payload": map[string]any{
+			"cloud_resource_uid":    "cloud_resource:compute-1",
+			"provider":              "gcp",
+			"resource_type":         "compute.googleapis.com/Instance",
+			"management_origin":     "observed",
+			"has_observed_evidence": true,
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	if _, present := view["attributes"]; present {
+		t.Fatalf("attributes present for resource with no attributes: %#v", view["attributes"])
+	}
+}
+
+// TestCloudInventoryResourceViewDropsNestedMapFromAttributes is the negative
+// test: proves a nested map in the attributes payload is not leaked through
+// the view projection.
+func TestCloudInventoryResourceViewDropsNestedMapFromAttributes(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"payload": map[string]any{
+			"cloud_resource_uid":    "cloud_resource:bq-2",
+			"provider":              "gcp",
+			"resource_type":         "bigquery.googleapis.com/Table",
+			"management_origin":     "observed",
+			"has_observed_evidence": true,
+			"attributes": map[string]any{
+				"safe_key":   "safe_value",
+				"nested_map": map[string]any{"dangerous": "nested"},
+			},
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	attrs, ok := view["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes type = %T, want map[string]any", view["attributes"])
+	}
+	if _, present := attrs["nested_map"]; present {
+		t.Fatalf("nested_map leaked through projection: %#v", attrs["nested_map"])
+	}
+	if attrs["safe_key"] != "safe_value" {
+		t.Fatalf("safe_key = %#v, want safe_value", attrs["safe_key"])
+	}
+}
+
 // TestCloudInventoryResourceViewSurfacesBoundedResourceChangeFreshness proves
 // Azure change evidence can be surfaced as freshness evidence without raw
 // provider targets, raw actor ids, or final-state tombstone claims.

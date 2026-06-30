@@ -53,6 +53,11 @@ const openAPIPathsCloudInventory = `
                             "description": "Optional keyed, non-reversible tag value fingerprints attached by reducer evidence; raw tag values are never returned.",
                             "additionalProperties": {"type": "string"}
                           },
+                          "attributes": {
+                            "type": "object",
+                            "description": "Optional bounded provider-specific typed-depth attributes (e.g. table_type, schema_field_count, kms_key_name, clustering_fields). Values are bounded redaction-safe scalars and string-arrays; no raw locators or secrets are present.",
+                            "additionalProperties": true
+                          },
                           "identity_policy_evidence": {
                             "type": "array",
                             "description": "Optional bounded identity-policy evidence rows containing only safe enum/text classes and keyed fingerprints; raw identities, assignment scopes, and principal GUIDs are never returned.",

@@ -320,6 +320,79 @@ func TestCloudInventoryAdmissionRejectsWrongDomain(t *testing.T) {
 	}
 }
 
+// TestAdmitCloudInventoryRecordsCarriesAttributes proves that attributes from a
+// record are propagated into the AdmittedCloudResource, and that first non-empty
+// wins when multiple records share a uid. A record with no attributes yields nil.
+func TestAdmitCloudInventoryRecordsCarriesAttributes(t *testing.T) {
+	t.Parallel()
+
+	const raw = "//bigquery.googleapis.com/projects/p/datasets/d/tables/t"
+	attrs := map[string]any{
+		"table_type":         "TABLE",
+		"schema_field_count": float64(12),
+	}
+
+	// First record carries attributes; second record (same uid) has none.
+	records := []CloudInventoryRecord{
+		{
+			Provider:     "gcp",
+			FactKind:     "gcp_cloud_resource",
+			RawIdentity:  raw,
+			ResourceType: "bigquery.googleapis.com/Table",
+			SourceLayer:  SourceLayerObserved,
+			Attributes:   attrs,
+		},
+		{
+			Provider:    "gcp",
+			FactKind:    "gcp_cloud_resource",
+			RawIdentity: raw,
+			SourceLayer: SourceLayerObserved,
+			// no Attributes
+		},
+	}
+
+	resources, summary := admitCloudInventoryRecords(records)
+	if summary.Admitted != 2 {
+		t.Fatalf("admitted = %d, want 2 (two records, one uid)", summary.Admitted)
+	}
+	if len(resources) != 1 {
+		t.Fatalf("resources = %d, want 1 (folded into one uid)", len(resources))
+	}
+	res := resources[0]
+	if res.Attributes == nil {
+		t.Fatal("Attributes = nil, want non-nil map from first record")
+	}
+	if got, want := res.Attributes["table_type"], "TABLE"; got != want {
+		t.Fatalf("Attributes[table_type] = %#v, want %q", got, want)
+	}
+	if got, want := res.Attributes["schema_field_count"], float64(12); got != want {
+		t.Fatalf("Attributes[schema_field_count] = %#v, want %v", got, want)
+	}
+}
+
+// TestAdmitCloudInventoryRecordsNoAttributesYieldsNil proves that a record with
+// no attributes leaves AdmittedCloudResource.Attributes as nil.
+func TestAdmitCloudInventoryRecordsNoAttributesYieldsNil(t *testing.T) {
+	t.Parallel()
+
+	records := []CloudInventoryRecord{
+		{
+			Provider:    "gcp",
+			FactKind:    "gcp_cloud_resource",
+			RawIdentity: "//compute.googleapis.com/projects/p/zones/z/instances/i",
+			SourceLayer: SourceLayerObserved,
+		},
+	}
+
+	resources, _ := admitCloudInventoryRecords(records)
+	if len(resources) != 1 {
+		t.Fatalf("resources = %d, want 1", len(resources))
+	}
+	if resources[0].Attributes != nil {
+		t.Fatalf("Attributes = %#v, want nil for record with no attributes", resources[0].Attributes)
+	}
+}
+
 func TestCloudInventoryAdmissionRequiresAdapters(t *testing.T) {
 	t.Parallel()
 
