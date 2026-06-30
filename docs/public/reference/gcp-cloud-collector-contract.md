@@ -291,6 +291,15 @@ fields, KMS key name, row/byte counts, and creation/expiration time; emits typed
 parent Dataset, KMS-key, and external GCS-source edges; and surfaces dataset and
 KMS resource names as correlation anchors.
 
+**Subnetwork** (`compute.googleapis.com/Subnetwork`) captures region, purpose,
+role, private Google access, stack type, flow-logs enablement, creation time,
+and the secondary range names and count; emits the typed parent VPC
+`subnetwork_in_network` edge; and surfaces the parent network resource name as a
+correlation anchor. Address-bearing fields are reduced to a redaction-safe
+signal: the primary range is kept only as a prefix length (subnet size, not
+address), and the gateway address, secondary range CIDRs, and IPv6 ranges are
+dropped, so no public or private IP address reaches a fact.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
@@ -416,7 +425,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table) produces a bounded `attributes` map, `correlation_anchors`, and typed Dataset/KMS/external edges from `resource.data`; the raw blob never leaves the parser and external object paths are dropped. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, Subnetwork) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, and no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 

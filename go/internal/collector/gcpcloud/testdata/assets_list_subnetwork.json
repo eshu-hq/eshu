@@ -1,0 +1,50 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/private-subnet",
+      "assetType": "compute.googleapis.com/Subnetwork",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "private-subnet",
+          "network": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/main-vpc",
+          "region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+          "ipCidrRange": "10.0.0.0/24",
+          "gatewayAddress": "10.0.0.1",
+          "privateIpGoogleAccess": true,
+          "purpose": "PRIVATE",
+          "role": "ACTIVE",
+          "stackType": "IPV4_ONLY",
+          "enableFlowLogs": true,
+          "creationTimestamp": "2024-06-01T00:00:00.000-07:00",
+          "secondaryIpRanges": [
+            {"rangeName": "pods", "ipCidrRange": "10.1.0.0/16"},
+            {"rangeName": "services", "ipCidrRange": "10.2.0.0/20"}
+          ],
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/proxy-only",
+      "assetType": "compute.googleapis.com/Subnetwork",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "proxy-only",
+          "network": "projects/demo-project/global/networks/main-vpc",
+          "region": "projects/demo-project/regions/us-central1",
+          "ipCidrRange": "10.4.0.0/23",
+          "purpose": "REGIONAL_MANAGED_PROXY",
+          "role": "ACTIVE",
+          "stackType": "IPV4_ONLY"
+        }
+      }
+    }
+  ]
+}
