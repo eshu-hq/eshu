@@ -4,6 +4,7 @@
 package cypher
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -117,6 +118,69 @@ func TestBuildBoundedRetractDrainCypherErrorsOnWrongTrailingVerb(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "DETACH DELETE f") {
 		t.Fatalf("error = %v, want message mentioning DETACH DELETE f", err)
+	}
+}
+
+// TestBuildBoundedRetractDrainCypherShapeClassification is a table-driven guard
+// that runs all four production retract statements through BuildBoundedRetractDrainCypher
+// and asserts the exact WITH clause emitted per statement. If a future edit changes
+// the MATCH shape of any statement (e.g. makes a bare-label template anchored), this
+// test will fail rather than silently draining zero nodes on NornicDB v1.1.9.
+func TestBuildBoundedRetractDrainCypherShapeClassification(t *testing.T) {
+	t.Parallel()
+
+	const bp = "__retract_batch"
+	cases := []struct {
+		name       string
+		cypher     string
+		drainVar   string
+		wantWith   string
+		wantNoWith string
+	}{
+		{
+			name:       "canonicalNodeRetractFilesCypher relationship-anchored",
+			cypher:     canonicalNodeRetractFilesCypher,
+			drainVar:   "f",
+			wantWith:   "WITH f LIMIT $" + bp,
+			wantNoWith: "ORDER BY",
+		},
+		{
+			name:       "canonicalNodeRetractRemovedFilesCypher relationship-anchored",
+			cypher:     canonicalNodeRetractRemovedFilesCypher,
+			drainVar:   "f",
+			wantWith:   "WITH f LIMIT $" + bp,
+			wantNoWith: "ORDER BY",
+		},
+		{
+			name:       "canonicalNodeRetractDirectoriesCypher bare-label",
+			cypher:     canonicalNodeRetractDirectoriesCypher,
+			drainVar:   "d",
+			wantWith:   "WITH d ORDER BY elementId(d) LIMIT $" + bp,
+			wantNoWith: "",
+		},
+		{
+			name:       "canonicalNodeRetractEntityTemplate bare-label (Function)",
+			cypher:     fmt.Sprintf(canonicalNodeRetractEntityTemplate, "Function"),
+			drainVar:   "n",
+			wantWith:   "WITH n ORDER BY elementId(n) LIMIT $" + bp,
+			wantNoWith: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := BuildBoundedRetractDrainCypher(tc.cypher, tc.drainVar, bp)
+			if err != nil {
+				t.Fatalf("BuildBoundedRetractDrainCypher() error = %v, want nil", err)
+			}
+			if !strings.Contains(got, tc.wantWith) {
+				t.Fatalf("rewritten Cypher missing expected WITH clause %q:\n%s", tc.wantWith, got)
+			}
+			if tc.wantNoWith != "" && strings.Contains(got, tc.wantNoWith) {
+				t.Fatalf("rewritten Cypher must not contain %q for anchored shape:\n%s", tc.wantNoWith, got)
+			}
+		})
 	}
 }
 
