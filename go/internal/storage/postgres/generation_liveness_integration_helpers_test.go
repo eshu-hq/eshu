@@ -85,12 +85,19 @@ CREATE TABLE shared_projection_intents (
     created_at        TIMESTAMPTZ NOT NULL,
     completed_at      TIMESTAMPTZ NULL
 );
+
+CREATE TABLE graph_projection_phase_state (
+    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
+    acceptance_unit_id TEXT NOT NULL, source_run_id TEXT NOT NULL,
+    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
+    keyspace TEXT NOT NULL, phase TEXT NOT NULL,
+    committed_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase)
+);
 `
 
-// generationLivenessProofSeedSQL inserts the minimal fixture set for the four
-// scenarios. All timestamps are relative to now() so the test is wall-clock safe.
-//
-// Scopes and generations:
+// generationLivenessProofSeedSQL inserts the minimal fixture set. All
+// timestamps are relative to now() so the test is wall-clock safe.
 //
 //   - scope-wedged / gen-wedged: active, activated 2 hours ago, has an
 //     outstanding shared_projection_intents row and the normal succeeded
@@ -102,13 +109,9 @@ CREATE TABLE shared_projection_intents (
 //     reducer fact-work still pending → aging but not stuck, and not eligible
 //     for recovery until reducer work drains.
 //
-//   - scope-shared-backlog / gen-shared-backlog: active, activated 2 hours
-//     ago, has an outstanding shared_projection_intents row and all
-//     same-generation reducer fact-work already succeeded. With the current
-//     storage signals this is indistinguishable from a wedged active generation
-//     at sweep time, so the liveness pass may reopen it once; the separate
-//     in-flight guard prevents repeated budget burn while that recovery work is
-//     pending.
+//   - scope-shared-backlog / gen-shared-backlog: aged cross-repo
+//     repo_dependency backlog with no backward_evidence_committed phase →
+//     unready downstream work, not a source-local wedge.
 //
 //   - scope-recovery-inflight / gen-recovery-inflight: active, activated 2 hours
 //     ago, has an outstanding shared_projection_intents row and a pending
@@ -198,11 +201,8 @@ INSERT INTO fact_work_items (
     'reducer', 'source_local', 'pending', now() - interval '2 hours', now() - interval '2 hours'
 );
 
--- scope-shared-backlog: source-local projection already succeeded and reducer
--- fact-work has drained, but shared projection work is still pending. Current
--- liveness signals cannot distinguish this from a wedged active generation at
--- sweep time, so it is eligible for one reopen; pending recovery work is what
--- prevents repeat budget burn.
+-- scope-shared-backlog: cross-repo repo_dependency waits for
+-- backward_evidence_committed, so liveness must not reopen source_local.
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, collector_kind,
     partition_key, observed_at, ingested_at, status, active_generation_id
@@ -224,7 +224,7 @@ INSERT INTO shared_projection_intents (
     payload, created_at
 ) VALUES (
     'intent-shared-backlog', 'repo_dependency', 'acme/shared-backlog', 'scope-shared-backlog',
-    '', 'acme/shared-backlog', 'run-shared-backlog', 'gen-shared-backlog',
+    '', 'acme/shared-backlog', 'repo_dependency:scope-shared-backlog', 'gen-shared-backlog',
     '{"action":"sync"}'::jsonb, now() - interval '2 hours'
 );
 INSERT INTO fact_work_items (
