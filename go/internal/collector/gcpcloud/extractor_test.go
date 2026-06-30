@@ -90,6 +90,15 @@ func TestExtractAssetAttributesPropagatesExtractorError(t *testing.T) {
 	}
 }
 
+func TestHasAssetExtractor(t *testing.T) {
+	if !HasAssetExtractor(assetTypeBigQueryTable) {
+		t.Errorf("expected a registered extractor for %q", assetTypeBigQueryTable)
+	}
+	if HasAssetExtractor("unregistered.googleapis.com/Nope") {
+		t.Errorf("did not expect an extractor for an unregistered asset type")
+	}
+}
+
 func expectPanic(t *testing.T, what string) {
 	t.Helper()
 	if r := recover(); r == nil {

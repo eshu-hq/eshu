@@ -54,6 +54,27 @@ func (s *Source) recordFactsEmitted(ctx context.Context, factKind string, kind g
 	s.Metrics.RecordFactsEmitted(ctx, factKind, kind, count)
 }
 
+// recordAttributeExtractions records one typed-depth extraction outcome per
+// resource whose asset type has a registered extractor, so an operator can tell
+// whether the per-asset-type extractors are producing depth or coming back
+// empty. Asset types with no extractor are skipped: they are not expected to
+// carry attributes and would only add noise.
+func (s *Source) recordAttributeExtractions(ctx context.Context, resources []gcpcloud.ResourceObservation) {
+	if s.Metrics == nil {
+		return
+	}
+	for _, resource := range resources {
+		if !gcpcloud.HasAssetExtractor(resource.AssetType) {
+			continue
+		}
+		outcome := gcpcloud.ExtractionOutcomeEmpty
+		if len(resource.Attributes) > 0 {
+			outcome = gcpcloud.ExtractionOutcomeExtracted
+		}
+		s.Metrics.RecordAttributeExtraction(ctx, gcpcloud.AssetTypeFamily(resource.AssetType), outcome)
+	}
+}
+
 func (s *Source) recordWarning(ctx context.Context, warningKind, outcome string) {
 	if s.Metrics == nil {
 		return

@@ -77,6 +77,15 @@ func lookupAssetExtractor(assetType string) (AssetAttributeExtractor, bool) {
 	return extractor, ok
 }
 
+// HasAssetExtractor reports whether a typed-depth extractor is registered for an
+// asset type. The collector runtime uses it to record extraction-outcome
+// telemetry only for asset types that carry typed depth, rather than for every
+// observed resource.
+func HasAssetExtractor(assetType string) bool {
+	_, ok := lookupAssetExtractor(assetType)
+	return ok
+}
+
 // extractAssetAttributes dispatches to the registered extractor for the context
 // asset type. It returns handled=false (with no error) when no extractor is
 // registered, so the parser keeps emitting the bounded base observation for

@@ -171,6 +171,7 @@ func (s *Source) drainPages(
 		if addErr := generation.AddPage(page.Resources); addErr != nil {
 			return nil, fmt.Errorf("accumulate gcp page for parent scope kind %q: %w", scopeCfg.ParentScopeKind, addErr)
 		}
+		s.recordAttributeExtractions(ctx, page.Resources)
 		for _, resource := range page.Resources {
 			if key := resourceCollectionKey(resource); key != "" {
 				resources[key] = resource
