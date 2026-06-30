@@ -1,0 +1,49 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//bigquery.googleapis.com/projects/demo-project/datasets/analytics/tables/events",
+      "assetType": "bigquery.googleapis.com/Table",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "US",
+        "data": {
+          "tableReference": {"projectId": "demo-project", "datasetId": "analytics", "tableId": "events"},
+          "type": "TABLE",
+          "schema": {"fields": [
+            {"name": "id", "type": "STRING"},
+            {"name": "ts", "type": "TIMESTAMP"},
+            {"name": "region", "type": "STRING"}
+          ]},
+          "timePartitioning": {"type": "DAY", "field": "ts"},
+          "clustering": {"fields": ["region", "id"]},
+          "encryptionConfiguration": {"kmsKeyName": "projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1"},
+          "numRows": "1000",
+          "numBytes": "204800",
+          "expirationTime": "1788220800000",
+          "creationTime": "1717200000000",
+          "location": "US",
+          "labels": {"team": "data"}
+        }
+      }
+    },
+    {
+      "name": "//bigquery.googleapis.com/projects/demo-project/datasets/analytics/tables/ext_sales",
+      "assetType": "bigquery.googleapis.com/Table",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "US",
+        "data": {
+          "tableReference": {"projectId": "demo-project", "datasetId": "analytics", "tableId": "ext_sales"},
+          "type": "EXTERNAL",
+          "externalDataConfiguration": {
+            "sourceFormat": "CSV",
+            "sourceUris": ["gs://landing-bucket/sales/*.csv", "gs://landing-bucket/sales/2026/*.csv"]
+          }
+        }
+      }
+    }
+  ]
+}
