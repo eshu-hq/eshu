@@ -5,8 +5,18 @@ touching any file in `go/cmd/bootstrap-index/`.
 
 ## Read first
 
-- `go/cmd/bootstrap-index/main.go` — the four-phase orchestrator; the phase
-  ordering is a correctness invariant, not a style choice.
+- `go/cmd/bootstrap-index/main.go` — `main`, the shared types
+  (`bootstrapCommitter`, `collectorDeps`, `projectorDeps`, …), and `run` (the
+  entrypoint that invokes `runPipelined`). The four-phase orchestration is a
+  correctness invariant, not a style choice.
+- `go/cmd/bootstrap-index/bootstrap_pipeline.go` — `runPipelined` (the
+  phase-ordering invariant), `drainProjectorPipelined`, `drainingWorkSource`, and
+  `projectionWorkerCount`.
+- `go/cmd/bootstrap-index/bootstrap_collector.go` — `drainCollector` and the
+  discovery-advisory report writers.
+- `go/cmd/bootstrap-index/bootstrap_projector.go` — `drainProjector`,
+  `drainProjectorWorkItem`, the projector heartbeat, and the sequential drain.
+- `go/cmd/bootstrap-index/bootstrap_db.go` — Postgres/graph open + schema apply.
 - `go/cmd/bootstrap-index/graph_schema.go` — graph schema marker check and the
   direct bootstrap-index marker-missing initializer.
 - `go/cmd/bootstrap-index/wiring.go` — collector and projector wiring.
@@ -23,13 +33,13 @@ touching any file in `go/cmd/bootstrap-index/`.
 
 ## Phase-ordering invariant
 
-The six pipeline steps in `runPipelined` (`main.go:227`) must execute in
-order:
+The six pipeline steps in `runPipelined` (`bootstrap_pipeline.go`) must execute
+in order:
 
 1. `drainCollector` + `drainProjectorPipelined` run concurrently.
    `BackfillAllRelationshipEvidence` is called after `drainCollector` returns,
    before the projector goroutine drains.
-2. `cd.committer.BackfillAllRelationshipEvidence` (`main.go:273`) populates
+2. `cd.committer.BackfillAllRelationshipEvidence` (`bootstrap_pipeline.go`) populates
    `relationship_evidence_facts` and publishes `backward_evidence_committed`.
 3. `projectorErr := <-errc` waits for `drainProjectorPipelined` to exit before
    the reopen call. This prevents `deployment_mapping` items emitted after
@@ -75,7 +85,7 @@ same PR.
 
 ### Change projection worker count behavior
 
-`projectionWorkerCount` (`main.go:426`) reads `ESHU_PROJECTION_WORKERS` and
+`projectionWorkerCount` (`bootstrap_pipeline.go`) reads `ESHU_PROJECTION_WORKERS` and
 defaults to `min(NumCPU, 8)`. If you change the cap or the default, update the
 concurrency reference table in `docs/public/reference/local-testing.md` and
 `docs/public/deployment/service-runtimes.md`.
@@ -85,7 +95,7 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
 | Failure | Symptom | Check |
 | --- | --- | --- |
 | Phase 2 backfill stalls | Binary hangs after collection completes | OTEL traces for `BackfillAllRelationshipEvidence`; check `go/internal/storage/postgres/ingestion.go` for the SQL path |
-| Projector drain never exits | Binary hangs after Phase 2 | `drainingWorkSource.Claim` at `main.go:391` wraps `ProjectorWorkSource`; confirm `collectorDone` is closed; check `maxEmptyPolls` logic |
+| Projector drain never exits | Binary hangs after Phase 2 | `drainingWorkSource.Claim` at `bootstrap_pipeline.go` wraps `ProjectorWorkSource`; confirm `collectorDone` is closed; check `maxEmptyPolls` logic |
 | Phase 4 reopen skips stragglers | Reducer finds no `deployment_mapping` to process after bootstrap | Expected for items that succeeded in the Phase 2→4 window; use `/admin/replay` |
 | Missing graph schema marker | Direct bootstrap-index run starts before schema marker exists | `graph_schema.go` applies strict graph schema and writes the marker; incompatible markers still fail closed |
 | NornicDB timeout on graph write | `ESHU_CANONICAL_WRITE_TIMEOUT` exceeded | Lower `ESHU_NORNICDB_ENTITY_BATCH_SIZE` or `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS`; check `go/cmd/bootstrap-index/nornicdb_wiring.go` defaults |
@@ -98,7 +108,7 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
   `CommitScopeGeneration` call runs a full per-repo backfill. On 800+ repos
   this is quadratically expensive and defeats the deferred-backfill design.
 - **Do not call `ReopenDeploymentMappingWorkItems` before the projector drains.**
-  The comment at `main.go:299` explains why; `MaterializeIaCReachability` must
+  The comment at `bootstrap_pipeline.go` explains why; `MaterializeIaCReachability` must
   also not run before the drain. Any refactor that merges or reorders these
   calls requires re-reading the ADR at
   `docs/public/services/bootstrap-index.md`.
@@ -115,7 +125,7 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
   same-transaction read-your-writes backend (Neo4j). See `CLAUDE.md` section
   "NornicDB Compatibility Workflow".
 - **Do not treat `errProjectorDrained` as an error.** It is a sentinel
-  (`main.go:671`) emitted after the `PhaseProjection` drain loop exhausts the
+  (`bootstrap_collector.go`) emitted after the `PhaseProjection` drain loop exhausts the
   queue. Worker goroutines return on it; do not propagate it through error
   channels.
 - **Do not treat `projector.ErrWorkSuperseded` as a bootstrap failure.** The

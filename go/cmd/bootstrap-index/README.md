@@ -31,7 +31,7 @@ reducer intents that were enqueued during source-local projection.
 
 ## Internal flow — the pipeline phases
 
-The orchestrator in `runPipelined` (`main.go:213`) drives six sequential
+The orchestrator in `runPipelined` (`bootstrap_pipeline.go`) drives six sequential
 steps: collection + projection (Phase 1), relationship-evidence backfill
 (Phase 2), IaC reachability materialization, deployment-mapping reopen
 (Phase 3), drift-intent enqueue (Phase 3.5), and the final shutdown
@@ -40,20 +40,20 @@ path.
 ```mermaid
 flowchart TD
     A["run: wire telemetry, Postgres, graph backend\n(main.go:107)"]
-    A --> B["Phase 1: pipelined collection + projection\nrunPipelined (main.go:190)"]
+    A --> B["Phase 1: pipelined collection + projection\nrunPipelined (bootstrap_pipeline.go)"]
 
     subgraph Phase1["Phase 1 — concurrent goroutines"]
-        C["drainCollector (main.go:431)\nGitSource.Next → CommitScopeGeneration\nSkipRelationshipBackfill=true"]
-        D["drainProjectorPipelined (main.go:340)\ndrainingWorkSource polls queue\nN workers via drainProjectorWorkItem"]
+        C["drainCollector (bootstrap_collector.go)\nGitSource.Next → CommitScopeGeneration\nSkipRelationshipBackfill=true"]
+        D["drainProjectorPipelined (bootstrap_pipeline.go)\ndrainingWorkSource polls queue\nN workers via drainProjectorWorkItem"]
         C -- "collectorDone channel" --> D
     end
 
     B --> Phase1
-    Phase1 --> E["Phase 2: BackfillAllRelationshipEvidence\n(main.go:259)\npopulates relationship_evidence_facts\npublishes backward_evidence_committed readiness"]
-    E --> F["wait for projector drain\n(main.go:274)\ndrainProjectorPipelined must exit\nbefore reopen"]
-    F --> G["IaC reachability: MaterializeIaCReachability\n(main.go:279)\ncorpus-wide active-generation classification"]
-    G --> H["Phase 4: ReopenDeploymentMappingWorkItems\n(main.go:296)\nreopens succeeded deployment_mapping rows\nreducer creates resolved_relationships"]
-    H --> H2["Phase 3.5: EnqueueConfigStateDriftIntents\n(main.go:307)\nenqueues config_state_drift intents for\nactive state_snapshot scopes"]
+    Phase1 --> E["Phase 2: BackfillAllRelationshipEvidence\n(bootstrap_pipeline.go)\npopulates relationship_evidence_facts\npublishes backward_evidence_committed readiness"]
+    E --> F["wait for projector drain\n(bootstrap_pipeline.go)\ndrainProjectorPipelined must exit\nbefore reopen"]
+    F --> G["IaC reachability: MaterializeIaCReachability\n(bootstrap_pipeline.go)\ncorpus-wide active-generation classification"]
+    G --> H["Phase 4: ReopenDeploymentMappingWorkItems\n(bootstrap_pipeline.go)\nreopens succeeded deployment_mapping rows\nreducer creates resolved_relationships"]
+    H --> H2["Phase 3.5: EnqueueConfigStateDriftIntents\n(bootstrap_pipeline.go)\nenqueues config_state_drift intents for\nactive state_snapshot scopes"]
     H2 --> I["exit 0"]
 ```
 
@@ -103,7 +103,7 @@ cancelled and errors are joined.
 
 ### Wait for projector drain
 
-`runPipelined` blocks on `projectorErr := <-errc` (`main.go:274`) before
+`runPipelined` blocks on `projectorErr := <-errc` (`bootstrap_pipeline.go`) before
 issuing the reopen call. This ordering invariant prevents `deployment_mapping`
 items emitted after the reopen pass from missing reopening.
 
@@ -166,7 +166,7 @@ dependency injection:
   `ReopenDeploymentMappingWorkItems`
 - `collectorDeps`, `projectorDeps`, `graphDeps` — wiring structs passed through
   `run` and `runPipelined`
-- `drainingWorkSource` (`main.go:369`) — wraps `ProjectorWorkSource`
+- `drainingWorkSource` (`bootstrap_pipeline.go`) — wraps `ProjectorWorkSource`
   to add drain-then-exit behavior
 - `bootstrapNeo4jExecutor` (`wiring.go:231`) — `DriverWithContext`-based Bolt
   session executor for canonical writes
@@ -401,7 +401,7 @@ Adding a new post-collection pass (analogous to Phase 2 or Phase 4) requires:
 
 1. Add the method to `bootstrapCommitter` (`main.go:41`).
 2. Implement it on `postgres.IngestionStore` (or the relevant concrete type).
-3. Add a call in `runPipelined` after the projector drain (`main.go:251`),
+3. Add a call in `runPipelined` after the projector drain (`bootstrap_pipeline.go`),
    following the existing fatal-error pattern.
 4. Add a failure-class log key constant in `go/internal/telemetry/contract.go`.
 5. Add a test in `main_test.go` proving the ordering invariant.
@@ -422,7 +422,7 @@ Ordering".
 - The straggler window between Phase 2 and Phase 4 is a known limitation. Items
   that succeed in that window are not automatically replayed. Operators must use
   `/admin/replay` or wait for the ingester's incremental refresh.
-- `errProjectorDrained` is a sentinel value (`main.go:657`). It signals clean
+- `errProjectorDrained` is a sentinel value (`bootstrap_collector.go`). It signals clean
   exit from `drainProjectorWorkItem` after the `PhaseProjection` drain loop
   exhausts the queue; it is not an error. Worker goroutines return on
   this value; they do not propagate it as an error.
