@@ -137,6 +137,7 @@ func runQuery(ctx context.Context, o options, getenv func(string) string, snap S
 	if err := checkQuery(ctx, client, snap, r); err != nil {
 		return err
 	}
+	EvaluateQuerySurfaceParity(snap, r)
 	// When an MCP server URL is supplied, additionally assert the snapshot's MCP
 	// tool query shapes live through the MCP tool layer (#3866 criterion 4), not
 	// just the HTTP routes those tools proxy to.

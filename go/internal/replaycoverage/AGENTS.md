@@ -1,6 +1,6 @@
 # AGENTS — replaycoverage
 
-Scoped rules for editing the C-1/C-8 replay coverage gate core. Load
+Scoped rules for editing the C-1/C-8/C-9 replay coverage gate core. Load
 `eshu-golden-corpus-rigor`, `eshu-diagnostic-rigor`, and `golang-engineering`.
 
 ## Invariants
@@ -10,9 +10,10 @@ Scoped rules for editing the C-1/C-8 replay coverage gate core. Load
   `<kind>:<name>`, and cover it with a `surfaces_test.go` case. Never widen the
   surface-inventory scope past the `implemented` lane — other lanes do not assert
   production readiness, so requiring a scenario for them would over-claim.
-- **Compose, do not fork.** Collectors, read surfaces, and claims come from the
-  generated `capabilitycatalog` / `facts` registries that the capability-inventory
-  drift gate already owns. Do not re-enumerate live code here.
+- **Compose, do not fork.** Collectors, API/MCP read surfaces, CLI read surfaces,
+  and claims come from the generated `capabilitycatalog` / `facts` registries and
+  the B-12 snapshot that sibling gates already own. Do not re-enumerate live code
+  here.
 - **Existence, not greenness.** `Resolver` proves a scenario artifact exists; the
   scenario's greenness is proven by the gate named in `proof_gate`. Do not make
   this gate run pipelines, hit a backend, or need credentials.

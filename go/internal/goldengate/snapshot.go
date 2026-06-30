@@ -146,15 +146,17 @@ func (b DrainBound) Limit() int64 {
 	}
 }
 
-// QueryShapes describes the canonical MCP and HTTP responses defined by the
-// snapshot for B-7(c) query truth. The HTTP shapes are asserted by checkQuery
+// QueryShapes describes the canonical MCP, HTTP, and CLI responses defined by
+// the snapshot for B-7(c) query truth. The HTTP shapes are asserted by checkQuery
 // against a running eshu-api; the MCP shapes are asserted live by checkMCPQuery
 // against a running eshu-mcp-server when -mcp-base-url is set (#3866 criterion 4),
 // invoking each tool through the MCP tool layer rather than only the HTTP routes
-// the tools proxy to.
+// the tools proxy to. CLI shapes are asserted offline as first-class golden
+// contracts and parity rows for API/MCP/CLI shared query surfaces.
 type QueryShapes struct {
 	MCP  map[string]QueryShape `json:"mcp"`
 	HTTP map[string]QueryShape `json:"http"`
+	CLI  map[string]QueryShape `json:"cli,omitempty"`
 }
 
 // QueryShape declares the required response fields and minimum result count for
@@ -189,6 +191,15 @@ type QueryShape struct {
 	// get_repo_summary needs a repo selector). Empty/omitted for argument-less
 	// tools and for HTTP shapes.
 	Arguments map[string]any `json:"arguments,omitempty"`
+	// Command is the CLI argv after the "eshu" binary name for a CLI query
+	// surface. Empty for HTTP and MCP shapes.
+	Command []string `json:"command,omitempty"`
+	// TruthClass names the answer-truth class this surface is expected to return.
+	// Shared API/MCP/CLI query rows must agree on it.
+	TruthClass string `json:"truth_class,omitempty"`
+	// ParityWith names peer query shapes this shape must agree with, using
+	// "http:<shape-key>", "mcp:<tool-name>", or "cli:<command-key>" refs.
+	ParityWith []string `json:"parity_with,omitempty"`
 }
 
 // LoadSnapshot reads and parses the golden snapshot at path.

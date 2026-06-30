@@ -3,8 +3,8 @@
 
 // Package replaycoverage reconciles the surfaces Eshu claims to support, and the
 // scenario-depth classes each surface requires, against the replay scenarios that
-// exercise them. It produces the C-1/C-8 coverage-manifest lockstep gate (issues
-// #4173 and #4187, epic #4172).
+// exercise them. It produces the C-1/C-8/C-9 coverage-manifest lockstep gate
+// (issues #4173, #4187, and #4188, epic #4172).
 //
 // # The source registries
 //
@@ -15,6 +15,9 @@
 //     are required to have a cassette replay scenario.
 //   - fact-kind registry (facts.FactKindRegistry): each distinct read_surface is
 //     required to have an API/MCP golden replay scenario.
+//   - B-12 CLI query shapes (goldengate.QueryShapes.CLI): each CLI read surface
+//     is required to have a CLI golden replay scenario whose parity metadata is
+//     asserted by the golden-corpus gate.
 //   - parser-backing ledger (LoadParserLedger): each parser is required to have a
 //     parser-fixture replay scenario.
 //   - capability matrix (capabilitycatalog.Matrix): each positively-claimed
@@ -56,7 +59,7 @@
 //
 // Findings reuse the shared goldengate.Finding/Report machinery. Local advisory
 // mode (Blocking=false) reports every coverage gap without failing the command.
-// CI now passes the single blocking flag after the C-2..C-8 burn-down, so every
+// CI now passes the single blocking flag after the C-2..C-9 burn-down, so every
 // uncovered, unresolved, and stale finding is required and coverage cannot
 // regress. BuildReport emits the machine-readable coverage-report artifact,
 // including per-scenario_type summaries, that the C-7 dashboard consumes on

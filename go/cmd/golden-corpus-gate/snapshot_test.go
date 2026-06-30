@@ -240,6 +240,56 @@ func TestGoldenSnapshotMCPShapesAssertResponseFields(t *testing.T) {
 	}
 }
 
+func TestGoldenSnapshotCLIShapesAssertParityMetadata(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	want := []string{
+		"eshu list",
+		"eshu index-status",
+		"eshu trace service --json",
+		"eshu playbooks list",
+		"eshu vuln-scan repo --json",
+		"eshu component inventory --json",
+		"eshu hosted-onboard --json",
+	}
+	for _, key := range want {
+		shape, ok := snap.QueryShapes.CLI[key]
+		if !ok {
+			t.Fatalf("query_shapes.cli missing %s", key)
+		}
+		if len(shape.Command) == 0 {
+			t.Fatalf("query_shapes.cli[%s] missing command argv", key)
+		}
+		if shape.TruthClass == "" {
+			t.Fatalf("query_shapes.cli[%s] missing truth_class", key)
+		}
+		if len(shape.RequiredResponseFields) == 0 {
+			t.Fatalf("query_shapes.cli[%s] missing required_response_fields", key)
+		}
+	}
+	for _, key := range []string{
+		"eshu list",
+		"eshu trace service --json",
+		"eshu playbooks list",
+		"eshu vuln-scan repo --json",
+		"eshu component inventory --json",
+		"eshu hosted-onboard --json",
+	} {
+		if len(snap.QueryShapes.CLI[key].ParityWith) == 0 {
+			t.Fatalf("shared query_shapes.cli[%s] missing parity_with", key)
+		}
+	}
+
+	var report Report
+	EvaluateQuerySurfaceParity(snap, &report)
+	if report.Failed() {
+		t.Fatalf("query surface parity failed: %+v", report.Findings)
+	}
+}
+
 func mcpToolExists(name string) bool {
 	for _, tool := range mcp.ReadOnlyTools() {
 		if tool.Name == name {

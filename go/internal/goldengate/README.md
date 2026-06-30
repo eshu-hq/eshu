@@ -31,7 +31,7 @@ tests are unchanged.
 |------|-------|
 | `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`) plus `LoadSnapshot`. |
 | `report.go` | `Finding` and `Report` — the pass/fail accumulator with the required/advisory split. |
-| `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, node/edge counts, query shape, timing). |
+| `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, node/edge counts, query shape, API/MCP/CLI parity, timing). |
 | `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
 
 ## Assertion semantics worth knowing
@@ -52,6 +52,10 @@ tests are unchanged.
   suffix traverses a non-empty array, which lets the dead-code replay library
   assert evidence citations and confidence labels without an unbounded response
   scan.
+- **CLI parity is explicit metadata.** `query_shapes.cli` rows must name their
+  CLI argv and truth class. `EvaluateQuerySurfaceParity` checks every
+  `parity_with` peer exists and carries the same truth class, so API/MCP/CLI
+  shared query surfaces cannot drift silently in the committed snapshot.
 - **An empty `Report` is a failure.** A gate that asserted nothing has not proven
   anything.
 

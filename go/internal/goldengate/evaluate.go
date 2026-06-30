@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -327,6 +328,79 @@ func responseKeys(resp map[string]json.RawMessage) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// EvaluateQuerySurfaceParity validates the offline API/MCP/CLI parity metadata
+// carried by query_shapes. CLI shapes must name their eshu argv and a truth
+// class, and every parity peer must exist with the same truth class. The actual
+// API/MCP response bodies are still checked by EvaluateQueryShape through the
+// live gate; this evaluator prevents the committed golden contract from claiming
+// CLI parity without naming the shared truth boundary.
+func EvaluateQuerySurfaceParity(snap Snapshot, r *Report) {
+	keys := make([]string, 0, len(snap.QueryShapes.CLI))
+	for key := range snap.QueryShapes.CLI {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		shape := snap.QueryShapes.CLI[key]
+		r.Add(evaluateCLIParityShape(key, shape, snap))
+	}
+}
+
+func evaluateCLIParityShape(key string, shape QueryShape, snap Snapshot) Finding {
+	check := "cli:" + key + ":parity"
+	if len(shape.Command) == 0 {
+		return Finding{Phase: "query", Check: check, OK: false, Required: true, Detail: "CLI shape missing command argv"}
+	}
+	if strings.TrimSpace(shape.TruthClass) == "" {
+		return Finding{Phase: "query", Check: check, OK: false, Required: true, Detail: "CLI shape missing truth class"}
+	}
+	for _, peer := range shape.ParityWith {
+		peerShape, ok := queryShapeByRef(peer, snap)
+		if !ok {
+			return Finding{Phase: "query", Check: check, OK: false, Required: true, Detail: "missing parity peer " + peer}
+		}
+		if strings.TrimSpace(peerShape.TruthClass) == "" {
+			return Finding{Phase: "query", Check: check, OK: false, Required: true, Detail: "parity peer " + peer + " missing truth class"}
+		}
+		if peerShape.TruthClass != shape.TruthClass {
+			return Finding{
+				Phase:    "query",
+				Check:    check,
+				OK:       false,
+				Required: true,
+				Detail:   fmt.Sprintf("truth class mismatch: cli=%q peer %s=%q", shape.TruthClass, peer, peerShape.TruthClass),
+			}
+		}
+	}
+	return Finding{
+		Phase:    "query",
+		Check:    check,
+		OK:       true,
+		Required: true,
+		Detail:   fmt.Sprintf("CLI command %v shares truth_class=%q with %d peer(s)", shape.Command, shape.TruthClass, len(shape.ParityWith)),
+	}
+}
+
+func queryShapeByRef(ref string, snap Snapshot) (QueryShape, bool) {
+	kind, key, ok := strings.Cut(ref, ":")
+	if !ok {
+		return QueryShape{}, false
+	}
+	switch kind {
+	case "http":
+		shape, exists := snap.QueryShapes.HTTP[key]
+		return shape, exists
+	case "mcp":
+		shape, exists := snap.QueryShapes.MCP[key]
+		return shape, exists
+	case "cli":
+		shape, exists := snap.QueryShapes.CLI[key]
+		return shape, exists
+	default:
+		return QueryShape{}, false
+	}
 }
 
 // EvaluateTiming produces a required finding asserting the live pipeline wall

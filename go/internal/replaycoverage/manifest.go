@@ -35,6 +35,8 @@ const (
 	ScenarioParserFixture ScenarioType = "parser_fixture"
 	// ScenarioAPIMCPGolden is a B-12 snapshot query shape (HTTP or MCP).
 	ScenarioAPIMCPGolden ScenarioType = "api_mcp_golden"
+	// ScenarioCLIGolden is a B-12 snapshot CLI query shape.
+	ScenarioCLIGolden ScenarioType = "cli_golden"
 	// ScenarioCorrelation is a B-12 snapshot required correlation (rc-*).
 	ScenarioCorrelation ScenarioType = "correlation"
 	// ScenarioCapabilityClaim is a capability-matrix row with per-profile
@@ -83,6 +85,7 @@ var validScenarioTypes = map[ScenarioType]struct{}{
 	ScenarioCassette:        {},
 	ScenarioParserFixture:   {},
 	ScenarioAPIMCPGolden:    {},
+	ScenarioCLIGolden:       {},
 	ScenarioCorrelation:     {},
 	ScenarioCapabilityClaim: {},
 	ScenarioProductClaim:    {},

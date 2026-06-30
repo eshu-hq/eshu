@@ -278,6 +278,7 @@ surface/scenario_type pair lacking a green replay scenario:
 | --- | --- | --- |
 | `surface-inventory.v1.yaml` | collectors on the **implemented** readiness lane | cassette |
 | `fact-kind-registry.v1.yaml` | each distinct `read_surface` | api/mcp golden |
+| B-12 snapshot `query_shapes.cli` | each CLI read surface | cli golden |
 | `parser-backing-ledger.v1.yaml` | each parser | parser fixture |
 | `capability-matrix.v1.yaml` | each positively-claimed capability | claim / refusal |
 | `product-claims.v1.yaml` | each broad public product claim | deterministic proof ledger |

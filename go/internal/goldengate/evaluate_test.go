@@ -269,6 +269,50 @@ func TestEvaluateQueryShape(t *testing.T) {
 	})
 }
 
+func TestEvaluateQuerySurfaceParity(t *testing.T) {
+	snap := Snapshot{QueryShapes: QueryShapes{
+		HTTP: map[string]QueryShape{
+			"GET /api/v0/repositories": {
+				Description: "repository list",
+				TruthClass:  "deterministic",
+			},
+		},
+		MCP: map[string]QueryShape{
+			"list_indexed_repositories": {
+				Description: "repository list tool",
+				TruthClass:  "deterministic",
+			},
+		},
+		CLI: map[string]QueryShape{
+			"eshu list": {
+				Description: "repository list CLI",
+				Command:     []string{"list"},
+				TruthClass:  "deterministic",
+				ParityWith: []string{
+					"http:GET /api/v0/repositories",
+					"mcp:list_indexed_repositories",
+				},
+			},
+		},
+	}}
+
+	var r Report
+	EvaluateQuerySurfaceParity(snap, &r)
+	if r.Failed() {
+		t.Fatalf("parity metadata should pass: %+v", r.Findings)
+	}
+
+	snap.QueryShapes.MCP["list_indexed_repositories"] = QueryShape{TruthClass: "code_hint"}
+	r = Report{}
+	EvaluateQuerySurfaceParity(snap, &r)
+	if !r.Failed() {
+		t.Fatal("truth-class mismatch between API/MCP/CLI must fail")
+	}
+	if !contains(r.Findings[0].Detail, "truth class") {
+		t.Fatalf("failure should name truth class mismatch: %+v", r.Findings)
+	}
+}
+
 func TestEvaluateTiming(t *testing.T) {
 	baseline := 100 * time.Second
 	t.Run("within 2x", func(t *testing.T) {

@@ -64,6 +64,11 @@ func (r ArtifactResolver) Resolve(entry CoverageEntry) (bool, string) {
 			return true, fmt.Sprintf("snapshot MCP query shape %q", entry.Ref)
 		}
 		return false, fmt.Sprintf("snapshot has no query shape %q", entry.Ref)
+	case ScenarioCLIGolden:
+		if _, ok := r.Snapshot.QueryShapes.CLI[entry.Ref]; ok {
+			return true, fmt.Sprintf("snapshot CLI query shape %q", entry.Ref)
+		}
+		return false, fmt.Sprintf("snapshot has no CLI query shape %q", entry.Ref)
 	case ScenarioCapabilityClaim:
 		return r.resolveCapabilityClaim(entry.Ref)
 	case ScenarioProductClaim:

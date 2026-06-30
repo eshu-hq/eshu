@@ -695,13 +695,15 @@ gates:
     ci_only_reason: "requires Docker + NornicDB service stack"
 
   - id: replay-coverage-gate
-    name: C-1/C-8 Replay Coverage Gate
+    name: C-1/C-8/C-9 Replay Coverage Gate
     category: exactness
     tier: pre-pr
     blocking: true
     triggers:
       - "go/cmd/replay-coverage-gate/**"
+      - "go/cmd/eshu/**"
       - "go/internal/replaycoverage/**"
+      - "go/internal/goldengate/**"
       - "go/internal/replay/inputtape/**"
       - "go/internal/replay/schedulereplay/**"
       - "go/internal/replay/crashreplay/**"
