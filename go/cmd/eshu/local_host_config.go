@@ -233,7 +233,7 @@ func applyLocalBootstrap(ctx context.Context, dsn string) error {
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping local postgres bootstrap connection: %w", err)
 	}
-	if err := pgstorage.ApplyDefinitions(ctx, db, localBootstrapDefinitions(os.Getenv)); err != nil {
+	if err := pgstorage.ApplyDefinitions(ctx, pgstorage.SQLDB{DB: db}, localBootstrapDefinitions(os.Getenv)); err != nil {
 		return fmt.Errorf("apply local postgres bootstrap: %w", err)
 	}
 	return nil

@@ -11,6 +11,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Definition describes one ordered bootstrap SQL payload.
@@ -25,6 +26,12 @@ type Definition struct {
 type Executor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
+
+type schemaLockTimeoutExecutor interface {
+	execContextWithLockTimeout(context.Context, string, time.Duration) (sql.Result, error)
+}
+
+const defaultSchemaLockTimeout = 5 * time.Second
 
 //go:embed migrations/*.sql
 var embeddedMigrations embed.FS
@@ -122,11 +129,33 @@ func ValidateDefinitions(defs []Definition) error {
 
 // ApplyDefinitions executes one ordered schema layout against the executor.
 func ApplyDefinitions(ctx context.Context, exec Executor, defs []Definition) error {
+	return ApplyDefinitionsWithLockTimeout(ctx, exec, defs, defaultSchemaLockTimeout)
+}
+
+// ApplyDefinitionsWithLockTimeout executes one ordered schema layout while
+// bounding Postgres lock acquisition for lock-timeout-capable executors.
+func ApplyDefinitionsWithLockTimeout(
+	ctx context.Context,
+	exec Executor,
+	defs []Definition,
+	lockTimeout time.Duration,
+) error {
 	if err := ValidateDefinitions(defs); err != nil {
 		return err
 	}
 	if exec == nil {
 		return fmt.Errorf("executor is required")
+	}
+
+	if lockTimeout > 0 {
+		if lockExec, ok := exec.(schemaLockTimeoutExecutor); ok {
+			for _, def := range defs {
+				if _, err := lockExec.execContextWithLockTimeout(ctx, def.SQL, lockTimeout); err != nil {
+					return fmt.Errorf("apply %s: %w", def.Name, err)
+				}
+			}
+			return nil
+		}
 	}
 
 	for _, def := range defs {
