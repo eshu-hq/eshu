@@ -89,23 +89,25 @@ ensure_gosec() {
 
 ensure_govulncheck() {
 	local bin="${cache_dir}/govulncheck"
-	if [[ ! -x "${bin}" ]]; then
-		note "installing govulncheck (one-time, local toolchain)"
-		GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
-			"golang.org/x/vuln/cmd/govulncheck@latest" \
-			|| die "failed to install govulncheck"
-	fi
+	# CI installs @latest on every run. Always reinstall @latest here too rather
+	# than freezing the first-resolved binary in the cache — go's module/build
+	# cache makes a no-change reinstall fast, and this keeps the local advisory
+	# database tooling in lockstep with CI instead of silently drifting stale.
+	note "installing govulncheck@latest (local toolchain)"
+	GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+		"golang.org/x/vuln/cmd/govulncheck@latest" \
+		|| die "failed to install govulncheck"
 	printf '%s' "${bin}"
 }
 
 ensure_nancy() {
 	local bin="${cache_dir}/nancy"
-	if [[ ! -x "${bin}" ]]; then
-		note "installing nancy (one-time, local toolchain)"
-		GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
-			"github.com/sonatype-nexus-community/nancy@latest" \
-			|| die "failed to install nancy"
-	fi
+	# Always reinstall @latest (see ensure_govulncheck) to match CI and avoid
+	# freezing a stale nancy in the cache.
+	note "installing nancy@latest (local toolchain)"
+	GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+		"github.com/sonatype-nexus-community/nancy@latest" \
+		|| die "failed to install nancy"
 	printf '%s' "${bin}"
 }
 

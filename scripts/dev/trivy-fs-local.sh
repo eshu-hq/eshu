@@ -17,5 +17,16 @@ if ! command -v trivy >/dev/null 2>&1; then
 	exit 0
 fi
 
-printf 'trivy-fs: scanning working tree (vuln + secret + config, HIGH/CRITICAL)...\n'
-exec trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 "${repo_root}"
+printf 'trivy-fs: scanning working tree (vuln + secret + config, CRITICAL/HIGH)...\n'
+# Mirror .github/workflows/security-scan.yml trivy-fs: CRITICAL,HIGH only,
+# ignore-unfixed, and the same skip-dirs (intentionally-vulnerable fixtures,
+# example artifacts, parser fixtures, node_modules) so local findings match CI
+# rather than reporting noise CI suppresses.
+skip_dirs="go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules"
+exec trivy fs \
+	--scanners vuln,secret,misconfig \
+	--severity CRITICAL,HIGH \
+	--ignore-unfixed \
+	--skip-dirs "${skip_dirs}" \
+	--exit-code 1 \
+	"${repo_root}"

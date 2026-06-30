@@ -801,6 +801,7 @@ gates:
     tier: pre-push
     blocking: true
     triggers:
+      - "go/go.mod"
       - "go/go.sum"
     local:
       command: "bash scripts/dev/precommit-go.sh nancy"
