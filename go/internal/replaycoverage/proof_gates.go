@@ -54,6 +54,9 @@ func validateProofGate(id string, context string, known map[string]cigates.Gate)
 	if !ok {
 		return fmt.Sprintf("%s references unknown proof_gate %q", context, id)
 	}
+	if !gate.Blocking {
+		return fmt.Sprintf("%s proof_gate %q is not blocking", context, id)
+	}
 	if gate.Local == nil || strings.TrimSpace(gate.Local.Command) == "" {
 		return fmt.Sprintf("%s proof_gate %q has no local command", context, id)
 	}

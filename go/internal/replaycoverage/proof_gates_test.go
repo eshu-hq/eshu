@@ -69,6 +69,26 @@ func TestValidateRequiredProofGatesRejectsGateWithoutRunnableLocalCommand(t *tes
 	}
 }
 
+func TestValidateRequiredProofGatesRejectsAdvisoryGate(t *testing.T) {
+	manifest := Manifest{Coverage: []CoverageEntry{{
+		Surface:      "collector:aws",
+		Scenario:     ScenarioCassette,
+		ScenarioType: ScenarioTypeBaseline,
+		Ref:          "testdata/cassettes/awscloud/supply-chain-demo.json",
+		ProofGate:    "advisory-coverage-report",
+	}}}
+	gate := replayProofGate("advisory-coverage-report", "bash scripts/verify-code-coverage-report.sh", "code-coverage-report.yml")
+	gate.Blocking = false
+
+	errs := ValidateRequiredProofGates(manifest, AuthzProofLedger{}, replayProofRegistry(gate))
+	if len(errs) != 1 {
+		t.Fatalf("ValidateRequiredProofGates errors=%d, want 1: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0].Error(), `proof_gate "advisory-coverage-report" is not blocking`) {
+		t.Fatalf("error = %v, want non-blocking proof gate", errs[0])
+	}
+}
+
 func TestValidateRequiredProofGatesAllowsDocumentedLocalOnlyGate(t *testing.T) {
 	manifest := Manifest{Coverage: []CoverageEntry{{
 		Surface:      "capability:local.fixture",
