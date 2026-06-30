@@ -91,7 +91,13 @@ before touching any file in this directory.
    `DefaultDomainDefinitions` in `registry.go` only when the domain is
    unconditionally wired. Adapter-gated domains such as
    `DomainAWSCloudRuntimeDrift` use an additive helper so the runtime cannot
-   register a domain that has no durable publication path.
+   register a domain that has no durable publication path. Add the gated
+   registration to the matching themed sibling helper in
+   `defaults_additive_domains_*.go` (correlation, supply_chain, secrets_drift,
+   cloud_nodes, cloud_relationships, cloud_posture, or incident_code) — not the
+   `appendAdditiveDomainDefinitions` orchestrator, which only chains the helpers.
+   Registration is keyed by `Domain` in `Registry.Register`, so the append order
+   across helpers is not runtime-observable.
 5. Wire the backend adapters in `cmd/reducer/main.go` `DefaultHandlers`.
 6. If the domain consumes `resolved_relationships`, add a post-Phase-3
    reopen in `bootstrap-index/main.go` after ReopenDeploymentMappingWorkItems.
