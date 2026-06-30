@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/cigates"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
@@ -64,6 +66,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
+	proofGateErrs := replaycoverage.ValidateRequiredProofGates(inputs.Manifest, inputs.AuthzProofs, inputs.ProofGates)
 	cov, report, gate := replaycoverage.RunGate(inputs)
 	gate.Write(stdout)
 	writeCoverageSummary(stdout, report)
@@ -82,6 +85,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		_, _ = fmt.Fprintf(stdout, "coverage dashboard written: %s\n", o.dashboardOut)
 	}
 
+	if len(proofGateErrs) > 0 {
+		return fmt.Errorf("validate replay proof gates: %w", errors.Join(proofGateErrs...))
+	}
 	if o.blocking && gate.Failed() {
 		return fmt.Errorf("replay coverage gate failed (blocking): %d surface(s) uncovered/unresolved, %d stale manifest entr(ies)",
 			len(report.Gaps), len(cov.Stale))
@@ -118,6 +124,10 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 	if err != nil {
 		return replaycoverage.Inputs{}, err
 	}
+	proofGates, err := cigates.Load(filepath.Join(o.specsDir, "ci-gates.v1.yaml"))
+	if err != nil {
+		return replaycoverage.Inputs{}, fmt.Errorf("load ci gate registry: %w", err)
+	}
 	snapshot, err := goldengate.LoadSnapshot(o.snapshot)
 	if err != nil {
 		return replaycoverage.Inputs{}, fmt.Errorf("load snapshot: %w", err)
@@ -130,7 +140,9 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		ProductClaims: productClaims,
 		CLIShapes:     snapshot.QueryShapes.CLI,
 		Authorization: authorization,
+		AuthzProofs:   authzProofs,
 		Manifest:      manifest,
+		ProofGates:    proofGates,
 		Resolver: replaycoverage.ArtifactResolver{
 			RepoRoot:      o.repoRoot,
 			Snapshot:      snapshot,
