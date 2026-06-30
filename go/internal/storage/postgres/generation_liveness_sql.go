@@ -53,23 +53,24 @@ RETURNING generation.scope_id, generation.generation_id
 `
 
 // recoverWedgedActiveGenerationsQuery durably re-drives active generations that
-// still have downstream blockage after the activation deadline, but only when no
-// source-local projector work is already in flight.
+// still have ready downstream blockage after the activation deadline, but only
+// when no source-local projector work is already in flight.
 //
 // A wedged generation is one with outstanding shared-projection intent after
 // reducer fact-work drained, but without source-local projector work already
-// pending, claimed, running, or retrying. Age alone is NOT enough: a
-// healthy quiet scope normally stays active and projected (the projected
-// baseline is "has been active", see generation_projected_commit.go) with no
-// outstanding work, and re-driving those on every poll would burn the liveness
-// budget and raise false alarms. During a large bootstrap, shared intents may
-// legitimately sit behind reducer backlog; re-driving source-local projection at
-// that point creates duplicate projector work while reducer work is still
-// progress. A succeeded source-local projector row is the normal activation
-// lifecycle state, so it remains eligible for the bounded upsert below to reopen
-// when the generation is still wedged after reducer work drains. The in-flight
-// guard only suppresses pending, claimed, running, and retrying projector rows
-// so a previous recovery attempt can be processed before the sweep spends more
+// pending, claimed, running, or retrying. Age alone is NOT enough: a healthy
+// quiet scope normally stays active and projected (the projected baseline is
+// "has been active", see generation_projected_commit.go) with no outstanding
+// work, and re-driving those on every poll would burn the liveness budget and
+// raise false alarms. During a large bootstrap, shared intents may legitimately
+// sit behind reducer backlog or behind deferred backward-evidence readiness;
+// re-driving source-local projection at that point creates duplicate projector
+// work while upstream work is still progress. A succeeded source-local projector
+// row is the normal activation lifecycle state, so it remains eligible for the
+// bounded upsert below to reopen when the generation is still wedged after
+// reducer work drains and readiness prerequisites are met. The in-flight guard
+// only suppresses pending, claimed, running, and retrying projector rows so a
+// previous recovery attempt can be processed before the sweep spends more
 // budget. This query therefore re-enqueues source-local projector work only for
 // generations that are blocked and not already being recovered, which
 // re-publishes the canonical-nodes-committed readiness phase and re-triggers the
@@ -117,6 +118,27 @@ WITH wedged AS (
           FROM shared_projection_intents AS intent
           WHERE intent.generation_id = generation.generation_id
             AND intent.completed_at IS NULL
+            -- Cross-repo repo_dependency intents are not actionable until the
+            -- deferred relationship backfill publishes backward evidence for the
+            -- scope generation. Before that phase, the outstanding intent is a
+            -- readiness wait, not a source-local wedge to re-drive.
+            AND (
+                intent.projection_domain <> 'repo_dependency'
+                OR (
+                    intent.source_run_id <> 'repo_dependency'
+                    AND intent.source_run_id NOT LIKE 'repo_dependency:%'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM graph_projection_phase_state AS backward_phase
+                    WHERE backward_phase.scope_id = generation.scope_id
+                      AND backward_phase.acceptance_unit_id = generation.scope_id
+                      AND backward_phase.source_run_id = generation.generation_id
+                      AND backward_phase.generation_id = generation.generation_id
+                      AND backward_phase.keyspace = 'cross_repo_evidence'
+                      AND backward_phase.phase = 'backward_evidence_committed'
+                )
+            )
       )
       -- Normal reducer backlog is progress, not a wedged generation. Do not
       -- re-drive source-local projection until reducer fact-work for the same
@@ -232,12 +254,13 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 //
 // The stuck bucket is the wedged-generation alarm and must match the recovery
 // gate: a generation is only stuck when it has aged past the deadline AND has
-// real downstream blockage (an outstanding shared_projection_intents row,
-// completed_at IS NULL) after reducer fact-work for the same generation has
-// drained, with no source-local projector row already in flight. A healthy
-// quiet projected scope that merely aged or a busy full-corpus bootstrap scope
-// still moving through reducer work is counted aging, never stuck, so the alarm
-// does not fire on normal idle installations or reducer backlog.
+// real, ready downstream blockage (an outstanding shared_projection_intents row,
+// completed_at IS NULL, whose readiness prerequisite is satisfied) after reducer
+// fact-work for the same generation has drained, with no source-local projector
+// row already in flight. A healthy quiet projected scope that merely aged or a
+// busy full-corpus bootstrap scope still moving through reducer work/readiness
+// is counted aging, never stuck, so the alarm does not fire on normal idle
+// installations or reducer/backfill backlog.
 //
 // Parameter order:
 //
@@ -252,6 +275,23 @@ SELECT
             FROM shared_projection_intents AS intent
             WHERE intent.generation_id = generation.generation_id
               AND intent.completed_at IS NULL
+              AND (
+                  intent.projection_domain <> 'repo_dependency'
+                  OR (
+                      intent.source_run_id <> 'repo_dependency'
+                      AND intent.source_run_id NOT LIKE 'repo_dependency:%'
+                  )
+                  OR EXISTS (
+                      SELECT 1
+                      FROM graph_projection_phase_state AS backward_phase
+                      WHERE backward_phase.scope_id = generation.scope_id
+                        AND backward_phase.acceptance_unit_id = generation.scope_id
+                        AND backward_phase.source_run_id = generation.generation_id
+                        AND backward_phase.generation_id = generation.generation_id
+                        AND backward_phase.keyspace = 'cross_repo_evidence'
+                        AND backward_phase.phase = 'backward_evidence_committed'
+                  )
+              )
         ) AND NOT EXISTS (
             SELECT 1
             FROM fact_work_items AS reducer_work
