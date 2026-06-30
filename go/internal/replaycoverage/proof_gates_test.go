@@ -201,3 +201,36 @@ func TestRunGateDoesNotCountInvalidAuthzProofGateAsCovered(t *testing.T) {
 		t.Fatal("blocking gate must fail when authz proof_gate validation fails")
 	}
 }
+
+func TestRunGateReportsInvalidStaleAuthzProofGate(t *testing.T) {
+	inputs := Inputs{
+		Blocking: true,
+		AuthzProofs: AuthzProofLedger{Scenarios: []AuthzProofScenario{{
+			Family:    "removed_family",
+			GrantMode: "in_grant",
+			ProofGate: "stale-authz-gate",
+			TestFile:  "go/internal/query/authz_replay_coverage_contract_test.go",
+			TestName:  "TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens",
+		}}},
+		Resolver:   stubResolver{},
+		ProofGates: replayProofRegistry(replayProofGate("authz-scoped-route-tests", "cd go && go test ./internal/query -run TestAuthorizationReplayCoverageContract -count=1", "replay-coverage-gate.yml")),
+	}
+
+	cov, _, gr := RunGate(inputs)
+	var authz SurfaceCoverage
+	for _, sc := range cov.Surfaces {
+		if sc.Surface.Key == "authz_family:removed_family:in_grant" {
+			authz = sc
+			break
+		}
+	}
+	if authz.Status != StatusUnresolved {
+		t.Fatalf("stale authz status = %q, want %q", authz.Status, StatusUnresolved)
+	}
+	if !strings.Contains(authz.Detail, `unknown proof_gate "stale-authz-gate"`) {
+		t.Fatalf("stale authz detail = %q, want authz proof gate validation detail", authz.Detail)
+	}
+	if !gr.Failed() {
+		t.Fatal("blocking gate must fail when stale authz proof_gate validation fails")
+	}
+}

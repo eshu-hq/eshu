@@ -4,6 +4,8 @@
 package replaycoverage
 
 import (
+	"sort"
+
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -64,12 +66,14 @@ func applyProofGateValidation(cov Coverage, details proofGateValidationDetails) 
 	if len(details.byProofGate) == 0 && len(details.byAuthzRef) == 0 {
 		return cov
 	}
+	usedAuthzRefs := map[string]struct{}{}
 	for i := range cov.Surfaces {
 		scenario := cov.Surfaces[i].Scenario
 		if scenario == nil {
 			continue
 		}
 		if detail, invalid := details.byAuthzRef[scenario.Ref]; invalid && scenario.Scenario == ScenarioAuthzScopedRoute {
+			usedAuthzRefs[scenario.Ref] = struct{}{}
 			cov.Surfaces[i].Status = StatusUnresolved
 			cov.Surfaces[i].Detail = detail
 			continue
@@ -79,5 +83,34 @@ func applyProofGateValidation(cov Coverage, details proofGateValidationDetails) 
 			cov.Surfaces[i].Detail = detail
 		}
 	}
+	var staleAuthzRefs []string
+	for ref := range details.byAuthzRef {
+		if _, used := usedAuthzRefs[ref]; !used {
+			staleAuthzRefs = append(staleAuthzRefs, ref)
+		}
+	}
+	sort.Strings(staleAuthzRefs)
+	for _, ref := range staleAuthzRefs {
+		cov.Surfaces = append(cov.Surfaces, SurfaceCoverage{
+			Surface: SupportedSurface{
+				Registry: RegistryAuthorizationCatalog,
+				Key:      "authz_family:" + ref,
+				Detail:   "stale authorization proof-ledger row",
+			},
+			ScenarioType: ScenarioTypeBaseline,
+			Status:       StatusUnresolved,
+			Detail:       details.byAuthzRef[ref],
+		})
+	}
+	sort.Slice(cov.Surfaces, func(i, j int) bool {
+		left, right := cov.Surfaces[i], cov.Surfaces[j]
+		if left.Surface.Registry != right.Surface.Registry {
+			return left.Surface.Registry < right.Surface.Registry
+		}
+		if left.Surface.Key != right.Surface.Key {
+			return left.Surface.Key < right.Surface.Key
+		}
+		return left.ScenarioType < right.ScenarioType
+	})
 	return cov
 }
