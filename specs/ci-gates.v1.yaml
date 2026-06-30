@@ -677,6 +677,11 @@ gates:
     triggers:
       - "apps/console/**"
       - "src/**"
+      # console:* commands resolve dependencies from the root package.json, so a
+      # root dependency change must re-run the console checks (CI's Console job
+      # has no per-job path filter and runs on these too).
+      - "package.json"
+      - "package-lock.json"
     local:
       command: "npm run console:typecheck && npm run console:test && npm run console:build"
       test_command: ""
@@ -715,6 +720,9 @@ gates:
       - "eslint.config.js"
       - "scripts/verify-eslint-config.sh"
       - "scripts/test-eslint-config.sh"
+      # The eslint self-test (test-eslint-config.sh) reads the lint fixtures, so
+      # a fixture change must re-run this gate (it is in frontend.yml's filter).
+      - "tests/lint-fixture/**"
     local:
       command: "bash scripts/verify-eslint-config.sh"
       test_command: "bash scripts/test-eslint-config.sh"
