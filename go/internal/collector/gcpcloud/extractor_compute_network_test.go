@@ -9,11 +9,11 @@ import (
 	"testing"
 )
 
-const computeNetworkFullName = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
+const computeNetworkTestFullName = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
 
 func computeNetworkContext(data string) ExtractContext {
 	return ExtractContext{
-		FullResourceName: computeNetworkFullName,
+		FullResourceName: computeNetworkTestFullName,
 		AssetType:        assetTypeComputeNetwork,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
@@ -79,7 +79,7 @@ func TestExtractComputeNetworkCustomMode(t *testing.T) {
 		t.Fatalf("expected 3 relationships (2 subnets, 1 peering), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
 	for _, rel := range got.Relationships {
-		if rel.SourceFullResourceName != computeNetworkFullName {
+		if rel.SourceFullResourceName != computeNetworkTestFullName {
 			t.Errorf("relationship source = %q, want network full name", rel.SourceFullResourceName)
 		}
 		if rel.SourceAssetType != assetTypeComputeNetwork {
@@ -170,6 +170,92 @@ func TestExtractComputeNetworkMalformedDataErrors(t *testing.T) {
 	}
 }
 
+func TestExtractComputeNetworkSkipsInactivePeering(t *testing.T) {
+	// Only ACTIVE peerings exchange routes/connectivity, so only an ACTIVE peering
+	// may emit a materializing edge and correlation anchor. An INACTIVE peering is
+	// still counted in peering_count (it is a configured peering) but must not
+	// produce a graph edge.
+	const data = `{
+		"name": "prod-vpc",
+		"peerings": [
+			{"name": "active-peer", "network": "https://www.googleapis.com/compute/v1/projects/p-active/global/networks/n-active", "state": "ACTIVE"},
+			{"name": "inactive-peer", "network": "https://www.googleapis.com/compute/v1/projects/p-inactive/global/networks/n-inactive", "state": "INACTIVE"}
+		]
+	}`
+	got, err := extractComputeNetwork(computeNetworkContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["peering_count"] != 2 {
+		t.Errorf("peering_count = %v, want 2 (total configured peerings)", got.Attributes["peering_count"])
+	}
+	peeringEdges := 0
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeNetworkPeersWithNetwork {
+			peeringEdges++
+		}
+		if rel.TargetFullResourceName == "//compute.googleapis.com/projects/p-inactive/global/networks/n-inactive" {
+			t.Errorf("INACTIVE peering emitted a materializing edge: %#v", rel)
+		}
+	}
+	if peeringEdges != 1 {
+		t.Fatalf("expected 1 peering edge (the ACTIVE one), got %d: %#v", peeringEdges, got.Relationships)
+	}
+	for _, anchor := range got.CorrelationAnchors {
+		if anchor == "//compute.googleapis.com/projects/p-inactive/global/networks/n-inactive" {
+			t.Errorf("INACTIVE peer network surfaced as a correlation anchor: %q", anchor)
+		}
+	}
+}
+
+func TestExtractComputeNetworkNormalizesPartialURLs(t *testing.T) {
+	// CAI may carry partial peering/subnetwork URLs: a project-qualified partial
+	// (projects/p/...) and a project-less partial (regions/.../subnetworks/...)
+	// that resolves against the source network's project. Both must resolve to CAI
+	// full resource names, not be silently dropped.
+	const data = `{
+		"name": "prod-vpc",
+		"subnetworks": ["regions/us-central1/subnetworks/local-subnet"],
+		"peerings": [
+			{"name": "partial-peer", "network": "projects/other-project/global/networks/other-net", "state": "ACTIVE"}
+		]
+	}`
+	got, err := extractComputeNetwork(computeNetworkContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeNetworkContainsSubnetwork,
+		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/local-subnet", assetTypeComputeSubnetwork)
+	assertRelationship(t, got.Relationships, relationshipTypeNetworkPeersWithNetwork,
+		"//compute.googleapis.com/projects/other-project/global/networks/other-net", assetTypeComputeNetwork)
+}
+
+func TestComputeFullResourceNameFromSelfLink(t *testing.T) {
+	cases := []struct {
+		name      string
+		link      string
+		projectID string
+		want      string
+	}{
+		{"empty", "", "demo-project", ""},
+		{"already cai", "//compute.googleapis.com/projects/p/global/networks/n", "demo-project", "//compute.googleapis.com/projects/p/global/networks/n"},
+		{"full selflink v1", "https://www.googleapis.com/compute/v1/projects/p/regions/r/subnetworks/s", "demo-project", "//compute.googleapis.com/projects/p/regions/r/subnetworks/s"},
+		{"full selflink beta", "https://compute.googleapis.com/compute/beta/projects/p/global/networks/n", "demo-project", "//compute.googleapis.com/projects/p/global/networks/n"},
+		{"partial with project", "projects/p/global/networks/n", "demo-project", "//compute.googleapis.com/projects/p/global/networks/n"},
+		{"partial project-less global", "global/networks/n", "demo-project", "//compute.googleapis.com/projects/demo-project/global/networks/n"},
+		{"partial project-less region", "regions/r/subnetworks/s", "demo-project", "//compute.googleapis.com/projects/demo-project/regions/r/subnetworks/s"},
+		{"project-less without source project", "global/networks/n", "", ""},
+		{"unrecognized", "garbage", "demo-project", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := computeFullResourceNameFromSelfLink(tc.link, tc.projectID); got != tc.want {
+				t.Fatalf("computeFullResourceNameFromSelfLink(%q, %q) = %q, want %q", tc.link, tc.projectID, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestExtractComputeNetworkSkipsSelfPeering(t *testing.T) {
 	// A peering whose target network resolves to the source network itself must
 	// not produce a self-edge.
@@ -184,7 +270,7 @@ func TestExtractComputeNetworkSkipsSelfPeering(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.TargetFullResourceName == computeNetworkFullName {
+		if rel.TargetFullResourceName == computeNetworkTestFullName {
 			t.Fatalf("self-peering produced a self-edge: %#v", rel)
 		}
 	}

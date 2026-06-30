@@ -9,31 +9,26 @@ import (
 	"strings"
 )
 
-// Asset type constants for the VPC Network typed-depth extractor and the
-// relationship endpoints it derives. Target asset types name the CAI asset type
-// of each typed edge so reducers can resolve both endpoints exactly.
-const (
-	assetTypeComputeNetwork    = "compute.googleapis.com/Network"
-	assetTypeComputeSubnetwork = "compute.googleapis.com/Subnetwork"
-)
-
 // Bounded relationship types for VPC Network edges. They are stable provider
 // relationship strings carried on gcp_cloud_relationship facts; the reducer
 // materializes an edge only when both endpoints resolve exactly. Only edges
 // derivable from the Network resource.data itself are emitted here: contained
 // subnetworks and VPC peerings. Firewall, route, and instance attachments
 // reference the network from their own resource.data and are emitted by those
-// asset types' own extractors, not this one.
+// asset types' own extractors, not this one. The asset type constants
+// (assetTypeComputeNetwork, assetTypeComputeSubnetwork) and
+// computeResourceNamePrefix are shared with the Subnetwork extractor in
+// extractor_subnetwork.go.
 const (
 	relationshipTypeNetworkContainsSubnetwork = "vpc_network_contains_subnetwork"
 	relationshipTypeNetworkPeersWithNetwork   = "vpc_network_peers_with_network"
 
-	// computeResourceNamePrefix is the Cloud Asset Inventory full-resource-name
-	// prefix for Compute Engine resources.
-	computeResourceNamePrefix = "//compute.googleapis.com/"
 	// computeSelfLinkMarker delimits the API version segment in a Compute Engine
 	// selfLink; the path after the version segment is the CAI resource path.
 	computeSelfLinkMarker = "/compute/"
+	// peeringStateActive is the Compute Network peering state that exchanges
+	// routes/connectivity. Only ACTIVE peerings become materializing edges.
+	peeringStateActive = "ACTIVE"
 )
 
 // computeNetworkData is the bounded view of a CAI compute.googleapis.com/Network
@@ -79,7 +74,7 @@ func extractComputeNetwork(ctx ExtractContext) (AttributeExtraction, error) {
 	rels := make([]RelationshipObservation, 0, len(data.Subnetworks)+len(data.Peerings))
 
 	for _, link := range data.Subnetworks {
-		name := computeFullResourceNameFromSelfLink(link)
+		name := computeFullResourceNameFromSelfLink(link, ctx.ProjectID)
 		if name == "" {
 			continue
 		}
@@ -88,7 +83,14 @@ func extractComputeNetwork(ctx ExtractContext) (AttributeExtraction, error) {
 	}
 
 	for _, peering := range data.Peerings {
-		name := computeFullResourceNameFromSelfLink(peering.Network)
+		// Only ACTIVE peerings exchange routes/connectivity, so only an ACTIVE
+		// peering may produce a materializing edge and correlation anchor; an
+		// INACTIVE or pending peering would otherwise become a false graph edge
+		// once both endpoints resolve. It is still counted in peering_count.
+		if !strings.EqualFold(strings.TrimSpace(peering.State), peeringStateActive) {
+			continue
+		}
+		name := computeFullResourceNameFromSelfLink(peering.Network, ctx.ProjectID)
 		if name == "" || name == strings.TrimSpace(ctx.FullResourceName) {
 			continue
 		}
@@ -133,13 +135,17 @@ func computeNetworkAttributes(data computeNetworkData) map[string]any {
 	return attrs
 }
 
-// computeFullResourceNameFromSelfLink converts a Compute Engine selfLink (or a
-// peering network URL) into its Cloud Asset Inventory full resource name. It
-// returns an empty string for a blank link, a link with no recognizable
-// /compute/<version>/projects/... path, or a link that is already malformed, so
-// only well-formed resource identities become edge endpoints. A value already in
-// CAI full-resource-name form is returned unchanged.
-func computeFullResourceNameFromSelfLink(selfLink string) string {
+// computeFullResourceNameFromSelfLink converts a Compute Engine selfLink or a
+// peering network reference into its Cloud Asset Inventory full resource name.
+// The Compute API expresses these references as a full selfLink
+// (https://.../compute/<version>/projects/...), a project-qualified partial
+// (projects/p/...), or a project-less partial (global/networks/n,
+// regions/r/subnetworks/s); project-less partials resolve against sourceProjectID
+// (the source network's project). A value already in CAI full-resource-name form
+// is returned unchanged. An empty string is returned for a blank reference, an
+// unrecognized shape, or a project-less partial with no source project, so only
+// well-formed resource identities become edge endpoints.
+func computeFullResourceNameFromSelfLink(selfLink, sourceProjectID string) string {
 	trimmed := strings.TrimSpace(selfLink)
 	if trimmed == "" {
 		return ""
@@ -147,21 +153,42 @@ func computeFullResourceNameFromSelfLink(selfLink string) string {
 	if strings.HasPrefix(trimmed, computeResourceNamePrefix) {
 		return trimmed
 	}
-	idx := strings.Index(trimmed, computeSelfLinkMarker)
-	if idx < 0 {
+	// Full selfLink: take the path after the /compute/<version>/ segment.
+	if idx := strings.Index(trimmed, computeSelfLinkMarker); idx >= 0 {
+		afterMarker := trimmed[idx+len(computeSelfLinkMarker):]
+		if _, path, ok := strings.Cut(afterMarker, "/"); ok {
+			if normalized := computeResourceNameFromPath(path, sourceProjectID); normalized != "" {
+				return normalized
+			}
+		}
 		return ""
 	}
-	afterMarker := trimmed[idx+len(computeSelfLinkMarker):]
-	// afterMarker is "<version>/projects/...": drop the version segment.
-	_, path, ok := strings.Cut(afterMarker, "/")
-	if !ok {
+	// Partial reference (no scheme, no /compute/ segment).
+	return computeResourceNameFromPath(trimmed, sourceProjectID)
+}
+
+// computeResourceNameFromPath builds a CAI full resource name from a Compute
+// resource path that is either project-qualified (projects/p/...) or a
+// project-less partial (global/..., regions/..., zones/...) resolved against
+// sourceProjectID. It returns an empty string for any other shape.
+func computeResourceNameFromPath(path, sourceProjectID string) string {
+	path = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(path), "/"))
+	switch {
+	case path == "":
+		return ""
+	case strings.HasPrefix(path, "projects/"):
+		return computeResourceNamePrefix + path
+	case strings.HasPrefix(path, "global/"),
+		strings.HasPrefix(path, "regions/"),
+		strings.HasPrefix(path, "zones/"):
+		project := strings.TrimSpace(sourceProjectID)
+		if project == "" {
+			return ""
+		}
+		return computeResourceNamePrefix + "projects/" + project + "/" + path
+	default:
 		return ""
 	}
-	path = strings.TrimSpace(path)
-	if !strings.HasPrefix(path, "projects/") {
-		return ""
-	}
-	return computeResourceNamePrefix + path
 }
 
 func computeNetworkEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {
