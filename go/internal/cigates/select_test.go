@@ -36,6 +36,89 @@ func localCmd(cmd string) *cigates.Local {
 	return &cigates.Local{Command: cmd}
 }
 
+// TestSelect_RaceLane proves the #4215 race-gate selection: a graph-write
+// package change selects the targeted race-graph-writes gate (category race),
+// while a non-graph Go change does not — so pre-pr's lane 2 (scoped race) owns
+// the latter.
+func TestSelect_RaceLane(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("race-graph-writes", cigates.TierPrePR, cigates.CategoryRace,
+			[]string{
+				"go/internal/storage/cypher/**", "go/internal/reducer/**",
+				"go/internal/projector/**", "go/internal/correlation/**",
+				"go/internal/content/shape/**", "go/internal/relationships/**",
+			},
+			localCmd("cd go && go test -race ./internal/reducer/..."), ""),
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash scripts/dev/precommit-go.sh lint-all"), ""),
+	})
+
+	// A reducer (graph-write) change selects the race gate under category=race.
+	graphSel := cigates.FilterByCategory(
+		reg.Select([]string{"go/internal/reducer/handler.go"}, cigates.TierPrePR),
+		[]cigates.Category{cigates.CategoryRace})
+	if _, ok := collectSelected(graphSel)["race-graph-writes"]; !ok {
+		t.Error("reducer change should select race-graph-writes under category=race")
+	}
+
+	// A non-graph Go change does NOT select the targeted race gate (pre-pr lane
+	// 2's scoped race covers it instead).
+	otherSel := cigates.FilterByCategory(
+		reg.Select([]string{"go/internal/queueclient/client.go"}, cigates.TierPrePR),
+		[]cigates.Category{cigates.CategoryRace})
+	if _, ok := collectSelected(otherSel)["race-graph-writes"]; ok {
+		t.Error("non-graph change should NOT select race-graph-writes")
+	}
+}
+
+// TestUncoveredPaths_ExcludesRunnableRaceGates proves the #4215 scoped-race
+// exclusion is registry-derived: a path covered by any locally-runnable race
+// gate (graph-write OR replay) is excluded, while a path covered only by a
+// CI-only race gate, or by no race gate, is returned for local scoped racing.
+func TestUncoveredPaths_ExcludesRunnableRaceGates(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("race-graph-writes", cigates.TierPrePR, cigates.CategoryRace,
+			[]string{"go/internal/reducer/**"}, localCmd("cd go && go test -race ./internal/reducer/..."), ""),
+		gate("go-test-race", cigates.TierPrePR, cigates.CategoryRace,
+			[]string{"go/internal/replay/inputtape/**"}, localCmd("cd go && go test -race ./internal/replay/inputtape/..."), ""),
+		// CI-only race gate (Local==nil): must NOT suppress local scoped racing.
+		ciOnlyRaceGate("reducer-contention", []string{"schema/data-plane/postgres/**"}),
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash x"), ""),
+	})
+	changed := []string{
+		"go/internal/reducer/r.go",            // covered (race-graph-writes, runnable)
+		"go/internal/replay/inputtape/i.go",   // covered (go-test-race, runnable)
+		"go/internal/queueclient/q.go",        // covered by no race gate
+		"schema/data-plane/postgres/0001.sql", // covered only by CI-only gate
+	}
+	got := reg.UncoveredPaths(changed, []cigates.Category{cigates.CategoryRace}, cigates.TierPrePR)
+	want := map[string]bool{
+		"go/internal/queueclient/q.go":        true,
+		"schema/data-plane/postgres/0001.sql": true,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d uncovered, got %d: %v", len(want), len(got), got)
+	}
+	for _, p := range got {
+		if !want[p] {
+			t.Errorf("path %q should have been covered (excluded), but was returned uncovered", p)
+		}
+	}
+}
+
+func ciOnlyRaceGate(id string, triggers []string) cigates.Gate {
+	return cigates.Gate{
+		ID: id, Name: id, Category: cigates.CategoryRace, Tier: cigates.TierPrePR,
+		Blocking: true, Triggers: triggers, Local: nil,
+		CI:           cigates.CI{Workflow: "reducer-contention-gate.yml", Job: "x"},
+		Requirements: []cigates.Requirement{cigates.ReqGo, cigates.ReqPostgres},
+		CIOnlyReason: "needs Postgres",
+	}
+}
+
 // TestFilterByCategory_KeepsRequestedDropsOthers proves the #4214 category
 // filter: a Go change selects both a hygiene and an exactness gate, but
 // filtering to "exactness" leaves only the exactness gate selected while the

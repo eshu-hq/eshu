@@ -31,10 +31,22 @@ relationship kit, query-plan regression, scale corpus/benchmark, capability
 budget, collector entrypoints, skill roundtrip, telemetry coverage, operator
 dashboard, and so on). You no longer have to remember which verifier matches
 your change — the changed-path selector picks them. A docs-only or no-op change
-runs none of them. The race lane is added by #4215; Docker/NornicDB/Postgres/
-credentialed gates remain CI-only and are printed (with a reason), never run
-locally. Integration suites that need Postgres or NornicDB are not run here —
-use the focused Compose gates below for those.
+runs none of them. Docker/NornicDB/Postgres/credentialed gates remain CI-only
+and are printed (with a reason), never run locally. Integration suites that need
+Postgres or NornicDB are not run here — use the focused Compose gates below for
+those.
+
+It also runs a **race lane** for Go changes (#4215): the targeted graph-write
+race set (the registry's `race-graph-writes` gate, mirroring
+`.github/workflows/race-graph-writes.yml`) when a graph-write package changes,
+plus a scoped `go test -race` on any other changed Go packages. The
+Postgres-backed reducer-contention race gate is reported CI-only, not run
+locally. **CI remains the authoritative blocking race gate** (whole-module
+`go test ./... -race`); for a local whole-module race before a high-risk PR:
+
+```bash
+make pre-pr-full      # pre-pr + `go test ./... -race`
+```
 
 To see exactly which credential-free CI verifiers apply to the paths you
 changed — and why — use the gate selector:

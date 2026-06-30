@@ -149,6 +149,46 @@ step_exactness() {
 		--base "${base}" --tier pre-pr --category exactness,telemetry
 }
 
+# step_race runs the local race lane for Go code changes (#4215). CI remains the
+# authoritative blocking race gate (whole-module `go test ./... -race`); this is
+# the fast local mirror that catches the common races before the PR waits on CI.
+#   ESHU_PRE_PR_FULL_RACE=1 (make pre-pr-full): whole-module race, for high-risk PRs.
+#   default: (1) the race-category registry gates the changed paths select
+#     (targeted graph-write + replay race sets; reducer-contention is reported
+#     CI-only, Postgres-backed); (2) scoped `-race` on changed Go packages that
+#     NO locally-runnable race gate already covers — the exclusion is derived
+#     from the registry (`ci-gates uncovered --category race`), not a hard-coded
+#     list, so adding a new race gate cannot reintroduce a double-race or a gap.
+step_race() {
+	if [[ "${ESHU_PRE_PR_FULL_RACE:-0}" == "1" ]]; then
+		printf 'full race: go test ./... -race (whole module)\n'
+		( cd "${go_dir}" && go test ./... -race -count=1 -timeout 1200s )
+		return
+	fi
+	local rc=0
+	printf '== lane 1: race-category registry gates (targeted graph-write + replay; reducer-contention CI-only) ==\n'
+	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
+		--base "${base}" --tier pre-pr --category race || rc=1
+	printf '== lane 2: scoped race for changed Go packages no race gate covers ==\n'
+	local dirs=() seen=" " f rel
+	while IFS= read -r f; do
+		[[ -n "${f}" ]] || continue
+		rel="./$(dirname "${f#go/}")"
+		case "${seen}" in *" ${rel} "*) continue ;; esac
+		seen="${seen}${rel} "
+		dirs+=("${rel}")
+	done < <(changed_go_files | ( cd "${go_dir}" && go run ./cmd/ci-gates uncovered \
+		--registry "${repo_root}/specs/ci-gates.v1.yaml" --category race --tier pre-pr --paths-from - ) )
+	if [[ ${#dirs[@]} -eq 0 ]]; then
+		printf 'scoped race: no changed Go packages outside the registry race gates\n'
+	else
+		printf 'scoped race: %d package(s) not covered by a race gate\n' "${#dirs[@]}"
+		( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" ) || rc=1
+	fi
+	printf 'note: CI runs the authoritative full `go test ./... -race`; `make pre-pr-full` runs it locally.\n'
+	return ${rc}
+}
+
 run_step "gofumpt (whole module)" step_fmt
 run_step "golangci-lint (whole module)" step_lint
 run_step "go build ./..." step_build
@@ -157,6 +197,7 @@ run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
 run_step "selected exactness + telemetry gates" step_exactness
+run_step "race lane (Go changes)" step_race
 
 printf '\n\033[1m==== pre-pr summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
