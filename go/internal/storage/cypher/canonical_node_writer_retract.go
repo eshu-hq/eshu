@@ -50,10 +50,15 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 			"file_paths":    filePaths,
 		}
 	}
+	// Drain=true: this is one of the 4 unbounded full-refresh DETACH DELETE
+	// statements. The NornicDB executor converts it into a bounded drain loop.
+	// Delta and positive-list retracts are never marked Drain (see issue #4232).
 	stmts = append(stmts, Statement{
 		Operation:  OperationCanonicalRetract,
 		Cypher:     fileRetractCypher,
 		Parameters: fileRetractParams,
+		Drain:      true,
+		DrainVar:   "f",
 	})
 
 	if len(filePaths) > 0 {
@@ -71,6 +76,7 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 	}
 	stmts = append(stmts, buildEntityContainmentRefreshStatements(mat.Entities, mat.ClassMembers, mat.NestedFuncs)...)
 
+	// Drain=true: unbounded full-refresh directory DETACH DELETE (issue #4232).
 	stmts = append(stmts, Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher:    canonicalNodeRetractDirectoriesCypher,
@@ -79,6 +85,8 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 			"generation_id":   mat.GenerationID,
 			"directory_paths": directoryPaths,
 		},
+		Drain:    true,
+		DrainVar: "d",
 	})
 
 	// Parameter retraction uses file_paths
@@ -109,6 +117,8 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.Canonic
 	labels := canonicalNodeRetractEntityLabels()
 	stmts := make([]Statement, 0, len(labels))
 	for _, label := range labels {
+		// Drain=true: unbounded full-refresh entity DETACH DELETE per label
+		// (issue #4232). DrainVar is always "n" — the template variable name.
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
 			Cypher:    fmt.Sprintf(canonicalNodeRetractEntityTemplate, label),
@@ -116,6 +126,8 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.Canonic
 				"repo_id":       mat.RepoID,
 				"generation_id": mat.GenerationID,
 			},
+			Drain:    true,
+			DrainVar: "n",
 		})
 	}
 	return stmts

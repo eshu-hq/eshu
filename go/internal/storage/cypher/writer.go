@@ -55,10 +55,29 @@ const (
 )
 
 // Statement captures one executable Cypher statement.
+//
+// Drain and DrainVar are set by the canonical node writer on the four
+// unbounded full-refresh retract statements (files, removed-files,
+// directories, and per-label entities). When Drain is true the NornicDB
+// phase-group executor converts the statement into a bounded drain loop
+// instead of a single Execute call. DrainVar names the bound variable
+// (e.g. "f", "d", "n") so the executor can rewrite the trailing
+// DETACH DELETE clause via BuildBoundedRetractDrainCypher. Delta and
+// positive-list retract statements must never carry Drain=true.
 type Statement struct {
 	Operation  Operation
 	Cypher     string
 	Parameters map[string]any
+
+	// Drain marks this statement as an unbounded full-refresh retract
+	// eligible for conversion to a bounded drain loop on NornicDB.
+	// Neo4j and all other backends ignore this field.
+	Drain bool
+
+	// DrainVar is the Cypher variable that names the node to delete in the
+	// trailing DETACH DELETE clause (e.g. "f", "d", "n"). Set only when
+	// Drain is true.
+	DrainVar string
 }
 
 // Plan is the deterministic source-local write plan for one materialization.
