@@ -73,23 +73,29 @@ past the activation deadline (re-driving reduce -> readiness -> projection over
 existing facts). Wedge detection gates on real downstream blockage, not age
 alone: a generation is only wedged when it has an outstanding
 `shared_projection_intents` row (`completed_at IS NULL`) and no unresolved
-reducer fact-work remains for that same generation. A healthy quiet scope stays
-`active` and projected (the projected baseline is "has been active") with every
-intent completed, and a busy full-corpus bootstrap scope still moving through
-reducer work is treated as progressing, so neither is re-driven; this prevents
-the sweep from burning the re-drive budget and raising false `stuck` alarms on
-idle installations or normal bootstrap backlog. A per-generation re-drive budget
-(`liveness_recovery_attempts` on the work item payload) bounds retries so a
-poison scope cannot loop. The conflict domain is `scope_id`; both statements are
-idempotent under concurrent reducer workers. The operator escape hatch is
+reducer fact-work remains for that same generation, and no source-local
+projector work is already pending, claimed, running, retrying, or succeeded. A
+healthy quiet scope stays `active` and projected (the projected baseline is "has
+been active") with every intent completed; a busy full-corpus bootstrap scope
+still moving through reducer work is treated as progressing; and downstream
+shared projection backlog after a succeeded source-local projector ack is not
+treated as a source-local wedge. None of those cases are re-driven, which
+prevents the sweep from burning the re-drive budget and raising false `stuck`
+alarms on idle installations, normal bootstrap backlog, or shared projection
+lag. A per-generation re-drive budget (`liveness_recovery_attempts` on the work
+item payload) bounds retries so a poison scope cannot loop. The conflict domain
+is `scope_id`; both statements are idempotent under concurrent reducer workers.
+The operator escape hatch is
 `POST /api/v0/admin/recover-generations`, which durably re-drives a named scope
 set and records the action in the `admin_replay_requests` ledger.
 
 Observability Evidence: `eshu_dp_active_generations` gauges active generations by
 `fresh`/`aging`/`stuck` age bucket (`stuck` requires age past the deadline,
-outstanding `shared_projection_intents`, and no unresolved reducer fact-work for
-the same generation, so it is a true wedged-generation alarm signal and does not
-fire on healthy quiet aged scopes or reducer backlog);
+outstanding `shared_projection_intents`, no unresolved reducer fact-work for the
+same generation, and no source-local projector row already pending, in progress,
+or succeeded, so it is a true wedged-generation alarm signal and does not fire
+on healthy quiet aged scopes, reducer backlog, in-flight recovery, or downstream
+shared projection backlog);
 `eshu_dp_generation_liveness_recovered_total`,
 `eshu_dp_generation_liveness_superseded_total`, and
 `eshu_dp_generation_liveness_failures_total` count sweep outcomes; completion and

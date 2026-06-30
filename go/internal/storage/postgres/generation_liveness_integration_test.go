@@ -39,13 +39,22 @@ import (
 //     never re-driven. A scope whose pending generation is newer than the active
 //     one is also left alone (the projector supersede path owns that case). A
 //     scope with same-generation reducer backlog is likewise left alone because
-//     reducer work is still progress, not a wedged generation.
+//     reducer work is still progress, not a wedged generation. A scope whose
+//     source-local projector work already succeeded but shared projection is
+//     still backlogged is also left alone: shared backlog is not a source-local
+//     wedge.
 //
 //  4. CountActiveGenerationsByAge returns correct fresh/aging/stuck counts. The
 //     stuck bucket requires an outstanding shared_projection_intents row and no
-//     unresolved reducer fact-work for the same generation; it does not filter for
-//     newer siblings, so gen-pending-active is also stuck. The aging bucket contains
-//     aged-but-drained generations (gen-aging, gen-orphaned-*) plus reducer backlog.
+//     unresolved reducer fact-work or source-local projector work for the same
+//     generation; it does not filter for newer siblings, so gen-pending-active
+//     is also stuck. The aging bucket contains aged-but-drained generations
+//     (gen-aging, gen-orphaned-*) plus reducer backlog and shared backlog.
+//
+//  5. Recovery already in flight: with MaxRecoverAttempts above the current
+//     attempt count, a pending source-local liveness recovery row is still not
+//     selected again. The runner must not burn the remaining retry budget before
+//     the projector can process the pending work.
 func TestGenerationLivenessIntegration(t *testing.T) {
 	dsn := os.Getenv("ESHU_GENERATION_LIVENESS_PROOF_DSN")
 	if dsn == "" {
@@ -95,7 +104,11 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		//   gen-orphaned-new: activated 1h ago, no intents → aging.
 		//   gen-reducer-backlog: activated 2h ago, outstanding intent, pending
 		//     reducer work for the same generation → aging, not stuck.
-		if got, want := counts["aging"], int64(4); got != want {
+		//   gen-shared-backlog: activated 2h ago, outstanding shared intent, but
+		//     source-local projector work already succeeded → aging, not stuck.
+		//   gen-recovery-inflight: activated 2h ago, outstanding shared intent,
+		//     but liveness recovery is already pending → aging, not stuck.
+		if got, want := counts["aging"], int64(6); got != want {
 			t.Fatalf("aging count = %d, want %d", got, want)
 		}
 	})
@@ -241,9 +254,10 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		store := NewGenerationLivenessStore(SQLDB{DB: db})
 		ctx := context.Background()
 
-		// Run a sweep. scope-fresh and scope-pending-newer must not be touched.
-		// scope-orphaned will be superseded and scope-wedged recovered, but this
-		// subtest only asserts on the safe scopes.
+		// Run a sweep. scope-fresh, scope-pending-newer, scope-reducer-backlog,
+		// and scope-shared-backlog must not be touched. scope-orphaned will be
+		// superseded and scope-wedged recovered, but this subtest only asserts on
+		// the safe scopes.
 		result, err := store.RecoverWedgedGenerations(ctx, policy, now)
 		if err != nil {
 			t.Fatalf("RecoverWedgedGenerations() error = %v", err)
@@ -279,7 +293,24 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 			t.Fatalf("gen-pending-active status = %q, want 'active'", pendingStatus)
 		}
 
-		// Confirm no projector work item created for safe scopes.
+		// Confirm existing source-local projector work for shared backlog was not
+		// reopened from succeeded back to pending.
+		var sharedBacklogProjectorStatus string
+		if err := db.QueryRowContext(ctx, `
+				SELECT status FROM fact_work_items
+				WHERE scope_id = 'scope-shared-backlog'
+				  AND generation_id = 'gen-shared-backlog'
+				  AND stage = 'projector'
+				  AND domain = 'source_local'
+			`).Scan(&sharedBacklogProjectorStatus); err != nil {
+			t.Fatalf("query shared-backlog projector status: %v", err)
+		}
+		if sharedBacklogProjectorStatus != "succeeded" {
+			t.Fatalf("shared-backlog projector status = %q, want 'succeeded'", sharedBacklogProjectorStatus)
+		}
+
+		// Confirm no new projector work item was created for scopes that never
+		// had source-local projector work.
 		var noOpCount int
 		if err := db.QueryRowContext(ctx, `
 				SELECT COUNT(*) FROM fact_work_items
@@ -290,6 +321,48 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		}
 		if noOpCount != 0 {
 			t.Fatalf("projector work items for safe scopes = %d, want 0", noOpCount)
+		}
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 5: recovery already in flight.
+	// Isolated schema: only scope-recovery-inflight is seeded with a pending
+	// source-local projector row carrying liveness_recovery_attempts = 1. The
+	// policy allows up to five attempts so the budget gate alone cannot hide the
+	// bug; the source-local projector work gate must exclude it.
+	// ---------------------------------------------------------------------------
+	t.Run("RecoveryInFlightNoOp", func(t *testing.T) {
+		db := openLivenessProofDB(t, dsn)
+		provisionLivenessSchema(t, db, generationLivenessRecoveryInFlightOnlySeedSQL)
+		store := NewGenerationLivenessStore(SQLDB{DB: db})
+		ctx := context.Background()
+
+		result, err := store.RecoverWedgedGenerations(ctx, GenerationLivenessPolicy{
+			ActivationDeadline: 30 * time.Minute,
+			MaxRecoverAttempts: 5,
+			BatchLimit:         100,
+		}, now)
+		if err != nil {
+			t.Fatalf("RecoverWedgedGenerations() error = %v", err)
+		}
+		if result.Recovered != 0 {
+			t.Fatalf("Recovered = %d, want 0 (recovery already pending)", result.Recovered)
+		}
+
+		var attempts int
+		var status string
+		if err := db.QueryRowContext(ctx, `
+			SELECT (payload ->> 'liveness_recovery_attempts')::int, status
+			FROM fact_work_items
+			WHERE scope_id = 'scope-recovery-inflight'
+			  AND generation_id = 'gen-recovery-inflight'
+			  AND stage = 'projector'
+			  AND domain = 'source_local'
+		`).Scan(&attempts, &status); err != nil {
+			t.Fatalf("query recovery-inflight projector work: %v", err)
+		}
+		if attempts != 1 || status != "pending" {
+			t.Fatalf("recovery-inflight work = attempts %d status %q, want attempts 1 status pending", attempts, status)
 		}
 	})
 }

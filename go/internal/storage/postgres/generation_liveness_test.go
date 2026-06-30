@@ -37,6 +37,10 @@ func TestRecoverWedgedActiveGenerationsQueryContract(t *testing.T) {
 		"completed_at IS NULL",
 		"reducer_work.stage = 'reducer'",
 		"reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')",
+		"projector_work.stage = 'projector'",
+		"projector_work.domain = 'source_local'",
+		"projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')",
+		"existing.domain = 'source_local'",
 	} {
 		if !strings.Contains(recoverWedgedActiveGenerationsQuery, want) {
 			t.Fatalf("recover wedged query missing %q:\n%s", want, recoverWedgedActiveGenerationsQuery)
@@ -192,6 +196,10 @@ func TestGenerationLivenessStoreCountActiveByAge(t *testing.T) {
 	}
 	if !strings.Contains(db.queries[0].query, "reducer_work.stage = 'reducer'") {
 		t.Fatalf("count query stuck bucket missing reducer-work backlog exclusion:\n%s", db.queries[0].query)
+	}
+	if !strings.Contains(db.queries[0].query, "projector_work.stage = 'projector'") ||
+		!strings.Contains(db.queries[0].query, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')") {
+		t.Fatalf("count query stuck bucket missing source-local projector completion gate:\n%s", db.queries[0].query)
 	}
 }
 
