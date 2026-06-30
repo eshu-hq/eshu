@@ -258,6 +258,13 @@ tests, and [HTTP API Reference](docs/public/reference/http-api.md).
 Use [Local Testing](docs/public/reference/local-testing.md) as the source of
 truth for gates.
 
+Run `make pre-pr` before opening or updating any PR. It is the one-command local
+preflight that selects and runs the credential-free gates your changed paths
+require; exactness and race gates are blocking. Use `make pre-pr-full`,
+`make frontend-preflight`, and `make security-preflight` for the heavier lanes.
+CI stays authoritative, but it should not be the first place a credential-free
+failure appears.
+
 Common checks:
 
 ```bash

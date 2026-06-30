@@ -11,13 +11,30 @@ the commands you actually ran.
 
 ## Before You Push
 
-Run the one-command local mirror of the CI build gate before opening or updating
-a PR, so lint/build/test failures are caught in a single local pass instead of
-across multiple CI rounds:
+**The contributor standard: run `make pre-pr` before opening or updating any
+PR.** It is the one-command local mirror of the credential-free CI gates, so
+format, exactness, race, contract, docs, and (for Go changes) security failures
+are caught in a single local pass instead of across multiple ~20-minute CI
+rounds:
 
 ```bash
 make pre-pr            # or: bash scripts/dev/pre-pr.sh
 ```
+
+CI remains the authoritative, non-bypassable source of truth — but it should
+rarely be the *first* place you learn about a credential-free failure. Two
+expectations are firm:
+
+- **Exactness gates are blocking** when matching code, spec, fixture, cassette,
+  or generated-contract inputs change. `make pre-pr` selects and runs them.
+- **Race gates are blocking** when Go implementation code changes. `make pre-pr`
+  runs the targeted/scoped race lane; `make pre-pr-full` adds the whole-module
+  `go test ./... -race`, and CI runs the authoritative full race gate.
+
+Frontend- and security-heavy lanes are not in `make pre-pr` (they need Node, the
+network, or are slow); run `make frontend-preflight` / `make security-preflight`
+when you touch those surfaces. None of these silently skip: a gate that cannot
+run locally prints why and names the CI gate that remains authoritative.
 
 It runs gofumpt and golangci-lint over the **whole** module (catching
 cross-package consequences a changed-package run misses, such as code that
@@ -130,6 +147,28 @@ gates its changed paths select:
 Exactness and race gates stay **blocking** when their matching code, spec,
 fixture, or generated-contract inputs change — consolidation changed where they
 run, not whether they block.
+
+### What `make pre-pr` selects, by change type
+
+`make pre-pr` always runs the whole-module Go gates (gofumpt, golangci-lint,
+build, vet, file cap) plus the focused changed-package tests; the table is what
+the changed-path selector *adds* on top. You never have to remember the matching
+verifier — the selector picks it.
+
+| You changed | `make pre-pr` additionally runs | Also run |
+| --- | --- | --- |
+| Docs only (`docs/**`, `*.md`) | nothing extra (no exactness/race selected) | docs build (pre-push) |
+| Frontend only (`src/**`, `apps/console/**`) | nothing backend | `make frontend-preflight` |
+| Parser (`go/internal/parser/**`) | parser relationship kit, accuracy golden gate, scoped race | — |
+| Reducer / storage (`go/internal/reducer/**`, `storage/**`) | query-plan regression, scale gates, **targeted graph-write race** | reducer-contention is CI-only (Postgres) |
+| Collector (`go/internal/collector/**`) | edge source-tool coverage, evidence continuity, scale corpus | — |
+| API / MCP (`go/internal/query/**`, `go/internal/mcp/**`) | OpenAPI surface, route coverage, MCP schema drift, capability budget, operator dashboard | — |
+| Facts / contracts (`go/internal/facts/**`, `specs/*.v1.yaml`) | fact-kind registry, contract source-of-truth, evidence continuity | — |
+| `go.mod` / `go.sum` | nothing extra (the whole-module Go gates always run) | pre-push runs changed-file gosec; `make security-preflight` runs whole-module gosec, govulncheck, nancy |
+| Deploy / runtime (`Dockerfile`, `deploy/**`, `docker-compose*`) | — | `make security-preflight` (Trivy fs); golden-corpus + e2e are CI-only (Docker) |
+
+Run `bash scripts/dev/select-gates.sh --base origin/main --tier pre-pr --explain`
+to see exactly what your branch selects and why.
 
 ## Common Compose Environment
 
