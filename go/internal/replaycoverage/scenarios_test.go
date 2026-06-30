@@ -119,7 +119,17 @@ func testResolver(t *testing.T) (ArtifactResolver, string) {
 			},
 		},
 	}}
-	return ArtifactResolver{RepoRoot: root, Snapshot: snap, Matrix: matrix, ProductClaims: productClaims}, root
+	authzProofs := AuthzProofLedger{Version: "v1", Scenarios: []AuthzProofScenario{
+		{
+			Family:       "repository_content",
+			GrantMode:    "in_grant",
+			ProofGate:    "authz-scoped-route-tests",
+			TestFile:     "go/internal/query/authz_replay_coverage_contract_test.go",
+			TestName:     "TestAuthorizationReplayCoverageContract",
+			RouteSamples: []string{"POST /api/v0/code/search"},
+		},
+	}}
+	return ArtifactResolver{RepoRoot: root, Snapshot: snap, Matrix: matrix, ProductClaims: productClaims, AuthzProofs: authzProofs}, root
 }
 
 func TestResolveCassetteAndFixturePaths(t *testing.T) {
@@ -237,6 +247,53 @@ func TestResolveProductClaimUsesLedgerProof(t *testing.T) {
 	}
 	if ok, detail := r.Resolve(CoverageEntry{Scenario: ScenarioProductClaim, Ref: "readme.absent"}); ok || !strings.Contains(detail, "no product claim") {
 		t.Fatalf("absent product claim resolved=%v detail=%q", ok, detail)
+	}
+}
+
+func TestResolveAuthorizationScopedRouteUsesProofLedger(t *testing.T) {
+	r, root := testResolver(t)
+	testFile := filepath.Join(root, "go", "internal", "query", "authz_replay_coverage_contract_test.go")
+	if err := os.MkdirAll(filepath.Dir(testFile), 0o750); err != nil {
+		t.Fatalf("mkdir authz test dir: %v", err)
+	}
+	if err := os.WriteFile(testFile, []byte("package query\n"), 0o600); err != nil {
+		t.Fatalf("write authz test file: %v", err)
+	}
+
+	ok, detail := r.Resolve(CoverageEntry{
+		Scenario:  ScenarioAuthzScopedRoute,
+		Ref:       "repository_content:in_grant",
+		ProofGate: "authz-scoped-route-tests",
+	})
+	if !ok {
+		t.Fatalf("authz scoped-route proof should resolve: %s", detail)
+	}
+	for _, want := range []string{"repository_content", "in_grant", "POST /api/v0/code/search"} {
+		if !strings.Contains(detail, want) {
+			t.Fatalf("detail %q missing %q", detail, want)
+		}
+	}
+
+	if ok, detail := r.Resolve(CoverageEntry{
+		Scenario:  ScenarioAuthzScopedRoute,
+		Ref:       "repository_content:out_of_grant",
+		ProofGate: "authz-scoped-route-tests",
+	}); ok || !strings.Contains(detail, "no authorization scoped-route proof") {
+		t.Fatalf("missing authz proof resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{
+		Scenario:  ScenarioAuthzScopedRoute,
+		Ref:       "repository_content:in_grant",
+		ProofGate: "wrong-gate",
+	}); ok || !strings.Contains(detail, "proof_gate") {
+		t.Fatalf("wrong proof gate resolved=%v detail=%q", ok, detail)
+	}
+	if ok, detail := r.Resolve(CoverageEntry{
+		Scenario:  ScenarioAuthzScopedRoute,
+		Ref:       "repository_content:tenant_wide",
+		ProofGate: "authz-scoped-route-tests",
+	}); ok || !strings.Contains(detail, "unknown grant mode") {
+		t.Fatalf("unknown grant mode resolved=%v detail=%q", ok, detail)
 	}
 }
 

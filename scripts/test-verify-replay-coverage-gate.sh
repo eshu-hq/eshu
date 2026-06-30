@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Static structural test for the C-1/C-8/C-9 replay coverage gate (#4173, #4187, #4188): the verify
+# Static structural test for the C-1/C-8/C-9/C-10 replay coverage gate (#4173, #4187, #4188, #4189): the verify
 # script, its CI workflow, and the coverage manifest. Fast, no Docker, no Go
 # build — it validates the contract that cannot silently drift: the verifier runs
 # the gate over all registries, enforces blocking CI, emits the C-7 report
@@ -31,6 +31,7 @@ require() {
 require "strict mode" "set -euo pipefail" "${script}"
 require "gate command" "go run ./cmd/replay-coverage-gate" "${script}"
 require "unit proof" "go test ./internal/replaycoverage/ ./cmd/replay-coverage-gate/" "${script}"
+require "authz proof" "Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)" "${script}"
 
 # All four registries are wired in: surface-inventory + fact-kind registry come
 # from the embedded artifacts the command loads, the parser ledger and capability
@@ -68,6 +69,9 @@ require "workflow watches crash depth proofs" "go/internal/replay/crashreplay/**
 require "workflow watches budget proof artifact" "specs/capability-budget-proof.v1.yaml" "${workflow}"
 require "workflow watches golden assertions" "go/internal/goldengate/**" "${workflow}"
 require "workflow watches CLI command tree" "go/cmd/eshu/**" "${workflow}"
+require "workflow watches query authz tests" "go/internal/query/**" "${workflow}"
+require "workflow watches authorization catalog" "specs/authorization-catalog.v1.yaml" "${workflow}"
+require "workflow watches authorization replay proof" "specs/authorization-replay-coverage.v1.yaml" "${workflow}"
 
 # The CI gate registry must agree with the workflow. The registry powers local
 # gate selection, so it must fail on the same replay coverage gaps CI rejects.
@@ -80,7 +84,10 @@ require "ci registry watches crash depth proofs" "go/internal/replay/crashreplay
 require "ci registry watches budget proof artifact" "specs/capability-budget-proof.v1.yaml" "${ci_gates}"
 require "ci registry watches golden assertions" "go/internal/goldengate/**" "${ci_gates}"
 require "ci registry watches CLI command tree" "go/cmd/eshu/**" "${ci_gates}"
-if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8/C-9 Replay Coverage Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
+require "ci registry watches query authz tests" "go/internal/query/**" "${ci_gates}"
+require "ci registry watches authorization catalog" "specs/authorization-catalog.v1.yaml" "${ci_gates}"
+require "ci registry watches authorization replay proof" "specs/authorization-replay-coverage.v1.yaml" "${ci_gates}"
+if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8/C-9/C-10 Replay Coverage Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
 	fail "replay-coverage-gate registry entry must be blocking"
 fi
 

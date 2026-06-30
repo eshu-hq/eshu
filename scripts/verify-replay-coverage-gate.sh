@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# C-1/C-8/C-9 replay coverage manifest + lockstep gate (#4173, #4187, #4188, epic #4172).
+# C-1/C-8/C-9/C-10 replay coverage manifest + lockstep gate (#4173, #4187, #4188, #4189, epic #4172).
 # Enumerates every surface Eshu claims to support from the source-of-truth
 # registries and reports any required surface/scenario_type pair lacking a green
 # replay scenario.
@@ -10,7 +10,7 @@
 # composes with, which actually replays the scenarios this gate counts.
 #
 # Local runs default to advisory so a developer can inspect a coverage report
-# without failing the command. CI passes --blocking now that C-2..C-9 burned the
+# without failing the command. CI passes --blocking now that C-2..C-10 burned the
 # gaps down, so any uncovered, unresolved, or stale surface fails the workflow.
 #
 # Usage:
@@ -44,6 +44,12 @@ esac
 # here rather than producing a wrong coverage report.
 (cd go && go test ./internal/replaycoverage/ ./cmd/replay-coverage-gate/ -count=1)
 
+# Proof for C-10 authorization-catalog scoped-token entries. The coverage gate
+# resolves authz_scoped_route entries against specs/authorization-replay-coverage
+# while this focused query test proves in-grant and out-of-grant scoped behavior,
+# including the broadened-scope regression.
+(cd go && go test ./internal/query -run 'Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -count=1)
+
 # The committed C-7 dashboard (docs-discoverable %-covered + gap list). The unit
 # proof above runs TestCommittedDashboardIsCurrent, so a stale dashboard fails
 # before this point. Blocking runs refresh it in place (a no-op when current);
@@ -65,4 +71,4 @@ fi
 # the working directory go run resolves refs from).
 (cd go && go run ./cmd/replay-coverage-gate "${gate_args[@]}")
 
-printf '\nPASS: C-1/C-8/C-9 replay coverage gate (%s); report at %s\n' "${blocking:-advisory}" "${report_abs}"
+printf '\nPASS: C-1/C-8/C-9/C-10 replay coverage gate (%s); report at %s\n' "${blocking:-advisory}" "${report_abs}"

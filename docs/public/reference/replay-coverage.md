@@ -4,25 +4,26 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 186/186 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 208/208 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| authorization_catalog | 22 | 22 | 100.00% | 0 | 0 |
 | Capability claims | 130 | 130 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 16 | 16 | 100.00% | 0 | 2 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Collectors | 18 | 18 | 100.00% | 0 | 4 |
-| **Total** | **186** | **186** | **100.00%** | **0** | **6** |
+| **Total** | **208** | **208** | **100.00%** | **0** | **6** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 181 | 181 | 100.00% | 0 | 6 |
+| baseline | 203 | 203 | 100.00% | 0 | 6 |
 | cost | 1 | 1 | 100.00% | 0 | 0 |
 | crash | 1 | 1 | 100.00% | 0 | 0 |
 | delta_tombstone | 1 | 1 | 100.00% | 0 | 0 |
@@ -33,10 +34,32 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (186)
+## Covered surfaces (208)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
+| `authz_family:admin_recovery:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `admin_recovery:in_grant` |
+| `authz_family:admin_recovery:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `admin_recovery:out_of_grant` |
+| `authz_family:ask_search:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `ask_search:in_grant` |
+| `authz_family:ask_search:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `ask_search:out_of_grant` |
+| `authz_family:audit_export:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `audit_export:in_grant` |
+| `authz_family:audit_export:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `audit_export:out_of_grant` |
+| `authz_family:cloud_iac:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `cloud_iac:in_grant` |
+| `authz_family:cloud_iac:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `cloud_iac:out_of_grant` |
+| `authz_family:docs_semantic:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `docs_semantic:in_grant` |
+| `authz_family:docs_semantic:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `docs_semantic:out_of_grant` |
+| `authz_family:operations_status:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `operations_status:in_grant` |
+| `authz_family:operations_status:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `operations_status:out_of_grant` |
+| `authz_family:repository_content:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `repository_content:in_grant` |
+| `authz_family:repository_content:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `repository_content:out_of_grant` |
+| `authz_family:roles_grants:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `roles_grants:in_grant` |
+| `authz_family:roles_grants:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `roles_grants:out_of_grant` |
+| `authz_family:secrets_iam:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `secrets_iam:in_grant` |
+| `authz_family:secrets_iam:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `secrets_iam:out_of_grant` |
+| `authz_family:service_runtime:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `service_runtime:in_grant` |
+| `authz_family:service_runtime:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `service_runtime:out_of_grant` |
+| `authz_family:supply_chain:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `supply_chain:in_grant` |
+| `authz_family:supply_chain:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `supply_chain:out_of_grant` |
 | `capability:admission_decisions.list` | baseline | capability_claim | capability-inventory | `admission_decisions.list` |
 | `capability:answer_narration.status` | baseline | capability_claim | capability-inventory | `answer_narration.status` |
 | `capability:ask.natural_language_answer` | baseline | capability_claim | capability-inventory | `ask.natural_language_answer` |

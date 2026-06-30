@@ -95,6 +95,9 @@ func (h *SecretsIAMHandler) listPrivilegePostureObservations(w http.ResponseWrit
 		WriteError(w, http.StatusBadRequest, "scope_id or observation_id is required")
 		return
 	}
+	if !authorizeSecretsIAMScopedScope(w, r, filter.ScopeID) {
+		return
+	}
 	if h.PrivilegePostureObservations == nil {
 		WriteContractError(w, r, http.StatusServiceUnavailable,
 			"secrets/IAM privilege posture observations require the Postgres reducer read model",
@@ -166,6 +169,9 @@ func (h *SecretsIAMHandler) listSecretAccessPaths(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusBadRequest, "scope_id, path_id, chain_id, or vault_mount_join_key is required")
 		return
 	}
+	if !authorizeSecretsIAMScopedScope(w, r, filter.ScopeID) {
+		return
+	}
 	if h.SecretAccessPaths == nil {
 		WriteContractError(w, r, http.StatusServiceUnavailable,
 			"secrets/IAM secret access paths require the Postgres reducer read model",
@@ -235,6 +241,9 @@ func (h *SecretsIAMHandler) listPostureGaps(w http.ResponseWriter, r *http.Reque
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "scope_id, gap_id, or service_account_join_key is required")
+		return
+	}
+	if !authorizeSecretsIAMScopedScope(w, r, filter.ScopeID) {
 		return
 	}
 	if h.PostureGaps == nil {

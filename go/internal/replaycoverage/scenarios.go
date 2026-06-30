@@ -32,7 +32,8 @@ type Resolver interface {
 // fixture) are resolved against RepoRoot; snapshot-based scenarios (correlation,
 // api/mcp golden) are resolved against Snapshot; capability-claim scenarios are
 // resolved against Matrix; product-claim scenarios are resolved against the
-// public product claim ledger.
+// public product claim ledger; authorization scoped-route scenarios are resolved
+// against AuthzProofs.
 type ArtifactResolver struct {
 	// RepoRoot is the repository root that repo-relative refs are joined onto.
 	RepoRoot string
@@ -42,6 +43,8 @@ type ArtifactResolver struct {
 	Matrix capabilitycatalog.Matrix
 	// ProductClaims is the loaded public product claim-to-proof ledger.
 	ProductClaims capabilitycatalog.ProductClaimLedger
+	// AuthzProofs is the loaded authorization scoped-route proof ledger.
+	AuthzProofs AuthzProofLedger
 }
 
 // Resolve implements Resolver.
@@ -73,9 +76,48 @@ func (r ArtifactResolver) Resolve(entry CoverageEntry) (bool, string) {
 		return r.resolveCapabilityClaim(entry.Ref)
 	case ScenarioProductClaim:
 		return r.resolveProductClaim(entry.Ref)
+	case ScenarioAuthzScopedRoute:
+		return r.resolveAuthzScopedRoute(entry)
 	default:
 		return false, fmt.Sprintf("unknown scenario type %q", entry.Scenario)
 	}
+}
+
+func (r ArtifactResolver) resolveAuthzScopedRoute(entry CoverageEntry) (bool, string) {
+	proof, ok, err := r.AuthzProofs.scenario(entry.Ref)
+	if err != nil {
+		return false, err.Error()
+	}
+	if !ok {
+		return false, fmt.Sprintf("no authorization scoped-route proof for %q", entry.Ref)
+	}
+	proofGate := strings.TrimSpace(proof.ProofGate)
+	if proofGate == "" {
+		return false, fmt.Sprintf("authorization scoped-route proof %q has blank proof_gate", entry.Ref)
+	}
+	if proofGate != strings.TrimSpace(entry.ProofGate) {
+		return false, fmt.Sprintf("authorization scoped-route proof %q proof_gate %q does not match manifest proof_gate %q",
+			entry.Ref, proofGate, entry.ProofGate)
+	}
+	if strings.TrimSpace(proof.TestName) == "" {
+		return false, fmt.Sprintf("authorization scoped-route proof %q has blank test_name", entry.Ref)
+	}
+	testFile := strings.TrimSpace(proof.TestFile)
+	if testFile == "" {
+		return false, fmt.Sprintf("authorization scoped-route proof %q has blank test_file", entry.Ref)
+	}
+	if len(proof.RouteSamples) == 0 {
+		return false, fmt.Sprintf("authorization scoped-route proof %q has no route samples", entry.Ref)
+	}
+	if ok, detail := r.resolvePath(testFile); !ok {
+		return false, detail
+	}
+	return true, fmt.Sprintf("authorization family %q %s proof %s in %s covers %s",
+		strings.TrimSpace(proof.Family),
+		strings.TrimSpace(proof.GrantMode),
+		strings.TrimSpace(proof.TestName),
+		testFile,
+		strings.Join(proof.RouteSamples, ", "))
 }
 
 func (r ArtifactResolver) resolveCapabilityClaim(ref string) (bool, string) {

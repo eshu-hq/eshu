@@ -52,7 +52,7 @@ func testInputs() ([]SupportedSurface, map[string]SupportedSurface) {
 		}},
 	}}
 
-	got := EnumerateSupported(inv, factKinds, ledger, matrix, productClaims, nil)
+	got := EnumerateSupported(inv, factKinds, ledger, matrix, productClaims, nil, capabilitycatalog.AuthorizationCatalog{})
 	byKey := map[string]SupportedSurface{}
 	for _, s := range got {
 		byKey[s.Key] = s
@@ -107,7 +107,7 @@ func TestEnumerateSupportedIncludesCLIReadSurfaces(t *testing.T) {
 		"eshu trace service --json": {},
 	}
 
-	got := EnumerateSupported(inv, nil, ParserLedger{}, capabilitycatalog.Matrix{}, capabilitycatalog.ProductClaimLedger{}, cliShapes)
+	got := EnumerateSupported(inv, nil, ParserLedger{}, capabilitycatalog.Matrix{}, capabilitycatalog.ProductClaimLedger{}, cliShapes, capabilitycatalog.AuthorizationCatalog{})
 	byKey := map[string]SupportedSurface{}
 	for _, s := range got {
 		byKey[s.Key] = s
@@ -128,6 +128,55 @@ func TestEnumerateSupportedIncludesCLIReadSurfaces(t *testing.T) {
 	}
 	if _, ok := byKey["cli_surface:"]; ok {
 		t.Fatal("blank CLI read surface must not enumerate")
+	}
+}
+
+func TestEnumerateSupportedIncludesAuthorizationCatalogGrantModes(t *testing.T) {
+	inv := capabilitycatalog.SurfaceInventory{}
+	authz := capabilitycatalog.AuthorizationCatalog{
+		PermissionFamilies: []capabilitycatalog.PermissionFamily{
+			{Family: "repository_content", CapabilityPrefixes: []string{"code_search."}},
+			{Family: "service_runtime", CapabilityPrefixes: []string{"service_catalog."}},
+			{Family: "tokens", Planned: true},
+			{Family: "identity_admin"},
+		},
+	}
+
+	got := EnumerateSupported(
+		inv,
+		nil,
+		ParserLedger{},
+		capabilitycatalog.Matrix{},
+		capabilitycatalog.ProductClaimLedger{},
+		nil,
+		authz,
+	)
+	byKey := map[string]SupportedSurface{}
+	for _, s := range got {
+		byKey[s.Key] = s
+	}
+
+	for _, key := range []string{
+		"authz_family:repository_content:in_grant",
+		"authz_family:repository_content:out_of_grant",
+		"authz_family:service_runtime:in_grant",
+		"authz_family:service_runtime:out_of_grant",
+	} {
+		s, ok := byKey[key]
+		if !ok {
+			t.Fatalf("missing authorization coverage surface %q", key)
+		}
+		if s.Registry != RegistryAuthorizationCatalog {
+			t.Fatalf("%q registry = %q, want %q", key, s.Registry, RegistryAuthorizationCatalog)
+		}
+	}
+	for _, key := range []string{
+		"authz_family:tokens:in_grant",
+		"authz_family:identity_admin:out_of_grant",
+	} {
+		if _, ok := byKey[key]; ok {
+			t.Fatalf("planned or prefixless authorization family %q must not enumerate", key)
+		}
 	}
 }
 

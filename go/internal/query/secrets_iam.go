@@ -108,6 +108,9 @@ func (h *SecretsIAMHandler) listIdentityTrustChains(w http.ResponseWriter, r *ht
 		WriteError(w, http.StatusBadRequest, "scope_id, chain_id, workload_object_id, service_account_join_key, or iam_role_fingerprint is required")
 		return
 	}
+	if !authorizeSecretsIAMScopedScope(w, r, filter.ScopeID) {
+		return
+	}
 	if h.IdentityTrustChains == nil {
 		WriteContractError(
 			w,
