@@ -59,6 +59,12 @@ a redacted fact, a bounded warning, or a normalized identity.
 - `ParentScopeKind` (`organization`, `folder`, `project`) with `Valid`.
 - `ParseAssetsListPage`, `ParseSearchAllResourcesPage`, `AssetsListPage` —
   fixture-driven CAI parsing.
+- `RegisterAssetExtractor`, `AssetAttributeExtractor`, `AttributeExtraction`,
+  `ExtractContext` — the per-asset-type typed-depth extractor registry. Each
+  supported asset type registers its extractor in its own file (see
+  `extractor_bigquery_table.go` for the reference BigQuery Table extractor);
+  `ResourceObservation.Attributes` and `.CorrelationAnchors` carry the bounded,
+  redaction-safe result into the `gcp_cloud_resource` fact.
 - `AssetTypeFamily`, `LocationBucket`, `NormalizeAncestry`, `Ancestry`,
   `ProjectIDFromFullName` — normalization helpers.
 - `FingerprintLabelValues`, `MemberClass`, `FingerprintMember`,
@@ -138,7 +144,9 @@ re-emission of the same generation is idempotent, all proven by fixture tests.
 
 Observability Evidence: the package exports bounded-label data-plane metrics
 `eshu_dp_gcp_cloud_claims_total`, `_api_calls_total`, `_pages_total`,
-`_page_token_resumes_total`, `_facts_emitted_total`, `_warnings_total`, and
+`_page_token_resumes_total`, `_facts_emitted_total`, `_warnings_total`,
+`_attribute_extractions_total` (per-asset-type typed-depth extraction outcome by
+asset family and `extracted`/`empty`), and
 `_freshness_lag_seconds`. Labels are bounded enums only (collector kind, claim
 status, CAI operation, parent scope kind, asset family, content family, status
 class, fact kind, warning kind, outcome); tag, IAM, and DNS emission use the

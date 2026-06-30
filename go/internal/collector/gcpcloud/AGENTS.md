@@ -21,6 +21,10 @@
    fingerprinting.
 11. `generation.go` - generation accumulation, dedupe, and fencing.
 12. `metrics.go` - scoped OTEL instruments with bounded labels.
+13. `extractor.go` - the per-asset-type typed-depth extractor registry
+   (`RegisterAssetExtractor`, `AttributeExtraction`, `ExtractContext`).
+14. `extractor_bigquery_table.go` - reference extractor for
+   `bigquery.googleapis.com/Table`; the model to copy for a new asset type.
 
 ## Invariants
 
@@ -43,6 +47,14 @@
   private IP addresses, raw provider response bodies, or the raw CAI resource
   data blob in facts. The parser is the single redaction choke point for the data
   blob.
+- Typed depth is per-asset-type: register one `AssetAttributeExtractor` per asset
+  type in its own `extractor_<type>.go` file via `init()`; never grow a shared
+  parser switch. An extractor receives the raw resource.data transiently and
+  returns only bounded, redaction-safe attributes, correlation anchors, and typed
+  relationships. Drop data-plane locators (object paths inside source URIs,
+  request bodies); keep only resource identities (bucket, dataset, KMS key names).
+  Adding a new asset type's attributes does not bump the `gcp_cloud_resource`
+  schema version — the `attributes`/`correlation_anchors` fields are generic.
 - Fingerprint IAM members, DNS record values, and sensitive label values through
   the keyed `redact` package. Fingerprint container names before image-reference
   emission. Member class is a bounded enum; raw identities, DNS record values,

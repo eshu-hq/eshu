@@ -38,6 +38,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Entity resolution, incident context, catalog, repository/service/workload stories, investigations | [Context and story routes](http-api/context-and-stories.md) |
 | Code search, symbols, relationships, call chains, dead-code, complexity, quality, language queries | [Code routes](http-api/code.md) |
 | IaC cleanup, AWS drift, content reads/search, infra impact, environment comparison | [IaC, content, and infra routes](http-api/iac-content-infra.md) |
+| Multi-cloud canonical resource inventory (AWS/GCP/Azure, bounded, paginated) | [Cloud inventory readback](#cloud-inventory-readback) |
 | Repository catalog, repository context/stats/coverage, ingester status, bundle search | [Repository, ingester, and bundle routes](http-api/repositories-ingesters-bundles.md) |
 
 ## Shared Wire Contracts
@@ -339,6 +340,37 @@ cross-scope data. The Ask endpoint itself holds no graph query; its scoping is
 enforced entirely through those inner dispatches.
 
 **Follow-ups (out of scope for this PR):** Tier-2 Cypher/SQL sandbox wiring.
+
+## Cloud Inventory Readback
+
+`GET /api/v0/cloud/inventory` returns reducer-owned canonical
+`reducer_cloud_resource_identity` rows (one per `cloud_resource_uid`). It is
+filterable by `provider` (aws/gcp/azure), `scope_id` (or its aliases
+`account_id`, `project_id`, `subscription_id`), and `management_origin`
+(declared/applied/observed). Results are paginated via `limit` and `cursor`
+parameters. `local_lightweight` returns `unsupported_capability`.
+
+Each resource item in the `resources` array carries:
+
+| Field | Description |
+| --- | --- |
+| `cloud_resource_uid` | Canonical shared identity key |
+| `provider` | Normalized provider token: `aws`, `gcp`, or `azure` |
+| `resource_type` | Provider resource type string |
+| `management_origin` | Strongest contributing evidence layer |
+| `scope_id` | Canonical scope (account/project/subscription) |
+| `generation_id` | Evidence generation that produced this row |
+| `source_state` | Provider-neutral truth label derived from `management_origin` |
+| `evidence` | Per-layer boolean flags: `declared`, `applied`, `observed` |
+| `tag_value_fingerprints` | Optional keyed non-reversible tag value markers; raw tag values are never returned |
+| `identity_policy_evidence` | Optional bounded Azure identity-policy rows (keyed fingerprints only; no raw principal GUIDs or assignment scopes) |
+| `resource_change_freshness` | Optional sanitized Azure Resource Graph change rows (no raw provider targets or actor ids) |
+| `attributes` | Optional bounded provider-specific typed-depth attributes (e.g. `table_type`, `schema_field_count`, `kms_key_name`, `clustering_fields`). Values are redaction-safe scalars and string-arrays; no raw locators or secrets are present. |
+
+The `attributes` field is present only when the provider source fact carried
+bounded typed-depth metadata. It is currently populated for GCP resources
+(BigQuery tables and similar) and is omitted entirely for resources without
+provider-specific attribute evidence.
 
 ## Related References
 

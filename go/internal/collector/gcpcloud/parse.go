@@ -93,8 +93,12 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 			IAMPolicy  caiIAMPolicyWire    `json:"iamPolicy"`
 			Related    caiRelatedAssetWire `json:"relatedAsset"`
 			Resource   struct {
-				Location string              `json:"location"`
-				Data     caiResourceDataWire `json:"data"`
+				Location string `json:"location"`
+				// Data is captured raw so the registered per-asset-type extractor can
+				// pull bounded typed depth from it. It is decoded into the bounded
+				// caiResourceDataWire for the base observation and handed to the
+				// extractor transiently; the raw blob is never persisted.
+				Data json.RawMessage `json:"data"`
 			} `json:"resource"`
 		} `json:"assets"`
 	}
@@ -108,26 +112,62 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 		Resources:     make([]ResourceObservation, 0, len(wire.Assets)),
 	}
 	for _, asset := range wire.Assets {
-		display := displayNameForAsset(asset.AssetType, asset.Resource.Data.DisplayName, asset.Resource.Data.Name)
-		state := firstNonEmpty(asset.Resource.Data.State, asset.Resource.Data.Status)
-		updateTime := parseTime(asset.UpdateTime)
-		page.Resources = append(page.Resources, ResourceObservation{
+		var data caiResourceDataWire
+		if len(asset.Resource.Data) > 0 {
+			if err := json.Unmarshal(asset.Resource.Data, &data); err != nil {
+				return AssetsListPage{}, fmt.Errorf("parse assets.list resource data: %w", err)
+			}
+		}
+		obs := ResourceObservation{
 			Name:                strings.TrimSpace(asset.Name),
 			AssetType:           strings.TrimSpace(asset.AssetType),
-			DisplayName:         display,
-			State:               state,
+			DisplayName:         displayNameForAsset(asset.AssetType, data.DisplayName, data.Name),
+			State:               firstNonEmpty(data.State, data.Status),
 			Location:            strings.TrimSpace(asset.Resource.Location),
 			Ancestors:           cloneStrings(asset.Ancestors),
-			Labels:              cloneStringMap(asset.Resource.Data.Labels),
+			Labels:              cloneStringMap(data.Labels),
 			IAMPolicyBindings:   parseIAMPolicyBindings(asset.IAMPolicy),
 			Relationships:       parseRelatedAsset(asset.Name, asset.AssetType, asset.Related),
-			DNSRecords:          parseDNSRecords(asset.Name, asset.AssetType, asset.Resource.Data),
-			ImageReferences:     parseImageReferences(asset.Name, asset.AssetType, asset.Resource.Data),
-			ServiceAccountEmail: serviceAccountEmail(asset.AssetType, asset.Resource.Data),
-			UpdateTime:          updateTime,
-		})
+			DNSRecords:          parseDNSRecords(asset.Name, asset.AssetType, data),
+			ImageReferences:     parseImageReferences(asset.Name, asset.AssetType, data),
+			ServiceAccountEmail: serviceAccountEmail(asset.AssetType, data),
+			UpdateTime:          parseTime(asset.UpdateTime),
+		}
+		if err := applyTypedDepth(&obs, asset.Resource.Data); err != nil {
+			return AssetsListPage{}, err
+		}
+		page.Resources = append(page.Resources, obs)
 	}
 	return page, nil
+}
+
+// applyTypedDepth dispatches a resource's raw CAI data blob to the registered
+// per-asset-type extractor and attaches the bounded attributes, correlation
+// anchors, and typed relationships it produces. The raw blob is never persisted:
+// only the extractor's redaction-safe output reaches the observation, and asset
+// types with no registered extractor keep the bounded base observation
+// unchanged. The extractor's relationships are appended to any provider
+// relatedAsset relationships already parsed for the resource.
+func applyTypedDepth(obs *ResourceObservation, data json.RawMessage) error {
+	if len(data) == 0 {
+		return nil
+	}
+	extraction, handled, err := extractAssetAttributes(ExtractContext{
+		FullResourceName: obs.Name,
+		AssetType:        obs.AssetType,
+		ProjectID:        ProjectIDFromFullName(obs.Name),
+		Data:             data,
+	})
+	if err != nil {
+		return err
+	}
+	if !handled {
+		return nil
+	}
+	obs.Attributes = extraction.Attributes
+	obs.CorrelationAnchors = extraction.CorrelationAnchors
+	obs.Relationships = append(obs.Relationships, extraction.Relationships...)
+	return nil
 }
 
 // ParseSearchAllResourcesPage parses one searchAllResources response page into

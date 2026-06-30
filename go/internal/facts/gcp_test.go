@@ -31,8 +31,15 @@ func TestGCPFactKindRegistry(t *testing.T) {
 		if !ok {
 			t.Fatalf("GCPSchemaVersion(%q) ok = false", kinds[i])
 		}
-		if version != "1.0.0" {
-			t.Fatalf("GCPSchemaVersion(%q) = %q, want 1.0.0", kinds[i], version)
+		// gcp_cloud_resource is at 1.1.0 since it gained the typed-depth
+		// attributes/correlation_anchors fields; the other GCP fact kinds remain
+		// at their initial 1.0.0 schema.
+		wantVersion := "1.0.0"
+		if kinds[i] == GCPCloudResourceFactKind {
+			wantVersion = "1.1.0"
+		}
+		if version != wantVersion {
+			t.Fatalf("GCPSchemaVersion(%q) = %q, want %q", kinds[i], version, wantVersion)
 		}
 	}
 

@@ -61,6 +61,7 @@ families:
   gcp:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"
+    schema_version_overrides: {gcp_cloud_resource: "1.1.0"}
     reducer_domain: gcp_resource_materialization
     projection_hook: multi_cloud_runtime_drift
     admission_hook: facts.ValidateSchemaVersion

@@ -29,20 +29,33 @@ const (
 	ClaimStatusRetried = "retried"
 )
 
+// Attribute-extraction outcomes are bounded enums for the typed-depth extractor
+// counter, so an operator can see whether per-asset-type extraction is producing
+// depth or silently coming back empty.
+const (
+	// ExtractionOutcomeExtracted marks a resource whose registered extractor
+	// produced at least one bounded attribute.
+	ExtractionOutcomeExtracted = "extracted"
+	// ExtractionOutcomeEmpty marks a resource whose extractor ran but produced no
+	// usable attributes.
+	ExtractionOutcomeEmpty = "empty"
+)
+
 // Metrics holds the scoped OTEL instruments for the GCP cloud collector. Every
 // label is a bounded enum: collector kind, claim status, CAI operation, parent
 // scope kind, asset family, content family, status class, fact kind, warning
 // kind, and outcome. No instrument ever carries a full resource name, project
 // id, label value, IAM member, URL, or credential name.
 type Metrics struct {
-	claims        metric.Int64Counter
-	apiCalls      metric.Int64Counter
-	pages         metric.Int64Counter
-	pageResumes   metric.Int64Counter
-	factsEmitted  metric.Int64Counter
-	warnings      metric.Int64Counter
-	freshnessLag  metric.Float64Histogram
-	collectorKind string
+	claims               metric.Int64Counter
+	apiCalls             metric.Int64Counter
+	pages                metric.Int64Counter
+	pageResumes          metric.Int64Counter
+	factsEmitted         metric.Int64Counter
+	warnings             metric.Int64Counter
+	attributeExtractions metric.Int64Counter
+	freshnessLag         metric.Float64Histogram
+	collectorKind        string
 }
 
 // NewMetrics registers the GCP cloud collector instruments on a meter. It
@@ -93,6 +106,13 @@ func NewMetrics(meter metric.Meter) (*Metrics, error) {
 	if err != nil {
 		return nil, err
 	}
+	attributeExtractions, err := meter.Int64Counter(
+		"eshu_dp_gcp_cloud_attribute_extractions_total",
+		metric.WithDescription("GCP cloud collector per-asset-type typed-depth attribute extractions by asset family and outcome"),
+	)
+	if err != nil {
+		return nil, err
+	}
 	freshnessLag, err := meter.Float64Histogram(
 		"eshu_dp_gcp_cloud_freshness_lag_seconds",
 		metric.WithDescription("GCP cloud collector freshness lag from provider update/read time to Eshu observation time"),
@@ -101,14 +121,15 @@ func NewMetrics(meter metric.Meter) (*Metrics, error) {
 		return nil, err
 	}
 	return &Metrics{
-		claims:        claims,
-		apiCalls:      apiCalls,
-		pages:         pages,
-		pageResumes:   pageResumes,
-		factsEmitted:  factsEmitted,
-		warnings:      warnings,
-		freshnessLag:  freshnessLag,
-		collectorKind: CollectorKind,
+		claims:               claims,
+		apiCalls:             apiCalls,
+		pages:                pages,
+		pageResumes:          pageResumes,
+		factsEmitted:         factsEmitted,
+		warnings:             warnings,
+		attributeExtractions: attributeExtractions,
+		freshnessLag:         freshnessLag,
+		collectorKind:        CollectorKind,
 	}, nil
 }
 
@@ -167,6 +188,18 @@ func (m *Metrics) RecordWarning(ctx context.Context, warningKind, outcome string
 	m.warnings.Add(ctx, 1, metric.WithAttributes(
 		telemetry.AttrCollectorKind(m.collectorKind),
 		telemetry.AttrKind(warningKind),
+		telemetry.AttrOutcome(outcome),
+	))
+}
+
+// RecordAttributeExtraction records one per-asset-type typed-depth extraction
+// outcome. assetFamily must be a bounded asset family (from AssetTypeFamily);
+// outcome must be ExtractionOutcomeExtracted or ExtractionOutcomeEmpty. No label
+// carries a resource name, project id, or attribute value.
+func (m *Metrics) RecordAttributeExtraction(ctx context.Context, assetFamily, outcome string) {
+	m.attributeExtractions.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrCollectorKind(m.collectorKind),
+		telemetry.AttrKind(assetFamily),
 		telemetry.AttrOutcome(outcome),
 	))
 }

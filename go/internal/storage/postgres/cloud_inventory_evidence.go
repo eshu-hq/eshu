@@ -40,6 +40,13 @@ type PostgresCloudInventoryEvidenceLoader struct {
 type cloudInventorySourceFactMapping struct {
 	provider        string
 	resourceTypeKey string
+	// surfacesAttributes gates whether the loader carries the payload attributes
+	// map onto the admission record. Only GCP typed-depth facts produce a bounded,
+	// redaction-safe attributes map vetted for the cloud inventory readback. AWS
+	// and Azure resource facts already carry an attributes map of raw provider
+	// fields (e.g. uri, cluster_arn) that the route contract must not surface, so
+	// they stay false until a per-provider safe-key contract exists.
+	surfacesAttributes bool
 }
 
 // cloudInventorySourceFactMappings is the closed set of provider inventory
@@ -52,8 +59,9 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 		resourceTypeKey: "resource_type",
 	},
 	facts.GCPCloudResourceFactKind: {
-		provider:        cloudinventory.ProviderGCP,
-		resourceTypeKey: "asset_type",
+		provider:           cloudinventory.ProviderGCP,
+		resourceTypeKey:    "asset_type",
+		surfacesAttributes: true,
 	},
 	facts.AzureCloudResourceFactKind: {
 		provider:        cloudinventory.ProviderAzure,
@@ -146,7 +154,66 @@ func cloudInventoryRecordFromRow(
 		// a follow-up slice; the admission handler already keeps declared and
 		// applied strictly above observed when those layers are wired.
 		SourceLayer: reducer.SourceLayerObserved,
+		Attributes:  cloudInventoryRecordAttributes(mapping, decoded),
 	}, true
+}
+
+// cloudInventoryRecordAttributes returns the bounded attributes map only for
+// provider fact kinds whose mapping opts in (currently GCP typed depth). AWS and
+// Azure resource facts carry a raw-locator attributes map that the cloud
+// inventory route must not surface, so they get nil here regardless of payload.
+func cloudInventoryRecordAttributes(mapping cloudInventorySourceFactMapping, decoded map[string]any) map[string]any {
+	if !mapping.surfacesAttributes {
+		return nil
+	}
+	return boundedCloudInventoryAttributes(decoded["attributes"])
+}
+
+// boundedCloudInventoryAttributes extracts the bounded attributes map from the
+// decoded provider payload. It keeps only non-blank string keys (cap 64 keys)
+// whose values are string, bool, json.Number, float64, or []any of strings.
+// Everything else is dropped. This is defense-in-depth; the collector already
+// bounds attributes before emission.
+func boundedCloudInventoryAttributes(raw any) map[string]any {
+	const maxKeys = 64
+	object, ok := raw.(map[string]any)
+	if !ok || len(object) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(object))
+	for key, value := range object {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		if len(out) >= maxKeys {
+			break
+		}
+		switch v := value.(type) {
+		case string:
+			out[key] = v
+		case bool:
+			out[key] = v
+		case float64:
+			out[key] = v
+		case json.Number:
+			out[key] = v
+		case []any:
+			// Keep only string-typed elements; drop blank strings.
+			strs := make([]string, 0, len(v))
+			for _, elem := range v {
+				if s, ok := elem.(string); ok && strings.TrimSpace(s) != "" {
+					strs = append(strs, s)
+				}
+			}
+			if len(strs) > 0 {
+				out[key] = strs
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // logSkippedRow records a bounded diagnostic for one source-fact row the loader

@@ -245,7 +245,7 @@ unless the schema PR deliberately migrates AWS, GCP, and Azure together.
 
 | Fact kind | Purpose | Required source fields |
 | --- | --- | --- |
-| `gcp_cloud_resource` | One Cloud Asset Inventory resource observation. | full resource name, asset type, parent scope, ancestors, location, read time, update time, state when present, labels, tag references, redaction policy version. |
+| `gcp_cloud_resource` | One Cloud Asset Inventory resource observation. | full resource name, asset type, parent scope, ancestors, location, read time, update time, state when present, labels, tag references, redaction policy version, bounded typed-depth `attributes` map (schema 1.1.0+), `correlation_anchors`. |
 | `gcp_tag_observation` | Direct and effective tag or label evidence. | full resource name, asset type, tag key/value fingerprints or bounded labels, source kind, inheritance state, read time. |
 | `gcp_iam_policy_observation` | IAM policy evidence returned by Cloud Asset Inventory content types or IAM search. | full resource name, asset type, role, member class, member fingerprint, condition presence/fingerprint, etag fingerprint, read time. |
 | `gcp_iam_principal` | Secrets/IAM mirror principal evidence for GCP service-account grantees. | principal fingerprint, principal class, provider, read time, source role/resource anchors. |
@@ -259,6 +259,43 @@ unless the schema PR deliberately migrates AWS, GCP, and Azure together.
 Facts must use `source_confidence=reported` for provider API data. Fixture facts
 used in tests can use the same provider confidence because they model provider
 responses, not local repository observations.
+
+## Typed Depth Extractors
+
+The parser drops the raw `resource.data` blob at the redaction choke point, but
+each supported asset type can recover a bounded, redaction-safe slice of it
+through a per-asset-type extractor registry
+(`go/internal/collector/gcpcloud/extractor.go`). Each asset type registers an
+`AssetAttributeExtractor` in its own `extractor_<type>.go` file via `init()`, so
+new types fan out without a shared parser switch. The parser hands the extractor
+the raw `resource.data` transiently; the extractor returns only:
+
+- a bounded `attributes` map of control-plane fields usable for Terraform
+  import/drift, edges, correlation, or monitoring (never secrets, data-plane
+  content, raw policy JSON, IPs, or response bodies),
+- `correlation_anchors` (parent resource names, KMS key names, and similar
+  resource identifiers) for cross-source correlation, and
+- typed `gcp_cloud_relationship` observations whose endpoints are CAI full
+  resource names.
+
+These land on the `gcp_cloud_resource` fact as the generic top-level `attributes`
+map and `correlation_anchors` list. They are generic: a new asset type's
+extractor populates them without a `gcp_cloud_resource` schema bump (the fields
+themselves were added in schema 1.1.0). Data-plane locators (object paths inside
+source URIs, request bodies) MUST be dropped — keep only resource identities
+(bucket, dataset, KMS key names).
+
+**BigQuery Table** (`bigquery.googleapis.com/Table`) is the reference extractor:
+it captures table type, schema field count, time partitioning, clustering
+fields, KMS key name, row/byte counts, and creation/expiration time; emits typed
+parent Dataset, KMS-key, and external GCS-source edges; and surfaces dataset and
+KMS resource names as correlation anchors.
+
+The bounded `attributes` map surfaces through the cloud inventory readback
+(`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
+labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
+the typed edges materialize through `gcp_relationship_materialization` once both
+endpoints resolve.
 
 ## Consumption Decisions
 
@@ -379,6 +416,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table) produces a bounded `attributes` map, `correlation_anchors`, and typed Dataset/KMS/external edges from `resource.data`; the raw blob never leaves the parser and external object paths are dropped. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 

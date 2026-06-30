@@ -132,6 +132,9 @@ func cloudInventoryAdmissionPayload(
 	if resource.ResourceChangeEvidenceTruncated {
 		payload["resource_change_freshness_truncated"] = true
 	}
+	if len(resource.Attributes) > 0 {
+		payload["attributes"] = resource.Attributes
+	}
 	return payload
 }
 

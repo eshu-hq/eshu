@@ -65,6 +65,10 @@ type CloudInventoryRecord struct {
 	ResourceType string
 	// SourceLayer classifies the evidence layer of this record.
 	SourceLayer SourceLayer
+	// Attributes carries bounded redaction-safe typed-depth attributes from the
+	// provider source fact (e.g. table_type, schema_field_count, kms_key_name).
+	// Only observed-layer facts carry attributes; nil means no attributes.
+	Attributes map[string]any
 }
 
 // AdmittedCloudResource is one canonical CloudResource identity admitted from
@@ -109,6 +113,11 @@ type AdmittedCloudResource struct {
 	// ResourceChangeEvidenceTruncated reports whether resource-change freshness
 	// rows were capped before persistence.
 	ResourceChangeEvidenceTruncated bool
+	// Attributes carries bounded redaction-safe typed-depth attributes from the
+	// provider source fact, observed layer only. Only bounded safe control-plane
+	// values are present; raw locators and secrets are never included. It is nil
+	// unless a record carried attributes.
+	Attributes map[string]any
 }
 
 // CloudInventoryAdmissionSummary counts the non-admitted resolution outcomes so
@@ -386,6 +395,9 @@ func foldAdmittedRecord(
 		resource.HasObservedEvidence = true
 	}
 	resource.ManagementOrigin = strongestManagementOrigin(resource)
+	if len(record.Attributes) > 0 && len(resource.Attributes) == 0 {
+		resource.Attributes = record.Attributes
+	}
 }
 
 // strongestManagementOrigin returns the highest-precedence evidence layer that

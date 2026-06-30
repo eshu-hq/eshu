@@ -236,3 +236,172 @@ func TestPostgresCloudInventoryEvidenceLoaderRequiresDB(t *testing.T) {
 		t.Fatal("LoadCloudInventoryEvidence() with nil DB error = nil, want error")
 	}
 }
+
+// TestBoundedCloudInventoryAttributesKeepsBoundedValues proves the helper keeps
+// string, bool, float64, and []string values under the 64-key cap, and drops a
+// nested map value so nested content never leaks into the read model.
+func TestBoundedCloudInventoryAttributesKeepsBoundedValues(t *testing.T) {
+	t.Parallel()
+
+	raw := map[string]any{
+		"table_type":         "TABLE",
+		"schema_field_count": float64(12),
+		"partitioned":        true,
+		"clustering_fields":  []any{"project_id", "date"},
+		"nested_map":         map[string]any{"should": "be_dropped"},
+		"":                   "blank_key_dropped",
+	}
+
+	out := boundedCloudInventoryAttributes(raw)
+	if out == nil {
+		t.Fatal("boundedCloudInventoryAttributes() = nil, want non-nil map")
+	}
+	if got, want := out["table_type"], "TABLE"; got != want {
+		t.Fatalf("table_type = %#v, want %q", got, want)
+	}
+	if got, want := out["schema_field_count"], float64(12); got != want {
+		t.Fatalf("schema_field_count = %#v, want %v", got, want)
+	}
+	if got, want := out["partitioned"], true; got != want {
+		t.Fatalf("partitioned = %#v, want %v", got, want)
+	}
+	fields, ok := out["clustering_fields"].([]string)
+	if !ok || len(fields) != 2 || fields[0] != "project_id" || fields[1] != "date" {
+		t.Fatalf("clustering_fields = %#v, want [project_id date]", out["clustering_fields"])
+	}
+	if _, present := out["nested_map"]; present {
+		t.Fatalf("nested_map must be dropped, got %#v", out["nested_map"])
+	}
+	if _, present := out[""]; present {
+		t.Fatal("blank key must be dropped")
+	}
+}
+
+// TestBoundedCloudInventoryAttributesDropsNestedMap is the negative test: if
+// bounding is removed and nested maps are allowed through, the test fails. This
+// guards against regression where a malformed payload leaks structured content.
+func TestBoundedCloudInventoryAttributesDropsNestedMap(t *testing.T) {
+	t.Parallel()
+
+	raw := map[string]any{
+		"should_survive": "yes",
+		"nested":         map[string]any{"inner": "secret"},
+	}
+
+	out := boundedCloudInventoryAttributes(raw)
+	if _, present := out["nested"]; present {
+		t.Fatalf("nested map leaked through bounding: %#v", out["nested"])
+	}
+	// Confirm the safe key still survives.
+	if out["should_survive"] != "yes" {
+		t.Fatalf("should_survive = %#v, want yes", out["should_survive"])
+	}
+}
+
+// TestBoundedCloudInventoryAttributesCapAt64Keys proves the 64-key cap is
+// enforced so over-cap keys are not passed to the read model.
+func TestBoundedCloudInventoryAttributesCapAt64Keys(t *testing.T) {
+	t.Parallel()
+
+	raw := make(map[string]any, 100)
+	for i := 0; i < 100; i++ {
+		raw[strings.Repeat("k", i+1)] = "v"
+	}
+
+	out := boundedCloudInventoryAttributes(raw)
+	if len(out) > 64 {
+		t.Fatalf("len(out) = %d, want <= 64", len(out))
+	}
+}
+
+// TestBoundedCloudInventoryAttributesNilAndEmptyReturnNil proves nil and empty
+// inputs produce nil output so the admission record carries no attributes field.
+func TestBoundedCloudInventoryAttributesNilAndEmptyReturnNil(t *testing.T) {
+	t.Parallel()
+
+	if got := boundedCloudInventoryAttributes(nil); got != nil {
+		t.Fatalf("nil input: got %#v, want nil", got)
+	}
+	if got := boundedCloudInventoryAttributes(map[string]any{}); got != nil {
+		t.Fatalf("empty map input: got %#v, want nil", got)
+	}
+	if got := boundedCloudInventoryAttributes("not a map"); got != nil {
+		t.Fatalf("string input: got %#v, want nil", got)
+	}
+}
+
+// TestCloudInventoryRecordFromRowExtractsAttributes proves the loader extracts
+// the attributes map from a GCP fact payload and bounds it.
+func TestCloudInventoryRecordFromRowExtractsAttributes(t *testing.T) {
+	t.Parallel()
+
+	gcpName := "//bigquery.googleapis.com/projects/p/datasets/d/tables/t"
+	payload := []byte(`{
+		"full_resource_name":"` + gcpName + `",
+		"asset_type":"bigquery.googleapis.com/Table",
+		"attributes":{
+			"table_type":"TABLE",
+			"schema_field_count":5,
+			"nested_drop":{"should":"be_dropped"}
+		}
+	}`)
+
+	record, ok := cloudInventoryRecordFromRow(facts.GCPCloudResourceFactKind, gcpName, payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
+	}
+	if record.Attributes == nil {
+		t.Fatal("Attributes = nil, want non-nil")
+	}
+	if record.Attributes["table_type"] != "TABLE" {
+		t.Fatalf("Attributes[table_type] = %#v, want TABLE", record.Attributes["table_type"])
+	}
+	if _, present := record.Attributes["nested_drop"]; present {
+		t.Fatalf("nested map must be dropped: %#v", record.Attributes["nested_drop"])
+	}
+}
+
+// TestCloudInventoryRecordFromRowAWSAttributesNotSurfaced proves that an
+// aws_resource row whose existing attributes map carries raw provider locators
+// (uri, cluster_arn) does NOT surface them on the record. Attribute readback is
+// gated to the GCP typed-depth payload; AWS/Azure attributes are not vetted as
+// redaction-safe for the cloud inventory route, so surfacing them would regress
+// the route contract that hides raw provider locators (codex #4373 P1).
+func TestCloudInventoryRecordFromRowAWSAttributesNotSurfaced(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:ecs:us-east-1:123456789012:cluster/demo"
+	payload := []byte(`{
+		"arn":"` + arn + `",
+		"resource_type":"aws_ecs_cluster",
+		"attributes":{
+			"uri":"https://example.invalid/raw/locator",
+			"cluster_arn":"` + arn + `"
+		}
+	}`)
+
+	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
+	}
+	if record.Attributes != nil {
+		t.Fatalf("AWS Attributes = %#v, want nil (attributes are GCP-only to avoid leaking raw locators)", record.Attributes)
+	}
+}
+
+// TestCloudInventoryRecordFromRowNoAttributesYieldsNilAttributes proves that a
+// GCP payload without an attributes key yields nil Attributes on the record.
+func TestCloudInventoryRecordFromRowNoAttributesYieldsNilAttributes(t *testing.T) {
+	t.Parallel()
+
+	gcpName := "//compute.googleapis.com/projects/p/zones/z/instances/i"
+	payload := []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)
+
+	record, ok := cloudInventoryRecordFromRow(facts.GCPCloudResourceFactKind, gcpName, payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
+	}
+	if record.Attributes != nil {
+		t.Fatalf("Attributes = %#v, want nil for payload with no attributes key", record.Attributes)
+	}
+}

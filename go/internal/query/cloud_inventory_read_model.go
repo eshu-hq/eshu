@@ -158,6 +158,9 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 	if fingerprints := cloudInventoryTagFingerprints(payload); len(fingerprints) > 0 {
 		view["tag_value_fingerprints"] = fingerprints
 	}
+	if attrs := cloudInventoryAttributes(payload); len(attrs) > 0 {
+		view["attributes"] = attrs
+	}
 	if evidence := cloudInventoryIdentityPolicyEvidence(payload); len(evidence) > 0 {
 		view["identity_policy_evidence"] = evidence
 	}
@@ -171,6 +174,54 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 		view["resource_change_freshness_truncated"] = true
 	}
 	return view
+}
+
+// cloudInventoryAttributes projects the bounded provider-specific attributes map
+// from the canonical identity payload. It keeps only non-blank string keys (cap
+// 64) whose values are string, bool, float64, or []string/[]any-of-strings.
+// Nested maps and any other value types are dropped so no malformed payload
+// content can leak unexpected structured data through the readback wire.
+func cloudInventoryAttributes(payload map[string]any) map[string]any {
+	const maxKeys = 64
+	object, ok := payload["attributes"].(map[string]any)
+	if !ok || len(object) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(object))
+	for key, value := range object {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		if len(out) >= maxKeys {
+			break
+		}
+		switch v := value.(type) {
+		case string:
+			out[key] = v
+		case bool:
+			out[key] = v
+		case float64:
+			out[key] = v
+		case []string:
+			if len(v) > 0 {
+				out[key] = v
+			}
+		case []any:
+			strs := make([]string, 0, len(v))
+			for _, elem := range v {
+				if s, ok := elem.(string); ok && strings.TrimSpace(s) != "" {
+					strs = append(strs, s)
+				}
+			}
+			if len(strs) > 0 {
+				out[key] = strs
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // cloudInventoryTagFingerprints reads the keyed tag value fingerprint map from a

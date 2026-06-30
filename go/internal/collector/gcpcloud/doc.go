@@ -28,6 +28,16 @@
 // content family, and provider update time so duplicate delivery converges and a
 // stale generation is rejected rather than replacing current facts.
 //
+// Per-asset-type typed depth is captured through an extractor registry: each
+// supported CAI asset type registers an AssetAttributeExtractor in its own file
+// (RegisterAssetExtractor), and the parser hands that extractor the raw
+// resource.data blob transiently so it can return a bounded, redaction-safe
+// attributes map, cross-source correlation anchors, and typed provider
+// relationships. The parser remains the single redaction choke point: the raw
+// blob never leaves it, and only the extractor's safe output reaches the
+// gcp_cloud_resource attributes/correlation_anchors fields. BigQuery Table
+// (bigquery.googleapis.com/Table) is the reference extractor.
+//
 // This GCP collector slice covers resource inventory, provider relationship
 // observations, label-backed and opt-in direct/effective tag observations, IAM
 // policy observations, DNS record observations, Cloud Run runtime image-reference

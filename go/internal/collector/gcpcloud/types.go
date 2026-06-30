@@ -108,8 +108,19 @@ type ResourceObservation struct {
 	UpdateTime          time.Time
 	ExtensionVersion    string
 	Extension           map[string]any
-	SourceURI           string
-	SourceRecordID      string
+	// Attributes is the bounded, redaction-safe typed-depth field set extracted
+	// from the CAI resource data blob by the registered per-asset-type extractor.
+	// It mirrors the AWS ResourceObservation attribute contract: only safe
+	// control-plane metadata usable for Terraform, edges, correlation, or
+	// monitoring, never secrets, data-plane content, or raw response bodies.
+	Attributes map[string]any
+	// CorrelationAnchors are cross-source join keys (parent resource names, KMS
+	// key names, and similar resource identifiers) the extractor surfaces so
+	// downstream correlation can match this resource against IaC, Terraform
+	// state, container image identity, and secrets/IAM evidence.
+	CorrelationAnchors []string
+	SourceURI          string
+	SourceRecordID     string
 }
 
 // IAMPolicyBindingObservation is one parsed Cloud Asset Inventory IAM binding
