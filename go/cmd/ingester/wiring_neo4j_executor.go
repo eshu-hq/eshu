@@ -111,22 +111,33 @@ func ingesterStatementRetractionCounts(
 	}
 }
 
+// DrainWriteResult carries the result rows and graph-driver delete counters from
+// one bounded drain step. The counters feed reconciliation-drift telemetry in
+// executeDrainLoop; they match the counters that Execute/ExecuteGroup capture via
+// ResultSummary.Counters() on the non-drain path.
+type DrainWriteResult struct {
+	Rows                 []map[string]any
+	NodesDeleted         int64
+	RelationshipsDeleted int64
+}
+
 // retractDrainReader executes a bounded drain step in a write session and
-// returns the collected records. It is implemented by ingesterNeo4jExecutor and
-// used by nornicDBPhaseGroupExecutor to drive the drain loop for unbounded
-// full-refresh DETACH DELETE statements on NornicDB.
+// returns the collected records and graph-driver delete counters. It is
+// implemented by ingesterNeo4jExecutor and used by nornicDBPhaseGroupExecutor
+// to drive the drain loop for unbounded full-refresh DETACH DELETE statements
+// on NornicDB.
 type retractDrainReader interface {
-	RunWrite(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
+	RunWrite(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error)
 }
 
 // RunWrite opens a write session, runs the supplied Cypher with the supplied
-// parameters, collects all result records into a slice of property maps, and
-// returns them. It is used by the bounded drain loop in
-// nornicDBPhaseGroupExecutor to read the __drained counter returned by each
-// bounded DETACH DELETE step.
-func (e ingesterNeo4jExecutor) RunWrite(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+// parameters, collects all result records and the graph-driver delete counters,
+// and returns them. It is used by the bounded drain loop in
+// nornicDBPhaseGroupExecutor to read the __drained counter and accumulate
+// NodesDeleted/RelationshipsDeleted for reconciliation-drift telemetry.
+func (e ingesterNeo4jExecutor) RunWrite(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
 	if e.Driver == nil {
-		return nil, fmt.Errorf("neo4j driver is required")
+		return DrainWriteResult{}, fmt.Errorf("neo4j driver is required")
 	}
 
 	session := e.Driver.NewSession(ctx, neo4jdriver.SessionConfig{
@@ -139,7 +150,7 @@ func (e ingesterNeo4jExecutor) RunWrite(ctx context.Context, cypher string, para
 
 	result, err := session.Run(ctx, cypher, params, e.transactionConfigurers()...)
 	if err != nil {
-		return nil, err
+		return DrainWriteResult{}, err
 	}
 
 	var rows []map[string]any
@@ -153,12 +164,17 @@ func (e ingesterNeo4jExecutor) RunWrite(ctx context.Context, cypher string, para
 		rows = append(rows, row)
 	}
 	if err := result.Err(); err != nil {
-		return nil, err
+		return DrainWriteResult{}, err
 	}
-	if _, err := result.Consume(ctx); err != nil {
-		return nil, err
+	summary, err := result.Consume(ctx)
+	if err != nil {
+		return DrainWriteResult{}, err
 	}
-	return rows, nil
+	return DrainWriteResult{
+		Rows:                 rows,
+		NodesDeleted:         int64(summary.Counters().NodesDeleted()),
+		RelationshipsDeleted: int64(summary.Counters().RelationshipsDeleted()),
+	}, nil
 }
 
 func (e ingesterNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {

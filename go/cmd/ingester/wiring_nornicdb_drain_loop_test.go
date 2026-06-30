@@ -10,26 +10,46 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // drainCountReader is a fake drainReader that returns a configurable sequence
-// of __drained counts. After the sequence is exhausted it returns 0.
+// of __drained counts and optional graph-driver delete counters. After the
+// sequence is exhausted it returns 0.
 type drainCountReader struct {
-	counts  []int64
-	callIdx int
-	lastErr error
-	failAt  int // 1-based; 0 means never fail
+	counts       []int64
+	nodesDeleted []int64 // per-call NodesDeleted; zero-padded if shorter than counts
+	relsDeleted  []int64 // per-call RelationshipsDeleted; zero-padded if shorter
+	callIdx      int
+	lastErr      error
+	failAt       int // 1-based; 0 means never fail
 }
 
-func (r *drainCountReader) RunWrite(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+func (r *drainCountReader) RunWrite(_ context.Context, _ string, _ map[string]any) (DrainWriteResult, error) {
 	r.callIdx++
 	if r.failAt > 0 && r.callIdx == r.failAt {
-		return nil, r.lastErr
+		return DrainWriteResult{}, r.lastErr
 	}
-	if r.callIdx > len(r.counts) {
-		return []map[string]any{{"__drained": int64(0)}}, nil
+	idx := r.callIdx - 1
+	var drained int64
+	if idx < len(r.counts) {
+		drained = r.counts[idx]
 	}
-	return []map[string]any{{"__drained": r.counts[r.callIdx-1]}}, nil
+	var nodes int64
+	if idx < len(r.nodesDeleted) {
+		nodes = r.nodesDeleted[idx]
+	}
+	var rels int64
+	if idx < len(r.relsDeleted) {
+		rels = r.relsDeleted[idx]
+	}
+	return DrainWriteResult{
+		Rows:                 []map[string]any{{"__drained": drained}},
+		NodesDeleted:         nodes,
+		RelationshipsDeleted: rels,
+	}, nil
 }
 
 // TestNornicDBPhaseGroupExecutorDrainLoopIteratesUntilZero verifies that a
@@ -289,4 +309,111 @@ func TestNornicDBRetractBatchSizeEnvInvalid(t *testing.T) {
 	if err == nil {
 		t.Fatal("nornicDBCanonicalRetractBatchSize() error = nil, want non-nil for invalid value")
 	}
+}
+
+// TestNornicDBPhaseGroupExecutorDrainLoopRecordsDriftRetractions verifies that
+// executeDrainLoop accumulates NodesDeleted and RelationshipsDeleted across
+// iterations and calls RecordReconciliationDriftRetractions with the totals for
+// a drift-annotated statement. This ensures eshu_dp_reconciliation_drift_retractions_total
+// is incremented by the drain path just as it would be by the old Execute path.
+func TestNornicDBPhaseGroupExecutorDrainLoopRecordsDriftRetractions(t *testing.T) {
+	t.Parallel()
+
+	// Two non-zero drain iterations (nodes 300+200=500, rels 60+40=100) then 0.
+	reader := &drainCountReader{
+		counts:       []int64{300, 200},
+		nodesDeleted: []int64{300, 200},
+		relsDeleted:  []int64{60, 40},
+	}
+	inner := &recordingGroupChunkExecutor{}
+
+	meterReader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(meterReader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	executor := nornicDBPhaseGroupExecutor{
+		inner:            inner,
+		maxStatements:    100,
+		retractBatchSize: 500,
+		drainReader:      reader,
+		instruments:      instruments,
+	}
+
+	// Statement marked as a reconciliation-drift retract (mirrors what
+	// annotateReconciliationDriftWritePhases sets in production).
+	stmts := []sourcecypher.Statement{
+		{
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher: `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
+WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.generation_id <> $generation_id
+DETACH DELETE f`,
+			Parameters: map[string]any{
+				"repo_id":       "repo-drift",
+				"generation_id": "gen-3",
+				sourcecypher.StatementMetadataReconciliationDriftKey: true,
+				sourcecypher.StatementMetadataPhaseKey:               "retract",
+			},
+			Drain:    true,
+			DrainVar: "f",
+		},
+	}
+
+	if err := executor.ExecutePhaseGroup(context.Background(), stmts); err != nil {
+		t.Fatalf("ExecutePhaseGroup() error = %v, want nil", err)
+	}
+
+	// Drain loop: 300 + 200 + 0 = 3 calls.
+	if reader.callIdx != 3 {
+		t.Fatalf("drain loop call count = %d, want 3", reader.callIdx)
+	}
+
+	// Collect OTEL metrics and assert totals.
+	var rm metricdata.ResourceMetrics
+	if err := meterReader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	wantNodes := int64(500) // 300 + 200
+	wantEdges := int64(100) // 60 + 40
+	gotNodes := driftRetractionsMetricValue(t, rm, "node")
+	gotEdges := driftRetractionsMetricValue(t, rm, "edge")
+	if gotNodes != wantNodes {
+		t.Fatalf("reconciliation_drift_retractions node = %d, want %d", gotNodes, wantNodes)
+	}
+	if gotEdges != wantEdges {
+		t.Fatalf("reconciliation_drift_retractions edge = %d, want %d", gotEdges, wantEdges)
+	}
+}
+
+// driftRetractionsMetricValue returns the sum of all data points for
+// eshu_dp_reconciliation_drift_retractions_total whose "kind" attribute matches
+// the supplied value. Returns 0 if not found (test uses explicit assertions).
+func driftRetractionsMetricValue(t *testing.T, rm metricdata.ResourceMetrics, kind string) int64 {
+	t.Helper()
+	const metricName = "eshu_dp_reconciliation_drift_retractions_total"
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != metricName {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s data type = %T, want Sum[int64]", metricName, m.Data)
+			}
+			var total int64
+			for _, dp := range sum.DataPoints {
+				for _, attr := range dp.Attributes.ToSlice() {
+					if string(attr.Key) == "kind" && attr.Value.AsString() == kind {
+						total += dp.Value
+					}
+				}
+			}
+			return total
+		}
+	}
+	t.Fatalf("metric %s not found in collected data", metricName)
+	return 0
 }

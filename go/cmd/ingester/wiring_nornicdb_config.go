@@ -187,6 +187,7 @@ func canonicalExecutorForGraphBackend(
 			entityPhaseConcurrency:   nornicDBEntityPhaseConcurrency,
 			drainReader:              dr,
 			retractBatchSize:         nornicDBRetractBatchSize,
+			instruments:              instruments,
 		}
 	}
 	return instrumented

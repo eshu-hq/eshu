@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type nornicDBPhaseGroupExecutor struct {
@@ -44,6 +45,12 @@ type nornicDBPhaseGroupExecutor struct {
 	// retractBatchSize is the LIMIT applied to each drain-loop iteration.
 	// Controlled by ESHU_CANONICAL_RETRACT_BATCH.
 	retractBatchSize int
+
+	// instruments carries the OTEL metric handles for recording reconciliation
+	// drift retraction counters after each drain loop completes. May be nil in
+	// tests that do not wire telemetry; RecordReconciliationDriftRetractions
+	// is a no-op when instruments is nil.
+	instruments *telemetry.Instruments
 }
 
 func (e nornicDBPhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
@@ -154,7 +161,7 @@ func (e nornicDBPhaseGroupExecutor) executeDrainLoop(
 	const drainNodeCeiling = 5_000_000
 	maxIterations := (drainNodeCeiling/batch + 2)
 
-	var totalDrained int64
+	var totalDrained, totalNodesDeleted, totalRelsDeleted int64
 	phaseStart := time.Now()
 	for iteration := 1; ; iteration++ {
 		if iteration > maxIterations {
@@ -165,7 +172,7 @@ func (e nornicDBPhaseGroupExecutor) executeDrainLoop(
 		}
 
 		iterStart := time.Now()
-		rows, runErr := e.drainReader.RunWrite(ctx, drainCypher, params)
+		result, runErr := e.drainReader.RunWrite(ctx, drainCypher, params)
 		iterDuration := time.Since(iterStart)
 		if runErr != nil {
 			return fmt.Errorf(
@@ -174,8 +181,10 @@ func (e nornicDBPhaseGroupExecutor) executeDrainLoop(
 			)
 		}
 
-		drained := drainedCount(rows)
+		drained := drainedCount(result.Rows)
 		totalDrained += drained
+		totalNodesDeleted += result.NodesDeleted
+		totalRelsDeleted += result.RelationshipsDeleted
 
 		slog.Debug(
 			"nornicdb retract drain iteration",
@@ -192,6 +201,19 @@ func (e nornicDBPhaseGroupExecutor) executeDrainLoop(
 			break
 		}
 	}
+
+	// Record reconciliation-drift retraction counters so
+	// eshu_dp_reconciliation_drift_retractions_total accumulates the same
+	// total it would have under the old single-statement Execute path. The
+	// call is a no-op when instruments is nil or the statement is not marked
+	// as a drift-retract statement by annotateReconciliationDriftWritePhases.
+	sourcecypher.RecordReconciliationDriftRetractions(
+		ctx,
+		e.instruments,
+		stmt,
+		totalNodesDeleted,
+		totalRelsDeleted,
+	)
 
 	slog.Info(
 		"nornicdb retract drain completed",
