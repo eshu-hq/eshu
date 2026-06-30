@@ -646,6 +646,112 @@ gates:
     ci_only_reason: ""
     hook_id: console-e2e
 
+  - id: frontend-site
+    name: Marketing site typecheck/test/build (root Vite)
+    category: frontend
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "src/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - "wrangler.jsonc"
+    local:
+      command: "npm run typecheck && npm test && npm run build"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "Marketing site (root Vite)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: frontend-console-checks
+    name: Console typecheck/test/build (apps/console)
+    category: frontend
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "apps/console/**"
+      - "src/**"
+      # console:* commands resolve dependencies from the root package.json, so a
+      # root dependency change must re-run the console checks (CI's Console job
+      # has no per-job path filter and runs on these too).
+      - "package.json"
+      - "package-lock.json"
+    local:
+      command: "npm run console:typecheck && npm run console:test && npm run console:build"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "Console (apps/console)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: console-a11y
+    name: Console a11y audit (axe-core, critical+serious block)
+    category: frontend
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "apps/console/**"
+    local:
+      command: "npm run console:a11y"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "Console a11y audit (axe-core)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: frontend-eslint
+    name: ESLint flat config (src + apps/console/src)
+    category: frontend
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "src/**"
+      - "apps/console/src/**"
+      - "eslint.config.js"
+      - "scripts/verify-eslint-config.sh"
+      - "scripts/test-eslint-config.sh"
+      # The eslint self-test (test-eslint-config.sh) reads the lint fixtures, so
+      # a fixture change must re-run this gate (it is in frontend.yml's filter).
+      - "tests/lint-fixture/**"
+    local:
+      command: "bash scripts/verify-eslint-config.sh"
+      test_command: "bash scripts/test-eslint-config.sh"
+    ci:
+      workflow: frontend.yml
+      job: "ESLint flat config (issue #3763)"
+    requirements:
+      - node
+    ci_only_reason: ""
+
+  - id: npm-audit
+    name: npm audit (fail on high/critical)
+    category: frontend
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "package.json"
+      - "package-lock.json"
+    local:
+      command: "npm audit --audit-level=high"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "npm audit (fail on high/critical)"
+    requirements:
+      - node
+      - network
+    ci_only_reason: ""
+
   # ─── SECURITY ──────────────────────────────────────────────────────────────
 
   - id: gosec-changed

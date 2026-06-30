@@ -48,6 +48,18 @@ locally. **CI remains the authoritative blocking race gate** (whole-module
 make pre-pr-full      # pre-pr + `go test ./... -race`
 ```
 
+For frontend changes, a separate preflight mirrors `.github/workflows/frontend.yml`
+(#4216) — root-site and console typecheck/test/build, console a11y (critical +
+serious block), the ESLint flat config, npm audit (high/critical block), the
+per-page console e2e, and changed-file Prettier — selected by changed path:
+
+```bash
+make frontend-preflight      # or: bash scripts/dev/frontend-preflight.sh
+```
+
+These gates need Node and installed dependencies; if `node_modules` is missing
+the npm commands fail loudly (run `npm ci` first) rather than skipping silently.
+
 To see exactly which credential-free CI verifiers apply to the paths you
 changed — and why — use the gate selector:
 
