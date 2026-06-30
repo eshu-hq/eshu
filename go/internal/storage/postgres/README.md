@@ -424,7 +424,10 @@ before the connection returns to the pool. Focused tests prove
 `ApplyDefinitionsWithLockTimeout` routes lock-timeout-capable executors through
 the bounded path and preserves direct execution order for simple test executors.
 Live Postgres proof covers `CREATE INDEX CONCURRENTLY` in autocommit mode and a
-held-lock failure returning inside the configured lock budget.
+held-lock failure returning inside the configured lock budget. Concurrent index
+schema applies also inspect `pg_index` before retrying and drop same-named
+invalid indexes left by failed concurrent builds, so `IF NOT EXISTS` cannot
+silently accept an unusable hot-path index.
 
 Observability Evidence: no new metric series or labels were added. Operators
 continue to diagnose schema bootstrap through the one-shot `db-migrate` /

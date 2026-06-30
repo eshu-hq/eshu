@@ -110,6 +110,72 @@ func TestSQLDBSchemaLockTimeoutLive(t *testing.T) {
 	}
 }
 
+func TestSQLDBRebuildsInvalidConcurrentIndexLive(t *testing.T) {
+	if os.Getenv(schemaLockTimeoutProofEnv) != "1" {
+		t.Skip("set ESHU_SCHEMA_LOCK_TIMEOUT_PROOF=1 and ESHU_POSTGRES_DSN to run live schema lock-timeout proof")
+	}
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run live schema lock-timeout proof")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	db := openSchemaLockTimeoutProofDB(t, dsn)
+	tableName := fmt.Sprintf("schema_invalid_concurrent_idx_%d", time.Now().UnixNano())
+	indexName := tableName + "_value_idx"
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), "DROP TABLE IF EXISTS "+tableName); err != nil {
+			t.Errorf("cleanup: drop %s: %v", tableName, err)
+		}
+	})
+
+	if _, err := db.ExecContext(ctx, "CREATE TABLE "+tableName+" (id INTEGER PRIMARY KEY, value INTEGER NOT NULL)"); err != nil {
+		t.Fatalf("create proof table: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, "INSERT INTO "+tableName+" (id, value) VALUES (1, 7), (2, 7)"); err != nil {
+		t.Fatalf("seed duplicate rows: %v", err)
+	}
+
+	exec := SQLDB{DB: db}
+	def := Definition{
+		Name: "invalid_concurrent_unique_index",
+		Path: "schema_invalid_concurrent_unique_index.sql",
+		SQL:  "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS " + indexName + " ON " + tableName + " (value)",
+	}
+	if err := ApplyDefinitionsWithLockTimeout(ctx, exec, []Definition{def}, 5*time.Second); err == nil {
+		t.Fatal("ApplyDefinitionsWithLockTimeout() duplicate unique index error = nil, want non-nil")
+	}
+	if valid := proofIndexValidity(t, ctx, db, indexName); valid {
+		t.Fatalf("index %s is valid after failed concurrent unique build, want invalid", indexName)
+	}
+
+	if _, err := db.ExecContext(ctx, "DELETE FROM "+tableName+" WHERE id = 2"); err != nil {
+		t.Fatalf("remove duplicate row: %v", err)
+	}
+	if err := ApplyDefinitionsWithLockTimeout(ctx, exec, []Definition{def}, 5*time.Second); err != nil {
+		t.Fatalf("ApplyDefinitionsWithLockTimeout() rebuild error = %v, want nil", err)
+	}
+	if valid := proofIndexValidity(t, ctx, db, indexName); !valid {
+		t.Fatalf("index %s is invalid after rebuild, want valid", indexName)
+	}
+}
+
+func proofIndexValidity(t *testing.T, ctx context.Context, db *sql.DB, indexName string) bool {
+	t.Helper()
+	var valid bool
+	if err := db.QueryRowContext(ctx, `
+SELECT i.indisvalid
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+WHERE c.relname = $1
+`, indexName).Scan(&valid); err != nil {
+		t.Fatalf("query index validity for %s: %v", indexName, err)
+	}
+	return valid
+}
+
 func openSchemaLockTimeoutProofDB(t *testing.T, dsn string) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("pgx", dsn)

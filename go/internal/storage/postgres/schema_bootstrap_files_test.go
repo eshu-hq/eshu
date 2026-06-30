@@ -86,6 +86,28 @@ func TestApplyDefinitionsUsesSessionLockTimeoutWhenSupported(t *testing.T) {
 	}
 }
 
+func TestConcurrentIndexNamesForInvalidCleanup(t *testing.T) {
+	t.Parallel()
+
+	sql := `
+CREATE TABLE IF NOT EXISTS example(id INTEGER);
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS example_value_idx
+ON example (id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "example_id_idx"
+ON example (id);
+`
+	got := concurrentIndexNamesForInvalidCleanup(sql)
+	want := []string{"example_value_idx", "example_id_idx"}
+	if len(got) != len(want) {
+		t.Fatalf("index names = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("index name %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 type recordingExecutor struct {
 	statements []string
 }
