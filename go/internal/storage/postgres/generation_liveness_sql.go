@@ -52,28 +52,29 @@ WHERE generation.generation_id = stale_active.generation_id
 RETURNING generation.scope_id, generation.generation_id
 `
 
-// recoverWedgedActiveGenerationsQuery durably re-drives generations that are
-// active but have made no forward progress past canonical-nodes-committed for
-// longer than the activation deadline.
+// recoverWedgedActiveGenerationsQuery durably re-drives active generations that
+// still have downstream blockage after the activation deadline, but only when no
+// source-local projector work is already in flight.
 //
-// A wedged generation is one whose projector work already succeeded (status
-// active, activated_at set) but whose downstream reducer/shared-projection work
-// never drained, and for which no newer same-scope generation exists to
-// supersede it through the projector path. Age alone is NOT enough: a healthy
-// quiet scope normally stays active and projected (the projected baseline is
-// "has been active", see generation_projected_commit.go) with no outstanding
-// work, and re-driving those on every poll would burn the liveness budget and
-// raise false alarms. The wedge gate therefore requires real downstream
-// blockage: an outstanding shared_projection_intents row (completed_at IS NULL)
-// for the generation after reducer fact-work for that generation has already
-// drained. During a large bootstrap, shared intents may legitimately sit behind
-// a deep reducer backlog or readiness gate; re-driving source-local projection
-// at that point creates duplicate projector work after the bootstrap projector
-// has already drained. This query therefore re-enqueues source-local projector
-// work only for genuinely blocked generations, which re-publishes the
-// canonical-nodes-committed readiness phase and re-triggers the downstream
-// consumers over the existing facts (no re-clone). The re-drive budget lives in
-// the work item payload
+// A wedged generation is one with outstanding shared-projection intent after
+// reducer fact-work drained, but without source-local projector work already
+// pending, claimed, running, or retrying. Age alone is NOT enough: a
+// healthy quiet scope normally stays active and projected (the projected
+// baseline is "has been active", see generation_projected_commit.go) with no
+// outstanding work, and re-driving those on every poll would burn the liveness
+// budget and raise false alarms. During a large bootstrap, shared intents may
+// legitimately sit behind reducer backlog; re-driving source-local projection at
+// that point creates duplicate projector work while reducer work is still
+// progress. A succeeded source-local projector row is the normal activation
+// lifecycle state, so it remains eligible for the bounded upsert below to reopen
+// when the generation is still wedged after reducer work drains. The in-flight
+// guard only suppresses pending, claimed, running, and retrying projector rows
+// so a previous recovery attempt can be processed before the sweep spends more
+// budget. This query therefore re-enqueues source-local projector work only for
+// generations that are blocked and not already being recovered, which
+// re-publishes the canonical-nodes-committed readiness phase and re-triggers the
+// downstream consumers over the existing facts (no re-clone). The re-drive
+// budget lives in the work item payload
 // (liveness_recovery_attempts) and is bounded by $2 so a poison scope cannot
 // loop forever; once the budget is exhausted the generation is left active for
 // an operator to inspect via the recovery endpoint or a manual replay.
@@ -88,6 +89,7 @@ RETURNING generation.scope_id, generation.generation_id
 //	$1 activation deadline   (now minus the activation-deadline window)
 //	$2 max recover attempts  (re-drive budget ceiling)
 //	$3 batch limit           (max generations re-driven per sweep)
+//	$4 now                   (work item visibility/update stamp)
 const recoverWedgedActiveGenerationsQuery = `
 WITH wedged AS (
     SELECT
@@ -128,11 +130,26 @@ WITH wedged AS (
             AND reducer_work.generation_id = generation.generation_id
             AND reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')
       )
+      -- A source-local projector row that is already pending or in progress is
+      -- an in-flight recovery. Do not include succeeded here: a succeeded
+      -- source-local row is the normal activation lifecycle state, and the
+      -- liveness upsert below must be allowed to reopen it when downstream
+      -- blockage still makes the generation wedged.
+      AND NOT EXISTS (
+          SELECT 1
+          FROM fact_work_items AS projector_work
+          WHERE projector_work.stage = 'projector'
+            AND projector_work.domain = 'source_local'
+            AND projector_work.scope_id = generation.scope_id
+            AND projector_work.generation_id = generation.generation_id
+            AND projector_work.status IN ('pending', 'claimed', 'running', 'retrying')
+      )
       AND COALESCE(
           (
               SELECT (existing.payload ->> 'liveness_recovery_attempts')::int
               FROM fact_work_items AS existing
               WHERE existing.stage = 'projector'
+                AND existing.domain = 'source_local'
                 AND existing.scope_id = generation.scope_id
                 AND existing.generation_id = generation.generation_id
           ),
@@ -217,10 +234,10 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 // gate: a generation is only stuck when it has aged past the deadline AND has
 // real downstream blockage (an outstanding shared_projection_intents row,
 // completed_at IS NULL) after reducer fact-work for the same generation has
-// drained. A healthy quiet projected scope that merely aged, or a busy
-// full-corpus bootstrap scope still moving through reducer work, is counted
-// aging, never stuck, so the alarm does not fire on normal idle installations or
-// on legitimate reducer backlog.
+// drained, with no source-local projector row already in flight. A healthy
+// quiet projected scope that merely aged or a busy full-corpus bootstrap scope
+// still moving through reducer work is counted aging, never stuck, so the alarm
+// does not fire on normal idle installations or reducer backlog.
 //
 // Parameter order:
 //
@@ -242,6 +259,14 @@ SELECT
               AND reducer_work.scope_id = generation.scope_id
               AND reducer_work.generation_id = generation.generation_id
               AND reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')
+        ) AND NOT EXISTS (
+            SELECT 1
+            FROM fact_work_items AS projector_work
+            WHERE projector_work.stage = 'projector'
+              AND projector_work.domain = 'source_local'
+              AND projector_work.scope_id = generation.scope_id
+              AND projector_work.generation_id = generation.generation_id
+              AND projector_work.status IN ('pending', 'claimed', 'running', 'retrying')
         ) THEN 'stuck'
         WHEN generation.activated_at < $1 THEN 'aging'
         ELSE 'fresh'

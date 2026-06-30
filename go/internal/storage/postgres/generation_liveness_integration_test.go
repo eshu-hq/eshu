@@ -27,9 +27,10 @@ import (
 //
 //  1. Wedged re-drive: a generation that has aged past the activation deadline
 //     and has outstanding shared_projection_intents is re-enqueued exactly once
-//     with liveness_recovery_attempts = 1. A second sweep past the budget ceiling
-//     (MaxRecoverAttempts = 1) does NOT re-enqueue — the budget gate and LEAST
-//     cap prevent a poison scope from looping.
+//     with liveness_recovery_attempts = 1, even when the normal activation path
+//     already left a succeeded source-local projector row. A second sweep past
+//     the budget ceiling (MaxRecoverAttempts = 1) does NOT re-enqueue — the
+//     budget gate and LEAST cap prevent a poison scope from looping.
 //
 //  2. Orphaned supersede: an older active generation for a scope that already has
 //     a newer active generation is retired to 'superseded'; the newest generation
@@ -39,13 +40,22 @@ import (
 //     never re-driven. A scope whose pending generation is newer than the active
 //     one is also left alone (the projector supersede path owns that case). A
 //     scope with same-generation reducer backlog is likewise left alone because
-//     reducer work is still progress, not a wedged generation.
+//     reducer work is still progress, not a wedged generation. A scope whose
+//     liveness recovery is already pending is also left alone so the sweep does
+//     not burn retry budget before the projector can process the pending work.
 //
 //  4. CountActiveGenerationsByAge returns correct fresh/aging/stuck counts. The
 //     stuck bucket requires an outstanding shared_projection_intents row and no
-//     unresolved reducer fact-work for the same generation; it does not filter for
-//     newer siblings, so gen-pending-active is also stuck. The aging bucket contains
-//     aged-but-drained generations (gen-aging, gen-orphaned-*) plus reducer backlog.
+//     unresolved reducer fact-work or in-flight source-local projector work for
+//     the same generation; it does not filter for newer siblings, so
+//     gen-pending-active is also stuck. The aging bucket contains
+//     aged-but-drained generations (gen-aging, gen-orphaned-*) plus reducer
+//     backlog and in-flight liveness recovery.
+//
+//  5. Recovery already in flight: with MaxRecoverAttempts above the current
+//     attempt count, a pending source-local liveness recovery row is still not
+//     selected again. The runner must not burn the remaining retry budget before
+//     the projector can process the pending work.
 func TestGenerationLivenessIntegration(t *testing.T) {
 	dsn := os.Getenv("ESHU_GENERATION_LIVENESS_PROOF_DSN")
 	if dsn == "" {
@@ -77,10 +87,12 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		// Stuck bucket: generations past the full deadline with outstanding
 		// shared_projection_intents (completed_at IS NULL).
 		//   gen-wedged: activated 2h ago, outstanding intent → stuck.
+		//   gen-shared-backlog: activated 2h ago, outstanding shared intent,
+		//     reducer work drained, succeeded source-local projector row → stuck.
 		//   gen-pending-active: activated 2h ago, outstanding intent → stuck.
 		//     (CountActiveGenerationsByAge does not filter for newer siblings —
 		//      only RecoverWedgedGenerations excludes them via NOT EXISTS.)
-		if got, want := counts["stuck"], int64(2); got != want {
+		if got, want := counts["stuck"], int64(3); got != want {
 			t.Fatalf("stuck count = %d, want %d", got, want)
 		}
 		// Fresh bucket: generations with no activated_at or activated within half
@@ -95,7 +107,9 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		//   gen-orphaned-new: activated 1h ago, no intents → aging.
 		//   gen-reducer-backlog: activated 2h ago, outstanding intent, pending
 		//     reducer work for the same generation → aging, not stuck.
-		if got, want := counts["aging"], int64(4); got != want {
+		//   gen-recovery-inflight: activated 2h ago, outstanding shared intent,
+		//     but liveness recovery is already pending → aging, not stuck.
+		if got, want := counts["aging"], int64(5); got != want {
 			t.Fatalf("aging count = %d, want %d", got, want)
 		}
 	})
@@ -167,8 +181,9 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 	// counter before this subtest runs.
 	// gen-wedged: active for scope-wedged, activated 2h ago, has an outstanding
 	// shared_projection_intents row (completed_at IS NULL), no newer generation
-	// for the scope. First sweep must re-enqueue exactly one projector work item
-	// with liveness_recovery_attempts = 1.
+	// for the scope, and the normal succeeded source-local projector row from
+	// activation. First sweep must reopen that projector work item with
+	// liveness_recovery_attempts = 1.
 	// ---------------------------------------------------------------------------
 	t.Run("WedgedReDrive", func(t *testing.T) {
 		db := openLivenessProofDB(t, dsn)
@@ -187,19 +202,24 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 			t.Fatalf("RecoveredScopeIDs = %v, want [scope-wedged]", result.RecoveredScopeIDs)
 		}
 
-		// Verify the projector work item exists and has liveness_recovery_attempts = 1.
+		// Verify the existing succeeded projector work item was reopened and has
+		// liveness_recovery_attempts = 1.
 		var attempts int
+		var status string
 		if err := db.QueryRowContext(ctx, `
-			SELECT (payload ->> 'liveness_recovery_attempts')::int
+			SELECT (payload ->> 'liveness_recovery_attempts')::int, status
 			FROM fact_work_items
 			WHERE scope_id = 'scope-wedged'
 			  AND generation_id = 'gen-wedged'
 			  AND stage = 'projector'
-		`).Scan(&attempts); err != nil {
-			t.Fatalf("query liveness_recovery_attempts: %v", err)
+		`).Scan(&attempts, &status); err != nil {
+			t.Fatalf("query reopened projector work: %v", err)
 		}
 		if attempts != 1 {
 			t.Fatalf("liveness_recovery_attempts = %d, want 1", attempts)
+		}
+		if status != "pending" {
+			t.Fatalf("reopened projector status = %q, want pending", status)
 		}
 
 		// Second sweep: budget ceiling is MaxRecoverAttempts = 1, so the work item
@@ -241,15 +261,16 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		store := NewGenerationLivenessStore(SQLDB{DB: db})
 		ctx := context.Background()
 
-		// Run a sweep. scope-fresh and scope-pending-newer must not be touched.
-		// scope-orphaned will be superseded and scope-wedged recovered, but this
-		// subtest only asserts on the safe scopes.
+		// Run a sweep. scope-fresh, scope-pending-newer, scope-reducer-backlog,
+		// and scope-recovery-inflight must not be touched. scope-orphaned will be
+		// superseded, and blocked scopes with succeeded source-local rows may be
+		// reopened once.
 		result, err := store.RecoverWedgedGenerations(ctx, policy, now)
 		if err != nil {
 			t.Fatalf("RecoverWedgedGenerations() error = %v", err)
 		}
-		if result.Recovered != 1 {
-			t.Fatalf("no-op sweep Recovered = %d, want 1 (only scope-wedged)", result.Recovered)
+		if result.Recovered != 2 {
+			t.Fatalf("no-op sweep Recovered = %d, want 2 (blocked succeeded rows reopened once)", result.Recovered)
 		}
 		if result.Superseded != 1 {
 			t.Fatalf("no-op sweep Superseded = %d, want 1 (only scope-orphaned)", result.Superseded)
@@ -279,7 +300,8 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 			t.Fatalf("gen-pending-active status = %q, want 'active'", pendingStatus)
 		}
 
-		// Confirm no projector work item created for safe scopes.
+		// Confirm no new projector work item was created for scopes that never
+		// had source-local projector work.
 		var noOpCount int
 		if err := db.QueryRowContext(ctx, `
 				SELECT COUNT(*) FROM fact_work_items
@@ -290,6 +312,48 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		}
 		if noOpCount != 0 {
 			t.Fatalf("projector work items for safe scopes = %d, want 0", noOpCount)
+		}
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 5: recovery already in flight.
+	// Isolated schema: only scope-recovery-inflight is seeded with a pending
+	// source-local projector row carrying liveness_recovery_attempts = 1. The
+	// policy allows up to five attempts so the budget gate alone cannot hide the
+	// bug; the source-local projector work gate must exclude it.
+	// ---------------------------------------------------------------------------
+	t.Run("RecoveryInFlightNoOp", func(t *testing.T) {
+		db := openLivenessProofDB(t, dsn)
+		provisionLivenessSchema(t, db, generationLivenessRecoveryInFlightOnlySeedSQL)
+		store := NewGenerationLivenessStore(SQLDB{DB: db})
+		ctx := context.Background()
+
+		result, err := store.RecoverWedgedGenerations(ctx, GenerationLivenessPolicy{
+			ActivationDeadline: 30 * time.Minute,
+			MaxRecoverAttempts: 5,
+			BatchLimit:         100,
+		}, now)
+		if err != nil {
+			t.Fatalf("RecoverWedgedGenerations() error = %v", err)
+		}
+		if result.Recovered != 0 {
+			t.Fatalf("Recovered = %d, want 0 (recovery already pending)", result.Recovered)
+		}
+
+		var attempts int
+		var status string
+		if err := db.QueryRowContext(ctx, `
+			SELECT (payload ->> 'liveness_recovery_attempts')::int, status
+			FROM fact_work_items
+			WHERE scope_id = 'scope-recovery-inflight'
+			  AND generation_id = 'gen-recovery-inflight'
+			  AND stage = 'projector'
+			  AND domain = 'source_local'
+		`).Scan(&attempts, &status); err != nil {
+			t.Fatalf("query recovery-inflight projector work: %v", err)
+		}
+		if attempts != 1 || status != "pending" {
+			t.Fatalf("recovery-inflight work = attempts %d status %q, want attempts 1 status pending", attempts, status)
 		}
 	})
 }
