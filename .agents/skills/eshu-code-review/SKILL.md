@@ -9,6 +9,12 @@ Eshu reviews are proof reviews. Start from reject. Author intent, local memory,
 and "this is just docs" are not evidence. Approve only when the final diff,
 required proof tier, and review findings all agree.
 
+Reviewer identity: be a cold principal architect. Do not admire the diff, do not
+reward effort, and do not infer safety from the author's confidence. First
+understand the system flow, ownership boundary, performance contract, edge
+cases, and operator evidence. If that full picture is missing, the verdict is
+`blocked`.
+
 Core rule: review the work product, not the story of the work. A separate
 reviewer should receive the same evidence packet and reach the same verdict. In
 self-review mode, rebuild that separation by reading only the final diff,
@@ -49,7 +55,10 @@ Inputs required:
 - base SHA, head SHA, branch, PR or push target, and whether main moved;
 - acceptance criteria, PR context, and review comments;
 - files changed, including generated artifacts;
+- a system impact map covering entrypoints, transformations, persistence,
+  async/transaction boundaries, consumers, invariants, and rollback behavior;
 - commands and runtime proof actually run;
+- edge-case and adversarial probes actually performed;
 - current open review findings;
 - current GitHub review threads from the review-thread API, not only
   `gh pr view` summaries, when a PR already exists;
@@ -61,6 +70,18 @@ Inputs required:
   graph-backed reads/writes, schema, or backend behavior is touched.
 
 If any input is missing, the review verdict is `blocked`, not "looks good".
+
+## Full-Picture Gate
+
+Before judging any finding, write the changed flow in concrete terms using
+`references/cold-review-probes.md`. The review must identify the production
+subject, entrypoints, transformations, persistence, async/transaction
+boundaries, consumers, invariants, cardinality, hot path, edge cases,
+concurrency model, rollback behavior, and operator evidence.
+
+Do not proceed to "nit" review while this gate is incomplete. Missing context is
+a P1 proof failure unless it could leak private data, corrupt truth, deadlock,
+or break main, in which case it is P0.
 
 ## Mandatory Live PR Truth Collection
 
@@ -127,12 +148,15 @@ Eshu surfaces:
 - API/MCP/CLI contracts:
 - graph/reducer/query/cassette/golden surfaces:
 - workflow/docs/agent-rule surfaces:
+- system impact map:
+- production subject and invariants:
 
 Proof:
 - selected proof tier:
 - commands actually run:
 - commands not run and why:
 - performance or observability evidence:
+- adversarial probes run:
 
 GitHub truth:
 - review-thread API snapshot or no-PR disposition:
@@ -157,8 +181,11 @@ evidence."
 
 Review in rejection mode:
 
-- Assume the diff has one correctness bug, one performance risk, and one
-  workflow loophole until proven otherwise.
+- Assume the diff has one correctness bug, one performance regression, one
+  edge-case escape, and one workflow loophole until proven otherwise.
+- Refuse to review a claim whose production flow is not mapped end to end.
+- Prefer the code, schema, workflow, generated artifact, and runnable command
+  over prose. If prose and source truth disagree, source truth wins.
 - Treat skipped proof as a finding unless the selected proof tier explains why
   it is out of scope.
 - Treat "follow-up" as suspicious until the review proves the missing condition
@@ -167,6 +194,9 @@ Review in rejection mode:
   and root agent files as contracts, not incidental outputs.
 - Treat old review comments as unresolved until they are fixed in HEAD, resolved
   in the review-thread API, or proven obsolete by an explicit outdated thread.
+- Challenge every "local mirror", "redaction", "coverage", "safe migration",
+  "runnable command", "generated in lockstep", and "no behavior change" claim
+  with at least one adversarial probe.
 
 Do not soften a finding because the change is small. Small process wording can
 authorize large future mistakes.
@@ -208,6 +238,13 @@ Pressure scenarios reviewers must distinguish:
 - Backend image or optimizer upgrades: cassette/golden replay proves functional
   truth, but backend-version, hot-path, startup, and performance proof need
   stronger validation.
+
+## Mandatory Adversarial Probes
+
+For every applicable surface in `references/cold-review-probes.md`, name the
+probe and its result in the review. A missing applicable probe is a finding even
+when tests pass. Helper-only probes do not count when the production subject,
+user-visible contract, runtime path, or CI execution path remains unexercised.
 
 ## Pass 0: Scope, Ownership, And Diff Integrity
 
@@ -345,6 +382,10 @@ Ask and answer:
 - What would an operator be unable to diagnose at 3 AM from telemetry alone?
 - What would NornicDB do if one label, index, constraint, or query shape differs
   from the happy path?
+- Which changed input is not covered by a local or CI trigger, and what false
+  green would that produce?
+- Which advertised command, flag, report field, or artifact has not been
+  executed exactly as users or CI will execute it?
 
 Classify every hostile-read finding with one class:
 
@@ -364,10 +405,13 @@ Every review must state whether the diff could trigger any of these classes and
 where the proof lives:
 
 - false-green tests;
+- unexercised production subjects hidden behind helper tests;
 - golden-corpus or B-12 snapshot drift;
 - stale generated artifacts or stale discovery registries;
+- workflow or local-gate parity gaps;
 - NornicDB planner fallback or version-skewed optimizer assumptions;
 - route, API, MCP, CLI, or OpenAPI mismatch;
+- public report redaction or classifier overreach;
 - materialization, graph projection, or query-surface disagreement;
 - concurrency, lease, retry, idempotency, or ordering bugs;
 - telemetry coverage gaps or missing operator-facing evidence;
@@ -408,7 +452,10 @@ review passes.
 The verdict is `blocked` when any of these are true:
 
 - base/head are not the final rebased diff to be pushed or merged;
+- the full-picture gate is incomplete for any touched production surface;
 - proof tier is missing, wrong, or not actually run for in-scope behavior;
+- an applicable adversarial probe is missing or only checks a helper instead of
+  the production subject;
 - P0 or P1 finding remains unresolved;
 - P2 finding is neither fixed nor linked to an explicit tracked repository
   issue;
@@ -423,74 +470,13 @@ The verdict is `blocked` when any of these are true:
 
 ## Output Template
 
-```text
-Eshu code review verdict: self-review|separate-review
-Base/head: <base>..<head>
-Review packet inspected: yes|no
-Reviewer mode: read-only|self-review
-Proof tier decision: <one tier>
-Why sufficient: <rationale; name cassette/golden assertions or missing runtime condition>
-
-Proof already established:
-- <facts proven by current diff/tests/checks; no praise, only evidence>
-
-Pass 0 - Scope, ownership, and diff integrity:
-- Findings: <pass, class, severity, confidence, disposition, file:line, rule/skill, fix>
-
-Pass 1 - Correctness and truth:
-- Findings: <pass, class, severity, confidence, disposition, file:line, rule/skill, fix>
-
-Pass 2 - Performance and storage/query shape:
-- NornicDB pinned/current source checked: <image/tag/digest and source commit/docs>
-- Expected fast paths/fallbacks: <flags and evidence>
-- Findings: <pass, class, severity, confidence, disposition, file:line, rule/skill, fix>
-
-Pass 3 - Reliability, concurrency, security, workflow hygiene:
-- Findings: <pass, class, severity, confidence, disposition, file:line, rule/skill, fix>
-
-Pass 4 - Hostile read and abuse cases:
-- Findings: <pass, class, severity, confidence, disposition, file:line, rule/skill, fix>
-
-Cross-pass comparison:
-- Contradictions/repeated findings: ...
-- Eshu failure classes checked: ...
-- Hostile-read classes checked: ...
-- Generated artifacts checked: ...
-- Private-data/AI-attribution scan: ...
-- GitHub review threads checked: ...
-- GitHub check rollup checked: ...
-- Follow-on validation required: ...
-
-Disposition:
-- P0=<n>, P1=<n>, P2=<n>
-- Fixed/reviewed again: <evidence>
-- Deferred follow-ups: <links and reasons>
-
-Verification evidence inspected:
-- <commands and runtime proof>
-
-Final readiness:
-- ready to push/create PR/merge: yes|no
-- latest GitHub truth timestamp:
-- verdict becomes stale if: <base moves, head changes, generated artifacts rerun, new review thread, red/pending required check, or named condition>
-```
+Use the template in `references/cold-review-probes.md`. Do not replace it with a
+short paragraph or a PR-body summary. A review that lacks the full-picture gate,
+all five passes, cross-pass comparison, probe results, GitHub truth, disposition,
+verification evidence, and stale-verdict conditions is incomplete.
 
 Ready means `P0=0`, `P1=0`, every P2 fixed or linked to a tracked repository
-issue, the selected proof tier is actually run for all in-scope behavior,
+issue, the full-picture gate is complete, every applicable adversarial probe has
+evidence, the selected proof tier is actually run for all in-scope behavior,
 out-of-scope proof gaps are routed to tracked follow-ups without overstating
 readiness, and the review was repeated after fixes.
-
-## Sample Follow-On Routing
-
-For a default NornicDB image upgrade:
-
-```text
-Proof tier decision: Full remote corpus required.
-Why sufficient: cassette/golden replay can prove functional graph/API/MCP truth
-on the new image, but not startup/schema lock waits, optimizer hot-path
-eligibility, image digest drift, graph-write budgets, queue-zero behavior, or
-NornicDB CPU/heap attribution.
-Follow-on validation required: route backend image pin, digest, startup,
-hot-path, performance, and full-corpus validation to the owning follow-up. This
-PR must not claim those conditions are proven unless that evidence is attached.
-```
