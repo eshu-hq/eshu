@@ -89,6 +89,8 @@ require "Build Test contract verifier job" "  verify-contracts:" "${build_test_w
 require "Build Test Go core job" "  go-core:" "${build_test_workflow}"
 require "Build Test Go race job" "  go-race:" "${build_test_workflow}"
 require "Build Test docs/Helm hygiene job" "  docs-helm-hygiene:" "${build_test_workflow}"
+require "Build Test go-core cancellation guards" 'if: ${{ !cancelled() }}' "${build_test_workflow}"
+require "Build Test race Helm setup" "Set up Helm for race tests" "${build_test_workflow}"
 if rg --quiet '^  build:' "${build_test_workflow}"; then
 	fail "test.yml must not keep the monolithic build job after #4263 split"
 fi

@@ -117,17 +117,21 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
       - name: Install golangci-lint
+        if: ${{ !cancelled() }}
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 
       - name: Build golangci-lint filelength plugin
+        if: ${{ !cancelled() }}
         working-directory: tools/golangci-lint-filelength
         run: make build
 
       - name: Lint Go
+        if: ${{ !cancelled() }}
         working-directory: go
         run: golangci-lint run ./...
 
       - name: Check gofumpt formatting
+        if: ${{ !cancelled() }}
         # gofumpt is configured under `formatters` in v2, so it is
         # NOT enforced by `golangci-lint run`. Run the formatter
         # check separately so a non-gofumpt-clean tree fails CI
@@ -136,6 +140,7 @@ jobs:
         run: golangci-lint fmt --diff
 
       - name: Build all Go binaries
+        if: ${{ !cancelled() }}
         working-directory: go
         run: go build ./...
 
@@ -154,6 +159,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      - name: Set up Helm for race tests
+        uses: azure/setup-helm@v5.0.0
 
       - name: Run Go tests with race detector
         working-directory: go
