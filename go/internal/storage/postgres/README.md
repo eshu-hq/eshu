@@ -1281,3 +1281,44 @@ per-statement latency/error spans and `eshu_dp_postgres_query_duration_seconds` 
 inherited without per-call wiring, and the pass still records
 `DeferredBackfillDuration`/`DeferredBackfillEvidence` and the
 `deferred_backfill_completed` summary log.
+
+### Deferred fact-load repo-id query chunking (#4257)
+
+The residual post-#3710 long tail was still shaped by one giant repository scope
+running `listDeferredScopedRelationshipFactRecordsQuery` with the full catalog's
+repo-id self-exclusion arm. The per-scope partition bound limited the fact rows,
+but the `$2` arm still evaluated one oversized repo-id array inside one SQL
+statement for that partition.
+
+`loadDeferredScopedFactsAcrossPartitions` now expands each `(scope_id,
+generation_id)` partition into bounded query tasks when the repo-id arm is large:
+up to 128 repo-id values per task. The non-repo-id alias arm runs once for the
+partition, the repo-id chunks keep the same #3659 self-exclusion SQL, and the
+merged fact set is de-duplicated by `fact_id` before `DiscoverEvidence` builds
+its content index. The worker cap is unchanged, so chunking bounds the slowest
+single fact-load query without adding unbounded concurrency or changing the
+write-side maintenance lock model.
+
+No-Regression Evidence: `TestLoadDeferredScopedFactsChunksRepoIDArm` failed on
+the pre-fix path because a 257-entry repo-id catalog issued one fact-load query;
+it passes after chunking by proving the path issues three bounded query chunks,
+each query has at most 128 repo-id values, the non-repo-id alias arm runs once,
+distinct facts from each chunk survive, and duplicate fact IDs collapse once.
+`TestLoadDeferredScopedFactsCanceledContextReturnsError` proves a canceled
+fact-load pass returns an error and no partial fact set before discovery or
+readiness publication. The surrounding focused storage tests passed with
+`go test ./internal/storage/postgres -run 'Test(BackfillDeferred|BackfillAllRelationshipEvidence|LoadDeferredScopedFacts|DeferredBackfill|BuildPayloadAnchorLikeTerms|ScopedRelationshipFactQueryShape)' -count=1`.
+
+Benchmark Evidence: `BenchmarkMergeDeferredScopedTaskFactsManyTasks` exercises
+the local merge shape for 256 query tasks with 64 unique fact IDs per task plus
+one duplicate in every task. The merge de-duplicates in one pass with one
+`seen` map, so chunking does not rebuild the accumulated fact-id map per query
+task.
+
+Observability Evidence: no new metric series or labels were added. The existing
+`relationship.backfill_deferred` span now includes `query_task_count`, and the
+existing `deferred_backfill_fact_load_completed` log includes `query_tasks` so
+operators can distinguish many partitions from a single partition split into
+repo-id chunks. Existing partition duration histograms continue to time each
+fact-load query task, and the existing Postgres query spans/metrics still show
+the underlying SQL latency and errors.

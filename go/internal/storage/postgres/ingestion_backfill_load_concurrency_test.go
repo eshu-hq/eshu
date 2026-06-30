@@ -6,9 +6,14 @@ package postgres
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/lib/pq"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // partitionLoadProbeQueryer records the peak number of simultaneously in-flight
@@ -165,4 +170,171 @@ func (q *errLoadProbeQueryer) QueryContext(
 		return nil, errors.New("synthetic per-scope load failure")
 	}
 	return &queueFakeRows{}, nil
+}
+
+// chunkProbeQueryer records the repo_id arm width for each deferred fact-load
+// query. It returns the same fact from every chunk so the caller must de-duplicate
+// merged rows by fact_id before discovery builds its content index.
+type chunkProbeQueryer struct {
+	mu                sync.Mutex
+	calls             int
+	maxRepoIDArgs     int
+	nonRepoIDArgCalls int
+}
+
+func (q *chunkProbeQueryer) QueryContext(
+	_ context.Context, query string, args ...any,
+) (Rows, error) {
+	if query != listDeferredScopedRelationshipFactRecordsQuery {
+		return &queueFakeRows{}, nil
+	}
+	q.mu.Lock()
+	q.calls++
+	call := q.calls
+	if len(args) >= 1 {
+		if nonRepoID, ok := args[0].(pq.StringArray); ok && len(nonRepoID) > 0 {
+			q.nonRepoIDArgCalls++
+		}
+	}
+	if len(args) >= 2 {
+		if repoIDs, ok := args[1].(pq.StringArray); ok && len(repoIDs) > q.maxRepoIDArgs {
+			q.maxRepoIDArgs = len(repoIDs)
+		}
+	}
+	q.mu.Unlock()
+
+	return &queueFakeRows{rows: [][]any{
+		contentFactRow(
+			"fact-duplicate",
+			"scope-large",
+			"gen-large",
+			"content",
+			`{"repo_id":"repo-large","artifact_type":"terraform","relative_path":"main.tf","content":"target = repo-000001"}`,
+		),
+		contentFactRow(
+			"fact-unique-"+itoa(call),
+			"scope-large",
+			"gen-large",
+			"content",
+			`{"repo_id":"repo-large","artifact_type":"terraform","relative_path":"unique.tf","content":"target = repo-000001"}`,
+		),
+	}}, nil
+}
+
+// TestLoadDeferredScopedFactsChunksRepoIDArm is the #4257 perf-shape regression:
+// one huge scope must not issue one giant self-exclusion query with the whole
+// catalog repo_id arm. The repo_id arm is split into bounded chunks that share
+// the existing worker pool, and duplicate fact rows from multiple chunks are
+// merged by fact_id so discovery sees the same fact set as the old union query.
+func TestLoadDeferredScopedFactsChunksRepoIDArm(t *testing.T) {
+	t.Parallel()
+
+	const maxRepoIDsPerQuery = 128
+	repoIDs := make([]string, 0, maxRepoIDsPerQuery*2+1)
+	for i := 0; i < maxRepoIDsPerQuery*2+1; i++ {
+		repoIDs = append(repoIDs, "repo-"+itoa(i))
+	}
+	params := deferredScopedFactQueryParams{
+		nonRepoIDLike: pq.StringArray{"%external-config%"},
+		repoIDValues:  pq.StringArray(repoIDs),
+	}
+	probe := &chunkProbeQueryer{}
+	store := NewIngestionStore(nil)
+	store.maintenanceWorkers = 4
+
+	loaded, err := store.loadDeferredScopedFactsAcrossPartitions(
+		context.Background(),
+		probe,
+		params,
+		[]scopeGenerationPartition{{ScopeID: "scope-large", GenerationID: "gen-large"}},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("loadDeferredScopedFactsAcrossPartitions error = %v, want nil", err)
+	}
+	if probe.calls != 3 {
+		t.Fatalf("issued %d fact-load queries, want 3 bounded chunks", probe.calls)
+	}
+	if probe.maxRepoIDArgs > maxRepoIDsPerQuery {
+		t.Fatalf("max repo_id args per query = %d, want <= %d", probe.maxRepoIDArgs, maxRepoIDsPerQuery)
+	}
+	if probe.nonRepoIDArgCalls != 1 {
+		t.Fatalf("non-repo_id LIKE arm ran in %d chunks, want 1", probe.nonRepoIDArgCalls)
+	}
+	if len(loaded) != 4 {
+		t.Fatalf("loaded %d facts, want 3 unique chunk facts plus one de-duplicated shared fact", len(loaded))
+	}
+	factIDs := make([]string, 0, len(loaded))
+	for _, envelope := range loaded {
+		factIDs = append(factIDs, envelope.FactID)
+	}
+	sort.Strings(factIDs)
+	wantFactIDs := []string{"fact-duplicate", "fact-unique-1", "fact-unique-2", "fact-unique-3"}
+	for i, want := range wantFactIDs {
+		if factIDs[i] != want {
+			t.Fatalf("factIDs = %v, want %v", factIDs, wantFactIDs)
+		}
+	}
+}
+
+// TestLoadDeferredScopedFactsCanceledContextReturnsError pins that cancellation
+// cannot produce a partial fact set with a nil error. Deferred backfill publishes
+// readiness after discovery, so a canceled fact-load pass must fail closed before
+// any partially loaded chunks can reach DiscoverEvidence.
+func TestLoadDeferredScopedFactsCanceledContextReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	probe := &chunkProbeQueryer{}
+	store := NewIngestionStore(nil)
+	store.maintenanceWorkers = 1
+
+	loaded, err := store.loadDeferredScopedFactsAcrossPartitions(
+		ctx,
+		probe,
+		deferredScopedFactQueryParams{
+			nonRepoIDLike: pq.StringArray{"%external-config%"},
+			repoIDValues:  pq.StringArray{"repo-a", "repo-b"},
+		},
+		[]scopeGenerationPartition{{ScopeID: "scope-large", GenerationID: "gen-large"}},
+		nil,
+	)
+	if err == nil {
+		t.Fatal("loadDeferredScopedFactsAcrossPartitions error = nil, want cancellation error")
+	}
+	if loaded != nil {
+		t.Fatalf("loaded = %v, want nil when context is canceled", loaded)
+	}
+	if probe.calls != 0 {
+		t.Fatalf("issued %d queries after canceled context, want 0", probe.calls)
+	}
+}
+
+func BenchmarkMergeDeferredScopedTaskFactsManyTasks(b *testing.B) {
+	const (
+		taskCount     = 256
+		factsPerTask  = 64
+		duplicateID   = "fact-duplicate"
+		expectedFacts = taskCount*factsPerTask + 1
+	)
+	perTask := make([][]facts.Envelope, 0, taskCount)
+	for taskIndex := 0; taskIndex < taskCount; taskIndex++ {
+		taskFacts := make([]facts.Envelope, 0, factsPerTask+1)
+		taskFacts = append(taskFacts, facts.Envelope{FactID: duplicateID})
+		for factIndex := 0; factIndex < factsPerTask; factIndex++ {
+			taskFacts = append(taskFacts, facts.Envelope{
+				FactID: "fact-" + itoa(taskIndex) + "-" + itoa(factIndex),
+			})
+		}
+		perTask = append(perTask, taskFacts)
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		merged := mergeDeferredScopedTaskFacts(perTask)
+		if len(merged) != expectedFacts {
+			b.Fatalf("merged %d facts, want %d", len(merged), expectedFacts)
+		}
+	}
 }

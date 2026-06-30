@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -27,6 +28,13 @@ import (
 type scopeGenerationPartition struct {
 	ScopeID      string
 	GenerationID string
+}
+
+const deferredScopedRepoIDChunkSize = 128
+
+type deferredScopedFactLoadTask struct {
+	partition scopeGenerationPartition
+	params    deferredScopedFactQueryParams
 }
 
 // loadActiveScopeGenerationPartitions returns the (scope_id, generation_id) pairs
@@ -178,12 +186,13 @@ func (s IngestionStore) loadDeferredAnchorScopedRelationshipFacts(
 // produces evidence only for its own source facts, so concatenating partition
 // results and sorting yields the same fact set a single corpus scan would.
 //
-// The fan-out is keyed 1:1 on the (scope_id, generation_id) partition pair (the
-// caller pre-sorted the slice), so two scopes that would collapse to the same
-// derived repo_id are loaded as two independent partitions. Per-partition load
-// duration, the partition count, and worker saturation are emitted as aggregate
-// signals (issue #3710) so an operator can size the fan-out's contribution to the
-// pass without per-fact cardinality.
+// The fan-out preserves the (scope_id, generation_id) partition key (the caller
+// pre-sorted the slice), so two scopes that would collapse to the same derived
+// repo_id are loaded as independent partitions. Large repo-id arms are split into
+// bounded query tasks for the same partition; per-query load duration, the
+// partition count, query task count, and worker saturation are emitted as
+// aggregate signals so an operator can size the fan-out's contribution without
+// per-fact cardinality.
 func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 	ctx context.Context,
 	queryer Queryer,
@@ -191,12 +200,16 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 	partitions []scopeGenerationPartition,
 	instruments *telemetry.Instruments,
 ) ([]facts.Envelope, error) {
+	tasks := buildDeferredScopedFactLoadTasks(partitions, params)
+	if len(tasks) == 0 {
+		return nil, nil
+	}
 	workers := s.maintenanceWorkers
 	if workers < 1 {
 		workers = 1
 	}
-	if workers > len(partitions) {
-		workers = len(partitions)
+	if workers > len(tasks) {
+		workers = len(tasks)
 	}
 	if instruments != nil {
 		instruments.DeferredBackfillPartitions.Add(ctx, int64(len(partitions)))
@@ -211,6 +224,7 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(
 		attribute.Int("partition_count", len(partitions)),
+		attribute.Int("query_task_count", len(tasks)),
 		attribute.Int("worker_count", workers),
 	)
 
@@ -221,14 +235,16 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 		mu       sync.Mutex
 		firstErr error
 	)
-	// perPartition is indexed 1:1 with partitions: worker i writes only
-	// perPartition[i], so no two workers touch the same slot and the merge below is
-	// a lock-free concatenation in the caller's deterministic partition order.
-	perPartition := make([][]facts.Envelope, len(partitions))
+	// perTask is indexed 1:1 with tasks: worker i writes only perTask[i], so no
+	// two workers touch the same slot and the merge below is a lock-free
+	// deterministic union. Large repo_id catalogs are split into multiple tasks
+	// for the same partition; mergeDeferredScopedTaskFacts drops duplicate fact_id
+	// rows when a fact matches more than one chunk.
+	perTask := make([][]facts.Envelope, len(tasks))
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
 
-	for i, partition := range partitions {
+	for i, task := range tasks {
 		// Best-effort pre-check: skip dispatching new partitions once a worker has
 		// latched the first error (or the shared context is cancelled). It is a
 		// best-effort fast-exit, not a correctness gate — the authoritative
@@ -241,15 +257,23 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 			break
 		}
 
-		sem <- struct{}{}
+		acquired := false
+		select {
+		case sem <- struct{}{}:
+			acquired = true
+		case <-groupCtx.Done():
+		}
+		if !acquired {
+			break
+		}
 		wg.Add(1)
-		go func(index int, part scopeGenerationPartition) {
+		go func(index int, task deferredScopedFactLoadTask) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
 			started := time.Now()
 			envelopes, err := loadDeferredScopedRelationshipFactsForPartition(
-				groupCtx, queryer, params, part.ScopeID, part.GenerationID,
+				groupCtx, queryer, task.params, task.partition.ScopeID, task.partition.GenerationID,
 			)
 			if instruments != nil {
 				instruments.DeferredBackfillPartitionLoadDuration.Record(groupCtx, time.Since(started).Seconds())
@@ -258,7 +282,7 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 				mu.Lock()
 				if firstErr == nil {
 					firstErr = fmt.Errorf(
-						"load deferred scoped facts for scope %q: %w", part.ScopeID, err,
+						"load deferred scoped facts for scope %q: %w", task.partition.ScopeID, err,
 					)
 					// Name the partition that aborted the pass on the span (issue
 					// #3710) so an operator sees which scope failed from the trace, not
@@ -266,26 +290,26 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 					// failure; cancellation cascades on the remaining partitions do not
 					// overwrite firstErr and so add no follow-on events.
 					span.AddEvent("partition_load_failed", trace.WithAttributes(
-						attribute.String("scope_id", part.ScopeID),
+						attribute.String("scope_id", task.partition.ScopeID),
 					))
 					cancel()
 				}
 				mu.Unlock()
 				return
 			}
-			perPartition[index] = envelopes
-		}(i, partition)
+			perTask[index] = envelopes
+		}(i, task)
 	}
 
 	wg.Wait()
 	if firstErr != nil {
 		return nil, firstErr
 	}
-
-	var merged []facts.Envelope
-	for _, envelopes := range perPartition {
-		merged = append(merged, envelopes...)
+	if err := groupCtx.Err(); err != nil {
+		return nil, err
 	}
+
+	merged := mergeDeferredScopedTaskFacts(perTask)
 	sort.SliceStable(merged, func(i, j int) bool {
 		if merged[i].ObservedAt.Equal(merged[j].ObservedAt) {
 			return merged[i].FactID < merged[j].FactID
@@ -293,10 +317,67 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 		return merged[i].ObservedAt.Before(merged[j].ObservedAt)
 	})
 	log.Printf(
-		"deferred_backfill_fact_load_completed partitions=%d workers=%d loaded_facts=%d",
-		len(partitions), workers, len(merged),
+		"deferred_backfill_fact_load_completed partitions=%d query_tasks=%d workers=%d loaded_facts=%d",
+		len(partitions), len(tasks), workers, len(merged),
 	)
 	return merged, nil
+}
+
+func mergeDeferredScopedTaskFacts(perTask [][]facts.Envelope) []facts.Envelope {
+	total := 0
+	for _, envelopes := range perTask {
+		total += len(envelopes)
+	}
+	if total == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, total)
+	merged := make([]facts.Envelope, 0, total)
+	for _, envelopes := range perTask {
+		for _, envelope := range envelopes {
+			if envelope.FactID != "" {
+				if _, ok := seen[envelope.FactID]; ok {
+					continue
+				}
+				seen[envelope.FactID] = struct{}{}
+			}
+			merged = append(merged, envelope)
+		}
+	}
+	return merged
+}
+
+func buildDeferredScopedFactLoadTasks(
+	partitions []scopeGenerationPartition,
+	params deferredScopedFactQueryParams,
+) []deferredScopedFactLoadTask {
+	tasks := make([]deferredScopedFactLoadTask, 0, len(partitions))
+	for _, partition := range partitions {
+		repoIDValues := []string(params.repoIDValues)
+		if len(repoIDValues) == 0 {
+			tasks = append(tasks, deferredScopedFactLoadTask{partition: partition, params: params})
+			continue
+		}
+		for start := 0; start < len(repoIDValues); start += deferredScopedRepoIDChunkSize {
+			end := start + deferredScopedRepoIDChunkSize
+			if end > len(repoIDValues) {
+				end = len(repoIDValues)
+			}
+			taskParams := deferredScopedFactQueryParams{
+				repoIDValues: pq.StringArray(repoIDValues[start:end]),
+			}
+			if start == 0 {
+				taskParams.nonRepoIDLike = params.nonRepoIDLike
+			} else {
+				taskParams.nonRepoIDLike = pq.StringArray{}
+			}
+			tasks = append(tasks, deferredScopedFactLoadTask{
+				partition: partition,
+				params:    taskParams,
+			})
+		}
+	}
+	return tasks
 }
 
 // appendArgoCDGeneratorConfigFacts runs the deferred backfill's phase-two ArgoCD
