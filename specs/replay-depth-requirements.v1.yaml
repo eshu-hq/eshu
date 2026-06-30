@@ -38,6 +38,10 @@ version: "v1"
 # internal/storage/cypher retract label sets. Order is irrelevant (the lockstep
 # test compares as sets); grouping is for review only.
 retractable_node_types:
+  # structural (retracted by the dedicated file/directory retract statements,
+  # not the per-domain entity scan; Directory is the #4186 tombstone class)
+  - Directory
+  - File
   # code
   - Annotation
   - Class

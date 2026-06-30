@@ -3,9 +3,23 @@
 
 package cypher
 
-// RetractableNodeEntityLabels returns the sorted, de-duplicated set of graph
-// node entity labels the canonical retract phase can tombstone (the union of the
-// per-domain retract label sets the retract phase scans).
+import "sort"
+
+// fileAndDirectoryRetractLabels are the structural graph node labels the retract
+// phase tombstones outside the per-domain entity-label sets: File (via
+// canonicalNodeRetractFilesCypher / canonicalNodeRetractRemovedFilesCypher and the
+// delta canonicalNodeRetractDeltaDeletedFilesCypher) and Directory (via the delta
+// canonicalNodeRetractDeltaEmptyDirectoriesCypher — the #4186 directory-tombstone
+// class itself). They are retracted by dedicated statements in
+// buildRetractStatements/buildDeltaRetractStatements rather than the entity-label
+// scan, so they must be added explicitly or the delta denominator would omit the
+// exact node types #4186 is about.
+var fileAndDirectoryRetractLabels = []string{"Directory", "File"}
+
+// RetractableNodeEntityLabels returns the sorted, de-duplicated set of graph node
+// labels the canonical retract phase can tombstone: the per-domain entity-label
+// sets the retract phase scans, plus the structural File and Directory labels the
+// dedicated file/directory retract statements remove.
 //
 // It is the lockstep source of truth for replay depth coverage (epic #4172,
 // C-13 issue #4366): the replay-coverage gate requires a delta/tombstone replay
@@ -14,5 +28,8 @@ package cypher
 // to a retract set therefore makes the gate demand a new delta scenario for it
 // (the #4186 directory-tombstone class), instead of the gap going unseen.
 func RetractableNodeEntityLabels() []string {
-	return canonicalNodeRetractEntityLabels()
+	labels := canonicalNodeRetractEntityLabels()
+	labels = append(labels, fileAndDirectoryRetractLabels...)
+	sort.Strings(labels)
+	return labels
 }

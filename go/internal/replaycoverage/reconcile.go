@@ -82,13 +82,21 @@ func Reconcile(supported []SupportedSurface, m Manifest, r Resolver) Coverage {
 		switch ex, exempt := exemptBySurface[s.Key]; {
 		case exempt:
 			exCopy := ex
-			out.Surfaces = append(out.Surfaces, SurfaceCoverage{
-				Surface:      s,
-				ScenarioType: ScenarioTypeBaseline,
-				Status:       StatusExempt,
-				Exemption:    &exCopy,
-				Detail:       ex.Reason,
-			})
+			// A baseline exemption must not silently suppress a surface's derived
+			// depth requirements (e.g. fault for a collector boundary). Emit an
+			// exempt row for every required scenario_type so a no-upstream collector
+			// is visibly fault-exempt, not absent from the C-14 worklist. Surfaces
+			// with no derived depth requirement keep their single baseline row.
+			for _, scenarioType := range requiredScenarioTypes(s.Key, requirementsBySurface) {
+				supportedRequirementKeys[manifestCoverageKey(s.Key, scenarioType)] = struct{}{}
+				out.Surfaces = append(out.Surfaces, SurfaceCoverage{
+					Surface:      s,
+					ScenarioType: scenarioType,
+					Status:       StatusExempt,
+					Exemption:    &exCopy,
+					Detail:       ex.Reason,
+				})
+			}
 		default:
 			for _, scenarioType := range requiredScenarioTypes(s.Key, requirementsBySurface) {
 				supportedRequirementKeys[manifestCoverageKey(s.Key, scenarioType)] = struct{}{}

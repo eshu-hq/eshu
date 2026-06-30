@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 210/331 surfaces satisfied (63.44%)** — mode: blocking.
+**Overall: 214/337 surfaces satisfied (63.50%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,9 +18,9 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 0 | 24 | 0.00% | 24 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 0 | 85 | 0.00% | 85 | 0 |
-| Collectors | 18 | 30 | 60.00% | 12 | 4 |
-| **Total** | **210** | **331** | **63.44%** | **121** | **5** |
+| Retractable node types (delta) | 0 | 87 | 0.00% | 87 | 0 |
+| Collectors | 22 | 34 | 64.71% | 12 | 8 |
+| **Total** | **214** | **337** | **63.50%** | **123** | **9** |
 
 ## Coverage by scenario type
 
@@ -29,8 +29,8 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 204 | 204 | 100.00% | 0 | 5 |
 | cost | 1 | 23 | 4.35% | 22 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 1 | 86 | 1.16% | 85 | 0 |
-| fault | 1 | 13 | 7.69% | 12 | 0 |
+| delta_tombstone | 1 | 88 | 1.14% | 87 | 0 |
+| fault | 5 | 17 | 29.41% | 12 | 4 |
 | ordering | 1 | 3 | 33.33% | 2 | 0 |
 
 ## Language parser coverage
@@ -65,7 +65,7 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 
 ## Gaps — surfaces still needing a replay scenario
 
-121 surface(s) uncovered or unresolved:
+123 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (24)
 
@@ -94,7 +94,7 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 - `projection:supply_chain_impact` (ordering)
 - `projection:supply_chain_impact` (cost)
 
-### Retractable node types (delta) (85)
+### Retractable node types (delta) (87)
 
 - `retractable_node:AnalyticsModel` (delta_tombstone)
 - `retractable_node:Annotation` (delta_tombstone)
@@ -120,7 +120,9 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 - `retractable_node:DataContract` (delta_tombstone)
 - `retractable_node:DataOwner` (delta_tombstone)
 - `retractable_node:DataQualityCheck` (delta_tombstone)
+- `retractable_node:Directory` (delta_tombstone)
 - `retractable_node:Enum` (delta_tombstone)
+- `retractable_node:File` (delta_tombstone)
 - `retractable_node:Function` (delta_tombstone)
 - `retractable_node:GitlabJob` (delta_tombstone)
 - `retractable_node:GitlabPipeline` (delta_tombstone)
@@ -197,7 +199,7 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 - `collector:terraform_state` (fault)
 - `collector:vulnerability_intelligence` (fault)
 
-## Covered surfaces (210)
+## Covered surfaces (214)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -396,7 +398,9 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 | `collector:aws` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:aws` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_timeout_test.go` |
 | `collector:documentation` | baseline | exempt | — | — |
+| `collector:documentation` | fault | exempt | — | — |
 | `collector:git` | baseline | exempt | — | — |
+| `collector:git` | fault | exempt | — | — |
 | `collector:grafana` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/grafana/supply-chain-demo.json` |
 | `collector:jira` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/jira/supply-chain-demo.json` |
 | `collector:loki` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/loki/supply-chain-demo.json` |
@@ -406,8 +410,10 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 | `collector:prometheus_mimir` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
 | `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
 | `collector:scanner_worker` | baseline | exempt | — | — |
+| `collector:scanner_worker` | fault | exempt | — | — |
 | `collector:security_alert` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
 | `collector:tempo` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/tempo/supply-chain-demo.json` |
 | `collector:terraform_state` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/terraformstate/supply-chain-demo.json` |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
 | `collector:webhook` | baseline | exempt | — | — |
+| `collector:webhook` | fault | exempt | — | — |
