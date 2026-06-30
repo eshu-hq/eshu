@@ -23,7 +23,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Check gofumpt formatting"
+      job: "go-core"
     requirements:
       - go
     ci_only_reason: ""
@@ -41,7 +41,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Lint Go"
+      job: "go-core"
     requirements:
       - go
     ci_only_reason: ""
@@ -59,7 +59,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Build all Go binaries"
+      job: "go-core"
     requirements:
       - go
     ci_only_reason: ""
@@ -76,7 +76,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Lint Go"
+      job: "go-core"
     requirements:
       - go
     ci_only_reason: ""
@@ -93,7 +93,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Lint Go"
+      job: "go-core"
     requirements:
       - go
     ci_only_reason: ""
@@ -111,7 +111,7 @@ gates:
       test_command: "bash scripts/test-verify-package-docs.sh"
     ci:
       workflow: test.yml
-      job: "Verify package docs"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -155,7 +155,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Check whitespace hygiene"
+      job: "docs-helm-hygiene"
     requirements:
       - go
     ci_only_reason: ""
@@ -173,7 +173,7 @@ gates:
       test_command: "bash scripts/test-verify-license-header.sh"
     ci:
       workflow: test.yml
-      job: "Verify Go license headers"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -352,7 +352,7 @@ gates:
       test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
     ci:
       workflow: test.yml
-      job: "Verify parser relationship and language ledger"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -372,7 +372,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Verify accuracy golden gate"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -390,7 +390,7 @@ gates:
       test_command: "bash scripts/test-verify-query-plan-regression.sh"
     ci:
       workflow: test.yml
-      job: "Verify query-plan regression gate"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -409,7 +409,7 @@ gates:
       test_command: "bash scripts/test-verify-scale-corpus-suite.sh"
     ci:
       workflow: test.yml
-      job: "Verify scale corpus suite"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -428,7 +428,7 @@ gates:
       test_command: "bash scripts/test-verify-scale-benchmark-artifact.sh"
     ci:
       workflow: test.yml
-      job: "Verify scale benchmark artifact"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -447,7 +447,7 @@ gates:
       test_command: "bash scripts/test-verify-capability-budget-proof.sh"
     ci:
       workflow: test.yml
-      job: "Verify capability budget proof"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -466,7 +466,7 @@ gates:
       test_command: "bash scripts/test-verify-collector-entrypoints-generated.sh"
     ci:
       workflow: test.yml
-      job: "Verify generated collector entrypoints"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -591,7 +591,7 @@ gates:
       test_command: "bash scripts/test-verify-docs-build-changed.sh"
     ci:
       workflow: test.yml
-      job: "Verify docs build"
+      job: "docs-helm-hygiene"
     requirements:
       - go
     ci_only_reason: ""
@@ -1003,7 +1003,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Verify hot-path evidence"
+      job: "verify-contracts"
     requirements:
       - go
     ci_only_reason: ""
@@ -1067,7 +1067,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Run Go tests with race detector"
+      job: "go-race"
     requirements:
       - go
     ci_only_reason: ""
