@@ -14,6 +14,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ci-gates-registry.sh"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
+build_test_workflow="${repo_root}/.github/workflows/test.yml"
 
 fail() {
 	printf 'test-verify-ci-gates-registry: %s\n' "$*" >&2
@@ -76,6 +77,23 @@ require "selected gate matrix" \
 require "empty-selection job guard" \
 	"needs.changes.outputs.any == 'true'" \
 	"${static_contract_workflow}"
+
+# #4263 workflow shape: Build Test must expose separately timed verdict
+# surfaces for static contract verifiers, Go lint/build, race tests, and the
+# Helm/docs/whitespace tail. A monolithic build job hides which surface hit the
+# timeout.
+[[ -f "${build_test_workflow}" ]] || fail "missing ${build_test_workflow}"
+require "Build Test read-only token permissions" "permissions:" "${build_test_workflow}"
+require "Build Test contents read permission" "  contents: read" "${build_test_workflow}"
+require "Build Test contract verifier job" "  verify-contracts:" "${build_test_workflow}"
+require "Build Test Go core job" "  go-core:" "${build_test_workflow}"
+require "Build Test Go race job" "  go-race:" "${build_test_workflow}"
+require "Build Test docs/Helm hygiene job" "  docs-helm-hygiene:" "${build_test_workflow}"
+require "Build Test go-core cancellation guards" 'if: ${{ !cancelled() }}' "${build_test_workflow}"
+require "Build Test race Helm setup" "Set up Helm for race tests" "${build_test_workflow}"
+if rg --quiet '^  build:' "${build_test_workflow}"; then
+	fail "test.yml must not keep the monolithic build job after #4263 split"
+fi
 
 # ── 3. Live validate + drift — proves every script + workflow ref exists AND
 #       that .pre-commit-config.yaml / .github/workflows stay in lockstep ─────
