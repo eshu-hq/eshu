@@ -251,3 +251,68 @@ exemptions:
 		t.Fatal("expected error for surface both required and exempt")
 	}
 }
+
+func TestLoadManifestParsesLanguageExemptions(t *testing.T) {
+	path := writeManifest(t, `version: "v1"
+language_exemptions:
+  - surface: language:go
+    reason: exercised end-to-end by the golden-corpus 20-repo corpus
+  - surface: language:python
+    reason: exercised end-to-end by the golden-corpus 20-repo corpus
+`)
+	m, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+	if len(m.LanguageExemptions) != 2 {
+		t.Fatalf("language exemptions = %d, want 2", len(m.LanguageExemptions))
+	}
+	if m.LanguageExemptions[0].Surface != "language:go" || m.LanguageExemptions[0].Reason == "" {
+		t.Errorf("first language exemption = %+v", m.LanguageExemptions[0])
+	}
+	// Language exemptions live in their own namespace and must NOT leak into the
+	// blocking surface reconcile's exemption set.
+	if len(m.Exemptions) != 0 {
+		t.Errorf("language exemptions must not populate surface Exemptions; got %d", len(m.Exemptions))
+	}
+}
+
+func TestLoadManifestRejectsBadLanguageExemptions(t *testing.T) {
+	for name, body := range map[string]string{
+		"missing prefix": "version: \"v1\"\nlanguage_exemptions:\n  - surface: go\n    reason: r\n",
+		"blank name":     "version: \"v1\"\nlanguage_exemptions:\n  - surface: \"language:\"\n    reason: r\n",
+		"blank reason":   "version: \"v1\"\nlanguage_exemptions:\n  - surface: language:go\n    reason: \"\"\n",
+		"duplicate":      "version: \"v1\"\nlanguage_exemptions:\n  - surface: language:go\n    reason: r\n  - surface: language:go\n    reason: r2\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := LoadManifest(writeManifest(t, body)); err == nil {
+				t.Fatalf("%s language exemption must be a load error", name)
+			}
+		})
+	}
+}
+
+func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
+	// Every committed language exemption must name a real ledger language, and the
+	// scoreboard must enumerate all 32 — no language silently absent, no stale
+	// exemption. This binds the manifest to the ledger in CI.
+	specs := repoSpecsDir(t)
+	m, err := LoadManifest(filepath.Join(specs, ManifestFileName))
+	if err != nil {
+		t.Fatalf("LoadManifest(real): %v", err)
+	}
+	ledger, err := LoadLanguageLedger(filepath.Join(specs, LanguageLedgerFileName))
+	if err != nil {
+		t.Fatalf("LoadLanguageLedger(real): %v", err)
+	}
+	board := BuildLanguageScoreboard(ledger, m.LanguageExemptions)
+	if len(board.StaleExemptions) != 0 {
+		t.Fatalf("committed manifest has stale language exemptions: %v", board.StaleExemptions)
+	}
+	if board.Total != len(ledger.Languages) || board.Total != board.Exempt+board.Uncovered {
+		t.Fatalf("scoreboard does not account for every ledger language: %+v", board)
+	}
+	if board.Exempt != len(m.LanguageExemptions) {
+		t.Fatalf("exempt count %d != committed exemptions %d", board.Exempt, len(m.LanguageExemptions))
+	}
+}

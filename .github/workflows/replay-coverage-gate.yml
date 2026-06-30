@@ -38,6 +38,7 @@ on:
       - 'specs/authorization-catalog.v1.yaml'
       - 'specs/authorization-replay-coverage.v1.yaml'
       - 'specs/parser-backing-ledger.v1.yaml'
+      - 'specs/language-feature-parity-ledger.v1.yaml'
       - 'specs/fact-kind-registry.v1.yaml'
       - 'specs/surface-inventory.v1.yaml'
       - 'specs/capability-matrix.v1.yaml'

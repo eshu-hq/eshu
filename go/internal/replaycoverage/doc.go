@@ -65,6 +65,20 @@
 // gates with neither a CI workflow nor a local-only rationale are unresolved
 // proof metadata, not covered replay scenarios.
 //
+// # The language-parser scoreboard (C-11)
+//
+// BuildLanguageScoreboard produces a separate, visibility-only scoreboard
+// (issue #4364) over every language in the language-feature-parity ledger
+// (LoadLanguageLedger), so no language Eshu claims to parse is silently absent
+// from the coverage count. Each language is exempt when it is exercised
+// end-to-end by the golden-corpus corpus (declared in the manifest's
+// language_exemptions list) or uncovered — the C-12 (#4365) parser-fixture
+// backfill worklist. The scoreboard is deliberately kept out of EnumerateSupported
+// and Findings: tree-sitter languages can have a fixture, so they are honest
+// uncovered gaps rather than exemptions, and listing those gaps must not fail the
+// blocking gate. It is rendered into the coverage report and the C-7 dashboard
+// only.
+//
 // # Advisory to blocking
 //
 // Findings reuse the shared goldengate.Finding/Report machinery. Local advisory
@@ -72,6 +86,6 @@
 // CI now passes the single blocking flag after the C-2..C-10 burn-down, so every
 // uncovered, unresolved, and stale finding is required and coverage cannot
 // regress. BuildReport emits the machine-readable coverage-report artifact,
-// including per-scenario_type summaries, that the C-7 dashboard consumes on
-// every run.
+// including per-scenario_type summaries and the language-parser scoreboard, that
+// the C-7 dashboard consumes on every run.
 package replaycoverage

@@ -26,6 +26,14 @@ Scoped rules for editing the C-1/C-8/C-9 replay coverage gate core. Load
   CI passes the single blocking flag now that the C-lane coverage gaps have
   burned down. Keep that the only severity control — do not add per-finding
   `Required` overrides.
+- **The language-parser scoreboard does not gate.** `BuildLanguageScoreboard`
+  (C-11, #4364) is a visibility-only artifact over the
+  `language-feature-parity-ledger`; it is deliberately kept out of
+  `EnumerateSupported` and `Findings`. Tree-sitter languages *can* have a fixture
+  (that is C-12 / #4365), so a not-yet-covered language is an honest `uncovered`
+  row on the scoreboard, never a manifest `exemption` and never a blocking
+  finding. Only mark a language exempt in `language_exemptions` when its files
+  genuinely appear in the staged golden-corpus repos.
 - **Determinism.** Enumeration sorts by registry then key; the report and stale
   list are sorted; `MarshalReport` is byte-stable with a trailing newline. No
   timestamps or wall-clock in the artifact.

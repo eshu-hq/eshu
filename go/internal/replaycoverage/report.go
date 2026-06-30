@@ -11,8 +11,8 @@ import (
 
 // ReportSchemaVersion is the coverage-report artifact schema version. C-7
 // (coverage dashboard) consumes this artifact, so the version is bumped when the
-// report shape changes.
-const ReportSchemaVersion = "replay-coverage-report.v2"
+// report shape changes. v3 adds the C-11 (#4364) language-parser scoreboard.
+const ReportSchemaVersion = "replay-coverage-report.v3"
 
 // RegistrySummary is the per-registry (or grand-total) coverage tally. The grand
 // total uses an empty Registry.
@@ -66,6 +66,11 @@ type CoverageReport struct {
 	Gaps []string `json:"gaps"`
 	// Stale are manifest surfaces matching no supported surface, sorted.
 	Stale []string `json:"stale_manifest_surfaces"`
+	// LanguageScoreboard is the C-11 (#4364) language-parser coverage scoreboard:
+	// the honest count of how many ledger languages the golden-corpus corpus
+	// exercises, plus the explicit uncovered list (the C-12 #4365 worklist). It is
+	// visibility-only and does not affect the blocking surface reconcile above.
+	LanguageScoreboard LanguageScoreboard `json:"language_scoreboard"`
 }
 
 // BuildReport renders a reconciliation into the coverage-report artifact.

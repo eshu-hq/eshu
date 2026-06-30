@@ -104,6 +104,10 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 	if err != nil {
 		return replaycoverage.Inputs{}, err
 	}
+	languageLedger, err := replaycoverage.LoadLanguageLedger(filepath.Join(o.specsDir, replaycoverage.LanguageLedgerFileName))
+	if err != nil {
+		return replaycoverage.Inputs{}, err
+	}
 	matrix, err := capabilitycatalog.LoadMatrix(o.specsDir)
 	if err != nil {
 		return replaycoverage.Inputs{}, fmt.Errorf("load capability matrix: %w", err)
@@ -133,16 +137,18 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		return replaycoverage.Inputs{}, fmt.Errorf("load snapshot: %w", err)
 	}
 	return replaycoverage.Inputs{
-		Inventory:     inv,
-		FactKinds:     facts.FactKindRegistry(),
-		Ledger:        ledger,
-		Matrix:        matrix,
-		ProductClaims: productClaims,
-		CLIShapes:     snapshot.QueryShapes.CLI,
-		Authorization: authorization,
-		AuthzProofs:   authzProofs,
-		Manifest:      manifest,
-		ProofGates:    proofGates,
+		Inventory:          inv,
+		FactKinds:          facts.FactKindRegistry(),
+		Ledger:             ledger,
+		LanguageLedger:     languageLedger,
+		LanguageExemptions: manifest.LanguageExemptions,
+		Matrix:             matrix,
+		ProductClaims:      productClaims,
+		CLIShapes:          snapshot.QueryShapes.CLI,
+		Authorization:      authorization,
+		AuthzProofs:        authzProofs,
+		Manifest:           manifest,
+		ProofGates:         proofGates,
 		Resolver: replaycoverage.ArtifactResolver{
 			RepoRoot:      o.repoRoot,
 			Snapshot:      snapshot,
@@ -199,6 +205,10 @@ func writeCoverageSummary(w io.Writer, report replaycoverage.CoverageReport) {
 	_, _ = fmt.Fprintf(w, "  %-22s %3d/%-3d satisfied (%.2f%%)  gaps=%d stale=%d\n",
 		"TOTAL", report.Totals.Covered+report.Totals.Exempt, report.Totals.Total,
 		report.Totals.PercentSatisfied, len(report.Gaps), len(report.Stale))
+	if board := report.LanguageScoreboard; board.Total > 0 {
+		_, _ = fmt.Fprintf(w, "  %-22s %3d/%-3d corpus-exercised (%.2f%%)  uncovered=%d (C-12 #4365 worklist)\n",
+			"language-parsers", board.Exempt, board.Total, board.PercentSatisfied, board.Uncovered)
+	}
 }
 
 func modeLabel(blocking bool) string {

@@ -56,6 +56,7 @@ func RenderDashboard(rep CoverageReport) []byte {
 
 	writeAxisTable(&b, rep)
 	writeScenarioTypeTable(&b, rep)
+	writeLanguageScoreboard(&b, rep)
 	writeGaps(&b, rep)
 	writeCovered(&b, rep)
 	if len(rep.Stale) > 0 {
@@ -65,6 +66,52 @@ func RenderDashboard(rep CoverageReport) []byte {
 	// end-of-file-fixer hook (which would otherwise rewrite it and break the
 	// lockstep test).
 	return []byte(strings.TrimRight(b.String(), "\n") + "\n")
+}
+
+// writeLanguageScoreboard renders the C-11 (#4364) language-parser coverage
+// scoreboard: the honest exempt/uncovered split across every language in the
+// language-feature-parity ledger, plus the explicit uncovered list (the C-12
+// #4365 fixture-backfill worklist). It is visibility-only — these languages do
+// not gate the build — so it is reported separately from the blocking axis
+// table. The section is omitted when no ledger is loaded (e.g. renderer tests).
+func writeLanguageScoreboard(b *strings.Builder, rep CoverageReport) {
+	board := rep.LanguageScoreboard
+	if board.Total == 0 {
+		return
+	}
+	b.WriteString("## Language parser coverage\n\n")
+	b.WriteString("Visibility-only scoreboard (C-11, ")
+	b.WriteString("[#4364](https://github.com/eshu-hq/eshu/issues/4364)) over every language in ")
+	b.WriteString("`specs/language-feature-parity-ledger.v1.yaml`. A language is *exempt* when it is ")
+	b.WriteString("exercised end-to-end by the golden-corpus 20-repo corpus; the rest are *uncovered* ")
+	b.WriteString("— the C-12 ([#4365](https://github.com/eshu-hq/eshu/issues/4365)) fixture-backfill ")
+	b.WriteString("worklist. This scoreboard does not gate the build.\n\n")
+	fmt.Fprintf(b, "**%d/%d languages exercised by the corpus (%.2f%%); %d uncovered.**\n\n",
+		board.Exempt, board.Total, board.PercentSatisfied, board.Uncovered)
+
+	uncovered := make([]string, 0, board.Uncovered)
+	for _, row := range board.Languages {
+		if row.Status == LanguageUncovered {
+			uncovered = append(uncovered, row.Language)
+		}
+	}
+	if len(uncovered) > 0 {
+		fmt.Fprintf(b, "Uncovered (%d) — needs a parser-fixture replay scenario:\n\n", len(uncovered))
+		for _, lang := range uncovered {
+			fmt.Fprintf(b, "- `%s`\n", lang)
+		}
+		b.WriteString("\n")
+	} else {
+		b.WriteString("Every ledger language is corpus-exercised.\n\n")
+	}
+
+	if len(board.StaleExemptions) > 0 {
+		b.WriteString("Stale language exemptions (map no ledger language — a language was renamed or removed):\n\n")
+		for _, s := range board.StaleExemptions {
+			fmt.Fprintf(b, "- `%s`\n", s)
+		}
+		b.WriteString("\n")
+	}
 }
 
 func writeScenarioTypeTable(b *strings.Builder, rep CoverageReport) {

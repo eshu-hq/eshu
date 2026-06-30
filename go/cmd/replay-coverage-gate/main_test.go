@@ -21,6 +21,10 @@ func testEnv(t *testing.T, manifestBody string) (specsDir, snapshot, manifest, r
 		[]byte("version: 1\nparser_backing:\n  - parser: hcl\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(specsDir, "language-feature-parity-ledger.v1.yaml"),
+		[]byte("version: 1\nlanguage_features:\n  - language: go\n  - language: rust\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(specsDir, "capability-matrix.v1.yaml"),
 		[]byte("capabilities:\n  - capability: cap.demo\n    profiles:\n      local: {status: supported}\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -85,7 +89,7 @@ func TestRunAdvisoryReportsGapsWithoutFailing(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("report not written: %v", readErr)
 	}
-	if !strings.Contains(string(data), "\"schema_version\": \"replay-coverage-report.v2\"") {
+	if !strings.Contains(string(data), "\"schema_version\": \"replay-coverage-report.v3\"") {
 		t.Errorf("report payload missing schema version:\n%s", data)
 	}
 	// The real embedded registries enumerate uncovered surfaces -> non-empty gaps.

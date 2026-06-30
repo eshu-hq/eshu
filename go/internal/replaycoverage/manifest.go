@@ -162,13 +162,21 @@ type Manifest struct {
 	Requirements []ScenarioRequirement
 	// Exemptions are the deliberately-uncovered surfaces with reasons.
 	Exemptions []Exemption
+	// LanguageExemptions are the C-11 (#4364) language-parser scoreboard
+	// exemptions: languages exercised end-to-end by the golden-corpus corpus, each
+	// keyed "language:<name>" with an audited reason. They are a separate,
+	// visibility-only set from the blocking surface reconcile above (the language
+	// scoreboard does not gate), so they never collide with the surface
+	// Exemptions and are never flagged as stale by the surface reconcile.
+	LanguageExemptions []Exemption
 }
 
 type manifestFile struct {
-	Version      string                    `yaml:"version"`
-	Coverage     []manifestFileEntry       `yaml:"coverage"`
-	Requirements []manifestFileRequirement `yaml:"scenario_requirements"`
-	Exemptions   []manifestFileExempt      `yaml:"exemptions"`
+	Version            string                    `yaml:"version"`
+	Coverage           []manifestFileEntry       `yaml:"coverage"`
+	Requirements       []manifestFileRequirement `yaml:"scenario_requirements"`
+	Exemptions         []manifestFileExempt      `yaml:"exemptions"`
+	LanguageExemptions []manifestFileExempt      `yaml:"language_exemptions"`
 }
 
 type manifestFileEntry struct {
@@ -306,6 +314,32 @@ func LoadManifest(path string) (Manifest, error) {
 		}
 		declaredSurfaces[surface] = "exemption"
 		m.Exemptions = append(m.Exemptions, Exemption{Surface: surface, Reason: reason})
+	}
+
+	// language_exemptions is the C-11 (#4364) language-parser scoreboard's
+	// exempt set, kept in its own namespace ("language:<name>") and its own field
+	// so it never collides with the blocking surface reconcile above. Each must
+	// carry the "language:" prefix, a non-blank language name, a non-blank reason,
+	// and be unique, because any of those silently corrupts the scoreboard count.
+	declaredLanguages := map[string]struct{}{}
+	for _, ex := range parsed.LanguageExemptions {
+		surface := strings.TrimSpace(ex.Surface)
+		reason := strings.TrimSpace(ex.Reason)
+		if surface == "" {
+			return Manifest{}, fmt.Errorf("coverage manifest %s: language exemption has blank surface", path)
+		}
+		name := strings.TrimSpace(strings.TrimPrefix(surface, LanguageSurfacePrefix))
+		if !strings.HasPrefix(surface, LanguageSurfacePrefix) || name == "" {
+			return Manifest{}, fmt.Errorf("coverage manifest %s: language exemption %q must be keyed %q<language>", path, surface, LanguageSurfacePrefix)
+		}
+		if reason == "" {
+			return Manifest{}, fmt.Errorf("coverage manifest %s: language exemption %q has blank reason", path, surface)
+		}
+		if _, dup := declaredLanguages[surface]; dup {
+			return Manifest{}, fmt.Errorf("coverage manifest %s: language exemption %q declared twice", path, surface)
+		}
+		declaredLanguages[surface] = struct{}{}
+		m.LanguageExemptions = append(m.LanguageExemptions, Exemption{Surface: surface, Reason: reason})
 	}
 
 	return m, nil
