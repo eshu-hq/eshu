@@ -20,7 +20,9 @@ the same `golang.org/x/tools` revision the host binary uses.
 
 The config enables: `govet`, `staticcheck` (umbrella that pulls in
 `ineffassign`, `unused`, `gosimple`), `gocritic`, `errcheck`,
-`exhaustive`, `wrapcheck`. `gofumpt` is enabled under `formatters`
+`exhaustive`, `wrapcheck`, the custom `filelength` 500-line file cap,
+and `funlen` (a 150-line function cap complementing the file cap, issue
+eshu-hq/eshu#3789). `gofumpt` is enabled under `formatters`
 in v2's split model. Each linter's per-package settings and the
 boundary-package exclusions (cmd/*, AWS SDK adapters, scanner
 workers, OCI/package-registry sources, git selection filesystem,
@@ -76,6 +78,39 @@ skips. They add no runtime behavior, no metric, no log, no queue,
 no worker, no batch, and no graph-write change. The audit confirms
 `instruments.go` is a data registry and the other 20 files are
 either god files tracked for split or single-purpose adapters.
+
+### funlen rule and path-level baseline (67 grandfathered files)
+
+No-Regression Evidence: `funlen` is enabled with `lines: 150`,
+`statements: -1` (statement check disabled), and `ignore-comments:
+true`, so it hard-fails any function whose code-line count exceeds 150
+(issue eshu-hq/eshu#3789). Test files are excluded via the existing
+`_test\.go` exclusion rule — table-driven test setups and fixture
+builders are legitimately long and are not the target. golangci-lint
+has no per-linter "warning" tier that still passes CI, so the issue's
+"warn > 100" goal is documented in the config comment rather than
+enforced as a separate non-blocking level (CI is binary). 67 files hold
+68 pre-existing production functions over the 150-line cap; they are
+grandfathered via `linters.exclusions.rules` path-level `funlen`
+entries (the same path-exclusion mechanism the config already uses for
+`exhaustive` and `wrapcheck`), so the gate fails on NEW long functions
+in every other file. Path-level exclusion is deliberate over inline
+`//nolint:funlen`: a tooling-only marker added to guarded parser, query,
+and route-handler source would trip the `verify-parser-relationship-kit`
+and `verify-route-coverage` lockstep gates (which require test/doc
+updates, or surface pre-existing route-coverage gaps, whenever those
+files change). Keeping the baseline in the config touches no source
+file. The largest grandfathered functions are `NewInstruments`
+(a 2,700-line metric registry), the MCP tool-table builders
+(`ecosystemTools`, `codebaseTools`, `supplyChainTools`), and
+query/parser/reducer hot-path functions tracked for future extraction;
+the functions already split by the merged D-1/D-4 work are not in the
+list.
+
+No-Observability-Change: the `funlen` path-level exclusions are linter
+configuration. They add no runtime behavior, no metric, no log, no
+queue, no worker, no batch, and no graph-write change, and they touch no
+Go source file.
 
 ### gocritic disabled-checks (31 checks)
 

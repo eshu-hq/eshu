@@ -52,8 +52,27 @@ linters:
     # ── the custom 500-line file cap (Go plugin, see settings.custom) ──
     - filelength
 
+    # ── funlen: function-length cap complementing the 500-line file cap.
+    #    Hard-fails any function whose body exceeds 150 lines (issue #3789).
+    #    Comments and blank lines are ignored so a long doc comment does not
+    #    trip the gate; the statement check is disabled so only the line count
+    #    matters. golangci-lint has no per-linter "warning" tier that still
+    #    passes CI, so the issue's "warn > 100" is documented here rather than
+    #    enforced as a separate non-blocking level — CI is binary. Test files
+    #    are excluded (see exclusions below): table-driven test setups and
+    #    fixture builders are legitimately long and are not the target. The
+    #    files with pre-existing production functions over the cap are
+    #    grandfathered via path-level exclusions (see exclusions.rules) so the
+    #    cap fails on NEW long functions in every other file. ──
+    - funlen
+
   # ── the custom 500-line file cap plugin ──
   settings:
+    funlen:
+      lines: 150
+      statements: -1
+      ignore-comments: true
+
     custom:
       filelength:
         type: goplugin
@@ -217,6 +236,218 @@ linters:
           - errcheck
           - wrapcheck
           - exhaustive
+          # Table-driven test setups, fixture builders, and adversarial-case
+          # tables are legitimately long; the function-length cap targets
+          # production code, not test scaffolding.
+          - funlen
+      # ── funlen baseline (#3789): these files contain pre-existing
+      #    functions over the 150-line cap. They are grandfathered via
+      #    path-level exclusion (not inline //nolint) so the guarded
+      #    parser/query/handler source stays untouched and the
+      #    parser-relationship-kit and route-coverage lockstep gates do
+      #    not fire on what is a tooling-only change. The cap still
+      #    applies to every other file; these are tracked for extraction.
+      - path: 'cmd/api/wiring\.go'
+        linters:
+          - funlen
+      - path: 'cmd/api/wiring_router\.go'
+        linters:
+          - funlen
+      - path: 'cmd/bootstrap-index/bootstrap_collector\.go'
+        linters:
+          - funlen
+      - path: 'cmd/bootstrap-index/bootstrap_pipeline\.go'
+        linters:
+          - funlen
+      - path: 'cmd/eshu/diagnostics_classify\.go'
+        linters:
+          - funlen
+      - path: 'cmd/eshu/local_host\.go'
+        linters:
+          - funlen
+      - path: 'cmd/ingester/wiring_nornicdb_phase_group_streaming\.go'
+        linters:
+          - funlen
+      - path: 'cmd/mcp-server/wiring\.go'
+        linters:
+          - funlen
+      - path: 'cmd/reducer/main\.go'
+        linters:
+          - funlen
+      - path: 'cmd/workflow-coordinator/main\.go'
+        linters:
+          - funlen
+      - path: 'internal/ask/catalog/annotations_routes\.go'
+        linters:
+          - funlen
+      - path: 'internal/ask/catalog/annotations_tools\.go'
+        linters:
+          - funlen
+      - path: 'internal/ask/sandbox/normalize\.go'
+        linters:
+          - funlen
+      - path: 'internal/collector/awscloud/services/iam/scanner\.go'
+        linters:
+          - funlen
+      - path: 'internal/collector/git_fact_builder\.go'
+        linters:
+          - funlen
+      - path: 'internal/collector/git_snapshot_native\.go'
+        linters:
+          - funlen
+      - path: 'internal/collector/git_source_stream\.go'
+        linters:
+          - funlen
+      - path: 'internal/coordinator/service\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/dispatch\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/tools_codebase\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/tools_content\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/tools_context\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/tools_ecosystem\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/tools_runtime\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/tools_supply_chain\.go'
+        linters:
+          - funlen
+      - path: 'internal/mcp/tools_supply_chain_aggregates\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/go_package_interface_prescan\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/golang/dead_code_semantic_roots\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/golang/language\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/javascript/javascript_language\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/json/dbt_manifest\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/json/dependency_coverage\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/python/language\.go'
+        linters:
+          - funlen
+      - path: 'internal/parser/registry_definitions\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/auth_scoped_routes\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/code_dead_code_analysis\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/code_relationships\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/entity_summary\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/handler\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/impact_trace_deployment\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/infra\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/investigation_workflow_catalog\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/language_query_entities\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/repository\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/repository_context\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/repository_deployment_overview_story\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/semantic_profile\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/service_query_enrichment\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/supply_chain_impact_findings_handler\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/code_call_materialization\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/code_call_materialization_index\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/code_call_projection_runner\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/code_call_projection_selection\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/cross_repo_resolution\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/projection\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/registry\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/service_batch\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/shared_projection_worker\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/sql_relationship_materialization\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/supply_chain_impact_reachability\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/workload_materialization_handler\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/workload_materializer\.go'
+        linters:
+          - funlen
+      - path: 'internal/status/status_health\.go'
+        linters:
+          - funlen
+      - path: 'internal/storage/cypher/semantic_entity\.go'
+        linters:
+          - funlen
+      - path: 'internal/storage/postgres/content_writer\.go'
+        linters:
+          - funlen
+      - path: 'internal/storage/postgres/ingestion\.go'
+        linters:
+          - funlen
+      - path: 'internal/telemetry/instruments\.go'
+        linters:
+          - funlen
       # Reducer domain catalog intentionally enumerates a subset of
       # domains; the full list is dynamic and assembled in registry.go.
       - path: 'internal/reducer/defaults_domain_catalog\.go'
