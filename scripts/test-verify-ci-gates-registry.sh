@@ -83,6 +83,8 @@ require "empty-selection job guard" \
 # Helm/docs/whitespace tail. A monolithic build job hides which surface hit the
 # timeout.
 [[ -f "${build_test_workflow}" ]] || fail "missing ${build_test_workflow}"
+require "Build Test read-only token permissions" "permissions:" "${build_test_workflow}"
+require "Build Test contents read permission" "  contents: read" "${build_test_workflow}"
 require "Build Test contract verifier job" "  verify-contracts:" "${build_test_workflow}"
 require "Build Test Go core job" "  go-core:" "${build_test_workflow}"
 require "Build Test Go race job" "  go-race:" "${build_test_workflow}"
