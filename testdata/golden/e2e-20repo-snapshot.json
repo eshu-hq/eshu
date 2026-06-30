@@ -3498,6 +3498,28 @@
         ],
         "minimum_results": 0
       },
+      "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25": {
+        "description": "Semantic code hints; confirms optional semantic code-hint facts project to the mounted semantic evidence read surface.",
+        "truth_class": "optional_semantic",
+        "required_response_fields": [
+          "code_hints",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
+      "GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25": {
+        "description": "Semantic documentation observations; confirms optional semantic documentation facts project to the mounted semantic evidence read surface.",
+        "truth_class": "optional_semantic",
+        "required_response_fields": [
+          "observations",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 0
+      },
       "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo": {
         "description": "Service-catalog correlations for a scope; confirms the service-catalog read surface is mounted and queryable.",
         "required_response_fields": [

@@ -91,6 +91,8 @@ coverage:
   - {surface: "read_surface:GET /api/v0/documentation/facts", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/documentation/facts?fact_kind=source", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/secrets-iam/posture-summary", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/ci-cd/run-correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/semantic/code-hints", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/semantic/documentation-observations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/service-catalog/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
 
   # C-9 (#4188): CLI read surfaces. Each maps to a B-12 query_shapes.cli key;
@@ -349,16 +351,8 @@ exemptions:
       analysis facts; it has no credentialed source to record, so a cassette of
       the supply-chain-demo kind does not apply.
 
-  # C-5 (#4177): two fact-kind read surfaces that cannot be asserted by the
+  # C-5 (#4177): one fact-kind read surface cannot be asserted by the
   # golden-corpus gate as-is.
-  - surface: read_surface:GET /api/v0/semantic-evidence
-    reason: >-
-      Registry drift: the fact-kind registry declares read_surface
-      "GET /api/v0/semantic-evidence", but no such route is mounted — the semantic
-      evidence is served by /api/v0/semantic/documentation-observations and
-      /api/v0/semantic/code-hints. A golden cannot call a non-existent route.
-      Tracked by #4197 to reconcile the registry read_surface with the mounted
-      route; exempt until the registry is corrected.
   - surface: read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations
     reason: >-
       Truth-ceiling: the security_alert_reconciliations.list capability is

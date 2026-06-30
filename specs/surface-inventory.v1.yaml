@@ -303,7 +303,7 @@ surfaces:
     collector_contract:
       fact_kinds: [semantic.code_hint, semantic.documentation_observation]
       projection_surfaces: [semantic_evidence_read_model]
-      read_surfaces: [GET /api/v0/search/semantic, GET /api/v0/semantic-evidence, list_semantic_evidence, search_semantic_context]
+      read_surfaces: [GET /api/v0/search/semantic, GET /api/v0/semantic/documentation-observations, GET /api/v0/semantic/code-hints, list_semantic_code_hints, list_semantic_documentation_observations, search_semantic_context]
       proof_gates: [cd go && go test ./internal/collector/extensionhost ./internal/query ./internal/mcp -count=1]
       fixture_refs: [go/internal/query/documentation-semantic-observations-readback.md]
       truth_profile: optional_semantic

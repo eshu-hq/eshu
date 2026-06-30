@@ -1864,8 +1864,10 @@
         ],
         "read_surfaces": [
           "GET /api/v0/search/semantic",
-          "GET /api/v0/semantic-evidence",
-          "list_semantic_evidence",
+          "GET /api/v0/semantic/code-hints",
+          "GET /api/v0/semantic/documentation-observations",
+          "list_semantic_code_hints",
+          "list_semantic_documentation_observations",
           "search_semantic_context"
         ],
         "proof_gates": [
