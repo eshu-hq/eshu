@@ -944,6 +944,7 @@ gates:
       - "specs/authorization-catalog.v1.yaml"
       - "specs/authorization-replay-coverage.v1.yaml"
       - "specs/parser-backing-ledger.v1.yaml"
+      - "specs/language-feature-parity-ledger.v1.yaml"
       - "specs/fact-kind-registry.v1.yaml"
       - "specs/surface-inventory.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"

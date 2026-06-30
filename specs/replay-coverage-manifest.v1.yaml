@@ -381,6 +381,18 @@ language_exemptions:
       helm_argocd_platform fixture carries an Argo CD `kind: Application`
       (argoproj.io) manifest that flows sync -> discover -> parse -> emit. The
       fixture corpus is its replay scenario.
+  - surface: language:atlantis
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: terraform_comprehensive
+      carries an atlantis.yaml that the gate parses into AtlantisProject/AtlantisWorkflow
+      nodes and requires rc-5 (MANAGES) and rc-6 (DEPENDS_ON) over. The fixture
+      corpus is its replay scenario.
+  - surface: language:gitlab-ci
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: terraform_comprehensive
+      carries a depth-0 .gitlab-ci.yml that the gate parses into GitlabPipeline/GitlabJob
+      nodes and requires rc-27 (DEFINES_JOB) and rc-28 (NEEDS) over. The fixture
+      corpus is its replay scenario.
   - surface: language:go
     reason: >-
       Exercised end-to-end by the golden-corpus 20-repo corpus: go_comprehensive,

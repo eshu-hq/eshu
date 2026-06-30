@@ -67,6 +67,7 @@ require "workflow watches inputtape depth proofs" "go/internal/replay/inputtape/
 require "workflow watches schedule depth proofs" "go/internal/replay/schedulereplay/**" "${workflow}"
 require "workflow watches crash depth proofs" "go/internal/replay/crashreplay/**" "${workflow}"
 require "workflow watches budget proof artifact" "specs/capability-budget-proof.v1.yaml" "${workflow}"
+require "workflow watches language ledger" "specs/language-feature-parity-ledger.v1.yaml" "${workflow}"
 require "workflow watches ci gate registry" "specs/ci-gates.v1.yaml" "${workflow}"
 require "workflow watches parser fixtures" "go/internal/replay/parserfixture/**" "${workflow}"
 require "workflow watches capability catalog" "specs/capability-catalog.v1.yaml" "${workflow}"
