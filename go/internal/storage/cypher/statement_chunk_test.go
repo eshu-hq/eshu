@@ -34,6 +34,35 @@ DELETE r`,
 	}
 }
 
+func TestChunkPositiveStringSliceRetractStatementSplitsPositiveUnwindList(t *testing.T) {
+	t.Parallel()
+
+	stmt := Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher: `UNWIND $file_paths AS file_path
+MATCH (f:File {path: file_path})
+WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
+DETACH DELETE f`,
+		Parameters: map[string]any{
+			"file_paths": []string{"a.go", "b.go", "c.go", "d.go", "e.go"},
+			"repo_id":    "repo-1",
+		},
+	}
+
+	chunks := ChunkPositiveStringSliceRetractStatement(stmt, 2)
+	if got, want := len(chunks), 3; got != want {
+		t.Fatalf("len(chunks) = %d, want %d", got, want)
+	}
+	assertStringSliceParam(t, chunks[0], "file_paths", []string{"a.go", "b.go"})
+	assertStringSliceParam(t, chunks[1], "file_paths", []string{"c.go", "d.go"})
+	assertStringSliceParam(t, chunks[2], "file_paths", []string{"e.go"})
+	for _, chunk := range chunks {
+		if got, want := chunk.Parameters["repo_id"], "repo-1"; got != want {
+			t.Fatalf("repo_id = %#v, want %#v", got, want)
+		}
+	}
+}
+
 func TestChunkPositiveStringSliceRetractStatementDoesNotSplitNegativeInList(t *testing.T) {
 	t.Parallel()
 
