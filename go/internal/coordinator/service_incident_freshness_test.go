@@ -4,8 +4,12 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,10 +155,11 @@ func TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims(t *testing.T) {
 }
 
 type fakeIncidentFreshnessTriggerStore struct {
-	claimed     []webhook.StoredIncidentFreshnessTrigger
-	handedOff   []string
-	failed      []string
-	failedCalls []incidentFreshnessFailureCall
+	claimed       []webhook.StoredIncidentFreshnessTrigger
+	handedOff     []string
+	failed        []string
+	failedCalls   []incidentFreshnessFailureCall
+	markFailedErr error
 }
 
 func (s *fakeIncidentFreshnessTriggerStore) ClaimQueuedTriggers(
@@ -187,7 +192,7 @@ func (s *fakeIncidentFreshnessTriggerStore) MarkTriggersFailed(
 		triggerIDs:   append([]string(nil), triggerIDs...),
 		failureClass: failureClass,
 	})
-	return nil
+	return s.markFailedErr
 }
 
 func (s *fakeIncidentFreshnessTriggerStore) failedCall(failureClass string) []string {
@@ -226,4 +231,37 @@ func incidentFreshnessStoredTrigger(
 type incidentFreshnessFailureCall struct {
 	triggerIDs   []string
 	failureClass string
+}
+
+// TestMarkIncidentFreshnessFailedLogsWhenMarkErrors proves the best-effort
+// MarkTriggersFailed call is observable: when persisting the failure-marking
+// itself errors, the operator gets a WARN rather than a silent drop (#3793).
+func TestMarkIncidentFreshnessFailedLogsWhenMarkErrors(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 30, 0, 0, time.UTC)
+	var logs bytes.Buffer
+	triggerStore := &fakeIncidentFreshnessTriggerStore{markFailedErr: errors.New("postgres write failed")}
+	service := Service{
+		IncidentFreshnessTriggers: triggerStore,
+		Logger:                    slog.New(slog.NewTextHandler(&logs, nil)),
+	}
+
+	service.markIncidentFreshnessFailed(
+		context.Background(),
+		[]webhook.StoredIncidentFreshnessTrigger{
+			incidentFreshnessStoredTrigger("trigger-pd", webhook.ProviderPagerDuty, "pagerduty:account:example", now),
+		},
+		now,
+		"incident_freshness_handoff_error",
+		"boom",
+	)
+
+	out := logs.String()
+	if !strings.Contains(out, "did not persist") {
+		t.Fatalf("expected a WARN that the failure marking did not persist, got: %q", out)
+	}
+	if !strings.Contains(out, "postgres write failed") {
+		t.Fatalf("expected the underlying error in the log, got: %q", out)
+	}
 }

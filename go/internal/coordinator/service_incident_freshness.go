@@ -273,7 +273,18 @@ func (s Service) markIncidentFreshnessFailed(
 ) {
 	ids := incidentFreshnessTriggerIDs(triggers)
 	if len(ids) > 0 {
-		_ = s.IncidentFreshnessTriggers.MarkTriggersFailed(ctx, ids, observedAt, failureClass, failureMessage)
+		// Best-effort: we are already on the failure path (the primary handoff
+		// could not be planned), so a failed failure-marking write must not abort
+		// reconciliation. It is logged rather than swallowed so an operator can
+		// see that the triggers were not durably marked failed (#3793).
+		if err := s.IncidentFreshnessTriggers.MarkTriggersFailed(ctx, ids, observedAt, failureClass, failureMessage); err != nil && s.Logger != nil {
+			s.Logger.Warn(
+				"incident-freshness trigger failure marking did not persist",
+				"error", err,
+				"trigger_count", len(ids),
+				"failure_class", failureClass,
+			)
+		}
 	}
 }
 

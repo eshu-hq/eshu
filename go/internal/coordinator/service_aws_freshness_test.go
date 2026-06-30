@@ -4,7 +4,11 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +26,7 @@ type fakeAWSFreshnessTriggerStore struct {
 	failedIDs     []string
 	failureClass  string
 	failureReason string
+	markFailedErr error
 }
 
 func (f *fakeAWSFreshnessTriggerStore) ClaimQueuedTriggers(
@@ -53,7 +58,7 @@ func (f *fakeAWSFreshnessTriggerStore) MarkTriggersFailed(
 	f.failedIDs = append(f.failedIDs, triggerIDs...)
 	f.failureClass = failureClass
 	f.failureReason = failureReason
-	return nil
+	return f.markFailedErr
 }
 
 type fakeAWSFreshnessCounter struct {
@@ -313,4 +318,35 @@ func testServiceAWSConfiguration() string {
 			"allowed_services": ["lambda"]
 		}]
 	}`
+}
+
+// TestMarkAWSFreshnessFailedLogsWhenMarkErrors proves the best-effort
+// MarkTriggersFailed call is observable: when persisting the failure-marking
+// itself errors, the operator gets a WARN rather than a silent drop (#3793).
+func TestMarkAWSFreshnessFailedLogsWhenMarkErrors(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 30, 0, 0, time.UTC)
+	var logs bytes.Buffer
+	triggerStore := &fakeAWSFreshnessTriggerStore{markFailedErr: errors.New("postgres write failed")}
+	service := Service{
+		AWSFreshnessTriggers: triggerStore,
+		Logger:               slog.New(slog.NewTextHandler(&logs, nil)),
+	}
+
+	service.markAWSFreshnessFailed(
+		context.Background(),
+		[]freshness.StoredTrigger{{TriggerID: "aws-trigger-1"}},
+		now,
+		"aws_freshness_handoff_error",
+		"boom",
+	)
+
+	out := logs.String()
+	if !strings.Contains(out, "did not persist") {
+		t.Fatalf("expected a WARN that the failure marking did not persist, got: %q", out)
+	}
+	if !strings.Contains(out, "postgres write failed") {
+		t.Fatalf("expected the underlying error in the log, got: %q", out)
+	}
 }
