@@ -59,6 +59,12 @@ a redacted fact, a bounded warning, or a normalized identity.
 - `ParentScopeKind` (`organization`, `folder`, `project`) with `Valid`.
 - `ParseAssetsListPage`, `ParseSearchAllResourcesPage`, `AssetsListPage` —
   fixture-driven CAI parsing.
+- `RegisterAssetExtractor`, `AssetAttributeExtractor`, `AttributeExtraction`,
+  `ExtractContext` — the per-asset-type typed-depth extractor registry. Each
+  supported asset type registers its extractor in its own file (see
+  `extractor_bigquery_table.go` for the reference BigQuery Table extractor);
+  `ResourceObservation.Attributes` and `.CorrelationAnchors` carry the bounded,
+  redaction-safe result into the `gcp_cloud_resource` fact.
 - `AssetTypeFamily`, `LocationBucket`, `NormalizeAncestry`, `Ancestry`,
   `ProjectIDFromFullName` — normalization helpers.
 - `FingerprintLabelValues`, `MemberClass`, `FingerprintMember`,

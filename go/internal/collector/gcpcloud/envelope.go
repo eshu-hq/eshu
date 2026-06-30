@@ -78,6 +78,8 @@ func NewCloudResourceEnvelope(boundary Boundary, obs ResourceObservation, key re
 		"update_time_present":      !updateTime.IsZero(),
 		"redaction_policy_version": RedactionPolicyVersion,
 		"extension":                extensionObject(obs),
+		"attributes":               cloneAnyMap(obs.Attributes),
+		"correlation_anchors":      cloneStrings(obs.CorrelationAnchors),
 	}
 
 	return newEnvelope(
@@ -217,6 +219,22 @@ func extensionObject(obs ResourceObservation) map[string]any {
 		ext[k] = v
 	}
 	return ext
+}
+
+// cloneAnyMap returns a shallow copy of a bounded attribute map, or nil when the
+// input is empty, so an empty extraction omits the attributes field rather than
+// emitting an empty object. The extractor only places scalars and string slices
+// in the map, so a shallow copy is sufficient to decouple the payload from the
+// observation.
+func cloneAnyMap(input map[string]any) map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(input))
+	for k, v := range input {
+		out[k] = v
+	}
+	return out
 }
 
 func fingerprintKeys(input map[string]string) []string {

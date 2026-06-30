@@ -34,8 +34,13 @@ const (
 	// observation, digest-first with a fingerprinted container name.
 	GCPImageReferenceFactKind = "gcp_image_reference"
 
-	// GCPCloudResourceSchemaVersion is the first GCP cloud resource fact schema.
-	GCPCloudResourceSchemaVersion = "1.0.0"
+	// GCPCloudResourceSchemaVersion is the GCP cloud resource fact schema. 1.1.0
+	// adds the bounded typed-depth `attributes` map and `correlation_anchors`
+	// list (mirroring the AWS resource attribute contract). These are generic
+	// additive fields: per-asset-type extractors populate them without further
+	// schema bumps, so adding a new typed resource type does not move this
+	// version.
+	GCPCloudResourceSchemaVersion = "1.1.0"
 	// GCPCollectionWarningSchemaVersion is the first GCP collection warning fact
 	// schema.
 	GCPCollectionWarningSchemaVersion = "1.0.0"
