@@ -195,7 +195,7 @@ gates:
       command: "bash scripts/verify-openapi.sh"
       test_command: "bash scripts/test-verify-openapi.sh"
     ci:
-      workflow: verify-openapi.yml
+      workflow: static-contract-gates.yml
       job: "Verify OpenAPI gate"
     requirements:
       - go
@@ -213,7 +213,7 @@ gates:
       command: "bash scripts/verify-route-coverage.sh"
       test_command: "bash scripts/test-verify-route-coverage.sh"
     ci:
-      workflow: verify-route-coverage.yml
+      workflow: static-contract-gates.yml
       job: "Verify route coverage gate"
     requirements:
       - go
@@ -232,7 +232,7 @@ gates:
       command: "bash scripts/verify-edge-source-tool-coverage.sh"
       test_command: "bash scripts/test-verify-edge-source-tool-coverage.sh"
     ci:
-      workflow: verify-edge-source-tool-coverage.yml
+      workflow: static-contract-gates.yml
       job: "Verify edge source-tool coverage gate"
     requirements:
       - go
@@ -252,7 +252,7 @@ gates:
       command: "bash scripts/verify-evidence-continuity.sh"
       test_command: "bash scripts/test-verify-evidence-continuity.sh"
     ci:
-      workflow: verify-evidence-continuity.yml
+      workflow: static-contract-gates.yml
       job: "Verify evidence continuity gate"
     requirements:
       - go
@@ -271,7 +271,7 @@ gates:
       command: "bash scripts/verify-skill-roundtrip.sh"
       test_command: "bash scripts/test-verify-skill-roundtrip.sh"
     ci:
-      workflow: verify-skill-roundtrip.yml
+      workflow: static-contract-gates.yml
       job: "Verify skillgen roundtrip gate"
     requirements:
       - go
@@ -289,7 +289,7 @@ gates:
       command: "bash scripts/verify-fact-kind-registry.sh"
       test_command: "bash scripts/test-verify-fact-kind-registry.sh"
     ci:
-      workflow: contract-source-of-truth.yml
+      workflow: static-contract-gates.yml
       job: "Verify contract source-of-truth gate"
     requirements:
       - go
@@ -309,7 +309,7 @@ gates:
       command: "bash scripts/verify-contracttest.sh"
       test_command: "bash scripts/test-verify-contracttest.sh"
     ci:
-      workflow: contract-source-of-truth.yml
+      workflow: static-contract-gates.yml
       job: "Verify contract source-of-truth gate"
     requirements:
       - go
@@ -505,7 +505,7 @@ gates:
       command: "bash scripts/verify-telemetry-coverage.sh"
       test_command: "bash scripts/test-verify-telemetry-coverage.sh"
     ci:
-      workflow: verify-telemetry-coverage.yml
+      workflow: static-contract-gates.yml
       job: "Verify telemetry coverage gate"
     requirements:
       - go
@@ -526,7 +526,7 @@ gates:
       command: "bash scripts/generate-operator-dashboard.sh"
       test_command: "bash scripts/test-generate-operator-dashboard.sh"
     ci:
-      workflow: generate-operator-dashboard.yml
+      workflow: static-contract-gates.yml
       job: "Verify generate-operator-dashboard gate"
     requirements:
       - go

@@ -105,6 +105,32 @@ it fails fast. (Reconciling `make pre-pr`'s step set against the registry is
 [#4214](https://github.com/eshu-hq/eshu/issues/4214), which makes `pre-pr.sh`
 registry-driven via the gate selector instead of a hard-coded step list.)
 
+### CI workflow shape
+
+The CI side is consolidated and path-filtered (#4218) so a PR runs only the
+gates its changed paths select:
+
+- **Always-on:** whole-module Go build/lint/vet/test (`test.yml`), agent hygiene,
+  and the docs build — they run on every PR.
+- **Path-selected (blocking):** the static contract verifiers — OpenAPI, route
+  coverage, edge source-tool coverage, evidence continuity, skillgen roundtrip,
+  telemetry coverage, operator dashboard, and contract source-of-truth — are
+  consolidated into one matrix workflow, `static-contract-gates.yml`, whose
+  `changes` job runs each only when its registry paths change. The golden-corpus,
+  replay, race, and reducer-contention gates remain path-filtered and blocking.
+- **Path-selected (heavy):** End-to-end tests, macOS CI, and the security scan
+  run only on Go/deploy changes; benchmarks run only on Go/benchmark changes.
+  `main` runs them unconditionally as the backstop.
+- **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
+  and the changed-file Prettier check do not block merge.
+- **CI-only / release-only:** Trivy image scan, GHCR/package publication, and
+  release-attestation checks require credentials and never run locally or on a
+  normal PR.
+
+Exactness and race gates stay **blocking** when their matching code, spec,
+fixture, or generated-contract inputs change — consolidation changed where they
+run, not whether they block.
+
 ## Common Compose Environment
 
 When running commands directly against the default local Compose stack:
