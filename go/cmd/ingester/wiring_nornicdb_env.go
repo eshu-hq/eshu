@@ -10,6 +10,26 @@ import (
 	"time"
 )
 
+const (
+	// defaultNornicDBCanonicalRetractBatchSize is the default number of nodes
+	// deleted per drain-loop iteration for unbounded full-refresh DETACH DELETE
+	// statements on NornicDB. At 2000 nodes a full-refresh File retract of
+	// 5000 files takes ~3 iterations at ~9s each, well under the 2m timeout.
+	// Override with ESHU_CANONICAL_RETRACT_BATCH.
+	defaultNornicDBCanonicalRetractBatchSize = 2000
+
+	// nornicDBCanonicalRetractBatchSizeMin and nornicDBCanonicalRetractBatchSizeMax
+	// clamp the env override to a safe operating range.
+	nornicDBCanonicalRetractBatchSizeMin = 1
+	nornicDBCanonicalRetractBatchSizeMax = 10000
+
+	// nornicDBCanonicalRetractBatchSizeEnv controls the batch size used by the
+	// bounded drain loop that replaces unbounded full-refresh DETACH DELETE
+	// statements on NornicDB. Each drain iteration deletes at most this many
+	// nodes. Defaults to defaultNornicDBCanonicalRetractBatchSize.
+	nornicDBCanonicalRetractBatchSizeEnv = "ESHU_CANONICAL_RETRACT_BATCH"
+)
+
 func ingesterContentBeforeCanonical(getenv func(string) string) bool {
 	return strings.TrimSpace(getenv("ESHU_QUERY_PROFILE")) == "local_authoritative"
 }
@@ -133,6 +153,28 @@ func nornicDBEntityBatchSize(getenv func(string) string) (int, error) {
 	n, err := strconv.Atoi(raw)
 	if err != nil || n <= 0 {
 		return 0, fmt.Errorf("parse %s=%q: must be a positive integer", nornicDBEntityBatchSizeEnv, raw)
+	}
+	return n, nil
+}
+
+// nornicDBCanonicalRetractBatchSize returns the batch size for the bounded
+// drain loop that replaces unbounded full-refresh DETACH DELETE statements on
+// NornicDB. The value is clamped between nornicDBCanonicalRetractBatchSizeMin
+// and nornicDBCanonicalRetractBatchSizeMax.
+func nornicDBCanonicalRetractBatchSize(getenv func(string) string) (int, error) {
+	raw := strings.TrimSpace(getenv(nornicDBCanonicalRetractBatchSizeEnv))
+	if raw == "" {
+		return defaultNornicDBCanonicalRetractBatchSize, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("parse %s=%q: must be a positive integer", nornicDBCanonicalRetractBatchSizeEnv, raw)
+	}
+	if n < nornicDBCanonicalRetractBatchSizeMin {
+		return nornicDBCanonicalRetractBatchSizeMin, nil
+	}
+	if n > nornicDBCanonicalRetractBatchSizeMax {
+		return nornicDBCanonicalRetractBatchSizeMax, nil
 	}
 	return n, nil
 }

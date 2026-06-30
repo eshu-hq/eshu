@@ -251,6 +251,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredEntityPhaseConcurrency(t 
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		6,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)

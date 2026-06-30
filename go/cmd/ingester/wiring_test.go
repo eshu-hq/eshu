@@ -436,6 +436,7 @@ func TestCanonicalExecutorForGraphBackendKeepsNeo4jGrouped(t *testing.T) {
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		0,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)
@@ -458,6 +459,7 @@ func TestCanonicalExecutorForGraphBackendUsesNornicDBPhaseGroupsByDefault(t *tes
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		0,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)

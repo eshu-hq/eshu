@@ -415,6 +415,19 @@ worker, queue domain, or runtime surface is removed.
   pool before sequencing dependent work. When concurrency is at most one the
   executor falls back to `executeEntityPhaseGroup` (the prior per-flush wave
   path) so callers without an opt-in see no behavior change.
+- `ESHU_CANONICAL_RETRACT_BATCH` controls the per-iteration delete limit for
+  the bounded full-refresh retract drain loop on NornicDB. Default: 2000.
+  Accepted range: 1–10000. Each full-refresh retract statement (File removal,
+  Directory removal, Entity removal) is rewritten at runtime into a loop that
+  iterates until the graph reports zero nodes deleted, preventing the unbounded
+  `DETACH DELETE` from timing out on large corpora (5000+ files, 10000+
+  entities). The emitted WITH clause is shape-dependent (NornicDB v1.1.9
+  quirk): relationship-anchored MATCH uses bare
+  `WITH <var> LIMIT $__retract_batch`; bare-label MATCH uses
+  `WITH <var> ORDER BY elementId(<var>) LIMIT $__retract_batch`. Using the
+  wrong clause for the shape returns `__drained=0` (no nodes deleted).
+  Delta retracts and positive-list retracts are unaffected.
+  The knob is NornicDB-only; Neo4j uses the original single-statement path.
 
 ## Related docs
 

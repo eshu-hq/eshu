@@ -133,6 +133,7 @@ func canonicalExecutorForGraphBackend(
 	nornicDBEntityPhaseStatements int,
 	nornicDBEntityLabelPhaseStatements map[string]int,
 	nornicDBEntityPhaseConcurrency int,
+	nornicDBRetractBatchSize int,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) sourcecypher.Executor {
@@ -167,6 +168,16 @@ func canonicalExecutorForGraphBackend(
 				"graph_backend", string(graphBackend),
 				"env_var", nornicDBCanonicalGroupedWritesEnv)
 		}
+		// Wire the raw executor as drainReader so the bounded drain loop can
+		// open its own write sessions independent of the TimeoutExecutor.
+		// The drain loop bypasses the timeout wrapper intentionally: each
+		// bounded iteration is small (retractBatchSize nodes) and completes
+		// well within the per-statement budget; we don't want a 2m global
+		// timeout to cancel a correctly-progressing multi-iteration drain.
+		var dr retractDrainReader
+		if rdr, ok := rawExecutor.(retractDrainReader); ok {
+			dr = rdr
+		}
 		return nornicDBPhaseGroupExecutor{
 			inner:                    bounded,
 			maxStatements:            nornicDBPhaseGroupStatements,
@@ -174,6 +185,9 @@ func canonicalExecutorForGraphBackend(
 			entityMaxStatements:      nornicDBEntityPhaseStatements,
 			entityLabelMaxStatements: nornicDBEntityLabelPhaseStatements,
 			entityPhaseConcurrency:   nornicDBEntityPhaseConcurrency,
+			drainReader:              dr,
+			retractBatchSize:         nornicDBRetractBatchSize,
+			instruments:              instruments,
 		}
 	}
 	return instrumented
