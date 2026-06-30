@@ -58,7 +58,8 @@ func TestBuildBoundedRetractDrainCypherRewritesRemovedFilesStatement(t *testing.
 }
 
 // TestBuildBoundedRetractDrainCypherRewritesDirectoriesStatement verifies the
-// rewrite for canonicalNodeRetractDirectoriesCypher (var "d").
+// rewrite for canonicalNodeRetractDirectoriesCypher (var "d", bare-label shape).
+// NornicDB v1.1.9 requires ORDER BY elementId() before LIMIT for bare-label queries.
 func TestBuildBoundedRetractDrainCypherRewritesDirectoriesStatement(t *testing.T) {
 	t.Parallel()
 
@@ -66,8 +67,9 @@ func TestBuildBoundedRetractDrainCypherRewritesDirectoriesStatement(t *testing.T
 	if err != nil {
 		t.Fatalf("BuildBoundedRetractDrainCypher() error = %v, want nil", err)
 	}
-	if !strings.Contains(got, "WITH d LIMIT $__retract_batch") {
-		t.Fatalf("rewritten Cypher missing LIMIT clause:\n%s", got)
+	// Bare-label shape: must use ORDER BY elementId() before LIMIT.
+	if !strings.Contains(got, "WITH d ORDER BY elementId(d) LIMIT $__retract_batch") {
+		t.Fatalf("rewritten Cypher missing ORDER BY elementId(d) LIMIT clause:\n%s", got)
 	}
 	if !strings.Contains(got, "DETACH DELETE d") {
 		t.Fatalf("rewritten Cypher missing DETACH DELETE d:\n%s", got)
@@ -78,7 +80,8 @@ func TestBuildBoundedRetractDrainCypherRewritesDirectoriesStatement(t *testing.T
 }
 
 // TestBuildBoundedRetractDrainCypherRewritesEntityStatement verifies the
-// rewrite for canonicalNodeRetractEntityTemplate (var "n", a specific label).
+// rewrite for canonicalNodeRetractEntityTemplate (var "n", bare-label shape).
+// NornicDB v1.1.9 requires ORDER BY elementId() before LIMIT for bare-label queries.
 func TestBuildBoundedRetractDrainCypherRewritesEntityStatement(t *testing.T) {
 	t.Parallel()
 
@@ -87,8 +90,9 @@ func TestBuildBoundedRetractDrainCypherRewritesEntityStatement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildBoundedRetractDrainCypher() error = %v, want nil", err)
 	}
-	if !strings.Contains(got, "WITH n LIMIT $__retract_batch") {
-		t.Fatalf("rewritten Cypher missing LIMIT clause:\n%s", got)
+	// Bare-label shape: must use ORDER BY elementId() before LIMIT.
+	if !strings.Contains(got, "WITH n ORDER BY elementId(n) LIMIT $__retract_batch") {
+		t.Fatalf("rewritten Cypher missing ORDER BY elementId(n) LIMIT clause:\n%s", got)
 	}
 	if !strings.Contains(got, "DETACH DELETE n") {
 		t.Fatalf("rewritten Cypher missing DETACH DELETE n:\n%s", got)

@@ -12,11 +12,21 @@ import (
 // statement into a bounded drain step for NornicDB execution.
 //
 // The original Cypher must end with exactly "DETACH DELETE <drainVar>".
-// The rewritten form inserts:
+// The rewritten form inserts a LIMIT gate and RETURN clause:
 //
-//	WITH <drainVar> LIMIT $<batchParam>
+//	WITH <drainVar> LIMIT $<batchParam>          (relationship-anchored MATCH)
+//	  — or —
+//	WITH <drainVar> ORDER BY elementId(<drainVar>) LIMIT $<batchParam>  (bare-label MATCH)
 //	DETACH DELETE <drainVar>
 //	RETURN count(<drainVar>) AS __drained
+//
+// NornicDB v1.1.9 requires different WITH clauses depending on the MATCH shape:
+//   - Relationship-anchored queries (containing ")-[" in the MATCH line) must use
+//     bare WITH <var> LIMIT; adding ORDER BY causes __drained=0 (no deletes).
+//   - Bare-label queries (no relationship pattern) must use ORDER BY elementId(<var>)
+//     before LIMIT; without ORDER BY, __drained=0 (no deletes).
+//
+// The shape is detected by scanning for ")-[" in the first MATCH line of the body.
 //
 // The caller drives a loop that repeats this until __drained == 0, ensuring
 // the full prior-generation subgraph is deleted without a single unbounded
@@ -53,12 +63,36 @@ func BuildBoundedRetractDrainCypher(cypher, drainVar, batchParam string) (string
 	// LIMIT gate between the WHERE block and the DELETE.
 	body := strings.TrimRight(trimmed[:len(trimmed)-len(trailer)], " \t\r\n")
 
+	// Choose the WITH clause based on the MATCH shape.
+	// Relationship-anchored queries contain ")-[" (e.g. (r)-[:REL]->(f)); bare-label
+	// queries do not. NornicDB v1.1.9 treats these differently under WITH ... LIMIT:
+	// anchored queries work without ORDER BY, bare-label queries require it.
+	var withClause string
+	if isRelationshipAnchored(body) {
+		withClause = "WITH " + drainVar + " LIMIT $" + batchParam
+	} else {
+		withClause = "WITH " + drainVar + " ORDER BY elementId(" + drainVar + ") LIMIT $" + batchParam
+	}
+
 	rewritten := body +
-		"\nWITH " + drainVar + " LIMIT $" + batchParam +
+		"\n" + withClause +
 		"\nDETACH DELETE " + drainVar +
 		"\nRETURN count(" + drainVar + ") AS __drained"
 
 	return rewritten, nil
+}
+
+// isRelationshipAnchored reports whether the Cypher body contains a relationship
+// pattern in its MATCH clause (i.e. ")-["), indicating a relationship-anchored
+// query as opposed to a bare-label scan.
+func isRelationshipAnchored(body string) bool {
+	for _, line := range strings.Split(body, "\n") {
+		upper := strings.ToUpper(strings.TrimSpace(line))
+		if strings.HasPrefix(upper, "MATCH") {
+			return strings.Contains(line, ")-[")
+		}
+	}
+	return false
 }
 
 // lastLine returns the last non-empty line of s, used for error messages.

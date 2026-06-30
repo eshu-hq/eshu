@@ -30,33 +30,54 @@ iterations. Neo4j uses the original single-statement path unchanged.
 
 Knob: `ESHU_CANONICAL_RETRACT_BATCH` (default 2000, range 1–10000).
 
+### NornicDB v1.1.9 WITH-clause shape rule
+
+Live testing on the v1.1.9 container (bolt://localhost:7688) revealed that the
+correct `WITH` clause before `LIMIT` depends on the MATCH shape:
+
+| Shape | Example | Required WITH clause |
+|---|---|---|
+| Relationship-anchored | `MATCH (r)-[:REPO_CONTAINS]->(f:File)` | `WITH f LIMIT $batch` |
+| Bare-label | `MATCH (d:Directory) WHERE d.repo_id=…` | `WITH d ORDER BY elementId(d) LIMIT $batch` |
+
+Adding `ORDER BY` to a relationship-anchored query returns `__drained=0` (no
+deletes). Omitting `ORDER BY` from a bare-label query also returns `__drained=0`.
+
+`BuildBoundedRetractDrainCypher` detects the shape by scanning the first MATCH
+line for `)-[` (relationship pattern) and emits the appropriate clause
+automatically.
+
 ## Performance Evidence
 
-Method: synthetic corpus using parameterized path array (no string concatenation),
-scope `repository:__retracttest__`.
+Method: synthetic corpus seeded into `repository:__retracttest__`, 12 old-gen +
+3 new-gen nodes per label, batch=5. Run against NornicDB v1.1.9 at
+bolt://localhost:7688, database "nornic", no-auth.
 
-**Before (single unbounded DETACH DELETE)**
-
-```
-5000 :File nodes + 10000 :Entity nodes, full-refresh generation fence:
-  File retract statement:   ~23 s  (hits 2 m timeout at full corpus)
-  Entity retract (×N labels): proportional
-```
-
-**After (bounded drain loop, batch=2000)**
+**Live gate run (v1.1.9, batch=5)**
 
 ```
-  5000 :File nodes, batch=2000 → 3 iterations, ~420 ms total
-  10000 :Entity nodes, batch=2000 → 6 iterations, ~890 ms total
-  Zero stale nodes remaining (verified via COUNT query post-loop)
-  Safety cap (5_000_000/2000 + 2 = 2502) never approached
+Before: FileRetractProof=15 DirRetractProof=15 FuncRetractProof=15
+
+FileRetractProof (relationship-anchored, WITH f LIMIT $batch):
+  drained=12  iters=4  duration=108ms
+  remaining=3  (want 3) ✓
+
+DirRetractProof (bare-label, WITH d ORDER BY elementId(d) LIMIT $batch):
+  drained=12  iters=4  duration=123ms
+  remaining=3  (want 3) ✓
+
+FuncRetractProof (bare-label entity template, WITH n ORDER BY elementId(n) LIMIT $batch):
+  drained=12  iters=4  duration=105ms
+  remaining=3  (want 3) ✓
+
+PASS: all 3 shapes drain correctly on NornicDB v1.1.9
 ```
 
-**No-regression on small corpus (100 files / 200 entities)**
+**No-regression on zero-stale corpus**
 
 ```
-  1 iteration each (all deleted in first pass), ~40 ms total
-  Behaviour identical to single-statement path for small deletes
+  First drain call returns __drained=0; loop exits after 1 iteration.
+  Covered by TestNornicDBPhaseGroupExecutorDrainLoopStopsImmediatelyOnZero.
 ```
 
 ## No-Observability-Change
