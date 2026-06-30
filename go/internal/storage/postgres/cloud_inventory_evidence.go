@@ -40,6 +40,13 @@ type PostgresCloudInventoryEvidenceLoader struct {
 type cloudInventorySourceFactMapping struct {
 	provider        string
 	resourceTypeKey string
+	// surfacesAttributes gates whether the loader carries the payload attributes
+	// map onto the admission record. Only GCP typed-depth facts produce a bounded,
+	// redaction-safe attributes map vetted for the cloud inventory readback. AWS
+	// and Azure resource facts already carry an attributes map of raw provider
+	// fields (e.g. uri, cluster_arn) that the route contract must not surface, so
+	// they stay false until a per-provider safe-key contract exists.
+	surfacesAttributes bool
 }
 
 // cloudInventorySourceFactMappings is the closed set of provider inventory
@@ -52,8 +59,9 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 		resourceTypeKey: "resource_type",
 	},
 	facts.GCPCloudResourceFactKind: {
-		provider:        cloudinventory.ProviderGCP,
-		resourceTypeKey: "asset_type",
+		provider:           cloudinventory.ProviderGCP,
+		resourceTypeKey:    "asset_type",
+		surfacesAttributes: true,
 	},
 	facts.AzureCloudResourceFactKind: {
 		provider:        cloudinventory.ProviderAzure,
@@ -146,8 +154,19 @@ func cloudInventoryRecordFromRow(
 		// a follow-up slice; the admission handler already keeps declared and
 		// applied strictly above observed when those layers are wired.
 		SourceLayer: reducer.SourceLayerObserved,
-		Attributes:  boundedCloudInventoryAttributes(decoded["attributes"]),
+		Attributes:  cloudInventoryRecordAttributes(mapping, decoded),
 	}, true
+}
+
+// cloudInventoryRecordAttributes returns the bounded attributes map only for
+// provider fact kinds whose mapping opts in (currently GCP typed depth). AWS and
+// Azure resource facts carry a raw-locator attributes map that the cloud
+// inventory route must not surface, so they get nil here regardless of payload.
+func cloudInventoryRecordAttributes(mapping cloudInventorySourceFactMapping, decoded map[string]any) map[string]any {
+	if !mapping.surfacesAttributes {
+		return nil
+	}
+	return boundedCloudInventoryAttributes(decoded["attributes"])
 }
 
 // boundedCloudInventoryAttributes extracts the bounded attributes map from the
