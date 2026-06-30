@@ -65,11 +65,15 @@ RETURNING generation.scope_id, generation.generation_id
 // work, and re-driving those on every poll would burn the liveness budget and
 // raise false alarms. The wedge gate therefore requires real downstream
 // blockage: an outstanding shared_projection_intents row (completed_at IS NULL)
-// for the generation, i.e. shared-projection/readiness work that never
-// completed. This query re-enqueues source-local projector work for genuinely
-// blocked generations, which re-publishes the canonical-nodes-committed
-// readiness phase and re-triggers the downstream consumers over the existing
-// facts (no re-clone). The re-drive budget lives in the work item payload
+// for the generation after reducer fact-work for that generation has already
+// drained. During a large bootstrap, shared intents may legitimately sit behind
+// a deep reducer backlog or readiness gate; re-driving source-local projection
+// at that point creates duplicate projector work after the bootstrap projector
+// has already drained. This query therefore re-enqueues source-local projector
+// work only for genuinely blocked generations, which re-publishes the
+// canonical-nodes-committed readiness phase and re-triggers the downstream
+// consumers over the existing facts (no re-clone). The re-drive budget lives in
+// the work item payload
 // (liveness_recovery_attempts) and is bounded by $2 so a poison scope cannot
 // loop forever; once the budget is exhausted the generation is left active for
 // an operator to inspect via the recovery endpoint or a manual replay.
@@ -111,6 +115,18 @@ WITH wedged AS (
           FROM shared_projection_intents AS intent
           WHERE intent.generation_id = generation.generation_id
             AND intent.completed_at IS NULL
+      )
+      -- Normal reducer backlog is progress, not a wedged generation. Do not
+      -- re-drive source-local projection until reducer fact-work for the same
+      -- generation has drained; otherwise a full-corpus bootstrap can reopen
+      -- source_local after the one-shot bootstrap projector has exited.
+      AND NOT EXISTS (
+          SELECT 1
+          FROM fact_work_items AS reducer_work
+          WHERE reducer_work.stage = 'reducer'
+            AND reducer_work.scope_id = generation.scope_id
+            AND reducer_work.generation_id = generation.generation_id
+            AND reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')
       )
       AND COALESCE(
           (
@@ -200,9 +216,11 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 // The stuck bucket is the wedged-generation alarm and must match the recovery
 // gate: a generation is only stuck when it has aged past the deadline AND has
 // real downstream blockage (an outstanding shared_projection_intents row,
-// completed_at IS NULL). A healthy quiet projected scope that merely aged is
-// counted aging, never stuck, so the alarm does not fire on normal idle
-// installations.
+// completed_at IS NULL) after reducer fact-work for the same generation has
+// drained. A healthy quiet projected scope that merely aged, or a busy
+// full-corpus bootstrap scope still moving through reducer work, is counted
+// aging, never stuck, so the alarm does not fire on normal idle installations or
+// on legitimate reducer backlog.
 //
 // Parameter order:
 //
@@ -217,6 +235,13 @@ SELECT
             FROM shared_projection_intents AS intent
             WHERE intent.generation_id = generation.generation_id
               AND intent.completed_at IS NULL
+        ) AND NOT EXISTS (
+            SELECT 1
+            FROM fact_work_items AS reducer_work
+            WHERE reducer_work.stage = 'reducer'
+              AND reducer_work.scope_id = generation.scope_id
+              AND reducer_work.generation_id = generation.generation_id
+              AND reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')
         ) THEN 'stuck'
         WHEN generation.activated_at < $1 THEN 'aging'
         ELSE 'fresh'

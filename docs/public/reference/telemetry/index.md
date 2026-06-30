@@ -320,7 +320,9 @@ or wedged.
 generation count by closed activation-age bucket. The only metric label is
 `age_bucket`, with the bounded values `fresh`, `aging`, and `stuck`. The `stuck`
 bucket is the alarm signal: a non-zero, non-draining `stuck` count means
-generations are activating but not completing.
+generations have outstanding shared projection work after same-generation reducer
+fact-work has drained. Scopes still moving through reducer backlog stay in
+`aging`, not `stuck`.
 
 Three counters describe what the sweep did about it:
 

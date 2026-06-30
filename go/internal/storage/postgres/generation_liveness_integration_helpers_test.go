@@ -96,6 +96,11 @@ CREATE TABLE shared_projection_intents (
 //     outstanding shared_projection_intents row → wedged (stuck + eligible for
 //     recovery).
 //
+//   - scope-reducer-backlog / gen-reducer-backlog: active, activated 2 hours
+//     ago, has an outstanding shared_projection_intents row and same-generation
+//     reducer fact-work still pending → aging but not stuck, and not eligible
+//     for recovery until reducer work drains.
+//
 //   - scope-fresh / gen-fresh: active, activated 5 minutes ago → fresh,
 //     must not be re-driven.
 //
@@ -135,6 +140,39 @@ INSERT INTO shared_projection_intents (
     'intent-wedged', 'graph', 'acme/wedged', 'scope-wedged',
     '', 'acme/wedged', 'run-wedged', 'gen-wedged',
     '{"action":"sync"}'::jsonb, now() - interval '2 hours'
+);
+
+-- scope-reducer-backlog: outstanding shared projection intent behind legitimate
+-- same-generation reducer backlog. This is progress, not a wedge.
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES (
+    'scope-reducer-backlog', 'repository', 'github', 'acme/reducer-backlog', 'git',
+    'acme/reducer-backlog', now(), now(), 'active', 'gen-reducer-backlog'
+);
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at,
+    status, activated_at
+) VALUES (
+    'gen-reducer-backlog', 'scope-reducer-backlog', 'push',
+    now() - interval '2 hours', now() - interval '2 hours',
+    'active', now() - interval '2 hours'
+);
+INSERT INTO shared_projection_intents (
+    intent_id, projection_domain, partition_key, scope_id,
+    acceptance_unit_id, repository_id, source_run_id, generation_id,
+    payload, created_at
+) VALUES (
+    'intent-reducer-backlog', 'graph', 'acme/reducer-backlog', 'scope-reducer-backlog',
+    '', 'acme/reducer-backlog', 'run-reducer-backlog', 'gen-reducer-backlog',
+    '{"action":"sync"}'::jsonb, now() - interval '2 hours'
+);
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status, created_at, updated_at
+) VALUES (
+    'reducer_gen-reducer-backlog', 'scope-reducer-backlog', 'gen-reducer-backlog',
+    'reducer', 'source_local', 'pending', now() - interval '2 hours', now() - interval '2 hours'
 );
 
 -- scope-fresh: recently activated → must not be re-driven.

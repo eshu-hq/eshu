@@ -37,12 +37,15 @@ import (
 //
 //  3. No-op safety: a fresh active generation within the activation deadline is
 //     never re-driven. A scope whose pending generation is newer than the active
-//     one is also left alone (the projector supersede path owns that case).
+//     one is also left alone (the projector supersede path owns that case). A
+//     scope with same-generation reducer backlog is likewise left alone because
+//     reducer work is still progress, not a wedged generation.
 //
 //  4. CountActiveGenerationsByAge returns correct fresh/aging/stuck counts. The
-//     stuck bucket requires an outstanding shared_projection_intents row; it does
-//     not filter for newer siblings, so gen-pending-active is also stuck. The
-//     aging bucket contains aged-but-drained generations (gen-aging, gen-orphaned-*).
+//     stuck bucket requires an outstanding shared_projection_intents row and no
+//     unresolved reducer fact-work for the same generation; it does not filter for
+//     newer siblings, so gen-pending-active is also stuck. The aging bucket contains
+//     aged-but-drained generations (gen-aging, gen-orphaned-*) plus reducer backlog.
 func TestGenerationLivenessIntegration(t *testing.T) {
 	dsn := os.Getenv("ESHU_GENERATION_LIVENESS_PROOF_DSN")
 	if dsn == "" {
@@ -90,7 +93,9 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		//   gen-aging: activated 20 min ago, all intents completed → aging.
 		//   gen-orphaned-old: activated 3h ago, no intents → aging.
 		//   gen-orphaned-new: activated 1h ago, no intents → aging.
-		if got, want := counts["aging"], int64(3); got != want {
+		//   gen-reducer-backlog: activated 2h ago, outstanding intent, pending
+		//     reducer work for the same generation → aging, not stuck.
+		if got, want := counts["aging"], int64(4); got != want {
 			t.Fatalf("aging count = %d, want %d", got, want)
 		}
 	})
@@ -274,13 +279,13 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 			t.Fatalf("gen-pending-active status = %q, want 'active'", pendingStatus)
 		}
 
-		// Confirm no projector work item created for scope-fresh or scope-pending-newer.
+		// Confirm no projector work item created for safe scopes.
 		var noOpCount int
 		if err := db.QueryRowContext(ctx, `
-			SELECT COUNT(*) FROM fact_work_items
-			WHERE scope_id IN ('scope-fresh', 'scope-pending-newer')
-			  AND stage = 'projector'
-		`).Scan(&noOpCount); err != nil {
+				SELECT COUNT(*) FROM fact_work_items
+				WHERE scope_id IN ('scope-fresh', 'scope-pending-newer', 'scope-reducer-backlog')
+				  AND stage = 'projector'
+			`).Scan(&noOpCount); err != nil {
 			t.Fatalf("count no-op work items: %v", err)
 		}
 		if noOpCount != 0 {

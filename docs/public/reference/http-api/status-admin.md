@@ -634,11 +634,13 @@ arrives to supersede it. Two mechanisms protect against this:
   periodic sweep (`GenerationLivenessRunner`) that flags `active` generations
   whose `activated_at` is older than the activation deadline, that have no newer
   same-scope generation, **and that still have real downstream blockage** — an
-  outstanding `shared_projection_intents` row (`completed_at IS NULL`) for the
-  generation — then durably re-enqueues projector work to re-drive them. Age
-  alone is not enough: a healthy quiet scope normally stays `active` and
-  projected (the projected baseline is "has been active") with every intent
-  completed, so the downstream-blockage gate excludes it and it is never
+  outstanding `shared_projection_intents` row (`completed_at IS NULL`) after
+  reducer fact-work for the same generation has drained — then durably
+  re-enqueues projector work to re-drive them. Age alone is not enough: a
+  healthy quiet scope normally stays `active` and projected (the projected
+  baseline is "has been active") with every intent completed, and a busy
+  full-corpus bootstrap scope can have outstanding shared intents while reducer
+  work is still legitimately progressing. Both cases are excluded and never
   re-driven. A bounded per-generation re-drive budget
   (`liveness_recovery_attempts`, stored on the work item payload) prevents a
   poison scope from looping forever. The sweep also supersedes orphaned older
@@ -659,10 +661,11 @@ Observability for wedged generations:
   closed activation-age bucket (`fresh`, `aging`, `stuck`). The `stuck` bucket
   matches the recovery gate: a generation is only `stuck` when it has aged past
   the deadline AND has outstanding `shared_projection_intents`
-  (`completed_at IS NULL`). A healthy quiet scope that merely aged is counted
-  `aging`, never `stuck`, so a non-zero `stuck` bucket is a true
-  wedged-generation alarm signal rather than a false alarm on idle
-  installations.
+  (`completed_at IS NULL`) AND has no unresolved reducer fact-work for the same
+  generation. A healthy quiet scope that merely aged, or a scope still moving
+  through reducer backlog, is counted `aging`, never `stuck`, so a non-zero
+  `stuck` bucket is a true wedged-generation alarm signal rather than a false
+  alarm on idle installations or normal bootstrap backlog.
 - `eshu_dp_generation_liveness_recovered_total` and
   `eshu_dp_generation_liveness_superseded_total` count what the sweep re-drove
   and retired; `eshu_dp_generation_liveness_failures_total` counts sweep errors
@@ -679,15 +682,16 @@ runs two bounded statements per poll (default 5m): a supersede UPDATE bounded by
 the re-drive re-uses the existing projector enqueue path. Wedge detection and the
 `stuck` age bucket gate on real downstream blockage via an `EXISTS` subquery over
 `shared_projection_intents` keyed by `generation_id` and the partial index
-`shared_projection_intents_*_pending_idx` (`WHERE completed_at IS NULL`), so a
-healthy quiet projected scope is excluded and the sweep does no work on idle
-installations. The conflict domain is `scope_id`; both statements are idempotent
-under concurrent reducer workers (a second sweep finds no remaining wedged/orphaned
-row) and bound the per-generation re-drive budget via `liveness_recovery_attempts`
-so a poison scope cannot loop. No worker-count, batch-size, or queue-default
-change. The active-by-age gauge reads a single bounded `GROUP BY age_bucket`
-aggregate over active rows (with the same `completed_at IS NULL` EXISTS gate for
-the stuck bucket) per metrics scrape.
+`shared_projection_intents_*_pending_idx` (`WHERE completed_at IS NULL`), plus a
+same-generation reducer fact-work exclusion so normal reducer backlog is treated
+as progress rather than a wedge. Healthy quiet projected scopes and busy
+full-corpus bootstrap scopes are excluded. The conflict domain is `scope_id`;
+both statements are idempotent under concurrent reducer workers (a second sweep
+finds no remaining wedged/orphaned row) and bound the per-generation re-drive
+budget via `liveness_recovery_attempts` so a poison scope cannot loop. No
+worker-count, batch-size, or queue-default change. The active-by-age gauge reads a
+single bounded `GROUP BY age_bucket` aggregate over active rows with the same
+shared-intent and reducer-backlog gates for the stuck bucket per metrics scrape.
 Baseline: no liveness sweep existed (active generations wedged indefinitely:
 observed active=982 frozen). After: wedged actives are re-driven within the
 activation deadline (default 30m) under unit and race tests. Full before/after
