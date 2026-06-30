@@ -435,8 +435,13 @@ func openIngesterCanonicalWriter(
 	}
 
 	entityPhaseConcurrency := 0
+	retractBatchSize := defaultNornicDBCanonicalRetractBatchSize
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		entityPhaseConcurrency, err = nornicDBEntityPhaseConcurrency(getenv)
+		if err != nil {
+			return failAfterDriverOpen(err)
+		}
+		retractBatchSize, err = nornicDBCanonicalRetractBatchSize(getenv)
 		if err != nil {
 			return failAfterDriverOpen(err)
 		}
@@ -452,6 +457,7 @@ func openIngesterCanonicalWriter(
 			entityPhaseStatements,
 			entityLabelPhaseStatements,
 			entityPhaseConcurrency,
+			retractBatchSize,
 			tracer,
 			instruments,
 		),

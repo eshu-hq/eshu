@@ -33,6 +33,17 @@ type nornicDBPhaseGroupExecutor struct {
 	// executeGroupedChunksConcurrentlyObserved for the full safety
 	// argument.
 	entityPhaseConcurrency int
+
+	// drainReader drives the bounded drain loop for full-refresh DETACH DELETE
+	// statements marked with Drain=true. When nil, Drain statements fall back
+	// to a single Execute call (backward-compatible with existing tests that
+	// do not wire a reader). In production, rawExecutor (ingesterNeo4jExecutor)
+	// is threaded here via retractDrainReader.
+	drainReader retractDrainReader
+
+	// retractBatchSize is the LIMIT applied to each drain-loop iteration.
+	// Controlled by ESHU_CANONICAL_RETRACT_BATCH.
+	retractBatchSize int
 }
 
 func (e nornicDBPhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
@@ -71,6 +82,13 @@ func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
 	stmts []sourcecypher.Statement,
 ) error {
 	for i, stmt := range stmts {
+		if stmt.Drain && e.drainReader != nil {
+			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
+			if err := e.executeDrainLoop(ctx, stmt, i+1, len(stmts), statementSummary); err != nil {
+				return err
+			}
+			continue
+		}
 		chunks := sourcecypher.ChunkPositiveStringSliceRetractStatement(
 			stmt,
 			sourcecypher.DefaultPositiveRetractStringSliceBatchSize,
@@ -93,6 +111,119 @@ func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
 		}
 	}
 	return nil
+}
+
+// executeDrainLoop converts a Drain-marked full-refresh retract statement into
+// a bounded drain loop for NornicDB. It rewrites the trailing DETACH DELETE
+// clause to include a LIMIT and RETURN count(__drained), then repeats until
+// __drained == 0 or the safety cap is exceeded.
+//
+// Concurrency safety: the retract conflict_domain is scope (one worker per
+// scope). Deletes are idempotent — repeated deletes of already-absent nodes
+// return 0 without error. The loop is therefore concurrency-safe: no other
+// worker touches the same scope's prior-generation nodes during a retract.
+func (e nornicDBPhaseGroupExecutor) executeDrainLoop(
+	ctx context.Context,
+	stmt sourcecypher.Statement,
+	stmtIdx, stmtTotal int,
+	statementSummary string,
+) error {
+	batch := e.retractBatchSize
+	if batch <= 0 {
+		batch = defaultNornicDBCanonicalRetractBatchSize
+	}
+
+	drainCypher, err := sourcecypher.BuildBoundedRetractDrainCypher(stmt.Cypher, stmt.DrainVar, "__retract_batch")
+	if err != nil {
+		return fmt.Errorf(
+			"phase-group retract statement %d/%d (first_statement=%q): build drain cypher: %w",
+			stmtIdx, stmtTotal, statementSummary, err,
+		)
+	}
+
+	// Build parameter map with the batch limit appended.
+	params := make(map[string]any, len(stmt.Parameters)+1)
+	for k, v := range stmt.Parameters {
+		params[k] = v
+	}
+	params["__retract_batch"] = int64(batch)
+
+	// Safety cap: upper bound on total nodes that could exist in the worst case.
+	// We use a generous 5_000_000 node ceiling plus a margin of 2 iterations to
+	// account for nodes created by concurrent writes during the drain.
+	const drainNodeCeiling = 5_000_000
+	maxIterations := (drainNodeCeiling/batch + 2)
+
+	var totalDrained int64
+	phaseStart := time.Now()
+	for iteration := 1; ; iteration++ {
+		if iteration > maxIterations {
+			return fmt.Errorf(
+				"phase-group retract statement %d/%d drain loop safety cap exceeded after %d iterations (%d nodes drained, batch=%d, first_statement=%q): drain did not converge",
+				stmtIdx, stmtTotal, iteration-1, totalDrained, batch, statementSummary,
+			)
+		}
+
+		iterStart := time.Now()
+		rows, runErr := e.drainReader.RunWrite(ctx, drainCypher, params)
+		iterDuration := time.Since(iterStart)
+		if runErr != nil {
+			return fmt.Errorf(
+				"phase-group retract statement %d/%d drain iteration %d (total_drained=%d, duration=%s, first_statement=%q): %w",
+				stmtIdx, stmtTotal, iteration, totalDrained, iterDuration, statementSummary, runErr,
+			)
+		}
+
+		drained := drainedCount(rows)
+		totalDrained += drained
+
+		slog.Debug(
+			"nornicdb retract drain iteration",
+			"statement_index", stmtIdx,
+			"statement_count", stmtTotal,
+			"iteration", iteration,
+			"drained", drained,
+			"total_drained", totalDrained,
+			"batch", batch,
+			"duration_s", iterDuration.Seconds(),
+		)
+
+		if drained == 0 {
+			break
+		}
+	}
+
+	slog.Info(
+		"nornicdb retract drain completed",
+		"statement_index", stmtIdx,
+		"statement_count", stmtTotal,
+		"total_drained", totalDrained,
+		"batch", batch,
+		"duration_s", time.Since(phaseStart).Seconds(),
+		"first_statement", statementSummary,
+	)
+	return nil
+}
+
+// drainedCount reads the __drained int64 counter from the first result row.
+// It returns 0 if the row is absent or the key is missing.
+func drainedCount(rows []map[string]any) int64 {
+	if len(rows) == 0 {
+		return 0
+	}
+	v, ok := rows[0]["__drained"]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	case float64:
+		return int64(n)
+	}
+	return 0
 }
 
 func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
@@ -130,6 +261,13 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if stmt.Operation == sourcecypher.OperationCanonicalRetract {
 			if err := flushGrouped(); err != nil {
 				return err
+			}
+			if stmt.Drain && e.drainReader != nil {
+				statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
+				if err := e.executeDrainLoop(ctx, stmt, i+1, len(stmts), statementSummary); err != nil {
+					return err
+				}
+				continue
 			}
 			chunks := sourcecypher.ChunkPositiveStringSliceRetractStatement(
 				stmt,

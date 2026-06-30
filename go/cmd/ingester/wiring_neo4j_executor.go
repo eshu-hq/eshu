@@ -111,6 +111,56 @@ func ingesterStatementRetractionCounts(
 	}
 }
 
+// retractDrainReader executes a bounded drain step in a write session and
+// returns the collected records. It is implemented by ingesterNeo4jExecutor and
+// used by nornicDBPhaseGroupExecutor to drive the drain loop for unbounded
+// full-refresh DETACH DELETE statements on NornicDB.
+type retractDrainReader interface {
+	RunWrite(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
+}
+
+// RunWrite opens a write session, runs the supplied Cypher with the supplied
+// parameters, collects all result records into a slice of property maps, and
+// returns them. It is used by the bounded drain loop in
+// nornicDBPhaseGroupExecutor to read the __drained counter returned by each
+// bounded DETACH DELETE step.
+func (e ingesterNeo4jExecutor) RunWrite(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	if e.Driver == nil {
+		return nil, fmt.Errorf("neo4j driver is required")
+	}
+
+	session := e.Driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeWrite,
+		DatabaseName: e.DatabaseName,
+	})
+	defer func() {
+		_ = session.Close(ctx)
+	}()
+
+	result, err := session.Run(ctx, cypher, params, e.transactionConfigurers()...)
+	if err != nil {
+		return nil, err
+	}
+
+	var rows []map[string]any
+	for result.Next(ctx) {
+		record := result.Record()
+		row := make(map[string]any, len(record.Keys))
+		for _, key := range record.Keys {
+			val, _ := record.Get(key)
+			row[key] = val
+		}
+		rows = append(rows, row)
+	}
+	if err := result.Err(); err != nil {
+		return nil, err
+	}
+	if _, err := result.Consume(ctx); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 func (e ingesterNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {
 	if e.TxTimeout <= 0 {
 		return nil

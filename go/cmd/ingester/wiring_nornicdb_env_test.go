@@ -27,6 +27,7 @@ func TestCanonicalExecutorForGraphBackendWrapsNornicDBWithTimeout(t *testing.T) 
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		0,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)

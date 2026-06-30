@@ -304,6 +304,7 @@ func TestCanonicalExecutorForGraphBackendGroupedWritesUsePhaseGroupNornicDB(t *t
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		0,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)
@@ -343,6 +344,7 @@ func TestCanonicalExecutorForGraphBackendGroupedFullStackUsesPhaseGroups(t *test
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		0,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)
@@ -377,6 +379,7 @@ func TestCanonicalExecutorForGraphBackendNornicDBDefaultFullStackUsesPhaseGroups
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		0,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)
@@ -411,6 +414,7 @@ func TestNornicDBBatchedEntityContainmentFullStackUsesCrossFileBatchedEntityRows
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		0,
+		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
 	)
