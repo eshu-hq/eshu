@@ -28,7 +28,7 @@ If a replay misses a request, fact kind, parser fixture, or query shape, it must
 fail loudly. It must not fall through to the network, silently skip a surface, or
 turn an unknown artifact into a passing result.
 
-## Five-Command Contributor Flow
+## Contributor Conformance Flow
 
 For collector extraction conformance, start with the public, Docker-free
 conformance suite. These commands are the runnable starter path; the package
@@ -40,6 +40,7 @@ go test ./conformance -count=1
 $EDITOR conformance/testdata/starter-spec.yaml
 go run ./cmd/collector-<record-capable-collector> -mode=record \
   -cassette-file=conformance/testdata/starter-cassette.json
+$EDITOR conformance/observe.go
 go test ./conformance -count=1
 ```
 
@@ -49,6 +50,13 @@ writes a canonical cassette, and does not require Postgres, NornicDB, or Docker.
 Use a binary that actually implements record mode. The current in-tree pilot is
 `collector-kubernetes-live`; out-of-tree collectors should substitute their own
 record-capable binary after adding the same recorder seam.
+
+After recording real collector facts, update `conformance/observe.go` so
+`Observe` maps those fact kinds into the node, edge, correlation, property, and
+evidence observations expected by `conformance/testdata/starter-spec.yaml`.
+The starter `Observe` seam intentionally rejects unknown fact kinds; leaving it
+on the neutral `starter.*` mapping makes the final conformance test fail against
+any real collector cassette.
 
 ## Replay Artifact Types
 
