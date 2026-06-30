@@ -23,6 +23,9 @@ var axisLabels = map[Registry]string{
 	RegistryParserLedger:     "Parsers",
 	RegistryCapabilityMatrix: "Capability claims",
 	RegistryProductClaims:    "Product claims",
+	RegistryRetractableType:  "Retractable node types (delta)",
+	RegistryProjection:       "Projections (cost/ordering)",
+	RegistryReducerDrain:     "Reducer drain (crash)",
 }
 
 // axisLabel returns the friendly axis name for a registry, falling back to the
@@ -162,7 +165,11 @@ func writeGaps(b *strings.Builder, rep CoverageReport) {
 			gapByRegistry[s.Registry] = append(gapByRegistry[s.Registry], s)
 		}
 	}
-	for _, reg := range allRegistries {
+	// Iterate the report's own registry summaries (breadth registries plus any
+	// depth-applicability registry present) so depth gaps are grouped and shown,
+	// not silently dropped by iterating only the static breadth registries.
+	for _, summary := range rep.Summaries {
+		reg := summary.Registry
 		rows := gapByRegistry[reg]
 		if len(rows) == 0 {
 			continue

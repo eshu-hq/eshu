@@ -158,7 +158,7 @@ func Findings(c Coverage, blocking bool) []goldengate.Finding {
 			Phase:    string(sc.Surface.Registry),
 			Check:    coverageDisplayKey(sc.Surface.Key, sc.ScenarioType),
 			OK:       ok,
-			Required: blocking,
+			Required: blocking && isBlockingScenarioType(sc.ScenarioType),
 			Detail:   fmt.Sprintf("%s: %s", sc.Status, sc.Detail),
 		})
 	}
@@ -172,6 +172,15 @@ func Findings(c Coverage, blocking bool) []goldengate.Finding {
 		})
 	}
 	return findings
+}
+
+// isBlockingScenarioType reports whether a depth class fails the blocking gate.
+// Only baseline (the C-1 breadth contract) is blocking; the C-8/C-13 depth classes
+// are advisory-first (#4366): the gate enumerates and reports the missing
+// surface x depth pairs (the C-14 worklist) without failing CI, until C-14 burns
+// them down and a later ticket flips depth to blocking.
+func isBlockingScenarioType(t DepthScenarioType) bool {
+	return t == "" || t == ScenarioTypeBaseline
 }
 
 func coverageDisplayKey(surface string, scenarioType DepthScenarioType) string {

@@ -42,6 +42,12 @@ related, `BuildPlan`) and pass them to a writer
 (`CanonicalNodeWriter`, `EdgeWriter`, `SemanticEntityWriter`) or directly to
 an `Executor`.
 
+`RetractableNodeEntityLabels()` exposes the canonical retract phase's node label
+set (the union of the per-domain retract sets) as a stable, sorted slice. It is
+the lockstep source the replay depth-coverage gate (C-13, #4366) mirrors so every
+retractable node type is required to have a delta/tombstone replay scenario;
+adding a label to a retract set makes that gate demand a new scenario for it.
+
 `OrphanSweepStore` is the cleanup seam for disconnected graph nodes that remain
 after owned retractions. It only handles the closed labels
 `Repository`, `Platform`, `EvidenceArtifact`, `File`, `Directory`, and

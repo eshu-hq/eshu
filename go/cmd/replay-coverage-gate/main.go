@@ -128,6 +128,10 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 	if err != nil {
 		return replaycoverage.Inputs{}, err
 	}
+	depthReqs, err := replaycoverage.LoadDepthRequirements(filepath.Join(o.specsDir, replaycoverage.DepthRequirementsFileName))
+	if err != nil {
+		return replaycoverage.Inputs{}, err
+	}
 	proofGates, err := cigates.Load(filepath.Join(o.specsDir, "ci-gates.v1.yaml"))
 	if err != nil {
 		return replaycoverage.Inputs{}, fmt.Errorf("load ci gate registry: %w", err)
@@ -148,6 +152,7 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		Authorization:      authorization,
 		AuthzProofs:        authzProofs,
 		Manifest:           manifest,
+		DepthRequirements:  depthReqs,
 		ProofGates:         proofGates,
 		Resolver: replaycoverage.ArtifactResolver{
 			RepoRoot:      o.repoRoot,

@@ -915,7 +915,7 @@ gates:
     ci_only_reason: ""
 
   - id: replay-coverage-gate
-    name: C-1/C-8/C-9/C-10 Replay Coverage Gate
+    name: C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate
     category: exactness
     tier: pre-pr
     blocking: true
@@ -934,6 +934,7 @@ gates:
       - "go/internal/replay/crashreplay/**"
       - "go/internal/capabilitycatalog/**"
       - "go/internal/facts/**"
+      - "go/internal/storage/cypher/**"
       - "specs/ci-gates.v1.yaml"
       - "specs/capability-budget-proof.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
@@ -941,6 +942,7 @@ gates:
       - "specs/capability-matrix/**"
       - "specs/product-claims.v1.yaml"
       - "specs/replay-coverage-manifest.v1.yaml"
+      - "specs/replay-depth-requirements.v1.yaml"
       - "specs/authorization-catalog.v1.yaml"
       - "specs/authorization-replay-coverage.v1.yaml"
       - "specs/parser-backing-ledger.v1.yaml"

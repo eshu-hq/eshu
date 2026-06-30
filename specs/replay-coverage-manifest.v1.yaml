@@ -311,6 +311,17 @@ coverage:
   - {surface: capability:freshness.changed_since, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: capability:code_search.content_search, scenario: proof_artifact, scenario_type: cost, ref: specs/capability-budget-proof.v1.yaml, proof_gate: capability-budget-proof}
 
+  # C-13 (#4366): depth coverage required PER applicable surface, derived from
+  # specs/replay-depth-requirements.v1.yaml + the fact-kind registry. The gate now
+  # requires delta_tombstone for every retractable graph node type, fault for every
+  # collector boundary, cost for every projection, ordering for every shared-
+  # conflict-key projection, and crash for the reducer drain. Those derived
+  # requirements are ADVISORY (they never fail the blocking breadth gate); the
+  # missing surface x scenario_type pairs the gate lists are the C-14 (#4367)
+  # backfill worklist. The reducer drain crash is already proven by the crashreplay
+  # scenario, mapped here to its grain-correct surface.
+  - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
+
 scenario_requirements:
   - {surface: collector:aws, scenario_types: [baseline, fault]}
   - {surface: capability:platform_impact.relationships_catalog, scenario_types: [baseline, ordering, crash]}

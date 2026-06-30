@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 209/209 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 210/331 surfaces satisfied (63.44%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -16,19 +16,22 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Read surfaces (API/MCP) | 17 | 17 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Collectors | 18 | 18 | 100.00% | 0 | 4 |
-| **Total** | **209** | **209** | **100.00%** | **0** | **5** |
+| Projections (cost/ordering) | 0 | 24 | 0.00% | 24 | 0 |
+| Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
+| Retractable node types (delta) | 0 | 85 | 0.00% | 85 | 0 |
+| Collectors | 18 | 30 | 60.00% | 12 | 4 |
+| **Total** | **210** | **331** | **63.44%** | **121** | **5** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 204 | 204 | 100.00% | 0 | 5 |
-| cost | 1 | 1 | 100.00% | 0 | 0 |
-| crash | 1 | 1 | 100.00% | 0 | 0 |
-| delta_tombstone | 1 | 1 | 100.00% | 0 | 0 |
-| fault | 1 | 1 | 100.00% | 0 | 0 |
-| ordering | 1 | 1 | 100.00% | 0 | 0 |
+| cost | 1 | 23 | 4.35% | 22 | 0 |
+| crash | 2 | 2 | 100.00% | 0 | 0 |
+| delta_tombstone | 1 | 86 | 1.16% | 85 | 0 |
+| fault | 1 | 13 | 7.69% | 12 | 0 |
+| ordering | 1 | 3 | 33.33% | 2 | 0 |
 
 ## Language parser coverage
 
@@ -62,9 +65,139 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 
 ## Gaps — surfaces still needing a replay scenario
 
-None. Every supported surface has a replay scenario.
+121 surface(s) uncovered or unresolved:
 
-## Covered surfaces (209)
+### Projections (cost/ordering) (24)
+
+- `projection:aws_cloud_runtime_drift` (cost)
+- `projection:azure_resource_materialization` (cost)
+- `projection:ci_cd_run_correlation` (cost)
+- `projection:config_state_drift` (cost)
+- `projection:container_image_identity` (cost)
+- `projection:documentation_materialization` (cost)
+- `projection:ec2_instance_node_materialization` (cost)
+- `projection:gcp_resource_materialization` (cost)
+- `projection:incident_repository_correlation` (ordering)
+- `projection:incident_repository_correlation` (cost)
+- `projection:incident_routing_materialization` (cost)
+- `projection:kubernetes_correlation` (cost)
+- `projection:observability_coverage_correlation` (cost)
+- `projection:package_source_correlation` (cost)
+- `projection:rds_posture_materialization` (cost)
+- `projection:s3_external_principal_grant_materialization` (cost)
+- `projection:s3_internet_exposure_materialization` (cost)
+- `projection:sbom_attestation_attachment` (cost)
+- `projection:secrets_iam_trust_chain` (cost)
+- `projection:security_alert_reconciliation` (cost)
+- `projection:semantic_entity_materialization` (cost)
+- `projection:service_catalog_correlation` (cost)
+- `projection:supply_chain_impact` (ordering)
+- `projection:supply_chain_impact` (cost)
+
+### Retractable node types (delta) (85)
+
+- `retractable_node:AnalyticsModel` (delta_tombstone)
+- `retractable_node:Annotation` (delta_tombstone)
+- `retractable_node:ArgoCDApplication` (delta_tombstone)
+- `retractable_node:ArgoCDApplicationSet` (delta_tombstone)
+- `retractable_node:AtlantisProject` (delta_tombstone)
+- `retractable_node:AtlantisWorkflow` (delta_tombstone)
+- `retractable_node:Class` (delta_tombstone)
+- `retractable_node:CloudFormationOutput` (delta_tombstone)
+- `retractable_node:CloudFormationParameter` (delta_tombstone)
+- `retractable_node:CloudFormationResource` (delta_tombstone)
+- `retractable_node:Component` (delta_tombstone)
+- `retractable_node:ContainerImage` (delta_tombstone)
+- `retractable_node:ContainerImageDescriptor` (delta_tombstone)
+- `retractable_node:ContainerImageIndex` (delta_tombstone)
+- `retractable_node:ContainerImageTagObservation` (delta_tombstone)
+- `retractable_node:CrossplaneClaim` (delta_tombstone)
+- `retractable_node:CrossplaneComposition` (delta_tombstone)
+- `retractable_node:CrossplaneXRD` (delta_tombstone)
+- `retractable_node:DashboardAsset` (delta_tombstone)
+- `retractable_node:DataAsset` (delta_tombstone)
+- `retractable_node:DataColumn` (delta_tombstone)
+- `retractable_node:DataContract` (delta_tombstone)
+- `retractable_node:DataOwner` (delta_tombstone)
+- `retractable_node:DataQualityCheck` (delta_tombstone)
+- `retractable_node:Enum` (delta_tombstone)
+- `retractable_node:Function` (delta_tombstone)
+- `retractable_node:GitlabJob` (delta_tombstone)
+- `retractable_node:GitlabPipeline` (delta_tombstone)
+- `retractable_node:HelmChart` (delta_tombstone)
+- `retractable_node:HelmTemplateValueUsage` (delta_tombstone)
+- `retractable_node:HelmValueDefinition` (delta_tombstone)
+- `retractable_node:HelmValues` (delta_tombstone)
+- `retractable_node:ImplBlock` (delta_tombstone)
+- `retractable_node:Interface` (delta_tombstone)
+- `retractable_node:K8sResource` (delta_tombstone)
+- `retractable_node:KustomizeOverlay` (delta_tombstone)
+- `retractable_node:Macro` (delta_tombstone)
+- `retractable_node:OciImageDescriptor` (delta_tombstone)
+- `retractable_node:OciImageIndex` (delta_tombstone)
+- `retractable_node:OciImageManifest` (delta_tombstone)
+- `retractable_node:OciImageReferrer` (delta_tombstone)
+- `retractable_node:OciImageTagObservation` (delta_tombstone)
+- `retractable_node:OciRegistryRepository` (delta_tombstone)
+- `retractable_node:Package` (delta_tombstone)
+- `retractable_node:PackageDependency` (delta_tombstone)
+- `retractable_node:PackageRegistryPackage` (delta_tombstone)
+- `retractable_node:PackageRegistryPackageDependency` (delta_tombstone)
+- `retractable_node:PackageRegistryPackageVersion` (delta_tombstone)
+- `retractable_node:PackageVersion` (delta_tombstone)
+- `retractable_node:Property` (delta_tombstone)
+- `retractable_node:Protocol` (delta_tombstone)
+- `retractable_node:ProtocolImplementation` (delta_tombstone)
+- `retractable_node:QueryExecution` (delta_tombstone)
+- `retractable_node:Record` (delta_tombstone)
+- `retractable_node:ShellCommand` (delta_tombstone)
+- `retractable_node:SqlColumn` (delta_tombstone)
+- `retractable_node:SqlFunction` (delta_tombstone)
+- `retractable_node:SqlIndex` (delta_tombstone)
+- `retractable_node:SqlTable` (delta_tombstone)
+- `retractable_node:SqlTrigger` (delta_tombstone)
+- `retractable_node:SqlView` (delta_tombstone)
+- `retractable_node:Struct` (delta_tombstone)
+- `retractable_node:TerraformBackend` (delta_tombstone)
+- `retractable_node:TerraformCheck` (delta_tombstone)
+- `retractable_node:TerraformDataSource` (delta_tombstone)
+- `retractable_node:TerraformImport` (delta_tombstone)
+- `retractable_node:TerraformLocal` (delta_tombstone)
+- `retractable_node:TerraformLockProvider` (delta_tombstone)
+- `retractable_node:TerraformModule` (delta_tombstone)
+- `retractable_node:TerraformMovedBlock` (delta_tombstone)
+- `retractable_node:TerraformOutput` (delta_tombstone)
+- `retractable_node:TerraformProvider` (delta_tombstone)
+- `retractable_node:TerraformRemovedBlock` (delta_tombstone)
+- `retractable_node:TerraformResource` (delta_tombstone)
+- `retractable_node:TerraformVariable` (delta_tombstone)
+- `retractable_node:TerragruntConfig` (delta_tombstone)
+- `retractable_node:TerragruntDependency` (delta_tombstone)
+- `retractable_node:TerragruntInput` (delta_tombstone)
+- `retractable_node:TerragruntLocal` (delta_tombstone)
+- `retractable_node:Trait` (delta_tombstone)
+- `retractable_node:TypeAlias` (delta_tombstone)
+- `retractable_node:TypeAnnotation` (delta_tombstone)
+- `retractable_node:Typedef` (delta_tombstone)
+- `retractable_node:Union` (delta_tombstone)
+- `retractable_node:Variable` (delta_tombstone)
+
+### Collectors (12)
+
+- `collector:grafana` (fault)
+- `collector:jira` (fault)
+- `collector:loki` (fault)
+- `collector:oci_registry` (fault)
+- `collector:package_registry` (fault)
+- `collector:pagerduty` (fault)
+- `collector:prometheus_mimir` (fault)
+- `collector:sbom_attestation` (fault)
+- `collector:security_alert` (fault)
+- `collector:tempo` (fault)
+- `collector:terraform_state` (fault)
+- `collector:vulnerability_intelligence` (fault)
+
+## Covered surfaces (210)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -259,6 +392,7 @@ None. Every supported surface has a replay scenario.
 | `product_claim:readme.replatforming.plan-readiness` | baseline | product_claim | capability-inventory-docs | `readme.replatforming.plan-readiness` |
 | `product_claim:readme.security-iam.evidence-backed-findings` | baseline | product_claim | capability-inventory-docs | `readme.security-iam.evidence-backed-findings` |
 | `product_claim:readme.supply-chain.default-gated` | baseline | product_claim | capability-inventory-docs | `readme.supply-chain.default-gated` |
+| `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
 | `collector:aws` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:aws` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_timeout_test.go` |
 | `collector:documentation` | baseline | exempt | — | — |

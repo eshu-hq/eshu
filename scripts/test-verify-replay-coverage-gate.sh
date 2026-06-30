@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Static structural test for the C-1/C-8/C-9/C-10 replay coverage gate (#4173, #4187, #4188, #4189): the verify
+# Static structural test for the C-1/C-8/C-9/C-10/C-13 replay coverage gate (#4173, #4187, #4188, #4189, #4366): the verify
 # script, its CI workflow, and the coverage manifest. Fast, no Docker, no Go
 # build — it validates the contract that cannot silently drift: the verifier runs
 # the gate over all registries, enforces blocking CI, emits the C-7 report
@@ -114,7 +114,10 @@ require "ci registry watches ci gate loader" "go/internal/cigates/**" "${ci_gate
 require "ci registry watches authorization catalog" "specs/authorization-catalog.v1.yaml" "${ci_gates}"
 require "ci registry watches authorization replay proof" "specs/authorization-replay-coverage.v1.yaml" "${ci_gates}"
 require "ci registry watches cassettes" "testdata/cassettes/**" "${ci_gates}"
-if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8/C-9/C-10 Replay Coverage Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
+require "ci registry watches depth requirements" "specs/replay-depth-requirements.v1.yaml" "${ci_gates}"
+require "ci registry watches cypher retract labels" "go/internal/storage/cypher/**" "${ci_gates}"
+require "workflow watches depth requirements" "specs/replay-depth-requirements.v1.yaml" "${workflow}"
+if ! rg --multiline --quiet 'id: replay-coverage-gate\n    name: C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true' "${ci_gates}"; then
 	fail "replay-coverage-gate registry entry must be blocking"
 fi
 
