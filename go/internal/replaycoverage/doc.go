@@ -3,8 +3,8 @@
 
 // Package replaycoverage reconciles the surfaces Eshu claims to support, and the
 // scenario-depth classes each surface requires, against the replay scenarios that
-// exercise them. It produces the C-1/C-8/C-9 coverage-manifest lockstep gate
-// (issues #4173, #4187, and #4188, epic #4172).
+// exercise them. It produces the C-1/C-8/C-9/C-10 coverage-manifest lockstep
+// gate (issues #4173, #4187, #4188, and #4189, epic #4172).
 //
 // # The source registries
 //
@@ -26,6 +26,9 @@
 //   - product claim ledger (capabilitycatalog.ProductClaimLedger): each broad
 //     public product claim is required to have a product-claim replay scenario
 //     whose row carries deterministic proof.
+//   - authorization catalog (capabilitycatalog.AuthorizationCatalog): each live
+//     permission family is required to have in-grant and out-of-grant
+//     scoped-route replay scenarios.
 //
 // EnumerateSupported flattens these into a deterministic SupportedSurface set,
 // each with a canonical "<kind>:<name>" coverage key. Manifest
@@ -48,18 +51,20 @@
 // and wired, not that it passes — its greenness is proven by the sibling gate
 // named in the entry's proof_gate (golden-corpus-gate, replay tier, Go race
 // tests, parser fixture tests, capability-inventory, capability-inventory-docs,
-// or capability-budget proof). Capability-claim entries are resolved against the
-// capability matrix and require profile verification references before they can
-// count as covered. Product-claim entries are resolved against the public claim
-// ledger and require deterministic proof metadata; capability-inventory docs mode
-// validates the full quote/surface/proof contract. That split keeps the coverage
-// gate fast and credential-free while never claiming a green it did not observe.
+// authz-scoped-route-tests, or capability-budget proof). Capability-claim
+// entries are resolved against the capability matrix and require profile
+// verification references before they can count as covered. Product-claim
+// entries are resolved against the public claim ledger and require deterministic
+// proof metadata; capability-inventory docs mode validates the full
+// quote/surface/proof contract. Authz-scoped-route entries resolve against the
+// authorization replay proof ledger. That split keeps the coverage gate fast and
+// credential-free while never claiming a green it did not observe.
 //
 // # Advisory to blocking
 //
 // Findings reuse the shared goldengate.Finding/Report machinery. Local advisory
 // mode (Blocking=false) reports every coverage gap without failing the command.
-// CI now passes the single blocking flag after the C-2..C-9 burn-down, so every
+// CI now passes the single blocking flag after the C-2..C-10 burn-down, so every
 // uncovered, unresolved, and stale finding is required and coverage cannot
 // regress. BuildReport emits the machine-readable coverage-report artifact,
 // including per-scenario_type summaries, that the C-7 dashboard consumes on

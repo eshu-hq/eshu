@@ -171,6 +171,9 @@ func (h *SecretsIAMHandler) summary(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "scope_id is required")
 		return
 	}
+	if !authorizeSecretsIAMScopedScope(w, r, scopeID) {
+		return
+	}
 	if h.Summary == nil {
 		WriteContractError(w, r, http.StatusServiceUnavailable,
 			"secrets/IAM posture summary requires the Postgres reducer read model",

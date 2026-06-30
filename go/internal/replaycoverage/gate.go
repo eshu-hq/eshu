@@ -24,6 +24,8 @@ type Inputs struct {
 	ProductClaims capabilitycatalog.ProductClaimLedger
 	// CLIShapes is the B-12 snapshot CLI query-shape catalog.
 	CLIShapes map[string]goldengate.QueryShape
+	// Authorization is the authorization catalog permission-family registry.
+	Authorization capabilitycatalog.AuthorizationCatalog
 	// Manifest is the curated coverage manifest.
 	Manifest Manifest
 	// Resolver verifies a manifest entry's scenario artifact exists.
@@ -40,7 +42,7 @@ type Inputs struct {
 // semantics: in advisory mode it never fails on a coverage gap; in blocking mode
 // it fails on any uncovered, unresolved, or stale surface.
 func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
-	supported := EnumerateSupported(in.Inventory, in.FactKinds, in.Ledger, in.Matrix, in.ProductClaims, in.CLIShapes)
+	supported := EnumerateSupported(in.Inventory, in.FactKinds, in.Ledger, in.Matrix, in.ProductClaims, in.CLIShapes, in.Authorization)
 	cov := Reconcile(supported, in.Manifest, in.Resolver)
 	rep := BuildReport(cov, in.Blocking)
 	gr := &goldengate.Report{}

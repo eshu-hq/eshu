@@ -29,6 +29,10 @@ func testEnv(t *testing.T, manifestBody string) (specsDir, snapshot, manifest, r
 		[]byte("version: v1\nclaims: []\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(specsDir, "authorization-catalog.v1.yaml"),
+		[]byte("version: v1\npermission_families: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	snapshot = filepath.Join(specsDir, "snapshot.json")
 	if err := os.WriteFile(snapshot, []byte(`{"schema_version":"1","graph":{"required_correlations":[]},"query_shapes":{"http":{},"mcp":{}}}`), 0o600); err != nil {
 		t.Fatal(err)

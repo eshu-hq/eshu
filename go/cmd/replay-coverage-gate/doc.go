@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Command replay-coverage-gate is the C-1/C-8/C-9 replay coverage manifest +
-// lockstep gate (issues #4173, #4187, and #4188, epic #4172). It enumerates
-// every surface Eshu claims to support from the source-of-truth registries and
-// reports any required surface/scenario_type pair lacking a green replay
-// scenario.
+// Command replay-coverage-gate is the C-1/C-8/C-9/C-10 replay coverage manifest
+// + lockstep gate (issues #4173, #4187, #4188, and #4189, epic #4172). It
+// enumerates every surface Eshu claims to support from the source-of-truth
+// registries and reports any required surface/scenario_type pair lacking a green
+// replay scenario.
 //
 // The registries it reconciles:
 //
@@ -20,6 +20,8 @@
 //     claim-or-refusal scenarios.
 //   - product claim ledger: each public product claim — required deterministic
 //     proof-ledger scenarios.
+//   - authorization catalog: each live permission family in both in-grant and
+//     out-of-grant modes — required scoped-route scenarios.
 //
 // Each supported surface is reconciled against the curated coverage manifest
 // (specs/replay-coverage-manifest.v1.yaml), which maps a surface plus depth
@@ -30,7 +32,7 @@
 //
 // Local runs are advisory by default; the single -blocking flag flips every
 // uncovered, unresolved, and stale finding to required. CI passes -blocking now
-// that C-2..C-9 have burned the gaps down, so coverage can never regress. When
+// that C-2..C-10 have burned the gaps down, so coverage can never regress. When
 // requested, the command writes a machine-readable coverage report (-report-out)
 // and the committed, docs-discoverable C-7 dashboard (-dashboard-out,
 // docs/public/reference/replay-coverage.md);

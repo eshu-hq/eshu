@@ -106,6 +106,14 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 	if err != nil {
 		return replaycoverage.Inputs{}, fmt.Errorf("load product claims: %w", err)
 	}
+	authorization, err := capabilitycatalog.LoadAuthorizationCatalog(filepath.Join(o.specsDir, capabilitycatalog.AuthorizationFileName))
+	if err != nil {
+		return replaycoverage.Inputs{}, fmt.Errorf("load authorization catalog: %w", err)
+	}
+	authzProofs, err := replaycoverage.LoadAuthzProofLedger(filepath.Join(o.specsDir, replaycoverage.AuthzProofFileName))
+	if err != nil {
+		return replaycoverage.Inputs{}, err
+	}
 	manifest, err := replaycoverage.LoadManifest(o.manifest)
 	if err != nil {
 		return replaycoverage.Inputs{}, err
@@ -121,12 +129,14 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		Matrix:        matrix,
 		ProductClaims: productClaims,
 		CLIShapes:     snapshot.QueryShapes.CLI,
+		Authorization: authorization,
 		Manifest:      manifest,
 		Resolver: replaycoverage.ArtifactResolver{
 			RepoRoot:      o.repoRoot,
 			Snapshot:      snapshot,
 			Matrix:        matrix,
 			ProductClaims: productClaims,
+			AuthzProofs:   authzProofs,
 		},
 		Blocking: o.blocking,
 	}, nil

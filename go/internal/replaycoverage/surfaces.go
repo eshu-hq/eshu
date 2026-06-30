@@ -37,6 +37,9 @@ const (
 	// RegistryProductClaims is specs/product-claims.v1.yaml: each public product
 	// claim is a required deterministic proof-ledger replay target.
 	RegistryProductClaims Registry = "product_claim_ledger"
+	// RegistryAuthorizationCatalog is specs/authorization-catalog.v1.yaml: each
+	// live permission family must prove in-grant and out-of-grant scoped reads.
+	RegistryAuthorizationCatalog Registry = "authorization_catalog"
 )
 
 // allRegistries is the closed, ordered set of coverage registries.
@@ -47,6 +50,7 @@ var allRegistries = []Registry{
 	RegistryParserLedger,
 	RegistryCapabilityMatrix,
 	RegistryProductClaims,
+	RegistryAuthorizationCatalog,
 }
 
 // AllRegistries returns every coverage registry in a stable order.
@@ -79,7 +83,10 @@ type SupportedSurface struct {
 //   - capability matrix: each capability with at least one positively-claimed
 //     profile, keyed "capability:<id>";
 //   - product claim ledger: each broad public product claim, keyed
-//     "product_claim:<id>".
+//     "product_claim:<id>";
+//   - authorization catalog: each live permission family with capability
+//     prefixes contributes "authz_family:<family>:in_grant" and
+//     "authz_family:<family>:out_of_grant".
 //
 // The result is sorted by registry then key so gate output and the coverage
 // report are byte-stable across runs.
@@ -90,6 +97,7 @@ func EnumerateSupported(
 	matrix capabilitycatalog.Matrix,
 	productClaims capabilitycatalog.ProductClaimLedger,
 	cliShapes map[string]goldengate.QueryShape,
+	authorization capabilitycatalog.AuthorizationCatalog,
 ) []SupportedSurface {
 	var out []SupportedSurface
 
@@ -172,6 +180,16 @@ func EnumerateSupported(
 		})
 	}
 
+	for _, family := range liveAuthorizationFamilies(authorization) {
+		for _, mode := range authorizationGrantModes {
+			out = append(out, SupportedSurface{
+				Registry: RegistryAuthorizationCatalog,
+				Key:      fmt.Sprintf("authz_family:%s:%s", family.Family, mode),
+				Detail:   fmt.Sprintf("authorization family %q %s scoped-route proof", family.Family, mode),
+			})
+		}
+	}
+
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Registry != out[j].Registry {
 			return out[i].Registry < out[j].Registry
@@ -190,6 +208,35 @@ func EnumerateSupported(
 func hasPositiveClaim(capRow capabilitycatalog.MatrixCapability) bool {
 	for _, profile := range capRow.Profiles {
 		if capabilitycatalog.ProfileClaimsSupport(profile) {
+			return true
+		}
+	}
+	return false
+}
+
+var authorizationGrantModes = []string{"in_grant", "out_of_grant"}
+
+func liveAuthorizationFamilies(catalog capabilitycatalog.AuthorizationCatalog) []capabilitycatalog.PermissionFamily {
+	var families []capabilitycatalog.PermissionFamily
+	seen := map[string]struct{}{}
+	for _, family := range catalog.PermissionFamilies {
+		name := strings.TrimSpace(family.Family)
+		if name == "" || family.Planned || !hasCapabilityPrefix(family) {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		family.Family = name
+		families = append(families, family)
+		seen[name] = struct{}{}
+	}
+	return families
+}
+
+func hasCapabilityPrefix(family capabilitycatalog.PermissionFamily) bool {
+	for _, prefix := range family.CapabilityPrefixes {
+		if strings.TrimSpace(prefix) != "" {
 			return true
 		}
 	}

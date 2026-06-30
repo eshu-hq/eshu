@@ -45,6 +45,9 @@ const (
 	// ScenarioProductClaim is a product-claims ledger row with deterministic
 	// proof command/signals for a broad public promise.
 	ScenarioProductClaim ScenarioType = "product_claim"
+	// ScenarioAuthzScopedRoute is an authorization proof-ledger row that binds a
+	// permission family and grant mode to concrete scoped-route tests.
+	ScenarioAuthzScopedRoute ScenarioType = "authz_scoped_route"
 	// ScenarioGoTest is a Go package or test file whose scenario is proven by a
 	// Go test gate. It is used for deterministic replay depth scenarios whose
 	// artifact is executable test code rather than a cassette or B-12 snapshot id.
@@ -82,15 +85,16 @@ const (
 
 // validScenarioTypes is the closed set of scenario artifact kinds.
 var validScenarioTypes = map[ScenarioType]struct{}{
-	ScenarioCassette:        {},
-	ScenarioParserFixture:   {},
-	ScenarioAPIMCPGolden:    {},
-	ScenarioCLIGolden:       {},
-	ScenarioCorrelation:     {},
-	ScenarioCapabilityClaim: {},
-	ScenarioProductClaim:    {},
-	ScenarioGoTest:          {},
-	ScenarioProofArtifact:   {},
+	ScenarioCassette:         {},
+	ScenarioParserFixture:    {},
+	ScenarioAPIMCPGolden:     {},
+	ScenarioCLIGolden:        {},
+	ScenarioCorrelation:      {},
+	ScenarioCapabilityClaim:  {},
+	ScenarioProductClaim:     {},
+	ScenarioAuthzScopedRoute: {},
+	ScenarioGoTest:           {},
+	ScenarioProofArtifact:    {},
 }
 
 // validDepthScenarioTypes is the closed set of C-8 scenario-depth classes.

@@ -2,12 +2,13 @@
 #
 # This is the curated, reviewable mapping from each supported surface to the
 # replay scenario that exercises it. The replay-coverage-gate
-# (go/cmd/replay-coverage-gate) enumerates the supported surfaces from the six
+# (go/cmd/replay-coverage-gate) enumerates the supported surfaces from the seven
 # source-of-truth registries — surface-inventory implemented-lane collectors,
 # fact-kind-registry read surfaces, B-12 CLI query shapes, parser-backing-ledger
-# parsers, capability-matrix claims, plus product-claims public ledger rows —
-# and reports any required surface/scenario_type pair with no entry here as
-# UNCOVERED. That uncovered list is the C-2..C-9 backfill worklist.
+# parsers, capability-matrix claims, product-claims public ledger rows, plus
+# authorization-catalog scoped permission families — and reports any required
+# surface/scenario_type pair with no entry here as UNCOVERED. That uncovered list
+# is the C-2..C-10 backfill worklist.
 #
 # Surface keys are "<kind>:<name>":
 #   collector:<name>          (surface-inventory implemented lane)
@@ -16,10 +17,11 @@
 #   parser:<name>             (parser-backing-ledger)
 #   capability:<id>           (capability-matrix positive claim)
 #   product_claim:<id>        (product-claims public claim ledger)
+#   authz_family:<family>:<mode> (authorization-catalog in/out grant mode)
 #
 # scenario artifact kinds: cassette | parser_fixture | api_mcp_golden |
-#   cli_golden | correlation | capability_claim | product_claim | go_test |
-#   proof_artifact
+#   cli_golden | correlation | capability_claim | product_claim |
+#   authz_scoped_route | go_test | proof_artifact
 #   - cassette / parser_fixture refs are repo-relative paths to the artifact.
 #   - api_mcp_golden / cli_golden / correlation refs are B-12 snapshot ids
 #     (query-shape key / rc-*).
@@ -27,6 +29,8 @@
 #     rows carry supported-answer and refusal verification references.
 #   - product_claim refs are product-claims ledger ids whose deterministic
 #     proof is checked by capability-inventory docs mode.
+#   - authz_scoped_route refs are <permission-family>:<grant-mode> rows in
+#     specs/authorization-replay-coverage.v1.yaml.
 #   - go_test refs are repo-relative Go package or test files run by the named
 #     proof gate.
 #   - proof_artifact refs are repo-relative proof contracts or evidence files
@@ -100,6 +104,33 @@ coverage:
   - {surface: "cli_surface:eshu vuln-scan repo --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu vuln-scan repo --json", proof_gate: golden-corpus-gate}
   - {surface: "cli_surface:eshu component inventory --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu component inventory --json", proof_gate: golden-corpus-gate}
   - {surface: "cli_surface:eshu hosted-onboard --json", scenario: cli_golden, scenario_type: baseline, ref: "eshu hosted-onboard --json", proof_gate: golden-corpus-gate}
+
+  # C-10 (#4189): authorization-catalog scoped-token coverage. Live permission
+  # families with capability prefixes each get an in-grant and out-of-grant row;
+  # the authz-scoped-route-tests proof gate loads the real catalog and ledger and
+  # includes a broadened-scope regression that fails on cross-tenant leakage.
+  - {surface: authz_family:admin_recovery:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: admin_recovery:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:admin_recovery:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: admin_recovery:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:ask_search:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: ask_search:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:ask_search:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: ask_search:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:audit_export:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: audit_export:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:audit_export:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: audit_export:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:cloud_iac:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: cloud_iac:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:cloud_iac:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: cloud_iac:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:docs_semantic:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: docs_semantic:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:docs_semantic:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: docs_semantic:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:operations_status:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: operations_status:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:operations_status:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: operations_status:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:repository_content:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: repository_content:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:repository_content:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: repository_content:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:roles_grants:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: roles_grants:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:roles_grants:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: roles_grants:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:secrets_iam:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: secrets_iam:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:secrets_iam:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: secrets_iam:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:service_runtime:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: service_runtime:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:service_runtime:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: service_runtime:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:supply_chain:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: supply_chain:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:supply_chain:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: supply_chain:out_of_grant, proof_gate: authz-scoped-route-tests}
 
   # C-3 (#4175): parser-backing-ledger parsers. Each fixture is an R-7 parser
   # envelope recording (provenance-bearing) produced by the real parser over a
