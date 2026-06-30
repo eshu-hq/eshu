@@ -1311,18 +1311,24 @@ statement for that partition.
 
 `loadDeferredScopedFactsAcrossPartitions` now expands each `(scope_id,
 generation_id)` partition into bounded query tasks when the repo-id arm is large:
-up to 128 repo-id values per task. The non-repo-id alias arm runs once for the
+up to 1024 repo-id values per task. The non-repo-id alias arm runs once for the
 partition, the repo-id chunks keep the same #3659 self-exclusion SQL, and the
 merged fact set is de-duplicated by `fact_id` before `DiscoverEvidence` builds
 its content index. The worker cap is unchanged, so chunking bounds the slowest
 single fact-load query without adding unbounded concurrency or changing the
-write-side maintenance lock model.
+write-side maintenance lock model. The threshold intentionally keeps the current
+896-repository full-corpus run to one query task per scope; oversized catalogs
+still split into bounded chunks.
 
 No-Regression Evidence: `TestLoadDeferredScopedFactsChunksRepoIDArm` failed on
-the pre-fix path because a 257-entry repo-id catalog issued one fact-load query;
+the pre-fix path because an oversized repo-id catalog issued one fact-load query;
 it passes after chunking by proving the path issues three bounded query chunks,
-each query has at most 128 repo-id values, the non-repo-id alias arm runs once,
+each query has at most 1024 repo-id values, the non-repo-id alias arm runs once,
 distinct facts from each chunk survive, and duplicate fact IDs collapse once.
+`TestLoadDeferredScopedFactsKeepsRepresentativeCorpusSingleTask` failed on the
+post-#4262 path because the 896-repository catalog split one scope into seven
+fact-load queries; it now proves that representative full-corpus runs issue one
+query task per scope while preserving oversized-catalog chunking.
 `TestLoadDeferredScopedFactsCanceledContextReturnsError` proves a canceled
 fact-load pass returns an error and no partial fact set before discovery or
 readiness publication. The surrounding focused storage tests passed with

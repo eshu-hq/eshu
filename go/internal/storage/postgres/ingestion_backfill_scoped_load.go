@@ -30,7 +30,10 @@ type scopeGenerationPartition struct {
 	GenerationID string
 }
 
-const deferredScopedRepoIDChunkSize = 128
+// deferredScopedRepoIDChunkSize keeps the repo-id self-exclusion arm bounded for
+// oversized catalogs without multiplying the representative 896-repository
+// corpus into repeated per-scope scans.
+const deferredScopedRepoIDChunkSize = 1024
 
 type deferredScopedFactLoadTask struct {
 	partition scopeGenerationPartition

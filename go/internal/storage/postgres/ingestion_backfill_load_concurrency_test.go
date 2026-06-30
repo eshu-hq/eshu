@@ -229,9 +229,8 @@ func (q *chunkProbeQueryer) QueryContext(
 func TestLoadDeferredScopedFactsChunksRepoIDArm(t *testing.T) {
 	t.Parallel()
 
-	const maxRepoIDsPerQuery = 128
-	repoIDs := make([]string, 0, maxRepoIDsPerQuery*2+1)
-	for i := 0; i < maxRepoIDsPerQuery*2+1; i++ {
+	repoIDs := make([]string, 0, deferredScopedRepoIDChunkSize*2+1)
+	for i := 0; i < deferredScopedRepoIDChunkSize*2+1; i++ {
 		repoIDs = append(repoIDs, "repo-"+itoa(i))
 	}
 	params := deferredScopedFactQueryParams{
@@ -255,8 +254,12 @@ func TestLoadDeferredScopedFactsChunksRepoIDArm(t *testing.T) {
 	if probe.calls != 3 {
 		t.Fatalf("issued %d fact-load queries, want 3 bounded chunks", probe.calls)
 	}
-	if probe.maxRepoIDArgs > maxRepoIDsPerQuery {
-		t.Fatalf("max repo_id args per query = %d, want <= %d", probe.maxRepoIDArgs, maxRepoIDsPerQuery)
+	if probe.maxRepoIDArgs > deferredScopedRepoIDChunkSize {
+		t.Fatalf(
+			"max repo_id args per query = %d, want <= %d",
+			probe.maxRepoIDArgs,
+			deferredScopedRepoIDChunkSize,
+		)
 	}
 	if probe.nonRepoIDArgCalls != 1 {
 		t.Fatalf("non-repo_id LIKE arm ran in %d chunks, want 1", probe.nonRepoIDArgCalls)
@@ -274,6 +277,52 @@ func TestLoadDeferredScopedFactsChunksRepoIDArm(t *testing.T) {
 		if factIDs[i] != want {
 			t.Fatalf("factIDs = %v, want %v", factIDs, wantFactIDs)
 		}
+	}
+}
+
+// TestLoadDeferredScopedFactsKeepsRepresentativeCorpusSingleTask pins the
+// post-#4262 full-corpus shape: a representative 896-repository catalog should
+// not split every scope into seven repeated scans. Chunking remains a protection
+// for oversized catalogs, but the ordinary full-corpus path must keep one query
+// task per scope so the deferred fact-load pass can reach the write/readiness
+// phase instead of multiplying the same per-scope scan across the whole catalog.
+func TestLoadDeferredScopedFactsKeepsRepresentativeCorpusSingleTask(t *testing.T) {
+	t.Parallel()
+
+	const representativeRepoCount = 896
+	repoIDs := make([]string, 0, representativeRepoCount)
+	for i := 0; i < representativeRepoCount; i++ {
+		repoIDs = append(repoIDs, "repo-"+itoa(i))
+	}
+	params := deferredScopedFactQueryParams{
+		nonRepoIDLike: pq.StringArray{"%external-config%"},
+		repoIDValues:  pq.StringArray(repoIDs),
+	}
+	probe := &chunkProbeQueryer{}
+	store := NewIngestionStore(nil)
+	store.maintenanceWorkers = 4
+
+	loaded, err := store.loadDeferredScopedFactsAcrossPartitions(
+		context.Background(),
+		probe,
+		params,
+		[]scopeGenerationPartition{{ScopeID: "scope-large", GenerationID: "gen-large"}},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("loadDeferredScopedFactsAcrossPartitions error = %v, want nil", err)
+	}
+	if probe.calls != 1 {
+		t.Fatalf("issued %d fact-load queries, want 1 representative-corpus task", probe.calls)
+	}
+	if probe.maxRepoIDArgs != representativeRepoCount {
+		t.Fatalf("max repo_id args per query = %d, want %d", probe.maxRepoIDArgs, representativeRepoCount)
+	}
+	if probe.nonRepoIDArgCalls != 1 {
+		t.Fatalf("non-repo_id LIKE arm ran in %d chunks, want 1", probe.nonRepoIDArgCalls)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("loaded %d facts, want one chunk fact plus one shared fact", len(loaded))
 	}
 }
 
