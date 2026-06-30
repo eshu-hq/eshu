@@ -72,6 +72,45 @@ func TestSelect_FrontendLane(t *testing.T) {
 	}
 }
 
+// TestSelect_SecurityLane proves the #4217 security-gate selection: a go.sum
+// change selects the dependency scanners (govulncheck + nancy), and a Dockerfile
+// change selects the Trivy filesystem scan, all under category=security.
+func TestSelect_SecurityLane(t *testing.T) {
+	t.Parallel()
+	reg := buildRegistry([]cigates.Gate{
+		gate("govulncheck", cigates.TierPrePush, cigates.CategorySecurity,
+			[]string{"go/go.mod", "go/go.sum", "go/**/*.go"}, localCmd("bash scripts/dev/precommit-go.sh govulncheck"), ""),
+		gate("nancy", cigates.TierPrePush, cigates.CategorySecurity,
+			[]string{"go/go.mod", "go/go.sum"}, localCmd("bash scripts/dev/precommit-go.sh nancy"), ""),
+		gate("trivy-fs", cigates.TierPrePush, cigates.CategorySecurity,
+			[]string{"Dockerfile", "deploy/**"}, localCmd("bash scripts/dev/trivy-fs-local.sh"), ""),
+		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
+			[]string{"go/**"}, localCmd("bash x"), ""),
+	})
+
+	depSel := collectSelected(cigates.FilterByCategory(
+		reg.Select([]string{"go/go.sum"}, cigates.TierPrePush),
+		[]cigates.Category{cigates.CategorySecurity}))
+	for _, id := range []string{"govulncheck", "nancy"} {
+		if _, ok := depSel[id]; !ok {
+			t.Errorf("go.sum change should select %q", id)
+		}
+	}
+	if _, ok := depSel["trivy-fs"]; ok {
+		t.Error("go.sum change should NOT select trivy-fs (Dockerfile/deploy trigger)")
+	}
+	if _, ok := depSel["go-lint"]; ok {
+		t.Error("go-lint (hygiene) should be filtered out of the security lane")
+	}
+
+	deploySel := collectSelected(cigates.FilterByCategory(
+		reg.Select([]string{"Dockerfile"}, cigates.TierPrePush),
+		[]cigates.Category{cigates.CategorySecurity}))
+	if _, ok := deploySel["trivy-fs"]; !ok {
+		t.Error("Dockerfile change should select trivy-fs")
+	}
+}
+
 // TestSelect_RaceLane proves the #4215 race-gate selection: a graph-write
 // package change selects the targeted race-graph-writes gate (category race),
 // while a non-graph Go change does not — so pre-pr's lane 2 (scoped race) owns

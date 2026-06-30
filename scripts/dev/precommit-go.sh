@@ -4,7 +4,7 @@
 # capability surface-inventory drift) so they are caught at commit time instead
 # of on GitHub.
 #
-# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|surface> [files...]
+# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface> [files...]
 #   lint-all / fmt-all run over the whole module (./...); the pre-pr gate
 #   (scripts/dev/pre-pr.sh) uses them to mirror CI before the first push.
 #
@@ -83,6 +83,28 @@ ensure_gosec() {
 			"github.com/securego/gosec/v2/cmd/gosec@${gosec_version}" \
 			|| die "failed to install gosec ${gosec_version}"
 		mv "${cache_dir}/gosec" "${bin}"
+	fi
+	printf '%s' "${bin}"
+}
+
+ensure_govulncheck() {
+	local bin="${cache_dir}/govulncheck"
+	if [[ ! -x "${bin}" ]]; then
+		note "installing govulncheck (one-time, local toolchain)"
+		GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+			"golang.org/x/vuln/cmd/govulncheck@latest" \
+			|| die "failed to install govulncheck"
+	fi
+	printf '%s' "${bin}"
+}
+
+ensure_nancy() {
+	local bin="${cache_dir}/nancy"
+	if [[ ! -x "${bin}" ]]; then
+		note "installing nancy (one-time, local toolchain)"
+		GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+			"github.com/sonatype-nexus-community/nancy@latest" \
+			|| die "failed to install nancy"
 	fi
 	printf '%s' "${bin}"
 }
@@ -246,7 +268,24 @@ case "${cmd}" in
 			die "gosec: ${findings} finding(s) — fix or annotate with a leading // #nosec <RULE> -- <reason>"
 		fi
 		;;
+	govulncheck)
+		# Whole-module govulncheck against the Go vulnerability database,
+		# mirroring security-scan.yml. `-scan package` (not the default symbol
+		# mode) avoids the x/tools SSA panic on Go 1.26 generics. Needs network
+		# to fetch the vuln database.
+		bin="$(ensure_govulncheck)"
+		( cd "${go_dir}" && "${bin}" -scan package ./... ) \
+			|| die "govulncheck: vulnerabilities found (see output above)"
+		;;
+	nancy)
+		# nancy sleuth against the dependency graph (Sonatype OSS Index),
+		# mirroring security-scan.yml. Catches CVE/license drift govulncheck
+		# misses (indirect deps, older advisories). Needs network.
+		bin="$(ensure_nancy)"
+		( cd "${go_dir}" && "${bin}" sleuth --no-color ) \
+			|| die "nancy: vulnerable dependencies found (see output above)"
+		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|surface|perf-evidence|telemetry)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry)"
 		;;
 esac

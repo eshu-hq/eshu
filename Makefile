@@ -1,6 +1,6 @@
 # Eshu convenience targets. The canonical gates live in scripts/ (and CI under
 # .github/workflows/); this Makefile only provides ergonomic entry points.
-.PHONY: help pre-pr pre-pr-full frontend-preflight
+.PHONY: help pre-pr pre-pr-full frontend-preflight security-preflight
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -14,3 +14,6 @@ pre-pr-full: ## Like pre-pr but with whole-module race (go test ./... -race) for
 
 frontend-preflight: ## Run the selected frontend gates (typecheck/test/build/a11y/eslint/audit) for changed paths
 	@bash scripts/dev/frontend-preflight.sh
+
+security-preflight: ## Run the selected security gates (gosec/govulncheck/nancy/trivy-fs) for changed paths
+	@bash scripts/dev/security-preflight.sh

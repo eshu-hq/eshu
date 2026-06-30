@@ -775,6 +775,69 @@ gates:
     ci_only_reason: ""
     hook_id: go-gosec
 
+  - id: govulncheck
+    name: govulncheck (Go vulnerability database)
+    category: security
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/go.mod"
+      - "go/go.sum"
+      - "go/**/*.go"
+    local:
+      command: "bash scripts/dev/precommit-go.sh govulncheck"
+      test_command: ""
+    ci:
+      workflow: security-scan.yml
+      job: "govulncheck (Go vulnerability database)"
+    requirements:
+      - go
+      - network
+    ci_only_reason: ""
+
+  - id: nancy
+    name: nancy (Sonatype dep CVE + license scan)
+    category: security
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/go.sum"
+    local:
+      command: "bash scripts/dev/precommit-go.sh nancy"
+      test_command: ""
+    ci:
+      workflow: security-scan.yml
+      job: "nancy (Sonatype dep CVE + license scan)"
+    requirements:
+      - go
+      - network
+    ci_only_reason: ""
+
+  - id: trivy-fs
+    name: Trivy filesystem scan (vuln + secret + config)
+    category: security
+    tier: pre-push
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - "deploy/**"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "package-lock.json"
+    # Optional: trivy is not a required local tool. The script runs the scan when
+    # trivy is installed and otherwise prints setup guidance and defers to CI —
+    # it never passes silently as if the scan ran. Advisory locally; CI's
+    # trivy-fs job (with SARIF upload) remains authoritative.
+    local:
+      command: "bash scripts/dev/trivy-fs-local.sh"
+      test_command: ""
+    ci:
+      workflow: security-scan.yml
+      job: "Trivy filesystem scan (vuln + secret + config)"
+    requirements:
+      - network
+    ci_only_reason: ""
+
   # ─── CI-ONLY (local==null) ─────────────────────────────────────────────────
 
   - id: golden-corpus-gate

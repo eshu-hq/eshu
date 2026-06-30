@@ -60,6 +60,21 @@ make frontend-preflight      # or: bash scripts/dev/frontend-preflight.sh
 These gates need Node and installed dependencies; if `node_modules` is missing
 the npm commands fail loudly (run `npm ci` first) rather than skipping silently.
 
+For dependency or deploy changes, a security preflight mirrors the
+credential-free `security-scan.yml` jobs (#4217) — whole-module gosec,
+govulncheck, nancy, and an optional Trivy filesystem scan — selected by changed
+path:
+
+```bash
+make security-preflight      # or: bash scripts/dev/security-preflight.sh
+```
+
+govulncheck and nancy need network for their advisory databases; Trivy is
+optional and the `trivy-fs` gate prints setup guidance and defers to CI when
+`trivy` is not installed (never a silent pass). **CI remains authoritative** for
+SARIF uploads, the Trivy image scan, and release/package security checks — those
+stay CI-only.
+
 To see exactly which credential-free CI verifiers apply to the paths you
 changed — and why — use the gate selector:
 
