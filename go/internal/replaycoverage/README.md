@@ -71,6 +71,13 @@ tier, Go race tests, parser fixture tests, `capability-inventory`,
 proof). That split keeps this gate fast and credential-free while never claiming
 a green it did not observe.
 
+C-13 binds those proof names back to `specs/ci-gates.v1.yaml`.
+`ValidateRequiredProofGates` rejects any manifest or authorization proof-ledger
+`proof_gate` that is unknown, has no local command, or has neither a CI workflow
+nor an explicit `local_only_reason`. `RunGate` also treats invalid proof-gate
+metadata as `unresolved`, so a direct package caller cannot count a scenario as
+covered when the registered proof is stale or unenforceable.
+
 ## Advisory → blocking
 
 `Findings` renders the reconciliation as `goldengate.Finding`s. Local runs can

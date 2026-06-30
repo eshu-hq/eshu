@@ -78,3 +78,9 @@ manifest entry names the `proof_gate` that runs the scenario and proves it green
 `capability-inventory`, `capability-inventory-docs`, `authz-scoped-route-tests`,
 or capability-budget proof). Keeping existence here and greenness there is what
 makes this gate fast and credential-free.
+
+The command also validates those `proof_gate` names against
+`specs/ci-gates.v1.yaml` before it reports coverage. A proof gate must be a
+registered gate with a local command and CI workflow, or a registered local-only
+gate with `local_only_reason`. Unknown, stale, or unenforceable proof gates fail
+the static gate instead of letting a manifest row count as covered.

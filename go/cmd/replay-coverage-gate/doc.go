@@ -44,6 +44,10 @@
 // each manifest entry's proof_gate. That keeps this gate fast, credential-free,
 // and Docker-free.
 //
+// The command validates proof_gate names against specs/ci-gates.v1.yaml before
+// reporting coverage. Unknown, stale, or unenforceable proof gates fail the
+// static run instead of letting a manifest entry count as covered.
+//
 // Usage:
 //
 //	replay-coverage-gate \

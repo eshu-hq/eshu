@@ -94,6 +94,17 @@ The `proof_gate` field is not decoration. It names the command or CI gate that
 actually runs the scenario. A manifest row without a real sibling proof is a
 false green.
 
+`proof_gate` values are statically validated against `specs/ci-gates.v1.yaml`.
+Every value used by `specs/replay-coverage-manifest.v1.yaml` or
+`specs/authorization-replay-coverage.v1.yaml` must name a registered gate with a
+local command and a CI workflow, or a registered local-only gate with an explicit
+`local_only_reason`. A typo, deleted gate, or gate with no runnable local command
+fails `replay-coverage-gate` before the entry can be counted as covered. The
+replay coverage workflow and CI-gate registry also watch the files that can
+invalidate each scenario class: cassettes, parser fixtures, B-12 snapshots,
+API/MCP/CLI golden code, authz catalogs, capability/product-claim specs, the
+manifest, and scenario-depth artifacts.
+
 ## Refreshing A Cassette
 
 Refresh only when source behavior changed, a collector fact contract changed, or
@@ -168,8 +179,9 @@ Replay coverage has two modes:
   `bash scripts/verify-replay-coverage-gate.sh --blocking`.
 
 Blocking coverage means the coverage map is complete and the named sibling gates
-exist. It does not mean every possible live provider, backend, performance, or
-full-corpus behavior has been exercised.
+exist and are registered as enforceable proof gates. It does not mean every
+possible live provider, backend, performance, or full-corpus behavior has been
+exercised.
 
 ## What Replay Replaces
 

@@ -30,6 +30,7 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
+    local_only_reason: ""
 `
 
 func writeYAML(t *testing.T, content string) string {
@@ -76,6 +77,9 @@ func TestLoad_ValidRegistry(t *testing.T) {
 	}
 	if g.Local.Command != "bash scripts/verify-openapi.sh" {
 		t.Errorf("Local.Command = %q", g.Local.Command)
+	}
+	if g.LocalOnlyReason != "" {
+		t.Errorf("LocalOnlyReason = %q; want empty", g.LocalOnlyReason)
 	}
 }
 
@@ -277,5 +281,34 @@ gates:
 	}
 	if reg.Gates[0].CIOnlyReason != "needs Postgres service" {
 		t.Errorf("CIOnlyReason = %q", reg.Gates[0].CIOnlyReason)
+	}
+}
+
+func TestLoad_LocalOnlyReason(t *testing.T) {
+	t.Parallel()
+	yaml := `version: v1
+gates:
+  - id: local-only-proof
+    name: Local Only Proof
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers: ["specs/local-proof.v1.yaml"]
+    local:
+      command: "bash scripts/verify-local-proof.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: [go]
+    ci_only_reason: ""
+    local_only_reason: "review-only local fixture until CI has an equivalent runner"
+`
+	path := writeYAML(t, yaml)
+	reg, err := cigates.Load(path)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if got := reg.Gates[0].LocalOnlyReason; got != "review-only local fixture until CI has an equivalent runner" {
+		t.Errorf("LocalOnlyReason = %q", got)
 	}
 }

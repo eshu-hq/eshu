@@ -60,6 +60,11 @@
 // authorization replay proof ledger. That split keeps the coverage gate fast and
 // credential-free while never claiming a green it did not observe.
 //
+// ValidateRequiredProofGates binds those proof_gate names back to the CI-gate
+// registry. Unknown proof gates, proof gates with no local command, and proof
+// gates with neither a CI workflow nor a local-only rationale are unresolved
+// proof metadata, not covered replay scenarios.
+//
 // # Advisory to blocking
 //
 // Findings reuse the shared goldengate.Finding/Report machinery. Local advisory

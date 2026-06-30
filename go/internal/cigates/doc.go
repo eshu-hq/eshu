@@ -11,7 +11,9 @@
 //
 // The gate registry lives at specs/ci-gates.v1.yaml. Load reads and structurally
 // validates it (unique IDs, non-empty triggers, valid enum values, CI-only reason
-// required when local is absent). The result is a *Registry whose Gates slice
+// required when local is absent). A local-only gate can carry local_only_reason
+// so callers that require proof orchestration can distinguish intentional local
+// proofs from stale CI metadata. The result is a *Registry whose Gates slice
 // preserves the YAML order for deterministic output.
 //
 // # Selection

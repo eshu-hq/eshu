@@ -338,6 +338,53 @@ gates:
     # Note: capability-surface-inventory hook also runs this surface check at
     # commit time; hook_id is on capability-surface-inventory gate below.
 
+  - id: capability-inventory
+    name: Capability Inventory Verify
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/capability-inventory/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/mcp/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "specs/surface-inventory.v1.yaml"
+    local:
+      command: "cd go && go run ./cmd/capability-inventory -mode verify"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: capability-inventory-docs
+    name: Capability Inventory Docs/Product Claims Verify
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/cmd/capability-inventory/**"
+      - "go/internal/capabilitycatalog/**"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "specs/product-claims.v1.yaml"
+      - "docs/**"
+      - "README.md"
+    local:
+      command: "cd go && go run ./cmd/capability-inventory -mode docs"
+      test_command: ""
+    ci:
+      workflow: mcp-schema-drift.yml
+      job: "Verify capability inventory"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: parser-relationship-kit
     name: Verify Parser Relationship Kit
     category: exactness
@@ -855,6 +902,9 @@ gates:
       - "go/internal/storage/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
+    local:
+      command: "bash scripts/verify-golden-corpus-gate.sh"
+      test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
     ci:
       workflow: golden-corpus-gate.yml
       job: "Golden corpus gate"
@@ -862,7 +912,7 @@ gates:
       - go
       - docker
       - nornicdb
-    ci_only_reason: "requires Docker + NornicDB service stack"
+    ci_only_reason: ""
 
   - id: replay-coverage-gate
     name: C-1/C-8/C-9/C-10 Replay Coverage Gate
@@ -874,25 +924,74 @@ gates:
       - "go/cmd/eshu/**"
       - "go/internal/replaycoverage/**"
       - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "go/internal/scopedtoken/**"
       - "go/internal/goldengate/**"
+      - "go/internal/replay/parserfixture/**"
       - "go/internal/replay/inputtape/**"
       - "go/internal/replay/schedulereplay/**"
       - "go/internal/replay/crashreplay/**"
       - "go/internal/capabilitycatalog/**"
       - "go/internal/facts/**"
+      - "specs/ci-gates.v1.yaml"
       - "specs/capability-budget-proof.v1.yaml"
+      - "specs/capability-catalog.v1.yaml"
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "specs/product-claims.v1.yaml"
       - "specs/replay-coverage-manifest.v1.yaml"
       - "specs/authorization-catalog.v1.yaml"
       - "specs/authorization-replay-coverage.v1.yaml"
       - "specs/parser-backing-ledger.v1.yaml"
+      - "specs/fact-kind-registry.v1.yaml"
       - "specs/surface-inventory.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"
+      - "testdata/cassettes/**"
     local:
       command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
       test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
     ci:
       workflow: replay-coverage-gate.yml
       job: "Replay coverage gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: parserfixture-tests
+    name: Parser Fixture Replay Tests
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/replay/parserfixture/**"
+      - "specs/parser-backing-ledger.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/replay/parserfixture/... -count=1"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "Run Go tests with race detector"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: authz-scoped-route-tests
+    name: Authorization Scoped Route Replay Tests
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+      - "go/internal/scopedtoken/**"
+      - "specs/authorization-catalog.v1.yaml"
+      - "specs/authorization-replay-coverage.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/query -run 'Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -count=1"
+      test_command: ""
+    ci:
+      workflow: replay-coverage-gate.yml
+      job: "coverage-gate (blocking)"
     requirements:
       - go
     ci_only_reason: ""
@@ -1044,13 +1143,16 @@ gates:
       - "testdata/cassettes/replayoffline/**"
       - "testdata/cassettes/replaydelta/**"
       - "scripts/verify-replay-tier.sh"
+    local:
+      command: "bash scripts/verify-replay-tier.sh"
+      test_command: ""
     ci:
       workflow: verify-replay-tier.yml
       job: "Verify replay tier"
     requirements:
       - go
       - docker
-    ci_only_reason: "replays the committed cassette via plain docker run (no Compose); needs Docker"
+    ci_only_reason: ""
 
   - id: go-test-race
     name: Go tests with race detector

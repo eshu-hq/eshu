@@ -132,6 +132,9 @@ type Gate struct {
 	// CIOnlyReason is required and non-empty when Local is nil; it explains why
 	// the gate cannot run locally.
 	CIOnlyReason string
+	// LocalOnlyReason is required and non-empty when CI.Workflow is blank but
+	// Local is set; it explains why the gate has no CI workflow equivalent.
+	LocalOnlyReason string
 	// HookID is the .pre-commit-config.yaml hook id that this gate corresponds to.
 	// Empty when the gate has no direct local hook equivalent.
 	HookID string
@@ -178,17 +181,18 @@ type registryFile struct {
 }
 
 type gateFile struct {
-	ID           string     `yaml:"id"`
-	Name         string     `yaml:"name"`
-	Category     string     `yaml:"category"`
-	Tier         string     `yaml:"tier"`
-	Blocking     bool       `yaml:"blocking"`
-	Triggers     []string   `yaml:"triggers"`
-	Local        *localFile `yaml:"local"`
-	CI           ciFile     `yaml:"ci"`
-	Requirements []string   `yaml:"requirements"`
-	CIOnlyReason string     `yaml:"ci_only_reason"`
-	HookID       string     `yaml:"hook_id"`
+	ID              string     `yaml:"id"`
+	Name            string     `yaml:"name"`
+	Category        string     `yaml:"category"`
+	Tier            string     `yaml:"tier"`
+	Blocking        bool       `yaml:"blocking"`
+	Triggers        []string   `yaml:"triggers"`
+	Local           *localFile `yaml:"local"`
+	CI              ciFile     `yaml:"ci"`
+	Requirements    []string   `yaml:"requirements"`
+	CIOnlyReason    string     `yaml:"ci_only_reason"`
+	LocalOnlyReason string     `yaml:"local_only_reason"`
+	HookID          string     `yaml:"hook_id"`
 }
 
 type localFile struct {
@@ -316,19 +320,21 @@ func Load(path string) (*Registry, error) {
 		if local == nil && ciOnlyReason == "" {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has local==null but empty ci_only_reason (required when local is absent)", path, id)
 		}
+		localOnlyReason := strings.TrimSpace(gf.LocalOnlyReason)
 
 		reg.Gates = append(reg.Gates, Gate{
-			ID:           id,
-			Name:         strings.TrimSpace(gf.Name),
-			Category:     cat,
-			Tier:         tier,
-			Blocking:     gf.Blocking,
-			Triggers:     gf.Triggers,
-			Local:        local,
-			CI:           CI{Workflow: strings.TrimSpace(gf.CI.Workflow), Job: strings.TrimSpace(gf.CI.Job)},
-			Requirements: reqs,
-			CIOnlyReason: ciOnlyReason,
-			HookID:       strings.TrimSpace(gf.HookID),
+			ID:              id,
+			Name:            strings.TrimSpace(gf.Name),
+			Category:        cat,
+			Tier:            tier,
+			Blocking:        gf.Blocking,
+			Triggers:        gf.Triggers,
+			Local:           local,
+			CI:              CI{Workflow: strings.TrimSpace(gf.CI.Workflow), Job: strings.TrimSpace(gf.CI.Job)},
+			Requirements:    reqs,
+			CIOnlyReason:    ciOnlyReason,
+			LocalOnlyReason: localOnlyReason,
+			HookID:          strings.TrimSpace(gf.HookID),
 		})
 	}
 

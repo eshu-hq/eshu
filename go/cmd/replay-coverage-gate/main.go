@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/cigates"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
@@ -118,6 +120,13 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 	if err != nil {
 		return replaycoverage.Inputs{}, err
 	}
+	proofGates, err := cigates.Load(filepath.Join(o.specsDir, "ci-gates.v1.yaml"))
+	if err != nil {
+		return replaycoverage.Inputs{}, fmt.Errorf("load ci gate registry: %w", err)
+	}
+	if errs := replaycoverage.ValidateRequiredProofGates(manifest, authzProofs, proofGates); len(errs) > 0 {
+		return replaycoverage.Inputs{}, fmt.Errorf("validate replay proof gates: %w", errors.Join(errs...))
+	}
 	snapshot, err := goldengate.LoadSnapshot(o.snapshot)
 	if err != nil {
 		return replaycoverage.Inputs{}, fmt.Errorf("load snapshot: %w", err)
@@ -130,7 +139,9 @@ func loadInputs(o options) (replaycoverage.Inputs, error) {
 		ProductClaims: productClaims,
 		CLIShapes:     snapshot.QueryShapes.CLI,
 		Authorization: authorization,
+		AuthzProofs:   authzProofs,
 		Manifest:      manifest,
+		ProofGates:    proofGates,
 		Resolver: replaycoverage.ArtifactResolver{
 			RepoRoot:      o.repoRoot,
 			Snapshot:      snapshot,
