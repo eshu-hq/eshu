@@ -113,6 +113,7 @@ nav:
       - Remote Representative Acceptance: reference/local-testing/remote-representative-acceptance.md
       - Representative Corpus Suite: reference/local-testing/representative-corpus-suite.md
       - Golden Corpus Gate (B-7): reference/local-testing/golden-corpus-gate.md
+      - Cassette And Replay Proof: reference/cassette-replay.md
       - Replay Coverage Dashboard: reference/replay-coverage.md
       - Code Coverage Report: reference/code-coverage.md
       - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
@@ -203,6 +204,7 @@ nav:
     - Runtime And Storage Environment: reference/environment-runtime-storage.md
     - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
     - Collector Environment: reference/environment-collectors.md
+    - Cassette And Replay Proof: reference/cassette-replay.md
     - Compose And Test Environment: reference/environment-compose-tests.md
     - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
     - Component Package Manager: reference/component-package-manager.md
