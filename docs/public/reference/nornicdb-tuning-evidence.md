@@ -137,18 +137,20 @@ the canonical graph must record startup, memory, artifact-size, document-count,
 vector-count, and failure-mode evidence before changing defaults.
 
 No-Regression Evidence: Compose pins
-`timothyswt/nornicdb-cpu-bge:v1.1.6@sha256:e448ccf5cd1c1ff994c6316a1a2c5b06b19b4a3c6545660fa04f43c457625692`.
-`docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.6` resolves
+`timothyswt/nornicdb-cpu-bge:v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd`.
+`docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.9` resolves
 the pinned manifest list (`application/vnd.docker.distribution.manifest.list.v2+json`)
 with linux/amd64 and linux/arm64 entries. NornicDB introduced the per-database
 BM25 and vector index master switches in release `v1.1.2`; Eshu relies on those
-graph-only controls while pinning the latest published multi-arch image `v1.1.6`.
+graph-only controls while pinning the latest published multi-arch image `v1.1.9`.
 Releases `v1.1.4` (Barracuda), `v1.1.5` (Bicycle), and `v1.1.6` (Cherry Bomb) are
 maintenance/compatibility releases — Cypher/Bolt correctness, storage resilience,
 vector-search performance, and Neo4j/Graphiti compatibility — with no on-disk
 format change and the graph-only search controls preserved, so the pin moved from
 `v1.1.3` to `v1.1.6` to track the latest release while keeping the same
-graph-only startup policy.
+graph-only startup policy. `v1.1.9` continues the same maintenance/compatibility
+line with the graph-only search controls preserved; the pin is updated to
+`v1.1.9` to track the latest release.
 
 Graph-only Controls Smoke, 2026-06-02 v1.1.3 refresh:
 
