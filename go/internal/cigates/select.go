@@ -85,6 +85,50 @@ func selectGate(g Gate, changed []string, requestedTier Tier) Selection {
 	}
 }
 
+// UncoveredPaths returns the subset of changed paths that no locally-runnable
+// gate in the requested categories (at tier <= the ceiling) covers via a
+// trigger. It is the registry-derived complement of the category lanes: callers
+// such as `make pre-pr`'s scoped race lane use it to race exactly the changed
+// packages that no race-category gate already runs, so no package is raced
+// twice and none is silently skipped. A gate with Local==nil (CI-only) does NOT
+// count as covering — its path must still be exercised locally if no runnable
+// gate also covers it.
+func (r *Registry) UncoveredPaths(changed []string, categories []Category, tier Tier) []string {
+	want := make(map[Category]struct{}, len(categories))
+	for _, c := range categories {
+		want[c] = struct{}{}
+	}
+	var uncovered []string
+	for _, p := range changed {
+		if !r.pathCovered(p, want, tier) {
+			uncovered = append(uncovered, p)
+		}
+	}
+	return uncovered
+}
+
+// pathCovered reports whether some locally-runnable gate in the requested
+// categories (tier <= ceiling) has a trigger matching p.
+func (r *Registry) pathCovered(p string, want map[Category]struct{}, tier Tier) bool {
+	for _, g := range r.Gates {
+		if g.Local == nil {
+			continue
+		}
+		if _, ok := want[g.Category]; !ok {
+			continue
+		}
+		if !TierAtMost(g.Tier, tier) {
+			continue
+		}
+		for _, trig := range g.Triggers {
+			if MatchGlob(trig, p) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // FilterByCategory marks any currently-selected gate whose category is not in
 // the requested set as not-selected, with an explanatory reason. The selection
 // list is preserved (and its order) so skipped gates are still reported. An

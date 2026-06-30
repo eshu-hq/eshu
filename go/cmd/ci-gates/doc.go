@@ -51,4 +51,16 @@
 // which fails if .pre-commit-config.yaml or .github/workflows/ have drifted from
 // the registry — an unregistered local hook, a gate hook_id missing or at the
 // wrong stage, or a workflow that is in neither a gate nor non_gate_workflows.
+//
+// # uncovered
+//
+//	ci-gates uncovered --registry specs/ci-gates.v1.yaml --category race \
+//	                   --tier pre-pr [--base origin/main] [--paths-from <file|->]
+//
+// Prints the changed paths that no locally-runnable gate in the requested
+// categories (at tier <= ceiling) covers via a trigger. `make pre-pr`'s scoped
+// race lane (#4215) uses --category race to find the changed packages no race
+// gate already runs, so it races exactly those without double-racing
+// registry-owned packages. A CI-only gate (no local command) does not count as
+// covering.
 package main

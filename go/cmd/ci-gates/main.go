@@ -39,6 +39,8 @@ func main() {
 		err = runRun(args)
 	case "validate":
 		err = runValidate(args)
+	case "uncovered":
+		err = runUncovered(args)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates: unknown subcommand %q\n", sub)
 		usage(os.Stderr)
@@ -55,6 +57,7 @@ func usage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "  select   --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--explain] [--json]")
 	_, _ = fmt.Fprintln(w, "  run      --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--repo-root <path>]")
 	_, _ = fmt.Fprintln(w, "  validate --registry <path> --repo-root <path> [--drift]")
+	_, _ = fmt.Fprintln(w, "  uncovered --registry <path> --category <list> --tier <tier> [--base <ref>] [--paths-from <file|->]")
 }
 
 // --- select subcommand ---
@@ -178,6 +181,46 @@ func resolveRepoRoot(explicit string) (string, error) {
 		return "", fmt.Errorf("--repo-root not provided and git rev-parse failed: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// --- uncovered subcommand ---
+
+// runUncovered prints the changed paths that no locally-runnable gate in the
+// requested categories (at tier <= ceiling) covers. `make pre-pr`'s scoped race
+// lane uses `--category race` to find the changed packages no race gate already
+// runs, so it can race exactly those without double-racing registry-owned ones.
+func runUncovered(args []string) error {
+	fs := flag.NewFlagSet("uncovered", flag.ContinueOnError)
+	registry := fs.String("registry", "", "path to ci-gates.v1.yaml registry")
+	tier := fs.String("tier", "pre-pr", "tier ceiling (pre-commit|pre-push|pre-pr|ci-heavy|manual)")
+	base := fs.String("base", "origin/main", "git base ref for changed-path detection")
+	pathsFrom := fs.String("paths-from", "", "file of changed paths, one per line ('-' for stdin)")
+	category := fs.String("category", "", "comma-separated category filter (required)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *registry == "" {
+		return fmt.Errorf("--registry is required")
+	}
+	cats, err := parseCategories(*category)
+	if err != nil {
+		return err
+	}
+	if len(cats) == 0 {
+		return fmt.Errorf("--category is required (e.g. race)")
+	}
+	reg, err := cigates.Load(*registry)
+	if err != nil {
+		return fmt.Errorf("load registry: %w", err)
+	}
+	changed, err := resolveChangedPaths(*pathsFrom, *base)
+	if err != nil {
+		return fmt.Errorf("resolve changed paths: %w", err)
+	}
+	for _, p := range reg.UncoveredPaths(changed, cats, cigates.Tier(*tier)) {
+		_, _ = fmt.Fprintln(os.Stdout, p)
+	}
+	return nil
 }
 
 // --- validate subcommand ---

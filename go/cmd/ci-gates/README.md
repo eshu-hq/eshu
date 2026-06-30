@@ -76,6 +76,25 @@ must exist at a tier-consistent stage, and every workflow must be a gate
 `ci.workflow` or a `non_gate_workflows` entry. Used by the `gate-registry-drift`
 pre-commit hook and the `verify-ci-gate-registry.yml` workflow.
 
+### uncovered
+
+```bash
+ci-gates uncovered \
+  --registry specs/ci-gates.v1.yaml \
+  --category race \
+  --tier pre-pr \
+  [--base origin/main] \
+  [--paths-from paths.txt | --paths-from -]
+```
+
+Prints the changed paths that no locally-runnable gate in the requested
+categories (at tier ≤ ceiling) covers via a trigger. `make pre-pr`'s scoped race
+lane ([#4215](https://github.com/eshu-hq/eshu/issues/4215)) uses `--category race`
+to race exactly the changed packages no race gate already runs — so it never
+double-races a registry-owned package (graph-write or replay), and the exclusion
+is derived from the registry rather than a hard-coded list. A CI-only gate (no
+local command) does not count as covering.
+
 ## Thin shell wrappers
 
 | Script | Purpose |
