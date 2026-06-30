@@ -27,6 +27,8 @@ Use the project skill that matches the touched surface:
   truth
 - `eshu-diagnostic-rigor` for runtime proof, reducer throughput, queue behavior,
   or performance evidence
+- `eshu-postgres-rigor` for Postgres SQL, schema, indexes, queues, locks,
+  transactions, or relational performance diagnostics
 - `cypher-query-rigor` for graph query/write/index or backend dialect work
 - `concurrency-deadlock-rigor` for workers, leases, retries, queues, or shared
   writes

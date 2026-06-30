@@ -19,10 +19,12 @@ Start with this skill for Eshu diagnostic work. Add other skills only when the
 change needs their domain:
 
 - `golang-engineering`: Go code edits or Go tests.
+- `eshu-postgres-rigor`: Postgres SQL, schema, indexes, locks, transactions,
+  queue/liveness/status queries, or relational performance diagnostics.
 - `cypher-query-rigor`: graph query, write shape, indexes, or backend dialect.
 - `concurrency-deadlock-rigor`: workers, leases, retries, conflict keys, or queue ordering.
 - `eshu-correlation-truth`: correlation, materialization truth, or query truth.
-- `skill-creator`: creating or updating skills.
+- `superpowers:writing-skills`: creating or updating skills.
 
 ## Operating Rules
 
