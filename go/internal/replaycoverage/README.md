@@ -1,10 +1,12 @@
 # replaycoverage
 
-`replaycoverage` is the assertion core of the **C-1/C-8/C-9/C-10 replay coverage
-manifest + lockstep gate** ([#4173](https://github.com/eshu-hq/eshu/issues/4173),
+`replaycoverage` is the assertion core of the **C-1/C-8/C-9/C-10/C-13 replay
+coverage manifest + lockstep gate**
+([#4173](https://github.com/eshu-hq/eshu/issues/4173),
 [#4187](https://github.com/eshu-hq/eshu/issues/4187),
 [#4188](https://github.com/eshu-hq/eshu/issues/4188),
-[#4189](https://github.com/eshu-hq/eshu/issues/4189), epic
+[#4189](https://github.com/eshu-hq/eshu/issues/4189),
+[#4366](https://github.com/eshu-hq/eshu/issues/4366), epic
 [#4172](https://github.com/eshu-hq/eshu/issues/4172)). It answers one question:
 **does every surface and required scenario-depth class Eshu claims to support
 have a green, credential-free, Docker-free replay scenario — and will CI notice
@@ -34,11 +36,36 @@ artifact kind (`scenario`: cassette, parser_fixture, api_mcp_golden, cli_golden,
 correlation, capability_claim, product_claim, authz_scoped_route, go_test, or
 proof_artifact) and a depth class (`scenario_type`: baseline, delta_tombstone,
 fault, ordering, crash, or cost).
-Surfaces require baseline by default; each `scenario_requirements` row must
-include baseline and opts a surface into additional C-8 depth dimensions.
 `Reconcile` classifies every required
 surface/scenario_type pair as `covered`, `uncovered`, `unresolved` (manifest
 entry, missing artifact), or `exempt`, and reports stale manifest drift.
+
+## Depth requirements per applicable surface (C-13)
+
+Breadth surfaces require `baseline`. The depth classes are required **per
+applicable surface**, derived (not opted into one at a time) so a
+delete/crash/fault hole cannot recur unseen for any other piece — the #4186
+class. `DeriveRequirements` reads the source registries:
+
+| Depth class | Applicable surface | Lockstep source |
+| --- | --- | --- |
+| `fault` | every collector boundary | implemented `collector:*` (surface-inventory) |
+| `cost` | every projection | distinct `reducer_domain` (fact-kind registry) |
+| `ordering` | every shared-conflict-key projection | `reducer_domain` written by ≥2 projection hooks |
+| `delta_tombstone` | every retractable graph node type | `cypher.RetractableNodeEntityLabels()` |
+| `crash` | the reducer drain | the drain singleton |
+
+The retractable node types and the reducer drain are declared in
+`specs/replay-depth-requirements.v1.yaml` (`LoadDepthRequirements`);
+`EnumerateDepthSurfaces` turns them plus the fact-kind projections into
+`retractable_node:*`, `projection:*`, and `reducer_drain:*` surfaces, and the
+derived requirements are unioned with the manifest's explicit
+`scenario_requirements`. A lockstep test keeps `retractable_node_types`
+byte-equal to the cypher retract registry, so adding a retractable label makes
+the gate **demand** a delta scenario instead of the gap going unseen. Retractable
+graph *edge* types are a tracked follow-up (no single machine-readable set
+exists today). The missing surface/scenario_type pairs the gate lists are the
+C-14 ([#4367](https://github.com/eshu-hq/eshu/issues/4367)) backfill worklist.
 
 ## Why a manifest (and not just the registries)
 
@@ -108,10 +135,15 @@ binds every committed exemption to a real ledger language.
 
 `Findings` renders the reconciliation as `goldengate.Finding`s. Local runs can
 stay **advisory** when `Blocking=false`: every gap is reported but does not fail
-the command. CI now passes the single blocking flag after the C-2..C-10 burn-down,
-so every uncovered / unresolved / stale finding is required and coverage cannot
-regress. `BuildReport` emits the v3 coverage-report artifact (the v3 bump added
-the language-parser scoreboard), and `RenderDashboard`
+the command. CI passes the single blocking flag after the C-2..C-10 burn-down, so
+every uncovered / unresolved / stale **baseline (breadth)** finding is required
+and breadth coverage cannot regress. The C-8/C-13 **depth** classes are
+advisory-first (`isBlockingScenarioType`): every non-baseline finding stays
+advisory even under `-blocking`, so the gate enumerates and lists the missing
+surface/scenario_type pairs (the C-14 worklist) without failing CI, until C-14
+burns them down and a later ticket flips depth to blocking. `BuildReport` emits
+the v3 coverage-report artifact (the v3 bump added the language-parser
+scoreboard), and `RenderDashboard`
 turns it into the committed, docs-discoverable **C-7 dashboard**
 (`docs/public/reference/replay-coverage.md`): the overall %, a per-axis table, the
 per-scenario-type C-8 table, the C-11 language-parser scoreboard, the named gap

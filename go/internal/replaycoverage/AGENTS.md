@@ -1,7 +1,11 @@
 # AGENTS — replaycoverage
 
-Scoped rules for editing the C-1/C-8/C-9 replay coverage gate core. Load
+Scoped rules for editing the C-1/C-8/C-9/C-13 replay coverage gate core. Load
 `eshu-golden-corpus-rigor`, `eshu-diagnostic-rigor`, and `golang-engineering`.
+Add `cypher-query-rigor` and `concurrency-deadlock-rigor` when touching the
+depth-requirement derivation (retractable node types, projection/ordering,
+crash) — its denominators come from the graph-write and reducer-drain surfaces
+those skills own.
 
 ## Invariants
 
@@ -22,10 +26,23 @@ Scoped rules for editing the C-1/C-8/C-9 replay coverage gate core. Load
   kinds, invalid scenario types, duplicate surface+scenario_type pairs,
   requirements that drop baseline, and covered/required+exempt conflicts are
   hard load errors.
-- **One severity knob.** `Blocking=false` remains the local advisory mode, while
-  CI passes the single blocking flag now that the C-lane coverage gaps have
-  burned down. Keep that the only severity control — do not add per-finding
-  `Required` overrides.
+- **Two severity tiers, one knob.** `Blocking=false` is local advisory mode; CI
+  passes the single blocking flag for **baseline (breadth)** coverage. The
+  C-8/C-13 **depth** classes are advisory-first: `isBlockingScenarioType` keeps
+  every non-baseline finding advisory even under `-blocking`, so the gate lists
+  the missing surface/scenario_type pairs (the C-14 worklist) without failing CI.
+  Keep severity keyed on `Blocking` × scenario_type — do not add per-finding
+  `Required` overrides. Flip a depth class to blocking only when its backlog has
+  burned down (a deliberate follow-up, not an inline edit).
+- **Depth requirements are derived and lockstep, not hand-listed.**
+  `DeriveRequirements` derives the depth class per applicable surface — fault per
+  collector, cost per projection, ordering per shared-conflict-key projection
+  (≥2 projection hooks), delta per retractable node type, crash for the drain.
+  The retractable node types live in `specs/replay-depth-requirements.v1.yaml`
+  and MUST stay byte-equal to `cypher.RetractableNodeEntityLabels()` (a lockstep
+  test enforces it). Never hand-maintain a parallel denominator that can silently
+  drift from the code that does the retraction — that reintroduces the #4186
+  blindness one layer up.
 - **The language-parser scoreboard does not gate.** `BuildLanguageScoreboard`
   (C-11, #4364) is a visibility-only artifact over the
   `language-feature-parity-ledger`; it is deliberately kept out of

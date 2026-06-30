@@ -3,8 +3,8 @@
 
 // Package replaycoverage reconciles the surfaces Eshu claims to support, and the
 // scenario-depth classes each surface requires, against the replay scenarios that
-// exercise them. It produces the C-1/C-8/C-9/C-10 coverage-manifest lockstep
-// gate (issues #4173, #4187, #4188, and #4189, epic #4172).
+// exercise them. It produces the C-1/C-8/C-9/C-10/C-13 coverage-manifest lockstep
+// gate (issues #4173, #4187, #4188, #4189, and #4366, epic #4172).
 //
 // # The source registries
 //
@@ -31,11 +31,33 @@
 //     scoped-route replay scenarios.
 //
 // EnumerateSupported flattens these into a deterministic SupportedSurface set,
-// each with a canonical "<kind>:<name>" coverage key. Manifest
-// scenario_requirements then expand each supported surface into one or more
-// required depth classes: baseline, delta_tombstone, fault, ordering, crash, and
-// cost. Surfaces without an explicit requirement row require baseline only;
-// explicit requirement rows must still include baseline.
+// each with a canonical "<kind>:<name>" coverage key.
+//
+// # Depth requirements per applicable surface (C-13)
+//
+// Each surface is then expanded into the depth classes it requires: baseline,
+// delta_tombstone, fault, ordering, crash, and cost. Before C-13 these came only
+// from manifest scenario_requirements rows, so the manifest required just one
+// scenario of each non-baseline type for the whole system — leaving a
+// delete/crash/fault hole free to recur for any other piece while the gate read
+// 100% (proven by #4186). DeriveRequirements now derives them PER applicable
+// surface from the source registries:
+//
+//   - fault for every collector boundary (every implemented collector:* surface),
+//   - cost for every projection (every distinct reducer_domain in the fact-kind
+//     registry),
+//   - ordering for every shared-conflict-key projection (a reducer_domain written
+//     by two or more distinct projection hooks),
+//   - delta_tombstone for every retractable graph node type, and
+//   - crash for the reducer drain.
+//
+// The retractable node types and the reducer drain are declared in
+// specs/replay-depth-requirements.v1.yaml (LoadDepthRequirements); a lockstep
+// test keeps the node-type list byte-equal to cypher.RetractableNodeEntityLabels()
+// so a new retractable label makes the gate demand a delta scenario instead of
+// the gap going unseen. EnumerateDepthSurfaces enumerates the retractable_node,
+// projection, and reducer_drain surfaces; the derived requirements are unioned
+// with the manifest's explicit scenario_requirements before reconciliation.
 //
 // # The manifest and reconciliation
 //
@@ -83,9 +105,14 @@
 //
 // Findings reuse the shared goldengate.Finding/Report machinery. Local advisory
 // mode (Blocking=false) reports every coverage gap without failing the command.
-// CI now passes the single blocking flag after the C-2..C-10 burn-down, so every
-// uncovered, unresolved, and stale finding is required and coverage cannot
-// regress. BuildReport emits the machine-readable coverage-report artifact,
-// including per-scenario_type summaries and the language-parser scoreboard, that
-// the C-7 dashboard consumes on every run.
+// CI passes the single blocking flag after the C-2..C-10 burn-down, so every
+// uncovered, unresolved, and stale BASELINE (breadth) finding is required and
+// breadth coverage cannot regress. The C-8/C-13 depth classes are advisory-first:
+// isBlockingScenarioType keeps every non-baseline finding advisory even under
+// -blocking, so the gate enumerates and reports the missing surface/scenario_type
+// pairs (the C-14 #4367 backfill worklist) without failing CI, until C-14 burns
+// them down and a later ticket flips depth to blocking. BuildReport emits the
+// machine-readable coverage-report artifact, including per-scenario_type
+// summaries and the language-parser scoreboard, that the C-7 dashboard consumes
+// on every run.
 package replaycoverage

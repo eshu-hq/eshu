@@ -1,0 +1,153 @@
+# Replay depth-requirement taxonomy (C-13, issue #4366, epic #4172).
+#
+# C-1 (#4173) proves every supported surface has *a* replay scenario; C-8 (#4187)
+# added a scenario_type (depth) dimension but required only one scenario of each
+# non-baseline type for the whole system. #4186 (a directory-tombstone deletion
+# bug the gate could not see) proves that is not enough: a delete/timeout/crash
+# hole can recur for any other piece while the gate still reads 100%.
+#
+# This file declares the depth-requirement taxonomy the replay-coverage gate uses
+# to require scenario_type coverage PER applicable surface. The gate enumerates
+# the required surface x scenario_type pairs and reports the missing ones; that
+# list is the C-14 (#4367) backfill worklist. Depth requirements are ADVISORY
+# first (they never fail the blocking breadth gate) until C-14 burns them down.
+#
+# Most applicability classes are DERIVED in code from already-loaded registries
+# and are NOT listed here:
+#   - fault     -> every implemented collector boundary (surface-inventory).
+#   - cost      -> every projection = distinct reducer_domain (fact-kind registry).
+#   - ordering  -> every shared-conflict-key projection = a reducer_domain written
+#                  by >=2 distinct projection hooks (fact-kind registry).
+# Only the classes that have no machine-readable registry of their own are
+# declared here:
+#   - delta_tombstone -> every retractable graph node type (below).
+#   - crash           -> the reducer projection drain (below).
+#
+# retractable_node_types MUST stay byte-equal to the canonical retract phase's
+# label set (internal/storage/cypher.RetractableNodeEntityLabels()); a lockstep
+# test fails when they drift, so adding a retractable label there makes the gate
+# demand a new delta scenario here instead of the gap going unseen.
+#
+# Retractable graph EDGE types are a tracked follow-up: unlike nodes, there is no
+# single machine-readable set of retractable edge types today (edges are retracted
+# per projection domain as a consequence of node retraction). See the C-13
+# follow-up issue for edge-type delta coverage.
+version: "v1"
+
+# 85 retractable graph node labels, grouped by source domain to mirror the
+# internal/storage/cypher retract label sets. Order is irrelevant (the lockstep
+# test compares as sets); grouping is for review only.
+retractable_node_types:
+  # structural (retracted by the dedicated file/directory retract statements,
+  # not the per-domain entity scan; Directory is the #4186 tombstone class)
+  - Directory
+  - File
+  # code
+  - Annotation
+  - Class
+  - Component
+  - Enum
+  - Function
+  - ImplBlock
+  - Interface
+  - Macro
+  - Property
+  - Protocol
+  - ProtocolImplementation
+  - Record
+  - ShellCommand
+  - Struct
+  - Trait
+  - TypeAlias
+  - TypeAnnotation
+  - Typedef
+  - Union
+  - Variable
+  # infra
+  - ArgoCDApplication
+  - ArgoCDApplicationSet
+  - AtlantisProject
+  - AtlantisWorkflow
+  - CrossplaneClaim
+  - CrossplaneComposition
+  - CrossplaneXRD
+  - GitlabJob
+  - GitlabPipeline
+  - HelmChart
+  - HelmTemplateValueUsage
+  - HelmValueDefinition
+  - HelmValues
+  - K8sResource
+  - KustomizeOverlay
+  # terraform / terragrunt
+  - TerraformBackend
+  - TerraformCheck
+  - TerraformDataSource
+  - TerraformImport
+  - TerraformLocal
+  - TerraformLockProvider
+  - TerraformModule
+  - TerraformMovedBlock
+  - TerraformOutput
+  - TerraformProvider
+  - TerraformRemovedBlock
+  - TerraformResource
+  - TerraformVariable
+  - TerragruntConfig
+  - TerragruntDependency
+  - TerragruntInput
+  - TerragruntLocal
+  # cloudformation
+  - CloudFormationOutput
+  - CloudFormationParameter
+  - CloudFormationResource
+  # sql
+  - SqlColumn
+  - SqlFunction
+  - SqlIndex
+  - SqlTable
+  - SqlTrigger
+  - SqlView
+  # data
+  - AnalyticsModel
+  - DashboardAsset
+  - DataAsset
+  - DataColumn
+  - DataContract
+  - DataOwner
+  - DataQualityCheck
+  - QueryExecution
+  # oci
+  - ContainerImage
+  - ContainerImageDescriptor
+  - ContainerImageIndex
+  - ContainerImageTagObservation
+  - OciImageDescriptor
+  - OciImageIndex
+  - OciImageManifest
+  - OciImageReferrer
+  - OciImageTagObservation
+  - OciRegistryRepository
+  # package_registry
+  - Package
+  - PackageDependency
+  - PackageRegistryPackage
+  - PackageRegistryPackageDependency
+  - PackageRegistryPackageVersion
+  - PackageVersion
+
+# The single reducer projection drain path. A mid-run crash must recover
+# deterministically (R-14, deterministic replay design 11). The crash scenario is
+# the crashreplay package (go/internal/replay/crashreplay).
+reducer_drain:
+  surface: reducer-projection-drain
+  detail: >-
+    The reducer projection drain claims queued projection work, applies it, and
+    must recover deterministically when a worker crashes mid-run (R-14). One
+    crash scenario covers the drain.
+
+# Depth surfaces deliberately not required to have a replay scenario, each with an
+# auditable reason. Empty at seed: every depth gap should be burned down by an
+# authored scenario (C-14), not exempted away. Add an entry only when a retractable
+# node type genuinely cannot be exercised by a credential-free delta scenario.
+exemptions: []

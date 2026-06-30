@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# C-1/C-8/C-9/C-10 replay coverage manifest + lockstep gate (#4173, #4187, #4188, #4189, epic #4172).
+# C-1/C-8/C-9/C-10/C-13 replay coverage manifest + lockstep gate (#4173, #4187, #4188, #4189, #4366, epic #4172).
 # Enumerates every surface Eshu claims to support from the source-of-truth
 # registries and reports any required surface/scenario_type pair lacking a green
 # replay scenario.
@@ -71,4 +71,4 @@ fi
 # the working directory go run resolves refs from).
 (cd go && go run ./cmd/replay-coverage-gate "${gate_args[@]}")
 
-printf '\nPASS: C-1/C-8/C-9/C-10 replay coverage gate (%s); report at %s\n' "${blocking:-advisory}" "${report_abs}"
+printf '\nPASS: C-1/C-8/C-9/C-10/C-13 replay coverage gate (%s); report at %s\n' "${blocking:-advisory}" "${report_abs}"

@@ -40,6 +40,11 @@ type Inputs struct {
 	AuthzProofs AuthzProofLedger
 	// Manifest is the curated coverage manifest.
 	Manifest Manifest
+	// DepthRequirements is the depth-requirement taxonomy (C-13 #4366): retractable
+	// node types and the reducer drain. When its RetractableNodeTypes is empty the
+	// gate skips depth derivation entirely (the pre-C-13 breadth-only behavior),
+	// so callers that do not provide it keep the original semantics.
+	DepthRequirements DepthRequirements
 	// ProofGates is the CI-gate registry used to validate proof_gate names.
 	ProofGates *cigates.Registry
 	// Resolver verifies a manifest entry's scenario artifact exists.
@@ -57,10 +62,21 @@ type Inputs struct {
 // it fails on any uncovered, unresolved, or stale surface.
 func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 	supported := EnumerateSupported(in.Inventory, in.FactKinds, in.Ledger, in.Matrix, in.ProductClaims, in.CLIShapes, in.Authorization)
-	cov := Reconcile(supported, in.Manifest, in.Resolver)
-	if in.ProofGates != nil {
-		cov = applyProofGateValidation(cov, proofGateValidationDetailsByScenario(in.Manifest, in.AuthzProofs, in.ProofGates))
+	manifest := in.Manifest
+	depthExempt := map[string]string{}
+	// C-13: derive depth (scenario_type) requirements per applicable surface. Gated
+	// on a non-empty depth spec so pre-C-13 callers keep breadth-only semantics.
+	if len(in.DepthRequirements.RetractableNodeTypes) > 0 {
+		supported = append(supported, EnumerateDepthSurfaces(in.DepthRequirements, in.FactKinds)...)
+		sortSupportedSurfaces(supported)
+		manifest.Requirements = unionRequirements(manifest.Requirements, DeriveRequirements(supported, in.DepthRequirements, in.FactKinds))
+		depthExempt = depthExemptions(in.DepthRequirements)
 	}
+	cov := Reconcile(supported, manifest, in.Resolver)
+	if in.ProofGates != nil {
+		cov = applyProofGateValidation(cov, proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates))
+	}
+	cov = applyDepthExemptions(cov, depthExempt)
 	rep := BuildReport(cov, in.Blocking)
 	// The language-parser scoreboard is computed alongside the surface report but
 	// kept out of the blocking findings below: C-11 (#4364) is visibility-only, so

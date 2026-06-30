@@ -123,14 +123,11 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 		}
 	}
 
-	for _, reg := range allRegistries {
+	for _, reg := range reportRegistryOrder(perRegistry) {
 		sum := perRegistry[reg]
 		finalizePercent(sum)
 		rep.Summaries = append(rep.Summaries, *sum)
 	}
-	sort.Slice(rep.Summaries, func(i, j int) bool {
-		return rep.Summaries[i].Registry < rep.Summaries[j].Registry
-	})
 	for _, sum := range perScenarioType {
 		finalizeScenarioTypePercent(sum)
 		rep.ScenarioTypeSummaries = append(rep.ScenarioTypeSummaries, *sum)
@@ -141,6 +138,21 @@ func BuildReport(c Coverage, blocking bool) CoverageReport {
 	finalizePercent(&rep.Totals)
 	sort.Strings(rep.Gaps)
 	return rep
+}
+
+// reportRegistryOrder returns the registries to emit summaries for, sorted
+// alphabetically. perRegistry is pre-seeded with every base (breadth) registry —
+// so those always appear even with zero surfaces — and additionally holds any
+// depth-applicability registry that actually has surfaces (C-13). A depth
+// registry with no surfaces (depth derivation off) is absent and not shown, so
+// pre-C-13 report output is unchanged.
+func reportRegistryOrder(perRegistry map[Registry]*RegistrySummary) []Registry {
+	out := make([]Registry, 0, len(perRegistry))
+	for reg := range perRegistry {
+		out = append(out, reg)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }
 
 func surfaceCoverageScenarioType(sc SurfaceCoverage) DepthScenarioType {
