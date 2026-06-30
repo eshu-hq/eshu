@@ -164,7 +164,7 @@ verifier — the selector picks it.
 | Collector (`go/internal/collector/**`) | edge source-tool coverage, evidence continuity, scale corpus | — |
 | API / MCP (`go/internal/query/**`, `go/internal/mcp/**`) | OpenAPI surface, route coverage, MCP schema drift, capability budget, operator dashboard | — |
 | Facts / contracts (`go/internal/facts/**`, `specs/*.v1.yaml`) | fact-kind registry, contract source-of-truth, evidence continuity | — |
-| `go.mod` / `go.sum` | gosec (whole module) | `make security-preflight` (govulncheck, nancy) |
+| `go.mod` / `go.sum` | nothing extra (the whole-module Go gates always run) | pre-push runs changed-file gosec; `make security-preflight` runs whole-module gosec, govulncheck, nancy |
 | Deploy / runtime (`Dockerfile`, `deploy/**`, `docker-compose*`) | — | `make security-preflight` (Trivy fs); golden-corpus + e2e are CI-only (Docker) |
 
 Run `bash scripts/dev/select-gates.sh --base origin/main --tier pre-pr --explain`
