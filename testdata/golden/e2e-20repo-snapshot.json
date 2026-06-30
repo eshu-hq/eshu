@@ -617,8 +617,8 @@
       },
       {
         "id": "rc-37",
-        "description": "A BigQuery Table CloudResource is connected to its parent Dataset CloudResource via a bigquery_table_in_dataset edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the events Table (asset_type bigquery.googleapis.com/Table) and one for the analytics Dataset (asset_type bigquery.googleapis.com/Dataset), plus a gcp_cloud_relationship fact with relationship_type bigquery_table_in_dataset. The GCP relationship materializer resolves both endpoints by full_resource_name and writes the typed edge. The count is provably zero without the GCP cloud_resource + relationship facts in the cassette, so this locks in GCP node projection and the relationship edge path end-to-end.",
-        "relationship": "bigquery_table_in_dataset",
+        "description": "A BigQuery Table CloudResource is connected to its parent Dataset CloudResource via a GCP_bigquery_table_in_dataset edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the events Table (asset_type bigquery.googleapis.com/Table) and one for the analytics Dataset (asset_type bigquery.googleapis.com/Dataset), plus a gcp_cloud_relationship fact with relationship_type bigquery_table_in_dataset. The GCP relationship materializer resolves both endpoints by full_resource_name and writes the typed edge; GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_, so the materialized edge type is GCP_bigquery_table_in_dataset. The count is provably zero without the GCP cloud_resource + relationship facts in the cassette, so this locks in GCP node projection and the relationship edge path end-to-end.",
+        "relationship": "GCP_bigquery_table_in_dataset",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
