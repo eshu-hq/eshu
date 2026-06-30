@@ -20,6 +20,7 @@ on:
       - 'go/cmd/replay-coverage-gate/**'
       - 'go/cmd/eshu/**'
       - 'go/internal/replaycoverage/**'
+      - 'go/internal/cigates/**'
       - 'go/internal/query/**'
       - 'go/internal/mcp/**'
       - 'go/internal/scopedtoken/**'
