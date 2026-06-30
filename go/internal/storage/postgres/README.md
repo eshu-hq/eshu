@@ -417,6 +417,22 @@ No-regression and observability proof for this retry class lives in
   `schema.go`; keep DDL idempotent; place FK-dependent tables after their
   referenced tables in the slice.
 
+No-Regression Evidence: #4222 bounds startup/restart schema lock waits for
+Postgres SQLDB executors by applying each schema definition on a dedicated
+connection after setting session `lock_timeout`, then resetting the session
+before the connection returns to the pool. Focused tests prove
+`ApplyDefinitionsWithLockTimeout` routes lock-timeout-capable executors through
+the bounded path and preserves direct execution order for simple test executors.
+Live Postgres proof covers `CREATE INDEX CONCURRENTLY` in autocommit mode and a
+held-lock failure returning inside the configured lock budget.
+
+Observability Evidence: no new metric series or labels were added. Operators
+continue to diagnose schema bootstrap through the one-shot `db-migrate` /
+`bootstrap-index` startup logs, the wrapped `apply <definition>` error that
+names the blocked schema definition, and existing Postgres lock-wait views. A
+lock timeout now fails the schema bootstrap instead of letting startup wait
+indefinitely behind corpus reads.
+
 ## Gotchas / invariants
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in

@@ -290,7 +290,7 @@ reducer/query adapter.
 
 - `BootstrapDefinitions`, `ApplyBootstrap`,
   `ApplyBootstrapWithoutContentSearchIndexes`, `EnsureContentSearchIndexes`,
-  `ValidateDefinitions`, `ApplyDefinitions`
+  `ValidateDefinitions`, `ApplyDefinitions`, `ApplyDefinitionsWithLockTimeout`
 - Per-table DDL helpers: `DecisionSchemaSQL`, `RelationshipSchemaSQL`,
   `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,

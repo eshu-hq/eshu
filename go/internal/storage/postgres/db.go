@@ -6,6 +6,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
+	"time"
 )
 
 // ExecQueryer combines read and write access for storage adapters.
@@ -40,6 +43,44 @@ func (db SQLDB) QueryContext(ctx context.Context, query string, args ...any) (Ro
 // ExecContext implements Executor against a sql.DB.
 func (db SQLDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	return db.DB.ExecContext(ctx, query, args...)
+}
+
+func (db SQLDB) execContextWithLockTimeout(
+	ctx context.Context,
+	query string,
+	lockTimeout time.Duration,
+) (sql.Result, error) {
+	if db.DB == nil {
+		return nil, fmt.Errorf("postgres SQLDB requires a database handle")
+	}
+	if lockTimeout <= 0 {
+		return db.ExecContext(ctx, query)
+	}
+	conn, err := db.DB.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open schema connection: %w", err)
+	}
+	closeConn := true
+	defer func() {
+		if closeConn {
+			_ = conn.Close()
+		}
+	}()
+
+	if _, err := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, false)", lockTimeout.String()); err != nil {
+		return nil, fmt.Errorf("set schema lock timeout: %w", err)
+	}
+	result, execErr := conn.ExecContext(ctx, query)
+	_, resetErr := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', '0', false)")
+	if resetErr != nil {
+		resetErr = fmt.Errorf("reset schema lock timeout: %w", resetErr)
+	}
+	closeErr := conn.Close()
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close schema connection: %w", closeErr)
+	}
+	closeConn = false
+	return result, errors.Join(execErr, resetErr, closeErr)
 }
 
 // Begin opens a transaction against the wrapped database.
