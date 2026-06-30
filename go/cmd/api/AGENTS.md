@@ -2,9 +2,11 @@
 
 ## Read first
 
-1. `go/cmd/api/wiring.go` — the full wiring sequence: how Postgres and the
-   graph driver are opened, how the query router is assembled, and how the
-   admin surface is mounted via `mountRuntimeSurface`.
+1. `go/cmd/api/wiring.go` — the wiring sequence: how Postgres and the
+   graph driver are opened, how the query graph is opened, and how the
+   admin surface is mounted via `mountRuntimeSurface` in `wireAPI`. The router
+   assembly (`newRouter`, `newRouterWithSemanticEmbedding`) and the version/
+   deprecation middleware live in the sibling `go/cmd/api/wiring_router.go`.
 2. `go/cmd/api/main.go` — `main`, telemetry bootstrap, signal handling, and
    `http.Server` configuration.
 3. `go/internal/query/handler.go` — `APIRouter` and `APIRouter.Mount`; understand
@@ -42,7 +44,7 @@
 
 - **Add a new handler family** → add the handler struct to `internal/query`,
   add a `Mount` call in `APIRouter.Mount`, wire the struct in `newRouter`
-  (`wiring.go:163`), add an `openapi_paths_*.go` fragment inside `internal/query`
+  (`wiring_router.go`), add an `openapi_paths_*.go` fragment inside `internal/query`
   and reference it in the OpenAPI assembly function, update
   `docs/public/reference/http-api.md`, run
   `go test ./cmd/api ./internal/query -count=1`. Why: all handler families

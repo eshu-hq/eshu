@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 504 lines: main(), signal handling, telemetry bootstrap, and buildReducerService (incl. the #4121 clock injection at the composition root). The wiring into internal/reducer is single-purpose and reviewed as one entry point.
+package main
 
 import (
 	"fmt"
@@ -14,7 +14,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/clock"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -113,22 +112,6 @@ func buildReducerService(
 	if codeValueFlowStaleCleanupRunner != nil {
 		codeValueFlowStaleCleanupRunner.Logger = logger
 	}
-	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader, cloudInventoryIdentityPolicyEvidenceLoader, cloudInventoryResourceChangeEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
-	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
-	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database)
-	functionSummaryStore := postgres.NewFunctionSummaryStore(database)
-	functionSourceStore := postgres.NewFunctionSourceStore(database)
-	functionGraphIDStore := postgres.NewFunctionGraphIDStore(database)
-	valueFlowFixpointComponentStore := postgres.NewValueFlowFixpointComponentStore(database)
-	valueFlowFixpointProjector := newValueFlowFixpointProjector(
-		functionSummaryStore,
-		functionSourceStore,
-		functionGraphIDStore,
-		valueFlowFixpointComponentStore,
-		graphReader,
-		graphWriters.codeInterprocEvidence,
-		logger,
-	)
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.
 	semanticEntityExecutor := graphWriteGate.boundSemanticEntityExecutor(
@@ -279,114 +262,13 @@ func buildReducerService(
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},
-		// Provider config-vs-state and cloud-runtime drift adapters; see
-		// reducer.DriftHandlers in internal/reducer/defaults_handlers.go. All three
-		// terraform members must be non-nil for the registry to register
-		// DomainConfigStateDrift.
-		DriftHandlers: reducer.DriftHandlers{
-			TerraformBackendResolver: tfstatebackend.NewResolver(
-				postgres.PostgresTerraformBackendQuery{DB: database},
-			),
-			DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
-				DB:               database,
-				Tracer:           tracer,
-				Logger:           logger,
-				PriorConfigDepth: parsePriorConfigDepth(getenv(driftPriorConfigDepthEnv), logger),
-				// Instruments drives eshu_dp_drift_unresolved_module_calls_total
-				// for the module-aware drift join (issue #169). Nil-safe in the
-				// loader itself; passing it here keeps the counter wired in
-				// production runs.
-				Instruments: instruments,
-			},
-			DriftLogger: logger,
-			// AWS runtime drift joins current AWS resource facts to active
-			// Terraform-state resources by ARN, then resolves the state backend to
-			// the owning config snapshot before classifying unmanaged resources.
-			AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
-				DB: database,
-				ConfigResolver: tfstatebackend.NewResolver(
-					postgres.PostgresTerraformBackendQuery{DB: database},
-				),
-				Tracer:      tracer,
-				Logger:      logger,
-				Instruments: instruments,
-			},
-			AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
-			AWSCloudRuntimeDriftLogger: logger,
-			// Multi-cloud runtime drift wiring (issues #1997, #1998); see
-			// multiCloudRuntimeDriftWiring for the uid-keyed join contract.
-			MultiCloudRuntimeDriftEvidenceLoader: multiCloudRuntimeDriftEvidenceLoader,
-			MultiCloudRuntimeDriftWriter:         multiCloudRuntimeDriftWriter,
-			MultiCloudRuntimeDriftLogger:         multiCloudRuntimeDriftLogger,
-		},
-		// Curated search-document projection (design 430): load the scope's
-		// current indexed content and write derived EshuSearchDocument facts for
-		// the search lane. No graph write.
-		SearchDocumentHandlers: reducer.SearchDocumentHandlers{
-			EshuSearchDocumentSourceLoader: postgres.NewEshuSearchDocumentSourceLoader(database),
-			EshuSearchDocumentWriter: reducer.PostgresEshuSearchDocumentWriter{
-				DB:          database,
-				Instruments: instruments,
-				Tracer:      tracer,
-			},
-			EshuSearchDocumentLogger: logger,
-		},
-		CloudInventoryHandlers: reducer.CloudInventoryHandlers{
-			CloudInventoryEvidenceLoader:               cloudInventoryEvidenceLoader,
-			CloudInventoryAdmissionWriter:              cloudInventoryAdmissionWriter,
-			CloudInventoryGenerationCheck:              cloudInventoryGenerationCheck,
-			CloudInventoryTagEvidenceLoader:            cloudInventoryTagEvidenceLoader,
-			CloudInventoryIdentityPolicyEvidenceLoader: cloudInventoryIdentityPolicyEvidenceLoader,
-			CloudInventoryResourceChangeEvidenceLoader: cloudInventoryResourceChangeEvidenceLoader,
-		},
-		KubernetesHandlers: reducer.KubernetesHandlers{
-			KubernetesCorrelationWriter: reducer.PostgresKubernetesCorrelationWriter{
-				DB: database,
-			},
-			KubernetesWorkloadNodeWriter:    graphWriters.kubernetesWorkloadNode,
-			KubernetesCorrelationEdgeWriter: graphWriters.kubernetesCorrelationEdge,
-		},
-		SupplyChainSecurityHandlers: reducer.SupplyChainSecurityHandlers{
-			SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
-				DB: database,
-			},
-			SupplyChainImpactWriter: reducer.PostgresSupplyChainImpactWriter{
-				DB: database,
-			},
-			SecurityAlertReconciliationWriter: reducer.PostgresSecurityAlertReconciliationWriter{
-				DB: database,
-			},
-			SecretsIAMTrustChainEvidenceLoader: factStore,
-			SecretsIAMTrustChainWriter: reducer.PostgresSecretsIAMTrustChainWriter{
-				DB: database,
-			},
-			SecretsIAMGraphWriter:             secretsIAMGraphWriter,
-			EndpointPresenceWriter:            presence.secretsIAMWriter,
-			EndpointPresenceLookup:            presence.secretsIAMLookup,
-			APIEndpointRepoPathPresenceWriter: presence.handlesRouteWriter,
-			APIEndpointRepoPathPresenceLookup: presence.handlesRouteLookup,
-		},
-		IncidentRoutingHandlers: reducer.IncidentRoutingHandlers{
-			IncidentRoutingEvidenceLoader: factStore,
-			IncidentRoutingEvidenceWriter: graphWriters.incidentRoutingEvidence,
-			// Durable incident -> repository correlation (#2161); see helper for rationale.
-			AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
-			BackendRepositoryResolver:            incidentRepoCorrelationResolver,
-			IncidentRepositoryCorrelationWriter:  incidentRepoCorrelationWriter,
-		},
-		CodeEvidenceHandlers: reducer.CodeEvidenceHandlers{
-			CodeTaintEvidenceLoader:     factStore,
-			CodeTaintEvidenceWriter:     graphWriters.codeTaintEvidence,
-			CodeInterprocEvidenceLoader: factStore,
-			CodeInterprocEvidenceWriter: graphWriters.codeInterprocEvidence,
-			CodeFunctionSummaryLoader:   factStore,
-			CodeFunctionSummaryWriter:   functionSummaryStore,
-			CodeFunctionSourceLoader:    factStore,
-			CodeFunctionSourceWriter:    functionSourceStore,
-			CodeFunctionGraphIDLoader:   factStore,
-			CodeFunctionGraphIDWriter:   functionGraphIDStore,
-			ValueFlowFixpointProjector:  valueFlowFixpointProjector,
-		},
+		DriftHandlers:               buildReducerDriftHandlers(database, tracer, instruments, logger, getenv),
+		SearchDocumentHandlers:      buildReducerSearchDocumentHandlers(database, instruments, tracer, logger),
+		CloudInventoryHandlers:      buildReducerCloudInventoryHandlers(database, logger),
+		KubernetesHandlers:          buildReducerKubernetesHandlers(database, graphWriters),
+		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, factStore, secretsIAMGraphWriter, presence),
+		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, factStore, graphWriters),
+		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, factStore, graphWriters, graphReader, logger),
 	})
 	if err != nil {
 		return reducer.Service{}, err
