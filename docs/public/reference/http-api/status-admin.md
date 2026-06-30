@@ -636,14 +636,17 @@ arrives to supersede it. Two mechanisms protect against this:
   same-scope generation, **and that still have real downstream blockage** — an
   outstanding `shared_projection_intents` row (`completed_at IS NULL`) after
   reducer fact-work for the same generation has drained, with no source-local
-  projector row already pending, in progress, or succeeded — then durably
+  projector row already pending or in progress — then durably
   re-enqueues projector work to re-drive them. Age alone is not enough: a
   healthy quiet scope normally stays `active` and projected (the projected
   baseline is "has been active") with every intent completed, a busy full-corpus
   bootstrap scope can have outstanding shared intents while reducer work is
-  still legitimately progressing, and downstream shared projection backlog after
-  a succeeded source-local projector ack is not a source-local wedge. Those
-  cases are excluded and never re-driven. A bounded per-generation re-drive budget
+  still legitimately progressing, and a liveness recovery row that is already
+  pending or in progress should be processed before the sweep spends more
+  budget. Those cases are excluded and not re-driven. A succeeded source-local
+  projector row is the normal activation lifecycle state, so the bounded
+  recovery upsert may reopen it when downstream blockage still makes the
+  generation wedged. A bounded per-generation re-drive budget
   (`liveness_recovery_attempts`, stored on the work item payload) prevents a
   poison scope from looping forever. The sweep also supersedes orphaned older
   `active` generations once a newer same-scope generation is authoritative.
@@ -664,13 +667,12 @@ Observability for wedged generations:
   matches the recovery gate: a generation is only `stuck` when it has aged past
   the deadline AND has outstanding `shared_projection_intents`
   (`completed_at IS NULL`) AND has no unresolved reducer fact-work for the same
-  generation AND has no source-local projector row already pending, in progress,
-  or succeeded. A healthy quiet scope that merely aged, a scope still moving
-  through reducer backlog, an in-flight liveness recovery row, or downstream
-  shared projection backlog after source-local success is counted `aging`, never
-  `stuck`, so a non-zero `stuck` bucket is a true wedged-generation alarm signal
-  rather than a false alarm on idle installations, normal bootstrap backlog, or
-  shared projection lag.
+  generation AND has no source-local projector row already pending or in
+  progress. A healthy quiet scope that merely aged, a scope still moving through
+  reducer backlog, or an in-flight liveness recovery row is counted `aging`,
+  never `stuck`, so a non-zero `stuck` bucket avoids false alarms on idle
+  installations and normal bootstrap backlog while still surfacing blocked
+  active generations.
 - `eshu_dp_generation_liveness_recovered_total` and
   `eshu_dp_generation_liveness_superseded_total` count what the sweep re-drove
   and retired; `eshu_dp_generation_liveness_failures_total` counts sweep errors
@@ -690,12 +692,13 @@ the re-drive re-uses the existing projector enqueue path. Wedge detection and th
 `shared_projection_intents_*_pending_idx` (`WHERE completed_at IS NULL`), plus a
 same-generation reducer fact-work exclusion so normal reducer backlog is treated
 as progress rather than a wedge, and a source-local projector exclusion so
-in-flight recovery or already-succeeded source-local projection is not reopened
-for downstream shared projection backlog. Healthy quiet projected scopes, busy
-full-corpus bootstrap scopes, and shared projection lag after source-local ack
-are excluded. The conflict domain is `scope_id`; both statements are idempotent
-under concurrent reducer workers (a second sweep finds no remaining
-wedged/orphaned row) and bound the per-generation re-drive
+in-flight recovery is not reopened before the projector processes it. Healthy
+quiet projected scopes and busy full-corpus bootstrap scopes are excluded. A
+succeeded source-local projector row remains eligible for the bounded upsert
+because that is the normal activation lifecycle state for a generation that may
+still be wedged downstream. The conflict domain is `scope_id`; both statements
+are idempotent under concurrent reducer workers (a second sweep finds no
+remaining wedged/orphaned row) and bound the per-generation re-drive
 budget via `liveness_recovery_attempts` so a poison scope cannot loop. No
 worker-count, batch-size, or queue-default change. The active-by-age gauge reads a
 single bounded `GROUP BY age_bucket` aggregate over active rows with the same

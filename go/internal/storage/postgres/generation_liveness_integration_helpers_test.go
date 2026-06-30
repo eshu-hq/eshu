@@ -93,8 +93,9 @@ CREATE TABLE shared_projection_intents (
 // Scopes and generations:
 //
 //   - scope-wedged / gen-wedged: active, activated 2 hours ago, has an
-//     outstanding shared_projection_intents row → wedged (stuck + eligible for
-//     recovery).
+//     outstanding shared_projection_intents row and the normal succeeded
+//     source-local projector row from activation → wedged (stuck + eligible for
+//     recovery by reopening the succeeded row).
 //
 //   - scope-reducer-backlog / gen-reducer-backlog: active, activated 2 hours
 //     ago, has an outstanding shared_projection_intents row and same-generation
@@ -103,10 +104,11 @@ CREATE TABLE shared_projection_intents (
 //
 //   - scope-shared-backlog / gen-shared-backlog: active, activated 2 hours
 //     ago, has an outstanding shared_projection_intents row and all
-//     same-generation reducer fact-work already succeeded. Its source-local
-//     projector work also already succeeded, which means the canonical phase
-//     publication path completed before ack. This is shared-projection backlog,
-//     not a source-local wedge, and must not be re-driven.
+//     same-generation reducer fact-work already succeeded. With the current
+//     storage signals this is indistinguishable from a wedged active generation
+//     at sweep time, so the liveness pass may reopen it once; the separate
+//     in-flight guard prevents repeated budget burn while that recovery work is
+//     pending.
 //
 //   - scope-recovery-inflight / gen-recovery-inflight: active, activated 2 hours
 //     ago, has an outstanding shared_projection_intents row and a pending
@@ -154,6 +156,14 @@ INSERT INTO shared_projection_intents (
     '', 'acme/wedged', 'run-wedged', 'gen-wedged',
     '{"action":"sync"}'::jsonb, now() - interval '2 hours'
 );
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status, payload, created_at, updated_at
+) VALUES (
+    'projector_scope-wedged_gen-wedged',
+    'scope-wedged', 'gen-wedged',
+    'projector', 'source_local', 'succeeded', '{}'::jsonb,
+    now() - interval '2 hours', now() - interval '2 hours'
+);
 
 -- scope-reducer-backlog: outstanding shared projection intent behind legitimate
 -- same-generation reducer backlog. This is progress, not a wedge.
@@ -189,8 +199,10 @@ INSERT INTO fact_work_items (
 );
 
 -- scope-shared-backlog: source-local projection already succeeded and reducer
--- fact-work has drained, but shared projection work is still pending. This is
--- normal downstream backlog, not a source-local wedge.
+-- fact-work has drained, but shared projection work is still pending. Current
+-- liveness signals cannot distinguish this from a wedged active generation at
+-- sweep time, so it is eligible for one reopen; pending recovery work is what
+-- prevents repeat budget burn.
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, collector_kind,
     partition_key, observed_at, ingested_at, status, active_generation_id
@@ -401,6 +413,14 @@ INSERT INTO shared_projection_intents (
     'intent-wedged', 'graph', 'acme/wedged', 'scope-wedged',
     '', 'acme/wedged', 'run-wedged', 'gen-wedged',
     '{"action":"sync"}'::jsonb, now() - interval '2 hours'
+);
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status, payload, created_at, updated_at
+) VALUES (
+    'projector_scope-wedged_gen-wedged',
+    'scope-wedged', 'gen-wedged',
+    'projector', 'source_local', 'succeeded', '{}'::jsonb,
+    now() - interval '2 hours', now() - interval '2 hours'
 );
 `
 

@@ -39,12 +39,15 @@ func TestRecoverWedgedActiveGenerationsQueryContract(t *testing.T) {
 		"reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')",
 		"projector_work.stage = 'projector'",
 		"projector_work.domain = 'source_local'",
-		"projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')",
+		"projector_work.status IN ('pending', 'claimed', 'running', 'retrying')",
 		"existing.domain = 'source_local'",
 	} {
 		if !strings.Contains(recoverWedgedActiveGenerationsQuery, want) {
 			t.Fatalf("recover wedged query missing %q:\n%s", want, recoverWedgedActiveGenerationsQuery)
 		}
+	}
+	if strings.Contains(recoverWedgedActiveGenerationsQuery, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')") {
+		t.Fatalf("recover wedged query must not exclude succeeded source-local projector rows:\n%s", recoverWedgedActiveGenerationsQuery)
 	}
 	// A wedged active must never be reset to attempt_count = 0; that would erase
 	// the bounded re-drive budget and let a poison scope loop forever.
@@ -198,8 +201,11 @@ func TestGenerationLivenessStoreCountActiveByAge(t *testing.T) {
 		t.Fatalf("count query stuck bucket missing reducer-work backlog exclusion:\n%s", db.queries[0].query)
 	}
 	if !strings.Contains(db.queries[0].query, "projector_work.stage = 'projector'") ||
-		!strings.Contains(db.queries[0].query, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')") {
-		t.Fatalf("count query stuck bucket missing source-local projector completion gate:\n%s", db.queries[0].query)
+		!strings.Contains(db.queries[0].query, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying')") {
+		t.Fatalf("count query stuck bucket missing source-local in-flight projector gate:\n%s", db.queries[0].query)
+	}
+	if strings.Contains(db.queries[0].query, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')") {
+		t.Fatalf("count query stuck bucket must not suppress succeeded source-local projector rows:\n%s", db.queries[0].query)
 	}
 }
 

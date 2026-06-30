@@ -322,9 +322,8 @@ generation count by closed activation-age bucket. The only metric label is
 bucket is the alarm signal: a non-zero, non-draining `stuck` count means
 generations have outstanding shared projection work after same-generation reducer
 fact-work has drained, and no source-local projector row is already pending,
-in progress, or succeeded. Scopes still moving through reducer backlog,
-in-flight liveness recovery, or downstream shared projection backlog after a
-succeeded source-local projector ack stay in `aging`, not `stuck`.
+in progress. Scopes still moving through reducer backlog or in-flight liveness
+recovery stay in `aging`, not `stuck`.
 
 Three counters describe what the sweep did about it:
 
