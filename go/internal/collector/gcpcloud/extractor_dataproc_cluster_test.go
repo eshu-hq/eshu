@@ -155,6 +155,30 @@ func TestDataprocKMSKeyFullName(t *testing.T) {
 	}
 }
 
+func TestExtractDataprocClusterShortNetworkAndSubnetNames(t *testing.T) {
+	// Dataproc accepts bare short names for network and subnetwork; both must
+	// still resolve to CAI full names and emit edges.
+	const data = `{"config": {"gceClusterConfig": {"networkUri": "default", "subnetworkUri": "sub0"}}}`
+	got, err := extractDataprocCluster(dataprocClusterContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeClusterUsesNetwork,
+		"//compute.googleapis.com/projects/demo-project/global/networks/default", assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, relationshipTypeClusterUsesSubnetwork,
+		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub0", assetTypeComputeSubnetwork)
+}
+
+func TestDataprocSubnetworkFullNameBareNameNeedsRegion(t *testing.T) {
+	// A bare subnet name with no known region cannot be resolved.
+	if got := dataprocSubnetworkFullName("sub0", "demo-project", ""); got != "" {
+		t.Errorf("bare subnet with no region = %q, want empty", got)
+	}
+	if got := dataprocRegionFromFullName(dataprocClusterFullName); got != "us-central1" {
+		t.Errorf("region from full name = %q, want us-central1", got)
+	}
+}
+
 func TestExtractDataprocClusterBlankServiceAccountOmitsFingerprint(t *testing.T) {
 	const data = `{"config": {"gceClusterConfig": {"serviceAccount": ""}}}`
 	got, err := extractDataprocCluster(dataprocClusterContext(data))

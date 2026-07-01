@@ -96,11 +96,12 @@ func extractDataprocCluster(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if cfg := data.Config; cfg != nil {
 		if gce := cfg.GceClusterConfig; gce != nil {
-			if net := computeFullResourceNameFromSelfLink(gce.NetworkURI, ctx.ProjectID); net != "" {
+			region := dataprocRegionFromFullName(ctx.FullResourceName)
+			if net := dataprocNetworkFullName(gce.NetworkURI, ctx.ProjectID); net != "" {
 				anchors = append(anchors, net)
 				rels = append(rels, dataprocClusterEdge(ctx, relationshipTypeClusterUsesNetwork, net, assetTypeComputeNetwork))
 			}
-			if subnet := computeFullResourceNameFromSelfLink(gce.SubnetworkURI, ctx.ProjectID); subnet != "" {
+			if subnet := dataprocSubnetworkFullName(gce.SubnetworkURI, ctx.ProjectID, region); subnet != "" {
 				anchors = append(anchors, subnet)
 				rels = append(rels, dataprocClusterEdge(ctx, relationshipTypeClusterUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
 			}
@@ -179,6 +180,53 @@ func dataprocClusterAttributes(data dataprocClusterData) map[string]any {
 		attrs["autoscaling_enabled"] = true
 	}
 	return attrs
+}
+
+// dataprocNetworkFullName resolves a Dataproc gceClusterConfig networkUri to its
+// CAI full resource name. Dataproc accepts a full/partial selfLink or a bare
+// network short name (e.g. "default"); a bare name (no "/") is promoted to the
+// project-less global partial before resolution against the cluster's project.
+func dataprocNetworkFullName(ref, projectID string) string {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return ""
+	}
+	if !strings.Contains(trimmed, "/") {
+		trimmed = "global/networks/" + trimmed
+	}
+	return computeFullResourceNameFromSelfLink(trimmed, projectID)
+}
+
+// dataprocSubnetworkFullName resolves a Dataproc gceClusterConfig subnetworkUri
+// to its CAI full resource name. A bare subnetwork short name (e.g. "sub0") is
+// regional, so it is promoted to the project-less regional partial using the
+// cluster's own region; a bare name with no known region cannot be resolved and
+// yields "" so no edge is fabricated.
+func dataprocSubnetworkFullName(ref, projectID, region string) string {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return ""
+	}
+	if !strings.Contains(trimmed, "/") {
+		if region == "" {
+			return ""
+		}
+		trimmed = "regions/" + region + "/subnetworks/" + trimmed
+	}
+	return computeFullResourceNameFromSelfLink(trimmed, projectID)
+}
+
+// dataprocRegionFromFullName extracts the region segment from a Dataproc cluster
+// CAI full resource name (//dataproc.googleapis.com/projects/p/regions/{region}/
+// clusters/c). It returns "" when the name carries no region segment.
+func dataprocRegionFromFullName(fullName string) string {
+	const marker = "/regions/"
+	idx := strings.Index(fullName, marker)
+	if idx < 0 {
+		return ""
+	}
+	region, _, _ := strings.Cut(fullName[idx+len(marker):], "/")
+	return strings.TrimSpace(region)
 }
 
 // dataprocKMSKeyFullName builds the CAI CryptoKey full resource name from a

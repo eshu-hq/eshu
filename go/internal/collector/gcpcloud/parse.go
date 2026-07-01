@@ -82,13 +82,19 @@ func (s *caiResourceStatus) UnmarshalJSON(b []byte) error {
 		}
 		*s = caiResourceStatus(str)
 	case '{':
+		// Decode state leniently: a non-string state (e.g. {"state":42}) or an
+		// otherwise-malformed object must not fail the whole page parse, so any
+		// decode miss simply leaves the lifecycle string empty.
 		var obj struct {
-			State string `json:"state"`
+			State json.RawMessage `json:"state"`
 		}
 		if err := json.Unmarshal(trimmed, &obj); err != nil {
-			return err
+			return nil
 		}
-		*s = caiResourceStatus(obj.State)
+		var state string
+		if json.Unmarshal(obj.State, &state) == nil {
+			*s = caiResourceStatus(state)
+		}
 	}
 	return nil
 }

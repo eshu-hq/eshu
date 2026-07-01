@@ -297,6 +297,7 @@ func TestCaiResourceStatusToleratesStringAndObject(t *testing.T) {
 		{"bare string", `"RUNNING"`, "RUNNING"},
 		{"object with state", `{"state":"ERROR","detail":"x"}`, "ERROR"},
 		{"object without state", `{"detail":"x"}`, ""},
+		{"object non-string state", `{"state":42}`, ""},
 		{"null", `null`, ""},
 		{"number ignored", `42`, ""},
 		{"array ignored", `["RUNNING"]`, ""},
