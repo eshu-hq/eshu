@@ -78,9 +78,13 @@ func TestWorkloadIdentityPoolOfflineFixtureEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal envelopes: %v", err)
 	}
-	for _, token := range []string{"jwksJson", "idpMetadataXml"} {
+	// Neither key/metadata material nor attribute-mapping values nor the
+	// attribute-condition expression may reach a fact. ("123456789012" is the
+	// AWS account id, an intentionally persisted trust anchor, so it is not
+	// banned here.)
+	for _, token := range []string{"jwksJson", "idpMetadataXml", "assertion.arn", "assertion.sub", "assertion.account"} {
 		if containsString(string(blob), token) {
-			t.Fatalf("envelope set leaked provider key/metadata token %q", token)
+			t.Fatalf("envelope set leaked provider key/metadata/mapping token %q", token)
 		}
 	}
 }

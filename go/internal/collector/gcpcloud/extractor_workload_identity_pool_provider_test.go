@@ -85,14 +85,14 @@ func TestExtractWIFProviderOIDC(t *testing.T) {
 	if _, ok := got.Attributes["has_attribute_condition"]; ok {
 		t.Errorf("no attributeCondition present; flag must be omitted: %#v", got.Attributes)
 	}
-	// jwks key material must never leak.
+	// jwks key material and the attribute-mapping value must never leak.
 	blob, err := json.Marshal(got)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	for _, token := range []string{"jwksJson", "SECRET-KEY-MATERIAL", "keys"} {
+	for _, token := range []string{"jwksJson", "SECRET-KEY-MATERIAL", "keys", "assertion.sub"} {
 		if containsString(string(blob), token) {
-			t.Fatalf("WIF provider extraction leaked oidc key material token %q: %s", token, blob)
+			t.Fatalf("WIF provider extraction leaked oidc/mapping token %q: %s", token, blob)
 		}
 	}
 	wantAnchors := []string{"https://token.actions.githubusercontent.com"}
@@ -121,6 +121,56 @@ func TestExtractWIFProviderSAMLNeverPersistsMetadata(t *testing.T) {
 		if containsString(string(blob), token) {
 			t.Fatalf("WIF provider extraction leaked saml metadata token %q: %s", token, blob)
 		}
+	}
+}
+
+func TestExtractWIFProviderX509(t *testing.T) {
+	// X.509 providers must surface a bounded provider_type while the trust-store
+	// certificate material is never decoded.
+	const data = `{
+		"state": "ACTIVE",
+		"x509": {"trustStore": {"trustAnchors": [{"pemCertificate": "-----BEGIN CERTIFICATE-----SECRET-CERT-----END CERTIFICATE-----"}]}}
+	}`
+	got, err := extractWorkloadIdentityPoolProvider(wifProviderContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["provider_type"] != "x509" {
+		t.Errorf("provider_type = %v, want x509", got.Attributes["provider_type"])
+	}
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, token := range []string{"trustStore", "pemCertificate", "SECRET-CERT", "BEGIN CERTIFICATE"} {
+		if containsString(string(blob), token) {
+			t.Fatalf("WIF provider extraction leaked x509 trust-store token %q: %s", token, blob)
+		}
+	}
+}
+
+func TestExtractWIFProviderAWSDefaultAttributeMapping(t *testing.T) {
+	// An AWS provider with no explicit attributeMapping still has IAM's default
+	// two-key mapping; the effective count must be reported, not omitted.
+	const data = `{"state": "ACTIVE", "aws": {"accountId": "123456789012"}}`
+	got, err := extractWorkloadIdentityPoolProvider(wifProviderContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["attribute_mapping_key_count"] != awsDefaultAttributeMappingKeyCount {
+		t.Errorf("attribute_mapping_key_count = %v, want %d (AWS default)", got.Attributes["attribute_mapping_key_count"], awsDefaultAttributeMappingKeyCount)
+	}
+}
+
+func TestExtractWIFProviderOIDCEmptyMappingOmitsCount(t *testing.T) {
+	// A non-AWS provider with no attributeMapping must not fabricate a count.
+	const data = `{"state": "ACTIVE", "oidc": {"issuerUri": "https://example.com"}}`
+	got, err := extractWorkloadIdentityPoolProvider(wifProviderContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := got.Attributes["attribute_mapping_key_count"]; ok {
+		t.Errorf("non-AWS empty mapping must omit attribute_mapping_key_count: %#v", got.Attributes)
 	}
 }
 

@@ -533,13 +533,15 @@ of its own.
 
 **IAM Workload Identity Pool Provider**
 (`iam.googleapis.com/WorkloadIdentityPoolProvider`) captures the external trust
-type (aws / oidc / saml) and its bounded trust anchor — the AWS account id or the
-OIDC issuer URI, both cross-cloud/OIDC correlation join keys — plus the
-attribute-mapping key count, an attribute-condition presence flag, and the
+type (aws / oidc / saml / x509) and its bounded trust anchor — the AWS account id
+or the OIDC issuer URI, both cross-cloud/OIDC correlation join keys — plus the
+attribute-mapping key count (the effective count, including IAM's default two-key
+mapping for a bare AWS provider), an attribute-condition presence flag, and the
 lifecycle/disabled posture; it emits the typed `workload_identity_provider_of_pool`
 edge to the parent pool (derived from the provider's own full resource name) with
 the trust anchor as the correlation anchor. OIDC inline JWKS key material
-(`oidc.jwksJson`) and SAML IdP metadata (`saml.idpMetadataXml`) are never read,
+(`oidc.jwksJson`), SAML IdP metadata (`saml.idpMetadataXml`), and the X.509
+trust-store certificates (`x509.trustStore`) are never read,
 and attribute-mapping values and the attribute-condition CEL expression (which can
 reference asserted claim names and values) are never persisted — only the mapping
 key count and a presence flag.

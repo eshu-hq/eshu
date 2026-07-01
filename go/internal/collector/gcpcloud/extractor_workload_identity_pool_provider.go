@@ -53,7 +53,18 @@ type workloadIdentityPoolProviderData struct {
 		// certificate/metadata blob can never be surfaced.
 		DisplayName string `json:"displayName"`
 	} `json:"saml"`
+	// X509 presence only; the trustStore (trustAnchors / intermediateCas PEM
+	// certificate material) is intentionally omitted so no certificate blob can
+	// be surfaced.
+	X509 *struct{} `json:"x509"`
 }
+
+// awsDefaultAttributeMappingKeyCount is the number of attribute-mapping keys IAM
+// applies by default to an AWS Workload Identity Pool Provider that declares no
+// explicit attributeMapping (`google.subject` and `attribute.aws_role`). Reporting
+// it keeps the effective trust-mapping posture accurate rather than emitting an
+// "unknown/empty" mapping for the common default-AWS case.
+const awsDefaultAttributeMappingKeyCount = 2
 
 // extractWorkloadIdentityPoolProvider extracts bounded, redaction-safe typed depth
 // for one CAI IAM Workload Identity Pool Provider asset. It surfaces the external
@@ -97,10 +108,19 @@ func extractWorkloadIdentityPoolProvider(ctx ExtractContext) (AttributeExtractio
 		}
 	case data.SAML != nil:
 		attrs["provider_type"] = "saml"
+	case data.X509 != nil:
+		attrs["provider_type"] = "x509"
 	}
 
-	if n := len(data.AttributeMapping); n > 0 {
-		attrs["attribute_mapping_key_count"] = n
+	// Report the effective attribute-mapping key count. IAM applies a default
+	// two-key mapping to an AWS provider that declares none, so a bare AWS
+	// provider still has a real mapping posture rather than an empty one.
+	mappingCount := len(data.AttributeMapping)
+	if mappingCount == 0 && data.AWS != nil {
+		mappingCount = awsDefaultAttributeMappingKeyCount
+	}
+	if mappingCount > 0 {
+		attrs["attribute_mapping_key_count"] = mappingCount
 	}
 	if strings.TrimSpace(data.AttributeCondition) != "" {
 		attrs["has_attribute_condition"] = true
