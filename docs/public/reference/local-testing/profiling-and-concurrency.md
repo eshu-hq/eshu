@@ -11,7 +11,7 @@ ship single-worker settings as a fix for a concurrency bug.
 | Env var | Default | Service | Controls |
 | --- | --- | --- | --- |
 | `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Bootstrap Index | Concurrent bootstrap projection goroutines |
-| `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 4)`, hard cap `8` | Bootstrap Index / Ingester | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; set `1` at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` |
+| `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 8)`, hard cap `8` | Bootstrap Index / Ingester | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; set `1` at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` |
 | `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent repository snapshot goroutines |
 | `ESHU_PARSE_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent file-parse workers inside a repository snapshot |
 | `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative: `NumCPU` | Ingester | Concurrent source-local projection workers |
