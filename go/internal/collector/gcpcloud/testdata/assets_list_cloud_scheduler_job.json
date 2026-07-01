@@ -1,0 +1,48 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//cloudscheduler.googleapis.com/projects/demo-project/locations/us-central1/jobs/nightly",
+      "assetType": "cloudscheduler.googleapis.com/Job",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/jobs/nightly",
+          "schedule": "0 2 * * *",
+          "timeZone": "America/New_York",
+          "state": "ENABLED",
+          "pubsubTarget": {
+            "topicName": "projects/demo-project/topics/scheduler-events",
+            "data": "c2VjcmV0LXBheWxvYWQtc2hvdWxkLW5vdC1sZWFr",
+            "attributes": {"origin": "scheduler"}
+          },
+          "retryConfig": {"retryCount": 3},
+          "lastAttemptTime": "2026-06-26T02:00:00Z",
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//cloudscheduler.googleapis.com/projects/demo-project/locations/us-east1/jobs/webhook",
+      "assetType": "cloudscheduler.googleapis.com/Job",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/jobs/webhook",
+          "schedule": "*/15 * * * *",
+          "state": "PAUSED",
+          "httpTarget": {
+            "uri": "https://api.internal.example.com/hook?token=should-not-leak-token",
+            "httpMethod": "POST",
+            "oidcToken": {"serviceAccountEmail": "scheduler-sa@demo-project.iam.gserviceaccount.com", "audience": "https://api.internal.example.com/should-not-leak-audience"},
+            "headers": {"X-Api-Key": "should-not-leak-header"}
+          }
+        }
+      }
+    }
+  ]
+}
