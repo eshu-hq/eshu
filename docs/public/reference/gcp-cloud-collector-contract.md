@@ -458,6 +458,24 @@ the inbound "runs as" edge without the raw email ever being persisted; container
 images continue to flow through the shared image-reference path. No env value is
 ever read, and only control-plane resource names and references leave the parser.
 
+**Pub/Sub Subscription** (`pubsub.googleapis.com/Subscription`) captures
+lifecycle `state`, delivery type (push / pull / bigquery / bigtable /
+cloud_storage), push
+endpoint scheme (an http-vs-https alerting signal) and a deterministic
+fingerprint of the push endpoint host, ack deadline, acked-message retention and
+message retention duration, expiration ttl, exactly-once delivery, dead-letter
+max delivery attempts, and whether a message filter is set; emits the typed
+`subscription_subscribes_to_topic` and `subscription_dead_letters_to_topic`
+edges to their `Topic`s, `subscription_exports_to_bigquery_table` to the export
+`Table`, `subscription_exports_to_bigtable_table` to the export Bigtable
+`Table`, and `subscription_exports_to_storage_bucket` to the export `Bucket`;
+and surfaces the subscribed topic, dead-letter topic, export table (BigQuery or
+Bigtable), and export bucket resource names as correlation anchors. The push endpoint is never persisted raw — its
+path and query (which can carry OIDC tokens or shared secrets) are dropped, the
+host is reduced to a fingerprint (matching the DNS-name redaction posture), and
+the filter expression is recorded only as a presence flag because it can
+reference message attribute names and values.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
@@ -583,7 +601,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, and Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, and Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 
