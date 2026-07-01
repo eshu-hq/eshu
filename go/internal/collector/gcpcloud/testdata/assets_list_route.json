@@ -1,0 +1,39 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/routes/to-instance",
+      "assetType": "compute.googleapis.com/Route",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "to-instance",
+          "network": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/prod-vpc",
+          "destRange": "10.128.0.0/9",
+          "priority": 1000,
+          "nextHopInstance": "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a/instances/nat-gw",
+          "tags": ["web"],
+          "creationTimestamp": "2024-06-01T00:00:00.000-07:00"
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/routes/default-route",
+      "assetType": "compute.googleapis.com/Route",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "default-route",
+          "network": "projects/demo-project/global/networks/prod-vpc",
+          "destRange": "0.0.0.0/0",
+          "priority": 1000,
+          "nextHopGateway": "projects/demo-project/global/gateways/default-internet-gateway"
+        }
+      }
+    }
+  ]
+}
