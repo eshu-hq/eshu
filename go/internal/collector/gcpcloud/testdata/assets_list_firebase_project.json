@@ -1,0 +1,41 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//firebase.googleapis.com/projects/demo-project",
+      "assetType": "firebase.googleapis.com/FirebaseProject",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project",
+          "projectId": "demo-project",
+          "projectNumber": "123456789",
+          "displayName": "Demo Firebase App",
+          "state": "ACTIVE",
+          "resources": {
+            "hostingSite": "demo-project",
+            "realtimeDatabaseInstance": "demo-project-default-rtdb",
+            "storageBucket": "demo-project.appspot.com",
+            "locationId": "us-central"
+          }
+        }
+      }
+    },
+    {
+      "name": "//firebase.googleapis.com/projects/legacy-project",
+      "assetType": "firebase.googleapis.com/FirebaseProject",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/223456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/legacy-project",
+          "projectId": "legacy-project",
+          "projectNumber": "223456789",
+          "displayName": "Legacy App",
+          "state": "ACTIVE"
+        }
+      }
+    }
+  ]
+}
