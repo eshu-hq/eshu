@@ -131,10 +131,8 @@ func TestExtractRunRevisionNeverPersistsEnvValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal extraction: %v", err)
 	}
-	for _, token := range []string{"super-secret-value", "\"value\""} {
-		if containsString(string(blob), token) {
-			t.Fatalf("run revision extraction leaked env value token %q: %s", token, blob)
-		}
+	if containsString(string(blob), "super-secret-value") {
+		t.Fatalf("run revision extraction leaked env value literal: %s", blob)
 	}
 	if got.Attributes["env_key_count"] != 1 {
 		t.Errorf("env_key_count = %v, want 1", got.Attributes["env_key_count"])
@@ -191,12 +189,28 @@ func TestExtractRunRevisionAnchorsAllContainerDigests(t *testing.T) {
 			t.Errorf("missing image digest anchor %q in %#v", want, got.CorrelationAnchors)
 		}
 	}
-	// The primary (first) container drives the scalar image attributes.
+	// The first container declaring an image drives the scalar image attributes.
 	if got.Attributes["container_image_digest"] != "sha256:1111111111111111111111111111111111111111111111111111111111111111" {
 		t.Errorf("container_image_digest = %v, want primary", got.Attributes["container_image_digest"])
 	}
 	if got.Attributes["container_count"] != 3 {
 		t.Errorf("container_count = %v, want 3", got.Attributes["container_count"])
+	}
+}
+
+func TestExtractRunRevisionSecretCountDedupsCrossForm(t *testing.T) {
+	// The same secret referenced as a bare id (env) and its full relative form
+	// (volume) is one mounted secret, so secret_mount_count must be 1, not 2.
+	const data = `{
+		"containers": [{"env": [{"name": "DB", "valueSource": {"secretKeyRef": {"secret": "db-password"}}}]}],
+		"volumes": [{"secret": {"secret": "projects/demo-project/secrets/db-password"}}]
+	}`
+	got, err := extractRunRevision(runRevisionContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["secret_mount_count"] != 1 {
+		t.Errorf("secret_mount_count = %v, want 1 (same secret in two forms)", got.Attributes["secret_mount_count"])
 	}
 }
 

@@ -95,7 +95,7 @@ func extractRunRevision(ctx ExtractContext) (AttributeExtraction, error) {
 
 	saDigest := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccount)
 	image, digest := runRevisionPrimaryImage(data)
-	attrs := runRevisionAttributes(data, saDigest, image, digest)
+	attrs := runRevisionAttributes(ctx.ProjectID, data, saDigest, image, digest)
 
 	var anchors []string
 	var rels []RelationshipObservation
@@ -132,7 +132,7 @@ func extractRunRevision(ctx ExtractContext) (AttributeExtraction, error) {
 // does not fabricate a posture. Scaling counts are pointer-decoded so a genuine
 // minInstanceCount of 0 (scale-to-zero posture) is distinguishable from an absent
 // scaling block.
-func runRevisionAttributes(data runRevisionData, saDigest, image, digest string) map[string]any {
+func runRevisionAttributes(projectID string, data runRevisionData, saDigest, image, digest string) map[string]any {
 	attrs := map[string]any{}
 	if v := strings.TrimSpace(data.ExecutionEnvironment); v != "" {
 		attrs["execution_environment"] = v
@@ -166,7 +166,7 @@ func runRevisionAttributes(data runRevisionData, saDigest, image, digest string)
 		attrs["env_keys"] = keys
 		attrs["env_key_count"] = len(keys)
 	}
-	if n := runRevisionDistinctSecretCount(data); n > 0 {
+	if n := runRevisionDistinctSecretCount(projectID, data); n > 0 {
 		attrs["secret_mount_count"] = n
 	}
 	if v := runRevisionReadyState(data); v != "" {
@@ -178,10 +178,13 @@ func runRevisionAttributes(data runRevisionData, saDigest, image, digest string)
 	return attrs
 }
 
-// runRevisionPrimaryImage returns the first container's image reference and its
-// sha256 digest (when the reference is digest-pinned). The digest is the
-// cross-source join key for container image identity; a tag-only reference yields
-// an empty digest.
+// runRevisionPrimaryImage returns the first container that declares an image (its
+// reference) and that reference's sha256 digest (when it is digest-pinned). It
+// skips containers with an empty image so a redacted or partial leading container
+// does not blank the scalar image attributes when a later container has one. The
+// digest is the cross-source join key for container image identity; a tag-only
+// reference yields an empty digest. Every container's digest is anchored
+// separately by runRevisionImageDigests, so a sidecar still correlates.
 func runRevisionPrimaryImage(data runRevisionData) (image, digest string) {
 	for _, container := range data.Containers {
 		if ref := strings.TrimSpace(container.Image); ref != "" {
@@ -276,17 +279,23 @@ func runRevisionSecretFullNames(projectID string, data runRevisionData) []string
 	return dedupeNonEmpty(names)
 }
 
-// runRevisionDistinctSecretCount counts distinct mounted secrets by their raw
-// reference, independent of project resolution, so the posture count is stable
-// even when a bare secret id cannot be expanded to a full resource name.
-func runRevisionDistinctSecretCount(data runRevisionData) int {
+// runRevisionDistinctSecretCount counts distinct mounted secrets, deduplicating
+// by resolved full resource name so the same secret referenced in two forms
+// (a bare id in one mount and its projects/.../secrets/... form in another) is
+// counted once. A bare id that cannot be resolved without a project falls back
+// to its raw reference as the dedup key, so the posture count is still stable.
+func runRevisionDistinctSecretCount(projectID string, data runRevisionData) int {
 	seen := map[string]struct{}{}
 	for _, ref := range runRevisionSecretRefs(data) {
 		trimmed := strings.TrimSpace(ref)
 		if trimmed == "" {
 			continue
 		}
-		seen[trimmed] = struct{}{}
+		key := runServiceSecretFullName(projectID, trimmed)
+		if key == "" {
+			key = trimmed
+		}
+		seen[key] = struct{}{}
 	}
 	return len(seen)
 }
