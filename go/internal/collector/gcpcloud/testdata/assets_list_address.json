@@ -1,0 +1,65 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/regions/us-central1/addresses/web-ip",
+      "assetType": "compute.googleapis.com/Address",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "web-ip",
+          "address": "203.0.113.50",
+          "addressType": "EXTERNAL",
+          "purpose": "GCE_ENDPOINT",
+          "status": "IN_USE",
+          "ipVersion": "IPV4",
+          "region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+          "network": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/prod-vpc",
+          "users": [
+            "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/forwardingRules/web-fr",
+            "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a/instances/web-1"
+          ],
+          "creationTimestamp": "2024-06-01T00:00:00.000-07:00"
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/regions/us-central1/addresses/internal-ip",
+      "assetType": "compute.googleapis.com/Address",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "internal-ip",
+          "address": "10.0.0.42",
+          "addressType": "INTERNAL",
+          "purpose": "GCE_ENDPOINT",
+          "status": "RESERVED",
+          "region": "projects/demo-project/regions/us-central1",
+          "subnetwork": "projects/demo-project/regions/us-central1/subnetworks/prod-subnet"
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/addresses/psc-ip",
+      "assetType": "compute.googleapis.com/GlobalAddress",
+      "updateTime": "2026-06-24T12:10:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "psc-ip",
+          "address": "203.0.113.99",
+          "addressType": "INTERNAL",
+          "purpose": "PRIVATE_SERVICE_CONNECT",
+          "status": "RESERVED",
+          "ipVersion": "IPV4",
+          "network": "projects/demo-project/global/networks/prod-vpc"
+        }
+      }
+    }
+  ]
+}
