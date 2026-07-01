@@ -126,6 +126,33 @@ tracked before/after evidence here.
   which are unchanged. The migration alters extraction internals only, not any
   operator-facing signal, status field, or wire contract.
 
+### Large-schema line-number lookup (#4422)
+
+Performance Evidence: `BenchmarkParseLargeSQLSchemaLineNumbers` parses one
+synthetic public-safe `CREATE TABLE` statement with 4,000 column definitions,
+which stresses the line-number mapping used for emitted table, column, and
+migration rows. Baseline `origin/main` at `3f38f41fc` with the old
+`strings.Count(string(source[:offset]), "\n")` lookup, same benchmark body,
+Apple M5 Max, `darwin/arm64`, `-benchmem -count=3`: `50.51 ms/op`, `50.87 ms/op`, and
+`50.51 ms/op`; about `232.4 MB/op`, `315,796 allocs/op`. After the precomputed
+newline index on the rebased branch, a quiet local rerun with `-count=5`
+measured `39.63 ms/op`, `39.03 ms/op`, `42.86 ms/op`, `35.16 ms/op`, and
+`36.47 ms/op`; about `11.87 MB/op`, `311,809-311,810 allocs/op`.
+
+No-Regression Evidence: `go test ./internal/parser/sql -count=1` and
+`TestSQLLineIndexMatchesLineNumberForOffsets` prove line numbers still match
+the old 1-based behavior for start, middle, negative, and past-end offsets. The
+change preserves SQL payload buckets, sort order, source offsets, tree-sitter
+parsing, statement segmentation, and migration target semantics. It removes the
+per-emitted-row source-prefix allocation, but it does not claim the full private
+corpus outlier is fully resolved until a fresh full-corpus run confirms no
+single SQL file dominates collection wall time.
+
+Observability Evidence: No-Observability-Change. This package still emits no
+metrics, spans, logs, status fields, or runtime knobs. Operators continue to use
+collector parse-stage timing and `eshu_dp_file_parse_duration_seconds`; the new
+benchmark is the focused local proof for the public-safe large-schema shape.
+
 ## Related docs
 
 - `docs/public/languages/support-maturity.md`
