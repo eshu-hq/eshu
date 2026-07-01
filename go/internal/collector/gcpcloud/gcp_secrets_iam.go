@@ -217,8 +217,18 @@ func gcpServiceAccountEmailForResource(obs ResourceObservation) string {
 	if email := strings.ToLower(strings.TrimSpace(obs.ServiceAccountEmail)); email != "" {
 		return email
 	}
+	return serviceAccountEmailFromFullName(obs.Name)
+}
+
+// serviceAccountEmailFromFullName extracts the lower-cased service-account email
+// from a Cloud Asset Inventory full resource name shaped like
+// `.../serviceAccounts/<email>`. It returns an empty string when the marker is
+// absent or the trailing segment is not an email. The trust path and the
+// ServiceAccount typed-depth extractor share it so both derive the same digest
+// from the same input when `resource.data.email` is missing.
+func serviceAccountEmailFromFullName(fullResourceName string) string {
 	const marker = "/serviceAccounts/"
-	name := strings.TrimSpace(obs.Name)
+	name := strings.TrimSpace(fullResourceName)
 	index := strings.LastIndex(name, marker)
 	if index < 0 {
 		return ""

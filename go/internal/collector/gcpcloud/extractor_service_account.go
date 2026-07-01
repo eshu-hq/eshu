@@ -52,7 +52,15 @@ func extractServiceAccount(ctx ExtractContext) (AttributeExtraction, error) {
 	if v := strings.TrimSpace(data.UniqueID); v != "" {
 		attrs["unique_id"] = v
 	}
-	emailDigest := secretsiam.GCPServiceAccountEmailDigest(data.Email)
+	// Fall back to the email embedded in the canonical full resource name when
+	// resource.data.email is absent, so the cloud-resource node keeps the same
+	// digest anchor the secrets/IAM trust facts join on (see
+	// gcpServiceAccountEmailForResource).
+	email := data.Email
+	if strings.TrimSpace(email) == "" {
+		email = serviceAccountEmailFromFullName(ctx.FullResourceName)
+	}
+	emailDigest := secretsiam.GCPServiceAccountEmailDigest(email)
 	if emailDigest != "" {
 		attrs["email_fingerprint"] = emailDigest
 	}

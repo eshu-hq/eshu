@@ -129,8 +129,44 @@ func TestExtractServiceAccountNeverLeaksRawEmail(t *testing.T) {
 	}
 }
 
+func TestExtractServiceAccountEmailFallsBackToFullName(t *testing.T) {
+	// A CAI page can omit resource.data.email while still carrying the canonical
+	// .../serviceAccounts/<email> full resource name. The extractor must derive
+	// the digest from the name so the cloud-resource node keeps the same anchor
+	// the trust facts join on, matching gcpServiceAccountEmailForResource.
+	const data = `{"uniqueId": "104567890123456789012", "disabled": false}`
+	got, err := extractServiceAccount(serviceAccountContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantDigest := secretsiam.GCPServiceAccountEmailDigest(serviceAccountSampleEmail)
+	if wantDigest == "" {
+		t.Fatal("expected a non-empty digest for the sample email")
+	}
+	if got.Attributes["email_fingerprint"] != wantDigest {
+		t.Errorf("email_fingerprint = %v, want digest derived from full resource name %q",
+			got.Attributes["email_fingerprint"], wantDigest)
+	}
+	if len(got.CorrelationAnchors) != 1 || got.CorrelationAnchors[0] != wantDigest {
+		t.Errorf("correlation_anchors = %#v, want [%s]", got.CorrelationAnchors, wantDigest)
+	}
+	// The raw email parsed from the name must never escape into the output.
+	blob, _ := json.Marshal(got)
+	if strings.Contains(string(blob), serviceAccountSampleEmail) {
+		t.Fatalf("extraction leaked raw service-account email: %s", blob)
+	}
+}
+
 func TestExtractServiceAccountEmptyData(t *testing.T) {
-	got, err := extractServiceAccount(serviceAccountContext(`{}`))
+	// Empty data and a full resource name with no parseable email yields nothing:
+	// no attributes, anchors, or relationships are fabricated.
+	ctx := ExtractContext{
+		FullResourceName: "//iam.googleapis.com/projects/demo-project/serviceAccounts/",
+		AssetType:        serviceAccountAssetType,
+		ProjectID:        "demo-project",
+		Data:             json.RawMessage(`{}`),
+	}
+	got, err := extractServiceAccount(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

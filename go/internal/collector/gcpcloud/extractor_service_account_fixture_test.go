@@ -28,8 +28,8 @@ func TestServiceAccountOfflineFixtureEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse fixture page: %v", err)
 	}
-	if len(page.Resources) != 2 {
-		t.Fatalf("expected 2 resources, got %d", len(page.Resources))
+	if len(page.Resources) != 3 {
+		t.Fatalf("expected 3 resources, got %d", len(page.Resources))
 	}
 
 	gen := NewGeneration(attributesTestBoundary(), redact.Key{})
@@ -42,9 +42,12 @@ func TestServiceAccountOfflineFixtureEndToEnd(t *testing.T) {
 	}
 
 	const pipelineRunnerName = "//iam.googleapis.com/projects/demo-project/serviceAccounts/pipeline-runner@demo-project.iam.gserviceaccount.com"
+	const noDataEmailName = "//iam.googleapis.com/projects/demo-project/serviceAccounts/no-data-email@demo-project.iam.gserviceaccount.com"
 	resourceCount := 0
 	var pipelineAttrs map[string]any
 	var pipelineAnchors []string
+	var noDataEmailAttrs map[string]any
+	var noDataEmailAnchors []string
 	for _, env := range envelopes {
 		if env.FactKind != facts.GCPCloudResourceFactKind {
 			continue
@@ -69,10 +72,14 @@ func TestServiceAccountOfflineFixtureEndToEnd(t *testing.T) {
 			pipelineAttrs, _ = env.Payload["attributes"].(map[string]any)
 			pipelineAnchors, _ = env.Payload["correlation_anchors"].([]string)
 		}
+		if env.Payload["full_resource_name"] == noDataEmailName {
+			noDataEmailAttrs, _ = env.Payload["attributes"].(map[string]any)
+			noDataEmailAnchors, _ = env.Payload["correlation_anchors"].([]string)
+		}
 	}
 
-	if resourceCount != 2 {
-		t.Errorf("gcp_cloud_resource facts = %d, want 2", resourceCount)
+	if resourceCount != 3 {
+		t.Errorf("gcp_cloud_resource facts = %d, want 3", resourceCount)
 	}
 	if pipelineAttrs == nil {
 		t.Fatalf("pipeline-runner service account carried no attributes")
@@ -89,5 +96,19 @@ func TestServiceAccountOfflineFixtureEndToEnd(t *testing.T) {
 	}
 	if len(pipelineAnchors) != 1 || pipelineAnchors[0] != fp {
 		t.Errorf("correlation_anchors = %#v, want [%s]", pipelineAnchors, fp)
+	}
+
+	// The email-absent service account derives its digest anchor from the full
+	// resource name so trust facts can still join onto its cloud-resource node.
+	if noDataEmailAttrs == nil {
+		t.Fatalf("email-absent service account carried no attributes")
+	}
+	derivedFP, ok := noDataEmailAttrs["email_fingerprint"].(string)
+	if !ok || !strings.HasPrefix(derivedFP, "sha256:") {
+		t.Errorf("email-absent email_fingerprint = %v, want sha256: digest derived from name",
+			noDataEmailAttrs["email_fingerprint"])
+	}
+	if len(noDataEmailAnchors) != 1 || noDataEmailAnchors[0] != derivedFP {
+		t.Errorf("email-absent correlation_anchors = %#v, want [%s]", noDataEmailAnchors, derivedFP)
 	}
 }
