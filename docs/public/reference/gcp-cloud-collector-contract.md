@@ -604,9 +604,12 @@ the restricted API-target services (count plus the bounded, sorted service-name
 list). The secret key string (`keyString`) is never read, and every restriction
 value — allowed IPs, referrer URLs, Android app fingerprints, iOS bundle ids — is
 reduced to a presence-only restriction-type signal so no address, URL, or app
-identifier leaves the parser. The owning project is base-observation ancestry and
-the restricted API targets are GCP service identifiers rather than resolvable CAI
-resources, so the extractor derives no outbound edges or anchors.
+identifier leaves the parser. For an authorization key it also surfaces the
+fingerprinted service-account email the key authenticates as (never the raw
+address), as the cross-source IAM/trust join anchor. The owning project is
+base-observation ancestry and the restricted API targets are GCP service
+identifiers rather than resolvable CAI resources, so the extractor emits no
+outbound edges.
 
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth

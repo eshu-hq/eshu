@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 )
 
 // apiKeyAssetType is the Cloud Asset Inventory asset type for a GCP API Key.
@@ -25,9 +27,13 @@ func init() {
 // parser; only which restriction type is configured is reported. The API-target
 // service names are bounded control-plane API identifiers and are kept.
 type apiKeyData struct {
-	DisplayName  string `json:"displayName"`
-	CreateTime   string `json:"createTime"`
-	Restrictions *struct {
+	DisplayName string `json:"displayName"`
+	CreateTime  string `json:"createTime"`
+	// ServiceAccountEmail is set on an authorization key, which authenticates as
+	// that service account. It is reduced to a redaction-safe digest (never the
+	// raw email) so reducers keep the IAM/trust join without persisting the address.
+	ServiceAccountEmail string `json:"serviceAccountEmail"`
+	Restrictions        *struct {
 		BrowserKeyRestrictions *json.RawMessage `json:"browserKeyRestrictions"`
 		ServerKeyRestrictions  *json.RawMessage `json:"serverKeyRestrictions"`
 		AndroidKeyRestrictions *json.RawMessage `json:"androidKeyRestrictions"`
@@ -45,10 +51,11 @@ type apiKeyData struct {
 // secret key string and every restriction value (allowed IPs, referrers, Android
 // app fingerprints, iOS bundle ids) are never read.
 //
-// The key's graph value — its owning project and its restricted API targets — is
-// either ancestry already carried on the base observation or a set of GCP service
-// identifiers that are not resolvable CAI resources, so the extractor derives no
-// outbound relationships or anchors.
+// For an authorization key it also surfaces the fingerprinted service-account
+// email it authenticates as, as the cross-source IAM/trust join anchor. The key's
+// owning project is ancestry already carried on the base observation and its
+// restricted API targets are GCP service identifiers that are not resolvable CAI
+// resources, so the extractor emits no outbound relationships.
 func extractAPIKey(ctx ExtractContext) (AttributeExtraction, error) {
 	var data apiKeyData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -67,12 +74,24 @@ func extractAPIKey(ctx ExtractContext) (AttributeExtraction, error) {
 			attrs["restriction_type"] = t
 		}
 		if services := apiKeyTargetServices(r.APITargets); len(services) > 0 {
-			attrs["api_target_count"] = len(r.APITargets)
+			// Count the deduplicated/non-empty services so the count and the list
+			// never disagree.
+			attrs["api_target_count"] = len(services)
 			attrs["api_target_services"] = services
 		}
 	}
 
-	return AttributeExtraction{Attributes: attrs}, nil
+	// An authorization key authenticates as a service account; carry the
+	// fingerprinted email as the cross-source IAM/trust join anchor (never the raw
+	// address). No outbound edge is emitted because the email is not a resolvable
+	// CAI full resource name — the IAM/trust layer joins on the digest.
+	var anchors []string
+	if digest := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccountEmail); digest != "" {
+		attrs["authorized_service_account_email_fingerprint"] = digest
+		anchors = append(anchors, digest)
+	}
+
+	return AttributeExtraction{Attributes: attrs, CorrelationAnchors: anchors}, nil
 }
 
 // apiKeyRestrictionType reports the configured key restriction type without
