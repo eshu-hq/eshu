@@ -22,19 +22,18 @@ func init() {
 
 // dataplexEntryGroupData is the bounded view of a CAI
 // dataplex.googleapis.com/EntryGroup resource.data blob (Dataplex Catalog
-// EntryGroup resource). Only redaction-safe control-plane posture is decoded;
-// the display name and free-text description are intentionally not persisted.
+// EntryGroup resource). Only the redaction-safe catalog transfer status and
+// creation time are decoded; the free-text description is not decoded. The
+// EntryGroup resource has no lifecycle state field.
 type dataplexEntryGroupData struct {
-	State          string `json:"state"`
 	TransferStatus string `json:"transferStatus"`
 	CreateTime     string `json:"createTime"`
 }
 
 // extractDataplexEntryGroup extracts bounded, redaction-safe typed depth for one
 // Dataplex Entry Group CAI asset. It returns the monitoring attribute set
-// (lifecycle state, catalog transfer status, and creation time) and no edges or
-// anchors, since an entry group owns no outbound references from its own
-// resource.data.
+// (catalog transfer status and creation time) and no edges or anchors, since an
+// entry group owns no outbound references from its own resource.data.
 func extractDataplexEntryGroup(ctx ExtractContext) (AttributeExtraction, error) {
 	var data dataplexEntryGroupData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -42,9 +41,6 @@ func extractDataplexEntryGroup(ctx ExtractContext) (AttributeExtraction, error) 
 	}
 
 	attrs := map[string]any{}
-	if v := strings.TrimSpace(data.State); v != "" {
-		attrs["state"] = v
-	}
 	if v := strings.TrimSpace(data.TransferStatus); v != "" {
 		attrs["transfer_status"] = v
 	}

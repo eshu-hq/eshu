@@ -31,7 +31,6 @@ func TestExtractDataplexEntryGroupFullResource(t *testing.T) {
 		"name": "projects/demo-project/locations/us-central1/entryGroups/analytics",
 		"displayName": "Analytics catalog",
 		"description": "team analytics entries",
-		"state": "ACTIVE",
 		"transferStatus": "TRANSFER_STATUS_MIGRATED",
 		"createTime": "2024-05-01T00:00:00Z",
 		"updateTime": "2024-06-01T00:00:00Z",
@@ -44,7 +43,6 @@ func TestExtractDataplexEntryGroupFullResource(t *testing.T) {
 	}
 
 	wantAttrs := map[string]any{
-		"state":           "ACTIVE",
 		"transfer_status": "TRANSFER_STATUS_MIGRATED",
 		"creation_time":   "2024-05-01T00:00:00Z",
 	}
@@ -64,12 +62,12 @@ func TestExtractDataplexEntryGroupFullResource(t *testing.T) {
 }
 
 func TestExtractDataplexEntryGroupMinimal(t *testing.T) {
-	const data = `{"state": "CREATING"}`
+	const data = `{"transferStatus": "TRANSFER_STATUS_PENDING"}`
 	got, err := extractDataplexEntryGroup(dataplexEntryGroupContext(data))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	wantAttrs := map[string]any{"state": "CREATING"}
+	wantAttrs := map[string]any{"transfer_status": "TRANSFER_STATUS_PENDING"}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
 	}
@@ -88,7 +86,7 @@ func TestExtractDataplexEntryGroupEmptyDataYieldsNothing(t *testing.T) {
 func TestExtractDataplexEntryGroupFractionalCreateTime(t *testing.T) {
 	// Dataplex createTime can carry sub-second precision; it must still normalize
 	// to whole-second RFC3339 rather than being silently dropped.
-	const data = `{"state": "ACTIVE", "createTime": "2024-05-01T00:00:00.123456Z"}`
+	const data = `{"createTime": "2024-05-01T00:00:00.123456Z"}`
 	got, err := extractDataplexEntryGroup(dataplexEntryGroupContext(data))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

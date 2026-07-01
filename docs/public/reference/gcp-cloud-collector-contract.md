@@ -688,11 +688,13 @@ and domains are child sub-resources or domain strings that are not resolvable CA
 resources, so the extractor derives no outbound edges or anchors.
 
 **Dataplex Entry Group** (`dataplex.googleapis.com/EntryGroup`) captures the
-lifecycle state, catalog transfer status, and creation time. An entry group is a
-container: its contained entries reference it from their own assets (inbound) and
-its project is base-observation placement, so the extractor derives no outbound
-edges or correlation anchors — only bounded posture attributes. The display name
-and free-text description are not persisted.
+catalog transfer status and creation time (the EntryGroup resource has no
+lifecycle state field). An entry group is a container: its contained entries
+reference it from their own assets (inbound) and its project is base-observation
+placement, so the extractor derives no outbound edges or correlation anchors —
+only bounded posture attributes. The extractor decodes no free-text description
+and adds no display-name attribute (the base observation carries the provider
+display name for every asset type).
 
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth

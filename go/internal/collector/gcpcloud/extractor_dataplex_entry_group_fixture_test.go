@@ -63,9 +63,6 @@ func TestDataplexEntryGroupOfflineFixtureEndToEnd(t *testing.T) {
 	if analyticsAttrs == nil {
 		t.Fatalf("analytics entry group carried no attributes")
 	}
-	if analyticsAttrs["state"] != "ACTIVE" {
-		t.Errorf("analytics state = %v, want ACTIVE", analyticsAttrs["state"])
-	}
 	if analyticsAttrs["transfer_status"] != "TRANSFER_STATUS_MIGRATED" {
 		t.Errorf("analytics transfer_status = %v, want TRANSFER_STATUS_MIGRATED", analyticsAttrs["transfer_status"])
 	}

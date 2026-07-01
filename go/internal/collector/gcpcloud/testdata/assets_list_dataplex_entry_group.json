@@ -12,7 +12,6 @@
           "name": "projects/demo-project/locations/us-central1/entryGroups/analytics",
           "displayName": "Analytics catalog",
           "description": "team analytics entries",
-          "state": "ACTIVE",
           "transferStatus": "TRANSFER_STATUS_MIGRATED",
           "createTime": "2024-05-01T00:00:00Z",
           "updateTime": "2024-06-01T00:00:00Z",
@@ -29,7 +28,7 @@
         "location": "us-central1",
         "data": {
           "name": "projects/demo-project/locations/us-central1/entryGroups/scratch",
-          "state": "CREATING"
+          "createTime": "2023-02-01T00:00:00Z"
         }
       }
     }
