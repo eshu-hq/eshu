@@ -32,6 +32,12 @@
    `bigquery.googleapis.com/Dataset` (location, expiration policies, default KMS
    key, and a redaction-safe access-ACL summary; KMS-key edge plus
    authorizes-view/dataset/routine edges).
+17. `extractor_iam_role.go` - typed-depth extractor for
+   `iam.googleapis.com/Role` (custom IAM Role: title, launch stage,
+   included-permission count, sensitive-permission count with a
+   `grants_privilege_escalation` flag, deleted posture, and a fingerprinted
+   etag; no outbound edges, since role bindings are inbound and owned by the
+   IAM/binding layer).
 
 ## Invariants
 

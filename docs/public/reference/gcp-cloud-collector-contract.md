@@ -368,6 +368,18 @@ account is an anchor (its "runs as" edge is inbound, owned by the secrets/IAM an
 image-identity layers keying on the same `GCPServiceAccountEmailDigest`), not an
 edge, because an email is not an exactly resolvable CAI endpoint.
 
+**Firewall Rule** (`compute.googleapis.com/Firewall`) captures direction,
+priority, disabled and log-config posture, the allow/deny protocols and ports,
+source/destination range counts, an `opens_to_public` exposure signal, target
+network tags, and the target service-account count; emits the typed
+`firewall_applies_to_network` edge; and surfaces the enclosing network resource
+name plus the fingerprinted target service-account emails as correlation anchors.
+Source and destination ranges are reduced to counts and the public-exposure
+boolean (a `0.0.0.0/0` or `::/0` entry): the CIDR values themselves are never
+persisted, so no public or private IP address reaches a fact. Target service
+accounts are anchors, not edges — an email is not an exactly resolvable CAI
+endpoint, and the "applies to instances running as SA" join is owned by the
+secrets/IAM layer keying on the same `GCPServiceAccountEmailDigest`.
 **Artifact Registry DockerImage**
 (`artifactregistry.googleapis.com/DockerImage`) captures the pullable image URI,
 the content digest, tags and tag count, image size, media type, and build/upload
@@ -392,6 +404,17 @@ correlation anchors. No secret payload is ever read — payloads live on separat
 `SecretVersion` resources outside the CAI Secret asset — and only key/topic
 resource names (control-plane identifiers, not key material or values) leave the
 parser.
+
+**Custom IAM Role** (`iam.googleapis.com/Role`) captures the role title, launch
+stage, included-permission count, the count of privilege-escalation-relevant
+permissions with a `grants_privilege_escalation` flag, the deleted posture, and a
+fingerprinted etag. The individual permission strings are reduced to bounded
+counts and flags rather than surfaced verbatim, and the opaque etag is reduced to
+a stable digest so no raw concurrency token leaves the parser. The role's edges —
+the members bound to it and its owning project/org — are inbound and owned by the
+IAM/binding and ancestry layers, which join on the role identity and the ancestry
+already carried on the base observation; the extractor derives no outbound edges
+or anchors from the role's own data.
 
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
@@ -518,7 +541,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, and no secret payload is persisted. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, and IAM role permission lists are reduced to bounded counts and flags with the opaque etag fingerprinted. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 

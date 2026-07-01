@@ -1,0 +1,46 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//iam.googleapis.com/projects/demo-project/roles/customDeployer",
+      "assetType": "iam.googleapis.com/Role",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/roles/customDeployer",
+          "title": "Custom Deployer",
+          "description": "Deploys workloads",
+          "stage": "GA",
+          "includedPermissions": [
+            "compute.instances.get",
+            "compute.instances.list",
+            "iam.serviceAccounts.actAs",
+            "resourcemanager.projects.setIamPolicy"
+          ],
+          "etag": "BwXhwFakeEtag=",
+          "deleted": false
+        }
+      }
+    },
+    {
+      "name": "//iam.googleapis.com/projects/demo-project/roles/readOnly",
+      "assetType": "iam.googleapis.com/Role",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/roles/readOnly",
+          "title": "Read Only",
+          "stage": "GA",
+          "includedPermissions": [
+            "storage.objects.get",
+            "storage.objects.list"
+          ],
+          "etag": "BwXhwOtherEtag=",
+          "deleted": false
+        }
+      }
+    }
+  ]
+}
