@@ -1,0 +1,42 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//pubsub.googleapis.com/projects/demo-project/topics/orders",
+      "assetType": "pubsub.googleapis.com/Topic",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "projects/demo-project/topics/orders",
+          "labels": {"team": "platform", "env": "prod"},
+          "kmsKeyName": "projects/demo-project/locations/us-central1/keyRings/pubsub/cryptoKeys/topics",
+          "messageStoragePolicy": {
+            "allowedPersistenceRegions": ["us-east1", "us-central1"],
+            "enforceInTransit": true
+          },
+          "schemaSettings": {
+            "schema": "projects/demo-project/schemas/order-event",
+            "encoding": "JSON"
+          },
+          "messageRetentionDuration": "86400s",
+          "state": "ACTIVE"
+        }
+      }
+    },
+    {
+      "name": "//pubsub.googleapis.com/projects/demo-project/topics/heartbeat",
+      "assetType": "pubsub.googleapis.com/Topic",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "projects/demo-project/topics/heartbeat",
+          "state": "ACTIVE"
+        }
+      }
+    }
+  ]
+}
