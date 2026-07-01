@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package main //nolint:filelength // pre-existing 1367-line bootstrap-index test suite (not grown by #4464, which corrected one test in place); split tracked separately
 
 import (
 	"context"
@@ -582,10 +582,16 @@ func TestDrainProjectorSequentialFallback(t *testing.T) {
 	}
 }
 
-func TestDrainProjectorErrorCancelsWorkers(t *testing.T) {
+// TestDrainProjectorIsolatesItemFailures verifies the #4464 fix: a per-item
+// projection failure is routed to the queue Fail path and does NOT abort the
+// run or cancel sibling workers. drainProjector returns nil, every item is
+// handled (acked on success, failed otherwise), and none is left orphaned.
+// (Previously this asserted the buggy fail-fast behavior where one slow/timed-out
+// canonical write canceled the shared context and crashed the whole run.)
+func TestDrainProjectorIsolatesItemFailures(t *testing.T) {
 	t.Parallel()
 
-	projectErr := errors.New("project failed")
+	projectErr := errors.New("canonical phase-group write (structural_edges): neo4j execute group timed out after 30s")
 	items := make([]projector.ScopeGenerationWork, 20)
 	for i := range items {
 		items[i] = projector.ScopeGenerationWork{
@@ -595,18 +601,29 @@ func TestDrainProjectorErrorCancelsWorkers(t *testing.T) {
 
 	ws := &concurrentWorkSource{items: items}
 	runner := &failingProjectionRunner{failAfter: 2, err: projectErr}
+	sink := &countingProjectorSink{}
 
 	err := drainProjector(
 		context.Background(),
-		ws, &fakeFactStore{}, runner, &concurrentWorkSink{},
+		ws, &fakeFactStore{}, runner, sink,
 		nil, 0,
 		4, nil, nil, nil,
 	)
+	// Isolation: siblings are NOT canceled — all 20 items are handled (2 acked,
+	// 18 failed) even though 18 projections errored. The run reports incomplete
+	// (a non-fatal error) rather than a clean success, so bootstrap does not
+	// claim completion while failed work is deferred to retry/dead-letter.
 	if err == nil {
-		t.Fatal("drainProjector() expected error, got nil")
+		t.Fatal("drainProjector() error = nil, want an incomplete-drain error when items failed")
 	}
-	if !errors.Is(err, projectErr) {
-		t.Fatalf("drainProjector() error = %v, want wrapping %v", err, projectErr)
+	if got := sink.acked.Load(); got != 2 {
+		t.Fatalf("acked = %d, want 2", got)
+	}
+	if got := sink.failed.Load(); got != 18 {
+		t.Fatalf("failed = %d, want 18 (failed items must route to the queue Fail path, not orphan)", got)
+	}
+	if got := sink.acked.Load() + sink.failed.Load(); got != 20 {
+		t.Fatalf("handled = %d, want all 20 items handled (isolation: no sibling cancel)", got)
 	}
 }
 
