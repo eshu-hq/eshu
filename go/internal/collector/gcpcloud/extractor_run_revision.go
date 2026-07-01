@@ -106,9 +106,9 @@ func extractRunRevision(ctx ExtractContext) (AttributeExtraction, error) {
 	if saDigest != "" {
 		anchors = append(anchors, saDigest)
 	}
-	if digest != "" {
-		anchors = append(anchors, digest)
-	}
+	// Anchor every container's image digest, not just the primary, so a
+	// sidecar image still participates in container-image-identity correlation.
+	anchors = append(anchors, runRevisionImageDigests(data)...)
 	if data.VPCAccess != nil {
 		if connector := runServiceConnectorFullName(data.VPCAccess.Connector); connector != "" {
 			anchors = append(anchors, connector)
@@ -189,6 +189,19 @@ func runRevisionPrimaryImage(data runRevisionData) (image, digest string) {
 		}
 	}
 	return "", ""
+}
+
+// runRevisionImageDigests returns the deduplicated sha256 digests of every
+// container image reference that is digest-pinned. These are the cross-source
+// join keys for container image identity; tag-only references contribute none.
+func runRevisionImageDigests(data runRevisionData) []string {
+	var digests []string
+	for _, container := range data.Containers {
+		if d := imageDigestFromReference(container.Image); d != "" {
+			digests = append(digests, d)
+		}
+	}
+	return dedupeNonEmpty(digests)
 }
 
 // runRevisionReadyState returns the state of the Ready condition when present. It

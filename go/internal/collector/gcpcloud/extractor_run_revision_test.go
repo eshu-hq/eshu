@@ -171,6 +171,35 @@ func TestExtractRunRevisionImageWithoutDigestOmitsDigest(t *testing.T) {
 	}
 }
 
+func TestExtractRunRevisionAnchorsAllContainerDigests(t *testing.T) {
+	// A multi-container revision (sidecar) must anchor every digest-pinned image,
+	// not just the primary container's, so sidecars still correlate.
+	const data = `{"containers": [
+		{"name": "api", "image": "us-docker.pkg.dev/p/t/api@sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		{"name": "proxy", "image": "us-docker.pkg.dev/p/t/proxy@sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+		{"name": "notag", "image": "us-docker.pkg.dev/p/t/legacy:latest"}
+	]}`
+	got, err := extractRunRevision(runRevisionContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, want := range []string{
+		"sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		"sha256:2222222222222222222222222222222222222222222222222222222222222222",
+	} {
+		if !containsStringSlice(got.CorrelationAnchors, want) {
+			t.Errorf("missing image digest anchor %q in %#v", want, got.CorrelationAnchors)
+		}
+	}
+	// The primary (first) container drives the scalar image attributes.
+	if got.Attributes["container_image_digest"] != "sha256:1111111111111111111111111111111111111111111111111111111111111111" {
+		t.Errorf("container_image_digest = %v, want primary", got.Attributes["container_image_digest"])
+	}
+	if got.Attributes["container_count"] != 3 {
+		t.Errorf("container_count = %v, want 3", got.Attributes["container_count"])
+	}
+}
+
 func TestExtractRunRevisionMalformedDataErrors(t *testing.T) {
 	if _, err := extractRunRevision(runRevisionContext(`{not json`)); err == nil {
 		t.Fatalf("expected an error for malformed resource data")
