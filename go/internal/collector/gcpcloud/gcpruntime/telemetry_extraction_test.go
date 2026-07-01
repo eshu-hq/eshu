@@ -27,8 +27,8 @@ func TestRecordAttributeExtractionsOutcomes(t *testing.T) {
 
 	s.recordAttributeExtractions(context.Background(), []gcpcloud.ResourceObservation{
 		{AssetType: "bigquery.googleapis.com/Table", Attributes: map[string]any{"table_type": "TABLE"}},
-		{AssetType: "bigquery.googleapis.com/Table"},   // extractor ran, no attributes
-		{AssetType: "compute.googleapis.com/Instance"}, // no extractor -> skipped
+		{AssetType: "bigquery.googleapis.com/Table"}, // extractor ran, no attributes
+		{AssetType: "eshu.test/UntypedAsset"},        // no extractor -> skipped
 	})
 
 	var rm metricdata.ResourceMetrics
@@ -66,7 +66,7 @@ func TestRecordAttributeExtractionsOutcomes(t *testing.T) {
 		t.Errorf("empty count = %d, want 1", got)
 	}
 	if total != 2 {
-		t.Errorf("total extraction datapoints = %d, want 2 (compute instance must be skipped)", total)
+		t.Errorf("total extraction datapoints = %d, want 2 (untyped sentinel must be skipped)", total)
 	}
 }
 
