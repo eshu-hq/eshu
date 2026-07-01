@@ -1,0 +1,51 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//cloudbuild.googleapis.com/projects/demo-project/locations/us-central1/builds/build-abc",
+      "assetType": "cloudbuild.googleapis.com/Build",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "id": "build-abc",
+          "status": "SUCCESS",
+          "createTime": "2026-06-26T11:50:00Z",
+          "finishTime": "2026-06-26T11:55:00Z",
+          "serviceAccount": "projects/demo-project/serviceAccounts/build-sa@demo-project.iam.gserviceaccount.com",
+          "buildTriggerId": "trigger-123",
+          "logUrl": "https://console.cloud.google.com/cloud-build/builds/build-abc?project=demo-project",
+          "source": {
+            "repoSource": {"projectId": "demo-project", "repoName": "my-repo", "branchName": "main"}
+          },
+          "images": ["us-docker.pkg.dev/demo-project/team/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"],
+          "results": {
+            "images": [
+              {"name": "us-docker.pkg.dev/demo-project/team/app", "digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+            ]
+          },
+          "substitutions": {"_DEPLOY_SECRET": "should-not-leak-value"},
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//cloudbuild.googleapis.com/projects/demo-project/locations/us-east1/builds/build-min",
+      "assetType": "cloudbuild.googleapis.com/Build",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "id": "build-min",
+          "status": "QUEUED",
+          "createTime": "2023-01-15T09:30:00Z",
+          "source": {
+            "storageSource": {"bucket": "gcf-build-src", "object": "source-should-not-leak.tgz"}
+          }
+        }
+      }
+    }
+  ]
+}
