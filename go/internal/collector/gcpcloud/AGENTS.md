@@ -38,6 +38,11 @@
    `grants_privilege_escalation` flag, deleted posture, and a fingerprinted
    etag; no outbound edges, since role bindings are inbound and owned by the
    IAM/binding layer).
+18. `extractor_service_account_key.go` - typed-depth extractor for
+   `iam.googleapis.com/ServiceAccountKey` (key type, algorithm, origin,
+   valid-after/before window, disabled posture, and the fingerprinted parent
+   service-account email; `service_account_key_of` edge to the parent
+   ServiceAccount; never reads private/public key material).
 
 ## Invariants
 
