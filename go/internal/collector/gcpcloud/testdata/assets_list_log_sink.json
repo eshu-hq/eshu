@@ -1,0 +1,37 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//logging.googleapis.com/projects/demo-project/sinks/audit-export",
+      "assetType": "logging.googleapis.com/LogSink",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/sinks/audit-export",
+          "destination": "bigquery.googleapis.com/projects/demo-project/datasets/audit",
+          "filter": "logName:cloudaudit.googleapis.com",
+          "writerIdentity": "serviceAccount:p1234-567@gcp-sa-logging.iam.gserviceaccount.com",
+          "disabled": false,
+          "exclusions": [{"name": "drop-debug", "filter": "severity<WARNING"}],
+          "createTime": "2024-06-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "//logging.googleapis.com/projects/demo-project/sinks/gcs-archive",
+      "assetType": "logging.googleapis.com/LogSink",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/sinks/gcs-archive",
+          "destination": "storage.googleapis.com/demo-log-archive",
+          "writerIdentity": "serviceAccount:p1234-567@gcp-sa-logging.iam.gserviceaccount.com",
+          "disabled": false,
+          "createTime": "2023-01-01T00:00:00Z"
+        }
+      }
+    }
+  ]
+}

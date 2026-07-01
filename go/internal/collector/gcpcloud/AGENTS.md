@@ -78,6 +78,11 @@
    analytics-enabled posture, creation time, CMEK posture;
    `log_bucket_encrypted_by_kms_key` edge to the CMEK CryptoKey; only the
    CryptoKey resource name leaves the parser, no key material).
+26. `extractor_log_sink.go` - typed-depth extractor for
+   `logging.googleapis.com/LogSink` (destination type, filter presence, disabled
+   posture, exclusion count, creation time, fingerprinted writer-identity email;
+   export edge to the destination Storage Bucket / BigQuery Dataset / Pub/Sub
+   Topic / Log Bucket; raw filter and writer email never leave the parser).
 
 ## Invariants
 
