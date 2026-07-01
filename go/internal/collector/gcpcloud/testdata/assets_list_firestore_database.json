@@ -1,0 +1,40 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//firestore.googleapis.com/projects/demo-project/databases/(default)",
+      "assetType": "firestore.googleapis.com/Database",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "nam5",
+        "data": {
+          "name": "projects/demo-project/databases/(default)",
+          "type": "FIRESTORE_NATIVE",
+          "locationId": "nam5",
+          "concurrencyMode": "PESSIMISTIC",
+          "appEngineIntegrationMode": "DISABLED",
+          "pointInTimeRecoveryEnablement": "POINT_IN_TIME_RECOVERY_ENABLED",
+          "deleteProtectionState": "DELETE_PROTECTION_ENABLED",
+          "cmekConfig": {"kmsKeyName": "projects/demo-project/locations/nam5/keyRings/firestore/cryptoKeys/db"},
+          "createTime": "2024-05-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "//firestore.googleapis.com/projects/demo-project/databases/analytics",
+      "assetType": "firestore.googleapis.com/Database",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/databases/analytics",
+          "type": "DATASTORE_MODE",
+          "locationId": "us-east1",
+          "createTime": "2023-02-01T00:00:00Z"
+        }
+      }
+    }
+  ]
+}
