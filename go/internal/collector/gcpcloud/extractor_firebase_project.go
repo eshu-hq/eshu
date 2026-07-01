@@ -55,11 +55,12 @@ type firebaseProjectData struct {
 // extractFirebaseProject extracts bounded, redaction-safe typed depth for one CAI
 // Firebase Project asset. It surfaces the lifecycle state, display name, default
 // resource location, and presence flags for the default Hosting site, Realtime
-// Database instance, and Storage bucket; emits the typed edge to the backing GCP
-// project (number-keyed canonical name) and the typed edge to the default Storage
-// bucket (canonical bucket name); and surfaces the backing project, default
-// bucket, Hosting site, and Realtime Database instance references as correlation
-// anchors.
+// Database instance, and Storage bucket; emits the supported edge to the backing
+// GCP project (number-keyed canonical name, the form Cloud Asset Inventory uses
+// for cloudresourcemanager.googleapis.com/Project) and a provenance-only
+// `partial` edge to the default Storage bucket (canonical bucket name); and
+// surfaces the backing project, default bucket, Hosting site, and Realtime
+// Database instance references as correlation anchors.
 //
 // The default Hosting site and Realtime Database instance are not Cloud Asset
 // Inventory asset types, so they remain correlation anchors only and mint no
@@ -111,13 +112,19 @@ func extractFirebaseProject(ctx ExtractContext) (AttributeExtraction, error) {
 			attrs["default_storage_bucket_present"] = true
 			target := storageBucketResourceNamePrefixFmt + bucket
 			anchors = append(anchors, target)
+			// The default Storage bucket comes from Firebase's deprecated
+			// DefaultResources block, which is not reliable as current resource
+			// truth and can be stale. Carry the edge as `partial` so the reducer
+			// treats the target as unresolved and never materializes a clean
+			// canonical edge to a possibly-stale bucket; the presence flag and
+			// anchor still record the observation for correlation.
 			rels = append(rels, RelationshipObservation{
 				SourceFullResourceName: ctx.FullResourceName,
 				SourceAssetType:        ctx.AssetType,
 				RelationshipType:       relationshipTypeFirebaseProjectDefaultBucket,
 				TargetFullResourceName: target,
 				TargetAssetType:        assetTypeStorageBucket,
-				SupportState:           RelationshipSupportSupported,
+				SupportState:           RelationshipSupportPartial,
 			})
 		}
 	}

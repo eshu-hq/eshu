@@ -104,16 +104,19 @@ func TestExtractFirebaseProjectEdges(t *testing.T) {
 	}
 }
 
-// TestExtractFirebaseProjectBackingProjectFallsBackToProjectID proves that when
-// projectNumber is absent no fabricated number-keyed edge is emitted; the edge is
-// skipped rather than pointing at an unresolvable target.
+// TestExtractFirebaseProjectBackingProjectRequiresNumber proves that when
+// projectNumber is absent no backing-project edge is emitted; the edge is skipped
+// rather than pointing at an unresolvable id-keyed target.
 func TestExtractFirebaseProjectBackingProjectRequiresNumber(t *testing.T) {
 	blob := map[string]any{
 		"projectId":   "demo-project",
 		"displayName": "No Number",
 		"state":       "ACTIVE",
 	}
-	raw, _ := json.Marshal(blob)
+	raw, err := json.Marshal(blob)
+	if err != nil {
+		t.Fatalf("marshal blob: %v", err)
+	}
 	got, err := extractFirebaseProject(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project",
 		AssetType:        firebaseProjectAssetType,
