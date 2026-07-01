@@ -221,6 +221,82 @@ func TestConfigureBootstrapCanonicalWriterBatchesContainmentAcrossFilesForNornic
 	}
 }
 
+func TestConfigureBootstrapCanonicalWriterCanDisableBatchedContainmentForNornicDB(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingBootstrapGroupExecutor{}
+	writer := sourcecypher.NewCanonicalNodeWriter(executor, 500, nil)
+	writer = configureBootstrapCanonicalWriter(writer, bootstrapCanonicalWriterConfig{
+		GraphBackend:                      runtime.GraphBackendNornicDB,
+		DisableNornicDBBatchedContainment: true,
+	})
+
+	if err := writer.Write(context.Background(), bootstrapContainmentMaterialization()); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	var fileScopedEntities int
+	for _, stmt := range executor.groupStatements {
+		if stmt.Parameters[sourcecypher.StatementMetadataPhaseKey] != sourcecypher.CanonicalPhaseEntities {
+			continue
+		}
+		if strings.Contains(stmt.Cypher, "MATCH (f:File {path: row.file_path})") &&
+			strings.Contains(stmt.Cypher, "MERGE (f)-[rel:CONTAINS]->(n)") {
+			t.Fatalf("NornicDB fallback emitted batched containment statement: %s", stmt.Cypher)
+		}
+		if strings.Contains(stmt.Cypher, "MATCH (f:File {path: $file_path})") &&
+			strings.Contains(stmt.Cypher, "MERGE (f)-[rel:CONTAINS]->(n)") {
+			fileScopedEntities++
+		}
+	}
+	if fileScopedEntities == 0 {
+		t.Fatal("NornicDB fallback emitted no file-scoped entity containment statements")
+	}
+}
+
+func TestNornicDBBatchedEntityContainmentEnabledParsesEnv(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		want    bool
+		wantErr bool
+	}{
+		{name: "unset defaults true", want: true},
+		{name: "explicit false", raw: "false", want: false},
+		{name: "invalid", raw: "sometimes", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := nornicDBBatchedEntityContainmentEnabled(func(key string) string {
+				if key == nornicDBBatchedEntityContainmentEnv {
+					return tt.raw
+				}
+				return ""
+			})
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("nornicDBBatchedEntityContainmentEnabled() error = nil, want non-nil")
+				}
+				if !strings.Contains(err.Error(), nornicDBBatchedEntityContainmentEnv) {
+					t.Fatalf("error = %q, want env var name", err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("nornicDBBatchedEntityContainmentEnabled() error = %v, want nil", err)
+			}
+			if got != tt.want {
+				t.Fatalf("nornicDBBatchedEntityContainmentEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBootstrapNeo4jProfileGroupStatementsParsesOptIn(t *testing.T) {
 	t.Parallel()
 

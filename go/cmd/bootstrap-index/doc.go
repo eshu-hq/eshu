@@ -17,11 +17,13 @@
 // documented in CLAUDE.md requires.
 // Projector work superseded by a newer same-scope generation exits that worker
 // item without acking stale graph state. Its canonical writer configuration
-// uses the same graph-property filtering, NornicDB phase-group policy, and
-// row-scoped batched entity containment as the ingester path, so bootstrap and
-// steady-state projection keep the same write contract. The binary exits when
-// the queue drains; it is not a steady-state runtime and does not mount the
-// shared `/healthz`, `/readyz`, or `/admin/status` admin surface.
+// uses the same graph-property filtering and NornicDB phase-group policy as the
+// ingester path. NornicDB uses row-scoped batched entity containment by default
+// to keep bootstrap and steady-state projection on the same write contract, with
+// an explicit fallback toggle for measured comparisons against the older
+// file-scoped shape. The binary exits when the queue drains; it is not a
+// steady-state runtime and does not mount the shared `/healthz`, `/readyz`, or
+// `/admin/status` admin surface.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
 // net/http/pprof endpoint via runtime.NewPprofServer, bound to 127.0.0.1
