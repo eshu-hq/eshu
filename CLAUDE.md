@@ -199,6 +199,10 @@ skills are active.
 
 - Bug fixes MUST have a failing regression test first.
 - Performance work MUST have before/after measurements.
+- End-to-end and collector runs MUST be compared against the last known-good
+  baseline timing (e.g. the ~15-minute git-collector E2E). A large regression
+  from that baseline is a bug to root-cause, not an acceptable cost, and no
+  long run may be launched without a stated time bound.
 - Queue/concurrency work MUST have contention, retry, idempotency, ordering, and
   dead-letter proof.
 - Graph truth work MUST have fixture intent, reducer graph truth, and API/query
