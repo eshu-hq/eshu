@@ -30,7 +30,7 @@ func TestExtractRecaptchaKeyWeb(t *testing.T) {
 	const data = `{
 		"displayName": "Demo Key",
 		"createTime": "2024-06-01T00:00:00Z",
-		"webKeySettings": {
+		"webSettings": {
 			"integrationType": "SCORE",
 			"allowAllDomains": false,
 			"allowedDomains": ["example.com", "app.example.com"]
@@ -63,9 +63,9 @@ func TestExtractRecaptchaKeyWeb(t *testing.T) {
 
 func TestExtractRecaptchaKeyNeverPersistsDomainsOrIdentifiers(t *testing.T) {
 	const data = `{
-		"webKeySettings": {"allowedDomains": ["internal-secret.example.com"]},
-		"androidKeySettings": {"allowedPackageNames": ["com.internal.secretapp"]},
-		"iosKeySettings": {"allowedBundleIds": ["com.internal.secretbundle"]}
+		"webSettings": {"allowedDomains": ["internal-secret.example.com"]},
+		"androidSettings": {"allowedPackageNames": ["com.internal.secretapp"]},
+		"iosSettings": {"allowedBundleIds": ["com.internal.secretbundle"]}
 	}`
 	got, err := extractRecaptchaKey(recaptchaKeyContext(data))
 	if err != nil {
@@ -83,7 +83,7 @@ func TestExtractRecaptchaKeyNeverPersistsDomainsOrIdentifiers(t *testing.T) {
 }
 
 func TestExtractRecaptchaKeyAndroidAllowAll(t *testing.T) {
-	const data = `{"androidKeySettings": {"allowAllPackageNames": true}}`
+	const data = `{"androidSettings": {"allowAllPackageNames": true}}`
 	got, err := extractRecaptchaKey(recaptchaKeyContext(data))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -100,7 +100,7 @@ func TestExtractRecaptchaKeyAndroidAllowAll(t *testing.T) {
 }
 
 func TestExtractRecaptchaKeyIOS(t *testing.T) {
-	const data = `{"iosKeySettings": {"allowedBundleIds": ["com.x.app", "com.y.app"]}}`
+	const data = `{"iosSettings": {"allowedBundleIds": ["com.x.app", "com.y.app"]}}`
 	got, err := extractRecaptchaKey(recaptchaKeyContext(data))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

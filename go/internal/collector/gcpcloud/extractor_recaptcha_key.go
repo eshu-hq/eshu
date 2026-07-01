@@ -24,23 +24,23 @@ func init() {
 // surfaced — while the allow-all posture and bounded enums (integration type, WAF
 // service/feature) are kept.
 type recaptchaKeyData struct {
-	DisplayName    string `json:"displayName"`
-	CreateTime     string `json:"createTime"`
-	WebKeySettings *struct {
+	DisplayName string `json:"displayName"`
+	CreateTime  string `json:"createTime"`
+	WebSettings *struct {
 		IntegrationType string   `json:"integrationType"`
 		AllowAllDomains bool     `json:"allowAllDomains"`
 		AllowedDomains  []string `json:"allowedDomains"`
-	} `json:"webKeySettings"`
-	AndroidKeySettings *struct {
+	} `json:"webSettings"`
+	AndroidSettings *struct {
 		AllowAllPackageNames bool     `json:"allowAllPackageNames"`
 		AllowedPackageNames  []string `json:"allowedPackageNames"`
-	} `json:"androidKeySettings"`
-	IOSKeySettings *struct {
+	} `json:"androidSettings"`
+	IOSSettings *struct {
 		AllowAllBundleIds bool     `json:"allowAllBundleIds"`
 		AllowedBundleIds  []string `json:"allowedBundleIds"`
-	} `json:"iosKeySettings"`
-	ExpressKeySettings *json.RawMessage `json:"expressKeySettings"`
-	WafSettings        *struct {
+	} `json:"iosSettings"`
+	ExpressSettings *json.RawMessage `json:"expressSettings"`
+	WafSettings     *struct {
 		WafService string `json:"wafService"`
 		WafFeature string `json:"wafFeature"`
 	} `json:"wafSettings"`
@@ -71,34 +71,34 @@ func extractRecaptchaKey(ctx ExtractContext) (AttributeExtraction, error) {
 	}
 
 	switch {
-	case data.WebKeySettings != nil:
+	case data.WebSettings != nil:
 		attrs["platform_type"] = "web"
-		if v := strings.TrimSpace(data.WebKeySettings.IntegrationType); v != "" {
+		if v := strings.TrimSpace(data.WebSettings.IntegrationType); v != "" {
 			attrs["integration_type"] = v
 		}
-		if data.WebKeySettings.AllowAllDomains {
+		if data.WebSettings.AllowAllDomains {
 			attrs["allow_all_domains"] = true
 		}
-		if n := len(data.WebKeySettings.AllowedDomains); n > 0 {
+		if n := len(data.WebSettings.AllowedDomains); n > 0 {
 			attrs["allowed_domain_count"] = n
 		}
-	case data.AndroidKeySettings != nil:
+	case data.AndroidSettings != nil:
 		attrs["platform_type"] = "android"
-		if data.AndroidKeySettings.AllowAllPackageNames {
+		if data.AndroidSettings.AllowAllPackageNames {
 			attrs["allow_all_package_names"] = true
 		}
-		if n := len(data.AndroidKeySettings.AllowedPackageNames); n > 0 {
+		if n := len(data.AndroidSettings.AllowedPackageNames); n > 0 {
 			attrs["allowed_package_name_count"] = n
 		}
-	case data.IOSKeySettings != nil:
+	case data.IOSSettings != nil:
 		attrs["platform_type"] = "ios"
-		if data.IOSKeySettings.AllowAllBundleIds {
+		if data.IOSSettings.AllowAllBundleIds {
 			attrs["allow_all_bundle_ids"] = true
 		}
-		if n := len(data.IOSKeySettings.AllowedBundleIds); n > 0 {
+		if n := len(data.IOSSettings.AllowedBundleIds); n > 0 {
 			attrs["allowed_bundle_id_count"] = n
 		}
-	case data.ExpressKeySettings != nil:
+	case data.ExpressSettings != nil:
 		attrs["platform_type"] = "express"
 	}
 

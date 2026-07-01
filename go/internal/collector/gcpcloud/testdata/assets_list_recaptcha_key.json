@@ -10,7 +10,7 @@
         "data": {
           "displayName": "Demo Key",
           "createTime": "2024-06-01T00:00:00Z",
-          "webKeySettings": {
+          "webSettings": {
             "integrationType": "SCORE",
             "allowAllDomains": false,
             "allowedDomains": ["example.com", "app.example.com"]
@@ -28,7 +28,7 @@
         "data": {
           "displayName": "Android Key",
           "createTime": "2023-01-01T00:00:00Z",
-          "androidKeySettings": {
+          "androidSettings": {
             "allowAllPackageNames": false,
             "allowedPackageNames": ["com.example.app"]
           }
