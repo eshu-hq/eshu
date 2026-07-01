@@ -189,15 +189,12 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
 No-Regression Evidence: #2902 adds
 `TestSchemaApplicationsDeclareCompatibilityDecision`, which pins the
 current Neo4j fingerprint
-`ca479d532a310372af959c4fbabb17532d7c07e2d7342210b93283986beb07d2`
-(196 statements) and NornicDB fingerprint
-`3ffc1b84196c30fa96194c8f56cc53f63ca733008d6684492722dbc5ded2e9e3`
-(259 statements). The test failed while the current markers listed older
-pre-CodeTaintEvidence fingerprints, then passed after compatibility stayed
-empty for this schema. The DDL additions are coupled to a new reducer domain,
-and older reducers fail before write safety can be evaluated if they claim a
-future `code_taint_evidence` intent. No DDL, statement ordering, graph query,
-writer query, or runtime startup SQL changed.
+`3a34d8460063f6d6e390dbea3bdacd1ecf0f2e9ff8b92bbea0b7382f1fdf2246`
+(213 statements) and NornicDB fingerprint
+`2e29b77ef4364aa4653ad1d6398cee136e3c4c099e2f2eb157eae38a1f10b377`
+(275 statements). The latest DDL bump adds only `Function.repo_id` and
+`Function.path` lookup indexes, so older writers remain compatible while
+reducer-owned Function edge retractions can avoid large label scans.
 
 No-Observability-Change: graph schema compatibility remains a Postgres marker
 read/write contract through `graphschemacompat`; this update changes only the
