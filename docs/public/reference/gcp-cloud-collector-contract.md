@@ -351,6 +351,23 @@ anchors. The KMS reference is reduced to its CryptoKey resource name (any
 `cryptoKeyVersions` suffix is stripped), and the encryption key's `sha256`/raw
 material fields are never decoded, so no key material reaches a fact.
 
+**Compute Engine Instance** (`compute.googleapis.com/Instance`) captures machine
+type, status, zone, scheduling posture (preemptible, automatic-restart,
+on-host-maintenance, provisioning model), Shielded VM posture (secure boot, vTPM,
+integrity monitoring), deletion protection, IP-forwarding, creation time,
+service-account count and scopes, network-interface and disk counts, the boot-disk
+presence flag, network tags, and instance metadata **keys**; emits typed
+`instance_uses_disk` edges (one per attached disk), and the `instance_in_network`
+and `instance_in_subnetwork` edges; and surfaces the attached disk, interface
+network and subnetwork resource names plus the fingerprinted service-account email
+as correlation anchors. External-IP exposure is reduced to a `has_external_ip`
+signal and an external-access-config count — no `natIP` or `networkIP` value is
+ever decoded into a fact. Metadata **values** (startup scripts, SSH keys, env
+values) and the raw service-account email are never persisted; the service
+account is an anchor (its "runs as" edge is inbound, owned by the secrets/IAM and
+image-identity layers keying on the same `GCPServiceAccountEmailDigest`), not an
+edge, because an email is not an exactly resolvable CAI endpoint.
+
 **Firewall Rule** (`compute.googleapis.com/Firewall`) captures direction,
 priority, disabled and log-config posture, the allow/deny protocols and ports,
 source/destination range counts, an `opens_to_public` exposure signal, target
