@@ -44,6 +44,27 @@ queue, or graph-write evidence.
 | `SCIP_LANGUAGES` | `python,typescript,javascript,go,rust,java,cpp,c` | collector snapshotter | Comma-separated SCIP language allowlist. Narrow this list to keep native parsing complete while limiting which language package or workspace roots can run SCIP. |
 | `SCIP_WORKERS` | `4` | collector snapshotter | Bounded concurrent SCIP language/subtree indexer processes across the ingester snapshotter, including concurrent repository snapshots. Set to `1` for memory-constrained serial fallback; keep higher values aligned with host CPU and memory because each slot may run a compiler-grade indexer. |
 
+Performance Evidence: issue #4455 aligned Docker Compose and Neo4j Compose with
+the documented Go default `ESHU_LARGE_REPO_MAX_CONCURRENT=2`. Before the fix,
+those Compose profiles injected `1`, so an unset value serialized large
+repository snapshots even though the two-lane scheduler was designed to run two
+large snapshots while small repositories continue on the remaining workers. A
+bounded current-main diagnostic on the 895-root corpus used
+`ESHU_SNAPSHOT_WORKERS=16`, `ESHU_PARSE_WORKERS=16`, and
+`ESHU_LARGE_REPO_MAX_CONCURRENT=4`; after about 5m39s it had completed 136
+repository snapshots and showed parser/pre-scan work still active while
+source-local canonical graph writes became the next bottleneck. This change is a
+scheduling-default correction, not terminal full-corpus wall-clock proof; #4455
+tracks the required bounded `1` versus `2`/`4` comparison.
+
+No-Observability-Change: the change adds no metric, span, log key, queue,
+worker type, or graph-write path. Operators continue to use
+`eshu_dp_large_repo_classifications_total`,
+`eshu_dp_large_repo_semaphore_wait_seconds`, and the structured
+`large repository queued`, `large repo semaphore acquired`, and
+`large repo semaphore released` logs to confirm classification, wait time, and
+held time for large repositories.
+
 ## Incremental Refresh
 
 | Variable | Default | Read by | Purpose |
