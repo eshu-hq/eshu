@@ -111,7 +111,16 @@ func logSinkDestination(destination string) (target, assetType, relType, destTyp
 	}
 	switch {
 	case strings.HasPrefix(trimmed, "storage.googleapis.com/"):
-		return "//" + trimmed, assetTypeStorageBucket, relationshipTypeLogSinkExportsToBucket, "storage"
+		// A Storage sink destination is `storage.googleapis.com/<bucket>`, but the
+		// canonical CAI Bucket full resource name is
+		// `//storage.googleapis.com/projects/_/buckets/<bucket>` (the form every
+		// other extractor and the bucket fixtures use). Normalize to it so the
+		// edge resolves by exact full resource name.
+		bucket := strings.TrimPrefix(trimmed, "storage.googleapis.com/")
+		if bucket == "" {
+			return "", "", "", ""
+		}
+		return storageBucketResourceNamePrefixFmt + bucket, assetTypeStorageBucket, relationshipTypeLogSinkExportsToBucket, "storage"
 	case strings.HasPrefix(trimmed, "bigquery.googleapis.com/"):
 		return "//" + trimmed, assetTypeBigQueryDataset, relationshipTypeLogSinkExportsToDataset, "bigquery"
 	case strings.HasPrefix(trimmed, "pubsub.googleapis.com/"):

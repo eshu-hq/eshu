@@ -75,7 +75,7 @@ func TestExtractLogSinkDestinationTypes(t *testing.T) {
 		wantAsset  string
 		wantRel    string
 	}{
-		{"storage", "storage.googleapis.com/my-log-bucket", "storage", "//storage.googleapis.com/my-log-bucket", assetTypeStorageBucket, relationshipTypeLogSinkExportsToBucket},
+		{"storage", "storage.googleapis.com/my-log-bucket", "storage", "//storage.googleapis.com/projects/_/buckets/my-log-bucket", assetTypeStorageBucket, relationshipTypeLogSinkExportsToBucket},
 		{"pubsub", "pubsub.googleapis.com/projects/p/topics/logs", "pubsub", "//pubsub.googleapis.com/projects/p/topics/logs", assetTypePubSubTopic, relationshipTypeLogSinkExportsToTopic},
 		{"logbucket", "logging.googleapis.com/projects/p/locations/global/buckets/_Default", "logging", "//logging.googleapis.com/projects/p/locations/global/buckets/_Default", logBucketAssetType, relationshipTypeLogSinkExportsToLogBucket},
 	}
