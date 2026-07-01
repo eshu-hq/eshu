@@ -122,6 +122,11 @@ func bigQueryTransferConfigAttributes(data bigQueryTransferConfigData) map[strin
 // bigQueryTransferConfigDatasetFullName builds the destination dataset CAI full
 // resource name from destinationDatasetId, resolved against the transfer
 // config's project. It returns "" when no destination dataset is set.
+//
+// TODO(#4469): destinationDatasetId is an unqualified id, so a cross-project
+// destination (BigQuery Data Transfer / Scheduled Queries allow one) resolves
+// to the config's project here. Prefer a project-qualified form if CAI surfaces
+// one; tracked in #4469.
 func bigQueryTransferConfigDatasetFullName(ctx ExtractContext, data bigQueryTransferConfigData) string {
 	dataset := strings.TrimSpace(data.DestinationDatasetID)
 	project := strings.TrimSpace(ctx.ProjectID)
