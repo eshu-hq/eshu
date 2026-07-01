@@ -1,0 +1,51 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//dataproc.googleapis.com/projects/demo-project/regions/us-central1/clusters/analytics",
+      "assetType": "dataproc.googleapis.com/Cluster",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "clusterName": "analytics",
+          "projectId": "demo-project",
+          "status": {"state": "RUNNING"},
+          "labels": {"team": "data"},
+          "config": {
+            "configBucket": "dataproc-staging-demo",
+            "gceClusterConfig": {
+              "networkUri": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/analytics-vpc",
+              "subnetworkUri": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/subnetworks/analytics-subnet",
+              "serviceAccount": "dataproc-runner@demo-project.iam.gserviceaccount.com",
+              "internalIpOnly": true
+            },
+            "masterConfig": {"numInstances": 1, "machineTypeUri": "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a/machineTypes/n2-standard-4"},
+            "workerConfig": {"numInstances": 4, "machineTypeUri": "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a/machineTypes/n2-standard-8"},
+            "softwareConfig": {"imageVersion": "2.1-debian11"},
+            "encryptionConfig": {"gcePdKmsKeyName": "projects/demo-project/locations/us-central1/keyRings/dataproc/cryptoKeys/pd"},
+            "autoscalingConfig": {"policyUri": "projects/demo-project/regions/us-central1/autoscalingPolicies/analytics-ap"}
+          }
+        }
+      }
+    },
+    {
+      "name": "//dataproc.googleapis.com/projects/demo-project/regions/us-central1/clusters/ephemeral",
+      "assetType": "dataproc.googleapis.com/Cluster",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "clusterName": "ephemeral",
+          "projectId": "demo-project",
+          "status": {"state": "CREATING"},
+          "config": {
+            "gceClusterConfig": {"internalIpOnly": false}
+          }
+        }
+      }
+    }
+  ]
+}
