@@ -47,9 +47,10 @@ func Parse(
 	}
 
 	extractor := &sqlExtractor{
-		payload: payload,
-		source:  source,
-		options: options,
+		payload:   payload,
+		source:    source,
+		lineIndex: newSQLLineIndex(source),
+		options:   options,
 		seenEntities: map[string]map[string]struct{}{
 			"sql_tables":    {},
 			"sql_columns":   {},
@@ -65,7 +66,7 @@ func Parse(
 		extractor.parseSegment(segment, parser)
 	}
 
-	payload["sql_migrations"] = buildSQLMigrationEntries(path, source, payload, extractor.tableMentions)
+	payload["sql_migrations"] = buildSQLMigrationEntries(path, extractor.lineIndex, payload, extractor.tableMentions)
 
 	for _, bucket := range []string{
 		"sql_tables",

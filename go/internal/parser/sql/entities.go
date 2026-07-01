@@ -14,6 +14,7 @@ import (
 type sqlExtractor struct {
 	payload           map[string]any
 	source            []byte
+	lineIndex         sqlLineIndex
 	options           Options
 	seenEntities      map[string]map[string]struct{}
 	seenRelationships map[string]struct{}
@@ -57,13 +58,13 @@ func (x *sqlExtractor) dispatchStatement(node *tree_sitter.Node, src []byte) {
 // lineFor maps a node position in the current segment back to the original
 // source line by adding the segment's starting byte offset.
 func (x *sqlExtractor) lineFor(node *tree_sitter.Node, _ []byte) int {
-	return sqlLineNumberForOffset(x.source, x.segmentOffset+int(node.StartByte()))
+	return x.lineIndex.lineForOffset(x.segmentOffset + int(node.StartByte()))
 }
 
 // originalLineForOffset maps a byte offset within the current segment back to
 // the original source line.
 func (x *sqlExtractor) originalLineForOffset(segmentOffset int) int {
-	return sqlLineNumberForOffset(x.source, x.segmentOffset+segmentOffset)
+	return x.lineIndex.lineForOffset(x.segmentOffset + segmentOffset)
 }
 
 func (x *sqlExtractor) parseTable(node *tree_sitter.Node, src []byte) {
