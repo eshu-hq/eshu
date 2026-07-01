@@ -323,6 +323,15 @@ same `GCPServiceAccountEmailDigest` the anchor carries. The raw email is never
 persisted as a captured attribute; it survives only verbatim inside the full
 resource name kept for exact reducer joins.
 
+**Persistent Disk** (`compute.googleapis.com/Disk`) captures zone or region,
+size in GB, disk type, status, attached-instance count, physical block size, and
+creation time; emits typed `disk_attached_to_instance` edges (one per attached
+instance), `disk_created_from_image` / `disk_created_from_snapshot` provenance
+edges, and a `disk_encrypted_by_key` edge to the encryption CryptoKey; and
+surfaces those instance, image, snapshot, and KMS resource names as correlation
+anchors. The KMS reference is reduced to its CryptoKey resource name (any
+`cryptoKeyVersions` suffix is stripped), and the encryption key's `sha256`/raw
+material fields are never decoded, so no key material reaches a fact.
 **Artifact Registry DockerImage**
 (`artifactregistry.googleapis.com/DockerImage`) captures the pullable image URI,
 the content digest, tags and tag count, image size, media type, and build/upload
@@ -461,7 +470,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, Subnetwork, Artifact Registry DockerImage) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, and no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), and KMS references are reduced to the CryptoKey resource name with no key material. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 

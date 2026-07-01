@@ -1,0 +1,46 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/zones/us-central1-a/disks/data-disk",
+      "assetType": "compute.googleapis.com/Disk",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1-a",
+        "data": {
+          "name": "data-disk",
+          "zone": "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a",
+          "sizeGb": "500",
+          "type": "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a/diskTypes/pd-ssd",
+          "status": "READY",
+          "users": [
+            "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a/instances/web-1"
+          ],
+          "sourceImage": "https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/debian-12",
+          "diskEncryptionKey": {"kmsKeyName": "projects/demo-project/locations/us-central1/keyRings/ring/cryptoKeys/key/cryptoKeyVersions/3"},
+          "physicalBlockSizeBytes": "4096",
+          "creationTimestamp": "2024-06-01T00:00:00.000-07:00",
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/zones/us-central1-a/disks/boot-disk",
+      "assetType": "compute.googleapis.com/Disk",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1-a",
+        "data": {
+          "name": "boot-disk",
+          "zone": "projects/demo-project/zones/us-central1-a",
+          "sizeGb": "50",
+          "type": "projects/demo-project/zones/us-central1-a/diskTypes/pd-balanced",
+          "status": "READY",
+          "sourceSnapshot": "projects/demo-project/global/snapshots/nightly"
+        }
+      }
+    }
+  ]
+}
