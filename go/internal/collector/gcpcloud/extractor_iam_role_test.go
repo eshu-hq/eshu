@@ -129,12 +129,16 @@ func TestExtractIAMRoleNeverPersistsEtagRaw(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	blob, _ := json.Marshal(got)
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal extraction: %v", err)
+	}
 	if containsString(string(blob), rawEtag) {
 		t.Fatalf("extraction leaked raw etag %q: %s", rawEtag, blob)
 	}
-	if got.Attributes["etag_fingerprint"] == "" {
-		t.Errorf("expected an etag fingerprint, got empty")
+	fp, ok := got.Attributes["etag_fingerprint"].(string)
+	if !ok || fp == "" {
+		t.Errorf("expected a non-empty etag fingerprint, got %#v", got.Attributes["etag_fingerprint"])
 	}
 }
 
