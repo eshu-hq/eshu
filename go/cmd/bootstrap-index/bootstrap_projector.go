@@ -30,8 +30,11 @@ import (
 // Concurrency model:
 //   - N goroutine workers compete for work via workSource.Claim (Postgres
 //     SELECT ... FOR UPDATE SKIP LOCKED ensures exactly-once delivery).
-//   - On first error any worker cancels the shared context so siblings drain
-//     promptly; all errors are collected and returned via errors.Join.
+//   - A per-item projection failure is routed to the queue Fail path
+//     (retry/dead-letter) and isolated: the worker continues and sibling
+//     workers are NOT canceled (#4464 — a single slow/timed-out canonical write
+//     must not abort the whole run). Only a fatal error (Claim failure, or a
+//     Fail-path write failure) cancels the shared context; those are joined.
 //   - An atomic counter tracks completed items for structured log output.
 //
 // Tuning: set ESHU_PROJECTION_WORKERS to control parallelism. Default is
@@ -112,6 +115,30 @@ func drainProjector(
 // errProjectorDrained is a sentinel indicating the work queue is empty.
 var errProjectorDrained = errors.New("projector queue drained")
 
+// isolateBootstrapProjectorFailure routes a per-item projection failure to the
+// queue Fail path (retry/dead-letter) and isolates it, so the worker continues
+// and sibling workers are not aborted by a shared-context cancel (#4464). A
+// genuine shutdown cancellation (parent context canceled) is not dead-lettered;
+// the claim is left to be reclaimed on restart. A per-write timeout leaves the
+// parent context healthy (ctx.Err() == nil) and falls through to the Fail path.
+// It returns a non-nil error only when the failure is fatal to the whole run
+// (the Fail-path write itself failed).
+func isolateBootstrapProjectorFailure(
+	ctx context.Context,
+	workSink projector.ProjectorWorkSink,
+	work projector.ScopeGenerationWork,
+	workerID int,
+	cause error,
+) error {
+	if ctx.Err() != nil && (errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded)) {
+		return nil
+	}
+	if failErr := workSink.Fail(ctx, work, cause); failErr != nil {
+		return fmt.Errorf("bootstrap projector fail item (worker %d): %w", workerID, errors.Join(cause, failErr))
+	}
+	return nil
+}
+
 // drainProjectorWorkItem processes a single projection work item with full
 // OTEL tracing, metric recording, and structured logging.
 func drainProjectorWorkItem(
@@ -181,7 +208,7 @@ func drainProjectorWorkItem(
 			loadErr = errors.Join(loadErr, heartbeatErr)
 		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", 0, loadErr, span, instruments, logger)
-		return fmt.Errorf("bootstrap projector load facts (worker %d): %w", workerID, loadErr)
+		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, loadErr)
 	}
 
 	// Project
@@ -195,7 +222,7 @@ func drainProjectorWorkItem(
 			projectErr = errors.Join(projectErr, heartbeatErr)
 		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), projectErr, span, instruments, logger)
-		return fmt.Errorf("bootstrap projector project (worker %d): %w", workerID, projectErr)
+		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, projectErr)
 	}
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 		if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
@@ -203,13 +230,13 @@ func drainProjectorWorkItem(
 			return nil
 		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), heartbeatErr, span, instruments, logger)
-		return fmt.Errorf("bootstrap projector heartbeat (worker %d): %w", workerID, heartbeatErr)
+		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, heartbeatErr)
 	}
 
 	// Ack
 	if ackErr := workSink.Ack(itemCtx, work, result); ackErr != nil {
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), ackErr, span, instruments, logger)
-		return fmt.Errorf("bootstrap projector ack (worker %d): %w", workerID, ackErr)
+		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, ackErr)
 	}
 
 	completed.Add(1)
