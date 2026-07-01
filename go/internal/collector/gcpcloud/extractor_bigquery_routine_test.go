@@ -51,7 +51,7 @@ func TestExtractBigQueryRoutineRemoteFunction(t *testing.T) {
 		"return_type_kind":       "STRING",
 		"has_definition_body":    true,
 		"imported_library_count": 2,
-		"creation_time":          "1717200000000",
+		"creation_time":          "2024-06-01T00:00:00Z",
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
@@ -127,6 +127,7 @@ func TestBigQueryConnectionFullName(t *testing.T) {
 		{"leading slash", "/projects/p/locations/l/connections/c", "//bigqueryconnection.googleapis.com/projects/p/locations/l/connections/c"},
 		{"already full name", "//bigqueryconnection.googleapis.com/projects/p/locations/l/connections/c", "//bigqueryconnection.googleapis.com/projects/p/locations/l/connections/c"},
 		{"not a connection", "projects/p/datasets/d", ""},
+		{"wrong-domain absolute", "//compute.googleapis.com/projects/p/locations/l/connections/c", ""},
 		{"blank", "", ""},
 	}
 	for _, tc := range cases {

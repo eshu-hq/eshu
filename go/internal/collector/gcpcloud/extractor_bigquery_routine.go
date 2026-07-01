@@ -42,8 +42,10 @@ type jsonValuePresent bool
 // UnmarshalJSON sets the flag true for any JSON value other than null or an
 // empty string, without keeping the decoded bytes.
 func (p *jsonValuePresent) UnmarshalJSON(b []byte) error {
+	// Compare against the null/empty-string tokens by bytes so a large user body
+	// is never copied onto the heap as a string.
 	t := bytes.TrimSpace(b)
-	*p = jsonValuePresent(len(t) > 0 && string(t) != "null" && string(t) != `""`)
+	*p = jsonValuePresent(len(t) > 0 && !bytes.Equal(t, []byte("null")) && !bytes.Equal(t, []byte(`""`)))
 	return nil
 }
 
@@ -130,7 +132,7 @@ func bigQueryRoutineAttributes(data bigQueryRoutineData) map[string]any {
 	if n := len(data.ImportedLibraries); n > 0 {
 		attrs["imported_library_count"] = n
 	}
-	if v := strings.TrimSpace(data.CreationTime); v != "" {
+	if v, ok := epochMillisToRFC3339(data.CreationTime); ok {
 		attrs["creation_time"] = v
 	}
 	return attrs
@@ -165,7 +167,12 @@ func bigQueryConnectionFullName(connectionRef string) string {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
+		// Only a bigqueryconnection full name is a valid endpoint; a foreign or
+		// wrong-domain absolute name is rejected rather than passed through.
+		if strings.HasPrefix(trimmed, bigQueryConnectionResourcePrefix) {
+			return trimmed
+		}
+		return ""
 	}
 	return bigQueryConnectionResourcePrefix + strings.TrimPrefix(trimmed, "/")
 }
