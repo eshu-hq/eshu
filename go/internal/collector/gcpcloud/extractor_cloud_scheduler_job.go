@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // assetTypeCloudSchedulerJob is the CAI asset type for a Cloud Scheduler job. Its
@@ -177,17 +176,15 @@ func cloudSchedulerJobServiceAccountEmail(data cloudSchedulerJobData) string {
 // cloudSchedulerHostFingerprint reduces the HTTP target URI to a deterministic
 // fingerprint of its host so jobs hitting the same endpoint can be correlated
 // without persisting the raw URI (which can carry tokens/query secrets) or the
-// host (a DNS name the collector contract fingerprints). It returns "" when there
-// is no HTTP target or host.
+// host (a DNS name the collector contract fingerprints). It reuses the shared
+// external-host fingerprint (pubSubPushEndpointHostFingerprint,
+// StableID "GCPPubSubPushEndpointHost") so a host correlates across extractors
+// when it matches. It returns "" when there is no HTTP target or host.
 func cloudSchedulerHostFingerprint(data cloudSchedulerJobData) string {
 	if data.HTTPTarget == nil {
 		return ""
 	}
-	host := gitRemoteHost(data.HTTPTarget.URI)
-	if host == "" {
-		return ""
-	}
-	return "sha256:" + facts.StableID("GCPCloudSchedulerHTTPTargetHost", map[string]any{"host": host})
+	return pubSubPushEndpointHostFingerprint(gitRemoteHost(data.HTTPTarget.URI))
 }
 
 func cloudSchedulerJobEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {
