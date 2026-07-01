@@ -706,9 +706,10 @@ only bounded posture attributes. The extractor decodes no free-text description
 and adds no display-name attribute (the base observation carries the provider
 display name for every asset type).
 
-**Logging Log Bucket** (`logging.googleapis.com/LogBucket`) captures the retention
-period (days), the locked and analytics-enabled posture, creation time, and CMEK
-posture; emits the typed `log_bucket_encrypted_by_kms_key` edge to the CMEK
+**Logging Log Bucket** (`logging.googleapis.com/LogBucket`) captures the lifecycle
+state (LogBucket reports it under `lifecycleState`, which the base observation does
+not map), the retention period (days), the locked and analytics-enabled posture,
+creation time, and CMEK posture; emits the typed `log_bucket_encrypted_by_kms_key` edge to the CMEK
 `CryptoKey` with the key resource name as the correlation anchor. The bucket's
 linked analytics BigQuery datasets are separate `Link` sub-resources (not on the
 bucket's own `resource.data`) and its owning project is base-observation ancestry,

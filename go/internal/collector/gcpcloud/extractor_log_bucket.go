@@ -28,6 +28,7 @@ func init() {
 // material). Locked and AnalyticsEnabled are pointers so a present `false` is
 // distinguishable from an absent field.
 type logBucketData struct {
+	LifecycleState   string `json:"lifecycleState"`
 	RetentionDays    int    `json:"retentionDays"`
 	Locked           *bool  `json:"locked"`
 	AnalyticsEnabled *bool  `json:"analyticsEnabled"`
@@ -38,8 +39,8 @@ type logBucketData struct {
 }
 
 // extractLogBucket extracts bounded, redaction-safe typed depth for one CAI
-// Logging Log Bucket asset. It surfaces the retention period, locked and
-// analytics posture, creation time, and CMEK posture; and emits the typed
+// Logging Log Bucket asset. It surfaces the lifecycle state, retention period,
+// locked and analytics posture, creation time, and CMEK posture; and emits the typed
 // log_bucket_encrypted_by_kms_key edge to the CMEK CryptoKey with the key
 // resource name as the correlation anchor.
 //
@@ -53,6 +54,12 @@ func extractLogBucket(ctx ExtractContext) (AttributeExtraction, error) {
 	}
 
 	attrs := map[string]any{}
+	// LogBucket reports lifecycle under lifecycleState (DELETE_REQUESTED / FAILED
+	// / UPDATING / ACTIVE); the base observation only maps state/status, so capture
+	// it here or deletion/failure posture is lost in readback.
+	if v := strings.TrimSpace(data.LifecycleState); v != "" {
+		attrs["lifecycle_state"] = v
+	}
 	if data.RetentionDays > 0 {
 		attrs["retention_days"] = data.RetentionDays
 	}

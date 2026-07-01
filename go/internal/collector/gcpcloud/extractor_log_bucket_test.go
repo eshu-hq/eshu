@@ -80,6 +80,19 @@ func TestExtractLogBucketNoCMEK(t *testing.T) {
 	}
 }
 
+func TestExtractLogBucketLifecycleState(t *testing.T) {
+	// A non-active lifecycle (e.g. DELETE_REQUESTED) must be surfaced so deletion
+	// posture is not lost in readback.
+	const data = `{"lifecycleState": "DELETE_REQUESTED", "retentionDays": 30}`
+	got, err := extractLogBucket(logBucketContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["lifecycle_state"] != "DELETE_REQUESTED" {
+		t.Errorf("lifecycle_state = %v, want DELETE_REQUESTED", got.Attributes["lifecycle_state"])
+	}
+}
+
 func TestExtractLogBucketAbsentPointersOmitted(t *testing.T) {
 	// locked and analyticsEnabled are pointers: absent fields are omitted, distinct
 	// from a present false.
