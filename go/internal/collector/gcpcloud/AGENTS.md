@@ -68,6 +68,11 @@
    allow-all posture and allow-list counts, bounded WAF service/feature; no
    outbound edges; never surfaces the platform allow-list entries — domains,
    package names, bundle ids are only counted).
+24. `extractor_identity_platform_config.go` - typed-depth extractor for
+   `identitytoolkit.googleapis.com/Config` (enabled sign-in methods, MFA state,
+   multi-tenant toggle, authorized-domain count; no outbound edges; never reads
+   OAuth/IdP client secrets, API keys, blocking-function URIs, or the
+   authorized-domain values).
 
 ## Invariants
 
