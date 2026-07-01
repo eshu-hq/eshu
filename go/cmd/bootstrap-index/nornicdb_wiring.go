@@ -42,6 +42,7 @@ const (
 	nornicDBEntityBatchSizeEnv                      = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
 	nornicDBEntityLabelBatchSizesEnv                = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
 	nornicDBEntityLabelPhaseGroupStatementsEnv      = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
+	nornicDBBatchedEntityContainmentEnv             = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
 )
 
 // bootstrapCanonicalExecutorForGraphBackend mirrors ingester's NornicDB
@@ -380,6 +381,18 @@ func nornicDBCanonicalGroupedWrites(getenv func(string) string) (bool, error) {
 	enabled, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false, fmt.Errorf("parse %s=%q: %w", nornicDBCanonicalGroupedWritesEnv, raw, err)
+	}
+	return enabled, nil
+}
+
+func nornicDBBatchedEntityContainmentEnabled(getenv func(string) string) (bool, error) {
+	raw := strings.TrimSpace(getenv(nornicDBBatchedEntityContainmentEnv))
+	if raw == "" {
+		return true, nil
+	}
+	enabled, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("parse %s=%q: %w", nornicDBBatchedEntityContainmentEnv, raw, err)
 	}
 	return enabled, nil
 }

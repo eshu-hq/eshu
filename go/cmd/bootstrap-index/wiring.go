@@ -207,6 +207,7 @@ func openBootstrapCanonicalWriter(
 	orderedLabels := []string(nil)
 	fileBatchSize := 0
 	entityBatchSize := 0
+	batchedEntityContainment := false
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		fileBatchSize, err = nornicDBPositiveIntEnv(getenv, nornicDBFileBatchSizeEnv, defaultNornicDBFileBatchSize)
 		if err != nil {
@@ -223,6 +224,11 @@ func openBootstrapCanonicalWriter(
 			_ = closeBootstrapNeo4jDriver(driver)
 			return nil, nil, err
 		}
+		batchedEntityContainment, err = nornicDBBatchedEntityContainmentEnabled(getenv)
+		if err != nil {
+			_ = closeBootstrapNeo4jDriver(driver)
+			return nil, nil, err
+		}
 		orderedLabels = orderedBootstrapEntityBatchLabels(labelBatchSizes)
 	}
 	writer = configureBootstrapCanonicalWriter(writer, bootstrapCanonicalWriterConfig{
@@ -230,6 +236,7 @@ func openBootstrapCanonicalWriter(
 		FileBatchSize:                     fileBatchSize,
 		EntityBatchSize:                   entityBatchSize,
 		EntityLabelBatchSizes:             labelBatchSizes,
+		DisableNornicDBBatchedContainment: !batchedEntityContainment,
 		OrderedEntityLabelBatchSizeLabels: orderedLabels,
 	})
 
