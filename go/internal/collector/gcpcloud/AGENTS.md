@@ -43,6 +43,15 @@
    valid-after/before window, disabled posture, and the fingerprinted parent
    service-account email; `service_account_key_of` edge to the parent
    ServiceAccount; never reads private/public key material).
+19. `extractor_workload_identity_pool.go` - typed-depth extractor for
+   `iam.googleapis.com/WorkloadIdentityPool` (lifecycle state and disabled
+   posture; no outbound edges, since providers are inbound children).
+20. `extractor_workload_identity_pool_provider.go` - typed-depth extractor for
+   `iam.googleapis.com/WorkloadIdentityPoolProvider` (external trust type
+   aws/oidc/saml, AWS account id or OIDC issuer URI anchor, attribute-mapping
+   key count, attribute-condition presence, disabled posture;
+   `workload_identity_provider_of_pool` edge to the parent pool; never reads
+   OIDC JWKS/SAML metadata or attribute-mapping/condition expressions).
 
 ## Invariants
 
