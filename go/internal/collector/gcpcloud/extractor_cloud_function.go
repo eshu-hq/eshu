@@ -124,7 +124,7 @@ func extractCloudFunction(ctx ExtractContext) (AttributeExtraction, error) {
 		anchors = append(anchors, bucket)
 		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionSourceBucket, bucket, assetTypeStorageBucket))
 	}
-	if connector := runServiceConnectorFullName(cloudFunctionVPCConnector(data)); connector != "" {
+	if connector := cloudFunctionConnectorFullName(ctx.FullResourceName, cloudFunctionVPCConnector(data)); connector != "" {
 		anchors = append(anchors, connector)
 		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionUsesVPCConnector, connector, assetTypeVPCAccessConnector))
 	}
@@ -202,6 +202,45 @@ func cloudFunctionIngressSettings(data cloudFunctionData) string {
 		return sc.IngressSettings
 	}
 	return data.IngressSettings
+}
+
+// cloudFunctionConnectorFullName resolves the function's VPC connector to its CAI
+// full resource name. The gen2 serviceConfig and gen1 vpcConnector fields may be
+// a fully qualified URI, a relative projects/.../connectors/... name, or (gen1
+// only) a bare connector name; a bare name is qualified with the function's own
+// project and location before the shared connector builder validates and prefixes
+// it, so a short name never produces a bogus //vpcaccess.googleapis.com/<name>
+// target the reducer would silently drop.
+func cloudFunctionConnectorFullName(functionFullName, connector string) string {
+	trimmed := strings.TrimSpace(connector)
+	if trimmed == "" {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, "//") && !strings.Contains(trimmed, "/") {
+		project, location := cloudFunctionProjectLocation(functionFullName)
+		if project == "" || location == "" {
+			return ""
+		}
+		trimmed = "projects/" + project + "/locations/" + location + "/connectors/" + trimmed
+	}
+	return runServiceConnectorFullName(trimmed)
+}
+
+// cloudFunctionProjectLocation extracts the project id and location from a Cloud
+// Functions CAI full resource name
+// (//cloudfunctions.googleapis.com/projects/<project>/locations/<location>/functions/<name>).
+// It returns empty strings when either segment is absent.
+func cloudFunctionProjectLocation(functionFullName string) (project, location string) {
+	segments := strings.Split(strings.TrimSpace(functionFullName), "/")
+	for i := 0; i+1 < len(segments); i++ {
+		switch segments[i] {
+		case "projects":
+			project = segments[i+1]
+		case "locations":
+			location = segments[i+1]
+		}
+	}
+	return project, location
 }
 
 func cloudFunctionVPCConnector(data cloudFunctionData) string {

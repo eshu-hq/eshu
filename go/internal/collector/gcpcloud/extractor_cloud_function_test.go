@@ -161,6 +161,35 @@ func TestExtractCloudFunctionGen1(t *testing.T) {
 	}
 }
 
+func TestExtractCloudFunctionGen1ShortConnectorName(t *testing.T) {
+	// gen1 may carry vpcConnector as a bare connector name; it must be qualified
+	// with the function's own project and location, not prefixed as-is.
+	const data = `{
+		"environment": "GEN_1",
+		"runtime": "go121",
+		"vpcConnector": "serverless-conn"
+	}`
+	got, err := extractCloudFunction(cloudFunctionContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	const want = "//vpcaccess.googleapis.com/projects/demo-project/locations/us-central1/connectors/serverless-conn"
+	assertRelationship(t, got.Relationships, relationshipTypeFunctionUsesVPCConnector, want, assetTypeVPCAccessConnector)
+	if !containsStringSlice(got.CorrelationAnchors, want) {
+		t.Errorf("missing qualified connector anchor %q in %#v", want, got.CorrelationAnchors)
+	}
+}
+
+func TestCloudFunctionProjectLocation(t *testing.T) {
+	p, l := cloudFunctionProjectLocation(cloudFunctionFullName)
+	if p != "demo-project" || l != "us-central1" {
+		t.Errorf("project/location = %q/%q, want demo-project/us-central1", p, l)
+	}
+	if p, l := cloudFunctionProjectLocation("//x/nothing"); p != "" || l != "" {
+		t.Errorf("expected empty for a name without segments, got %q/%q", p, l)
+	}
+}
+
 func TestExtractCloudFunctionEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractCloudFunction(cloudFunctionContext(`{}`))
 	if err != nil {
