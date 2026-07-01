@@ -1,0 +1,29 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc",
+      "assetType": "compute.googleapis.com/Network",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "prod-vpc",
+          "creationTimestamp": "2026-06-20T10:00:00.000-07:00",
+          "selfLink": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/prod-vpc",
+          "autoCreateSubnetworks": false,
+          "mtu": 1460,
+          "routingConfig": {"routingMode": "GLOBAL"},
+          "subnetworks": [
+            "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/subnetworks/prod-us-central1",
+            "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-east1/subnetworks/prod-us-east1"
+          ],
+          "peerings": [
+            {"name": "peer-to-shared", "network": "https://www.googleapis.com/compute/v1/projects/shared-project/global/networks/shared-vpc", "state": "ACTIVE"}
+          ]
+        }
+      }
+    }
+  ]
+}
