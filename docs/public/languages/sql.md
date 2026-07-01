@@ -25,6 +25,13 @@ full matrix, see [Parser Feature Matrix](feature-matrix.md) and
 | dbt lineage | Compiled-model lineage for supported select expressions, safe scalar wrappers, and documented unresolved summaries. |
 | Query fallback | SQL content entities can surface through entity resolve/context when materialized content rows exist. |
 
+## Operational Notes
+
+Large SQL schema files precompute a newline index before extraction. Emitted
+table, column, relationship, and migration rows still use 1-based original file
+line numbers, but offset-to-line lookup no longer scans from the beginning of
+the file for every emitted row.
+
 ## Dead-Code Support
 
 SQL dead-code support is `derived`. Stored routines can be returned as

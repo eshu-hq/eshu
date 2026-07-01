@@ -4,6 +4,7 @@
 package sql
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -219,6 +220,33 @@ func TestParseDMLUpdateMigrationTarget(t *testing.T) {
 	got := parseSQLTestFile(t, path)
 
 	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.accounts")
+}
+
+func TestSQLLineIndexMatchesLineNumberForOffsets(t *testing.T) {
+	t.Parallel()
+
+	source := []byte("CREATE TABLE a (\n  id INT,\n  name TEXT\n);\n")
+	index := newSQLLineIndex(source)
+
+	for _, tc := range []struct {
+		name   string
+		offset int
+		want   int
+	}{
+		{name: "start", offset: 0, want: 1},
+		{name: "second-line", offset: bytes.Index(source, []byte("id")), want: 2},
+		{name: "third-line", offset: bytes.Index(source, []byte("name")), want: 3},
+		{name: "after-end", offset: len(source) + 10, want: 5},
+		{name: "before-start", offset: -10, want: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := index.lineForOffset(tc.offset); got != tc.want {
+				t.Fatalf("lineForOffset(%d) = %d, want %d", tc.offset, got, tc.want)
+			}
+		})
+	}
 }
 
 func parseSQLTestFile(t *testing.T, path string) map[string]any {

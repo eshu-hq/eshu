@@ -104,12 +104,10 @@ func (s IngestionStore) runDeferredBackfillBatches(
 // deferredBackfillWorkerCount returns the number of deferred-maintenance batch
 // transactions processed concurrently. ESHU_DEFERRED_BACKFILL_CONCURRENCY
 // overrides; an unset or invalid value derives from NumCPU clamped to
-// deferredBackfillAutoCapWorkers so a high-core host does not over-subscribe the
-// shared Postgres pool when the env is unset. The hard cap is
 // deferredBackfillMaxWorkers. Batches each hold one pooled connection and never
 // nest a second acquisition, so a worker count above the pool size throttles on
-// Begin rather than deadlocking; at ESHU_POSTGRES_MAX_OPEN_CONNS=1 the pass runs
-// effectively serial.
+// Begin rather than deadlocking; at ESHU_POSTGRES_MAX_OPEN_CONNS=1 operators set
+// ESHU_DEFERRED_BACKFILL_CONCURRENCY=1 and the pass runs serially.
 func deferredBackfillWorkerCount() int {
 	if raw := strings.TrimSpace(os.Getenv("ESHU_DEFERRED_BACKFILL_CONCURRENCY")); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
@@ -119,22 +117,22 @@ func deferredBackfillWorkerCount() int {
 			return n
 		}
 	}
-	n := runtime.NumCPU()
-	if n > deferredBackfillAutoCapWorkers {
-		n = deferredBackfillAutoCapWorkers
+	return deferredBackfillDefaultWorkerCount(runtime.NumCPU())
+}
+
+func deferredBackfillDefaultWorkerCount(numCPU int) int {
+	if numCPU < 1 {
+		return 1
 	}
-	if n < 1 {
-		n = 1
+	if numCPU > deferredBackfillMaxWorkers {
+		return deferredBackfillMaxWorkers
 	}
-	return n
+	return numCPU
 }
 
 const (
-	// deferredBackfillAutoCapWorkers clamps the CPU-derived default worker count
-	// so an unset env on a high-core host does not saturate the 30-connection
-	// Postgres pool shared with collectors, status reads, and heartbeats.
-	deferredBackfillAutoCapWorkers = 4
-	// deferredBackfillMaxWorkers is the hard ceiling an operator can opt up to via
-	// ESHU_DEFERRED_BACKFILL_CONCURRENCY, matching the content-writer batch cap.
+	// deferredBackfillMaxWorkers is the hard ceiling for the default and for an
+	// operator opt-up via ESHU_DEFERRED_BACKFILL_CONCURRENCY, matching the
+	// content-writer batch cap.
 	deferredBackfillMaxWorkers = 8
 )

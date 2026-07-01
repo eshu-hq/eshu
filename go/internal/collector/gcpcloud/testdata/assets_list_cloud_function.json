@@ -1,0 +1,65 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//cloudfunctions.googleapis.com/projects/demo-project/locations/us-central1/functions/api-fn",
+      "assetType": "cloudfunctions.googleapis.com/Function",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/functions/api-fn",
+          "environment": "GEN_2",
+          "state": "ACTIVE",
+          "updateTime": "2026-06-26T12:00:00Z",
+          "labels": {"team": "platform"},
+          "buildConfig": {
+            "runtime": "nodejs20",
+            "entryPoint": "handler",
+            "dockerRepository": "projects/demo-project/locations/us-central1/repositories/gcf-artifacts",
+            "source": {"storageSource": {"bucket": "gcf-sources-123", "object": "api-fn-source.zip"}}
+          },
+          "serviceConfig": {
+            "service": "projects/demo-project/locations/us-central1/services/api-fn",
+            "serviceAccountEmail": "runtime-sa@demo-project.iam.gserviceaccount.com",
+            "vpcConnector": "projects/demo-project/locations/us-central1/connectors/serverless-conn",
+            "vpcConnectorEgressSettings": "PRIVATE_RANGES_ONLY",
+            "ingressSettings": "ALLOW_INTERNAL_ONLY",
+            "secretEnvironmentVariables": [
+              {"key": "DB_PASSWORD", "projectId": "demo-project", "secret": "db-password", "version": "latest"}
+            ],
+            "secretVolumes": [
+              {"mountPath": "/etc/secrets", "projectId": "demo-project", "secret": "app-config"}
+            ]
+          },
+          "eventTrigger": {
+            "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
+            "pubsubTopic": "projects/demo-project/topics/events",
+            "serviceAccountEmail": "trigger-sa@demo-project.iam.gserviceaccount.com"
+          }
+        }
+      }
+    },
+    {
+      "name": "//cloudfunctions.googleapis.com/projects/demo-project/locations/us-east1/functions/legacy-fn",
+      "assetType": "cloudfunctions.googleapis.com/Function",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/functions/legacy-fn",
+          "environment": "GEN_1",
+          "status": "ACTIVE",
+          "runtime": "python39",
+          "serviceAccountEmail": "legacy-sa@demo-project.iam.gserviceaccount.com",
+          "ingressSettings": "ALLOW_ALL",
+          "sourceArchiveUrl": "gs://legacy-src/functions/legacy-fn-should-not-leak.zip",
+          "httpsTrigger": {"url": "https://us-east1-demo-project.cloudfunctions.net/legacy-fn-should-not-leak"},
+          "updateTime": "2023-01-15T09:30:00Z"
+        }
+      }
+    }
+  ]
+}

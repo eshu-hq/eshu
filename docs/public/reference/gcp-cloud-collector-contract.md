@@ -570,6 +570,22 @@ parent Secret from the version's own full resource name and emits the typed
 (with those key version resource names as correlation anchors). The secret payload
 is never read — only control-plane posture and KMS key version resource names
 (not key material) leave the parser.
+**Cloud Functions Function** (`cloudfunctions.googleapis.com/Function`) unions
+the gen1 and gen2 shapes (the `environment` field distinguishes them; gen2 nested
+`buildConfig`/`serviceConfig` fields are preferred over the gen1 top-level
+fields). It captures environment, lifecycle state, build runtime, ingress
+settings, VPC egress posture, event-trigger event type, the mounted secret count,
+and update time; emits the typed `function_source_bucket` edge to the source
+archive's Storage `Bucket`, `function_uses_vpc_connector` to the Serverless VPC
+Access `Connector`, `function_mounts_secret` to each mounted Secret Manager
+`Secret`, and `function_triggered_by_topic` to the event-trigger Pub/Sub `Topic`;
+and surfaces the source bucket, connector, secrets, trigger topic, and the
+fingerprinted runtime and trigger service-account emails as correlation anchors.
+Service accounts are carried only as fingerprinted-email digests so the IAM/trust
+layer owns the inbound "runs as" edges. The source object path (from the gen2
+`storageSource` object or the gen1 `gs://` `sourceArchiveUrl`) is dropped —
+only the bucket is kept — and the https trigger URL, secret values, and env
+values are never read.
 
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
@@ -696,7 +712,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Secret Manager Secret Version) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, and Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Cloud Functions Function), Secret Manager Secret Version) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, and Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 

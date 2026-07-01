@@ -39,7 +39,7 @@ func detectSQLMigrationTool(path string) string {
 
 func buildSQLMigrationEntries(
 	path string,
-	source []byte,
+	lineIndex sqlLineIndex,
 	payload map[string]any,
 	tableMentions []sqlMention,
 ) []map[string]any {
@@ -94,7 +94,7 @@ func buildSQLMigrationEntries(
 			"tool":        tool,
 			"target_kind": "SqlTable",
 			"target_name": mention.name,
-			"line_number": sqlLineNumberForOffset(source, mention.offset),
+			"line_number": lineIndex.lineForOffset(mention.offset),
 		})
 	}
 
