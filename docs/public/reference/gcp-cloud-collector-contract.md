@@ -350,6 +350,19 @@ surfaces those instance, image, snapshot, and KMS resource names as correlation
 anchors. The KMS reference is reduced to its CryptoKey resource name (any
 `cryptoKeyVersions` suffix is stripped), and the encryption key's `sha256`/raw
 material fields are never decoded, so no key material reaches a fact.
+
+**Firewall Rule** (`compute.googleapis.com/Firewall`) captures direction,
+priority, disabled and log-config posture, the allow/deny protocols and ports,
+source/destination range counts, an `opens_to_public` exposure signal, target
+network tags, and the target service-account count; emits the typed
+`firewall_applies_to_network` edge; and surfaces the enclosing network resource
+name plus the fingerprinted target service-account emails as correlation anchors.
+Source and destination ranges are reduced to counts and the public-exposure
+boolean (a `0.0.0.0/0` or `::/0` entry): the CIDR values themselves are never
+persisted, so no public or private IP address reaches a fact. Target service
+accounts are anchors, not edges — an email is not an exactly resolvable CAI
+endpoint, and the "applies to instances running as SA" join is owned by the
+secrets/IAM layer keying on the same `GCPServiceAccountEmailDigest`.
 **Artifact Registry DockerImage**
 (`artifactregistry.googleapis.com/DockerImage`) captures the pullable image URI,
 the content digest, tags and tag count, image size, media type, and build/upload
