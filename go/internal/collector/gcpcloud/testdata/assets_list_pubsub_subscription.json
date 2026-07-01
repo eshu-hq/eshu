@@ -1,0 +1,41 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//pubsub.googleapis.com/projects/demo-project/subscriptions/orders-worker",
+      "assetType": "pubsub.googleapis.com/Subscription",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "projects/demo-project/subscriptions/orders-worker",
+          "topic": "projects/demo-project/topics/orders",
+          "labels": {"team": "platform"},
+          "pushConfig": {"pushEndpoint": "https://ingest.example.com/_ah/push?token=PLACEHOLDER"},
+          "ackDeadlineSeconds": 30,
+          "retainAckedMessages": true,
+          "messageRetentionDuration": "604800s",
+          "deadLetterPolicy": {"deadLetterTopic": "projects/demo-project/topics/orders-dlq", "maxDeliveryAttempts": 5},
+          "enableExactlyOnceDelivery": true,
+          "state": "ACTIVE"
+        }
+      }
+    },
+    {
+      "name": "//pubsub.googleapis.com/projects/demo-project/subscriptions/events-archive",
+      "assetType": "pubsub.googleapis.com/Subscription",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "projects/demo-project/subscriptions/events-archive",
+          "topic": "projects/demo-project/topics/events",
+          "cloudStorageConfig": {"bucket": "events-archive", "filenamePrefix": "raw/"},
+          "state": "ACTIVE"
+        }
+      }
+    }
+  ]
+}
