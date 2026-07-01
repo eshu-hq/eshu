@@ -1,0 +1,54 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/demo-pool",
+      "assetType": "iam.googleapis.com/WorkloadIdentityPool",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/123456789/locations/global/workloadIdentityPools/demo-pool",
+          "displayName": "Demo Pool",
+          "description": "CI trust pool",
+          "state": "ACTIVE",
+          "disabled": false
+        }
+      }
+    },
+    {
+      "name": "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/demo-pool/providers/aws-ci",
+      "assetType": "iam.googleapis.com/WorkloadIdentityPoolProvider",
+      "updateTime": "2026-06-24T12:01:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/123456789/locations/global/workloadIdentityPools/demo-pool/providers/aws-ci",
+          "state": "ACTIVE",
+          "disabled": false,
+          "attributeMapping": {"google.subject": "assertion.arn"},
+          "attributeCondition": "assertion.account=='123456789012'",
+          "aws": {"accountId": "123456789012"}
+        }
+      }
+    },
+    {
+      "name": "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/demo-pool/providers/gh-oidc",
+      "assetType": "iam.googleapis.com/WorkloadIdentityPoolProvider",
+      "updateTime": "2026-06-24T12:02:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/123456789/locations/global/workloadIdentityPools/demo-pool/providers/gh-oidc",
+          "state": "ACTIVE",
+          "disabled": false,
+          "attributeMapping": {"google.subject": "assertion.sub"},
+          "oidc": {
+            "issuerUri": "https://token.actions.githubusercontent.com",
+            "allowedAudiences": ["sts.googleapis.com"]
+          }
+        }
+      }
+    }
+  ]
+}
