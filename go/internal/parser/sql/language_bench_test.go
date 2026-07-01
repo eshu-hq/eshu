@@ -4,8 +4,10 @@
 package sql
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tree_sitter_sql "github.com/alexaandru/go-sitter-forest/sql"
@@ -98,4 +100,36 @@ func BenchmarkParseComprehensive(b *testing.B) {
 			b.Fatalf("Parse() error = %v", err)
 		}
 	}
+}
+
+func BenchmarkParseLargeSQLSchemaLineNumbers(b *testing.B) {
+	dir := b.TempDir()
+	path := filepath.Join(dir, "large_schema.sql")
+	if err := os.WriteFile(path, []byte(largeSQLSchemaDocument(4000)), 0o644); err != nil {
+		b.Fatalf("WriteFile() error = %v", err)
+	}
+	parser := newSQLBenchParser(b)
+	defer parser.Close()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := Parse(path, false, Options{}, parser); err != nil {
+			b.Fatalf("Parse() error = %v", err)
+		}
+	}
+}
+
+func largeSQLSchemaDocument(columnCount int) string {
+	var builder strings.Builder
+	builder.WriteString("CREATE TABLE public.large_table (\n")
+	for i := 0; i < columnCount; i++ {
+		separator := ","
+		if i == columnCount-1 {
+			separator = ""
+		}
+		_, _ = fmt.Fprintf(&builder, "  col_%04d TEXT NOT NULL%s\n", i, separator)
+	}
+	builder.WriteString(");\n")
+	return builder.String()
 }

@@ -4,6 +4,7 @@
 package sql
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -20,6 +21,31 @@ type sqlMention struct {
 	name      string
 	operation string
 	offset    int
+}
+
+type sqlLineIndex struct {
+	sourceLength int
+	newlines     []int
+}
+
+func newSQLLineIndex(source []byte) sqlLineIndex {
+	newlines := make([]int, 0)
+	for index, b := range source {
+		if b == '\n' {
+			newlines = append(newlines, index)
+		}
+	}
+	return sqlLineIndex{sourceLength: len(source), newlines: newlines}
+}
+
+func (idx sqlLineIndex) lineForOffset(offset int) int {
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > idx.sourceLength {
+		offset = idx.sourceLength
+	}
+	return sort.SearchInts(idx.newlines, offset) + 1
 }
 
 // normalizeSQLName strips dialect quoting (double quotes, MySQL backticks,
@@ -41,17 +67,6 @@ func normalizeSQLName(raw string) string {
 		}
 	}
 	return strings.Join(normalized, ".")
-}
-
-// sqlLineNumberForOffset returns the 1-based line number for a byte offset.
-func sqlLineNumberForOffset(source []byte, offset int) int {
-	if offset < 0 {
-		offset = 0
-	}
-	if offset > len(source) {
-		offset = len(source)
-	}
-	return strings.Count(string(source[:offset]), "\n") + 1
 }
 
 // collectMentionsFromNode walks a query/body subtree and returns the bounded
