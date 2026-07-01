@@ -765,6 +765,20 @@ resolve — the routing service is kept as a bounded attribute instead. A
 queue-level HTTP target likewise resolves no CAI-asset edge (an external host);
 the HTTP URI-override path, OIDC audience, and header overrides are never read.
 
+**App Engine Service** (`appengine.googleapis.com/Service`) captures the service
+ID and traffic-split posture: the shard strategy (`split_shard_by`), the count
+of version allocations (`version_count`), and the per-version allocation
+percentages (`traffic_allocations`, a sorted `versionID=percentage` string slice
+so the values survive the cloud-inventory readback sanitizer). Version IDs are
+control-plane identifiers and are safe to store verbatim; blank keys are skipped.
+For each allocation key the extractor emits one typed
+`service_splits_traffic_to_version` edge to the corresponding
+`appengine.googleapis.com/Version` resource, whose full resource name is derived
+by appending `/versions/{versionID}` to the service full resource name; the
+version full resource names are also surfaced as correlation anchors. The raw
+`name` field, service configuration (env, scaling, handlers), and data-plane
+content are not decoded.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
@@ -890,7 +904,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Cloud Functions Function, Secret Manager Secret Version, BigQuery Routine, API Key, Cloud Functions (gen1), Dataform Repository, reCAPTCHA Enterprise Key, BigQuery Data Transfer Config, Cloud Build Build, Identity Platform Config, Dataplex Entry Group, Artifact Registry Repository, Logging Log Bucket, Eventarc Trigger, Cloud Scheduler Job, Logging Log Sink, Cloud Tasks Queue) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, and Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Cloud Functions Function, Secret Manager Secret Version, BigQuery Routine, API Key, Cloud Functions (gen1), Dataform Repository, reCAPTCHA Enterprise Key, BigQuery Data Transfer Config, Cloud Build Build, Identity Platform Config, Dataplex Entry Group, Artifact Registry Repository, Logging Log Bucket, Eventarc Trigger, Cloud Scheduler Job, Logging Log Sink, Cloud Tasks Queue, App Engine Service) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, and Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 
