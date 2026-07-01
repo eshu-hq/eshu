@@ -1,0 +1,40 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//cloudtasks.googleapis.com/projects/demo-project/locations/us-central1/queues/tasks-q",
+      "assetType": "cloudtasks.googleapis.com/Queue",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/queues/tasks-q",
+          "state": "RUNNING",
+          "rateLimits": {"maxDispatchesPerSecond": 500, "maxConcurrentDispatches": 1000, "maxBurstSize": 100},
+          "retryConfig": {"maxAttempts": 5, "maxRetryDuration": "3600s"},
+          "appEngineRoutingOverride": {"service": "worker", "version": "v2"},
+          "purgeTime": "2026-06-20T00:00:00Z",
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//cloudtasks.googleapis.com/projects/demo-project/locations/us-east1/queues/http-q",
+      "assetType": "cloudtasks.googleapis.com/Queue",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/queues/http-q",
+          "state": "PAUSED",
+          "httpTarget": {
+            "uriOverride": {"host": "api.internal.example.com", "scheme": "HTTPS", "pathOverride": {"path": "/should-not-leak"}},
+            "oidcToken": {"serviceAccountEmail": "tasks-sa@demo-project.iam.gserviceaccount.com", "audience": "https://should-not-leak-audience"}
+          }
+        }
+      }
+    }
+  ]
+}
