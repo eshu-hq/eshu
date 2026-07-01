@@ -380,6 +380,20 @@ persisted, so no public or private IP address reaches a fact. Target service
 accounts are anchors, not edges — an email is not an exactly resolvable CAI
 endpoint, and the "applies to instances running as SA" join is owned by the
 secrets/IAM layer keying on the same `GCPServiceAccountEmailDigest`.
+
+**Static Address** (`compute.googleapis.com/Address` and the global
+`compute.googleapis.com/GlobalAddress`, both handled by the same extractor)
+captures region, address
+type, an `is_external` exposure flag, purpose, status, IP version, creation time,
+and the count of distinct resolvable using resources (forwarding rules and
+instances); emits the typed `address_in_network`,
+`address_in_subnetwork`, `address_used_by_forwarding_rule`, and
+`address_used_by_instance` edges; and surfaces the enclosing network and
+subnetwork plus each resolvable using resource (forwarding rule or instance) as
+correlation anchors. The reserved IP `address` value is never decoded at all —
+the external-vs-internal posture comes from `addressType`, so no public or
+private IP address reaches a fact.
+
 **Artifact Registry DockerImage**
 (`artifactregistry.googleapis.com/DockerImage`) captures the pullable image URI,
 the content digest, tags and tag count, image size, media type, and build/upload
