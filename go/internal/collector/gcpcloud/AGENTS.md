@@ -52,6 +52,11 @@
    key count, attribute-condition presence, disabled posture;
    `workload_identity_provider_of_pool` edge to the parent pool; never reads
    OIDC JWKS/SAML metadata or attribute-mapping/condition expressions).
+21. `extractor_secret_version.go` - typed-depth extractor for
+   `secretmanager.googleapis.com/SecretVersion` (state, create/destroy time,
+   replication type, CMEK posture; `secret_version_of_secret` edge to the parent
+   Secret and `secret_version_encrypted_by_kms_key_version` edge to each CMEK
+   CryptoKeyVersion; never reads the secret payload).
 
 ## Invariants
 
