@@ -132,11 +132,12 @@ Performance Evidence: `BenchmarkParseLargeSQLSchemaLineNumbers` parses one
 synthetic public-safe `CREATE TABLE` statement with 4,000 column definitions,
 which stresses the line-number mapping used for emitted table, column, and
 migration rows. Baseline `origin/main` at `3f38f41fc` with the old
-`strings.Count(source[:offset], "\n")` lookup, same benchmark body, Apple M5
-Max, `darwin/arm64`, `-benchmem -count=3`: `50.51 ms/op`, `50.87 ms/op`, and
+`strings.Count(string(source[:offset]), "\n")` lookup, same benchmark body,
+Apple M5 Max, `darwin/arm64`, `-benchmem -count=3`: `50.51 ms/op`, `50.87 ms/op`, and
 `50.51 ms/op`; about `232.4 MB/op`, `315,796 allocs/op`. After the precomputed
-newline index: `37.25 ms/op`, `36.90 ms/op`, and `33.46 ms/op`; about
-`11.87 MB/op`, `311,809 allocs/op`.
+newline index on the rebased branch, a quiet local rerun with `-count=5`
+measured `39.63 ms/op`, `39.03 ms/op`, `42.86 ms/op`, `35.16 ms/op`, and
+`36.47 ms/op`; about `11.87 MB/op`, `311,809-311,810 allocs/op`.
 
 No-Regression Evidence: `go test ./internal/parser/sql -count=1` and
 `TestSQLLineIndexMatchesLineNumberForOffsets` prove line numbers still match
