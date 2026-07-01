@@ -21,9 +21,9 @@ func init() {
 }
 
 // dataplexEntryGroupData is the bounded view of a CAI
-// dataplex.googleapis.com/EntryGroup resource.data blob. Only redaction-safe
-// control-plane posture is decoded; the display name and free-text description
-// are intentionally not persisted.
+// dataplex.googleapis.com/EntryGroup resource.data blob (Dataplex Catalog
+// EntryGroup resource). Only redaction-safe control-plane posture is decoded;
+// the display name and free-text description are intentionally not persisted.
 type dataplexEntryGroupData struct {
 	State          string `json:"state"`
 	TransferStatus string `json:"transferStatus"`

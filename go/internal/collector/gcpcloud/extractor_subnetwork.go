@@ -207,7 +207,13 @@ func normalizeRFC3339(value string) (string, bool) {
 	}
 	parsed, err := time.Parse(time.RFC3339, trimmed)
 	if err != nil {
-		return "", false
+		// Some GCP APIs (e.g. Dataplex) report sub-second createTime; RFC3339Nano
+		// accepts the fractional-second form that strict RFC3339 rejects. The
+		// output is still normalized to whole-second RFC3339.
+		parsed, err = time.Parse(time.RFC3339Nano, trimmed)
+		if err != nil {
+			return "", false
+		}
 	}
 	return parsed.UTC().Format(time.RFC3339), true
 }

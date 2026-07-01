@@ -69,4 +69,7 @@ func TestDataplexEntryGroupOfflineFixtureEndToEnd(t *testing.T) {
 	if analyticsAttrs["transfer_status"] != "TRANSFER_STATUS_MIGRATED" {
 		t.Errorf("analytics transfer_status = %v, want TRANSFER_STATUS_MIGRATED", analyticsAttrs["transfer_status"])
 	}
+	if analyticsAttrs["creation_time"] != "2024-05-01T00:00:00Z" {
+		t.Errorf("analytics creation_time = %v, want 2024-05-01T00:00:00Z", analyticsAttrs["creation_time"])
+	}
 }

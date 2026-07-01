@@ -85,6 +85,19 @@ func TestExtractDataplexEntryGroupEmptyDataYieldsNothing(t *testing.T) {
 	}
 }
 
+func TestExtractDataplexEntryGroupFractionalCreateTime(t *testing.T) {
+	// Dataplex createTime can carry sub-second precision; it must still normalize
+	// to whole-second RFC3339 rather than being silently dropped.
+	const data = `{"state": "ACTIVE", "createTime": "2024-05-01T00:00:00.123456Z"}`
+	got, err := extractDataplexEntryGroup(dataplexEntryGroupContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["creation_time"] != "2024-05-01T00:00:00Z" {
+		t.Errorf("creation_time = %v, want 2024-05-01T00:00:00Z (fractional seconds normalized)", got.Attributes["creation_time"])
+	}
+}
+
 func TestExtractDataplexEntryGroupMalformedDataErrors(t *testing.T) {
 	if _, err := extractDataplexEntryGroup(dataplexEntryGroupContext(`{bad`)); err == nil {
 		t.Fatalf("expected an error for malformed resource data")
