@@ -1,0 +1,43 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//bigquerydatatransfer.googleapis.com/projects/demo-project/locations/us/transferConfigs/abc123",
+      "assetType": "bigquerydatatransfer.googleapis.com/TransferConfig",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us",
+        "data": {
+          "name": "projects/demo-project/locations/us/transferConfigs/abc123",
+          "displayName": "nightly gcs load",
+          "dataSourceId": "google_cloud_storage",
+          "destinationDatasetId": "analytics",
+          "schedule": "every 24 hours",
+          "disabled": false,
+          "state": "SUCCEEDED",
+          "serviceAccountName": "transfer-runner@demo-project.iam.gserviceaccount.com",
+          "notificationPubsubTopic": "projects/demo-project/topics/transfer-events",
+          "encryptionConfiguration": {"kmsKeyName": "projects/demo-project/locations/us/keyRings/bq/cryptoKeys/transfer"},
+          "params": {"data_path_template": "gs://placeholder-bucket/path/*"}
+        }
+      }
+    },
+    {
+      "name": "//bigquerydatatransfer.googleapis.com/projects/demo-project/locations/us/transferConfigs/def456",
+      "assetType": "bigquerydatatransfer.googleapis.com/TransferConfig",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us",
+        "data": {
+          "name": "projects/demo-project/locations/us/transferConfigs/def456",
+          "dataSourceId": "scheduled_query",
+          "destinationDatasetId": "reports",
+          "disabled": true,
+          "params": {"query": "SELECT 1"}
+        }
+      }
+    }
+  ]
+}
