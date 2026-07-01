@@ -167,16 +167,37 @@ func TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne(t *testing.T) {
 
 // TestDeferredBackfillWorkerCountDefaultIsPoolSafe pins that the constructor's
 // default worker count is a sane bounded value: at least one and never above the
-// hard cap, so an unset ESHU_DEFERRED_BACKFILL_CONCURRENCY cannot over-subscribe
-// the shared Postgres pool.
+// hard cap, so an unset ESHU_DEFERRED_BACKFILL_CONCURRENCY stays within the
+// documented connection-pool budget.
 func TestDeferredBackfillWorkerCountDefaultIsPoolSafe(t *testing.T) {
 	t.Setenv("ESHU_DEFERRED_BACKFILL_CONCURRENCY", "")
 	got := deferredBackfillWorkerCount()
 	if got < 1 {
 		t.Fatalf("default worker count = %d, want >= 1", got)
 	}
-	if got > deferredBackfillAutoCapWorkers {
-		t.Fatalf("default worker count = %d, want <= auto cap %d", got, deferredBackfillAutoCapWorkers)
+	if got > deferredBackfillMaxWorkers {
+		t.Fatalf("default worker count = %d, want <= hard cap %d", got, deferredBackfillMaxWorkers)
+	}
+}
+
+func TestDeferredBackfillDefaultWorkerCountUsesHardCap(t *testing.T) {
+	tests := []struct {
+		name string
+		cpus int
+		want int
+	}{
+		{name: "defensive zero", cpus: 0, want: 1},
+		{name: "single cpu", cpus: 1, want: 1},
+		{name: "modest cpu count", cpus: 4, want: 4},
+		{name: "roomy cpu count reaches hard cap", cpus: 16, want: deferredBackfillMaxWorkers},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := deferredBackfillDefaultWorkerCount(tt.cpus); got != tt.want {
+				t.Fatalf("default worker count for %d CPUs = %d, want %d", tt.cpus, got, tt.want)
+			}
+		})
 	}
 }
 

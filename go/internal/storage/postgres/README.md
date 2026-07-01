@@ -802,7 +802,7 @@ Two serial client costs were removed:
    per-repository batch transactions but processed them strictly serially. It now
    dispatches the batches across a bounded pool
    (`runDeferredBackfillBatches`), worker count from `deferredBackfillWorkerCount`
-   (`ESHU_DEFERRED_BACKFILL_CONCURRENCY`, default `min(NumCPU, 4)`, hard cap 8).
+   (`ESHU_DEFERRED_BACKFILL_CONCURRENCY`, default `min(NumCPU, 8)`, hard cap 8).
 
 Concurrency-safety argument (conflict domain = one repository's advisory-lock
 partition):
@@ -1347,3 +1347,34 @@ operators can distinguish many partitions from a single partition split into
 repo-id chunks. Existing partition duration histograms continue to time each
 fact-load query task, and the existing Postgres query spans/metrics still show
 the underlying SQL latency and errors.
+
+### Deferred backfill default worker cap (#3624)
+
+The representative 896-repository #3710 full-corpus proof used 8 deferred
+backfill workers and completed relationship backfill in 882 s. The July 1, 2026
+current-main validation used the same 896-partition shape but the default
+4-worker cap, and measured relationship backfill at about 1,489 s. The default
+now uses `min(NumCPU, 8)`, matching the existing hard cap and preserving the
+explicit `ESHU_DEFERRED_BACKFILL_CONCURRENCY=1` path for single-connection pools.
+
+No-Regression Evidence: `TestDeferredBackfillDefaultWorkerCountUsesHardCap`
+pins CPU-derived defaults at 1, 4, and the 8-worker hard cap;
+`TestDeferredBackfillWorkerCountEnvOverrideClampsToMax` keeps the override clamp;
+`TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne` keeps the
+single-worker escape hatch; `TestWriteDeferredBackfillInBatchesRunsConcurrently`
+keeps bounded concurrent batch execution.
+
+Benchmark Evidence: `go test ./internal/storage/postgres -run '^$' -bench
+'BenchmarkDeferredBackfill(Concurrent4|Concurrent8)$' -benchmem -count=5` on
+darwin/arm64 measured 4-worker mean `10,533,690 ns/op` and 8-worker mean
+`5,296,068 ns/op` on the existing 256-repository write-batch benchmark, a 1.99x
+speedup with effectively unchanged allocations. This benchmark covers the
+write-batch concurrency slice. Full-corpus acceptance still requires a remote
+bootstrap run to confirm the aggregate backfill phase moves toward the earlier
+882 s evidence point.
+
+Observability Evidence: no metric, span, log, label, route, queue domain, SQL
+query, or batch size changed. Operators continue to see the active worker count
+in `deferred_backfill_batch_committed ... workers=W`, the whole-pass duration in
+`DeferredBackfillDuration`, and per-partition/load signals from the existing
+deferred-backfill instruments.

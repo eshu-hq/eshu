@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // 524 lines: ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the SkipRelationshipBackfill/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
+package postgres //nolint:filelength // Ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the SkipRelationshipBackfill/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
 
 import (
 	"context"
@@ -46,9 +46,10 @@ type IngestionStore struct {
 	maintenanceBatchSize int
 	// maintenanceWorkers overrides the number of deferred-maintenance batch
 	// transactions processed concurrently. Zero or one keeps the pass serial
-	// (one in-flight batch transaction), the safe default for deployments pinned
-	// to ESHU_POSTGRES_MAX_OPEN_CONNS=1. NewIngestionStore seeds it from
-	// deferredBackfillWorkerCount; tests set it directly.
+	// (one in-flight batch transaction), the path for deployments pinned to
+	// ESHU_POSTGRES_MAX_OPEN_CONNS=1 via ESHU_DEFERRED_BACKFILL_CONCURRENCY=1.
+	// NewIngestionStore seeds it from deferredBackfillWorkerCount; tests set it
+	// directly.
 	maintenanceWorkers int
 	catalogCache       *repositoryCatalogCache
 }

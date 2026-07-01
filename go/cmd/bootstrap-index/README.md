@@ -347,7 +347,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | DEFAULT_DATABASE | `nornic` | Bolt database name |
 | `ESHU_NEO4J_BATCH_SIZE` | backend default | Canonical node batch size |
 | `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Concurrent projection goroutines |
-| `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 4)`, hard cap `8` | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; one pooled connection per batch, so set `1` at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` |
+| `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 8)`, hard cap `8` | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; one pooled connection per batch, so set `1` at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` |
 | `ESHU_DISCOVERY_REPORT` | `""` | File path to write discovery advisory JSON; empty disables |
 | `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` (NornicDB) | Graph write transaction timeout |
 | `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
