@@ -55,8 +55,10 @@ type eventarcTriggerData struct {
 			Service string `json:"service"`
 			Region  string `json:"region"`
 		} `json:"cloudRun"`
-		CloudFunction string `json:"cloudFunction"`
-		Workflow      string `json:"workflow"`
+		CloudFunction string    `json:"cloudFunction"`
+		Workflow      string    `json:"workflow"`
+		GKE           *struct{} `json:"gke"`
+		HTTPEndpoint  *struct{} `json:"httpEndpoint"`
 	} `json:"destination"`
 	Transport *struct {
 		Pubsub *struct {
@@ -157,6 +159,10 @@ func eventarcTriggerDestinationType(data eventarcTriggerData) string {
 		return "function"
 	case strings.TrimSpace(data.Destination.Workflow) != "":
 		return "workflow"
+	case data.Destination.GKE != nil:
+		return "gke"
+	case data.Destination.HTTPEndpoint != nil:
+		return "http"
 	default:
 		return ""
 	}
@@ -169,7 +175,7 @@ func eventarcTriggerDestinationType(data eventarcTriggerData) string {
 // empty strings when no supported destination is set.
 func eventarcTriggerDestination(triggerFullName string, data eventarcTriggerData) (full, targetType, relType string) {
 	if cr := data.Destination.CloudRun; cr != nil && strings.TrimSpace(cr.Service) != "" {
-		project, location := cloudFunctionProjectLocation(triggerFullName)
+		project, location := eventarcProjectLocation(triggerFullName)
 		region := strings.TrimSpace(cr.Region)
 		if region == "" {
 			region = location
@@ -191,16 +197,38 @@ func eventarcTriggerDestination(triggerFullName string, data eventarcTriggerData
 
 // eventarcRelativeFullName prefixes a relative CAI resource name (projects/...)
 // with the given service prefix. An already-absolute //... name is returned
-// unchanged; a blank reference yields "".
+// unchanged only when it carries that same service prefix, so a wrong-domain
+// reference (a value that belongs to a different service) is rejected rather than
+// emitted with a mismatched target asset type. A blank or wrong-domain reference
+// yields "".
 func eventarcRelativeFullName(prefix, ref string) string {
 	trimmed := strings.TrimSpace(ref)
 	if trimmed == "" {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
+		if strings.HasPrefix(trimmed, prefix) {
+			return trimmed
+		}
+		return ""
 	}
 	return prefix + strings.TrimPrefix(trimmed, "/")
+}
+
+// eventarcProjectLocation extracts the project id and location from a CAI full
+// resource name by scanning for the projects/<id> and locations/<id> segments.
+// It is domain-agnostic so it does not depend on any other asset type's parser.
+func eventarcProjectLocation(fullName string) (project, location string) {
+	segments := strings.Split(strings.TrimSpace(fullName), "/")
+	for i := 0; i+1 < len(segments); i++ {
+		switch segments[i] {
+		case "projects":
+			project = segments[i+1]
+		case "locations":
+			location = segments[i+1]
+		}
+	}
+	return project, location
 }
 
 func eventarcTriggerEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {

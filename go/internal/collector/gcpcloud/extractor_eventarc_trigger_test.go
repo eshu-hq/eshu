@@ -124,6 +124,47 @@ func TestExtractEventarcTriggerWorkflow(t *testing.T) {
 		"//workflows.googleapis.com/projects/demo-project/locations/us-central1/workflows/wf", assetTypeWorkflow)
 }
 
+func TestExtractEventarcTriggerGKEAndHTTPDestinations(t *testing.T) {
+	// GKE and http-endpoint destinations are valid but resolve no CAI-asset edge;
+	// their posture must still surface as destination_type (URI never read).
+	got, err := extractEventarcTrigger(eventarcTriggerContext(`{"destination": {"gke": {"cluster": "c"}}}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["destination_type"] != "gke" {
+		t.Errorf("destination_type = %v, want gke", got.Attributes["destination_type"])
+	}
+	got, err = extractEventarcTrigger(eventarcTriggerContext(`{"destination": {"httpEndpoint": {"uri": "https://internal.example.com/should-not-leak"}}}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["destination_type"] != "http" {
+		t.Errorf("destination_type = %v, want http", got.Attributes["destination_type"])
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("http destination emits no edge, got %#v", got.Relationships)
+	}
+	blob, _ := json.Marshal(got)
+	if containsString(string(blob), "should-not-leak") {
+		t.Fatalf("http endpoint URI leaked: %s", blob)
+	}
+}
+
+func TestExtractEventarcTriggerRejectsWrongDomainChannel(t *testing.T) {
+	// An absolute channel reference that is not an eventarc name must not become a
+	// trigger_uses_channel edge with a mismatched target.
+	const data = `{"channel": "//run.googleapis.com/projects/p/locations/l/services/s"}`
+	got, err := extractEventarcTrigger(eventarcTriggerContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeTriggerUsesChannel {
+			t.Errorf("wrong-domain channel must not emit an edge: %#v", rel)
+		}
+	}
+}
+
 func TestExtractEventarcTriggerEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractEventarcTrigger(eventarcTriggerContext(`{}`))
 	if err != nil {
