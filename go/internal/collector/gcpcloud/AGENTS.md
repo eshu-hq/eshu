@@ -62,6 +62,12 @@
    browser/server/android/ios, restricted API-target services; no outbound edges;
    never reads the secret keyString or any restriction value — IPs, referrers,
    app fingerprints, bundle ids are reduced to a presence-only restriction type).
+23. `extractor_recaptcha_key.go` - typed-depth extractor for
+   `recaptchaenterprise.googleapis.com/Key` (display name, creation time,
+   platform type web/android/ios/express, web integration type, per-platform
+   allow-all posture and allow-list counts, bounded WAF service/feature; no
+   outbound edges; never surfaces the platform allow-list entries — domains,
+   package names, bundle ids are only counted).
 
 ## Invariants
 
