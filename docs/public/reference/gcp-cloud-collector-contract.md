@@ -516,6 +516,15 @@ and public key material (`privateKeyData`, `publicKeyData`, `privateKeyType`) is
 never read — only control-plane posture and the fingerprinted parent identity
 leave the parser.
 
+**Firestore Database** (`firestore.googleapis.com/Database`) captures the
+database mode (`FIRESTORE_NATIVE` / `DATASTORE_MODE`), location id, concurrency
+mode, App Engine integration mode, point-in-time-recovery and delete-protection
+posture, customer-managed-encryption posture, and creation time; emits the typed
+`firestore_database_encrypted_by_kms_key` edge to the CMEK `CryptoKey`; and
+surfaces the CMEK key resource name as a correlation anchor. Only control-plane
+metadata and the CMEK key resource name (not key material) leave the parser; no
+document data is read.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
@@ -641,7 +650,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, and no service-account private/public key material is persisted. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, and no service-account private/public key material is persisted. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 
