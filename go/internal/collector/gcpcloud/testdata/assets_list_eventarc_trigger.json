@@ -1,0 +1,43 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//eventarc.googleapis.com/projects/demo-project/locations/us-central1/triggers/run-trigger",
+      "assetType": "eventarc.googleapis.com/Trigger",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/triggers/run-trigger",
+          "eventFilters": [
+            {"attribute": "type", "value": "google.cloud.pubsub.topic.v1.messagePublished"},
+            {"attribute": "topic", "value": "projects/demo-project/topics/events"}
+          ],
+          "serviceAccount": "eventarc-sa@demo-project.iam.gserviceaccount.com",
+          "destination": {"cloudRun": {"service": "api-service", "region": "us-central1", "path": "/events-should-not-leak"}},
+          "transport": {"pubsub": {"topic": "projects/demo-project/topics/events", "subscription": "projects/demo-project/subscriptions/sub"}},
+          "channel": "projects/demo-project/locations/us-central1/channels/my-channel",
+          "createTime": "2024-06-01T00:00:00Z",
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//eventarc.googleapis.com/projects/demo-project/locations/us-east1/triggers/fn-trigger",
+      "assetType": "eventarc.googleapis.com/Trigger",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/triggers/fn-trigger",
+          "eventFilters": [{"attribute": "type", "value": "google.cloud.storage.object.v1.finalized"}],
+          "serviceAccount": "eventarc-sa@demo-project.iam.gserviceaccount.com",
+          "destination": {"cloudFunction": "projects/demo-project/locations/us-east1/functions/my-fn"},
+          "createTime": "2023-01-15T09:30:00Z"
+        }
+      }
+    }
+  ]
+}
