@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -28,8 +29,8 @@ func TestPubSubSubscriptionOfflineFixtureEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse fixture page: %v", err)
 	}
-	if len(page.Resources) != 2 {
-		t.Fatalf("expected 2 resources, got %d", len(page.Resources))
+	if len(page.Resources) != 3 {
+		t.Fatalf("expected 3 resources, got %d", len(page.Resources))
 	}
 
 	gen := NewGeneration(attributesTestBoundary(), redact.Key{})
@@ -56,8 +57,8 @@ func TestPubSubSubscriptionOfflineFixtureEndToEnd(t *testing.T) {
 		}
 	}
 
-	if resourceCount != 2 {
-		t.Errorf("gcp_cloud_resource facts = %d, want 2", resourceCount)
+	if resourceCount != 3 {
+		t.Errorf("gcp_cloud_resource facts = %d, want 3", resourceCount)
 	}
 	if ordersAttrs == nil {
 		t.Fatalf("orders-worker subscription carried no attributes")
@@ -68,10 +69,16 @@ func TestPubSubSubscriptionOfflineFixtureEndToEnd(t *testing.T) {
 	if ordersAttrs["push_endpoint_scheme"] != "https" {
 		t.Errorf("orders-worker push_endpoint_scheme = %v, want https", ordersAttrs["push_endpoint_scheme"])
 	}
+	// The host must be present as a fingerprint (not raw), proving the positive
+	// extraction path alongside the negative leak assertion below.
+	if fp, ok := ordersAttrs["push_endpoint_host_fingerprint"].(string); !ok || !strings.HasPrefix(fp, "sha256:") {
+		t.Errorf("orders-worker push_endpoint_host_fingerprint = %v, want a sha256: digest", ordersAttrs["push_endpoint_host_fingerprint"])
+	}
 	for rel, want := range map[string]int{
-		relationshipTypeSubscriptionSubscribesToTopic:      2,
+		relationshipTypeSubscriptionSubscribesToTopic:      3,
 		relationshipTypeSubscriptionDeadLettersToTopic:     1,
 		relationshipTypeSubscriptionExportsToStorageBucket: 1,
+		relationshipTypeSubscriptionExportsToBigQueryTable: 1,
 	} {
 		if edges[rel] != want {
 			t.Errorf("%s edges = %d, want %d", rel, edges[rel], want)

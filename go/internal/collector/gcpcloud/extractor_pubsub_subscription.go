@@ -87,6 +87,11 @@ func extractPubSubSubscription(ctx ExtractContext) (AttributeExtraction, error) 
 	var anchors []string
 	var rels []RelationshipObservation
 	if topic := pubSubTopicRefFullName(data.Topic); topic != "" {
+		// The subscribed topic is the subscription's defining parent reference and
+		// the strongest cross-source correlation anchor (a Terraform subscription
+		// always names it), so it is surfaced as an anchor like every other edge
+		// target.
+		anchors = append(anchors, topic)
 		rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionSubscribesToTopic, topic, assetTypePubSubTopic))
 	}
 	if data.DeadLetterPolicy != nil {
