@@ -63,7 +63,10 @@ func TestExtractDataformRepositoryFullResource(t *testing.T) {
 	}
 
 	// Neither the raw git remote URL/host nor the raw service-account email leaks.
-	blob, _ := json.Marshal(got)
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal extraction: %v", err)
+	}
 	for _, token := range []string{"github.com", "dataform-analytics", "dataform-runner@demo-project", "git-token"} {
 		if containsString(string(blob), token) {
 			t.Fatalf("dataform extraction leaked token %q: %s", token, blob)
@@ -119,5 +122,12 @@ func TestDataformGitHostFingerprintIsStableAndDeterministic(t *testing.T) {
 	}
 	if containsString(a, "github.com") {
 		t.Errorf("fingerprint must not contain the raw host: %q", a)
+	}
+	// SCP-like and ssh:// git remotes must resolve to the same host fingerprint
+	// as the https form so all remotes to a host correlate together.
+	scp := dataformGitHostFingerprint("git@github.com:acme/repo.git")
+	ssh := dataformGitHostFingerprint("ssh://git@github.com/acme/repo.git")
+	if scp != a || ssh != a {
+		t.Errorf("SCP/ssh git remotes must fingerprint to the same host: scp=%q ssh=%q https=%q", scp, ssh, a)
 	}
 }

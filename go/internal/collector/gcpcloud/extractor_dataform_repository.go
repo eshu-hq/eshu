@@ -61,11 +61,12 @@ func extractDataformRepository(ctx ExtractContext) (AttributeExtraction, error) 
 		return AttributeExtraction{}, fmt.Errorf("decode dataform repository data: %w", err)
 	}
 
-	attrs := dataformRepositoryAttributes(data)
+	hostFP := dataformGitHostFingerprint(gitRemoteURL(data))
+	attrs := dataformRepositoryAttributes(data, hostFP)
 
 	var anchors []string
 	var rels []RelationshipObservation
-	if hostFP := dataformGitHostFingerprint(gitRemoteURL(data)); hostFP != "" {
+	if hostFP != "" {
 		anchors = append(anchors, hostFP)
 	}
 	if saFP := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccount); saFP != "" {
@@ -86,16 +87,16 @@ func extractDataformRepository(ctx ExtractContext) (AttributeExtraction, error) 
 // dataformRepositoryAttributes assembles the bounded attribute map. Empty or
 // absent fields are omitted rather than written as zero values so a partial CAI
 // page does not fabricate a posture.
-func dataformRepositoryAttributes(data dataformRepositoryData) map[string]any {
+func dataformRepositoryAttributes(data dataformRepositoryData, gitHostFingerprint string) map[string]any {
 	attrs := map[string]any{}
 
 	if g := data.GitRemoteSettings; g != nil {
 		if v := strings.TrimSpace(g.DefaultBranch); v != "" {
 			attrs["git_default_branch"] = v
 		}
-		if fp := dataformGitHostFingerprint(g.URL); fp != "" {
-			attrs["git_remote_host_fingerprint"] = fp
-		}
+	}
+	if gitHostFingerprint != "" {
+		attrs["git_remote_host_fingerprint"] = gitHostFingerprint
 	}
 	if fp := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccount); fp != "" {
 		attrs["service_account_fingerprint"] = fp
@@ -131,19 +132,39 @@ func gitRemoteURL(data dataformRepositoryData) string {
 // fingerprints). The path (org/repo) and any embedded credentials are dropped.
 // A blank URL or one with no host fingerprints to "".
 func dataformGitHostFingerprint(rawURL string) string {
+	host := gitRemoteHost(rawURL)
+	if host == "" {
+		return ""
+	}
+	return "sha256:" + facts.StableID("GCPDataformGitRemoteHost", map[string]any{"host": host})
+}
+
+// gitRemoteHost extracts the lowercase host from a git remote reference,
+// supporting both URL forms (https://, ssh://, git://) and the SCP-like syntax
+// git remotes commonly use ([user@]host.xz:path/to/repo.git). It returns "" when
+// no host can be determined. The path and any embedded credentials are dropped.
+func gitRemoteHost(rawURL string) string {
 	trimmed := strings.TrimSpace(rawURL)
 	if trimmed == "" {
 		return ""
+	}
+	// SCP-like syntax has no scheme and a ":" that precedes the first "/".
+	if !strings.Contains(trimmed, "://") {
+		if colon := strings.Index(trimmed, ":"); colon >= 0 {
+			if slash := strings.Index(trimmed, "/"); slash == -1 || colon < slash {
+				hostPart := trimmed[:colon]
+				if at := strings.LastIndex(hostPart, "@"); at >= 0 {
+					hostPart = hostPart[at+1:]
+				}
+				return strings.ToLower(strings.TrimSpace(hostPart))
+			}
+		}
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
 		return ""
 	}
-	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
-	if host == "" {
-		return ""
-	}
-	return "sha256:" + facts.StableID("GCPDataformGitRemoteHost", map[string]any{"host": host})
+	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
 }
 
 // dataformKMSKeyFullName builds the CAI CryptoKey full resource name from a
