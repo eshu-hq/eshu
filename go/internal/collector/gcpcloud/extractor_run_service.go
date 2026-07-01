@@ -153,11 +153,11 @@ func runServiceAttributes(data runServiceData, saDigest string) map[string]any {
 		attrs["env_keys"] = keys
 		attrs["env_key_count"] = len(keys)
 	}
-	if n := len(runServiceSecretFullNames("", data)); n > 0 {
-		// Count distinct mounted secrets independent of project resolution so the
-		// posture count is stable even when a bare secret id cannot be expanded to
-		// a full resource name for an edge.
-		attrs["secret_mount_count"] = runServiceDistinctSecretCount(data)
+	// Count distinct mounted secrets by their raw reference, independent of
+	// project resolution, so the posture count is stable even when a bare secret
+	// id cannot be expanded to a full resource name for an edge.
+	if n := runServiceDistinctSecretCount(data); n > 0 {
+		attrs["secret_mount_count"] = n
 	}
 	if saDigest != "" {
 		attrs["service_account_fingerprint"] = saDigest

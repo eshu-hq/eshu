@@ -152,6 +152,35 @@ func TestExtractRunServiceNeverPersistsEnvValues(t *testing.T) {
 	}
 }
 
+func TestExtractRunServiceSecretCountStableWhenUnresolvable(t *testing.T) {
+	// A bare secret id cannot be expanded to a full resource name without a
+	// project, so it emits no edge — but the mounted-secret posture count must
+	// still report the mount, independent of edge resolution.
+	const data = `{
+		"template": {
+			"containers": [
+				{"env": [{"name": "TOKEN", "valueSource": {"secretKeyRef": {"secret": "bare-secret"}}}]}
+			]
+		}
+	}`
+	ctx := ExtractContext{
+		FullResourceName: runServiceFullName,
+		AssetType:        assetTypeRunService,
+		ProjectID:        "",
+		Data:             json.RawMessage(data),
+	}
+	got, err := extractRunService(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["secret_mount_count"] != 1 {
+		t.Errorf("secret_mount_count = %v, want 1", got.Attributes["secret_mount_count"])
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("expected no secret edge for an unresolvable bare id, got %#v", got.Relationships)
+	}
+}
+
 func TestExtractRunServiceMinimal(t *testing.T) {
 	const data = `{"createTime": "2023-01-15T09:30:00Z"}`
 	got, err := extractRunService(runServiceContext(data))
