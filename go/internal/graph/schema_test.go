@@ -121,6 +121,23 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 	}
 }
 
+func TestSchemaStatementsIncludeFunctionRetractLookupIndexes(t *testing.T) {
+	t.Parallel()
+
+	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
+	if err != nil {
+		t.Fatalf("SchemaStatementsForBackend(%q) error = %v, want nil", SchemaBackendNornicDB, err)
+	}
+
+	expected := []string{
+		"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
+		"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
+	}
+	for _, want := range expected {
+		assertContainsStatement(t, stmts, want)
+	}
+}
+
 func TestSchemaStatementsForBackendAddsNornicDBUIDLookupIndexes(t *testing.T) {
 	t.Parallel()
 

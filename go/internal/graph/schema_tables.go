@@ -222,6 +222,12 @@ var uidConstraintLabels = []string{
 // performance for common access patterns.
 var schemaPerformanceIndexes = []string{
 	"CREATE INDEX function_lang IF NOT EXISTS FOR (f:Function) ON (f.lang)",
+	// Function edge retractions (shell_exec, invokes_cloud_action, and adjacent
+	// reducer-owned Function relationship domains) anchor cleanup by repo_id or
+	// changed file path. Keep those cleanup passes index-backed on NornicDB
+	// instead of scanning every Function in large corpora.
+	"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
+	"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
 	"CREATE INDEX class_lang IF NOT EXISTS FOR (c:Class) ON (c.lang)",
 	"CREATE INDEX annotation_lang IF NOT EXISTS FOR (a:Annotation) ON (a.lang)",
 	"CREATE INDEX k8s_kind IF NOT EXISTS FOR (k:K8sResource) ON (k.kind)",

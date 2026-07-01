@@ -26,8 +26,10 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// constraints; an older writer can safely write against it. The
 			// additive chain pre-GitLab -> GitLab -> Helm is cumulative, so BOTH
 			// the immediate (GitLab) predecessor and the pre-GitLab predecessor
-			// stay compatible.
+			// stay compatible. The Function retract-index bump is also additive,
+			// so the immediately preceding schema stays compatible too.
 			compatible: []string{
+				graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
 				graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
 				graphSchemaNeo4jPreGitlabFingerprint,
 			},
@@ -37,6 +39,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,
 				graphSchemaNornicDBPreHelmTemplateValuesFingerprint,
 				graphSchemaNornicDBPreGitlabFingerprint,
 			},
