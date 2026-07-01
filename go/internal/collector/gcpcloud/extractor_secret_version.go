@@ -52,6 +52,10 @@ type secretVersionData struct {
 			} `json:"replicas"`
 		} `json:"userManaged"`
 	} `json:"replicationStatus"`
+	// CustomerManagedEncryption is the top-level CMEK status for a regional
+	// Secret Manager version. Regional versions report CMEK here rather than
+	// under replicationStatus (which is global-secret only), so both are decoded.
+	CustomerManagedEncryption *secretVersionCMEK `json:"customerManagedEncryption"`
 }
 
 // secretVersionCMEK is the bounded customer-managed encryption reference. Only the
@@ -132,6 +136,13 @@ func secretVersionKMSKeyVersionFullNames(data secretVersionData) []string {
 			}
 		}
 	}
+	// Regional versions carry CMEK at the top level rather than under
+	// replicationStatus.
+	if c := data.CustomerManagedEncryption; c != nil {
+		if name := kmsKeyVersionFullName(c.KMSKeyVersionName); name != "" {
+			names = append(names, name)
+		}
+	}
 	return dedupeNonEmpty(names)
 }
 
@@ -143,10 +154,28 @@ func kmsKeyVersionFullName(kmsKeyVersionName string) string {
 	if trimmed == "" {
 		return ""
 	}
+	trimmed = normalizeKMSCryptoKeyVersionPath(trimmed)
 	if strings.HasPrefix(trimmed, "//") {
 		return trimmed
 	}
 	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
+}
+
+// normalizeKMSCryptoKeyVersionPath rewrites the shortened
+// `.../cryptoKeys/<key>/versions/<v>` KMS version form to the canonical CAI
+// `.../cryptoKeys/<key>/cryptoKeyVersions/<v>` form so the emitted endpoint
+// resolves by exact `full_resource_name` against the scanned CryptoKeyVersion
+// resource. The canonical API form already uses `cryptoKeyVersions`; a name that
+// already carries it is returned unchanged.
+func normalizeKMSCryptoKeyVersionPath(name string) string {
+	if strings.Contains(name, "/cryptoKeyVersions/") {
+		return name
+	}
+	const versionsMarker = "/versions/"
+	if i := strings.LastIndex(name, versionsMarker); i >= 0 && strings.Contains(name[:i], "/cryptoKeys/") {
+		return name[:i] + "/cryptoKeyVersions/" + name[i+len(versionsMarker):]
+	}
+	return name
 }
 
 // parentSecretFullName derives the parent Secret full resource name from a

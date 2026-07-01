@@ -98,6 +98,43 @@ func TestExtractSecretVersionDestroyed(t *testing.T) {
 	assertRelationship(t, got.Relationships, relationshipTypeSecretVersionOfSecret, secretVersionParent, secretManagerSecretAssetType)
 }
 
+func TestExtractSecretVersionRegionalTopLevelCMEK(t *testing.T) {
+	// Regional versions report CMEK at the top level, not under replicationStatus.
+	const data = `{
+		"name": "projects/demo-project/locations/us-central1/secrets/api-token/versions/2",
+		"state": "ENABLED",
+		"customerManagedEncryption": {"kmsKeyVersionName": "projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary/cryptoKeyVersions/7"}
+	}`
+	got, err := extractSecretVersion(secretVersionContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["customer_managed_encryption"] != true {
+		t.Errorf("regional CMEK must set customer_managed_encryption: %#v", got.Attributes)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeSecretVersionEncryptedByKMSKeyVersion,
+		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary/cryptoKeyVersions/7", assetTypeKMSCryptoKeyVersion)
+}
+
+func TestNormalizeKMSCryptoKeyVersionPath(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"canonical form unchanged", "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/3", "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/3"},
+		{"shortened versions form normalized", "projects/p/locations/l/keyRings/r/cryptoKeys/k/versions/3", "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/3"},
+		{"non-kms versions path untouched", "projects/p/secrets/s/versions/3", "projects/p/secrets/s/versions/3"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := normalizeKMSCryptoKeyVersionPath(tc.in); got != tc.want {
+				t.Errorf("normalizeKMSCryptoKeyVersionPath(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestExtractSecretVersionNeverPersistsPayload(t *testing.T) {
 	const data = `{
 		"name": "projects/demo-project/secrets/api-token/versions/3",
