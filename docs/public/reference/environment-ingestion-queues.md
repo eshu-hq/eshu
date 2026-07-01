@@ -103,10 +103,10 @@ held time for large repositories.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
-| `ESHU_SHARED_PROJECTION_WORKERS` | `1` | reducer shared projection | Partition worker count for shared projection domains. |
+| `ESHU_SHARED_PROJECTION_WORKERS` | `min(NumCPU, 4)`; Compose defaults to `4`; Helm sets `8` | reducer shared projection | Partition worker count for shared projection domains. |
 | `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | `8` | reducer shared projection | Partitions per shared domain. |
 | `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | reducer shared projection | Intents per partition batch. |
-| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `5s` | reducer shared projection | Idle poll interval. |
+| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `500ms` | reducer shared projection | Idle poll interval; idle cycles back off up to `5s`. |
 | `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | reducer shared projection | Partition lease TTL. |
 | `ESHU_CODE_CALL_PROJECTION_POLL_INTERVAL` | `500ms` | reducer code-call sidecar | Idle poll interval for code-call projection. |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_TTL` | `60s` | reducer code-call sidecar | Lease TTL for code-call projection work. |
