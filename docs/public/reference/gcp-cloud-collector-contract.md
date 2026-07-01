@@ -311,6 +311,18 @@ routes, and attached instances reference the network from their own
 ranges, gateway IPs, and peering public-IP export flags are data-plane fields and
 are never decoded or surfaced.
 
+**IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
+fingerprinted email, display name, OAuth2 client id, disabled posture, and a
+bounded key count when the blob carries one (key material is never read). It
+surfaces the fingerprinted email as its single correlation anchor and derives no
+outbound edges from its own data: a service account's graph edges — impersonation
+trust, IAM member bindings, "resources running as it", and key sub-resources —
+are inbound and owned by the secrets/IAM trust facts and the
+`container_image_identity` layer, which join onto this resource node through the
+same `GCPServiceAccountEmailDigest` the anchor carries. The raw email is never
+persisted as a captured attribute; it survives only verbatim inside the full
+resource name kept for exact reducer joins.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
