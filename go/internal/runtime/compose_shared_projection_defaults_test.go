@@ -9,10 +9,14 @@ func TestComposeUsesDocumentedSharedProjectionDefaults(t *testing.T) {
 	t.Parallel()
 
 	for _, fileName := range []string{"docker-compose.yaml", "docker-compose.neo4j.yml"} {
-		doc := readComposeDocument(t, fileName)
-		service := requireComposeService(t, doc, "resolution-engine")
+		t.Run(fileName, func(t *testing.T) {
+			t.Parallel()
 
-		assertComposeEnv(t, service, "ESHU_SHARED_PROJECTION_WORKERS", "${ESHU_SHARED_PROJECTION_WORKERS:-4}")
-		assertComposeEnv(t, service, "ESHU_SHARED_PROJECTION_PARTITION_COUNT", "${ESHU_SHARED_PROJECTION_PARTITION_COUNT:-8}")
+			doc := readComposeDocument(t, fileName)
+			service := requireComposeService(t, doc, "resolution-engine")
+
+			assertComposeEnv(t, service, "ESHU_SHARED_PROJECTION_WORKERS", "${ESHU_SHARED_PROJECTION_WORKERS:-4}")
+			assertComposeEnv(t, service, "ESHU_SHARED_PROJECTION_PARTITION_COUNT", "${ESHU_SHARED_PROJECTION_PARTITION_COUNT:-8}")
+		})
 	}
 }
