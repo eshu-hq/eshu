@@ -173,7 +173,7 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | graph writer | Default rows per canonical entity statement. |
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | graph writer | Label-specific canonical entity row caps. |
 | `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | graph writer | Label-specific grouped statement caps. |
-| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU` clamped to `16` | graph writer | Worker count for parallel canonical entity-phase chunk dispatch. |
+| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU` clamped to `16` | bootstrap-index / ingester graph writer | Worker count for parallel canonical entity-phase chunk dispatch. |
 | `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | `Annotation=5,Function=10,ImplBlock=10,Module=10,TypeAlias=5,TypeAnnotation=50,Variable=10` | reducer semantic writer | Label-specific semantic entity row caps. |
 | `ESHU_CODE_CALL_EDGE_BATCH_SIZE` | `1000` | reducer code-call edge writer | Rows per code-call edge write statement. |
 | `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE` | `1` | reducer code-call edge writer | Statements per grouped code-call edge execution. |

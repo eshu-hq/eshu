@@ -356,9 +356,37 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | NornicDB file upsert row cap |
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | NornicDB entity upsert row cap |
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | per-label defaults | Per-label batch size overrides (`Label=size,...`) |
+| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Parallel canonical `entities` and `entity_containment` phase chunk dispatch on NornicDB |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
+
+### Evidence (#4454 bootstrap canonical entity dispatch)
+
+Performance Evidence: bounded current-main diagnostics for the #3586/#3624
+performance epic showed pre-reducer bootstrap source-local `canonical_write`
+dominating the sampled run: 531.535s aggregate canonical-write time, with slow
+entity-phase NornicDB grouped executions reaching 20.933s across 1,960 entity
+statements in a single large scope. The steady-state ingester already honored
+`ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`, but bootstrap-index did not read that
+env var, so setting it in bootstrap performance runs left canonical entity
+chunks serial. This fix wires the same `NumCPU` clamped-to-16 default and env
+override into bootstrap-index and dispatches canonical `entities` /
+`entity_containment` phase chunks in parallel per entity label. Focused proof:
+`go test ./cmd/bootstrap-index -run
+'TestBootstrapNornicDB(DefaultEntityPhaseConcurrencyTracksNumCPU|EntityPhaseConcurrencyRejectsInvalidEnv|PhaseGroupExecutorDispatchesEntityChunksConcurrently)|TestBootstrapCanonicalExecutorUsesConfiguredEntityPhaseConcurrency'
+-count=1` proves the default, env override, invalid-env failure, and concurrent
+chunk dispatch.
+
+Observability Evidence: existing canonical writer telemetry still records
+`eshu_dp_canonical_write_duration_seconds`,
+`eshu_dp_canonical_phase_duration_seconds`, `eshu_dp_neo4j_query_duration_seconds`,
+and retry/backpressure counters for the graph-write path. The concurrent
+bootstrap dispatcher adds structured `bootstrap nornicdb phase-group chunk
+completed` logs with phase, entity label, chunk index/count, statement count,
+duration, configured concurrency, and sanitized first-statement summary, so a
+bounded run can split bootstrap canonical-write cost by phase and label without
+exposing repository paths or raw parameters.
 
 ## Operational notes
 

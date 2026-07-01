@@ -84,7 +84,8 @@ that pressure toward 2,500 rows without changing the row-batch knob.
 many grouped transactions run in parallel. Peak Bolt session demand is roughly:
 
 ```text
-ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
+bootstrap-index: ESHU_PROJECTION_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
+ingester: ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
 ```
 
 Pin concurrency lower only when NornicDB shows parallel commit contention.

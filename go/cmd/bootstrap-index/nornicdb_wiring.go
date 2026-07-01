@@ -87,6 +87,10 @@ func bootstrapCanonicalExecutorForGraphBackend(
 	if err != nil {
 		return nil, err
 	}
+	entityPhaseConcurrency, err := nornicDBEntityPhaseConcurrency(getenv)
+	if err != nil {
+		return nil, err
+	}
 
 	bounded := sourcecypher.TimeoutExecutor{
 		Inner:       instrumented,
@@ -116,6 +120,7 @@ func bootstrapCanonicalExecutorForGraphBackend(
 		fileMaxStatements:        filePhaseStatements,
 		entityMaxStatements:      entityPhaseStatements,
 		entityLabelMaxStatements: entityLabelPhaseStatements,
+		entityPhaseConcurrency:   entityPhaseConcurrency,
 	}, nil
 }
 
@@ -125,6 +130,7 @@ type bootstrapNornicDBPhaseGroupExecutor struct {
 	fileMaxStatements        int
 	entityMaxStatements      int
 	entityLabelMaxStatements map[string]int
+	entityPhaseConcurrency   int
 }
 
 func (e bootstrapNornicDBPhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
@@ -149,6 +155,9 @@ func (e bootstrapNornicDBPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Conte
 			}
 		}
 		return nil
+	}
+	if bootstrapStatementPhaseUsesEntityWorkers(bootstrapStatementPhase(stmts)) && e.entityPhaseConcurrency > 1 {
+		return e.executeEntityPhaseGroupConcurrently(ctx, ge, stmts)
 	}
 	return e.executeGroupedByLabel(ctx, ge, stmts)
 }
