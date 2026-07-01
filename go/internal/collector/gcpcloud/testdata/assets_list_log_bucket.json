@@ -1,0 +1,36 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//logging.googleapis.com/projects/demo-project/locations/global/buckets/_Default",
+      "assetType": "logging.googleapis.com/LogBucket",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/locations/global/buckets/_Default",
+          "retentionDays": 30,
+          "locked": true,
+          "analyticsEnabled": true,
+          "createTime": "2024-06-01T00:00:00Z",
+          "cmekSettings": {"kmsKeyName": "projects/demo-project/locations/global/keyRings/logs/cryptoKeys/primary"}
+        }
+      }
+    },
+    {
+      "name": "//logging.googleapis.com/projects/demo-project/locations/us-central1/buckets/app-logs",
+      "assetType": "logging.googleapis.com/LogBucket",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/buckets/app-logs",
+          "retentionDays": 400,
+          "locked": false,
+          "analyticsEnabled": false,
+          "createTime": "2023-01-01T00:00:00Z"
+        }
+      }
+    }
+  ]
+}

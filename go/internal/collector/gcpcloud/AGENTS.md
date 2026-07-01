@@ -73,6 +73,11 @@
    multi-tenant toggle, authorized-domain count; no outbound edges; never reads
    OAuth/IdP client secrets, API keys, blocking-function URIs, or the
    authorized-domain values).
+25. `extractor_log_bucket.go` - typed-depth extractor for
+   `logging.googleapis.com/LogBucket` (retention days, locked and
+   analytics-enabled posture, creation time, CMEK posture;
+   `log_bucket_encrypted_by_kms_key` edge to the CMEK CryptoKey; only the
+   CryptoKey resource name leaves the parser, no key material).
 
 ## Invariants
 
