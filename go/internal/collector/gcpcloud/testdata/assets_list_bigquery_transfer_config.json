@@ -16,7 +16,7 @@
           "schedule": "every 24 hours",
           "disabled": false,
           "state": "SUCCEEDED",
-          "serviceAccountName": "transfer-runner@demo-project.iam.gserviceaccount.com",
+          "ownerInfo": {"email": "transfer-runner@demo-project.iam.gserviceaccount.com"},
           "notificationPubsubTopic": "projects/demo-project/topics/transfer-events",
           "encryptionConfiguration": {"kmsKeyName": "projects/demo-project/locations/us/keyRings/bq/cryptoKeys/transfer"},
           "params": {"data_path_template": "gs://placeholder-bucket/path/*"}

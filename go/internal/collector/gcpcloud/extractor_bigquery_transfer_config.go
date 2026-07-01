@@ -21,9 +21,9 @@ const assetTypeBigQueryTransferConfig = "bigquerydatatransfer.googleapis.com/Tra
 
 // Bounded provider relationship types for BigQuery Transfer Config edges. The
 // data source is an enumerated source id (not a CAI resource) kept as an
-// attribute, and the runtime service account is carried as a fingerprint anchor
-// (an email is not an exactly resolvable CAI endpoint), so neither becomes an
-// edge.
+// attribute, and the owner email (ownerInfo.email) is carried as a fingerprint
+// anchor (an email is not an exactly resolvable CAI endpoint), so neither
+// becomes an edge.
 const (
 	relationshipTypeTransferConfigWritesToDataset   = "transfer_config_writes_to_dataset"
 	relationshipTypeTransferConfigEncryptedByKMSKey = "transfer_config_encrypted_by_kms_key"
@@ -44,9 +44,11 @@ type bigQueryTransferConfigData struct {
 	Schedule             string `json:"schedule"`
 	State                string `json:"state"`
 	Disabled             *bool  `json:"disabled"`
-	ServiceAccountName   string `json:"serviceAccountName"`
-	NotificationTopic    string `json:"notificationPubsubTopic"`
-	EncryptionConfig     *struct {
+	OwnerInfo            *struct {
+		Email string `json:"email"`
+	} `json:"ownerInfo"`
+	NotificationTopic string `json:"notificationPubsubTopic"`
+	EncryptionConfig  *struct {
 		KMSKeyName string `json:"kmsKeyName"`
 	} `json:"encryptionConfiguration"`
 }
@@ -54,8 +56,8 @@ type bigQueryTransferConfigData struct {
 // extractBigQueryTransferConfig extracts bounded, redaction-safe typed depth for
 // one BigQuery Data Transfer Config CAI asset. It returns the
 // Terraform/drift/monitoring attribute set (data source id, schedule, lifecycle
-// state, disabled posture, CMEK posture, and fingerprinted runtime
-// service-account email) and the typed destination-dataset, CMEK, and
+// state, disabled posture, CMEK posture, and fingerprinted owner email) and the
+// typed destination-dataset, CMEK, and
 // notification-topic edges. The transfer params are never read.
 func extractBigQueryTransferConfig(ctx ExtractContext) (AttributeExtraction, error) {
 	var data bigQueryTransferConfigData
@@ -71,7 +73,7 @@ func extractBigQueryTransferConfig(ctx ExtractContext) (AttributeExtraction, err
 		anchors = append(anchors, dataset)
 		rels = append(rels, bigQueryTransferConfigEdge(ctx, relationshipTypeTransferConfigWritesToDataset, dataset, assetTypeBigQueryDataset))
 	}
-	if fp := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccountName); fp != "" {
+	if fp := secretsiam.GCPServiceAccountEmailDigest(transferConfigOwnerEmail(data)); fp != "" {
 		anchors = append(anchors, fp)
 	}
 	if topic := pubSubTopicRefFullName(data.NotificationTopic); topic != "" {
@@ -113,10 +115,22 @@ func bigQueryTransferConfigAttributes(data bigQueryTransferConfigData) map[strin
 	if data.EncryptionConfig != nil && strings.TrimSpace(data.EncryptionConfig.KMSKeyName) != "" {
 		attrs["customer_managed_encryption"] = true
 	}
-	if fp := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccountName); fp != "" {
-		attrs["service_account_fingerprint"] = fp
+	if fp := secretsiam.GCPServiceAccountEmailDigest(transferConfigOwnerEmail(data)); fp != "" {
+		attrs["owner_email_fingerprint"] = fp
 	}
 	return attrs
+}
+
+// transferConfigOwnerEmail returns the transfer config owner email
+// (ownerInfo.email) — the identity the transfer runs as, which is a service
+// account email when the config was created with one and a user email
+// otherwise. serviceAccountName is a create/patch request parameter, not a field
+// on the returned resource, so it is not used here.
+func transferConfigOwnerEmail(data bigQueryTransferConfigData) string {
+	if data.OwnerInfo == nil {
+		return ""
+	}
+	return data.OwnerInfo.Email
 }
 
 // bigQueryTransferConfigDatasetFullName builds the destination dataset CAI full

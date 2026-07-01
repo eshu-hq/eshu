@@ -37,7 +37,7 @@ func TestExtractBigQueryTransferConfigFullResource(t *testing.T) {
 		"schedule": "every 24 hours",
 		"disabled": false,
 		"state": "SUCCEEDED",
-		"serviceAccountName": "transfer-runner@demo-project.iam.gserviceaccount.com",
+		"ownerInfo": {"email": "transfer-runner@demo-project.iam.gserviceaccount.com"},
 		"notificationPubsubTopic": "projects/demo-project/topics/transfer-events",
 		"encryptionConfiguration": {"kmsKeyName": "projects/demo-project/locations/us/keyRings/bq/cryptoKeys/transfer"},
 		"params": {"data_path_template": "gs://secret-bucket/path/*", "query": "SELECT secret FROM t"}
@@ -54,7 +54,7 @@ func TestExtractBigQueryTransferConfigFullResource(t *testing.T) {
 		"state":                       "SUCCEEDED",
 		"disabled":                    false,
 		"customer_managed_encryption": true,
-		"service_account_fingerprint": secretsiam.GCPServiceAccountEmailDigest("transfer-runner@demo-project.iam.gserviceaccount.com"),
+		"owner_email_fingerprint":     secretsiam.GCPServiceAccountEmailDigest("transfer-runner@demo-project.iam.gserviceaccount.com"),
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)

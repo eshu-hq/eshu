@@ -652,12 +652,15 @@ posture on the resource, so the extractor derives no outbound edges or anchors.
 **BigQuery Data Transfer Config**
 (`bigquerydatatransfer.googleapis.com/TransferConfig`) captures the data source
 id, schedule, lifecycle state, disabled posture, customer-managed-encryption
-posture, and the fingerprinted runtime service-account email; emits the typed
+posture, and the fingerprinted owner email; emits the typed
 `transfer_config_writes_to_dataset` edge to the destination `Dataset`,
 `transfer_config_notifies_topic` to the notification Pub/Sub `Topic`, and
 `transfer_config_encrypted_by_kms_key` to the CMEK `CryptoKey`; and surfaces the
-destination dataset, notification topic, CMEK key, and service-account email
-fingerprint as correlation anchors. The `params` map (user query text, source
+destination dataset, notification topic, CMEK key, and owner email fingerprint
+as correlation anchors. The owner identity comes from `ownerInfo.email` (the
+identity the transfer runs as — a service account when configured with one, a
+user otherwise); `serviceAccountName` is a create/patch request parameter, not a
+returned resource field, so it is not used. The `params` map (user query text, source
 object paths, and other data-source-specific values) is never read, and the data
 source is an enumerated source id rather than a resolvable CAI resource so it is
 kept only as an attribute.
