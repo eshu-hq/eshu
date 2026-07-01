@@ -287,16 +287,19 @@ SET rel.confidence = 0.97,
 const batchCanonicalRunsOnUpsertCypher = canonicalRunsOnUpsertCypher
 
 const retractRepoRelationshipAndRunsOnEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source_repo:Repository {id: repo_id})-[rel:DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM]->(:Repository)
+MATCH (source_repo:Repository {id: repo_id})
+MATCH (source_repo)-[rel:DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM]->(:Repository)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel
 WITH DISTINCT repo_id, $evidence_source AS evidence_source
-MATCH (repo:Repository {id: repo_id})-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:RUNS_ON]->(:Platform)
+MATCH (repo:Repository {id: repo_id})
+MATCH (repo)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:RUNS_ON]->(:Platform)
 WHERE rel.evidence_source = evidence_source
 DELETE rel`
 
 const retractRepoEvidenceArtifactsCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source_repo:Repository {id: repo_id})-[rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)
+MATCH (source_repo:Repository {id: repo_id})
+MATCH (source_repo)-[rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)
 WHERE rel.evidence_source = $evidence_source
 DETACH DELETE artifact`
 
