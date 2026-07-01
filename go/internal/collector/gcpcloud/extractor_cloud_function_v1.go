@@ -66,7 +66,7 @@ func extractCloudFunctionV1(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode cloud function v1 data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccountEmail)
+	saDigest := secretsiam.GCPServiceAccountEmailDigest(cloudFunctionV1ServiceAccountEmail(ctx.ProjectID, data))
 	attrs := cloudFunctionV1Attributes(ctx.ProjectID, data, saDigest)
 
 	var anchors []string
@@ -99,6 +99,28 @@ func extractCloudFunctionV1(ctx ExtractContext) (AttributeExtraction, error) {
 		CorrelationAnchors: dedupeNonEmpty(anchors),
 		Relationships:      rels,
 	}, nil
+}
+
+// cloudFunctionV1ServiceAccountEmail returns the function's runtime
+// service-account email, deriving the gen1 default identity
+// ({projectId}@appspot.gserviceaccount.com) when the field is empty, so a
+// function running as the default identity still fingerprints and correlates
+// like the explicitly-configured case. It returns "" only when neither an
+// explicit email nor a project to derive the default from is available.
+func cloudFunctionV1ServiceAccountEmail(projectID string, data cloudFunctionV1Data) string {
+	if v := strings.TrimSpace(data.ServiceAccountEmail); v != "" {
+		return v
+	}
+	// Derive the default identity only for a function that is actually present
+	// (every real gen1 function reports a runtime); a blank blob fabricates no
+	// default-SA posture.
+	if strings.TrimSpace(data.Runtime) == "" {
+		return ""
+	}
+	if p := strings.TrimSpace(projectID); p != "" {
+		return p + "@appspot.gserviceaccount.com"
+	}
+	return ""
 }
 
 // cloudFunctionV1Attributes assembles the bounded attribute map. Absent fields

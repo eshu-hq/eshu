@@ -138,6 +138,27 @@ func TestExtractCloudFunctionV1HTTPSTrigger(t *testing.T) {
 	}
 }
 
+func TestExtractCloudFunctionV1DefaultServiceAccount(t *testing.T) {
+	// A gen1 function with no explicit serviceAccountEmail runs as the default
+	// {projectId}@appspot.gserviceaccount.com identity; that default must be
+	// derived and fingerprinted so it correlates like the explicit case.
+	const data = `{"status": "ACTIVE", "runtime": "go121"}`
+	got, err := extractCloudFunctionV1(cloudFunctionV1Context(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantDigest := secretsiam.GCPServiceAccountEmailDigest("demo-project@appspot.gserviceaccount.com")
+	if wantDigest == "" {
+		t.Fatalf("default SA digest must be non-empty")
+	}
+	if got.Attributes["service_account_fingerprint"] != wantDigest {
+		t.Errorf("service_account_fingerprint = %v, want default-SA digest", got.Attributes["service_account_fingerprint"])
+	}
+	if !containsStringSlice(got.CorrelationAnchors, wantDigest) {
+		t.Errorf("expected default-SA digest anchor in %#v", got.CorrelationAnchors)
+	}
+}
+
 func TestExtractCloudFunctionV1EmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractCloudFunctionV1(cloudFunctionV1Context(`{}`))
 	if err != nil {
