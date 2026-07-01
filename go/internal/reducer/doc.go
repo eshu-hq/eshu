@@ -30,20 +30,24 @@
 // SupplyChainImpactHandler also evaluates
 // vulnerability.suppression facts and writes the resulting VEX or operator
 // policy decision onto every impact finding; provider dismissals stay
-// evidence and never auto-hide findings. The handler also computes an
-// advisory-only safe-upgrade remediation per finding for ecosystems whose
-// version and manifest semantics are represented in reducer matchers: it never
-// auto-opens pull requests, and unsupported remediation remains explicit. The
-// remediation block names the current version, vulnerable range, fixed-version
-// source, match reason, first patched version, manifest-allows-fix decision,
-// direct/transitive designation, parent package required for transitive
-// upgrades, and an exact/partial/unknown confidence label so API and MCP
-// callers can explain the upgrade path. Vendor-proven RPM, Debian/dpkg, and
-// Alpine/APK remediation stays limited to parseable installed versions and
-// single source-attributed fixed branches; missing provenance or ambiguous
-// branches remain explicit missing evidence. Supply-chain impact version
-// matching is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and
-// PyPI PEP 440 exact-version evidence; unsupported or malformed ranges fail
+// evidence and never auto-hide findings. Its reducer result exposes
+// phase-level sub-durations, including provider security-alert scoping, so
+// operators can separate fact-load, reachability, in-memory admission, and
+// durable-write cost from the aggregate handler duration; its bounded diagnostic
+// signals also distinguish pre-load counts from post-scope evidence counts. The
+// handler also computes an advisory-only safe-upgrade remediation per finding
+// for ecosystems whose version and manifest semantics are represented in reducer
+// matchers: it never auto-opens pull requests, and unsupported remediation
+// remains explicit. The remediation block names the current version,
+// vulnerable range, fixed-version source, match reason, first patched version,
+// manifest-allows-fix decision, direct/transitive designation, parent package
+// required for transitive upgrades, and an exact/partial/unknown confidence
+// label so API and MCP callers can explain the upgrade path. Vendor-proven RPM,
+// Debian/dpkg, and Alpine/APK remediation stays limited to parseable installed
+// versions and single source-attributed fixed branches; missing provenance or
+// ambiguous branches remain explicit missing evidence. Supply-chain impact
+// version matching is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven,
+// and PyPI PEP 440 exact-version evidence; unsupported or malformed ranges fail
 // closed with explicit missing evidence. Exact repository-scoped
 // service-catalog correlation facts stay attached to the supply-chain evidence
 // path, but they do not create service or workload ids unless the catalog row
