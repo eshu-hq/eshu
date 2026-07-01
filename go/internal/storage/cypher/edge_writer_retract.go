@@ -106,33 +106,7 @@ func (w *EdgeWriter) RetractEdges(
 		}
 	}
 	if domain == reducer.DomainRepoDependency {
-		stmts := []Statement{
-			{
-				Operation: OperationCanonicalRetract,
-				Cypher:    retractRepoRelationshipAndRunsOnEdgesCypher,
-				Parameters: map[string]any{
-					"repo_ids":        repoIDs,
-					"evidence_source": evidenceSource,
-				},
-			},
-			{
-				Operation: OperationCanonicalRetract,
-				Cypher:    retractRepoEvidenceArtifactsCypher,
-				Parameters: map[string]any{
-					"repo_ids":        repoIDs,
-					"evidence_source": evidenceSource,
-				},
-			},
-		}
-		if ge, ok := w.executor.(GroupExecutor); ok {
-			return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
-		}
-		for _, stmt := range stmts {
-			if err := w.executor.Execute(ctx, stmt); err != nil {
-				return WrapRetryableNeo4jError(err)
-			}
-		}
-		return nil
+		return w.executeRepoDependencyRetractStatements(ctx, repoIDs, evidenceSource)
 	}
 
 	stmt, err := buildRetractStatement(domain, repoIDs, evidenceSource)
