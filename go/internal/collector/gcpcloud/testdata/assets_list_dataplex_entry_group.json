@@ -1,0 +1,37 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//dataplex.googleapis.com/projects/demo-project/locations/us-central1/entryGroups/analytics",
+      "assetType": "dataplex.googleapis.com/EntryGroup",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/entryGroups/analytics",
+          "displayName": "Analytics catalog",
+          "description": "team analytics entries",
+          "state": "ACTIVE",
+          "transferStatus": "TRANSFER_STATUS_MIGRATED",
+          "createTime": "2024-05-01T00:00:00Z",
+          "updateTime": "2024-06-01T00:00:00Z",
+          "labels": {"team": "data"}
+        }
+      }
+    },
+    {
+      "name": "//dataplex.googleapis.com/projects/demo-project/locations/us-central1/entryGroups/scratch",
+      "assetType": "dataplex.googleapis.com/EntryGroup",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/entryGroups/scratch",
+          "state": "CREATING"
+        }
+      }
+    }
+  ]
+}
