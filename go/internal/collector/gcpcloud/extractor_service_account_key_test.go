@@ -106,6 +106,18 @@ func TestExtractServiceAccountKeyAbsentDisabledOmitted(t *testing.T) {
 	}
 }
 
+// serviceAccountKeyMaterialTokens are the private/public key-material tokens that
+// must never appear in any extracted output or emitted fact. Shared by the unit
+// redaction test and the offline-fixture end-to-end test so the redaction
+// boundary stays consistent as the list evolves.
+var serviceAccountKeyMaterialTokens = []string{
+	"c3VwZXItc2VjcmV0LXByaXZhdGUta2V5",
+	"cHVibGljLWtleS1ib2R5",
+	"privateKeyData",
+	"publicKeyData",
+	"privateKeyType",
+}
+
 func TestExtractServiceAccountKeyNeverPersistsKeyMaterial(t *testing.T) {
 	// A CAI key asset should carry no material, but guard the boundary: a stray
 	// private/public key field must never leak into the output.
@@ -123,16 +135,17 @@ func TestExtractServiceAccountKeyNeverPersistsKeyMaterial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal extraction: %v", err)
 	}
-	for _, token := range []string{"c3VwZXItc2VjcmV0LXByaXZhdGUta2V5", "cHVibGljLWtleS1ib2R5", "privateKeyData", "publicKeyData", "privateKeyType"} {
+	for _, token := range serviceAccountKeyMaterialTokens {
 		if containsString(string(blob), token) {
 			t.Fatalf("service account key extraction leaked material token %q: %s", token, blob)
 		}
 	}
 }
 
-func TestExtractServiceAccountKeyEmptyDataYieldsNoAttributes(t *testing.T) {
+func TestExtractServiceAccountKeyEmptyDataYieldsOnlyParentFingerprint(t *testing.T) {
 	// Empty data still derives the parent-SA edge and anchor from the full
-	// resource name, but carries no data-derived attributes.
+	// resource name, so the only attribute is the parent-email fingerprint; no
+	// data-derived attributes are present.
 	got, err := extractServiceAccountKey(serviceAccountKeyContext(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -162,6 +175,7 @@ func TestParentServiceAccountFullName(t *testing.T) {
 	}{
 		{"key name", serviceAccountKeyFullName, serviceAccountKeyParent},
 		{"no keys segment", serviceAccountKeyParent, ""},
+		{"trailing keys marker, no id", serviceAccountKeyParent + "/keys/", ""},
 		{"blank", "", ""},
 	}
 	for _, tc := range cases {

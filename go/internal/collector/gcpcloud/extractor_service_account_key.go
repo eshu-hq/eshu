@@ -106,12 +106,14 @@ func extractServiceAccountKey(ctx ExtractContext) (AttributeExtraction, error) {
 
 // parentServiceAccountFullName derives the parent ServiceAccount full resource
 // name from a ServiceAccountKey full resource name by trimming the `/keys/<id>`
-// suffix. It returns "" when the input does not carry a key suffix so the caller
-// emits no parent edge or anchor.
+// suffix. It returns "" when the input does not carry a key suffix, or when the
+// marker has no key id after it (a malformed `.../keys/` name), so the caller
+// emits no parent edge or anchor from a name that does not actually identify a
+// key.
 func parentServiceAccountFullName(keyFullName string) string {
 	trimmed := strings.TrimSpace(keyFullName)
 	index := strings.LastIndex(trimmed, serviceAccountKeyKeysMarker)
-	if index < 0 {
+	if index < 0 || index+len(serviceAccountKeyKeysMarker) >= len(trimmed) {
 		return ""
 	}
 	return trimmed[:index]

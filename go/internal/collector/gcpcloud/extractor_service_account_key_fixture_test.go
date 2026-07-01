@@ -77,7 +77,7 @@ func TestServiceAccountKeyOfflineFixtureEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal envelopes: %v", err)
 	}
-	for _, token := range []string{"privateKeyData", "publicKeyData", "privateKeyType"} {
+	for _, token := range serviceAccountKeyMaterialTokens {
 		if containsString(string(blob), token) {
 			t.Fatalf("envelope set leaked key-material token %q", token)
 		}
