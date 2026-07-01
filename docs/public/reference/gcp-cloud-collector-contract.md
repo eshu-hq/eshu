@@ -291,6 +291,24 @@ fields, KMS key name, row/byte counts, and creation/expiration time; emits typed
 parent Dataset, KMS-key, and external GCS-source edges; and surfaces dataset and
 KMS resource names as correlation anchors.
 
+**BigQuery Dataset** (`bigquery.googleapis.com/Dataset`) captures location,
+default table and partition expiration, creation and last-modified time, the
+default-encryption KMS key name, and a redaction-safe summary of the access ACL
+(entry count, the bounded distinct role set, and distinct principal classes —
+never a member identity; `allAuthenticatedUsers` surfaces as the `authenticated`
+class so a broad grant is not hidden). It emits the typed default-encryption
+KMS-key edge and, for authorized-resource ACL entries (`view`/`dataset`/
+`routine`), typed `authorizes_view`/`authorizes_dataset`/`authorizes_routine`
+edges to the shared Table/Dataset/Routine — these are resource references, not
+member identities, so they are resolvable CAI endpoints and become
+dataset-sharing edges and correlation anchors. The KMS key and each
+authorized-resource name are correlation anchors. The dataset's own tables are
+not enumerable from its `resource.data` (the child Table extractor emits the
+parent edge), and IAM member identities (user/group/domain/serviceAccount) are
+not resolvable CAI endpoints, so those ACL entries stay class-summary only.
+Per-member fingerprints are out of scope for the typed-depth seam, which carries
+no redaction key.
+
 **Subnetwork** (`compute.googleapis.com/Subnetwork`) captures region, purpose,
 role, private Google access, stack type, flow-logs enablement, creation time,
 and the secondary range names and count; emits the typed parent VPC
@@ -470,7 +488,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), and KMS references are reduced to the CryptoKey resource name with no key material. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), and KMS references are reduced to the CryptoKey resource name with no key material. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 
