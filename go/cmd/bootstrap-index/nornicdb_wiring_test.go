@@ -4,8 +4,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
@@ -79,13 +81,64 @@ func TestBootstrapNornicDBPhaseGroupExecutorWrapsChunkFailure(t *testing.T) {
 		t.Fatal("ExecutePhaseGroup() error = nil, want failure")
 	}
 	for _, want := range []string{
-		"phase-group chunk 1/1",
-		"statements 1-2 of 2",
+		"phase-group chunk 1/2",
+		"statements 1-2 of 3",
 		`first_statement="phase=files rows=1 chunk=1/3"`,
 		rawErr.Error(),
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("ExecutePhaseGroup() error = %q, want %q", err.Error(), want)
+		}
+	}
+}
+
+func TestBootstrapNornicDBPhaseGroupExecutorLogsSuccessfulChunks(t *testing.T) {
+	raw := &recordingBootstrapGroupExecutor{}
+	executor := bootstrapNornicDBPhaseGroupExecutor{
+		inner:             raw,
+		maxStatements:     500,
+		fileMaxStatements: 2,
+	}
+
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	defer slog.SetDefault(previous)
+
+	err := executor.ExecutePhaseGroup(context.Background(), []sourcecypher.Statement{
+		bootstrapTestStatement("phase=files rows=1 chunk=1/3"),
+		bootstrapTestStatement("phase=files rows=1 chunk=2/3"),
+		bootstrapTestStatement("phase=files rows=1 chunk=3/3"),
+	})
+	if err != nil {
+		t.Fatalf("ExecutePhaseGroup() error = %v, want nil", err)
+	}
+
+	line := logs.String()
+	for _, want := range []string{
+		`"msg":"bootstrap nornicdb phase-group chunk completed"`,
+		`"phase":"files"`,
+		`"chunk_index":1`,
+		`"chunk_count":2`,
+		`"statement_start":1`,
+		`"statement_end":2`,
+		`"statement_count":2`,
+		`"row_count":2`,
+		`"first_statement":"phase=files"`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("logs = %q, want substring %q", line, want)
+		}
+	}
+	for _, want := range []string{
+		`"chunk_index":2`,
+		`"statement_start":3`,
+		`"statement_end":3`,
+		`"statement_count":1`,
+		`"row_count":1`,
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("logs = %q, want second-chunk substring %q", line, want)
 		}
 	}
 }
@@ -207,6 +260,7 @@ func bootstrapTestStatement(summary string) sourcecypher.Statement {
 		Cypher: "RETURN $value",
 		Parameters: map[string]any{
 			"value":                                  1,
+			"rows":                                   []map[string]any{{"value": 1}},
 			sourcecypher.StatementMetadataPhaseKey:   sourcecypher.CanonicalPhaseFiles,
 			sourcecypher.StatementMetadataSummaryKey: summary,
 		},

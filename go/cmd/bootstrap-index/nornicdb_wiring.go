@@ -231,11 +231,6 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedByLabel(
 		if groupedLabel == "" {
 			groupedLabel = label
 		}
-		if len(grouped) >= e.phaseGroupStatementLimit(grouped) {
-			if err := flush(); err != nil {
-				return err
-			}
-		}
 	}
 	return flush()
 }
@@ -268,6 +263,19 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedChunks(
 				err,
 			)
 		}
+		chunkDuration := time.Since(chunkStartedAt)
+		slog.Info(
+			"bootstrap nornicdb phase-group chunk completed",
+			"phase", bootstrapStatementPhase(chunk),
+			"chunk_index", (start/maxStatements)+1,
+			"chunk_count", totalChunks,
+			"statement_start", start+1,
+			"statement_end", end,
+			"statement_count", end-start,
+			"row_count", bootstrapPhaseGroupChunkRowCount(chunk),
+			"duration_s", chunkDuration.Seconds(),
+			"first_statement", bootstrapOperatorStatementSummary(chunk[0]),
+		)
 	}
 	return nil
 }
@@ -332,6 +340,24 @@ func bootstrapStatementSummary(stmt sourcecypher.Statement) string {
 		return summary[:120]
 	}
 	return summary
+}
+
+func bootstrapPhaseGroupChunkRowCount(stmts []sourcecypher.Statement) int {
+	total := 0
+	for _, stmt := range stmts {
+		if rows, ok := stmt.Parameters["rows"].([]map[string]any); ok {
+			total += len(rows)
+			continue
+		}
+		if rows, ok := stmt.Parameters["rows"].([]any); ok {
+			total += len(rows)
+			continue
+		}
+		if _, ok := stmt.Parameters["entity_id"]; ok {
+			total++
+		}
+	}
+	return total
 }
 
 func nornicDBCanonicalWriteTimeout(getenv func(string) string) time.Duration {
