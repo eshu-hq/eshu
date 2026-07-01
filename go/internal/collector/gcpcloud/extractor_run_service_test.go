@@ -138,7 +138,10 @@ func TestExtractRunServiceNeverPersistsEnvValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	blob, _ := json.Marshal(got)
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal extraction: %v", err)
+	}
 	for _, token := range []string{"super-secret-value", "\"value\""} {
 		if containsString(string(blob), token) {
 			t.Fatalf("run service extraction leaked env value token %q: %s", token, blob)
@@ -215,6 +218,29 @@ func TestExtractRunServiceScalingZeroMin(t *testing.T) {
 	}
 }
 
+func TestExtractRunServiceServiceLevelScaling(t *testing.T) {
+	// A service configured with the top-level ServiceScaling block (not the
+	// per-revision template.scaling) must still report scaling posture, as
+	// distinct keys, so the posture is never dropped.
+	const data = `{"scaling": {"minInstanceCount": 2, "scalingMode": "AUTOMATIC", "manualInstanceCount": 4}}`
+	got, err := extractRunService(runServiceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["service_min_instance_count"] != 2 {
+		t.Errorf("service_min_instance_count = %v, want 2", got.Attributes["service_min_instance_count"])
+	}
+	if got.Attributes["scaling_mode"] != "AUTOMATIC" {
+		t.Errorf("scaling_mode = %v, want AUTOMATIC", got.Attributes["scaling_mode"])
+	}
+	if got.Attributes["service_manual_instance_count"] != 4 {
+		t.Errorf("service_manual_instance_count = %v, want 4", got.Attributes["service_manual_instance_count"])
+	}
+	if _, ok := got.Attributes["scaling_min_instance_count"]; ok {
+		t.Errorf("service-level scaling must not populate the per-revision key: %#v", got.Attributes)
+	}
+}
+
 func TestExtractRunServiceEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractRunService(runServiceContext(`{}`))
 	if err != nil {
@@ -246,6 +272,7 @@ func TestRunServiceConnectorFullName(t *testing.T) {
 		{"relative connector", "projects/p/locations/l/connectors/c", "//vpcaccess.googleapis.com/projects/p/locations/l/connectors/c"},
 		{"leading slash", "/projects/p/locations/l/connectors/c", "//vpcaccess.googleapis.com/projects/p/locations/l/connectors/c"},
 		{"already full name", "//vpcaccess.googleapis.com/projects/p/locations/l/connectors/c", "//vpcaccess.googleapis.com/projects/p/locations/l/connectors/c"},
+		{"wrong-domain absolute rejected", "//secretmanager.googleapis.com/projects/p/secrets/s", ""},
 		{"blank", "", ""},
 	}
 	for _, tc := range cases {
@@ -267,6 +294,7 @@ func TestRunServiceSecretFullName(t *testing.T) {
 		{"bare id", "demo-project", "db-password", "//secretmanager.googleapis.com/projects/demo-project/secrets/db-password"},
 		{"full relative", "demo-project", "projects/other/secrets/app-config", "//secretmanager.googleapis.com/projects/other/secrets/app-config"},
 		{"already full name", "demo-project", "//secretmanager.googleapis.com/projects/other/secrets/app-config", "//secretmanager.googleapis.com/projects/other/secrets/app-config"},
+		{"wrong-domain absolute rejected", "demo-project", "//vpcaccess.googleapis.com/projects/p/locations/l/connectors/c", ""},
 		{"bare id no project", "", "db-password", ""},
 		{"blank", "demo-project", "", ""},
 	}

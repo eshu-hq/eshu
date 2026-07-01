@@ -45,7 +45,15 @@ type runServiceData struct {
 	Ingress             string `json:"ingress"`
 	LatestReadyRevision string `json:"latestReadyRevision"`
 	CreateTime          string `json:"createTime"`
-	Template            struct {
+	// Scaling is the service-level ServiceScaling block (v2 Service.scaling):
+	// the fleet-wide minimum instance floor and scaling mode, distinct from the
+	// per-revision RevisionScaling under Template.Scaling.
+	Scaling *struct {
+		MinInstanceCount    *int   `json:"minInstanceCount"`
+		ScalingMode         string `json:"scalingMode"`
+		ManualInstanceCount *int   `json:"manualInstanceCount"`
+	} `json:"scaling"`
+	Template struct {
 		ServiceAccount       string `json:"serviceAccount"`
 		ExecutionEnvironment string `json:"executionEnvironment"`
 		Scaling              *struct {
@@ -133,12 +141,27 @@ func runServiceAttributes(data runServiceData, saDigest string) map[string]any {
 			attrs["vpc_egress"] = v
 		}
 	}
+	// Per-revision RevisionScaling (template.scaling): min/max instance bounds.
 	if s := data.Template.Scaling; s != nil {
 		if s.MinInstanceCount != nil {
 			attrs["scaling_min_instance_count"] = *s.MinInstanceCount
 		}
 		if s.MaxInstanceCount != nil {
 			attrs["scaling_max_instance_count"] = *s.MaxInstanceCount
+		}
+	}
+	// Service-level ServiceScaling (top-level scaling): fleet-wide instance floor
+	// and scaling mode. Kept as distinct keys from the per-revision block so a
+	// service configured only at the service level still reports scaling posture.
+	if s := data.Scaling; s != nil {
+		if s.MinInstanceCount != nil {
+			attrs["service_min_instance_count"] = *s.MinInstanceCount
+		}
+		if v := strings.TrimSpace(s.ScalingMode); v != "" {
+			attrs["scaling_mode"] = v
+		}
+		if s.ManualInstanceCount != nil {
+			attrs["service_manual_instance_count"] = *s.ManualInstanceCount
 		}
 	}
 	if v := strings.TrimSpace(data.LatestReadyRevision); v != "" {
@@ -241,16 +264,21 @@ func runServiceDistinctSecretCount(data runServiceData) int {
 
 // runServiceConnectorFullName builds the CAI Serverless VPC Access connector full
 // resource name from a connector reference (projects/.../connectors/...). An
-// already-normalized CAI full resource name (//vpcaccess.googleapis.com/...) is
-// returned unchanged so the prefix is never doubled. It returns "" for a blank
-// reference so the caller emits no connector edge.
+// already-normalized CAI full resource name is returned unchanged only when it
+// carries the vpcaccess domain prefix, so a mistyped or foreign-domain absolute
+// name is not accepted as a connector; the prefix is never doubled. It returns ""
+// for a blank reference or a wrong-domain absolute name so the caller emits no
+// connector edge it cannot trust.
 func runServiceConnectorFullName(connector string) string {
 	trimmed := strings.TrimSpace(connector)
 	if trimmed == "" {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
+		if strings.HasPrefix(trimmed, vpcAccessResourceNamePrefix) {
+			return trimmed
+		}
+		return ""
 	}
 	return vpcAccessResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
@@ -258,16 +286,21 @@ func runServiceConnectorFullName(connector string) string {
 // runServiceSecretFullName builds the CAI Secret Manager Secret full resource
 // name from a secret reference. A bare secret id (no "projects/" prefix) is
 // expanded with projectID; an already-relative name (projects/.../secrets/...) is
-// prefixed; an already-normalized CAI full resource name is returned unchanged. It
-// returns "" for a blank reference, or for a bare id with no project to resolve
-// against, so the caller emits no secret edge it cannot ground.
+// prefixed; an already-normalized CAI full resource name is returned unchanged
+// only when it carries the secretmanager domain prefix, so a mistyped or
+// foreign-domain absolute name is not accepted as a secret. It returns "" for a
+// blank reference, a wrong-domain absolute name, or a bare id with no project to
+// resolve against, so the caller emits no secret edge it cannot ground.
 func runServiceSecretFullName(projectID, secretRef string) string {
 	trimmed := strings.TrimSpace(secretRef)
 	if trimmed == "" {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
+		if strings.HasPrefix(trimmed, secretManagerResourceNamePrefix) {
+			return trimmed
+		}
+		return ""
 	}
 	if strings.HasPrefix(trimmed, "projects/") {
 		return secretManagerResourceNamePrefix + trimmed

@@ -429,8 +429,10 @@ already carried on the base observation; the extractor derives no outbound edges
 or anchors from the role's own data.
 
 **Cloud Run Service** (`run.googleapis.com/Service`) captures ingress setting,
-execution environment, VPC egress posture, scaling min/max instance counts,
-latest ready revision, creation time, the container count, the bounded set of
+execution environment, VPC egress posture, per-revision scaling min/max instance
+counts and the service-level scaling floor/mode (both `template.scaling` and the
+top-level `scaling` block, as distinct keys), latest ready revision, creation
+time, the container count, the bounded set of
 container env variable **keys** (never values) with their count, and the mounted
 secret count; emits the typed `run_service_uses_vpc_connector` edge to the
 Serverless VPC Access `Connector` and a `run_service_mounts_secret` edge to each
