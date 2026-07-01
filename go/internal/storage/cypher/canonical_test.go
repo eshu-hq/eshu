@@ -367,6 +367,15 @@ func TestBuildRetractRepoDependencyEdgesStatement(t *testing.T) {
 	if !strings.Contains(stmt.Cypher, "source_repo:Repository") {
 		t.Fatalf("Cypher missing Repository match: %s", stmt.Cypher)
 	}
+	if !strings.Contains(stmt.Cypher, "UNWIND $repo_ids AS repo_id") {
+		t.Fatalf("Cypher does not iterate repo ids before relationship expansion: %s", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "MATCH (source_repo:Repository {id: repo_id})") {
+		t.Fatalf("Cypher does not anchor on indexed Repository id before relationship expansion: %s", stmt.Cypher)
+	}
+	if strings.Contains(stmt.Cypher, "WHERE source_repo.id IN $repo_ids") {
+		t.Fatalf("Cypher still filters Repository id after relationship expansion: %s", stmt.Cypher)
+	}
 }
 
 func TestBuildRetractWorkloadDependencyEdgesStatement(t *testing.T) {

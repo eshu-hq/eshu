@@ -210,9 +210,10 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractRepoDependencyEdgesCypher = `MATCH (source_repo:Repository)-[rel:DEPENDS_ON]->(:Repository)
-WHERE source_repo.id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+const retractRepoDependencyEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source_repo:Repository {id: repo_id})
+MATCH (source_repo)-[rel:DEPENDS_ON]->(:Repository)
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
 const retractWorkloadDependencyEdgesCypher = `MATCH (source:Workload)-[rel:DEPENDS_ON]->(:Workload)
