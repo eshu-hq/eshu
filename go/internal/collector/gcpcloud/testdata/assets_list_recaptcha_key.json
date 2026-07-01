@@ -1,0 +1,39 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//recaptchaenterprise.googleapis.com/projects/123456789/keys/demo-key",
+      "assetType": "recaptchaenterprise.googleapis.com/Key",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "displayName": "Demo Key",
+          "createTime": "2024-06-01T00:00:00Z",
+          "webSettings": {
+            "integrationType": "SCORE",
+            "allowAllDomains": false,
+            "allowedDomains": ["example.com", "app.example.com"]
+          },
+          "wafSettings": {"wafService": "CA", "wafFeature": "CHALLENGE_PAGE"}
+        }
+      }
+    },
+    {
+      "name": "//recaptchaenterprise.googleapis.com/projects/123456789/keys/android-key",
+      "assetType": "recaptchaenterprise.googleapis.com/Key",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "displayName": "Android Key",
+          "createTime": "2023-01-01T00:00:00Z",
+          "androidSettings": {
+            "allowAllPackageNames": false,
+            "allowedPackageNames": ["com.example.app"]
+          }
+        }
+      }
+    }
+  ]
+}
