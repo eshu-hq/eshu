@@ -214,6 +214,29 @@ func TestExtractRunRevisionSecretCountDedupsCrossForm(t *testing.T) {
 	}
 }
 
+func TestExtractRunRevisionSecretCountIgnoresWrongDomainAbsolute(t *testing.T) {
+	// A wrong-domain absolute reference is not a secret mount (it is rejected for
+	// edges/anchors) and must not inflate secret_mount_count; the one real secret
+	// counts as 1.
+	const data = `{
+		"containers": [{"env": [{"name": "DB", "valueSource": {"secretKeyRef": {"secret": "db-password"}}}]}],
+		"volumes": [{"secret": {"secret": "//vpcaccess.googleapis.com/projects/p/locations/l/connectors/c"}}]
+	}`
+	got, err := extractRunRevision(runRevisionContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["secret_mount_count"] != 1 {
+		t.Errorf("secret_mount_count = %v, want 1 (wrong-domain absolute must not count)", got.Attributes["secret_mount_count"])
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeRevisionMountsSecret &&
+			rel.TargetFullResourceName == "//vpcaccess.googleapis.com/projects/p/locations/l/connectors/c" {
+			t.Errorf("wrong-domain absolute must not become a secret edge: %#v", rel)
+		}
+	}
+}
+
 func TestExtractRunRevisionMalformedDataErrors(t *testing.T) {
 	if _, err := extractRunRevision(runRevisionContext(`{not json`)); err == nil {
 		t.Fatalf("expected an error for malformed resource data")

@@ -293,6 +293,13 @@ func runRevisionDistinctSecretCount(projectID string, data runRevisionData) int 
 		}
 		key := runServiceSecretFullName(projectID, trimmed)
 		if key == "" {
+			// An absolute //... name that did not resolve carries a non-secret
+			// domain prefix and is not a secret mount, so it must not inflate the
+			// count. Only a bare id with no project to resolve against is a
+			// legitimate-but-unresolvable mount; dedup it by its raw reference.
+			if strings.HasPrefix(trimmed, "//") {
+				continue
+			}
 			key = trimmed
 		}
 		seen[key] = struct{}{}
