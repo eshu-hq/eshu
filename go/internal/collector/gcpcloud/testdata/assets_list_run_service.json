@@ -1,0 +1,56 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//run.googleapis.com/projects/demo-project/locations/us-central1/services/api-service",
+      "assetType": "run.googleapis.com/Service",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/services/api-service",
+          "ingress": "INGRESS_TRAFFIC_INTERNAL_ONLY",
+          "latestReadyRevision": "projects/demo-project/locations/us-central1/services/api-service/revisions/api-service-00003-abc",
+          "createTime": "2024-06-01T00:00:00Z",
+          "labels": {"team": "platform", "env": "prod"},
+          "template": {
+            "serviceAccount": "runtime-sa@demo-project.iam.gserviceaccount.com",
+            "executionEnvironment": "EXECUTION_ENVIRONMENT_GEN2",
+            "scaling": {"minInstanceCount": 1, "maxInstanceCount": 5},
+            "vpcAccess": {
+              "connector": "projects/demo-project/locations/us-central1/connectors/serverless-conn",
+              "egress": "ALL_TRAFFIC"
+            },
+            "containers": [
+              {
+                "name": "api",
+                "image": "us-docker.pkg.dev/demo-project/team/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "env": [
+                  {"name": "LOG_LEVEL", "value": "info-should-not-leak"},
+                  {"name": "DB_PASSWORD", "valueSource": {"secretKeyRef": {"secret": "db-password", "version": "latest"}}}
+                ]
+              }
+            ],
+            "volumes": [
+              {"name": "config", "secret": {"secret": "projects/demo-project/secrets/app-config"}}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "//run.googleapis.com/projects/demo-project/locations/us-east1/services/minimal-service",
+      "assetType": "run.googleapis.com/Service",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/services/minimal-service",
+          "createTime": "2023-01-15T09:30:00Z"
+        }
+      }
+    }
+  ]
+}
