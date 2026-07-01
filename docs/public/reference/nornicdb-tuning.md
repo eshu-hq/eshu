@@ -100,7 +100,7 @@ These knobs affect reducer-owned materialization and shared projection.
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | worker count on NornicDB | Reducer intents claimed per poll. Keep near worker count so claimed work starts heartbeat-protected execution promptly. |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | unset / disabled | Optional cap on cross-scope semantic entity claims after the source-local drain gate opens. Set only from focused backend-saturation evidence. |
 | `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | `Annotation=5,Function=10,ImplBlock=10,Module=10,TypeAlias=5,TypeAnnotation=50,Variable=10` | Label-specific row caps for semantic entity materialization. |
-| `ESHU_SHARED_PROJECTION_WORKERS` | runtime default is `NumCPU` capped at `4`; Compose defaults to `2`; Helm sets `8` | Shared projection partition workers. Raise only when queue age grows and graph backend health is proven. |
+| `ESHU_SHARED_PROJECTION_WORKERS` | runtime default is `NumCPU` capped at `4`; Compose defaults to `4`; Helm sets `8` | Shared projection partition workers. Raise only when queue age grows and graph backend health is proven. |
 | `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` | File-scoped CALLS projection partition count. Change only between clean drains or after active leases expire. |
 | `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` | Concurrent file-scoped CALLS partition workers, clamped by partition count. Raise only with queue and graph-write evidence. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Correctness guard for complete accepted repo/run scan before rewriting CALLS edges. |
