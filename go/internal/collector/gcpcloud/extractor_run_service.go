@@ -27,7 +27,8 @@ const (
 // materializes an edge only when both endpoints resolve exactly.
 const (
 	relationshipTypeRunServiceUsesVPCConnector = "run_service_uses_vpc_connector"
-	relationshipTypeRunServiceMountsSecret     = "run_service_mounts_secret"
+	// #nosec G101 -- bounded gcp_cloud_relationship type label, not a credential
+	relationshipTypeRunServiceMountsSecret = "run_service_mounts_secret"
 )
 
 func init() {
