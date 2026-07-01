@@ -1,0 +1,37 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//dataform.googleapis.com/projects/demo-project/locations/us-central1/repositories/analytics",
+      "assetType": "dataform.googleapis.com/Repository",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/repositories/analytics",
+          "gitRemoteSettings": {"url": "https://github.com/acme/dataform-analytics.git", "defaultBranch": "main", "authenticationTokenSecretVersion": "projects/demo-project/secrets/git-token/versions/3"},
+          "serviceAccount": "dataform-runner@demo-project.iam.gserviceaccount.com",
+          "workspaceCompilationOverrides": {"defaultDatabase": "demo-warehouse", "schemaSuffix": "_dev"},
+          "kmsKeyName": "projects/demo-project/locations/us-central1/keyRings/dataform/cryptoKeys/repo",
+          "createTime": "2024-05-01T00:00:00Z",
+          "labels": {"team": "data"}
+        }
+      }
+    },
+    {
+      "name": "//dataform.googleapis.com/projects/demo-project/locations/us-central1/repositories/scratch",
+      "assetType": "dataform.googleapis.com/Repository",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/repositories/scratch",
+          "gitRemoteSettings": {"defaultBranch": "trunk"},
+          "createTime": "2023-02-01T00:00:00Z"
+        }
+      }
+    }
+  ]
+}
