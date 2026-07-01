@@ -165,6 +165,11 @@ func TestExtractPubSubTopicMalformedDataErrors(t *testing.T) {
 	if _, err := extractPubSubTopic(pubSubTopicContext(`{not json`)); err == nil {
 		t.Fatalf("expected an error for malformed resource data")
 	}
+	// Empty/nil resource data (unexpected end of JSON input) must also error
+	// rather than silently yield a zero extraction.
+	if _, err := extractPubSubTopic(pubSubTopicContext(``)); err == nil {
+		t.Fatalf("expected an error for empty resource data")
+	}
 }
 
 func TestPubSubTopicKMSKeyFullName(t *testing.T) {
@@ -198,6 +203,7 @@ func TestPubSubTopicSchemaFullName(t *testing.T) {
 		{"already full name", "//pubsub.googleapis.com/projects/p/schemas/s", "//pubsub.googleapis.com/projects/p/schemas/s"},
 		{"deleted sentinel", "_deleted-schema_", ""},
 		{"not a schema", "projects/p/topics/t", ""},
+		{"leading slash non-schema", "/projects/p/topics/t", ""},
 		{"blank", "", ""},
 	}
 	for _, tc := range cases {

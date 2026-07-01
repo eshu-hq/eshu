@@ -113,6 +113,10 @@ func pubSubTopicAttributes(data pubSubTopicData) map[string]any {
 		}
 	}
 	if s := data.SchemaSettings; s != nil {
+		// The encoding is retained even when the schema name is the deleted-schema
+		// sentinel (which emits no edge): it records the wire encoding the topic is
+		// still configured for, which drives drift and monitoring independent of
+		// whether the referenced Schema resource currently resolves.
 		if v := strings.TrimSpace(s.Encoding); v != "" {
 			attrs["schema_encoding"] = v
 		}
