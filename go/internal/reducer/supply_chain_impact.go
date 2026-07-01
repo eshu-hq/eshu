@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel/metric"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -177,6 +175,9 @@ type SupplyChainImpactHandler struct {
 
 // Handle executes one supply-chain impact reducer intent.
 func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+	totalStarted := time.Now()
+	var timing supplyChainImpactTiming
+
 	if intent.Domain != DomainSupplyChainImpact {
 		return Result{}, fmt.Errorf("supply_chain_impact handler does not accept domain %q", intent.Domain)
 	}
@@ -187,43 +188,82 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		return Result{}, fmt.Errorf("supply chain impact writer is required")
 	}
 
+	phaseStarted := time.Now()
 	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, supplyChainImpactFactKinds())
+	timing.loadScopeFactsDuration = time.Since(phaseStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("load supply chain impact facts: %w", err)
 	}
+	scopeFacts := len(envelopes)
+
+	phaseStarted = time.Now()
 	repositories, err := h.loadActiveSupplyChainImpactRepositoryFacts(ctx, envelopes)
+	timing.loadRepositoryFactsDuration = time.Since(phaseStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active supply chain impact repository facts: %w", err)
 	}
+	repositoryFacts := len(repositories)
 	envelopes = append(envelopes, repositories...)
+
+	phaseStarted = time.Now()
 	manifestDependencies, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
+	timing.loadManifestDependenciesDuration = time.Since(phaseStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active package manifest dependency facts: %w", err)
 	}
+	manifestDependencyFacts := len(manifestDependencies)
 	envelopes = append(envelopes, manifestDependencies...)
+
 	activeEvidenceTruncated := false
+	activeEvidenceStartCount := len(envelopes)
+	phaseStarted = time.Now()
 	envelopes, activeEvidenceTruncated, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes)
+	timing.loadActiveEvidenceDuration = time.Since(phaseStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
+	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
+
+	pythonReachabilityStartCount := len(envelopes)
+	phaseStarted = time.Now()
 	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)
+	timing.loadPythonReachabilityDuration = time.Since(phaseStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("load Python reachability evidence facts: %w", err)
 	}
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, pythonReachabilityEvidence...)
+	pythonReachabilityFacts := len(envelopes) - pythonReachabilityStartCount
+
+	jvmReachabilityStartCount := len(envelopes)
+	phaseStarted = time.Now()
 	jvmReachabilityFacts, err := h.loadActiveJVMReachabilityFacts(ctx, envelopes)
+	timing.loadJVMReachabilityDuration = time.Since(phaseStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active JVM reachability facts: %w", err)
 	}
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, jvmReachabilityFacts...)
-	if supplyChainImpactUsesSecurityAlertScope(intent, envelopes) {
+	jvmReachabilityFactCount := len(envelopes) - jvmReachabilityStartCount
+	preSecurityAlertScopeFacts := len(envelopes)
+	phaseStarted = time.Now()
+	securityAlertScopingApplied := supplyChainImpactUsesSecurityAlertScope(intent, envelopes)
+	if securityAlertScopingApplied {
 		envelopes = scopeSupplyChainImpactEvidenceToSecurityAlerts(envelopes)
 	}
+	timing.securityAlertScopingDuration = time.Since(phaseStarted)
+	postSecurityAlertScopeFacts := len(envelopes)
+	securityAlertScopedOutFacts := 0
+	if securityAlertScopingApplied && preSecurityAlertScopeFacts > postSecurityAlertScopeFacts {
+		securityAlertScopedOutFacts = preSecurityAlertScopeFacts - postSecurityAlertScopeFacts
+	}
 
+	phaseStarted = time.Now()
 	findings := BuildSupplyChainImpactFindings(envelopes)
 	if activeEvidenceTruncated {
 		findings = markSupplyChainImpactFindingsActiveExpansionTruncated(findings)
 	}
+	timing.buildFindingsDuration = time.Since(phaseStarted)
+
+	phaseStarted = time.Now()
 	suppressions := BuildVulnerabilitySuppressions(envelopes)
 	now := h.evaluationNow()
 	for i := range findings {
@@ -232,6 +272,9 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	counts := supplyChainImpactCounts(findings)
 	suppressionCounts := supplyChainSuppressionCounts(findings)
 	remediationCounts := supplyChainRemediationCounts(findings)
+	timing.evaluateSuppressionsDuration = time.Since(phaseStarted)
+
+	phaseStarted = time.Now()
 	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, SupplyChainImpactWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -243,7 +286,12 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	if err != nil {
 		return Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
 	}
+	timing.writeFindingsDuration = time.Since(phaseStarted)
+
+	phaseStarted = time.Now()
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
+	timing.emitCountersDuration = time.Since(phaseStarted)
+	timing.totalDuration = time.Since(totalStarted)
 
 	evidenceSummary := supplyChainImpactSummary(len(findings), counts, suppressionCounts, writeResult.CanonicalWrites)
 	if activeEvidenceTruncated {
@@ -255,118 +303,22 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: writeResult.CanonicalWrites,
+		SubDurations:    supplyChainImpactSubDurations(timing),
+		SubSignals: supplyChainImpactDiagnosticSignals(
+			scopeFacts,
+			repositoryFacts,
+			manifestDependencyFacts,
+			activeEvidenceFacts,
+			pythonReachabilityFacts,
+			jvmReachabilityFactCount,
+			postSecurityAlertScopeFacts,
+			securityAlertScopingApplied,
+			securityAlertScopedOutFacts,
+			len(findings),
+			activeEvidenceTruncated,
+			writeResult.FactsWritten,
+		),
 	}, nil
-}
-
-func (h SupplyChainImpactHandler) evaluationNow() time.Time {
-	if h.Now != nil {
-		return h.Now().UTC()
-	}
-	return time.Now().UTC()
-}
-
-func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
-	ctx context.Context,
-	filter SupplyChainImpactFactFilter,
-) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(activeSupplyChainImpactFactLoader)
-	if !ok || filter.empty() {
-		return nil, nil
-	}
-	envelopes, err := loader.ListActiveSupplyChainImpactFacts(ctx, filter)
-	if err != nil {
-		return nil, classifyFactLoadError(err)
-	}
-	return envelopes, nil
-}
-
-const maxSupplyChainImpactActiveEvidenceLoads = 8
-
-func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
-	ctx context.Context,
-	envelopes []facts.Envelope,
-) ([]facts.Envelope, bool, error) {
-	requested := SupplyChainImpactFactFilter{}
-	next := supplyChainImpactFilter(envelopes)
-	for loads := 0; !next.empty(); loads++ {
-		if loads >= maxSupplyChainImpactActiveEvidenceLoads {
-			return envelopes, true, nil
-		}
-		active, err := h.loadActiveSupplyChainImpactFacts(ctx, next)
-		if err != nil {
-			return nil, false, err
-		}
-		requested = mergeSupplyChainImpactFactFilters(requested, next)
-		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, active...)
-		next = supplyChainImpactFollowUpFilter(requested, supplyChainImpactFilter(envelopes))
-	}
-	return envelopes, false, nil
-}
-
-func (h SupplyChainImpactHandler) emitCounters(
-	ctx context.Context,
-	counts map[SupplyChainImpactStatus]int,
-	suppressionCounts map[SupplyChainSuppressionState]int,
-	remediationCounts map[supplyChainRemediationKey]int,
-) {
-	if h.Instruments == nil {
-		return
-	}
-	for _, status := range supplyChainImpactStatuses() {
-		if counts[status] == 0 {
-			continue
-		}
-		h.Instruments.SupplyChainImpactFindings.Add(ctx, int64(counts[status]), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainSupplyChainImpact)),
-			telemetry.AttrOutcome(string(status)),
-		))
-	}
-	if h.Instruments.SupplyChainSuppressionDecisions != nil {
-		for _, state := range SupplyChainSuppressionStates() {
-			if suppressionCounts[state] == 0 {
-				continue
-			}
-			h.Instruments.SupplyChainSuppressionDecisions.Add(ctx, int64(suppressionCounts[state]), metric.WithAttributes(
-				telemetry.AttrDomain(string(DomainSupplyChainImpact)),
-				telemetry.AttrOutcome(string(state)),
-			))
-		}
-	}
-	if h.Instruments.SupplyChainRemediationDecisions != nil {
-		for key, count := range remediationCounts {
-			if count == 0 {
-				continue
-			}
-			h.Instruments.SupplyChainRemediationDecisions.Add(ctx, int64(count), metric.WithAttributes(
-				telemetry.AttrDomain(string(DomainSupplyChainImpact)),
-				telemetry.AttrOutcome(key.confidence),
-				telemetry.AttrReason(key.reason),
-			))
-		}
-	}
-}
-
-// supplyChainRemediationKey bounds the remediation counter cardinality to
-// the closed product of (confidence, reason) labels.
-type supplyChainRemediationKey struct {
-	confidence string
-	reason     string
-}
-
-func supplyChainRemediationCounts(findings []SupplyChainImpactFinding) map[supplyChainRemediationKey]int {
-	out := make(map[supplyChainRemediationKey]int)
-	for _, finding := range findings {
-		confidence := strings.TrimSpace(finding.Remediation.Confidence)
-		reason := strings.TrimSpace(finding.Remediation.Reason)
-		if confidence == "" && reason == "" {
-			continue
-		}
-		if confidence == "" {
-			confidence = SupplyChainRemediationConfidenceUnknown
-		}
-		out[supplyChainRemediationKey{confidence: confidence, reason: reason}]++
-	}
-	return out
 }
 
 // BuildSupplyChainImpactFindings classifies vulnerability source facts against
