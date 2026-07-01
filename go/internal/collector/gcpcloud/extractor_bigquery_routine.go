@@ -4,6 +4,7 @@
 package gcpcloud
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -31,6 +32,21 @@ func init() {
 	RegisterAssetExtractor(assetTypeBigQueryRoutine, extractBigQueryRoutine)
 }
 
+// jsonValuePresent records only whether a JSON field was present with a
+// non-empty, non-null value, discarding the value itself during unmarshal. It is
+// used for the routine definitionBody (user SQL/JavaScript source) so the body
+// is never retained in memory — only its presence — eliminating any risk of it
+// leaking through a future debug/trace of the decoded struct.
+type jsonValuePresent bool
+
+// UnmarshalJSON sets the flag true for any JSON value other than null or an
+// empty string, without keeping the decoded bytes.
+func (p *jsonValuePresent) UnmarshalJSON(b []byte) error {
+	t := bytes.TrimSpace(b)
+	*p = jsonValuePresent(len(t) > 0 && string(t) != "null" && string(t) != `""`)
+	return nil
+}
+
 // bigQueryRoutineData is the bounded view of a CAI bigquery.googleapis.com/Routine
 // resource.data blob. The definitionBody (user-authored SQL/JavaScript source)
 // is decoded only to record its presence and is never persisted; argument and
@@ -47,8 +63,8 @@ type bigQueryRoutineData struct {
 	ReturnType  *struct {
 		TypeKind string `json:"typeKind"`
 	} `json:"returnType"`
-	DefinitionBody        string   `json:"definitionBody"`
-	ImportedLibraries     []string `json:"importedLibraries"`
+	DefinitionBody        jsonValuePresent `json:"definitionBody"`
+	ImportedLibraries     []string         `json:"importedLibraries"`
 	RemoteFunctionOptions *struct {
 		Connection string `json:"connection"`
 	} `json:"remoteFunctionOptions"`
@@ -108,14 +124,14 @@ func bigQueryRoutineAttributes(data bigQueryRoutineData) map[string]any {
 			attrs["return_type_kind"] = v
 		}
 	}
-	if strings.TrimSpace(data.DefinitionBody) != "" {
+	if bool(data.DefinitionBody) {
 		attrs["has_definition_body"] = true
 	}
 	if n := len(data.ImportedLibraries); n > 0 {
 		attrs["imported_library_count"] = n
 	}
 	if v := strings.TrimSpace(data.CreationTime); v != "" {
-		attrs["creation_time_ms"] = v
+		attrs["creation_time"] = v
 	}
 	return attrs
 }

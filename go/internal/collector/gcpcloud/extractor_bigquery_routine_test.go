@@ -51,7 +51,7 @@ func TestExtractBigQueryRoutineRemoteFunction(t *testing.T) {
 		"return_type_kind":       "STRING",
 		"has_definition_body":    true,
 		"imported_library_count": 2,
-		"creation_time_ms":       "1717200000000",
+		"creation_time":          "1717200000000",
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
