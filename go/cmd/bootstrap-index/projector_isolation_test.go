@@ -32,13 +32,28 @@ func (s *countingProjectorSink) Fail(context.Context, projector.ScopeGenerationW
 	return nil
 }
 
-// TestDrainProjectorWorkItemFailsItemInsteadOfPropagating proves the #4464 fix:
-// a projection error on one work item must Fail that item (so it retries /
-// dead-letters instead of orphaning its claim) and return nil, so the concurrent
-// drainProjector loop does NOT cancel the shared context and abort sibling
-// workers. Before the fix, drainProjectorWorkItem returned the error (triggering
-// cancel-all) and never called Fail.
-func TestDrainProjectorWorkItemFailsItemInsteadOfPropagating(t *testing.T) {
+// ackErrorSink returns an error from Ack and records whether Fail was called,
+// so tests can prove an Ack failure is treated as fatal (not routed to Fail,
+// which could dead-letter already-committed projection work).
+type ackErrorSink struct {
+	ackErr     error
+	failCalled atomic.Bool
+}
+
+func (s *ackErrorSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+	return s.ackErr
+}
+
+func (s *ackErrorSink) Fail(context.Context, projector.ScopeGenerationWork, error) error {
+	s.failCalled.Store(true)
+	return nil
+}
+
+// TestDrainProjectorWorkItemRoutesFailureToFailPath proves the #4464 fix: a
+// projection error routes the item to WorkSink.Fail (retry/dead-letter) and
+// returns the errProjectorItemFailed sentinel — the worker counts it and
+// continues rather than canceling the shared context and aborting siblings.
+func TestDrainProjectorWorkItemRoutesFailureToFailPath(t *testing.T) {
 	t.Parallel()
 
 	work := projector.ScopeGenerationWork{
@@ -60,16 +75,55 @@ func TestDrainProjectorWorkItemFailsItemInsteadOfPropagating(t *testing.T) {
 		&completed,
 		nil, nil, nil,
 	)
-	if err != nil {
-		t.Fatalf("drainProjectorWorkItem() error = %v, want nil (item failure must be isolated, not propagated)", err)
+
+	if !errors.Is(err, errProjectorItemFailed) {
+		t.Fatalf("drainProjectorWorkItem() error = %v, want errProjectorItemFailed (isolated, not propagated as fatal)", err)
 	}
 	if got := sink.failed.Load(); got != 1 {
-		t.Fatalf("sink.Fail called %d times, want 1 (failed item must be routed to the queue Fail path, not orphaned)", got)
+		t.Fatalf("sink.Fail called %d times, want 1 (failed item must route to the queue Fail path)", got)
 	}
 	if got := sink.acked.Load(); got != 0 {
 		t.Fatalf("sink.Ack called %d times, want 0", got)
 	}
 	if got := completed.Load(); got != 0 {
 		t.Fatalf("completed = %d, want 0", got)
+	}
+}
+
+// TestDrainProjectorWorkItemAckErrorIsFatal proves Ack failures are NOT routed
+// to Fail: Project already committed graph/content/reducer writes, so failing
+// the item could dead-letter successful work and mark the scope failed. The
+// steady-state projector treats Ack failure as fatal; bootstrap must match.
+func TestDrainProjectorWorkItemAckErrorIsFatal(t *testing.T) {
+	t.Parallel()
+
+	work := projector.ScopeGenerationWork{
+		Scope:      scope.IngestionScope{ScopeID: "scope-ack", SourceSystem: "git"},
+		Generation: scope.ScopeGeneration{GenerationID: "generation-1"},
+	}
+	sink := &ackErrorSink{ackErr: errors.New("ack: connection reset")}
+	var completed atomic.Int64
+
+	err := drainProjectorWorkItem(
+		context.Background(),
+		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
+		&fakeFactStore{},
+		&fakeProjectionRunner{}, // Project succeeds
+		sink,
+		nil,
+		time.Millisecond,
+		0,
+		&completed,
+		nil, nil, nil,
+	)
+
+	if err == nil {
+		t.Fatal("drainProjectorWorkItem() error = nil, want a fatal ack error")
+	}
+	if errors.Is(err, errProjectorItemFailed) || errors.Is(err, errProjectorDrained) {
+		t.Fatalf("ack error must be fatal, not a sentinel; got %v", err)
+	}
+	if sink.failCalled.Load() {
+		t.Fatal("Fail was called for an Ack error; successful projection must not be dead-lettered")
 	}
 }

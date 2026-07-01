@@ -609,8 +609,12 @@ func TestDrainProjectorIsolatesItemFailures(t *testing.T) {
 		nil, 0,
 		4, nil, nil, nil,
 	)
-	if err != nil {
-		t.Fatalf("drainProjector() error = %v, want nil (item failures must be isolated, not abort the run)", err)
+	// Isolation: siblings are NOT canceled — all 20 items are handled (2 acked,
+	// 18 failed) even though 18 projections errored. The run reports incomplete
+	// (a non-fatal error) rather than a clean success, so bootstrap does not
+	// claim completion while failed work is deferred to retry/dead-letter.
+	if err == nil {
+		t.Fatal("drainProjector() error = nil, want an incomplete-drain error when items failed")
 	}
 	if got := sink.acked.Load(); got != 2 {
 		t.Fatalf("acked = %d, want 2", got)
@@ -619,7 +623,7 @@ func TestDrainProjectorIsolatesItemFailures(t *testing.T) {
 		t.Fatalf("failed = %d, want 18 (failed items must route to the queue Fail path, not orphan)", got)
 	}
 	if got := sink.acked.Load() + sink.failed.Load(); got != 20 {
-		t.Fatalf("handled = %d, want all 20 items handled", got)
+		t.Fatalf("handled = %d, want all 20 items handled (isolation: no sibling cancel)", got)
 	}
 }
 

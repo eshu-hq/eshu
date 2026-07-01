@@ -67,6 +67,7 @@ func drainProjector(
 		errs      []error
 		wg        sync.WaitGroup
 		completed atomic.Int64
+		failed    atomic.Int64
 	)
 
 	for i := 0; i < workers; i++ {
@@ -87,6 +88,10 @@ func drainProjector(
 					if errors.Is(err, errProjectorDrained) {
 						return
 					}
+					if errors.Is(err, errProjectorItemFailed) {
+						failed.Add(1)
+						continue
+					}
 					mu.Lock()
 					errs = append(errs, err)
 					mu.Unlock()
@@ -100,20 +105,38 @@ func drainProjector(
 	wg.Wait()
 
 	totalCompleted := completed.Load()
+	totalFailed := failed.Load()
 	if logger != nil {
 		logger.InfoContext(
 			ctx, "bootstrap projection complete",
 			slog.Int64("items_projected", totalCompleted),
+			slog.Int64("items_failed", totalFailed),
 			slog.Int("workers", workers),
 			slog.Float64("total_duration_seconds", time.Since(overallStart).Seconds()),
 			telemetry.PhaseAttr(telemetry.PhaseProjection),
 		)
 	}
-	return errors.Join(errs...)
+	if joined := errors.Join(errs...); joined != nil {
+		return joined
+	}
+	if totalFailed > 0 {
+		return fmt.Errorf(
+			"bootstrap projection incomplete: %d work item(s) failed and were routed to retry/dead-letter; graph truth is not fully materialized",
+			totalFailed,
+		)
+	}
+	return nil
 }
 
 // errProjectorDrained is a sentinel indicating the work queue is empty.
 var errProjectorDrained = errors.New("projector queue drained")
+
+// errProjectorItemFailed is a sentinel indicating a single work item failed and
+// was routed to the queue Fail path (retry/dead-letter). The worker counts it
+// and continues; it never cancels siblings. It is not fatal to the run, but the
+// drain reports the run incomplete if any item failed, so bootstrap does not
+// claim clean completion while work is deferred to retry (#4464 review).
+var errProjectorItemFailed = errors.New("projector work item failed (isolated)")
 
 // isolateBootstrapProjectorFailure routes a per-item projection failure to the
 // queue Fail path (retry/dead-letter) and isolates it, so the worker continues
@@ -121,8 +144,9 @@ var errProjectorDrained = errors.New("projector queue drained")
 // genuine shutdown cancellation (parent context canceled) is not dead-lettered;
 // the claim is left to be reclaimed on restart. A per-write timeout leaves the
 // parent context healthy (ctx.Err() == nil) and falls through to the Fail path.
-// It returns a non-nil error only when the failure is fatal to the whole run
-// (the Fail-path write itself failed).
+// It returns errProjectorItemFailed on a routed (isolated) failure, nil on a
+// shutdown cancellation, and a fatal error only when the Fail-path write itself
+// failed.
 func isolateBootstrapProjectorFailure(
 	ctx context.Context,
 	workSink projector.ProjectorWorkSink,
@@ -136,7 +160,7 @@ func isolateBootstrapProjectorFailure(
 	if failErr := workSink.Fail(ctx, work, cause); failErr != nil {
 		return fmt.Errorf("bootstrap projector fail item (worker %d): %w", workerID, errors.Join(cause, failErr))
 	}
-	return nil
+	return errProjectorItemFailed
 }
 
 // drainProjectorWorkItem processes a single projection work item with full
@@ -233,10 +257,14 @@ func drainProjectorWorkItem(
 		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, heartbeatErr)
 	}
 
-	// Ack
+	// Ack. An Ack failure is fatal, not isolated: Project already committed the
+	// graph/content/reducer writes, so routing an ack-write error to Fail could
+	// dead-letter successful work and mark the scope generation failed
+	// (graph-vs-scope corruption). The steady-state projector treats Ack failure
+	// as fatal; match it (#4464 review).
 	if ackErr := workSink.Ack(itemCtx, work, result); ackErr != nil {
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), ackErr, span, instruments, logger)
-		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, ackErr)
+		return fmt.Errorf("bootstrap projector ack (worker %d): %w", workerID, ackErr)
 	}
 
 	completed.Add(1)
@@ -392,6 +420,7 @@ func drainProjectorSequential(
 	logger *slog.Logger,
 ) error {
 	var completed atomic.Int64
+	var failed atomic.Int64
 	overallStart := time.Now()
 	for {
 		err := drainProjectorWorkItem(
@@ -400,14 +429,26 @@ func drainProjectorSequential(
 			0, &completed, tracer, instruments, logger,
 		)
 		if err != nil {
+			if errors.Is(err, errProjectorItemFailed) {
+				failed.Add(1)
+				continue
+			}
 			if errors.Is(err, errProjectorDrained) {
+				totalFailed := failed.Load()
 				if logger != nil {
 					logger.InfoContext(
 						ctx, "bootstrap projection complete",
 						slog.Int64("items_projected", completed.Load()),
+						slog.Int64("items_failed", totalFailed),
 						slog.Int("workers", 1),
 						slog.Float64("total_duration_seconds", time.Since(overallStart).Seconds()),
 						telemetry.PhaseAttr(telemetry.PhaseProjection),
+					)
+				}
+				if totalFailed > 0 {
+					return fmt.Errorf(
+						"bootstrap projection incomplete: %d work item(s) failed and were routed to retry/dead-letter; graph truth is not fully materialized",
+						totalFailed,
 					)
 				}
 				return nil
