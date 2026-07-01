@@ -42,12 +42,21 @@ func TestFirestoreDatabaseOfflineFixtureEndToEnd(t *testing.T) {
 	resourceCount := 0
 	kmsEdges := 0
 	var defaultAttrs map[string]any
+	var defaultAnchors []any
 	for _, env := range envelopes {
 		switch env.FactKind {
 		case facts.GCPCloudResourceFactKind:
 			resourceCount++
 			if env.Payload["full_resource_name"] == firestoreDatabaseFullName {
 				defaultAttrs, _ = env.Payload["attributes"].(map[string]any)
+				defaultAnchors, _ = env.Payload["correlation_anchors"].([]any)
+				if defaultAnchors == nil {
+					if s, ok := env.Payload["correlation_anchors"].([]string); ok {
+						for _, v := range s {
+							defaultAnchors = append(defaultAnchors, v)
+						}
+					}
+				}
 			}
 		case facts.GCPCloudRelationshipFactKind:
 			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeFirestoreEncryptedByKMSKey {
@@ -70,5 +79,15 @@ func TestFirestoreDatabaseOfflineFixtureEndToEnd(t *testing.T) {
 	}
 	if kmsEdges != 1 {
 		t.Errorf("firestore_database_encrypted_by_kms_key edges = %d, want 1", kmsEdges)
+	}
+	const wantKMSAnchor = "//cloudkms.googleapis.com/projects/demo-project/locations/nam5/keyRings/firestore/cryptoKeys/db"
+	foundAnchor := false
+	for _, a := range defaultAnchors {
+		if s, ok := a.(string); ok && s == wantKMSAnchor {
+			foundAnchor = true
+		}
+	}
+	if !foundAnchor {
+		t.Errorf("(default) database envelope missing KMS correlation anchor %q, got %#v", wantKMSAnchor, defaultAnchors)
 	}
 }
