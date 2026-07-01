@@ -1,0 +1,55 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//cloudfunctions.googleapis.com/projects/demo-project/locations/us-central1/functions/api-fn-v1",
+      "assetType": "cloudfunctions.googleapis.com/CloudFunction",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/functions/api-fn-v1",
+          "status": "ACTIVE",
+          "runtime": "python39",
+          "entryPoint": "handler",
+          "availableMemoryMb": 256,
+          "serviceAccountEmail": "runtime-sa@demo-project.iam.gserviceaccount.com",
+          "vpcConnector": "serverless-conn",
+          "vpcConnectorEgressSettings": "PRIVATE_RANGES_ONLY",
+          "ingressSettings": "ALLOW_INTERNAL_ONLY",
+          "sourceArchiveUrl": "gs://gcf-sources-v1/api-fn-v1-should-not-leak.zip",
+          "eventTrigger": {
+            "eventType": "google.pubsub.topic.publish",
+            "resource": "projects/demo-project/topics/events",
+            "service": "pubsub.googleapis.com"
+          },
+          "secretEnvironmentVariables": [
+            {"key": "DB", "projectId": "demo-project", "secret": "db-password", "version": "latest"}
+          ],
+          "secretVolumes": [
+            {"mountPath": "/etc/secrets", "projectId": "demo-project", "secret": "app-config"}
+          ],
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//cloudfunctions.googleapis.com/projects/demo-project/locations/us-east1/functions/http-fn",
+      "assetType": "cloudfunctions.googleapis.com/CloudFunction",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/functions/http-fn",
+          "status": "ACTIVE",
+          "runtime": "nodejs18",
+          "serviceAccountEmail": "http-sa@demo-project.iam.gserviceaccount.com",
+          "httpsTrigger": {"url": "https://us-east1-demo-project.cloudfunctions.net/http-fn-should-not-leak"},
+          "updateTime": "2023-01-15T09:30:00Z"
+        }
+      }
+    }
+  ]
+}
