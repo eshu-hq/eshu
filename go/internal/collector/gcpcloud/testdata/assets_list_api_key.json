@@ -1,0 +1,37 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//apikeys.googleapis.com/projects/123456789/locations/global/keys/demo-key",
+      "assetType": "apikeys.googleapis.com/Key",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "displayName": "Demo Key",
+          "createTime": "2024-06-01T00:00:00Z",
+          "keyString": "AIzaSy-PLACEHOLDER-NEVER-PERSISTED",
+          "restrictions": {
+            "serverKeyRestrictions": {"allowedIps": ["203.0.113.4", "203.0.113.5"]},
+            "apiTargets": [
+              {"service": "translate.googleapis.com"},
+              {"service": "maps-backend.googleapis.com"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "//apikeys.googleapis.com/projects/123456789/locations/global/keys/open-key",
+      "assetType": "apikeys.googleapis.com/Key",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "displayName": "Open Key",
+          "createTime": "2023-01-01T00:00:00Z"
+        }
+      }
+    }
+  ]
+}

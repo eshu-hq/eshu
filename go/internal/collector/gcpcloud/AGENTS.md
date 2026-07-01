@@ -57,6 +57,11 @@
    replication type, CMEK posture; `secret_version_of_secret` edge to the parent
    Secret and `secret_version_encrypted_by_kms_key_version` edge to each CMEK
    CryptoKeyVersion; never reads the secret payload).
+22. `extractor_api_key.go` - typed-depth extractor for
+   `apikeys.googleapis.com/Key` (display name, creation time, restriction type
+   browser/server/android/ios, restricted API-target services; no outbound edges;
+   never reads the secret keyString or any restriction value — IPs, referrers,
+   app fingerprints, bundle ids are reduced to a presence-only restriction type).
 
 ## Invariants
 
