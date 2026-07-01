@@ -375,6 +375,19 @@ correlation anchors. No secret payload is ever read — payloads live on separat
 resource names (control-plane identifiers, not key material or values) leave the
 parser.
 
+**Pub/Sub Topic** (`pubsub.googleapis.com/Topic`) captures lifecycle `state`,
+customer-managed-encryption posture, message-storage region residency
+(`allowedPersistenceRegions`, deduplicated and sorted) and in-transit
+enforcement, message-schema encoding, and message retention duration; emits the
+typed `topic_encrypted_by_kms_key` edge to the CMEK `CryptoKey` and the
+`topic_uses_schema` edge to the message `Schema`; and surfaces the CMEK key and
+schema resource names as correlation anchors. Subscription and IAM
+publisher/subscriber edges are intentionally not emitted from this asset: a
+topic's own `resource.data` carries neither its subscriptions (each references
+the topic on its own asset) nor its IAM policy (never persisted), so those joins
+belong to the subscription-asset and IAM-policy paths, and this extractor never
+fabricates an endpoint it cannot resolve from `resource.data`.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
@@ -500,7 +513,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, and no secret payload is persisted. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Pub/Sub Topic) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, and no secret payload is persisted. The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 
