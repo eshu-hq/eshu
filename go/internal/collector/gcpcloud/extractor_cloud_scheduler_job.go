@@ -49,8 +49,10 @@ type cloudSchedulerJobData struct {
 			ServiceAccountEmail string `json:"serviceAccountEmail"`
 		} `json:"oidcToken"`
 	} `json:"httpTarget"`
-	AppEngineHTTPTarget *struct{} `json:"appEngineHttpTarget"`
-	RetryConfig         *struct {
+	AppEngineHTTPTarget *struct {
+		HTTPMethod string `json:"httpMethod"`
+	} `json:"appEngineHttpTarget"`
+	RetryConfig *struct {
 		RetryCount *int `json:"retryCount"`
 	} `json:"retryConfig"`
 }
@@ -81,7 +83,7 @@ func extractCloudSchedulerJob(ctx ExtractContext) (AttributeExtraction, error) {
 		anchors = append(anchors, hostFP)
 	}
 	if data.PubsubTarget != nil {
-		if topic := secretManagerTopicFullName(data.PubsubTarget.TopicName); topic != "" {
+		if topic := pubSubTopicRefFullName(data.PubsubTarget.TopicName); topic != "" {
 			anchors = append(anchors, topic)
 			rels = append(rels, cloudSchedulerJobEdge(ctx, relationshipTypeSchedulerJobTargetsTopic, topic, assetTypePubSubTopic))
 		}
@@ -110,10 +112,8 @@ func cloudSchedulerJobAttributes(data cloudSchedulerJobData, saDigest, hostFP st
 	if v := cloudSchedulerJobTargetType(data); v != "" {
 		attrs["target_type"] = v
 	}
-	if data.HTTPTarget != nil {
-		if v := strings.TrimSpace(data.HTTPTarget.HTTPMethod); v != "" {
-			attrs["http_method"] = v
-		}
+	if v := cloudSchedulerJobHTTPMethod(data); v != "" {
+		attrs["http_method"] = v
 	}
 	if hostFP != "" {
 		attrs["http_target_host_fingerprint"] = hostFP
@@ -128,6 +128,22 @@ func cloudSchedulerJobAttributes(data cloudSchedulerJobData, saDigest, hostFP st
 		attrs["service_account_fingerprint"] = saDigest
 	}
 	return attrs
+}
+
+// cloudSchedulerJobHTTPMethod returns the request method for an HTTP or App
+// Engine HTTP target (both carry httpMethod), or "".
+func cloudSchedulerJobHTTPMethod(data cloudSchedulerJobData) string {
+	if h := data.HTTPTarget; h != nil {
+		if v := strings.TrimSpace(h.HTTPMethod); v != "" {
+			return v
+		}
+	}
+	if a := data.AppEngineHTTPTarget; a != nil {
+		if v := strings.TrimSpace(a.HTTPMethod); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // cloudSchedulerJobTargetType returns the bounded target kind.

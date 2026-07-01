@@ -106,6 +106,25 @@ func TestExtractCloudSchedulerJobHTTPTarget(t *testing.T) {
 	}
 }
 
+func TestExtractCloudSchedulerJobAppEngineTarget(t *testing.T) {
+	// An App Engine target also carries httpMethod; it must be captured, and the
+	// target resolves no CAI-asset edge.
+	const data = `{"state": "ENABLED", "appEngineHttpTarget": {"httpMethod": "PUT", "relativeUri": "/task"}}`
+	got, err := extractCloudSchedulerJob(cloudSchedulerJobContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["target_type"] != "app_engine" {
+		t.Errorf("target_type = %v, want app_engine", got.Attributes["target_type"])
+	}
+	if got.Attributes["http_method"] != "PUT" {
+		t.Errorf("http_method = %v, want PUT", got.Attributes["http_method"])
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("app engine target emits no edge, got %#v", got.Relationships)
+	}
+}
+
 func TestExtractCloudSchedulerJobEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractCloudSchedulerJob(cloudSchedulerJobContext(`{}`))
 	if err != nil {
