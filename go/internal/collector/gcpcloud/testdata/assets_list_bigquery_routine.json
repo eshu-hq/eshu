@@ -1,0 +1,39 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//bigquery.googleapis.com/projects/demo-project/datasets/analytics/routines/enrich",
+      "assetType": "bigquery.googleapis.com/Routine",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "routineReference": {"projectId": "demo-project", "datasetId": "analytics", "routineId": "enrich"},
+          "routineType": "SCALAR_FUNCTION",
+          "language": "JAVASCRIPT",
+          "arguments": [{"name": "x"}, {"name": "y"}],
+          "returnType": {"typeKind": "STRING"},
+          "definitionBody": "return placeholderLogic(x, y);",
+          "importedLibraries": ["gs://demo-libs/enrich.js"],
+          "remoteFunctionOptions": {"endpoint": "https://region-demo.cloudfunctions.net/enrich", "connection": "projects/demo-project/locations/us/connections/remote"},
+          "creationTime": "1717200000000"
+        }
+      }
+    },
+    {
+      "name": "//bigquery.googleapis.com/projects/demo-project/datasets/analytics/routines/rollup",
+      "assetType": "bigquery.googleapis.com/Routine",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "routineReference": {"projectId": "demo-project", "datasetId": "analytics", "routineId": "rollup"},
+          "routineType": "PROCEDURE",
+          "language": "SQL",
+          "definitionBody": "BEGIN CALL doWork(); END",
+          "creationTime": "1717100000000"
+        }
+      }
+    }
+  ]
+}
