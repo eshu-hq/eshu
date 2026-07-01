@@ -1,0 +1,44 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//bigquery.googleapis.com/projects/demo-project/datasets/analytics",
+      "assetType": "bigquery.googleapis.com/Dataset",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "US",
+        "data": {
+          "datasetReference": {"projectId": "demo-project", "datasetId": "analytics"},
+          "friendlyName": "Analytics",
+          "location": "US",
+          "defaultTableExpirationMs": "3600000",
+          "defaultPartitionExpirationMs": "7200000",
+          "creationTime": "1717200000000",
+          "lastModifiedTime": "1788220800000",
+          "defaultEncryptionConfiguration": {"kmsKeyName": "projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1"},
+          "access": [
+            {"role": "OWNER", "userByEmail": "alice@example.com"},
+            {"role": "WRITER", "specialGroup": "projectWriters"},
+            {"role": "READER", "groupByEmail": "team@example.com"}
+          ],
+          "labels": {"team": "data"}
+        }
+      }
+    },
+    {
+      "name": "//bigquery.googleapis.com/projects/demo-project/datasets/raw",
+      "assetType": "bigquery.googleapis.com/Dataset",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "EU",
+        "data": {
+          "datasetReference": {"projectId": "demo-project", "datasetId": "raw"},
+          "location": "EU",
+          "creationTime": "1717200000000"
+        }
+      }
+    }
+  ]
+}

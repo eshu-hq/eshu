@@ -28,6 +28,10 @@
 15. `extractor_compute_network.go` - typed-depth extractor for
    `compute.googleapis.com/Network` (VPC) emitting contained-subnetwork and
    peering edges.
+16. `extractor_bigquery_dataset.go` - typed-depth extractor for
+   `bigquery.googleapis.com/Dataset` (location, expiration policies, default KMS
+   key, and a redaction-safe access-ACL summary; KMS-key edge plus
+   authorizes-view/dataset/routine edges).
 
 ## Invariants
 
