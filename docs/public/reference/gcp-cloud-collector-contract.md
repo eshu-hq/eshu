@@ -351,6 +351,17 @@ anchors. The KMS reference is reduced to its CryptoKey resource name (any
 `cryptoKeyVersions` suffix is stripped), and the encryption key's `sha256`/raw
 material fields are never decoded, so no key material reaches a fact.
 
+**Route** (`compute.googleapis.com/Route`) captures the destination prefix length
+and a default-route flag, priority, the next-hop gateway leaf name, a
+next-hop-IP presence flag, network tags, and creation time; emits the typed
+`route_in_network`, `route_next_hop_instance`, `route_next_hop_vpn_tunnel`, and
+`route_next_hop_ilb` edges; and surfaces the enclosing network and each
+resolvable next-hop resource (instance, VPN tunnel, or internal load balancer)
+as correlation anchors. The destination range is reduced to a prefix length and
+a default-route boolean, and the next-hop IP to a presence flag — no destination
+CIDR or next-hop IP address reaches a fact. The next-hop internet gateway is not
+a resolvable CAI asset, so its leaf name is kept as an attribute, not an edge.
+
 **Compute Engine Instance** (`compute.googleapis.com/Instance`) captures machine
 type, status, zone, scheduling posture (preemptible, automatic-restart,
 on-host-maintenance, provisioning model), Shielded VM posture (secure boot, vTPM,
