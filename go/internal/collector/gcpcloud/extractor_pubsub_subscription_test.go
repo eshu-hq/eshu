@@ -109,6 +109,46 @@ func TestExtractPubSubSubscriptionPullWithCloudStorage(t *testing.T) {
 		"//pubsub.googleapis.com/projects/demo-project/topics/events", assetTypePubSubTopic)
 }
 
+func TestExtractPubSubSubscriptionBigtableExport(t *testing.T) {
+	// A Bigtable-export subscription must be classified as bigtable (not
+	// mislabeled pull) and must emit the typed Bigtable table edge.
+	const data = `{
+		"topic": "projects/demo-project/topics/events",
+		"bigtableConfig": {"table": "projects/demo-project/instances/analytics/tables/events"},
+		"state": "ACTIVE"
+	}`
+	got, err := extractPubSubSubscription(pubSubSubscriptionContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["delivery_type"] != "bigtable" {
+		t.Errorf("delivery_type = %v, want bigtable", got.Attributes["delivery_type"])
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeSubscriptionExportsToBigtableTable,
+		"//bigtableadmin.googleapis.com/projects/demo-project/instances/analytics/tables/events", assetTypeBigtableTable)
+}
+
+func TestPubSubBigtableConfigTableFullName(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"resource path", "projects/p/instances/i/tables/t", "//bigtableadmin.googleapis.com/projects/p/instances/i/tables/t"},
+		{"leading slash", "/projects/p/instances/i/tables/t", "//bigtableadmin.googleapis.com/projects/p/instances/i/tables/t"},
+		{"already full name", "//bigtableadmin.googleapis.com/projects/p/instances/i/tables/t", "//bigtableadmin.googleapis.com/projects/p/instances/i/tables/t"},
+		{"missing instance", "projects/p/tables/t", ""},
+		{"blank", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := pubSubBigtableConfigTableFullName(tc.in); got != tc.want {
+				t.Errorf("pubSubBigtableConfigTableFullName(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestExtractPubSubSubscriptionBarePull(t *testing.T) {
 	const data = `{"topic": "projects/demo-project/topics/plain", "state": "ACTIVE"}`
 	got, err := extractPubSubSubscription(pubSubSubscriptionContext(data))

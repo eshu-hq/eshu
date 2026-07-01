@@ -13,11 +13,18 @@ import (
 )
 
 // assetTypePubSubSubscription is the CAI asset type for a Pub/Sub Subscription.
-// Its edge targets reuse asset-type constants already declared in this package:
-// assetTypePubSubTopic (Secret Manager Secret extractor), assetTypeBigQueryTable
-// and assetTypeStorageBucket plus their //-name prefixes (BigQuery Table
-// extractor).
+// Its edge targets reuse asset-type constants already declared elsewhere in this
+// package: assetTypePubSubTopic, assetTypeBigQueryTable, assetTypeStorageBucket,
+// and their //-resource-name prefixes.
 const assetTypePubSubSubscription = "pubsub.googleapis.com/Subscription"
+
+// assetTypeBigtableTable is the CAI asset type for a Cloud Bigtable table, the
+// target of a Bigtable-export subscription's sink edge.
+const assetTypeBigtableTable = "bigtableadmin.googleapis.com/Table"
+
+// bigtableResourceNamePrefix is the CAI full-resource-name prefix for Bigtable
+// resources.
+const bigtableResourceNamePrefix = "//bigtableadmin.googleapis.com/"
 
 // pubSubDeletedTopicSentinel is the value Pub/Sub reports for a subscription's
 // topic when the topic has been deleted while the subscription still exists. It
@@ -32,6 +39,7 @@ const (
 	relationshipTypeSubscriptionDeadLettersToTopic     = "subscription_dead_letters_to_topic"
 	relationshipTypeSubscriptionExportsToBigQueryTable = "subscription_exports_to_bigquery_table"
 	relationshipTypeSubscriptionExportsToStorageBucket = "subscription_exports_to_storage_bucket"
+	relationshipTypeSubscriptionExportsToBigtableTable = "subscription_exports_to_bigtable_table"
 )
 
 func init() {
@@ -65,6 +73,9 @@ type pubSubSubscriptionData struct {
 	BigQueryConfig *struct {
 		Table string `json:"table"`
 	} `json:"bigqueryConfig"`
+	BigtableConfig *struct {
+		Table string `json:"table"`
+	} `json:"bigtableConfig"`
 	CloudStorageConfig *struct {
 		Bucket string `json:"bucket"`
 	} `json:"cloudStorageConfig"`
@@ -104,6 +115,12 @@ func extractPubSubSubscription(ctx ExtractContext) (AttributeExtraction, error) 
 		if tbl := pubSubBigQueryConfigTableFullName(data.BigQueryConfig.Table); tbl != "" {
 			anchors = append(anchors, tbl)
 			rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionExportsToBigQueryTable, tbl, assetTypeBigQueryTable))
+		}
+	}
+	if data.BigtableConfig != nil {
+		if tbl := pubSubBigtableConfigTableFullName(data.BigtableConfig.Table); tbl != "" {
+			anchors = append(anchors, tbl)
+			rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionExportsToBigtableTable, tbl, assetTypeBigtableTable))
 		}
 	}
 	if data.CloudStorageConfig != nil {
@@ -180,6 +197,8 @@ func pubSubSubscriptionDeliveryType(data pubSubSubscriptionData) string {
 		return "push"
 	case data.BigQueryConfig != nil && strings.TrimSpace(data.BigQueryConfig.Table) != "":
 		return "bigquery"
+	case data.BigtableConfig != nil && strings.TrimSpace(data.BigtableConfig.Table) != "":
+		return "bigtable"
 	case data.CloudStorageConfig != nil && strings.TrimSpace(data.CloudStorageConfig.Bucket) != "":
 		return "cloud_storage"
 	default:
@@ -252,6 +271,22 @@ func pubSubBigQueryConfigTableFullName(tableRef string) string {
 		}
 	}
 	return fmt.Sprintf("%sprojects/%s/datasets/%s/tables/%s", bigQueryResourceNamePrefix, parts[0], parts[1], parts[2])
+}
+
+// pubSubBigtableConfigTableFullName builds the CAI Bigtable Table full resource
+// name from a Pub/Sub BigtableConfig table reference. Pub/Sub reports the target
+// as the resource path "projects/.../instances/.../tables/...". An already
+// //-prefixed name is returned unchanged. It returns "" for a blank reference or
+// one that does not name an instance table, so no edge is fabricated.
+func pubSubBigtableConfigTableFullName(tableRef string) string {
+	trimmed := strings.TrimSpace(tableRef)
+	if trimmed == "" || !strings.Contains(trimmed, "/instances/") || !strings.Contains(trimmed, "/tables/") {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "//") {
+		return trimmed
+	}
+	return bigtableResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // pubSubSubscriptionEdge builds one typed provider relationship observation
