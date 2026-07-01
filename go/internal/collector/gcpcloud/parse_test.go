@@ -288,7 +288,7 @@ func TestParseInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestCaiResourceStatusTolersStringAndObject(t *testing.T) {
+func TestCaiResourceStatusToleratesStringAndObject(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
@@ -299,6 +299,7 @@ func TestCaiResourceStatusTolersStringAndObject(t *testing.T) {
 		{"object without state", `{"detail":"x"}`, ""},
 		{"null", `null`, ""},
 		{"number ignored", `42`, ""},
+		{"array ignored", `["RUNNING"]`, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

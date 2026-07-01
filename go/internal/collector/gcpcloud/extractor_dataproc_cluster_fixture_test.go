@@ -68,6 +68,9 @@ func TestDataprocClusterOfflineFixtureEndToEnd(t *testing.T) {
 	if analyticsAttrs["customer_managed_encryption"] != true {
 		t.Errorf("analytics customer_managed_encryption = %v, want true", analyticsAttrs["customer_managed_encryption"])
 	}
+	if analyticsAttrs["autoscaling_enabled"] != true {
+		t.Errorf("analytics autoscaling_enabled = %v, want true", analyticsAttrs["autoscaling_enabled"])
+	}
 	for rel, want := range map[string]int{
 		relationshipTypeClusterUsesNetwork:       1,
 		relationshipTypeClusterUsesSubnetwork:    1,

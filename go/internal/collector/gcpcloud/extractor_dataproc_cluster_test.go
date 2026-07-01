@@ -134,6 +134,27 @@ func TestExtractDataprocClusterMalformedDataErrors(t *testing.T) {
 	}
 }
 
+func TestDataprocKMSKeyFullName(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"relative key", "projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
+		{"leading slash", "/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
+		{"already full name", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
+		{"whitespace only", "   ", ""},
+		{"blank", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := dataprocKMSKeyFullName(tc.in); got != tc.want {
+				t.Errorf("dataprocKMSKeyFullName(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestExtractDataprocClusterBlankServiceAccountOmitsFingerprint(t *testing.T) {
 	const data = `{"config": {"gceClusterConfig": {"serviceAccount": ""}}}`
 	got, err := extractDataprocCluster(dataprocClusterContext(data))
