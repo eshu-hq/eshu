@@ -123,8 +123,8 @@ func computeNetworkAttributes(data computeNetworkData) map[string]any {
 	if data.MTU > 0 {
 		attrs["mtu"] = data.MTU
 	}
-	if ts := strings.TrimSpace(data.CreationTimestamp); ts != "" {
-		attrs["creation_timestamp"] = ts
+	if v, ok := normalizeRFC3339(data.CreationTimestamp); ok {
+		attrs["creation_time"] = v
 	}
 	if n := len(data.Subnetworks); n > 0 {
 		attrs["subnetwork_count"] = n

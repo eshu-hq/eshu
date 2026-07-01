@@ -52,7 +52,7 @@ func TestExtractComputeNetworkCustomMode(t *testing.T) {
 		"auto_create_subnetworks": false,
 		"routing_mode":            "GLOBAL",
 		"mtu":                     int64(1460),
-		"creation_timestamp":      "2026-06-20T10:00:00.000-07:00",
+		"creation_time":           "2026-06-20T17:00:00Z",
 		"subnetwork_count":        2,
 		"peering_count":           1,
 	}
