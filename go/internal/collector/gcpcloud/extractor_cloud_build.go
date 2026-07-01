@@ -94,7 +94,13 @@ func extractCloudBuild(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, cloudBuildEdge(ctx, relationshipTypeBuildTriggeredBy, trigger, assetTypeCloudBuildTrigger))
 	}
 	if data.Source.RepoSource != nil {
-		if repo := cloudBuildSourceRepoFullName(data.Source.RepoSource.ProjectID, data.Source.RepoSource.RepoName); repo != "" {
+		// repoSource.projectId is optional and defaults to the build's own
+		// project; fall back to it so a same-project repo edge is not dropped.
+		repoProject := strings.TrimSpace(data.Source.RepoSource.ProjectID)
+		if repoProject == "" {
+			repoProject, _ = cloudFunctionProjectLocation(ctx.FullResourceName)
+		}
+		if repo := cloudBuildSourceRepoFullName(repoProject, data.Source.RepoSource.RepoName); repo != "" {
 			anchors = append(anchors, repo)
 			rels = append(rels, cloudBuildEdge(ctx, relationshipTypeBuildSourceRepo, repo, assetTypeSourceRepo))
 		}
@@ -122,7 +128,7 @@ func cloudBuildAttributes(data cloudBuildData, saDigest string, digests []string
 		attrs["status"] = v
 	}
 	if v, ok := normalizeRFC3339(data.CreateTime); ok {
-		attrs["create_time"] = v
+		attrs["creation_time"] = v
 	}
 	if v, ok := normalizeRFC3339(data.FinishTime); ok {
 		attrs["finish_time"] = v
@@ -182,19 +188,28 @@ func cloudBuildServiceAccountEmail(serviceAccount string) string {
 	return trimmed
 }
 
-// cloudBuildLogURLHost returns the host of the build log URL, dropping the path
-// and query (which can carry project and build identifiers). It returns "" for a
+// cloudBuildLogURLHost returns the lower-cased host of the build log URL,
+// dropping the path and query (which can carry project and build identifiers),
+// any userinfo (which could embed credentials), and the port. It returns "" for a
 // non-http value.
 func cloudBuildLogURLHost(logURL string) string {
 	trimmed := strings.TrimSpace(logURL)
 	for _, scheme := range []string{"https://", "http://"} {
-		if strings.HasPrefix(trimmed, scheme) {
-			rest := trimmed[len(scheme):]
-			if i := strings.IndexAny(rest, "/?#"); i >= 0 {
-				rest = rest[:i]
-			}
-			return strings.TrimSpace(rest)
+		if !strings.HasPrefix(strings.ToLower(trimmed), scheme) {
+			continue
 		}
+		rest := trimmed[len(scheme):]
+		if i := strings.IndexAny(rest, "/?#"); i >= 0 {
+			rest = rest[:i]
+		}
+		// Drop userinfo (user:pass@host) and the port (host:443).
+		if i := strings.LastIndex(rest, "@"); i >= 0 {
+			rest = rest[i+1:]
+		}
+		if i := strings.LastIndex(rest, ":"); i >= 0 {
+			rest = rest[:i]
+		}
+		return strings.ToLower(strings.TrimSpace(rest))
 	}
 	return ""
 }

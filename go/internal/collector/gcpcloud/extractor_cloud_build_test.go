@@ -57,7 +57,7 @@ func TestExtractCloudBuildFullResource(t *testing.T) {
 	}
 	wantAttrs := map[string]any{
 		"status":                      "SUCCESS",
-		"create_time":                 "2026-06-26T11:50:00Z",
+		"creation_time":               "2026-06-26T11:50:00Z",
 		"finish_time":                 "2026-06-26T11:55:00Z",
 		"log_url_host":                "console.cloud.google.com",
 		"source_type":                 "repo",
@@ -112,6 +112,18 @@ func TestExtractCloudBuildStorageSource(t *testing.T) {
 	}
 }
 
+func TestExtractCloudBuildRepoSourceDefaultProject(t *testing.T) {
+	// repoSource.projectId is optional and defaults to the build's own project;
+	// the source-repo edge must still resolve using the build's project.
+	const data = `{"status": "SUCCESS", "source": {"repoSource": {"repoName": "my-repo", "branchName": "main"}}}`
+	got, err := extractCloudBuild(cloudBuildContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeBuildSourceRepo,
+		"//sourcerepo.googleapis.com/projects/demo-project/repos/my-repo", assetTypeSourceRepo)
+}
+
 func TestExtractCloudBuildNeverPersistsSubstitutions(t *testing.T) {
 	const data = `{"status": "SUCCESS", "substitutions": {"_DEPLOY_SECRET": "should-not-leak-value"}}`
 	got, err := extractCloudBuild(cloudBuildContext(data))
@@ -162,6 +174,8 @@ func TestCloudBuildLogURLHost(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"https://console.cloud.google.com/cloud-build/builds/x?project=p", "console.cloud.google.com"},
 		{"http://host/path", "host"},
+		{"https://user:pass@host.example.com:443/path", "host.example.com"},
+		{"https://HOST.EXAMPLE.com/path", "host.example.com"},
 		{"not-a-url", ""},
 		{"", ""},
 	}
