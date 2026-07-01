@@ -4,6 +4,7 @@
 package gcpcloud
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -49,13 +50,47 @@ type caiResourceDataWire struct {
 	Name        string            `json:"name"`
 	DisplayName string            `json:"displayName"`
 	Email       string            `json:"email"`
-	Status      string            `json:"status"`
+	Status      caiResourceStatus `json:"status"`
 	State       string            `json:"state"`
 	Labels      map[string]string `json:"labels"`
 	RecordType  string            `json:"type"`
 	TTLSeconds  int64             `json:"ttl"`
 	RRDatas     []string          `json:"rrdatas"`
 	Template    caiTemplateWire   `json:"template"`
+}
+
+// caiResourceStatus tolerates a resource.data "status" that is either a bare
+// string (most asset types, e.g. compute Instance "RUNNING") or an object
+// carrying a "state" field (e.g. dataproc.googleapis.com/Cluster
+// {"state":"RUNNING"}). Both normalize to the lifecycle string so the base
+// observation State is populated uniformly and an object status never fails the
+// whole page parse. A non-string, non-object status is ignored.
+type caiResourceStatus string
+
+// UnmarshalJSON decodes a string or {"state":...} object status into the bare
+// lifecycle string.
+func (s *caiResourceStatus) UnmarshalJSON(b []byte) error {
+	trimmed := bytes.TrimSpace(b)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil
+	}
+	switch trimmed[0] {
+	case '"':
+		var str string
+		if err := json.Unmarshal(trimmed, &str); err != nil {
+			return err
+		}
+		*s = caiResourceStatus(str)
+	case '{':
+		var obj struct {
+			State string `json:"state"`
+		}
+		if err := json.Unmarshal(trimmed, &obj); err != nil {
+			return err
+		}
+		*s = caiResourceStatus(obj.State)
+	}
+	return nil
 }
 
 type caiTemplateWire struct {
@@ -122,7 +157,7 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 			Name:                strings.TrimSpace(asset.Name),
 			AssetType:           strings.TrimSpace(asset.AssetType),
 			DisplayName:         displayNameForAsset(asset.AssetType, data.DisplayName, data.Name),
-			State:               firstNonEmpty(data.State, data.Status),
+			State:               firstNonEmpty(data.State, string(data.Status)),
 			Location:            strings.TrimSpace(asset.Resource.Location),
 			Ancestors:           cloneStrings(asset.Ancestors),
 			Labels:              cloneStringMap(data.Labels),

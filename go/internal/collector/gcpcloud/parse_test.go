@@ -4,6 +4,7 @@
 package gcpcloud
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -284,5 +285,44 @@ func TestParseSearchAllResources(t *testing.T) {
 func TestParseInvalidJSON(t *testing.T) {
 	if _, err := ParseAssetsListPage([]byte("not json")); err == nil {
 		t.Fatal("want error for invalid JSON")
+	}
+}
+
+func TestCaiResourceStatusTolersStringAndObject(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"bare string", `"RUNNING"`, "RUNNING"},
+		{"object with state", `{"state":"ERROR","detail":"x"}`, "ERROR"},
+		{"object without state", `{"detail":"x"}`, ""},
+		{"null", `null`, ""},
+		{"number ignored", `42`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var s caiResourceStatus
+			if err := json.Unmarshal([]byte(tc.in), &s); err != nil {
+				t.Fatalf("unmarshal %s: %v", tc.in, err)
+			}
+			if string(s) != tc.want {
+				t.Errorf("caiResourceStatus(%s) = %q, want %q", tc.in, string(s), tc.want)
+			}
+		})
+	}
+}
+
+func TestParseAssetsListPageObjectStatusPopulatesState(t *testing.T) {
+	const raw = `{"assets":[{"name":"//dataproc.googleapis.com/projects/p/regions/r/clusters/c","assetType":"dataproc.googleapis.com/Cluster","resource":{"data":{"status":{"state":"RUNNING"}}}}]}`
+	page, err := ParseAssetsListPage([]byte(raw))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(page.Resources) != 1 {
+		t.Fatalf("want 1 resource, got %d", len(page.Resources))
+	}
+	if page.Resources[0].State != "RUNNING" {
+		t.Errorf("object-status base State = %q, want RUNNING", page.Resources[0].State)
 	}
 }
