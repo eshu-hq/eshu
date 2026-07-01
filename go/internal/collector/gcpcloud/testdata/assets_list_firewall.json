@@ -1,0 +1,46 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/firewalls/allow-web",
+      "assetType": "compute.googleapis.com/Firewall",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "allow-web",
+          "network": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/prod-vpc",
+          "direction": "INGRESS",
+          "priority": 1000,
+          "disabled": false,
+          "sourceRanges": ["0.0.0.0/0"],
+          "targetTags": ["web"],
+          "targetServiceAccounts": ["runtime@demo-project.iam.gserviceaccount.com"],
+          "allowed": [
+            {"IPProtocol": "tcp", "ports": ["80", "443"]}
+          ],
+          "logConfig": {"enable": true}
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/firewalls/deny-egress",
+      "assetType": "compute.googleapis.com/Firewall",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "deny-egress",
+          "network": "projects/demo-project/global/networks/prod-vpc",
+          "direction": "EGRESS",
+          "priority": 65535,
+          "disabled": true,
+          "destinationRanges": ["10.0.0.0/8"],
+          "denied": [{"IPProtocol": "all"}]
+        }
+      }
+    }
+  ]
+}
