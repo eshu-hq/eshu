@@ -38,6 +38,55 @@ func (w *EdgeWriter) logSharedEdgeWrite(
 	w.Logger.Info("shared edge write completed", attrs...)
 }
 
+func (w *EdgeWriter) logSharedEdgeRetractStatement(
+	domain string,
+	evidenceSource string,
+	statementRole string,
+	repoCount int,
+	duration float64,
+	stmt Statement,
+) {
+	if w.Logger == nil {
+		return
+	}
+	attrs := []any{
+		"domain", domain,
+		"evidence_source", evidenceSource,
+		"statement_role", statementRole,
+		"repo_count", repoCount,
+		"statement_count", 1,
+		"duration_seconds", duration,
+	}
+	if summary, ok := stmt.Parameters[StatementMetadataSummaryKey].(string); ok && summary != "" {
+		attrs = append(attrs, "statement_summary", summary)
+	}
+	w.Logger.Info("shared edge retract statement completed", attrs...)
+}
+
+func (w *EdgeWriter) logSharedEdgeRetractGroup(
+	domain string,
+	evidenceSource string,
+	repoCount int,
+	duration float64,
+	stmts []Statement,
+) {
+	if w.Logger == nil {
+		return
+	}
+	attrs := []any{
+		"domain", domain,
+		"evidence_source", evidenceSource,
+		"execution_mode", "group",
+		"repo_count", repoCount,
+		"statement_count", len(stmts),
+		"duration_seconds", duration,
+	}
+	if summaries := sharedEdgeStatementSummaries(stmts); len(summaries) > 0 {
+		attrs = append(attrs, "statement_summaries", summaries)
+	}
+	w.Logger.Info("shared edge retract group completed", attrs...)
+}
+
 func statementRowCount(stmts []Statement) int {
 	total := 0
 	for _, stmt := range stmts {
