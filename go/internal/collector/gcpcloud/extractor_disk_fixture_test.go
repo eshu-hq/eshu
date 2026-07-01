@@ -93,8 +93,10 @@ func TestDiskOfflineFixtureEndToEnd(t *testing.T) {
 		t.Errorf("disk_encrypted_by_key edges = %d, want 1", kmsEdges)
 	}
 
-	// The raw KMS key version suffix and disk labels object must never reach a
-	// fact; only the bounded CryptoKey resource name (edge/anchor) is kept.
+	// The raw KMS key version suffix must never reach a fact; the extractor keeps
+	// only the bounded CryptoKey resource name (edge target + anchor). Bounded
+	// resource labels legitimately ride the base gcp_cloud_resource observation,
+	// so they are not asserted absent here.
 	blob, err := json.Marshal(envelopes)
 	if err != nil {
 		t.Fatalf("marshal envelopes: %v", err)
