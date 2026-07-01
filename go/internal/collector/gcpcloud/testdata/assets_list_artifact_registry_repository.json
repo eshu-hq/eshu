@@ -1,0 +1,44 @@
+{
+  "readTime": "2026-06-27T00:00:00Z",
+  "assets": [
+    {
+      "name": "//artifactregistry.googleapis.com/projects/demo-project/locations/us-central1/repositories/team-docker",
+      "assetType": "artifactregistry.googleapis.com/Repository",
+      "updateTime": "2026-06-26T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/repositories/team-docker",
+          "format": "DOCKER",
+          "mode": "STANDARD_REPOSITORY",
+          "description": "team docker images",
+          "kmsKeyName": "projects/demo-project/locations/us-central1/keyRings/ar/cryptoKeys/repo-key",
+          "sizeBytes": 10485760,
+          "createTime": "2024-06-01T00:00:00Z",
+          "updateTime": "2026-06-26T12:00:00Z",
+          "cleanupPolicies": {
+            "delete-old": {"id": "delete-old", "action": "DELETE"},
+            "keep-recent": {"id": "keep-recent", "action": "KEEP"}
+          },
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//artifactregistry.googleapis.com/projects/demo-project/locations/us-east1/repositories/team-npm",
+      "assetType": "artifactregistry.googleapis.com/Repository",
+      "updateTime": "2026-06-26T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/repositories/team-npm",
+          "format": "NPM",
+          "mode": "STANDARD_REPOSITORY",
+          "createTime": "2023-01-15T09:30:00Z"
+        }
+      }
+    }
+  ]
+}
