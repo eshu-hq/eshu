@@ -101,6 +101,9 @@ func dataformRepositoryAttributes(data dataformRepositoryData) map[string]any {
 		attrs["service_account_fingerprint"] = fp
 	}
 	if w := data.WorkspaceCompilationOverrides; w != nil {
+		// defaultDatabase is the compilation target project/dataset name (a GCP
+		// project-class identifier that already appears throughout resource names),
+		// not a secret, so it is stored verbatim.
 		if v := strings.TrimSpace(w.DefaultDatabase); v != "" {
 			attrs["workspace_default_database"] = v
 		}
@@ -154,6 +157,9 @@ func dataformKMSKeyFullName(kmsKeyName string) string {
 	if strings.HasPrefix(trimmed, "//") {
 		return trimmed
 	}
+	// TrimPrefix guards against a hypothetical leading slash on the relative
+	// resource name (Dataform reports it without one); the // form is already
+	// handled above so the prefix is never doubled.
 	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
