@@ -17,9 +17,10 @@ treat that claim as unvalidated and do not build on it.
 
 Ifá is a **validated conformance platform**: a single named identity that binds
 Eshu's already-existing record/replay, canonicalization, golden-corpus, perf,
-gate-registry, and coverage machinery into one contract surface, and adds the
-**one net-new piece** those pieces do not yet cover — cross-run,
-worker-scaled determinism. The name follows the repository's Yoruba naming
+gate-registry, and coverage machinery into one contract surface, and **broadens
+the one thing those cover only narrowly** — cross-run, worker-scaled determinism
+over the real pipeline and full corpus (a pattern `schedulereplay` already proves
+in miniature). The name follows the repository's Yoruba naming
 convention (Eshu, Odù); an *Odù* in Ifá is a validated conformance case a
 contributor drops in.
 
@@ -29,9 +30,10 @@ Ifá **is**:
   single canonical intermediate type and a single load gateway (see
   [Contract layer](#layer-1-contract-layer-first-given-fact-fan-in)), so a
   conformance platform can assert on that seam without re-running collectors.
-- A **determinism-under-load harness** — the net-new capability — that replays
-  the same recorded input through the full pipeline at varied worker counts and
-  asserts an identical canonical graph.
+- A **determinism-under-load harness** — generalizing the existing
+  `schedulereplay` invariance pattern — that replays the same recorded input
+  through the full pipeline at varied worker counts and asserts an identical
+  canonical graph.
 - A **placement and contributor discipline**: where the new code lives, what it
   is allowed to depend on, and how a contributor proves an Odù.
 
@@ -77,8 +79,9 @@ boundary.
 Measured scale (all **exists**):
 
 - 42 `cmd/` deployables, of which 21 are `collector-*` (confirmed).
-- 9212 `.go` files across the module; `go/internal` has 103 top-level package
-  directories (confirmed).
+- 9235 `.go` files (5218 non-test) across the module; `go/internal` has 103
+  top-level package directories. Measured as of commit `5294fd1e` (2026-06-30)
+  via `rg --files go -g '*.go'`; counts are point-in-time, not perpetual.
 
 ### Fact fan-in (exists — this is why the contract layer comes first)
 
@@ -87,24 +90,25 @@ Measured scale (all **exists**):
   `GenerationID`, `FactKind`, `StableFactKey`, `SchemaVersion`, `CollectorKind`,
   `FencingToken`, `SourceConfidence`, `ObservedAt`, `Payload`, `IsTombstone`,
   `SourceRef`), with a replay-safe `Clone()` at `models.go:49-57`.
-- Import fan-in for `facts`: **1487 files** (confirmed).
-- **Correction:** we assumed `collector` fan-in was ~109 files. **Refuted** —
-  it is **1846 files**, ~17x the estimate. `collector` is one of the two most
-  heavily imported packages in the tree. This raises, not lowers, the case for
-  asserting at the `facts.Envelope` seam rather than anywhere inside collector
-  code: touching collector internals ripples across 1846 files, whereas the
-  envelope seam is stable and narrow.
-- Other measured fan-ins (all confirmed): `telemetry` 608, `reducer` 297,
-  `query` 198, `storage/postgres` 149, `projector` 101, `runtime` 92,
-  `truth` 59.
-- **Correction:** we assumed `replay` fan-in was ~13 files. **Refuted** — it is
-  **69 files** (5.3x). The replay machinery is already broadly depended on, so
-  Ifá must treat it as a stable shared dependency, not a private corner.
-- **Measurement basis:** these are `rg -l` counts of files *referencing* each
-  import path (subpackages included). The companion `eshu-monorepo-split.md`
-  gives the rigorous non-test import breakdown, where some counts differ (e.g.
-  `facts` 1465, `telemetry` 499). Treat that table as authoritative for
-  extraction sizing and the values here as order-of-magnitude.
+- **Measurement basis (read this first).** Counts below are as of commit
+  `5294fd1e` (2026-06-30) from `rg -l` import scans. Two bases matter and are
+  reported explicitly: **exact** = files importing the package path itself;
+  **tree** = also counting its subpackages. Non-test excludes `*_test.go`.
+  Re-run to refresh; these are point-in-time, not perpetual.
+- `facts.Envelope` is the single canonical intermediate type —
+  `go/internal/facts/models.go:28-42`. Fan-in for `facts`: **1495 exact
+  (651 non-test)** — one of the most-imported packages in the tree, which is why
+  the contract layer comes first.
+- **Correction (supersedes an earlier over-correction).** The `collector`
+  fan-in was stated three inconsistent ways across drafts. Measured: `collector`
+  is **109 exact (76 non-test)** but **1848 including its subpackage tree
+  (1013 non-test)**. Both are real at different bases — the large figure is the
+  tree count, the small one the exact-package count. Either way the conclusion
+  holds: assert at the stable `facts.Envelope` seam, not inside collector code.
+- Other fan-ins (exact / non-test): `telemetry` 608 / 510, `reducer` 297 / 124,
+  `query` 198 / 77, `projector` 101 / 40; `replay` 13 exact / 69 tree.
+- The companion `eshu-monorepo-split.md` uses the **non-test** basis above for
+  extraction sizing; where a number there differs, prefer the non-test column.
 
 ### Fact-emission seam (exists — cleanly tappable)
 
@@ -229,35 +233,33 @@ Measured scale (all **exists**):
 - **Exists (cross-surface only):** `go/internal/mcp/answer_parity_test.go:6-31`
   proves HTTP/MCP/CLI agree on the canonical envelope for the **same** graph;
   `go/conformance/conformance_test.go` proves offline deterministic replay.
-- **Net-new (the gap):** **no** test replays the same input at varied worker
-  counts (N=1,2,4,…) and asserts an identical canonical graph. Worker tests
-  exist but assert only concurrency limits/ordering, not output identity —
-  `go/internal/collector/git_snapshot_scip_workers_test.go:21-51`,
-  `:65-116`, `:118-168`, `:238-290`. Confirmed gap.
+- **Correction — partial prior coverage exists (was overstated as a void).**
+  `go/internal/replay/schedulereplay/scenario_test.go` already loads a committed
+  cassette and asserts a **byte-identical canonical graph** across scripted
+  orders (in-order/reverse/rotated/duplicate) *and* across **sequential
+  `Workers:1` vs concurrent `Workers:4`** batch claims, with a teeth test that a
+  deliberately order-sensitive applier must diverge (`scenario_test.go:39-153`);
+  it is wired into the race gate (`specs/ci-gates.v1.yaml:1167-1172`).
+  Determinism-under-concurrency is therefore **not** an empty void.
+- **The actual gap Ifá fills.** That harness runs against an **in-memory graph +
+  `ApplyCanonical`**, a single cassette, and a fixed 1-vs-4 pair. It does **not**
+  exercise the **real reducer → graph/content projection pipeline**, an
+  **N-worker matrix** (N ∈ {1,2,4,…}) over the **B-12 corpus and every Odù**, or
+  a real graph backend. Ifá **generalizes the proven `schedulereplay` pattern**
+  to the full pipeline and corpus — extending existing coverage, not inventing
+  it. (Other worker tests such as `git_snapshot_scip_workers_test.go:21-290`
+  assert only concurrency limits/ordering, not output identity.)
 
-### Tree-sitter obfuscator feasibility (exists to observe; tool is net-new and shelved)
+### Tree-sitter obfuscator feasibility (observed; tool is net-new and shelved)
 
-- CST is fully walkable — `node.Kind()`, `IsNamed()`, `StartByte()`,
-  `EndByte()`, cursor walk —
-  `go/internal/parser/shared/shared.go:92-122`, `:124-130`;
-  bindings `github.com/tree-sitter/go-tree-sitter v0.25.0`.
-- **CST is discarded after one walk** (`defer tree.Close()`); only
-  `map[string]any` fact rows persist —
-  `go/internal/parser/rust/parser.go:14-92`, `go/internal/parser/c/parser.go:21-30`,
-  `go/internal/parser/shared/shared.go:69-80`,
-  `go/internal/parser/engine.go:37-74`.
-- **No source re-emitter exists** anywhere in the parser layer (adapters are
-  one-way fact extractors) — confirmed by search;
-  `go/internal/parser/README.md:1-50`.
-- **24 tree-sitter languages + 11 non-tree-sitter decoders = 35 parsers** —
-  `go/internal/parser/registry_definitions.go:10-208`, exceptions in
-  `AGENTS.md:69-102`. Adding a language is a documented 7-step checklist —
-  `go/internal/parser/AGENTS.md:107-120`.
-- **Feasibility verdict: PARTIAL.** A standalone re-parse + byte-splice +
-  re-parse-and-diff obfuscator is technically sound and needs no eshu changes,
-  **but** it is not zero-cost: it must bring its own tree-sitter grammar
-  bindings per language and re-parse from scratch, because eshu closes the CST
-  after one walk. See [Shelved](#shelved-obfuscation-and-its-trigger).
+The CST is fully walkable (`node.Kind()`/`IsNamed()`/`StartByte()`/`EndByte()` —
+`go/internal/parser/shared/shared.go:92-130`; bindings `go-tree-sitter v0.25.0`)
+but is discarded after one walk (`defer tree.Close()` — `engine.go:37-74`), and
+there is **no source re-emitter** (`parser/README.md`). Across 24 tree-sitter +
+11 other decoders (35 parsers — `registry_definitions.go:10-208`), a re-parse +
+byte-splice + re-diff obfuscator is **feasible but PARTIAL** — it must ship its
+own grammar bindings per language and re-parse from scratch. Shelved; see
+[Shelved](#shelved-obfuscation-and-its-trigger).
 
 ---
 
@@ -294,12 +296,15 @@ The contract layer is assertion + derivation only. It has no concurrency of its
 own; it defines *what an identical graph means* so the determinism layer can
 assert *that the graph stays identical under load*.
 
-### Layer 2 — determinism under load (the one net-new piece)
+### Layer 2 — determinism under load (generalizes an existing pattern)
 
-This is the only capability Ifá adds that does not already exist. The validated
-gap: nothing replays one input at varied worker counts and asserts an identical
-canonical graph (worker tests assert limits/ordering only —
-`git_snapshot_scip_workers_test.go`).
+Ifá does not invent determinism-under-concurrency. `schedulereplay`
+(`scenario_test.go:39-153`) already proves order-invariance and
+`Workers:1`-vs-`Workers:4` invariance on a byte-identical canonical snapshot, in
+the race gate. Ifá **generalizes that proven pattern** to what it does not
+cover: the real reducer → graph/content projection pipeline, an N-worker matrix
+(N ∈ {1,2,4,…}), and the full B-12 corpus / every Odù — rather than one cassette
+against an in-memory graph.
 
 Design:
 
@@ -470,7 +475,7 @@ Add the git-collector `LoadFacts` replay path (live-only —
 `collector-git/main.go`). Evidence: driver passes `-race`; same Odù drains
 (`fact_work_items.residual_max:0`) at N=1.
 
-**P3 — determinism matrix + timing (net-new capability complete).**
+**P3 — determinism matrix + timing (determinism coverage generalized).**
 Run each Odù at N ∈ {1,2,4,…} and assert byte-identical canonical graph across
 N; enforce drain and perfcontract class. Evidence: matrix green on a known-good
 Odù; a deliberately non-idempotent write is caught (regression test first).
@@ -486,9 +491,8 @@ mirrors CI; docs build gate passes; blocking flip recorded in
 
 ## Open questions
 
-- Unified gate identity across #1225/#1287/#1288/#1289/#1290/#1314 remains
-  unproposed (refuted assumption). If maintainers want it, it is a separate ADR,
-  not an Ifá feature.
+- Unified gate identity across the independent gates is unproposed — a separate
+  ADR if wanted, not an Ifá feature.
 - Worker-count matrix upper bound and per-class timing budgets for the
   determinism gate need operator-gated measurement on consistent hardware
   (`perfcontract` `EnforcementOperatorGated`).
