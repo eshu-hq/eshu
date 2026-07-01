@@ -78,8 +78,8 @@ func TestParseAssetsListPageLeavesUntypedAssetsWithoutAttributes(t *testing.T) {
 	const page = `{
       "assets": [
         {
-          "name": "//compute.googleapis.com/projects/demo/zones/us-central1-a/instances/vm-1",
-          "assetType": "compute.googleapis.com/Instance",
+          "name": "//eshu.test/projects/demo/locations/us-central1-a/untypedAssets/vm-1",
+          "assetType": "eshu.test/UntypedAsset",
           "resource": {"location": "us-central1-a", "data": {"displayName": "vm-1"}}
         }
       ]
