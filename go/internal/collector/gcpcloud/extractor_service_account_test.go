@@ -157,6 +157,45 @@ func TestExtractServiceAccountEmailFallsBackToFullName(t *testing.T) {
 	}
 }
 
+func TestExtractServiceAccountRejectsNonEmailNameSegment(t *testing.T) {
+	// A full resource name whose trailing segment carries extra path parts
+	// (e.g. .../serviceAccounts/<email>/keys/<id>) must not be mis-parsed as an
+	// email: no digest, no anchor, matching the shared helper's documented
+	// contract.
+	ctx := ExtractContext{
+		FullResourceName: "//iam.googleapis.com/projects/demo-project/serviceAccounts/pipeline-runner@demo-project.iam.gserviceaccount.com/keys/abc123",
+		AssetType:        serviceAccountAssetType,
+		ProjectID:        "demo-project",
+		Data:             json.RawMessage(`{"uniqueId": "104567890123456789012"}`),
+	}
+	got, err := extractServiceAccount(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := got.Attributes["email_fingerprint"]; ok {
+		t.Errorf("email_fingerprint present for non-email name segment: %#v", got.Attributes)
+	}
+	if len(got.CorrelationAnchors) != 0 {
+		t.Errorf("correlation_anchors = %#v, want none for non-email name segment", got.CorrelationAnchors)
+	}
+}
+
+func TestServiceAccountEmailFromFullName(t *testing.T) {
+	cases := map[string]string{
+		"//iam.googleapis.com/projects/p/serviceAccounts/sa@p.iam.gserviceaccount.com":          "sa@p.iam.gserviceaccount.com",
+		"//iam.googleapis.com/projects/p/serviceAccounts/SA@P.IAM.gserviceaccount.com":          "sa@p.iam.gserviceaccount.com",
+		"//iam.googleapis.com/projects/p/serviceAccounts/sa@p.iam.gserviceaccount.com/keys/abc": "",
+		"//iam.googleapis.com/projects/p/serviceAccounts/":                                      "",
+		"//iam.googleapis.com/projects/p/serviceAccounts/not-an-email":                          "",
+		"//iam.googleapis.com/projects/p/serviceAccounts/a@b@c":                                 "",
+	}
+	for name, want := range cases {
+		if got := serviceAccountEmailFromFullName(name); got != want {
+			t.Errorf("serviceAccountEmailFromFullName(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestExtractServiceAccountEmptyData(t *testing.T) {
 	// Empty data and a full resource name with no parseable email yields nothing:
 	// no attributes, anchors, or relationships are fabricated.

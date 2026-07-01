@@ -234,7 +234,12 @@ func serviceAccountEmailFromFullName(fullResourceName string) string {
 		return ""
 	}
 	email := strings.TrimSpace(name[index+len(marker):])
-	if !strings.Contains(email, "@") {
+	// A well-formed service-account email is a single trailing segment with
+	// exactly one '@' and no path separators. Reject anything else (empty
+	// segment, extra path parts like `.../keys/<id>`, or a malformed address) so
+	// the result matches the documented contract and cannot fabricate a digest
+	// from a non-email segment.
+	if strings.Contains(email, "/") || strings.Count(email, "@") != 1 {
 		return ""
 	}
 	return strings.ToLower(email)
