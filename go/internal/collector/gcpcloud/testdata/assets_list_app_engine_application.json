@@ -1,0 +1,23 @@
+{
+  "readTime": "2026-07-01T00:00:00Z",
+  "assets": [
+    {
+      "name": "//appengine.googleapis.com/apps/demo-project",
+      "assetType": "appengine.googleapis.com/Application",
+      "updateTime": "2026-06-30T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "resource": {
+        "data": {
+          "name": "apps/demo-project",
+          "id": "demo-project",
+          "locationId": "us-central",
+          "servingStatus": "SERVING",
+          "defaultBucket": "staging.demo-project.appspot.com",
+          "defaultHostname": "demo-project.uc.r.appspot.com",
+          "databaseType": "CLOUD_FIRESTORE",
+          "createTime": "2024-01-01T00:00:00Z"
+        }
+      }
+    }
+  ]
+}
