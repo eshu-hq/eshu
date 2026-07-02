@@ -20,6 +20,11 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "aurigma", "aurigma.custom.js"), "export function authoredUploader() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "mapcontrol.js"), "export function mapControl() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "plupload", "js", "plupload.app.js"), "export function authoredPluploadIntegration() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "less.js"), "export function compileProjectLess() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "camera.js"), "export function cameraWorkflow() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "jssor.slider.js"), "export function projectSlider() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "mootools.js"), "export function toolCatalog() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "sharethis.js"), "export function shareThisListing() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "marinus", "library", "Zend", "Gdata", "GroupEntry.php"), "<?php\n/** Zend Framework */\nclass Zend_Gdata_GroupEntry {}\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "jquery.js"), "/* jQuery JavaScript Library v1.12.4 */\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "aJQuerry.js"), "/*! jQuery v2.2.4 | (c) jQuery Foundation | jquery.org/license */\n")
@@ -35,6 +40,11 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "reveal.js"), "/*!\n * reveal.js\n * http://lab.hakim.se/reveal-js\n */\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "shadowbox.js"), "/* Shadowbox.js */\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "effects.js"), "// script.aculo.us effects.js v1.8.2\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "less.min.js"), "/* LESS - Leaner CSS v1.3.0\n * http://lesscss.org\n */\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "camera.js"), "// Camera slideshow v1.4.0 - a jQuery slideshow\n// www.pixedelic.com\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "jssor.slider.mini.js"), "/* Jssor Slider 22.0.15 */\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "mootools.js"), "/* MooTools Core v1.4.5 */\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "sharethis.js"), "/* ShareThis Buttons */\nwindow.__sharethis__ = {};\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "mapcontrol.js"), "var L_BingLogoTooltip_Text=\"Bing Maps\";MapControl.Features={PlatformName:\"Virtual Earth\"};\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "plupload", "js", "plupload.full.js"), "/*1.5.4*/\n(function(){var g={VERSION:\"1.5.4\"};window.plupload=g})();\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "legacy", "aurigma", "aurigma.htmluploader.control.js"), "(function(){function htmlUploaderControl(){return true;}})();\n")
@@ -58,15 +68,20 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 		t.Fatalf("resolveNativeSnapshotFileSet() error = %v", err)
 	}
 
-	if got, want := len(fileSet.Files), 5; got != want {
+	if got, want := len(fileSet.Files), 10; got != want {
 		t.Fatalf("file count = %d, want %d; files=%v", got, want, fileSet.Files)
 	}
 	for _, wantSuffix := range []string{
 		"src/aurigma/aurigma.custom.js",
 		"src/bootstrap.js",
+		"src/camera.js",
+		"src/jssor.slider.js",
 		"src/jquery_adapter.js",
+		"src/less.js",
 		"src/mapcontrol.js",
+		"src/mootools.js",
 		"src/plupload/js/plupload.app.js",
+		"src/sharethis.js",
 	} {
 		if !fileSetContainsSuffix(fileSet.Files, wantSuffix) {
 			t.Fatalf("fileSet missing %q; files=%v", wantSuffix, fileSet.Files)
@@ -75,8 +90,8 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 	if got := stats.FilesSkippedByContent["vendored-zend-framework"]; got != 1 {
 		t.Fatalf("FilesSkippedByContent[vendored-zend-framework] = %d, want 1", got)
 	}
-	if got := stats.FilesSkippedByContent["vendored-browser-library"]; got != 14 {
-		t.Fatalf("FilesSkippedByContent[vendored-browser-library] = %d, want 14", got)
+	if got := stats.FilesSkippedByContent["vendored-browser-library"]; got != 18 {
+		t.Fatalf("FilesSkippedByContent[vendored-browser-library] = %d, want 18", got)
 	}
 	if got := stats.FilesSkippedByContent["vendored-fpdf"]; got != 1 {
 		t.Fatalf("FilesSkippedByContent[vendored-fpdf] = %d, want 1", got)

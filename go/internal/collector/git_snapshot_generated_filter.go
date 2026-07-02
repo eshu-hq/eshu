@@ -271,6 +271,22 @@ func hasVendoredBrowserLibrarySignature(path string) bool {
 	case strings.Contains(normalized, "reveal.js") &&
 		strings.Contains(normalized, "lab.hakim.se/reveal-js"):
 		return true
+	case strings.Contains(normalized, "camera slideshow") &&
+		(strings.Contains(normalized, "pixedelic.com") ||
+			strings.Contains(normalized, "jquery slideshow")):
+		return true
+	case strings.Contains(normalized, "jssor") &&
+		(strings.Contains(normalized, "$jssorslider$") ||
+			strings.Contains(normalized, "jssor slider")):
+		return true
+	case strings.Contains(normalized, "mootools") &&
+		(strings.Contains(normalized, "my object oriented javascript tools") ||
+			strings.Contains(normalized, "mootools core") ||
+			strings.Contains(normalized, "mootools more")):
+		return true
+	case strings.Contains(normalized, "window.__sharethis__") &&
+		strings.Contains(normalized, "sharethis"):
+		return true
 	default:
 		return false
 	}
