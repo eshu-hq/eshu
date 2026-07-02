@@ -5,8 +5,12 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const maxSharedSelectionScanLimit = 10_000
@@ -74,6 +78,14 @@ type PartitionProcessorConfig struct {
 	LeaseTTL       time.Duration
 	BatchLimit     int
 	EvidenceSource string
+
+	// Instruments and Logger are optional telemetry sinks for the partition
+	// lease heartbeat loop (#4449). A nil Instruments disables the
+	// eshu_dp_shared_projection_partition_heartbeat_missed_total counter; a
+	// nil Logger disables the heartbeat-failure log line. Neither is
+	// required for the heartbeat renewal itself to run.
+	Instruments *telemetry.Instruments
+	Logger      *slog.Logger
 }
 
 // PartitionProcessResult captures the outcome of one partition processing
@@ -258,7 +270,7 @@ func ProcessPartitionOnce(
 	readinessPrefetch GraphProjectionReadinessPrefetch,
 	endpointPresence EndpointPresenceLookup,
 	refreshFence SharedProjectionRefreshFenceLookup,
-) (PartitionProcessResult, error) {
+) (result PartitionProcessResult, retErr error) {
 	leaseStart := time.Now()
 	claimed, err := leaseManager.ClaimPartitionLease(
 		ctx, cfg.Domain, cfg.PartitionID, cfg.PartitionCount,
@@ -272,11 +284,26 @@ func ProcessPartitionOnce(
 		return PartitionProcessResult{LeaseAcquired: false, LeaseClaimDurationSeconds: leaseDuration}, nil
 	}
 
+	// Renew the partition lease at TTL/2 for the rest of this cycle (#4449).
+	// Without this, a slow backend or large partition whose
+	// selection/retract/edge-write/mark-completed work exceeds the lease TTL
+	// lets the lease be reclaimed by another worker while this call is still
+	// writing, causing a double-write.
+	leaseCtx, stopHeartbeat := startSharedProjectionLeaseHeartbeat(ctx, cfg, leaseManager, cfg.Instruments, cfg.Logger)
 	defer func() {
+		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+			wrapped := fmt.Errorf("heartbeat shared projection partition lease: %w", heartbeatErr)
+			if retErr == nil {
+				retErr = wrapped
+			} else {
+				retErr = errors.Join(retErr, wrapped)
+			}
+		}
 		_ = leaseManager.ReleasePartitionLease(
 			ctx, cfg.Domain, cfg.PartitionID, cfg.PartitionCount, cfg.LeaseOwner,
 		)
 	}()
+	ctx = leaseCtx
 
 	batchLimit := cfg.BatchLimit
 	if batchLimit < 1 {

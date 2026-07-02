@@ -329,6 +329,8 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 			LeaseTTL:       r.Config.leaseTTL(),
 			BatchLimit:     r.Config.batchLimit(),
 			EvidenceSource: sharedProjectionDomainEvidenceSource(domain, r.Config.evidenceSource()),
+			Instruments:    r.Instruments,
+			Logger:         r.Logger,
 		},
 		r.LeaseManager,
 		r.IntentReader,
