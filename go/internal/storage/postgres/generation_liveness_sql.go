@@ -265,6 +265,20 @@ re_enqueued AS (
             )
         ),
         updated_at = EXCLUDED.updated_at
+    -- Re-verify the in-flight gate at write time, not only at the wedged
+    -- CTE's read-time snapshot: a live worker's heartbeat can extend
+    -- claim_until (or a fresh Claim() can move status to claimed/running)
+    -- between the wedged SELECT and this UPDATE executing. Without this
+    -- WHERE, the sweep could clobber that concurrently-renewed claim back to
+    -- pending mid-write. Row-level locking on the UPDATE's target row makes
+    -- this check atomic with the write.
+    WHERE NOT (
+        fact_work_items.status IN ('pending', 'retrying')
+        OR (
+            fact_work_items.status IN ('claimed', 'running')
+            AND fact_work_items.claim_until > $4
+        )
+    )
     RETURNING scope_id, generation_id
 )
 SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id

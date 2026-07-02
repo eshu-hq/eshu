@@ -118,6 +118,52 @@ func TestRecoverWedgedActiveGenerationsQueryReclaimsExpiredProjectorLease(t *tes
 	}
 }
 
+// TestRecoverWedgedActiveGenerationsQueryReVerifiesLeaseAtWriteTime pins a
+// TOCTOU fix on top of TestRecoverWedgedActiveGenerationsQueryReclaimsExpiredProjectorLease:
+// the wedged CTE reads the projector row's lease state from a snapshot taken
+// before the re_enqueued INSERT ... ON CONFLICT DO UPDATE executes. Between
+// that snapshot and the UPDATE, a live worker's Heartbeat can extend
+// claim_until (or a fresh Claim() can move status to claimed/running),
+// making the row genuinely in-flight again. Without a WHERE guard on the
+// ON CONFLICT DO UPDATE that re-checks the same in-flight condition at write
+// time, the UPDATE would unconditionally clobber that concurrently-renewed
+// claim back to lease_owner=NULL/claim_until=NULL — reintroducing, at the
+// liveness-sweep layer, the same "one actor's write silently cancels
+// another's in-flight work" defect class this issue is about, just via a
+// write race instead of a shared context.
+func TestRecoverWedgedActiveGenerationsQueryReVerifiesLeaseAtWriteTime(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(recoverWedgedActiveGenerationsQuery, "ON CONFLICT (work_item_id) DO UPDATE") {
+		t.Fatalf("recover wedged query missing the expected upsert clause:\n%s", recoverWedgedActiveGenerationsQuery)
+	}
+	// The WHERE guard must sit after the ON CONFLICT DO UPDATE's SET clause
+	// (i.e. as the conflict-action WHERE, which Postgres evaluates per
+	// candidate row under the row's own lock, atomically with the write) and
+	// must re-express the same in-flight condition as the read-side gate, so
+	// a row that became genuinely in-flight between the SELECT snapshot and
+	// this UPDATE is left untouched instead of being clobbered.
+	setIdx := strings.Index(recoverWedgedActiveGenerationsQuery, "ON CONFLICT (work_item_id) DO UPDATE")
+	if setIdx < 0 {
+		t.Fatal("could not locate ON CONFLICT DO UPDATE clause")
+	}
+	conflictAction := recoverWedgedActiveGenerationsQuery[setIdx:]
+	if !strings.Contains(conflictAction, "WHERE NOT (") {
+		t.Fatalf(
+			"recover wedged query's ON CONFLICT DO UPDATE is missing a write-time re-verification WHERE guard (TOCTOU: a concurrent Heartbeat/Claim between the wedged CTE snapshot and this UPDATE must not be clobbered):\n%s",
+			conflictAction,
+		)
+	}
+	if !strings.Contains(conflictAction, "fact_work_items.status IN ('pending', 'retrying')") ||
+		!strings.Contains(conflictAction, "fact_work_items.status IN ('claimed', 'running')") ||
+		!strings.Contains(conflictAction, "fact_work_items.claim_until > $4") {
+		t.Fatalf(
+			"recover wedged query's write-time guard must mirror the read-side in-flight condition exactly (status IN pending/retrying, or claimed/running with a live lease):\n%s",
+			conflictAction,
+		)
+	}
+}
+
 // TestSupersedeOrphanedActiveGenerationsQueryContract pins the auto-supersede
 // contract: when a newer same-scope generation is already authoritative, the
 // stale older active generations for that scope must be superseded, never the
