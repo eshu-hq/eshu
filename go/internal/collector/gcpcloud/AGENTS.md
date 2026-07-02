@@ -83,6 +83,14 @@
    posture, exclusion count, creation time, fingerprinted writer-identity email;
    export edge to the destination Storage Bucket / BigQuery Dataset / Pub/Sub
    Topic / Log Bucket; raw filter and writer email never leave the parser).
+27. `extractor_dns_managed_zone.go` - typed-depth extractor for
+   `dns.googleapis.com/ManagedZone` (visibility, DNSSEC state, creation time,
+   private-network count, forwarding enabled/target-count, peering flag;
+   visible-from-network edge to each private-visibility VPC Network and
+   peers-with-network edge to the peering target Network; the zone's own
+   `dnsName` and forwarding target-name-server IPs/hostnames never leave the
+   parser — distinct from the `dns.googleapis.com/ResourceRecordSet` asset type,
+   which flows through the separate `gcp_dns_record` fact family).
 
 ## Invariants
 
