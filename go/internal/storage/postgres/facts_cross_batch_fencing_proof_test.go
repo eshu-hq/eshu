@@ -156,6 +156,52 @@ func TestUpsertFactBatchCrossBatchFencingTokenGuard(t *testing.T) {
 			t.Fatalf("payload after in-order arrival = %s, want token-15 payload", gotPayload)
 		}
 	})
+
+	t.Run("equal fencing token still overwrites (default zero-token collectors)", func(t *testing.T) {
+		const factID = "fact-fencing-3"
+
+		// Most collectors never set FencingToken, so it defaults to 0 for every
+		// fact. The guard uses <= (not <), so same-token re-upserts inside one
+		// generation must keep overwriting normally; a strict < would silently
+		// freeze every zero-token fact after its first write.
+		first := []facts.Envelope{{
+			FactID:        factID,
+			ScopeID:       "scope-fencing",
+			GenerationID:  "gen-fencing",
+			FactKind:      "repository",
+			StableFactKey: "repository:scope-fencing",
+			FencingToken:  0,
+			ObservedAt:    now,
+			Payload:       map[string]any{"version": "zero-token-first"},
+			SourceRef:     facts.Ref{SourceSystem: "git", FactKey: "key-3"},
+		}}
+		second := []facts.Envelope{{
+			FactID:        factID,
+			ScopeID:       "scope-fencing",
+			GenerationID:  "gen-fencing",
+			FactKind:      "repository",
+			StableFactKey: "repository:scope-fencing",
+			FencingToken:  0,
+			ObservedAt:    now.Add(time.Minute),
+			Payload:       map[string]any{"version": "zero-token-second"},
+			SourceRef:     facts.Ref{SourceSystem: "git", FactKey: "key-3"},
+		}}
+
+		if err := upsertFactBatch(ctx, store, first); err != nil {
+			t.Fatalf("upsertFactBatch(zero-token-first) error = %v, want nil", err)
+		}
+		if err := upsertFactBatch(ctx, store, second); err != nil {
+			t.Fatalf("upsertFactBatch(zero-token-second) error = %v, want nil", err)
+		}
+
+		gotToken, gotPayload := readFactCrossBatchFencingRow(t, ctx, db, factID)
+		if gotToken != 0 {
+			t.Fatalf("fencing_token after equal-token re-upsert = %d, want 0", gotToken)
+		}
+		if !strings.Contains(gotPayload, "zero-token-second") {
+			t.Fatalf("payload after equal-token re-upsert = %s, want zero-token-second (equal token must still overwrite)", gotPayload)
+		}
+	})
 }
 
 func factCrossBatchFencingProofDSN() string {
