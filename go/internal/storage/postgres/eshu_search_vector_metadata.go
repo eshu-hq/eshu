@@ -100,6 +100,10 @@ SET embedding_dimensions = EXCLUDED.embedding_dimensions,
     last_success_at = EXCLUDED.last_success_at
 `
 
+// upsertEshuSearchVectorMetadataBatchPrefix/Suffix and the batch UpsertBatch
+// implementation live in eshu_search_vector_metadata_batch.go, split out for
+// the 500-line cap.
+
 const listActiveEshuSearchVectorMetadataSQL = `
 SELECT
     meta.scope_id,

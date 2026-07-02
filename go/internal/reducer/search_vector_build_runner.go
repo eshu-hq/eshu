@@ -10,6 +10,9 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -17,6 +20,22 @@ const (
 	defaultSearchVectorBuildPollInterval  = 30 * time.Second
 	defaultSearchVectorBuildScopeLimit    = 100
 	defaultSearchVectorBuildDocumentLimit = 500
+)
+
+// DomainSearchVectorBuild tags the search-vector build sweep's split-timing
+// histogram (#4430). The sweep is a reducer-tail sidecar, not a
+// fact-projecting reducer domain, so it has no corresponding Domain used for
+// intent dispatch.
+const DomainSearchVectorBuild Domain = "search_vector_build"
+
+// Search vector build sweep phases, recorded on
+// telemetry.Instruments.SearchVectorBuildPhaseDuration via
+// telemetry.AttrWritePhase. Bounded, closed set of four phases.
+const (
+	SearchVectorBuildPhaseSchedulingWait = "scheduling_wait"
+	SearchVectorBuildPhaseQueryLoad      = "query_load"
+	SearchVectorBuildPhaseEmbedBuild     = "embed_build"
+	SearchVectorBuildPhaseWriteUpsert    = "write_upsert"
 )
 
 // SearchVectorBuildPendingScope identifies one active scope that needs
@@ -61,6 +80,12 @@ type SearchVectorBuildResult struct {
 	VectorCount   int
 	DisabledCount int
 	FailedCount   int
+	// QueryLoadDuration is time spent listing active search documents.
+	QueryLoadDuration time.Duration
+	// EmbedBuildDuration is time spent embedding document text.
+	EmbedBuildDuration time.Duration
+	// WriteUpsertDuration is time spent in batched metadata/value upserts.
+	WriteUpsertDuration time.Duration
 }
 
 // SearchVectorBuilder runs one bounded vector build for a scope.
@@ -105,11 +130,12 @@ func (c SearchVectorBuildRunnerConfig) documentLimit() int {
 // reducer work. It writes no graph truth and relies on the vector stores'
 // deterministic upsert identity for duplicate/replayed work convergence.
 type SearchVectorBuildRunner struct {
-	Pending SearchVectorBuildPendingLister
-	Builder SearchVectorBuilder
-	Config  SearchVectorBuildRunnerConfig
-	Wait    func(context.Context, time.Duration) error
-	Logger  *slog.Logger
+	Pending     SearchVectorBuildPendingLister
+	Builder     SearchVectorBuilder
+	Config      SearchVectorBuildRunnerConfig
+	Wait        func(context.Context, time.Duration) error
+	Logger      *slog.Logger
+	Instruments *telemetry.Instruments
 }
 
 // SearchVectorBuildRunnerResult summarizes one bounded sweep.
@@ -120,6 +146,15 @@ type SearchVectorBuildRunnerResult struct {
 	VectorCount   int
 	DisabledCount int
 	FailedCount   int
+	// QueryLoadDuration sums per-scope active-document listing time.
+	QueryLoadDuration time.Duration
+	// EmbedBuildDuration sums per-scope document-embedding time.
+	EmbedBuildDuration time.Duration
+	// WriteUpsertDuration sums per-scope batched metadata/value upsert time.
+	WriteUpsertDuration time.Duration
+	// SchedulingWaitDuration is time this sweep spent listing pending scopes
+	// before any per-scope build work started.
+	SchedulingWaitDuration time.Duration
 }
 
 // Run sweeps for pending vector builds until the context is canceled.
@@ -160,6 +195,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		return SearchVectorBuildRunnerResult{}, err
 	}
 	started := time.Now()
+	schedulingStart := time.Now()
 	scopes, err := r.Pending.ListPendingSearchVectorScopes(ctx, SearchVectorBuildPendingRequest{
 		ProviderProfileID:  r.Config.ProviderProfileID,
 		SourceClass:        r.Config.SourceClass,
@@ -167,10 +203,11 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		VectorIndexVersion: r.Config.VectorIndexVersion,
 		Limit:              r.Config.scopeLimit(),
 	})
+	schedulingWait := time.Since(schedulingStart)
 	if err != nil {
 		return SearchVectorBuildRunnerResult{}, fmt.Errorf("list pending search vector scopes: %w", err)
 	}
-	result := SearchVectorBuildRunnerResult{PendingScopes: len(scopes)}
+	result := SearchVectorBuildRunnerResult{PendingScopes: len(scopes), SchedulingWaitDuration: schedulingWait}
 	var failures []error
 	for _, pending := range scopes {
 		build, err := r.Builder.BuildSearchVectors(ctx, SearchVectorBuildRequest{
@@ -187,11 +224,15 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		result.VectorCount += build.VectorCount
 		result.DisabledCount += build.DisabledCount
 		result.FailedCount += build.FailedCount
+		result.QueryLoadDuration += build.QueryLoadDuration
+		result.EmbedBuildDuration += build.EmbedBuildDuration
+		result.WriteUpsertDuration += build.WriteUpsertDuration
 		if err != nil {
 			failures = append(failures, fmt.Errorf("build search vectors for scope %q generation %q: %w", pending.ScopeID, pending.GenerationID, err))
 		}
 	}
 	r.logResult(ctx, result, started)
+	r.recordPhaseMetrics(ctx, result)
 	return result, errors.Join(failures...)
 }
 
@@ -242,8 +283,38 @@ func (r *SearchVectorBuildRunner) logResult(ctx context.Context, result SearchVe
 		slog.String("embedding_model_id", r.Config.EmbeddingModelID),
 		slog.String("vector_index_version", r.Config.VectorIndexVersion),
 		slog.Float64("duration_seconds", time.Since(started).Seconds()),
+		// Split timing (#4430): isolates the search-vector sweep cost into
+		// scheduling (pending-scope selection), query/load (active document
+		// listing), embed/build (embedding compute), and write/upsert
+		// (batched metadata+value persistence) so the dominant slice of the
+		// reducer-tail sweep cost is visible without re-deriving it from the
+		// single aggregate duration_seconds field.
+		slog.Float64("scheduling_wait_seconds", result.SchedulingWaitDuration.Seconds()),
+		slog.Float64("query_load_seconds", result.QueryLoadDuration.Seconds()),
+		slog.Float64("embed_build_seconds", result.EmbedBuildDuration.Seconds()),
+		slog.Float64("write_upsert_seconds", result.WriteUpsertDuration.Seconds()),
 		slog.String("phase", "reduction"),
 	)
+}
+
+// recordPhaseMetrics emits eshu_dp_search_vector_build_phase_seconds for each
+// of the four bounded sweep phases so an operator can isolate the dominant
+// slice of the search-vector sweep cost without recomputing it from logs
+// (#4430).
+func (r *SearchVectorBuildRunner) recordPhaseMetrics(ctx context.Context, result SearchVectorBuildRunnerResult) {
+	if r.Instruments == nil || r.Instruments.SearchVectorBuildPhaseDuration == nil {
+		return
+	}
+	record := func(phase string, d time.Duration) {
+		r.Instruments.SearchVectorBuildPhaseDuration.Record(ctx, d.Seconds(), metric.WithAttributes(
+			telemetry.AttrDomain(string(DomainSearchVectorBuild)),
+			telemetry.AttrWritePhase(phase),
+		))
+	}
+	record(SearchVectorBuildPhaseSchedulingWait, result.SchedulingWaitDuration)
+	record(SearchVectorBuildPhaseQueryLoad, result.QueryLoadDuration)
+	record(SearchVectorBuildPhaseEmbedBuild, result.EmbedBuildDuration)
+	record(SearchVectorBuildPhaseWriteUpsert, result.WriteUpsertDuration)
 }
 
 func (r *SearchVectorBuildRunner) logFailure(ctx context.Context, err error) {

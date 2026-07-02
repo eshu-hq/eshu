@@ -16,6 +16,18 @@ import (
 
 const maxEshuSearchVectorValues = 4096
 
+// eshuSearchVectorValueBatchSize bounds one multi-row upsert statement.
+// Each row binds eshuSearchVectorValueColumnsPerRow parameters, so this stays
+// well under Postgres's 65535 parameter-per-statement limit
+// (500*12 = 6000 params) while still collapsing thousands of
+// single-row round trips into a handful of batched statements. See #4430:
+// the search-vector build sweep amplified 185k-198k per-document round trips
+// (one Values.Upsert + one Metadata.Upsert per document) into the reducer
+// tail; batching is the fix, not a schema or index change.
+const eshuSearchVectorValueBatchSize = 500
+
+const eshuSearchVectorValueColumnsPerRow = 12
+
 const eshuSearchVectorValuesSchemaSQL = `
 CREATE TABLE IF NOT EXISTS eshu_search_vector_values (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
@@ -69,6 +81,30 @@ INSERT INTO eshu_search_vector_values (
     created_at,
     updated_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE
+SET embedding_dimensions = EXCLUDED.embedding_dimensions,
+    embedding_content_hash = EXCLUDED.embedding_content_hash,
+    vector_values = EXCLUDED.vector_values,
+    updated_at = EXCLUDED.updated_at
+`
+
+const upsertEshuSearchVectorValueBatchPrefix = `
+INSERT INTO eshu_search_vector_values (
+    scope_id,
+    generation_id,
+    document_id,
+    provider_profile_id,
+    source_class,
+    embedding_model_id,
+    embedding_dimensions,
+    embedding_content_hash,
+    vector_index_version,
+    vector_values,
+    created_at,
+    updated_at
+) VALUES `
+
+const upsertEshuSearchVectorValueBatchSuffix = `
 ON CONFLICT (scope_id, generation_id, document_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE
 SET embedding_dimensions = EXCLUDED.embedding_dimensions,
     embedding_content_hash = EXCLUDED.embedding_content_hash,
@@ -185,6 +221,83 @@ func (s EshuSearchVectorValueStore) Upsert(ctx context.Context, row EshuSearchVe
 	)
 	if err != nil {
 		return fmt.Errorf("upsert eshu search vector value: %w", err)
+	}
+	return nil
+}
+
+// UpsertBatch inserts or updates many vector payload rows in bounded
+// multi-row statements instead of one round trip per row. Rows are normalized
+// and validated exactly as Upsert does; a validation failure on any row
+// aborts before issuing any statement, so partial batches never land.
+func (s EshuSearchVectorValueStore) UpsertBatch(ctx context.Context, rows []EshuSearchVectorValue) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	if s.db == nil {
+		return fmt.Errorf("eshu search vector value database is required")
+	}
+
+	normalized := make([]EshuSearchVectorValue, len(rows))
+	for i, row := range rows {
+		row = normalizeEshuSearchVectorValue(row)
+		if err := validateEshuSearchVectorValue(row); err != nil {
+			return err
+		}
+		normalized[i] = row
+	}
+
+	for start := 0; start < len(normalized); start += eshuSearchVectorValueBatchSize {
+		end := start + eshuSearchVectorValueBatchSize
+		if end > len(normalized) {
+			end = len(normalized)
+		}
+		if err := upsertEshuSearchVectorValueBatch(ctx, s.db, normalized[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// upsertEshuSearchVectorValueBatch issues one multi-row INSERT ... ON CONFLICT
+// statement for a bounded slice of already-normalized, already-validated rows.
+func upsertEshuSearchVectorValueBatch(ctx context.Context, db ExecQueryer, batch []EshuSearchVectorValue) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	args := make([]any, 0, len(batch)*eshuSearchVectorValueColumnsPerRow)
+	var values strings.Builder
+	for i, row := range batch {
+		if i > 0 {
+			values.WriteString(", ")
+		}
+		offset := i * eshuSearchVectorValueColumnsPerRow
+		fmt.Fprintf(
+			&values,
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6,
+			offset+7, offset+8, offset+9, offset+10, offset+11, offset+12,
+		)
+		args = append(
+			args,
+			row.ScopeID,
+			row.GenerationID,
+			row.DocumentID,
+			row.ProviderProfileID,
+			row.SourceClass,
+			row.EmbeddingModelID,
+			row.EmbeddingDimensions,
+			row.EmbeddingContentHash,
+			row.VectorIndexVersion,
+			pq.Array(row.VectorValues),
+			row.CreatedAt,
+			row.UpdatedAt,
+		)
+	}
+
+	query := upsertEshuSearchVectorValueBatchPrefix + values.String() + upsertEshuSearchVectorValueBatchSuffix
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("upsert eshu search vector value batch (%d rows): %w", len(batch), err)
 	}
 	return nil
 }

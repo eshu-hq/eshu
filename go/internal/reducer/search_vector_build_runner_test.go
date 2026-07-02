@@ -40,12 +40,19 @@ func TestSearchVectorBuildRunnerBuildsPendingScopes(t *testing.T) {
 	result, err := runner.RunOnce(context.Background())
 
 	require.NoError(t, err)
-	require.Equal(t, SearchVectorBuildRunnerResult{
-		PendingScopes: 2,
-		BuiltScopes:   2,
-		DocumentCount: 3,
-		VectorCount:   3,
-	}, result)
+	require.Equal(t, 2, result.PendingScopes)
+	require.Equal(t, 2, result.BuiltScopes)
+	require.Equal(t, 3, result.DocumentCount)
+	require.Equal(t, 3, result.VectorCount)
+	require.Equal(t, 0, result.DisabledCount)
+	require.Equal(t, 0, result.FailedCount)
+	// Split-timing fields (#4430) are real time.Since measurements around the
+	// pending-scope list call, so they are non-negative rather than exactly
+	// zero even for a fast in-memory fake.
+	require.GreaterOrEqual(t, result.SchedulingWaitDuration, time.Duration(0))
+	require.Equal(t, time.Duration(0), result.QueryLoadDuration)
+	require.Equal(t, time.Duration(0), result.EmbedBuildDuration)
+	require.Equal(t, time.Duration(0), result.WriteUpsertDuration)
 	require.Equal(t, SearchVectorBuildPendingRequest{
 		ProviderProfileID:  "local",
 		SourceClass:        "search_documents",
@@ -96,6 +103,55 @@ func TestSearchVectorBuildRunnerReturnsBuildFailuresAfterContinuingScopes(t *tes
 	require.Equal(t, 2, result.DocumentCount)
 	require.Equal(t, 1, result.VectorCount)
 	require.Equal(t, 1, result.FailedCount)
+}
+
+// TestSearchVectorBuildRunnerSumsPhaseDurationsAcrossScopes proves that
+// RunOnce sums each scope's split-timing fields (#4430) into the sweep-level
+// result instead of dropping them, so the operator-facing "search vector
+// build sweep completed" log and the eshu_dp_search_vector_build_phase_seconds
+// histogram reflect the real per-phase cost across every built scope, not
+// just the last one.
+func TestSearchVectorBuildRunnerSumsPhaseDurationsAcrossScopes(t *testing.T) {
+	t.Parallel()
+
+	pending := &fakeSearchVectorPendingLister{scopes: []SearchVectorBuildPendingScope{
+		{ScopeID: "scope-a", GenerationID: "gen-a"},
+		{ScopeID: "scope-b", GenerationID: "gen-b"},
+	}}
+	builder := &fakeSearchVectorBuilder{results: []SearchVectorBuildResult{
+		{
+			DocumentCount:       2,
+			VectorCount:         2,
+			QueryLoadDuration:   10 * time.Millisecond,
+			EmbedBuildDuration:  20 * time.Millisecond,
+			WriteUpsertDuration: 30 * time.Millisecond,
+		},
+		{
+			DocumentCount:       1,
+			VectorCount:         1,
+			QueryLoadDuration:   5 * time.Millisecond,
+			EmbedBuildDuration:  7 * time.Millisecond,
+			WriteUpsertDuration: 9 * time.Millisecond,
+		},
+	}}
+	runner := &SearchVectorBuildRunner{
+		Pending: pending,
+		Builder: builder,
+		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
+			EmbeddingModelID:   "local-hash-v1",
+			VectorIndexVersion: "vector-v1",
+		},
+	}
+
+	result, err := runner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 15*time.Millisecond, result.QueryLoadDuration)
+	require.Equal(t, 27*time.Millisecond, result.EmbedBuildDuration)
+	require.Equal(t, 39*time.Millisecond, result.WriteUpsertDuration)
+	require.GreaterOrEqual(t, result.SchedulingWaitDuration, time.Duration(0))
 }
 
 func TestSearchVectorBuildRunnerValidation(t *testing.T) {
