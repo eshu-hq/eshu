@@ -4,11 +4,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -317,105 +319,73 @@ func TestRunPipelinedRecordsDeploymentReopenPhaseOnError(t *testing.T) {
 	}
 }
 
-var errInjectedIaCFailure = errInjected("injected iac reachability failure")
+// TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion proves the
+// #4271 fix: runPipelined must emit an explicit "bootstrap phase start" log
+// signal for relationship_backfill BEFORE calling
+// BackfillAllRelationshipEvidence, not only a completion log after it
+// returns. Without a start signal, operators watching logs see
+// "bootstrap projection complete" and then nothing until the (possibly very
+// long) backfill call returns, unable to distinguish active work from a
+// stuck one-shot lifecycle.
+//
+// The fake committer blocks for backfillDelay inside
+// BackfillAllRelationshipEvidence, so a start signal recorded only after the
+// call returns would race the assertion below: by construction, if the start
+// log line's byte offset in the captured buffer is BEFORE the completion log
+// line's offset, the start signal was emitted prior to the call unblocking.
+func TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion(t *testing.T) {
+	t.Parallel()
 
-type errInjected string
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 
-func (e errInjected) Error() string { return string(e) }
+	source := &fakeSource{generations: nil}
+	ws := &concurrentWorkSource{items: nil}
+	sink := &concurrentWorkSink{}
 
-// contentEntityEmittedValue returns the counter value for
-// eshu_dp_content_entity_emitted_total at the given source_file_kind under the
-// bootstrap-index collector_kind.
-func contentEntityEmittedValue(t *testing.T, rm metricdata.ResourceMetrics, kind string) int64 {
-	t.Helper()
-	const name = "eshu_dp_content_entity_emitted_total"
-	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
-			if m.Name != name {
-				continue
-			}
-			sum, ok := m.Data.(metricdata.Sum[int64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Sum[int64]", name, m.Data)
-			}
-			for _, p := range sum.DataPoints {
-				if metricPointHasAttrs(p.Attributes, map[string]string{
-					telemetry.MetricDimensionSourceFileKind: kind,
-					telemetry.MetricDimensionCollectorKind:  "bootstrap-index",
-				}) {
-					return p.Value
-				}
-			}
+	const backfillDelay = 200 * time.Millisecond
+	committer := &fakeCommitter{backfillDelay: backfillDelay}
+	cd := collectorDeps{source: source, committer: committer}
+	pd := projectorDeps{
+		workSource: ws,
+		factStore:  &fakeFactStore{},
+		runner:     &fakeProjectionRunner{},
+		workSink:   sink,
+	}
+
+	if err := runPipelined(context.Background(), cd, pd, 2, nil, nil, logger); err != nil {
+		t.Fatalf("runPipelined() error = %v, want nil", err)
+	}
+
+	// Collection and projection run concurrently with (and complete before)
+	// the backfill phase, so the buffer also contains their own "bootstrap
+	// phase start"/"bootstrap phase complete" lines. Match on the
+	// relationship_backfill bootstrap_phase label specifically, not just the
+	// first occurrence of either msg, so an earlier phase's completion line
+	// cannot masquerade as this phase's.
+	backfillPhaseAttr := `"bootstrap_phase":"` + telemetry.BootstrapPhaseRelationshipBackfill + `"`
+	startIdx := -1
+	completeIdx := -1
+	for _, line := range strings.Split(logs.String(), "\n") {
+		if !strings.Contains(line, backfillPhaseAttr) {
+			continue
+		}
+		idx := strings.Index(logs.String(), line)
+		switch {
+		case strings.Contains(line, `"msg":"bootstrap phase start"`):
+			startIdx = idx
+		case strings.Contains(line, `"msg":"bootstrap phase complete"`):
+			completeIdx = idx
 		}
 	}
-	t.Fatalf("metric %s for source_file_kind %q not found", name, kind)
-	return 0
-}
 
-// bootstrapPhaseRecorded reports whether a histogram data point exists for the
-// named phase on eshu_dp_bootstrap_pipeline_phase_seconds.
-func bootstrapPhaseRecorded(t *testing.T, rm metricdata.ResourceMetrics, phase string) bool {
-	t.Helper()
-	const name = "eshu_dp_bootstrap_pipeline_phase_seconds"
-	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
-			if m.Name != name {
-				continue
-			}
-			hist, ok := m.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Histogram[float64]", name, m.Data)
-			}
-			for _, p := range hist.DataPoints {
-				if metricPointHasAttrs(p.Attributes, map[string]string{
-					telemetry.MetricDimensionBootstrapPhase: phase,
-					telemetry.MetricDimensionCollectorKind:  "bootstrap-index",
-				}) {
-					return true
-				}
-			}
-		}
+	if startIdx == -1 {
+		t.Fatalf("logs = %q, want a %q line with %s", logs.String(), "bootstrap phase start", backfillPhaseAttr)
 	}
-	return false
-}
-
-// bootstrapPhaseDurationSeconds returns the recorded histogram Sum (total
-// seconds) for the named phase. A single Record per run means Sum equals that
-// run's measured duration, which lets a test assert relative phase magnitudes.
-func bootstrapPhaseDurationSeconds(t *testing.T, rm metricdata.ResourceMetrics, phase string) float64 {
-	t.Helper()
-	const name = "eshu_dp_bootstrap_pipeline_phase_seconds"
-	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
-			if m.Name != name {
-				continue
-			}
-			hist, ok := m.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Histogram[float64]", name, m.Data)
-			}
-			for _, p := range hist.DataPoints {
-				if metricPointHasAttrs(p.Attributes, map[string]string{
-					telemetry.MetricDimensionBootstrapPhase: phase,
-					telemetry.MetricDimensionCollectorKind:  "bootstrap-index",
-				}) {
-					return p.Sum
-				}
-			}
-		}
+	if completeIdx == -1 {
+		t.Fatalf("logs = %q, want a %q line with %s", logs.String(), "bootstrap phase complete", backfillPhaseAttr)
 	}
-	t.Fatalf("metric %s for phase %q not found", name, phase)
-	return 0
-}
-
-// metricPointHasAttrs reports whether every want key/value pair is present in
-// the data point attribute set.
-func metricPointHasAttrs(set attribute.Set, want map[string]string) bool {
-	for k, v := range want {
-		val, ok := set.Value(attribute.Key(k))
-		if !ok || val.AsString() != v {
-			return false
-		}
+	if startIdx >= completeIdx {
+		t.Fatalf("relationship_backfill phase start log (offset %d) did not precede its phase complete log (offset %d); signal was emitted after the call returned, not before", startIdx, completeIdx)
 	}
-	return true
 }

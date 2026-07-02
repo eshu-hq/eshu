@@ -77,6 +77,24 @@ func runPipelined(
 	recordPhase := func(phase string, start time.Time) {
 		recordPhaseDuration(phase, time.Since(start).Seconds())
 	}
+	// recordPhaseStart logs an explicit phase-start signal before a long
+	// sequential post-collection phase begins (#4271). Without this, an
+	// operator watching logs sees "bootstrap phase complete" for collection
+	// and projection and then nothing until the next phase's (possibly very
+	// long) call returns — unable to distinguish active work in that phase
+	// from a stuck one-shot lifecycle. This is a log-only signal: the phase's
+	// duration is already covered by BootstrapPipelinePhaseDuration recorded
+	// via recordPhase/recordPhaseDuration once the phase completes, so no new
+	// metric is required to bound this gap.
+	recordPhaseStart := func(phase string) {
+		if logger != nil {
+			logger.InfoContext(
+				ctx, "bootstrap phase start",
+				slog.String("bootstrap_phase", phase),
+				telemetry.PhaseAttr(telemetry.PhaseEmission),
+			)
+		}
+	}
 	// recordPhaseAt records a phase whose end is a captured timestamp rather than
 	// "now". Required for the concurrent projection phase: the projector runs in
 	// parallel with collection and backfill, so its true wall time is
@@ -130,6 +148,7 @@ func runPipelined(
 	// failing long-pole phase is exactly the case an operator must diagnose. So
 	// recordPhase is called before every early return, not only on success.
 	backfillStart := time.Now()
+	recordPhaseStart(telemetry.BootstrapPhaseRelationshipBackfill)
 	if err := cd.committer.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseRelationshipBackfill, backfillStart)
 		if logger != nil {
