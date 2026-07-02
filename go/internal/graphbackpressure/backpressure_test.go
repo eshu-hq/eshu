@@ -39,6 +39,79 @@ func TestMaxInFlight(t *testing.T) {
 	}
 }
 
+// TestClassMaxInFlight is the regression for issue #4448's back-compat
+// contract: ClassMaxInFlight must read the class-specific env var first and
+// fall back to the legacy shared MaxInFlightEnv only when the class var is
+// unset, blank, non-numeric, or non-positive. This is what lets an operator
+// who has only configured ESHU_GRAPH_WRITE_MAX_IN_FLIGHT keep an identical
+// bound on both the canonical and semantic gates until they opt into
+// per-class tuning.
+func TestClassMaxInFlight(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		classVal  string
+		legacyVal string
+		want      int
+	}{
+		"class set, legacy unset uses class":        {classVal: "3", legacyVal: "", want: 3},
+		"class set, legacy also set uses class":     {classVal: "3", legacyVal: "9", want: 3},
+		"class unset falls back to legacy":          {classVal: "", legacyVal: "9", want: 9},
+		"class blank falls back to legacy":          {classVal: "   ", legacyVal: "9", want: 9},
+		"class zero falls back to legacy":           {classVal: "0", legacyVal: "9", want: 9},
+		"class negative falls back to legacy":       {classVal: "-2", legacyVal: "9", want: 9},
+		"class non-numeric falls back to legacy":    {classVal: "lots", legacyVal: "9", want: 9},
+		"class and legacy both unset disables":      {classVal: "", legacyVal: "", want: 0},
+		"class unset, legacy non-positive disables": {classVal: "", legacyVal: "0", want: 0},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			getenv := func(name string) string {
+				switch name {
+				case CanonicalMaxInFlightEnv:
+					return tc.classVal
+				case MaxInFlightEnv:
+					return tc.legacyVal
+				default:
+					return ""
+				}
+			}
+			got := ClassMaxInFlight(getenv, CanonicalMaxInFlightEnv)
+			if got != tc.want {
+				t.Fatalf("ClassMaxInFlight(class=%q, legacy=%q) = %d, want %d", tc.classVal, tc.legacyVal, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestClassMaxInFlightSemanticEnvIndependent proves ClassMaxInFlight reads the
+// SemanticMaxInFlightEnv var independently of CanonicalMaxInFlightEnv, so the
+// two class gates can be sized differently from each other, not just
+// differently from the legacy shared var.
+func TestClassMaxInFlightSemanticEnvIndependent(t *testing.T) {
+	t.Parallel()
+
+	getenv := func(name string) string {
+		switch name {
+		case CanonicalMaxInFlightEnv:
+			return "4"
+		case SemanticMaxInFlightEnv:
+			return "2"
+		default:
+			return ""
+		}
+	}
+
+	if got := ClassMaxInFlight(getenv, CanonicalMaxInFlightEnv); got != 4 {
+		t.Fatalf("ClassMaxInFlight(canonical) = %d, want 4", got)
+	}
+	if got := ClassMaxInFlight(getenv, SemanticMaxInFlightEnv); got != 2 {
+		t.Fatalf("ClassMaxInFlight(semantic) = %d, want 2", got)
+	}
+}
+
 // TestNewObserverNilInstruments proves a runtime without telemetry still gets a
 // working bound (the observer is nil, not a panicking stub).
 func TestNewObserverNilInstruments(t *testing.T) {
