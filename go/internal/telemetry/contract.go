@@ -73,16 +73,31 @@ const (
 	MetricDimensionRiskType = "risk_type"
 	// MetricDimensionSeverity labels posture-observation metrics with bounded
 	// operator severity classes.
-	MetricDimensionSeverity       = "severity"
-	MetricDimensionResult         = "result"
-	MetricDimensionReason         = "reason"
-	MetricDimensionKind           = "kind"
-	MetricDimensionAction         = "action"
-	MetricDimensionProvider       = "provider"
-	MetricDimensionEventKind      = "event_kind"
-	MetricDimensionDecision       = "decision"
-	MetricDimensionStatus         = "status"
-	MetricDimensionOperation      = "operation"
+	MetricDimensionSeverity  = "severity"
+	MetricDimensionResult    = "result"
+	MetricDimensionReason    = "reason"
+	MetricDimensionKind      = "kind"
+	MetricDimensionAction    = "action"
+	MetricDimensionProvider  = "provider"
+	MetricDimensionEventKind = "event_kind"
+	MetricDimensionDecision  = "decision"
+	MetricDimensionStatus    = "status"
+	MetricDimensionOperation = "operation"
+	// MetricDimensionGate labels graph-write backpressure metrics with the
+	// permit-pool class a write drew from: "canonical" (canonical,
+	// handler-edge, shared-projection, secrets/IAM, orphan-sweep, and
+	// materializer writes), "semantic" (the semantic entity write path), or
+	// "aggregate" (the legacy-only-mode outer pool that bounds the combined
+	// canonical+semantic total to the legacy ceiling; only emits while neither
+	// per-class env is set). Splitting the pool by gate is issue #4448: before
+	// the split, a slow semantic write could starve canonical writes (and vice
+	// versa) because both drew from one shared permit pool (head-of-line
+	// blocking). The value space is this closed three-member set plus
+	// "unknown" as the coercion target for any out-of-vocabulary value a
+	// future call-site mistake might pass (see
+	// graphbackpressure.IsValidGateName); it must never carry a raw operation
+	// or statement name.
+	MetricDimensionGate           = "gate"
 	MetricDimensionService        = "service"
 	MetricDimensionAccount        = "account"
 	MetricDimensionRegion         = "region"

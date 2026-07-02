@@ -54,7 +54,9 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_DISCOVERY_REPORT` | Write discovery advisory JSON before changing ignored paths or size caps. |
 | `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | Apply an operator-controlled generated/vendor/archive ignore overlay. |
 | `ESHU_CANONICAL_WRITE_TIMEOUT` | Set the canonical graph-write timeout after statement shape is proven correct. |
-| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | Bound concurrent reducer/projector graph writes so a slow backend slows intake instead of dead-lettering recoverable work; non-positive disables the bound (passthrough). |
+| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | Bound concurrent reducer/projector graph writes so a slow backend slows intake instead of dead-lettering recoverable work; non-positive disables the bound (passthrough). On the reducer this is the fallback ceiling for both `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` and `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` when either is unset; it remains the projector's only graph-write knob. |
+| `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | Bound concurrent reducer canonical/handler-edge/shared-projection/secrets-IAM/orphan-sweep/materializer graph writes independently of the semantic pool (issue #4448); unset falls back to `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT`. |
+| `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` | Bound concurrent reducer semantic-entity graph writes independently of the canonical pool (issue #4448); unset falls back to `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT`. Splitting the pool prevents a slow write on one class from starving the other (head-of-line blocking). |
 | `ESHU_REDUCER_WORKERS` | Tune reducer worker count after queue and graph-write evidence. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Keep reducer claim batch size near worker count on slower graph backends. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Declare claim-capable collector instances for coordinator-owned workflows. |

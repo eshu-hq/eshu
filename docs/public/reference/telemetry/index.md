@@ -444,12 +444,6 @@ Phase 1 per-domain attribution:
   Combine with an intent-emit counter to derive per-domain pending depth and
   drain rate without a per-scrape table scan.
 
-Graph-write back-pressure gate-acquire wait is already covered by the existing
-`eshu_dp_graph_write_backpressure_wait_seconds` histogram (labeled by
-`operation`), which records every time a write blocks for a permit from the
-shared `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` pool. No new gate-wait instrument is
-needed.
-
 Performance Evidence: Phase 2 remote measurement pending — these instruments
 exist so the next corpus run can provide the per-domain latency distribution
 that confirms the Phase 2 scaling parameters
@@ -472,3 +466,139 @@ calls (`Float64Histogram.Record`, `Int64Counter.Add`) inside the existing
 graph write, or queue behavior is introduced. Verified by
 `go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
 (2678 tests, all passing).
+
+## Graph-Write Permit Pool Split By Class (#4448)
+
+Before this change every reducer graph write — canonical, handler-edge,
+shared-projection, secrets/IAM, orphan-sweep, materializer, and semantic
+entity writes — drew from ONE shared `cypher.BackpressureGate` permit pool
+sized by `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` (#3652). That coupling meant a slow
+write on one class could exhaust the shared permits and starve every other
+class's writes even when the starved class's own workload never came close to
+saturating its logical share of the pool (head-of-line blocking).
+
+The reducer now bounds canonical-class and semantic-class writes with two
+permit pools that become fully INDEPENDENT once an operator opts in:
+
+- `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` sizes the canonical gate
+  (canonical, handler-edge, shared-projection, secrets/IAM, orphan-sweep, and
+  materializer writes).
+- `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` sizes the semantic gate (the
+  semantic entity write path).
+- **Legacy-only back-compat (both above unset):** a review of the first
+  version of this change caught a P1 regression here — falling back each
+  class independently to the legacy `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N` would
+  let up to `2N` writes run concurrently (`N` canonical + `N` semantic), an
+  unmeasured doubling of the concurrency budget an existing deployment sized
+  to backend headroom. The fix is a third, outer "aggregate" gate sized to
+  `N` that BOTH classes draw a permit from, in addition to their own class
+  gate, whenever neither per-class env is set. The combined canonical+semantic
+  total therefore stays bounded by `N`, exactly reproducing the pre-#4448
+  shared-pool capacity, while each class still gets its own labeled wait
+  signal. As soon as an operator sets either per-class env, the aggregate gate
+  is disabled and the two class gates become the sole, fully independent
+  bounds — the opt-in head-of-line-blocking fix.
+
+The projector has only one write class, so it is unaffected and keeps using
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` as its single knob.
+
+The existing `eshu_dp_graph_write_backpressure_engaged_total` counter and
+`eshu_dp_graph_write_backpressure_wait_seconds` histogram now carry a `gate`
+label (`canonical`, `semantic`, or, only in legacy-only mode, `aggregate`) in
+addition to `operation`, so an operator can read each pool's engagement rate
+and wait-time distribution independently instead of a blended signal that
+could mask one class starving the other. In legacy-only mode a single write
+acquires both the aggregate gate and its class gate, so it can emit a wait
+sample for each layer independently — this is two different measurements for
+the same write ("did the combined legacy-shaped budget saturate" versus "did
+this class's own share saturate"), not double-counting. No new metric name
+was introduced.
+
+Performance Evidence: this is a structural concurrency fix, not a throughput
+change under normal (non-starved) load — with both gates sized generously
+relative to their own class's workload, wall-clock behavior is unchanged from
+before the split. The fix targets the pathological case where one class's
+writes are slow: before the split that pathological case degraded the OTHER
+class's latency too; after the split it does not. No-Regression Evidence:
+verified by the full reducer/graphbackpressure/telemetry/projector suites
+under `-race` (`go test ./cmd/reducer ./internal/graphbackpressure
+./internal/telemetry ./cmd/projector -race -count=1`, all passing) proving no
+new goroutine leaks, deadlocks, or worker-count changes were introduced.
+
+Observability Evidence: `TestGraphWriteGateSplitEliminatesHeadOfLineBlocking`
+in `go/cmd/reducer/graph_write_permit_split_test.go` is the deterministic
+regression: it saturates one class's single-permit gate with a write that
+blocks forever, then proves a write on the OTHER class completes within a
+500ms deadline instead of queuing behind the stuck permit, in both directions
+(slow semantic blocking canonical, and slow canonical blocking semantic). The
+test was verified two-sided by temporarily forcing both gates to share one
+underlying `*cypher.BackpressureGate` (simulating the pre-#4448 behavior) and
+confirming the test fails in both directions against that simulation, then
+reverting to the real independent-gate implementation and confirming it
+passes. The `gate` label on `eshu_dp_graph_write_backpressure_wait_seconds`
+is the runtime signal an operator uses to confirm the same property in
+production: independent per-gate wait distributions rather than one blended
+series.
+
+`TestLegacyOnlyConfigBoundsCombinedTotalToLegacyCeiling` in the same file is
+the deterministic regression for the P1 fix: with only
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N` set (no per-class envs), it drives
+concurrent writes through both the real canonical and semantic write paths
+against one shared probe and asserts the combined peak concurrency never
+exceeds `N`. It was verified two-sided by temporarily disabling the aggregate
+gate (simulating the regression the review caught) and confirming the test
+fails at exactly `2N` peak concurrency, then restoring the fix and confirming
+it passes. `TestPerClassConfigDisablesAggregateGate`,
+`TestAnyClassMaxInFlightSet`, and `TestAggregateMaxInFlight` in
+`go/internal/graphbackpressure/backpressure_test.go` cover the
+opt-in/opt-out boundary directly.
+
+### Gate-Label Cardinality Guard
+
+A second review (Copilot) flagged that `NewObserver` in
+`go/internal/graphbackpressure/backpressure.go` documented `gateName` as
+required to be one of the closed set (`CanonicalGateName`, `SemanticGateName`,
+`AggregateGateName`) but recorded whatever string was passed with no
+validation, so a future call-site mistake — for example accidentally passing
+an operation or raw Cypher statement string instead of a gate name — could
+explode the `gate` label's cardinality on
+`eshu_dp_graph_write_backpressure_engaged_total` and
+`eshu_dp_graph_write_backpressure_wait_seconds`.
+
+The fix mirrors the existing `source_tool` coercion pattern
+(`sourcetool.IsValid` / `"unknown"` in
+`go/internal/telemetry/instruments.go:4745`): `IsValidGateName` checks
+membership in the closed vocabulary, and `NewObserver` coerces any
+out-of-vocabulary `gateName` to `"unknown"` before storing it, so the `gate`
+label's value space stays bounded to four values
+(`canonical`/`semantic`/`aggregate`/`unknown`) regardless of what a future
+caller passes in. `TestIsValidGateName` and
+`TestNewObserverCoercesUnknownGateName` are the direct regressions, verified
+two-sided by temporarily removing the coercion and confirming
+`TestNewObserverCoercesUnknownGateName` fails (the stored `gateName` was the
+raw unvalidated input instead of `"unknown"`), then restoring the fix and
+confirming it passes.
+
+### Test Goroutine Hygiene
+
+The same Copilot review flagged two goroutine leaks in
+`testHeadOfLineBlockingEliminated`
+(`go/cmd/reducer/graph_write_permit_split_test.go`): the holder and
+"other-class" write goroutines both ran under `context.Background()`, so if
+the test failed before the explicit `close(holder.release)` cleanup — either
+on the holder-entered wait or on the 500ms other-class deadline, the exact
+failure path this regression exists to catch — the blocked goroutine(s) would
+run until the test process exited rather than being released. The fix threads
+one `context.WithCancel(context.Background())` with a `defer cancel()` through
+both goroutines' `Execute` calls, so every exit path (both `t.Fatal` calls and
+normal completion) unblocks both via `ctx.Done()`, which
+`cypher.BackpressureGate.Acquire` and `slowThenSignalExecutor.Execute` both
+already select on.
+
+No-Regression Evidence: verified with a temporary scratch harness
+(deleted before commit) that forced the 500ms deadline path deterministically
+and measured `runtime.NumGoroutine()` before and after. With the cancelable
+context, goroutine count stayed flat (3→3) despite the forced failure; with
+`context.Background()` restored (simulating the pre-fix shape), goroutine
+count grew by exactly 2 (3→5) — the holder and other-class goroutines both
+leaking, reproducing the bug Copilot flagged.

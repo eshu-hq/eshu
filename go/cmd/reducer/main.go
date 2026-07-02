@@ -62,9 +62,12 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 
-	// One shared permit pool bounds every reducer graph write (#3560, #3652; see
-	// reducerGraphWriteGate). rawNeo4jExec is the unbounded base for the semantic
-	// path's outside-the-timeout permit; neo4jExec and cypherExec are gate-wrapped.
+	// Two independent permit pools bound reducer graph writes: a canonical gate
+	// and a semantic gate (#3560, #3652, #4448; see reducerGraphWriteGate).
+	// Splitting by class prevents a slow write on one class from exhausting the
+	// other class's permits (head-of-line blocking). rawNeo4jExec is the
+	// unbounded base for the semantic path's outside-the-timeout permit;
+	// neo4jExec and cypherExec are wrapped with the canonical gate.
 	graphWriteGate := newReducerGraphWriteGate(getenv, instruments)
 	rawNeo4jExec := neo4jExec
 	neo4jExec = graphWriteGate.boundExecutor(neo4jExec)

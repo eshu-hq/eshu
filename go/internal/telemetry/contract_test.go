@@ -51,6 +51,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"decision",
 		"status",
 		"operation",
+		"gate",
 		"status_class",
 		"route",
 		"failure_class",

@@ -214,6 +214,27 @@ group and logs per-statement durations for the same three roles.
 | `ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE` | `1` | Inheritance grouped-write batch |
 | `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | SQL relationship grouped-write batch |
 
+### Graph write backpressure (#3560, #3652, #4448)
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | `0` (disabled) | Legacy shared ceiling. On the reducer, this is now the fallback that sizes BOTH the canonical and semantic gates only while neither per-class env below is set — see `AggregateMaxInFlight` in `internal/graphbackpressure/backpressure.go`. It remains the projector's only graph-write knob (the projector has a single write class). |
+| `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | unset (falls back to the legacy var) | Bounds the canonical/handler-edge/shared-projection/secrets-IAM/orphan-sweep/materializer permit pool independently of the semantic pool. Setting this (or the semantic var below) disables the legacy-only aggregate ceiling for the whole reducer and makes both class gates fully independent. |
+| `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` | unset (falls back to the legacy var) | Bounds the semantic-entity-write permit pool independently of the canonical pool. |
+
+`newReducerGraphWriteGate` (`graph_write_backpressure_wiring.go`) builds three
+gates: `canonicalGate`, `semanticGate`, and an `aggregateGate` that is active
+ONLY while neither per-class var is set. While the aggregate is active, both
+classes draw a permit from it IN ADDITION to their own class gate, so the
+combined canonical+semantic total in-flight stays bounded by the legacy
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` ceiling rather than doubling to 2x that value
+— an existing deployment that only ever set the legacy knob keeps an
+identical total concurrency budget. Setting either per-class env disables the
+aggregate and gives each class a fully independent pool, so a slow write on
+one class can no longer starve the other (head-of-line blocking, issue
+#4448). See `docs/public/reference/telemetry/index.md` "Graph-Write Permit
+Pool Split By Class (#4448)" for the full design note and evidence.
+
 ### Repair runner
 
 | Variable | Default |
