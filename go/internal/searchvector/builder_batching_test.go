@@ -117,3 +117,79 @@ func TestBuilderReportsSplitPhaseTimings(t *testing.T) {
 		t.Fatalf("phase durations must be non-negative: %#v", result)
 	}
 }
+
+// TestBuilderDedupesDuplicateDocumentIDsWithinOnePage is a P1 regression test
+// found during #4430 self-review: ListActiveDocuments does not deduplicate by
+// document ID, and two fact_records rows sharing one document.id within a
+// scope/generation is an acknowledged data shape in this codebase (see the
+// pending-scope query's "two facts share the same document_id" case). Before
+// batching, two Upsert calls for the same document ID were harmless
+// (sequential single-row upserts never conflict with themselves). After
+// batching, a single multi-row INSERT ... ON CONFLICT DO UPDATE statement
+// errors if it contains two rows with the same conflict key
+// ("ON CONFLICT DO UPDATE command cannot affect row a second time",
+// reproduced live against Postgres 16 during review). Build must dedupe each
+// page's batch by document ID (last write wins, matching the pre-#4430
+// sequential outcome) before writing, so a duplicate never turns into a
+// sweep failure that repeats every poll interval.
+func TestBuilderDedupesDuplicateDocumentIDsWithinOnePage(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 15, 15, 0, 0, 0, time.UTC)
+	// Two distinct fact_records rows share document ID "dup-doc" but carry
+	// different titles/paths, modeling two facts pointing at the same curated
+	// document identity within one scope/generation.
+	first := searchDocument("dup-doc", "repo-1", "First fact", "handlers/first.go")
+	second := searchDocument("dup-doc", "repo-1", "Second fact", "handlers/second.go")
+	docs := &recordingDocumentStore{rows: []postgres.EshuSearchDocumentRow{
+		{ScopeID: "repo-1", GenerationID: "gen-active", Document: first},
+		{ScopeID: "repo-1", GenerationID: "gen-active", Document: second},
+	}}
+	values := &recordingVectorValueStore{}
+	metadata := &recordingVectorMetadataStore{}
+	embedder := &recordingEmbedder{dims: 2, vectors: map[string][]float64{
+		searchhybrid.DocumentText(first):  {1, 0},
+		searchhybrid.DocumentText(second): {0, 1},
+	}}
+
+	result, err := Builder{
+		Documents: docs,
+		Metadata:  metadata,
+		Values:    values,
+		Embedder:  embedder,
+		Clock:     func() time.Time { return now },
+	}.Build(context.Background(), BuildRequest{
+		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
+		EmbeddingModelID:   "local-hash-v1",
+		VectorIndexVersion: "vector-v1",
+		Limit:              500,
+	})
+	if err != nil {
+		t.Fatalf("Build error = %v, want nil (duplicate document IDs must not fail the sweep)", err)
+	}
+	if result.DocumentCount != 2 {
+		t.Fatalf("result.DocumentCount = %d, want 2 (both fact rows are counted)", result.DocumentCount)
+	}
+	// Exactly one row per store, keyed by document ID: the batch is deduped
+	// before the single UpsertBatch call, so a naive re-introduction of the
+	// duplicate (removing dedupeValueBatch/dedupeMetadataBatch) would send two
+	// same-key rows in one batch and fail against a real Postgres ON CONFLICT
+	// DO UPDATE statement (proven separately in
+	// eshu_search_vector_upsert_batch_scale_live_test.go's underlying store).
+	if got, want := len(values.batches), 1; got != want {
+		t.Fatalf("value UpsertBatch calls = %d, want %d", got, want)
+	}
+	if got, want := len(values.batches[0]), 1; got != want {
+		t.Fatalf("value batch size = %d, want %d (deduped to one row per document id)", got, want)
+	}
+	if got, want := len(metadata.batches[0]), 1; got != want {
+		t.Fatalf("metadata batch size = %d, want %d (deduped to one row per document id)", got, want)
+	}
+	// Last write wins, matching the pre-#4430 sequential Upsert outcome: the
+	// second fact's vector/hash survives.
+	if got, want := values.batches[0][0].VectorValues, []float64{0, 1}; !sameVector(got, want) {
+		t.Fatalf("surviving vector = %#v, want %#v (last write should win)", got, want)
+	}
+}

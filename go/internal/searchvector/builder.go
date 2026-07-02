@@ -163,10 +163,10 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 		}
 
 		writeStart := time.Now()
-		if err := b.Values.UpsertBatch(ctx, valueBatch); err != nil {
+		if err := b.Values.UpsertBatch(ctx, dedupeValueBatch(valueBatch)); err != nil {
 			return result, fmt.Errorf("upsert vector value batch: %w", err)
 		}
-		if err := b.Metadata.UpsertBatch(ctx, metadataBatch); err != nil {
+		if err := b.Metadata.UpsertBatch(ctx, dedupeMetadataBatch(metadataBatch)); err != nil {
 			return result, fmt.Errorf("upsert vector metadata batch: %w", err)
 		}
 		result.WriteUpsertDuration += time.Since(writeStart)
@@ -177,6 +177,53 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 		}
 	}
 	return result, errors.Join(failures...)
+}
+
+// dedupeValueBatch keeps the last row per document ID, matching the
+// last-write-wins outcome of the pre-#4430 sequential per-document Upsert
+// calls. A single multi-row INSERT ... ON CONFLICT DO UPDATE statement errors
+// ("ON CONFLICT DO UPDATE command cannot affect row a second time") if it
+// contains two rows with the same conflict key, which can happen because
+// ListActiveDocuments does not deduplicate by document ID: two fact_records
+// rows sharing one document.id within a scope/generation is an acknowledged
+// case in this codebase (see the pending-scope query's "two facts share the
+// same document_id" case). Deduping here keeps that pre-existing data shape
+// safe under batching instead of turning a harmless duplicate into a sweep
+// failure that repeats every poll interval.
+func dedupeValueBatch(rows []postgres.EshuSearchVectorValue) []postgres.EshuSearchVectorValue {
+	if len(rows) < 2 {
+		return rows
+	}
+	byDocumentID := make(map[string]int, len(rows))
+	deduped := make([]postgres.EshuSearchVectorValue, 0, len(rows))
+	for _, row := range rows {
+		if idx, ok := byDocumentID[row.DocumentID]; ok {
+			deduped[idx] = row
+			continue
+		}
+		byDocumentID[row.DocumentID] = len(deduped)
+		deduped = append(deduped, row)
+	}
+	return deduped
+}
+
+// dedupeMetadataBatch is dedupeValueBatch's counterpart for metadata rows. See
+// dedupeValueBatch for why this is required once upserts are batched.
+func dedupeMetadataBatch(rows []postgres.EshuSearchVectorMetadata) []postgres.EshuSearchVectorMetadata {
+	if len(rows) < 2 {
+		return rows
+	}
+	byDocumentID := make(map[string]int, len(rows))
+	deduped := make([]postgres.EshuSearchVectorMetadata, 0, len(rows))
+	for _, row := range rows {
+		if idx, ok := byDocumentID[row.DocumentID]; ok {
+			deduped[idx] = row
+			continue
+		}
+		byDocumentID[row.DocumentID] = len(deduped)
+		deduped = append(deduped, row)
+	}
+	return deduped
 }
 
 func (b Builder) embed(ctx context.Context, doc searchdocs.Document) ([]float64, string, error) {
