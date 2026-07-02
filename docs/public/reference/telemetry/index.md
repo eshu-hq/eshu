@@ -446,9 +446,15 @@ Phase 1 per-domain attribution:
 
 Graph-write back-pressure gate-acquire wait is already covered by the existing
 `eshu_dp_graph_write_backpressure_wait_seconds` histogram (labeled by
-`operation`), which records every time a write blocks for a permit from the
-shared `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` pool. No new gate-wait instrument is
-needed.
+`operation` and, since issue #4448, `gate`), which records every time a write
+blocks for a permit. The reducer now bounds canonical and semantic graph
+writes with two independent pools (`ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT`,
+`ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT`, each falling back to
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` when unset) rather than one shared pool, so
+the `gate` label lets an operator see each pool's wait distribution
+independently instead of a blended signal that could mask one class starving
+the other. No new metric name was needed — the existing histogram gained a
+label.
 
 Performance Evidence: Phase 2 remote measurement pending — these instruments
 exist so the next corpus run can provide the per-domain latency distribution
