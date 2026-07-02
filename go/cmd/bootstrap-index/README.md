@@ -352,14 +352,23 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
   duration once it completes (`No-Observability-Change` for the metric layer).
   - Regression coverage:
     `TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion`
-    (`bootstrap_telemetry_test.go`) drives the real `runPipelined` with a fake
-    committer whose `BackfillAllRelationshipEvidence` blocks for a fixed delay,
-    captures logs into an in-memory buffer, and asserts the
-    `relationship_backfill` phase's `bootstrap phase start` log line's byte
-    offset precedes its `bootstrap phase complete` log line's offset — proving
-    the start signal fires before the call returns, not only after. Confirmed
-    failing against the pre-fix code (no `bootstrap phase start` line existed
-    at all).
+    (`bootstrap_telemetry_test.go`) drives the real `runPipelined` in a
+    goroutine against a fake committer whose `BackfillAllRelationshipEvidence`
+    blocks on a channel the instant it is entered. The test waits for that
+    channel, then — while the call is still blocked and has not returned —
+    asserts the `relationship_backfill` phase's `bootstrap phase start` log
+    line is already present in the captured logs, and that its `bootstrap
+    phase complete` line is NOT yet present (that line can only be written
+    after the call returns). Only then does the test release the block and
+    let `runPipelined` finish. This proves the start signal is emitted
+    before/during the blocked call, not merely before a later log line — an
+    earlier version of this test asserted only that the start line's byte
+    offset preceded the complete line's offset, which does not rule out a
+    regression that logs "start" immediately after the (still-blocking) call
+    returns but before the completion log (review finding on PR #4521;
+    confirmed as a genuine guard by temporarily moving the production
+    `recordPhaseStart` call to after `BackfillAllRelationshipEvidence`, which
+    made this test fail, then reverting, which made it pass again).
   - Full gate: `go test ./cmd/bootstrap-index -count=1`.
 - No-Regression Evidence: The added call is a single conditional `logger`
   call with no I/O, no lock, and no new goroutine; it cannot change phase

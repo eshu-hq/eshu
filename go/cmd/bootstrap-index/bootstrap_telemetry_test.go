@@ -8,6 +8,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -321,30 +322,43 @@ func TestRunPipelinedRecordsDeploymentReopenPhaseOnError(t *testing.T) {
 
 // TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion proves the
 // #4271 fix: runPipelined must emit an explicit "bootstrap phase start" log
-// signal for relationship_backfill BEFORE calling
-// BackfillAllRelationshipEvidence, not only a completion log after it
-// returns. Without a start signal, operators watching logs see
-// "bootstrap projection complete" and then nothing until the (possibly very
-// long) backfill call returns, unable to distinguish active work from a
-// stuck one-shot lifecycle.
+// signal for relationship_backfill BEFORE BackfillAllRelationshipEvidence
+// RETURNS — the exact silent gap #4271 describes, where operators watching
+// logs see "bootstrap projection complete" and then nothing until the
+// (possibly very long) backfill call returns.
 //
-// The fake committer blocks for backfillDelay inside
-// BackfillAllRelationshipEvidence, so a start signal recorded only after the
-// call returns would race the assertion below: by construction, if the start
-// log line's byte offset in the captured buffer is BEFORE the completion log
-// line's offset, the start signal was emitted prior to the call unblocking.
+// An earlier version of this test only asserted that the "bootstrap phase
+// start" log line's byte offset preceded the "bootstrap phase complete" log
+// line's offset. That is necessary but not sufficient: "bootstrap phase
+// complete" is logged AFTER BackfillAllRelationshipEvidence returns, so a
+// regression that moved the start-log call to right after the (still
+// blocking) call returns but before the completion log would still satisfy
+// startIdx < completeIdx and pass — without ever proving the signal fires
+// while the call is in flight (review finding on PR #4521; codex + Copilot,
+// same gap, 3 comments).
+//
+// This version closes that gap directly: the fake committer's
+// BackfillAllRelationshipEvidence blocks on a channel the instant it is
+// entered. runPipelined runs in a goroutine; the test waits for that
+// channel, then asserts the "bootstrap phase start" line is ALREADY present
+// in the captured logs while the call is still blocked (release has not
+// been signaled), before letting the call return. This proves the start
+// signal is emitted before/during the blocked call, not merely before a
+// later log line.
 func TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion(t *testing.T) {
 	t.Parallel()
 
+	var mu sync.Mutex
 	var logs bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	logger := slog.New(slog.NewJSONHandler(lockedWriter{mu: &mu, w: &logs}, nil))
 
 	source := &fakeSource{generations: nil}
 	ws := &concurrentWorkSource{items: nil}
 	sink := &concurrentWorkSink{}
 
-	const backfillDelay = 200 * time.Millisecond
-	committer := &fakeCommitter{backfillDelay: backfillDelay}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	committer := &fakeCommitter{backfillStarted: started, backfillRelease: release}
 	cd := collectorDeps{source: source, committer: committer}
 	pd := projectorDeps{
 		workSource: ws,
@@ -353,39 +367,70 @@ func TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion(t *testi
 		workSink:   sink,
 	}
 
-	if err := runPipelined(context.Background(), cd, pd, 2, nil, nil, logger); err != nil {
-		t.Fatalf("runPipelined() error = %v, want nil", err)
+	done := make(chan error, 1)
+	go func() {
+		done <- runPipelined(context.Background(), cd, pd, 2, nil, nil, logger)
+	}()
+
+	select {
+	case <-started:
+		// BackfillAllRelationshipEvidence has been entered and is now
+		// blocked on release. Fall through to assert on the logs while it
+		// is still blocked.
+	case err := <-done:
+		t.Fatalf("runPipelined() returned (err=%v) before BackfillAllRelationshipEvidence was ever entered", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for BackfillAllRelationshipEvidence to start")
 	}
 
-	// Collection and projection run concurrently with (and complete before)
-	// the backfill phase, so the buffer also contains their own "bootstrap
-	// phase start"/"bootstrap phase complete" lines. Match on the
-	// relationship_backfill bootstrap_phase label specifically, not just the
-	// first occurrence of either msg, so an earlier phase's completion line
-	// cannot masquerade as this phase's.
 	backfillPhaseAttr := `"bootstrap_phase":"` + telemetry.BootstrapPhaseRelationshipBackfill + `"`
-	startIdx := -1
-	completeIdx := -1
-	for _, line := range strings.Split(logs.String(), "\n") {
-		if !strings.Contains(line, backfillPhaseAttr) {
-			continue
+	mu.Lock()
+	snapshot := logs.String()
+	mu.Unlock()
+	found := false
+	for _, line := range strings.Split(snapshot, "\n") {
+		if strings.Contains(line, backfillPhaseAttr) && strings.Contains(line, `"msg":"bootstrap phase start"`) {
+			found = true
+			break
 		}
-		idx := strings.Index(logs.String(), line)
-		switch {
-		case strings.Contains(line, `"msg":"bootstrap phase start"`):
-			startIdx = idx
-		case strings.Contains(line, `"msg":"bootstrap phase complete"`):
-			completeIdx = idx
+	}
+	if !found {
+		t.Fatalf("logs while backfill still blocked = %q, want a %q line with %s BEFORE the call returns",
+			snapshot, "bootstrap phase start", backfillPhaseAttr)
+	}
+	// The completion log for this phase must NOT exist yet: the call has not
+	// returned, so recordPhase(relationship_backfill, ...) cannot have run.
+	// This is the assertion the byte-offset-only version of this test could
+	// never make, because it only inspected logs after runPipelined had
+	// already returned.
+	for _, line := range strings.Split(snapshot, "\n") {
+		if strings.Contains(line, backfillPhaseAttr) && strings.Contains(line, `"msg":"bootstrap phase complete"`) {
+			t.Fatalf("logs while backfill still blocked = %q, unexpectedly already contain the phase complete line for %s; the call has not returned yet", snapshot, backfillPhaseAttr)
 		}
 	}
 
-	if startIdx == -1 {
-		t.Fatalf("logs = %q, want a %q line with %s", logs.String(), "bootstrap phase start", backfillPhaseAttr)
+	close(release)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runPipelined() error = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for runPipelined to finish after releasing backfill")
 	}
-	if completeIdx == -1 {
-		t.Fatalf("logs = %q, want a %q line with %s", logs.String(), "bootstrap phase complete", backfillPhaseAttr)
-	}
-	if startIdx >= completeIdx {
-		t.Fatalf("relationship_backfill phase start log (offset %d) did not precede its phase complete log (offset %d); signal was emitted after the call returned, not before", startIdx, completeIdx)
-	}
+}
+
+// lockedWriter serializes writes with an external mutex so a test can safely
+// read the underlying buffer's contents from the test goroutine while
+// runPipelined's goroutine may still be writing log lines concurrently.
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  *bytes.Buffer
+}
+
+func (l lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }
