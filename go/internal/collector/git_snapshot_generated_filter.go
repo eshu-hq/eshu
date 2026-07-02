@@ -291,7 +291,9 @@ func hasVendoredBrowserLibrarySignature(path string) bool {
 		strings.Contains(normalized, "lesscss"):
 		return true
 	case strings.Contains(normalized, "uglifyjs") &&
-		strings.Contains(normalized, "javascript parser/compressor/beautifier"):
+		strings.Contains(normalized, "javascript parser") &&
+		strings.Contains(normalized, "compressor") &&
+		strings.Contains(normalized, "beautifier"):
 		return true
 	case strings.Contains(normalized, "window.__sharethis__") &&
 		strings.Contains(normalized, "sharethis"):
