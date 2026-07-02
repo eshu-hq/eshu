@@ -63,6 +63,36 @@ func TestExtractFirebaseRulesetAttributes(t *testing.T) {
 	}
 }
 
+// TestExtractFirebaseRulesetServicesDeterministic proves the target-service enum
+// is deduplicated and sorted so the persisted attribute is stable regardless of
+// CAI response ordering or duplicates.
+func TestExtractFirebaseRulesetServicesDeterministic(t *testing.T) {
+	blob, _ := json.Marshal(map[string]any{
+		"metadata": map[string]any{"services": []any{"firebase.storage", "cloud.firestore", "firebase.storage", " ", "cloud.firestore"}},
+	})
+	got, err := extractFirebaseRuleset(ExtractContext{
+		FullResourceName: "//firebaserules.googleapis.com/projects/demo-project/rulesets/x",
+		AssetType:        firebaseRulesetAssetType,
+		Data:             blob,
+	})
+	if err != nil {
+		t.Fatalf("extractFirebaseRuleset: %v", err)
+	}
+	services, ok := got.Attributes["services"].([]string)
+	if !ok {
+		t.Fatalf("services not []string: %#v", got.Attributes["services"])
+	}
+	want := []string{"cloud.firestore", "firebase.storage"}
+	if len(services) != len(want) {
+		t.Fatalf("services = %#v, want %#v", services, want)
+	}
+	for i := range want {
+		if services[i] != want[i] {
+			t.Errorf("services[%d] = %q, want %q", i, services[i], want[i])
+		}
+	}
+}
+
 // TestExtractFirebaseRulesetProjectEdge proves the ruleset resolves a typed edge
 // to its parent Firebase project.
 func TestExtractFirebaseRulesetProjectEdge(t *testing.T) {

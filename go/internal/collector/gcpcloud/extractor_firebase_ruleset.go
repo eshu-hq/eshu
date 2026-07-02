@@ -6,7 +6,6 @@ package gcpcloud
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 // firebaseRulesetAssetType is the Cloud Asset Inventory asset type for a Firebase
@@ -65,14 +64,12 @@ func extractFirebaseRuleset(ctx ExtractContext) (AttributeExtraction, error) {
 		attrs["creation_time"] = v
 	}
 	if data.Metadata != nil {
-		services := make([]string, 0, len(data.Metadata.Services))
+		services := newStringSet()
 		for _, svc := range data.Metadata.Services {
-			if trimmed := strings.TrimSpace(svc); trimmed != "" {
-				services = append(services, trimmed)
-			}
+			services.add(svc)
 		}
-		if len(services) > 0 {
-			attrs["services"] = services
+		if sorted := services.sorted(); len(sorted) > 0 {
+			attrs["services"] = sorted
 		}
 	}
 
