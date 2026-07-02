@@ -23,8 +23,22 @@ Performance Evidence:
 - Candidate change: repo-wide and file-scoped retracts now bind indexed
   `Function.repo_id` / `Function.path` anchors before expanding
   `EXECUTES_SHELL` relationships.
-- Remote after measurement is required before PR creation; this branch must be
-  pulled and tested on the remote corpus stack first.
+- Remote after run: `4512-shell-exec-anchor-pr230-20260702T051029Z`.
+- Remote after Eshu commit: `d8e9f97b2e064c866696a951fefc6ce9204cd4f4`.
+- Remote stop: manually stopped at `2026-07-02T05:18:47Z` once evidence was
+  sufficient; final queue had `projector/source_local` 77 succeeded, 7 claimed,
+  3 pending, and 1 running.
+- Remote after `shell_exec` cycles: count 11, total duration `427.320337s`,
+  max duration `149.150518s`.
+- Remote after `shell_exec` retract time: total `427.290141s`, max
+  `149.146957s`.
+- Result: the anchor-only rewrite is not sufficient and is not PR-ready. It
+  removes the broad post-filter shape from the source text, but NornicDB #230
+  still spends nearly all `shell_exec` shared-projection time inside retracts at
+  corpus scale.
+- Follow-up direction: split or profile the `EXECUTES_SHELL` delete path more
+  deeply before proposing another fix. The next candidate must be proven on the
+  same remote corpus stack before PR creation.
 
 No-Regression Evidence:
 
