@@ -478,26 +478,41 @@ class's writes even when the starved class's own workload never came close to
 saturating its logical share of the pool (head-of-line blocking).
 
 The reducer now bounds canonical-class and semantic-class writes with two
-INDEPENDENT permit pools:
+permit pools that become fully INDEPENDENT once an operator opts in:
 
 - `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` sizes the canonical gate
   (canonical, handler-edge, shared-projection, secrets/IAM, orphan-sweep, and
   materializer writes).
 - `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` sizes the semantic gate (the
   semantic entity write path).
-- Either unset falls back to the legacy `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT`, so an
-  operator who only configured the old shared knob keeps an identical bound on
-  both classes until they opt into per-class tuning.
+- **Legacy-only back-compat (both above unset):** a review of the first
+  version of this change caught a P1 regression here — falling back each
+  class independently to the legacy `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N` would
+  let up to `2N` writes run concurrently (`N` canonical + `N` semantic), an
+  unmeasured doubling of the concurrency budget an existing deployment sized
+  to backend headroom. The fix is a third, outer "aggregate" gate sized to
+  `N` that BOTH classes draw a permit from, in addition to their own class
+  gate, whenever neither per-class env is set. The combined canonical+semantic
+  total therefore stays bounded by `N`, exactly reproducing the pre-#4448
+  shared-pool capacity, while each class still gets its own labeled wait
+  signal. As soon as an operator sets either per-class env, the aggregate gate
+  is disabled and the two class gates become the sole, fully independent
+  bounds — the opt-in head-of-line-blocking fix.
 
 The projector has only one write class, so it is unaffected and keeps using
 `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` as its single knob.
 
 The existing `eshu_dp_graph_write_backpressure_engaged_total` counter and
 `eshu_dp_graph_write_backpressure_wait_seconds` histogram now carry a `gate`
-label (`canonical` or `semantic`) in addition to `operation`, so an operator
-can read each pool's engagement rate and wait-time distribution
-independently instead of a blended signal that could mask one class starving
-the other. No new metric name was introduced.
+label (`canonical`, `semantic`, or, only in legacy-only mode, `aggregate`) in
+addition to `operation`, so an operator can read each pool's engagement rate
+and wait-time distribution independently instead of a blended signal that
+could mask one class starving the other. In legacy-only mode a single write
+acquires both the aggregate gate and its class gate, so it can emit a wait
+sample for each layer independently — this is two different measurements for
+the same write ("did the combined legacy-shaped budget saturate" versus "did
+this class's own share saturate"), not double-counting. No new metric name
+was introduced.
 
 Performance Evidence: this is a structural concurrency fix, not a throughput
 change under normal (non-starved) load — with both gates sized generously
@@ -524,3 +539,16 @@ passes. The `gate` label on `eshu_dp_graph_write_backpressure_wait_seconds`
 is the runtime signal an operator uses to confirm the same property in
 production: independent per-gate wait distributions rather than one blended
 series.
+
+`TestLegacyOnlyConfigBoundsCombinedTotalToLegacyCeiling` in the same file is
+the deterministic regression for the P1 fix: with only
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N` set (no per-class envs), it drives
+concurrent writes through both the real canonical and semantic write paths
+against one shared probe and asserts the combined peak concurrency never
+exceeds `N`. It was verified two-sided by temporarily disabling the aggregate
+gate (simulating the regression the review caught) and confirming the test
+fails at exactly `2N` peak concurrency, then restoring the fix and confirming
+it passes. `TestPerClassConfigDisablesAggregateGate`,
+`TestAnyClassMaxInFlightSet`, and `TestAggregateMaxInFlight` in
+`go/internal/graphbackpressure/backpressure_test.go` cover the
+opt-in/opt-out boundary directly.

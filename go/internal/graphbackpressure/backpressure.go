@@ -42,6 +42,23 @@ const MaxInFlightEnv = "ESHU_GRAPH_WRITE_MAX_IN_FLIGHT"
 const (
 	CanonicalGateName = "canonical"
 	SemanticGateName  = "semantic"
+	// AggregateGateName labels the legacy-only-mode outer permit pool that
+	// bounds the COMBINED canonical+semantic total to the legacy
+	// MaxInFlightEnv ceiling (issue #4448 P1). It only appears in telemetry
+	// while AnyClassMaxInFlightSet is false; once an operator sets either
+	// per-class env, the aggregate gate is disabled and only "canonical" and
+	// "semantic" appear.
+	//
+	// In legacy-only mode a single write acquires BOTH the aggregate gate and
+	// its class gate (aggregate first, then class), so it can independently
+	// wait on, and independently report a wait sample for, each layer. This is
+	// intentional, not double-counting the same event: the two "gate" values
+	// measure two different questions for the same write — "did the combined
+	// legacy-shaped budget saturate" (aggregate) versus "did this class's own
+	// share of that budget saturate" (canonical/semantic) — so an operator can
+	// tell which layer to size before opting into independent per-class
+	// ceilings.
+	AggregateGateName = "aggregate"
 )
 
 // CanonicalMaxInFlightEnv and SemanticMaxInFlightEnv are the per-class operator
@@ -67,11 +84,54 @@ func MaxInFlight(getenv func(string) string) int {
 // (CanonicalMaxInFlightEnv or SemanticMaxInFlightEnv). When classEnv is unset,
 // blank, non-numeric, or non-positive, it falls back to MaxInFlightEnv so an
 // operator who has only configured the legacy shared knob still gets an
-// identical bound on both classes (issue #4448 back-compat). A non-positive
+// identical PER-CLASS ceiling shape (issue #4448 back-compat). A non-positive
 // result even after the fallback disables backpressure for that class.
+//
+// IMPORTANT: this function alone does not bound the combined total across
+// classes. When neither class env is set, both classes call this with the
+// same fallback and each gets its own N-permit gate, which would allow up to
+// 2N combined in-flight writes — a concurrency increase over the pre-#4448
+// single shared N-permit pool that is unmeasured and not safe to ship for
+// existing deployments. AggregateMaxInFlight (see below) is the guard: when
+// no per-class env is set, callers must also wrap both class gates in a
+// shared N-permit aggregate gate so the combined total stays == N.
 func ClassMaxInFlight(getenv func(string) string, classEnv string) int {
 	if n := parseMaxInFlight(getenv(classEnv)); n > 0 {
 		return n
+	}
+	return MaxInFlight(getenv)
+}
+
+// AnyClassMaxInFlightSet reports whether at least one of the reducer's
+// per-class ceilings (CanonicalMaxInFlightEnv, SemanticMaxInFlightEnv) is
+// explicitly configured to a positive value. It is the discriminator for
+// AggregateMaxInFlight: once an operator opts into per-class sizing for
+// EITHER class, the two gates are fully independent (the #4448 fix) and no
+// aggregate ceiling applies. While neither is set, the reducer is still on
+// the legacy single-knob shape and must keep the combined total bounded by
+// MaxInFlightEnv (issue #4448 P1: without this, a legacy-only deployment that
+// set ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N would silently get up to 2N combined
+// in-flight writes once the pool was split by class, an unmeasured
+// concurrency increase that can overload the graph backend under mixed
+// canonical+semantic load).
+func AnyClassMaxInFlightSet(getenv func(string) string) bool {
+	return parseMaxInFlight(getenv(CanonicalMaxInFlightEnv)) > 0 ||
+		parseMaxInFlight(getenv(SemanticMaxInFlightEnv)) > 0
+}
+
+// AggregateMaxInFlight returns the legacy MaxInFlightEnv ceiling when neither
+// per-class env is set (AnyClassMaxInFlightSet is false), and 0 (disabled)
+// once an operator has opted into per-class sizing for at least one class.
+// The returned value sizes the outer aggregate gate that both the canonical
+// and semantic class gates draw a SECOND permit from in legacy-only mode, so
+// the combined in-flight total across both classes never exceeds the single
+// legacy ceiling an existing deployment already sized to backend headroom
+// (issue #4448 P1 fix). Once any per-class env is set, the aggregate is
+// disabled and each class's own gate is the sole bound for that class,
+// matching the documented opt-in per-class behavior.
+func AggregateMaxInFlight(getenv func(string) string) int {
+	if AnyClassMaxInFlightSet(getenv) {
+		return 0
 	}
 	return MaxInFlight(getenv)
 }

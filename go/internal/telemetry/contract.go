@@ -86,12 +86,14 @@ const (
 	// MetricDimensionGate labels graph-write backpressure metrics with the
 	// permit-pool class a write drew from: "canonical" (canonical,
 	// handler-edge, shared-projection, secrets/IAM, orphan-sweep, and
-	// materializer writes) or "semantic" (the semantic entity write path).
-	// Splitting the pool by gate is issue #4448: before the split, a slow
-	// semantic write could starve canonical writes (and vice versa) because
-	// both drew from one shared permit pool (head-of-line blocking). The value
-	// space is this fixed two-member set, never a raw operation or statement
-	// name.
+	// materializer writes), "semantic" (the semantic entity write path), or
+	// "aggregate" (the legacy-only-mode outer pool that bounds the combined
+	// canonical+semantic total to the legacy ceiling; only emits while neither
+	// per-class env is set). Splitting the pool by gate is issue #4448: before
+	// the split, a slow semantic write could starve canonical writes (and vice
+	// versa) because both drew from one shared permit pool (head-of-line
+	// blocking). The value space is this fixed three-member set, never a raw
+	// operation or statement name.
 	MetricDimensionGate           = "gate"
 	MetricDimensionService        = "service"
 	MetricDimensionAccount        = "account"

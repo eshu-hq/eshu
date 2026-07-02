@@ -112,6 +112,92 @@ func TestClassMaxInFlightSemanticEnvIndependent(t *testing.T) {
 	}
 }
 
+// TestAnyClassMaxInFlightSet is the regression for the P1 finding on issue
+// #4448: this is the discriminator that decides whether the legacy-only
+// aggregate ceiling applies. It must report true as soon as EITHER per-class
+// env is set to a positive value, and false only when both are unset, blank,
+// non-numeric, or non-positive.
+func TestAnyClassMaxInFlightSet(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		canonicalVal string
+		semanticVal  string
+		want         bool
+	}{
+		"both unset":                           {canonicalVal: "", semanticVal: "", want: false},
+		"both non-positive":                    {canonicalVal: "0", semanticVal: "-1", want: false},
+		"both non-numeric":                     {canonicalVal: "lots", semanticVal: "nope", want: false},
+		"canonical set only":                   {canonicalVal: "3", semanticVal: "", want: true},
+		"semantic set only":                    {canonicalVal: "", semanticVal: "2", want: true},
+		"both set":                             {canonicalVal: "3", semanticVal: "2", want: true},
+		"canonical non-positive, semantic set": {canonicalVal: "0", semanticVal: "2", want: true},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			getenv := func(name string) string {
+				switch name {
+				case CanonicalMaxInFlightEnv:
+					return tc.canonicalVal
+				case SemanticMaxInFlightEnv:
+					return tc.semanticVal
+				default:
+					return ""
+				}
+			}
+			if got := AnyClassMaxInFlightSet(getenv); got != tc.want {
+				t.Fatalf("AnyClassMaxInFlightSet(canonical=%q, semantic=%q) = %v, want %v", tc.canonicalVal, tc.semanticVal, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAggregateMaxInFlight is the direct regression for the P1 finding on
+// issue #4448: AggregateMaxInFlight must return the legacy ceiling ONLY while
+// neither per-class env is set, and 0 (disabled) as soon as an operator opts
+// into per-class sizing for either class. This is the function that prevents
+// a legacy-only deployment from silently getting 2x its configured
+// concurrency budget once the pool is split by class.
+func TestAggregateMaxInFlight(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		legacyVal    string
+		canonicalVal string
+		semanticVal  string
+		want         int
+	}{
+		"legacy only set enables aggregate at legacy value":     {legacyVal: "5", canonicalVal: "", semanticVal: "", want: 5},
+		"nothing set disables aggregate":                        {legacyVal: "", canonicalVal: "", semanticVal: "", want: 0},
+		"legacy set but canonical also set disables aggregate":  {legacyVal: "5", canonicalVal: "3", semanticVal: "", want: 0},
+		"legacy set but semantic also set disables aggregate":   {legacyVal: "5", canonicalVal: "", semanticVal: "2", want: 0},
+		"legacy set and both class envs set disables aggregate": {legacyVal: "5", canonicalVal: "3", semanticVal: "2", want: 0},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			getenv := func(name string) string {
+				switch name {
+				case MaxInFlightEnv:
+					return tc.legacyVal
+				case CanonicalMaxInFlightEnv:
+					return tc.canonicalVal
+				case SemanticMaxInFlightEnv:
+					return tc.semanticVal
+				default:
+					return ""
+				}
+			}
+			if got := AggregateMaxInFlight(getenv); got != tc.want {
+				t.Fatalf("AggregateMaxInFlight(legacy=%q, canonical=%q, semantic=%q) = %d, want %d", tc.legacyVal, tc.canonicalVal, tc.semanticVal, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestNewObserverNilInstruments proves a runtime without telemetry still gets a
 // working bound (the observer is nil, not a panicking stub).
 func TestNewObserverNilInstruments(t *testing.T) {

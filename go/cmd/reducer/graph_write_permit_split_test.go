@@ -142,9 +142,135 @@ func testHeadOfLineBlockingEliminated(t *testing.T, order classOrder) {
 // boundSemanticEntityExecutorForTest exercises the semantic gate directly with
 // a caller-supplied executor, bypassing semanticEntityExecutorForGraphBackend's
 // backend-specific timeout/retry composition so the test isolates the permit
-// pool boundary from unrelated adapter behavior.
+// pool boundary from unrelated adapter behavior. It does NOT go through the
+// aggregate gate, unlike the real boundSemanticEntityExecutor, so it is only
+// used by tests that configure per-class envs (where the aggregate is
+// disabled anyway).
 func (g reducerGraphWriteGate) boundSemanticEntityExecutorForTest(inner sourcecypher.Executor) sourcecypher.Executor {
 	return graphbackpressure.WrapExecutorWithGate(inner, g.semanticGate)
+}
+
+// combinedPeakProbeExecutor records the peak number of concurrent in-flight
+// Execute calls across ALL callers that share it, regardless of which class
+// gate wrapped them. A test uses one shared instance for both the canonical
+// and semantic write paths to measure the COMBINED total concurrency the two
+// classes achieve together, which is exactly the quantity the #4448 P1
+// aggregate-gate fix must bound.
+type combinedPeakProbeExecutor struct {
+	mu      sync.Mutex
+	current int
+	peak    int
+}
+
+func (e *combinedPeakProbeExecutor) Execute(ctx context.Context, _ sourcecypher.Statement) error {
+	e.mu.Lock()
+	e.current++
+	if e.current > e.peak {
+		e.peak = e.current
+	}
+	e.mu.Unlock()
+
+	// Hold the permit briefly so concurrent callers overlap; long enough to
+	// make a 2x-capacity regression reliably observable, short enough to keep
+	// the test fast.
+	select {
+	case <-time.After(30 * time.Millisecond):
+	case <-ctx.Done():
+	}
+
+	e.mu.Lock()
+	e.current--
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *combinedPeakProbeExecutor) peakConcurrency() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.peak
+}
+
+// TestLegacyOnlyConfigBoundsCombinedTotalToLegacyCeiling is the regression for
+// the P1 finding on issue #4448: with ONLY ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N
+// set (no per-class envs), the COMBINED canonical+semantic in-flight total
+// must never exceed N. Before the aggregate-gate fix, ClassMaxInFlight fell
+// back to the legacy N independently for each class, so canonicalGate and
+// semanticGate were each sized to N, allowing up to 2N combined concurrent
+// writes — an unmeasured doubling of the concurrency budget an existing
+// deployment sized to backend headroom. This test drives concurrent writes
+// through BOTH the real boundExecutor (canonical) and boundSemanticEntityExecutor-
+// equivalent semantic path against ONE shared probe and asserts the combined
+// peak concurrency stays <= N.
+func TestLegacyOnlyConfigBoundsCombinedTotalToLegacyCeiling(t *testing.T) {
+	t.Parallel()
+
+	const legacyMaxInFlight = 3
+	const callersPerClass = 8
+
+	gate := newReducerGraphWriteGate(func(name string) string {
+		if name == graphbackpressure.MaxInFlightEnv {
+			return strconv.Itoa(legacyMaxInFlight)
+		}
+		// Per-class envs intentionally left unset: this is the legacy-only
+		// configuration shape the P1 finding is about.
+		return ""
+	}, nil)
+
+	probe := &combinedPeakProbeExecutor{}
+	canonicalBound := gate.boundExecutor(probe)
+	// Semantic writes acquire the aggregate gate then the semantic gate, same
+	// as boundSemanticEntityExecutor, without pulling in the backend-specific
+	// timeout/retry composition that is irrelevant to the permit-pool bound
+	// being tested here.
+	semanticBound := graphbackpressure.WrapExecutorWithGate(
+		graphbackpressure.WrapExecutorWithGate(probe, gate.aggregateGate),
+		gate.semanticGate,
+	)
+
+	var wg sync.WaitGroup
+	for i := 0; i < callersPerClass; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = canonicalBound.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = semanticBound.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
+		}()
+	}
+	wg.Wait()
+
+	if peak := probe.peakConcurrency(); peak > legacyMaxInFlight {
+		t.Fatalf("combined canonical+semantic peak concurrency = %d, want <= %d (legacy-only config must not double the concurrency budget)", peak, legacyMaxInFlight)
+	}
+}
+
+// TestPerClassConfigDisablesAggregateGate proves that once an operator sets
+// EITHER per-class env, AggregateMaxInFlight returns 0 (disabled), so the two
+// class gates become fully independent and are no longer bounded by a shared
+// aggregate — the opt-in #4448 fix this PR restores after the P1 finding.
+func TestPerClassConfigDisablesAggregateGate(t *testing.T) {
+	t.Parallel()
+
+	gate := newReducerGraphWriteGate(func(name string) string {
+		switch name {
+		case graphbackpressure.MaxInFlightEnv:
+			return "1"
+		case graphbackpressure.CanonicalMaxInFlightEnv:
+			return "4"
+		default:
+			return ""
+		}
+	}, nil)
+
+	if gate.aggregateGate != nil {
+		t.Fatalf("aggregateGate = %v, want nil once a per-class env is set", gate.aggregateGate)
+	}
+	if gate.canonicalGate == nil || gate.canonicalGate.MaxInFlight() != 4 {
+		t.Fatalf("canonicalGate MaxInFlight = %v, want 4 (independent of the legacy 1)", gate.canonicalGate)
+	}
 }
 
 // countingProbeExecutor records how many times Execute was called, for tests

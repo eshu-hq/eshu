@@ -73,6 +73,16 @@ before treating a graph as current:
   `Function-[:RUNS_IN]->Workload`) cannot drop on a cold first generation; it is
   independent of the secrets/IAM projection flag. See
   [Resolution engine](../services/resolution-engine.md) for the kill switch.
+- The resolution engine bounds canonical and semantic graph writes with two
+  independent permit pools (`ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT`,
+  `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT`) so a slow write on one class
+  cannot starve the other. Leave both unset to keep the legacy
+  `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` behavior: while neither per-class var is
+  set, an aggregate gate bounds the COMBINED canonical+semantic total to that
+  legacy ceiling rather than doubling it. Set either per-class var only after
+  evidence shows one class needs a different ceiling than the other; see
+  `go/cmd/reducer/README.md` "Graph write backpressure" for the full knob
+  table.
 
 ## Route Map
 
