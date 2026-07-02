@@ -297,13 +297,14 @@ func (q ProjectorQueue) Fail(
 		// Retry path: keep the existing retryable class and preserve any
 		// detailed failure context the error carries for diagnosis.
 		_, failureMessage, failureDetails := queueFailureMetadata(cause, "projection_retryable")
+		now := q.now()
 		delay := computeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, work.AttemptCount, q.jitterSource())
 		args := []any{
-			q.now(),
+			now,
 			"projection_retryable",
 			failureMessage,
 			failureDetails,
-			q.now().Add(delay),
+			now.Add(delay),
 			work.Scope.ScopeID,
 			work.Generation.GenerationID,
 			q.LeaseOwner,

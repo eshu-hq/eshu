@@ -119,4 +119,18 @@ func TestLoadRetryPolicyConfigRejectsInvalidValues(t *testing.T) {
 	}, "PROJECTOR"); err == nil {
 		t.Fatal("LoadRetryPolicyConfig() unparseable jitter fraction error = nil, want non-nil")
 	}
+
+	// NaN passes strconv.ParseFloat (it is a valid IEEE 754 string form), and
+	// both `jitterFraction < 0` and `jitterFraction > max` evaluate false for
+	// NaN, so the plain range check alone would silently accept it and let
+	// computeRetryDelay's `jitterFraction > 0` gate also evaluate false,
+	// disabling jitter without any startup error. Reject it explicitly.
+	if _, err := LoadRetryPolicyConfig(func(key string) string {
+		if key == "ESHU_PROJECTOR_RETRY_JITTER_FRACTION" {
+			return "NaN"
+		}
+		return ""
+	}, "PROJECTOR"); err == nil {
+		t.Fatal("LoadRetryPolicyConfig() NaN jitter fraction error = nil, want non-nil")
+	}
 }

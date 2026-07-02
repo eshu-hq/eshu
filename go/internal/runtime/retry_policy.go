@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -89,6 +90,12 @@ func LoadRetryPolicyConfig(getenv func(string) string, stagePrefix string) (Retr
 	}
 	if maxRetryDelay <= 0 {
 		return RetryPolicyConfig{}, fmt.Errorf("ESHU_%s_MAX_RETRY_DELAY must be positive", stagePrefix)
+	}
+	if math.IsNaN(jitterFraction) {
+		return RetryPolicyConfig{}, fmt.Errorf(
+			"ESHU_%s_RETRY_JITTER_FRACTION must not be NaN",
+			stagePrefix,
+		)
 	}
 	if jitterFraction < 0 || jitterFraction > maxRetryJitterFractionAllowed {
 		return RetryPolicyConfig{}, fmt.Errorf(

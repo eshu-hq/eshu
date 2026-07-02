@@ -99,11 +99,14 @@ func TestComputeRetryDelayAddsBoundedJitter(t *testing.T) {
 	maxDelay := time.Hour
 	jitterFraction := 0.1
 
-	full := func() float64 { return 1.0 }
-	got := computeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, full)
-	want := baseDelay + time.Duration(float64(baseDelay)*jitterFraction)
+	// jitterSource's contract is [0, 1) (see retry_backoff.go); 1.0 is out of
+	// range and unreachable in practice, so probe a representative in-contract
+	// value instead of the impossible source==1.0 case.
+	mid := func() float64 { return 0.5 }
+	got := computeRetryDelay(baseDelay, maxDelay, jitterFraction, 0, mid)
+	want := baseDelay + time.Duration(float64(baseDelay)*jitterFraction*0.5)
 	if got != want {
-		t.Fatalf("computeRetryDelay with max jitter = %v, want %v", got, want)
+		t.Fatalf("computeRetryDelay with mid-range jitter = %v, want %v", got, want)
 	}
 
 	none := func() float64 { return 0.0 }
@@ -155,12 +158,14 @@ func TestRetrySurgeSpreadsVisibleAtAcrossManySimultaneousFailures(t *testing.T) 
 		t.Fatalf("distinct visible_at count = %d, want %d (retry storm: items reconverged)", got, want)
 	}
 
-	// Without jitter, prove the storm actually reproduces: all 100 collapse
-	// to exactly 1 distinct value.
-	noJitter := func() float64 { return 0 }
+	// With jitterFraction=0 (the actual production disable switch; see
+	// computeRetryDelay's `jitterFraction > 0` gate), prove the storm
+	// actually reproduces: all 100 collapse to exactly 1 distinct value.
+	// The jitter source is still the seeded PRNG here to prove the fraction
+	// itself, not the source, is what disables jitter.
 	collapsed := make(map[time.Time]bool, 100)
 	for i := 0; i < 100; i++ {
-		delay := computeRetryDelay(baseDelay, maxDelay, 0.1, 0, noJitter)
+		delay := computeRetryDelay(baseDelay, maxDelay, 0, 0, seeded)
 		collapsed[now.Add(delay)] = true
 	}
 	if got, want := len(collapsed), 1; got != want {

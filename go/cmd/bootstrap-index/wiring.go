@@ -99,6 +99,18 @@ func buildBootstrapProjector(
 
 	projectorQueue := postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", time.Minute).
 		WithClaimSourceSystem(string(scope.CollectorGit))
+	// Exponential backoff + jitter (#4450): the one-shot bootstrap-index
+	// projector must use the same PROJECTOR retry policy as the ingester so
+	// same-instant retry failures don't reconverge on one visible_at and
+	// self-reinforce into a retry storm. Without this the direct-constructed
+	// queue keeps JitterFraction at its zero value (no jitter).
+	projectorRetryPolicy, err := runtimecfg.LoadRetryPolicyConfig(getenv, "PROJECTOR")
+	if err != nil {
+		return projectorDeps{}, err
+	}
+	projectorQueue.RetryDelay, projectorQueue.MaxAttempts = projectorRetryPolicy.RetryDelay, projectorRetryPolicy.MaxAttempts
+	projectorQueue.MaxRetryDelay = projectorRetryPolicy.MaxRetryDelay
+	projectorQueue.JitterFraction = projectorRetryPolicy.JitterFraction
 	reducerQueue := postgres.NewReducerQueue(instrumentedDB, "bootstrap-index", time.Minute)
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {
