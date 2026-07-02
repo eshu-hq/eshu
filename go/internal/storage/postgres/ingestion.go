@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // Ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the SkipRelationshipBackfill/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
+package postgres //nolint:filelength // Ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the CommitScopeGeneration/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
 
 import (
 	"context"
@@ -200,12 +200,8 @@ func (s IngestionStore) commitScopeGeneration(
 	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, deferredMaintenanceRepoLockKey(scopeValue)); err != nil {
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
-	// The barrier is held from this point (acquired, after any wait logged by
-	// the stage above) until tx.Commit() below releases it at the database.
-	// eshu_dp_ingestion_shared_lock_hold_duration_seconds measures exactly that
-	// window so operators can confirm issue #4451's split shrank hold time to
-	// the atomic commit only, independent of the wait time the stage log above
-	// already reports.
+	// Held from here until tx.Commit() releases it (recordSharedLockHoldDuration
+	// below measures that window; issue #4451, § T8).
 	sharedLockAcquiredAt := time.Now()
 	s.logCommitStage(ctx, scopeValue, generation, "deferred_maintenance_shared_barrier", stageStart)
 
@@ -331,25 +327,10 @@ func (s IngestionStore) commitScopeGeneration(
 		)
 	}
 
-	// The per-commit new-repository relationship backfill (issue #4451, § T8)
-	// runs AFTER this commit releases the deferred-maintenance shared barrier,
-	// in its own short transaction that re-takes the barrier only for its own
-	// bounded write. Before this split the backfill's corpus-anchor read and
-	// DiscoverEvidence pass ran INSIDE the locked commit above, so a same-repo
-	// deferred-maintenance exclusive-lock batch had to wait for the whole
-	// backfill, not just the atomic scope/generation/fact commit. Splitting the
-	// backfill out shrinks the commit's lock hold to the atomic write only.
-	//
-	// A backfill failure here is deliberately swallowed (logged, never
-	// returned): the generation this backfill enriches is already durably
-	// committed above, so surfacing an error would make Service.Run treat an
-	// already-successful commit as a commit_failure, dead-letter it, and
-	// potentially replay an already-landed generation (issue #4451 review).
-	// The periodic corpus-wide BackfillAllRelationshipEvidence pass
-	// (cmd/ingester) already re-discovers evidence for every active
-	// repository, including ones this call fails to enrich, so accuracy is
-	// preserved by that existing eventually-consistent safety net; only
-	// backfill latency for this one generation is affected.
+	// Relationship backfill for any newly onboarded repository runs AFTER the
+	// barrier above is released, in its own short transaction (issue #4451,
+	// § T8; see runPostCommitRelationshipBackfill for the lock-split rationale
+	// and why its errors are logged rather than returned here).
 	s.runPostCommitRelationshipBackfill(ctx, scopeValue, generation, knownRepoIDs, currentGenerationRepos)
 
 	return nil

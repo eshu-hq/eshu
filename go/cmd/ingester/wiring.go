@@ -145,8 +145,8 @@ func buildIngesterCollectorService(
 		return collector.Service{}, err
 	}
 	committer := postgres.NewIngestionStore(database)
-	committer.SkipRelationshipBackfill = true
 	committer.Logger = logger
+	committer.Instruments = instruments
 
 	scheduledSyncConfig, err := collector.LoadScheduledSyncConfig(getenv)
 	if err != nil {

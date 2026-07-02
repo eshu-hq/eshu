@@ -47,6 +47,7 @@ func buildClaimedService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.ClaimedService{
 		ControlStore:        postgres.NewWorkflowControlStore(database),
 		Source:              source,

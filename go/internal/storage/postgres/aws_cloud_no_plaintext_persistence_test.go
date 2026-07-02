@@ -65,7 +65,6 @@ func TestAWSLambdaCommitDoesNotPersistPlaintextEnvironmentValues(t *testing.T) {
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return observedAt }
-	store.SkipRelationshipBackfill = true
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:       boundary.ScopeID,

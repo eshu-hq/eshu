@@ -51,6 +51,7 @@ func buildCassetteService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.Service{
 		Source:       src,
 		Committer:    committer,
@@ -76,6 +77,7 @@ func buildCollectorService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.Service{
 		Source: &ociruntime.Source{
 			Config:        config,
@@ -105,6 +107,7 @@ func buildClaimedService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),
 		Source: ociruntime.ClaimedSource{

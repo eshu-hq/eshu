@@ -49,7 +49,6 @@ func BenchmarkIngestionStoreCatalogLoadsPerCommit(b *testing.B) {
 			db := &countingCatalogDB{catalogPayloads: benchCatalogPayloads(catalogBenchRepoCount)}
 			store := NewIngestionStore(db)
 			store.Now = func() time.Time { return now }
-			store.SkipRelationshipBackfill = true
 			runKnownRepoCommits(b, store, catalogBenchCommits, now)
 			reportCatalogLoads(b, db.catalogQueries, catalogBenchCommits)
 		}
@@ -63,7 +62,6 @@ func BenchmarkIngestionStoreCatalogLoadsPerCommit(b *testing.B) {
 			store := NewIngestionStore(db)
 			store.catalogCache = nil
 			store.Now = func() time.Time { return now }
-			store.SkipRelationshipBackfill = true
 			runKnownRepoCommits(b, store, catalogBenchCommits, now)
 			reportCatalogLoads(b, db.catalogQueries, catalogBenchCommits)
 		}

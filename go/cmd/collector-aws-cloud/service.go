@@ -47,6 +47,7 @@ func buildCollectorService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.Service{
 		Source:       &awsruntime.FixtureSource{Config: cfg},
 		Committer:    committer,
@@ -75,6 +76,7 @@ func buildCassetteService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.Service{
 		Source:       src,
 		Committer:    committer,
@@ -103,6 +105,7 @@ func buildClaimedService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	checkpoints := postgres.NewAWSPaginationCheckpointStore(database)
 	checkpoints.Instruments = instruments
 	scanStatus := postgres.NewAWSScanStatusStore(database)

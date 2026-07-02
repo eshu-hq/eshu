@@ -61,14 +61,24 @@ func (tx *backfillTx) QueryContext(ctx context.Context, query string, args ...an
 func (tx *backfillTx) Commit() error   { return nil }
 func (tx *backfillTx) Rollback() error { return nil }
 
-func TestIngestionStoreCommitScopeGenerationSkipsRelationshipBackfillWhenConfigured(t *testing.T) {
+// TestIngestionStoreCommitScopeGenerationExcludesBackfillFromMainTransaction is
+// the issue #4451 (§ T8) lock-split regression guard: the atomic
+// scope/generation/fact commit transaction must never issue the relationship
+// backfill's catalog-reload or evidence queries, even when the commit
+// onboards a brand-new repository. Those queries now run only in the separate
+// post-commit transaction opened by runPostCommitRelationshipBackfill, AFTER
+// this transaction has already committed and released the deferred-
+// maintenance shared advisory barrier, which is the change that shrinks the
+// barrier's hold time to the atomic write alone.
+func TestIngestionStoreCommitScopeGenerationExcludesBackfillFromMainTransaction(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{tx: &fakeTx{}}
+	commitTx := &fakeTx{}
+	backfillTx := &fakeTx{}
+	db := &fakeTransactionalDB{tx: commitTx, txs: []*fakeTx{commitTx, backfillTx}}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:       "scope-123",
@@ -85,6 +95,9 @@ func TestIngestionStoreCommitScopeGenerationSkipsRelationshipBackfillWhenConfigu
 		Status:       scope.GenerationStatusPending,
 		TriggerKind:  scope.TriggerKindSnapshot,
 	}
+	// repo-123 is brand-new relative to the empty catalog cache, so this
+	// commit is exactly the onboarding case that used to run the backfill
+	// in-transaction.
 	envelopes := []facts.Envelope{{
 		FactID:        "fact-1",
 		ScopeID:       "scope-123",
@@ -103,25 +116,44 @@ func TestIngestionStoreCommitScopeGenerationSkipsRelationshipBackfillWhenConfigu
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	// Issue #3481/#3521: the repository catalog loads through the shared cache,
-	// and the cold load runs on the OPEN ingestion transaction's connection (so a
-	// single-connection pool cannot deadlock). With backfill skipped the only
-	// transaction reads are that catalog load and the fact_records upsert's
-	// RETURNING fact_id query (issue #4444 review, codex P1 — the upsert must
-	// run as a query so upsertFactBatchReturningAccepted can learn which
-	// fact_ids the fencing_token guard accepted); the base connection issues
-	// none of either.
-	if got, want := len(db.tx.queries), 2; got != want {
-		t.Fatalf("transaction query count = %d, want %d", got, want)
+	// Issue #3481/#3521: the repository catalog loads through the shared
+	// cache, and the cold load runs on the OPEN ingestion transaction's
+	// connection (so a single-connection pool cannot deadlock). Issue #4451
+	// removes the in-TX backfill call, so the main commit transaction's only
+	// reads are that catalog load and the fact_records upsert's RETURNING
+	// fact_id query (issue #4444 review, codex P1); it must never see a
+	// second repository-catalog reload or an evidence query, even though
+	// repo-123 is new.
+	if got, want := len(commitTx.queries), 2; got != want {
+		t.Fatalf("main commit transaction query count = %d, want %d: %#v", got, want, commitTx.queries)
 	}
-	if !strings.Contains(db.tx.queries[0].query, "fact_kind = 'repository'") {
-		t.Fatalf("transaction query[0] = %q, want repository catalog load first", db.tx.queries[0].query)
+	if !strings.Contains(commitTx.queries[0].query, "fact_kind = 'repository'") {
+		t.Fatalf("transaction query[0] = %q, want repository catalog load first", commitTx.queries[0].query)
 	}
-	if !strings.Contains(db.tx.queries[1].query, "INSERT INTO fact_records") {
-		t.Fatalf("transaction query[1] = %q, want fact_records upsert", db.tx.queries[1].query)
+	if !strings.Contains(commitTx.queries[1].query, "INSERT INTO fact_records") {
+		t.Fatalf("transaction query[1] = %q, want fact_records upsert", commitTx.queries[1].query)
 	}
 	if got, want := len(db.queries), 0; got != want {
 		t.Fatalf("base connection query count = %d, want %d (catalog must not use a second connection)", got, want)
+	}
+
+	// The post-commit backfill transaction runs separately, after commitTx
+	// commits, and takes the shared barrier for its own bounded work.
+	if !commitTx.committed {
+		t.Fatal("main commit transaction committed = false, want true")
+	}
+	if !backfillTx.committed {
+		t.Fatal("post-commit backfill transaction committed = false, want true")
+	}
+	foundBackfillLock := false
+	for _, exec := range backfillTx.execs {
+		if strings.Contains(exec.query, "pg_advisory_xact_lock_shared") {
+			foundBackfillLock = true
+			break
+		}
+	}
+	if !foundBackfillLock {
+		t.Fatalf("post-commit backfill transaction execs = %#v, want the shared advisory barrier re-acquired", backfillTx.execs)
 	}
 }
 

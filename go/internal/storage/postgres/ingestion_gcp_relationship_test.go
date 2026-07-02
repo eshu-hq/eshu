@@ -29,7 +29,6 @@ func TestIngestionStoreCommitScopeGenerationSkipsStreamingGCPRelationshipEvidenc
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:       "gcp:project:demo",

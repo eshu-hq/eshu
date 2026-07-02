@@ -46,7 +46,6 @@ func TestIngestionStoreCommitScopeGenerationFencesDerivedRelationshipEvidence(t 
 	ctx := context.Background()
 	db := openDerivedEvidenceFencingSchema(t, ctx, dsn)
 	store := NewIngestionStore(SQLDB{DB: db})
-	store.SkipRelationshipBackfill = true
 	now := time.Date(2026, time.July, 2, 9, 0, 0, 0, time.UTC)
 	store.Now = func() time.Time { return now }
 
