@@ -85,6 +85,13 @@ func TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLea
 	if err != nil {
 		t.Fatalf("begin heartbeat tx: %v", err)
 	}
+	// Guarantee the row lock is released on every exit path, including an
+	// early t.Fatalf between here and the intentional Commit() below. An
+	// open, uncommitted heartbeatTx holding this row lock would otherwise
+	// outlive the test and can hang a later proof test that reuses the same
+	// DSN. Rollback after a successful Commit is a harmless no-op
+	// (sql.ErrTxDone), so this is safe to defer unconditionally.
+	defer func() { _ = heartbeatTx.Rollback() }()
 	renewedClaimUntil := time.Now().UTC().Add(10 * time.Minute)
 	if _, err := heartbeatTx.ExecContext(ctx, `
 		UPDATE fact_work_items

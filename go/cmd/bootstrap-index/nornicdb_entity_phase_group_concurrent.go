@@ -131,6 +131,19 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedChunksConcurrently(
 		go func() {
 			defer wg.Done()
 			for index := range jobs {
+				// Admission-stop for chunks that have not started yet: once a
+				// sibling's failure has called cancelDispatch, an idle worker
+				// that just received this job from the (unbuffered) jobs
+				// channel must not start a brand-new graph write. This does
+				// not affect any chunk already past this check — that chunk
+				// keeps running to its own natural conclusion on ctx below,
+				// which is the Bug 1 isolation guarantee this dispatchCtx
+				// check must not regress. Mirrors the identical pre-execution
+				// check in the ingester's executeGroupedChunksConcurrentlyObserved
+				// and executeEntityPhaseGroupStreaming.
+				if dispatchCtx.Err() != nil {
+					return
+				}
 				chunk := chunks[index]
 				startedAt := time.Now()
 				// ctx, not dispatchCtx: this chunk's write must run to its
