@@ -1,0 +1,42 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//firebaserules.googleapis.com/projects/demo-project/rulesets/abc123",
+      "assetType": "firebaserules.googleapis.com/Ruleset",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/rulesets/abc123",
+          "source": {
+            "files": [
+              {"name": "firestore.rules", "content": "rules_version='2';service cloud.firestore{}"},
+              {"name": "shared.rules", "content": "function isSignedIn(){return request.auth!=null;}"}
+            ]
+          },
+          "createTime": "2024-06-01T00:00:00Z",
+          "metadata": {"services": ["cloud.firestore"]}
+        }
+      }
+    },
+    {
+      "name": "//firebaserules.googleapis.com/projects/demo-project/rulesets/def456",
+      "assetType": "firebaserules.googleapis.com/Ruleset",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/rulesets/def456",
+          "source": {
+            "files": [
+              {"name": "storage.rules", "content": "rules_version='2';service firebase.storage{}"}
+            ]
+          },
+          "createTime": "2024-07-01T00:00:00Z",
+          "metadata": {"services": ["firebase.storage"]}
+        }
+      }
+    }
+  ]
+}
