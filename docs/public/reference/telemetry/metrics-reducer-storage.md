@@ -13,6 +13,7 @@ correlation, supply-chain impact, capacity, and memory metrics.
 | `eshu_dp_reducer_run_duration_seconds` | histogram | Handler execution window after a worker starts a work item. |
 | `eshu_dp_reducer_queue_wait_seconds` | histogram | Time visible in the reducer queue before handler start. |
 | `eshu_dp_reducer_batch_claim_size` | histogram | Batch claim size where batched reducer claiming is used. |
+| `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. |
 
 Compare queue wait with run duration before changing worker counts. High queue
 age with low run duration points to claim, routing, or conflict-domain pressure.
@@ -84,6 +85,7 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_projection_processing_seconds` | histogram | Graph-write and completion duration after partition selection. |
 | `eshu_dp_shared_projection_step_seconds` | histogram | Shared projection substeps such as selection, load, retract, write, replay, and mark-completed. |
 | `eshu_dp_shared_projection_stale_intents_total` | counter | Stale shared projection intents filtered during processing. |
+| `eshu_dp_shared_projection_partition_heartbeat_missed_total` | counter | Shared projection partition lease heartbeat failures by domain. A non-zero rate means a slow partition cycle's lease may be reclaimed by another worker while the original holder is still processing. |
 | `eshu_dp_shared_acceptance_lookup_duration_seconds` | histogram | Shared acceptance lookup latency. |
 | `eshu_dp_shared_acceptance_lookup_errors_total` | counter | Shared acceptance lookup failures. |
 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | histogram | Shared acceptance write latency. |

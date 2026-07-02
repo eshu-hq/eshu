@@ -5,8 +5,12 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const maxSharedSelectionScanLimit = 10_000
@@ -74,6 +78,14 @@ type PartitionProcessorConfig struct {
 	LeaseTTL       time.Duration
 	BatchLimit     int
 	EvidenceSource string
+
+	// Instruments and Logger are optional telemetry sinks for the partition
+	// lease heartbeat loop (#4449). A nil Instruments disables the
+	// eshu_dp_shared_projection_partition_heartbeat_missed_total counter; a
+	// nil Logger disables the heartbeat-failure log line. Neither is
+	// required for the heartbeat renewal itself to run.
+	Instruments *telemetry.Instruments
+	Logger      *slog.Logger
 }
 
 // PartitionProcessResult captures the outcome of one partition processing
@@ -258,7 +270,7 @@ func ProcessPartitionOnce(
 	readinessPrefetch GraphProjectionReadinessPrefetch,
 	endpointPresence EndpointPresenceLookup,
 	refreshFence SharedProjectionRefreshFenceLookup,
-) (PartitionProcessResult, error) {
+) (result PartitionProcessResult, retErr error) {
 	leaseStart := time.Now()
 	claimed, err := leaseManager.ClaimPartitionLease(
 		ctx, cfg.Domain, cfg.PartitionID, cfg.PartitionCount,
@@ -272,11 +284,37 @@ func ProcessPartitionOnce(
 		return PartitionProcessResult{LeaseAcquired: false, LeaseClaimDurationSeconds: leaseDuration}, nil
 	}
 
+	// Renew the partition lease at TTL/2 for the rest of this cycle (#4449).
+	// Without this, a slow backend or large partition whose
+	// selection/retract/edge-write/mark-completed work exceeds the lease TTL
+	// lets the lease be reclaimed by another worker while this call is still
+	// writing, causing a double-write.
+	//
+	// releaseCtx is the pre-heartbeat context, deliberately NOT the
+	// heartbeat-derived leaseCtx assigned to ctx below. stopHeartbeat()
+	// cancels leaseCtx before this defer's ReleasePartitionLease call runs,
+	// so releasing through leaseCtx (or a ctx variable reassigned to it)
+	// would hand Postgres an already-cancelled context: the release query
+	// fails, the error is swallowed, and the lease sits held until it
+	// expires on its own TTL -- defeating the point of releasing early.
+	releaseCtx := ctx
+	leaseCtx, stopHeartbeat := startSharedProjectionLeaseHeartbeat(ctx, cfg, leaseManager, cfg.Instruments, cfg.Logger)
 	defer func() {
+		// stopHeartbeat() already wraps a claim/rejection failure in
+		// "heartbeat shared projection partition lease: ...";
+		// re-wrapping here would double the prefix.
+		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+			if retErr == nil {
+				retErr = heartbeatErr
+			} else {
+				retErr = errors.Join(retErr, heartbeatErr)
+			}
+		}
 		_ = leaseManager.ReleasePartitionLease(
-			ctx, cfg.Domain, cfg.PartitionID, cfg.PartitionCount, cfg.LeaseOwner,
+			releaseCtx, cfg.Domain, cfg.PartitionID, cfg.PartitionCount, cfg.LeaseOwner,
 		)
 	}()
+	ctx = leaseCtx
 
 	batchLimit := cfg.BatchLimit
 	if batchLimit < 1 {
