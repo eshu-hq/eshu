@@ -46,6 +46,35 @@ the review finds any P0/P1 issue, fix it, rerun affected verification, and
 repeat `eshu-code-review`. P2 issues MUST be fixed inline or linked to a
 tracked repository issue before proceeding.
 
+## Mandatory Pre-PR Local Proof
+
+Before creating any PR, and before pushing changes intended for an existing PR,
+agents MUST prove the fix works on the local machine by running the actual
+reproduction on the same branch until it demonstrably passes. A change either
+works or it does not; agents MUST NOT open a PR to find out.
+
+Speculative "does this work?" PRs are not acceptable. CI is not a test harness
+for unproven changes, and opening PRs to discover whether a fix works wastes
+CI/CD capacity for little gain.
+
+"Proven locally" means the reproduction that failed before the change now
+passes on the branch, run on this machine and cited in the PR body: a bug fix
+runs its failing regression test to green, a performance change shows
+before/after numbers on the touched path, and a runtime change shows the
+observed behavior. Only after that local proof passes do agents run
+`make pre-pr`, run `eshu-code-review`, and open the PR.
+
+For a change that is not fixing a failure — a docs update, a refactor, or a new
+feature with no prior repro — local proof is the change's own appropriate
+verification, run locally and cited: the docs build for docs/navigation
+changes, the tests exercising the new or refactored behavior for a feature or
+refactor, and the relevant `make pre-pr` gates. This rule bars opening a PR to
+discover whether a change works; it does not require a failing reproduction
+where none exists.
+
+If the change cannot be proven locally, agents MUST stop and report exactly what
+was run and what blocked it, rather than open a PR to find out.
+
 ## Runtime Shape
 
 - **API** serves HTTP reads and admin/query surfaces.
