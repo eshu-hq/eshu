@@ -364,3 +364,17 @@ func durationEnvOrDefault(
 
 	return parsed, nil
 }
+
+func floatEnvOrDefault(getenv func(string) string, name string, fallback float64) (float64, error) {
+	value := strings.TrimSpace(getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", name, err)
+	}
+
+	return parsed, nil
+}

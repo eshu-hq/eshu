@@ -36,6 +36,7 @@ func configureReducerQueue(
 	getenv func(string) string,
 	graphBackend runtimecfg.GraphBackend,
 	clk clock.Clock,
+	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) postgres.ReducerQueue {
 	workQueue := postgres.NewReducerQueue(database, "reducer", time.Minute)
@@ -44,6 +45,12 @@ func configureReducerQueue(
 	workQueue.Now = clk.Now
 	workQueue.RetryDelay = retryCfg.RetryDelay
 	workQueue.MaxAttempts = retryCfg.MaxAttempts
+	// Exponential backoff + jitter (#4450): without these, same-instant
+	// failures reconverge on one visible_at and self-reinforce into a retry
+	// storm. See runtime.RetryPolicyConfig's doc comment for the formula.
+	workQueue.MaxRetryDelay = retryCfg.MaxRetryDelay
+	workQueue.JitterFraction = retryCfg.JitterFraction
+	workQueue.Instruments = instruments
 	workQueue.ClaimDomains = claimDomains
 	workQueue.RequireProjectorDrainBeforeClaim = projectorDrainGate
 	workQueue.ExpectedSourceLocalProjectors = loadReducerExpectedSourceLocalProjectors(getenv)

@@ -187,7 +187,11 @@ func TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget(t
 	if got, want := db.execs[0].args[1], reducer.KubernetesCorrelationNodesNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[4], now.Add(2*time.Minute); got != want {
+	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
+	// class keeps retrying indefinitely) drives the exponential term far past
+	// MaxRetryDelay's default 1-hour fallback (unset here), so the delay
+	// clamps to defaultRetryMaxDelayFallback rather than doubling forever.
+	if got, want := db.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }

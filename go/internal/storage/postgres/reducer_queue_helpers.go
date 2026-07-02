@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // reducerLiveLeaseUniqueConstraint is the partial unique index (migration 005)
@@ -81,6 +83,27 @@ func (q ReducerQueue) retryDelay() time.Duration {
 	}
 
 	return 30 * time.Second
+}
+
+// retryMaxDelay caps the exponential backoff term computed by failIntent.
+// Zero/unset falls back to defaultRetryMaxDelayFallback (1 hour), matching
+// runtime.RetryPolicyConfig's default.
+func (q ReducerQueue) retryMaxDelay() time.Duration {
+	if q.MaxRetryDelay > 0 {
+		return q.MaxRetryDelay
+	}
+
+	return defaultRetryMaxDelayFallback
+}
+
+// jitterSource returns the configured JitterSource, defaulting to
+// defaultJitterSource (math/rand/v2's global source) in production.
+func (q ReducerQueue) jitterSource() func() float64 {
+	if q.JitterSource != nil {
+		return q.JitterSource
+	}
+
+	return defaultJitterSource
 }
 
 func (q ReducerQueue) maxAttempts() int {
@@ -215,17 +238,23 @@ func (q ReducerQueue) failIntent(
 			retryFailureClass = probeClass
 		}
 		_, failureMessage, failureDetails := queueFailureMetadata(cause, retryFailureClass)
+		delay := computeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, intent.AttemptCount, q.jitterSource())
 		args := []any{
 			now,
 			retryFailureClass,
 			failureMessage,
 			failureDetails,
-			now.Add(q.retryDelay()),
+			now.Add(delay),
 			intent.IntentID,
 			q.LeaseOwner,
 		}
 		if _, err := q.db.ExecContext(ctx, retryReducerWorkQuery, args...); err != nil {
 			return fmt.Errorf("fail reducer work: %w", err)
+		}
+		if q.Instruments != nil && q.Instruments.ReducerRetrySurge != nil {
+			q.Instruments.ReducerRetrySurge.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrFailureClass(retryFailureClass),
+			))
 		}
 		return nil
 	}

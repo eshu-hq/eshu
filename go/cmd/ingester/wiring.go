@@ -244,6 +244,12 @@ func buildIngesterProjectorService(
 		return projector.Service{}, err
 	}
 	projectorQueue.RetryDelay, projectorQueue.MaxAttempts = retryPolicy.RetryDelay, retryPolicy.MaxAttempts
+	// Exponential backoff + jitter (#4450): without these, same-instant
+	// failures reconverge on one visible_at and self-reinforce into a retry
+	// storm. See runtime.RetryPolicyConfig's doc comment for the formula.
+	projectorQueue.MaxRetryDelay = retryPolicy.MaxRetryDelay
+	projectorQueue.JitterFraction = retryPolicy.JitterFraction
+	projectorQueue.Instruments = instruments
 	runner, err := buildIngesterProjectorRuntime(database, canonicalWriter, reducerWriter, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {
 		return projector.Service{}, err
