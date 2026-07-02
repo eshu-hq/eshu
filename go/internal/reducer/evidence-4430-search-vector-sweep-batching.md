@@ -42,7 +42,7 @@ phase timings (`QueryLoadDuration`, `EmbedBuildDuration`,
 
 ## No-Regression Evidence
 
-`cd go && go test ./internal/searchvector/... ./internal/reducer/...
+No-Regression Evidence: `cd go && go test ./internal/searchvector/... ./internal/reducer/...
 ./internal/storage/postgres/... -count=1` — 3834 passed, 0 failed (includes
 the pre-existing full package suites plus new regression coverage).
 
@@ -69,7 +69,7 @@ mutable state (each `Build` call still owns its own page-local slices).
 
 ## Performance Evidence
 
-`TestEshuSearchVectorUpsertBatchScaleLive`
+Performance Evidence: `TestEshuSearchVectorUpsertBatchScaleLive`
 (`go/internal/storage/postgres/eshu_search_vector_upsert_batch_scale_live_test.go`,
 skip-unless-`ESHU_SEARCH_VECTOR_UPSERT_BATCH_SCALE_LIVE=1`) measures the same
 rows written two ways against a real Postgres 16 database (`eshu-pg-4430`
@@ -115,7 +115,7 @@ is persisted.
 
 ## Observability Evidence
 
-Added `eshu_dp_search_vector_build_phase_seconds`
+Observability Evidence: added `eshu_dp_search_vector_build_phase_seconds`
 (`go/internal/telemetry/instruments.go`), a histogram with `domain` (fixed
 `search_vector_build`) and `write_phase` (`scheduling_wait`, `query_load`,
 `embed_build`, `write_upsert`) attributes, recorded once per `RunOnce` sweep
