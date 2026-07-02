@@ -140,7 +140,15 @@ package's telemetry section.
   struct.
 - Retry policy is loaded via `runtimecfg.LoadRetryPolicyConfig(getenv, "PROJECTOR")`
   and threaded through `postgres.ProjectorQueue`; change queue retry behavior
-  there, not in the binary's main loop.
+  there, not in the binary's main loop. `LoadRetryPolicyConfig` also supplies
+  `MaxRetryDelay` (`ESHU_PROJECTOR_MAX_RETRY_DELAY`, default `1h`) and
+  `JitterFraction` (`ESHU_PROJECTOR_RETRY_JITTER_FRACTION`, default `0.1`), set
+  on `ProjectorQueue` in `buildProjectorService` alongside `RetryDelay`/
+  `MaxAttempts`. `ProjectorQueue.Fail` schedules retries with exponential
+  backoff plus jitter, not a fixed delay, so many work items failing at the
+  same instant do not reconverge on one `visible_at` and self-reinforce into a
+  retry storm (#4450); `eshu_dp_projector_retry_surge_total` tracks the
+  scheduled-retry rate by `failure_class`.
 
 ## Gotchas / invariants
 
