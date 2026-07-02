@@ -55,14 +55,16 @@ func TestRequiredPhasesForCollectorIncludesGitDeployableUnitGate(t *testing.T) {
 			Required:  true,
 		},
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-			PhaseName: reducer.GraphProjectionPhaseDeploymentMapping,
-			Required:  true,
+			Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
+			PhaseName:        reducer.GraphProjectionPhaseDeploymentMapping,
+			Required:         true,
+			DeadLetterDomain: reducer.DomainDeploymentMapping,
 		},
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-			PhaseName: reducer.GraphProjectionPhaseWorkloadMaterialization,
-			Required:  true,
+			Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
+			PhaseName:        reducer.GraphProjectionPhaseWorkloadMaterialization,
+			Required:         true,
+			DeadLetterDomain: reducer.DomainWorkloadMaterialization,
 		},
 	}
 	if !reflect.DeepEqual(requirements, want) {

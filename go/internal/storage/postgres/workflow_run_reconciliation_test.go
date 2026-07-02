@@ -17,6 +17,66 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// TestWorkflowReducerDeadLetterPhaseBridgeMatchesCollectorContractDeadLetterDomains
+// guards the #4459 lockstep requirement between
+// workflowReducerDeadLetterPhaseBridgeSQL (this package) and every
+// PhaseRequirement.DeadLetterDomain registered in
+// go/internal/workflow/collector_contract.go: every bridged domain named by a
+// collector contract MUST appear in the SQL bridge as the EXACT
+// (domain, keyspace, phase) tuple the contract requires — not merely the
+// domain name. A keyspace or phase typo/drift on either side must fail this
+// test: if the bridge names the right domain but the wrong keyspace or
+// phase, listWorkflowCollectorTerminalDeadLetterCountsQuery would silently
+// stop attributing that domain's terminal dead-letters to the required
+// phase, re-opening the exact #4459 wedge this bridge exists to close, with
+// no test failure to catch it (Copilot review finding on PR #4518). This
+// test enumerates the collector kinds with a registered
+// PhaseRequirement.DeadLetterDomain today (CollectorGit); add a kind here
+// when a new bridged domain is registered.
+func TestWorkflowReducerDeadLetterPhaseBridgeMatchesCollectorContractDeadLetterDomains(t *testing.T) {
+	t.Parallel()
+
+	type bridgedRequirement struct {
+		domain   string
+		keyspace string
+		phase    string
+	}
+
+	var bridged []bridgedRequirement
+	for _, kind := range []scope.CollectorKind{scope.CollectorGit} {
+		for _, requirement := range workflow.RequiredPhasesForCollector(kind) {
+			if requirement.DeadLetterDomain == "" {
+				continue
+			}
+			bridged = append(bridged, bridgedRequirement{
+				domain:   string(requirement.DeadLetterDomain),
+				keyspace: string(requirement.Keyspace),
+				phase:    string(requirement.PhaseName),
+			})
+		}
+	}
+	if len(bridged) == 0 {
+		t.Fatal("no bridged DeadLetterDomain found on CollectorGit; update this test's collector-kind list if the contract changed")
+	}
+	for _, want := range bridged {
+		// Match the FULL three-value tuple, not just the leading domain: a
+		// domain name that also happens to equal its own phase name (true
+		// for both bridged domains today) would otherwise let a keyspace or
+		// phase typo on either side substring-match a different column and
+		// produce a false green (see the earlier version of this test,
+		// caught in review by injecting a domain-column typo — this
+		// stronger check also catches a keyspace/phase-column typo the same
+		// way).
+		wantTuple := "('" + want.domain + "', '" + want.keyspace + "', '" + want.phase + "')"
+		if !strings.Contains(workflowReducerDeadLetterPhaseBridgeSQL, wantTuple) {
+			t.Fatalf(
+				"collector_contract.go requires DeadLetterDomain %q to publish (keyspace=%q, phase=%q) but workflowReducerDeadLetterPhaseBridgeSQL does not contain the exact tuple %s:\n%s",
+				want.domain, want.keyspace, want.phase, wantTuple, workflowReducerDeadLetterPhaseBridgeSQL,
+			)
+		}
+	}
+}
+
 func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +145,8 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *t
 					},
 				},
 			},
+			// No terminal reducer dead-letters for this scope generation.
+			{rows: nil},
 		},
 	}
 	store := NewWorkflowControlStore(db)
@@ -252,6 +314,8 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 					},
 				},
 			},
+			// No terminal reducer dead-letters for this scope generation.
+			{rows: nil},
 		},
 	}
 	db := &fakeTransactionalDB{
@@ -400,6 +464,8 @@ func workflowRunReconciliationTx() *fakeTx {
 					},
 				},
 			},
+			// No terminal reducer dead-letters for this scope generation.
+			{rows: nil},
 		},
 	}
 }

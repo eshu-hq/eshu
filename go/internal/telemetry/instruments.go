@@ -111,10 +111,20 @@ type Instruments struct {
 	ReducerIntentsEnqueued    metric.Int64Counter
 	ReducerAdmissionDeferrals metric.Int64Counter
 	ReducerExecutions         metric.Int64Counter
-	SearchIndexMutations      metric.Int64Counter
-	SearchIndexErrors         metric.Int64Counter
-	CanonicalWrites           metric.Int64Counter
-	SharedProjectionCycles    metric.Int64Counter
+	// WorkflowRunTerminalDeadLetterBlocks counts workflow run completeness
+	// reconciliations that terminated a run (blocked/failed, not left
+	// wedged in reducer_converging) because a required graph-projection
+	// phase's owning reducer domain had a genuinely terminal
+	// fact_work_items dead-letter (#4459). Labeled by collector_kind and
+	// domain only — both bounded closed sets — never by run_id, scope_id,
+	// or generation_id. An operator alerting on this counter's rate can
+	// distinguish "the pipeline is draining slowly" from "this run can
+	// never converge on its own."
+	WorkflowRunTerminalDeadLetterBlocks metric.Int64Counter
+	SearchIndexMutations                metric.Int64Counter
+	SearchIndexErrors                   metric.Int64Counter
+	CanonicalWrites                     metric.Int64Counter
+	SharedProjectionCycles              metric.Int64Counter
 	// SharedProjectionIntentsCompleted counts shared-projection intents marked
 	// completed per domain. Labeled by domain only (bounded: the
 	// domain set is the fixed sharedProjectionDomains list). Never keyed by
@@ -1077,6 +1087,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerExecutions counter: %w", err)
+	}
+
+	inst.WorkflowRunTerminalDeadLetterBlocks, err = meter.Int64Counter(
+		"eshu_dp_workflow_run_terminal_dead_letter_blocks_total",
+		metric.WithDescription("Total workflow run completeness reconciliations that terminated a run because a required phase's owning reducer domain had a terminal fact_work_items dead-letter, labeled by collector_kind and domain (#4459)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowRunTerminalDeadLetterBlocks counter: %w", err)
 	}
 
 	inst.SearchIndexMutations, err = meter.Int64Counter(
