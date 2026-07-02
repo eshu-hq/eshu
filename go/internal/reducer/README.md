@@ -795,6 +795,20 @@ or term labels. No-Regression Evidence:
 fails without the timing fields and passes once every write subphase reports a
 positive duration in a delayed fake-DB proof.
 
+Performance Evidence: the same #4529 branch proof reran the remote full corpus
+against NornicDB PR #230 image `eshu-nornicdb-pr230:6bfaad33` and stopped after
+37 completed `eshu_search_document` cycles because the bottleneck was already
+unambiguous. The cycles spent 2,119.637s total, with 1,995.050s in
+`index_term_upsert_seconds` alone; the slowest cycle spent 141.569s of 147.073s
+in the term write. During those writes Postgres reported active `WALInsert`,
+`WALWrite`, `BufferContent`, relation `extend`, and `DataFileExtend` waits.
+The term writer now relies on the page-level refresh delete plus reducer queue
+same-scope conflict fencing and inserts refreshed term rows without PostgreSQL's
+`ON CONFLICT DO UPDATE` path. No-Regression Evidence:
+`go test ./internal/reducer -run TestWriteEshuSearchDocumentsTermInsertAvoidsConflictUpdate -count=1`
+fails if the term insert reintroduces conflict-update churn after the refresh
+delete.
+
 `SearchVectorBuildRunner` is a side runner that can build derived vector rows
 after search documents are active. The command layer wires it when the
 semantic-search selector chooses either the deterministic local override or one

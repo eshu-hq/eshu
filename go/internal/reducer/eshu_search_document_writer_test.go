@@ -451,3 +451,34 @@ func TestWriteEshuSearchDocumentsBatchedWritesBoundedExecCount(t *testing.T) {
 		t.Fatalf("ExecContext calls = %d for %d documents, want < %d (batched writes required, got O(N) per-doc loop)", got, docCount, maxAllowed)
 	}
 }
+
+func TestWriteEshuSearchDocumentsTermInsertAvoidsConflictUpdate(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		IntentID:     "intent-term-insert",
+		ScopeID:      "scope-term-insert",
+		GenerationID: "gen-term-insert",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			sampleSearchDoc("searchdoc:content_entity:e-1"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+
+	for _, exec := range db.execs {
+		if !strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms") {
+			continue
+		}
+		if strings.Contains(exec.query, "ON CONFLICT") {
+			t.Fatalf("term insert query still uses conflict-update path after page refresh:\n%s", exec.query)
+		}
+		return
+	}
+	t.Fatalf("missing eshu_search_index_terms insert in execs: %#v", db.execs)
+}
