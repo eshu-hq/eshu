@@ -89,6 +89,11 @@ const (
 	HasTaintEvidence EdgeType = "HAS_TAINT_EVIDENCE"
 	// HasVersion is the "HAS_VERSION" graph relationship type.
 	HasVersion EdgeType = "HAS_VERSION"
+	// HelmValueReference is the "HELM_VALUE_REFERENCE" graph relationship type:
+	// a Helm chart template `.Values.<path>` usage references the matching
+	// values.yaml leaf definition. Dedicated (not the shared REFERENCES type) so
+	// the full-refresh retract's delete-index stays small (#4476).
+	HelmValueReference EdgeType = "HELM_VALUE_REFERENCE"
 	// Implements is the "IMPLEMENTS" graph relationship type.
 	Implements EdgeType = "IMPLEMENTS"
 	// Imports is the "IMPORTS" graph relationship type.
@@ -187,7 +192,7 @@ var registered = []EdgeType{
 	Explains, ExposesEndpoint, GrantsAccessTo, HandlesRoute,
 	HasAppliedRouting, HasColumn, HasDeploymentEvidence, HasIntendedRouting,
 	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
-	HasVersion, Implements, Imports, Indexes,
+	HasVersion, HelmValueReference, Implements, Imports, Indexes,
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
 	LogsTo, Manages, MapsToTable, Migrates, Needs, Overrides,
 	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,

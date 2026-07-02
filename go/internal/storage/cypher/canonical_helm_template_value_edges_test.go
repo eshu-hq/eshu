@@ -48,15 +48,48 @@ func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) 
 	}
 
 	stmts := helmTemplateValueEdgeStatements(mat)
-	// One generation-scoped retract precedes the MERGE upsert.
-	if len(stmts) != 2 {
-		t.Fatalf("statement count = %d, want 2 (retract + REFERENCES upsert)", len(stmts))
+	// A legacy-REFERENCES retract and the dedicated-type retract precede the
+	// MERGE upsert (legacy migration, then current-type retract, then upsert).
+	if len(stmts) != 3 {
+		t.Fatalf("statement count = %d, want 3 (legacy retract + HELM_VALUE_REFERENCE retract + upsert)", len(stmts))
 	}
-	retract := stmts[0]
+	legacyRetract := stmts[0]
+	if legacyRetract.Operation != OperationCanonicalRetract {
+		t.Fatalf("stmts[0].Operation = %v, want retract", legacyRetract.Operation)
+	}
+	// The legacy migration retract removes pre-#4476 Helm edges written on the
+	// shared REFERENCES type, scoped by call_kind so it never touches code-symbol
+	// REFERENCES; it must be Drain-marked (autocommit).
+	if !legacyRetract.Drain {
+		t.Fatalf("legacy retract must be Drain-marked for autocommit routing")
+	}
+	if !strings.Contains(legacyRetract.Cypher, "[r:REFERENCES]") ||
+		!strings.Contains(legacyRetract.Cypher, "r.call_kind = 'helm_template_value_reference'") {
+		t.Fatalf("legacy retract must delete shared-REFERENCES Helm edges scoped by call_kind: %s", legacyRetract.Cypher)
+	}
+
+	retract := stmts[1]
 	if retract.Operation != OperationCanonicalRetract {
-		t.Fatalf("stmts[0].Operation = %v, want retract", retract.Operation)
+		t.Fatalf("stmts[1].Operation = %v, want retract", retract.Operation)
 	}
-	upsert := stmts[1]
+	// The dedicated-type retract must be Drain-marked so the phase-group executor
+	// runs it as a standalone autocommit statement (it silently no-ops inside the
+	// grouped ExecuteWrite transaction, #4476).
+	if !retract.Drain {
+		t.Fatalf("retract statement must be Drain-marked for autocommit routing")
+	}
+	// It must use the dedicated HELM_VALUE_REFERENCE type (small delete-index,
+	// #4476) and stay scoped by call_kind so it never widens to another verb.
+	if !strings.Contains(retract.Cypher, "[r:HELM_VALUE_REFERENCE]") {
+		t.Fatalf("retract Cypher must match the dedicated HELM_VALUE_REFERENCE type: %s", retract.Cypher)
+	}
+	if !strings.Contains(retract.Cypher, "r.call_kind = 'helm_template_value_reference'") {
+		t.Fatalf("retract Cypher must stay scoped by call_kind: %s", retract.Cypher)
+	}
+	upsert := stmts[2]
+	if !strings.Contains(upsert.Cypher, "MERGE (u)-[r:HELM_VALUE_REFERENCE]->(d)") {
+		t.Fatalf("upsert Cypher must MERGE the dedicated HELM_VALUE_REFERENCE type: %s", upsert.Cypher)
+	}
 	if !strings.Contains(upsert.Cypher, "r.source_tool = row.source_tool") {
 		t.Fatalf("upsert Cypher missing source_tool SET: %s", upsert.Cypher)
 	}

@@ -74,7 +74,7 @@ func (e nornicDBPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts
 			}
 			return e.executeEntityPhaseGroup(ctx, ge, stmts)
 		}
-		return e.executeGroupedChunks(ctx, ge, stmts, e.phaseGroupStatementLimit(stmts))
+		return e.executeGroupedChunksWithDrain(ctx, ge, stmts)
 	}
 	for _, stmt := range stmts {
 		if err := e.inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
