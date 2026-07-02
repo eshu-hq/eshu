@@ -96,7 +96,7 @@ func run(parent context.Context) error {
 		return fmt.Errorf("telemetry instruments: %w", err)
 	}
 
-	store := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
+	store := newWorkflowControlStore(postgres.SQLDB{DB: db}, instruments)
 	tenantGrantDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
 		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
