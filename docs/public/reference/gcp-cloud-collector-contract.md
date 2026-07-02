@@ -560,6 +560,19 @@ is not an exactly resolvable CAI endpoint), software properties and
 initialization actions are not decoded, and only control-plane resource names and
 references leave the parser.
 
+**GKE Cluster** (`container.googleapis.com/Cluster`) captures location, status,
+master/node version, release channel, create time, private-cluster and
+master-authorized-networks posture (a bounded CIDR-block count, never the CIDR
+values), workload identity pool, addon posture, and a per-node-pool summary
+(machine type, fingerprinted node service-account email, OAuth-scope count,
+autoscaling posture, initial node count); emits the typed
+`gke_cluster_uses_network` and `gke_cluster_uses_subnetwork` edges to the
+cluster's `Network` and `Subnetwork`; and surfaces the network, subnetwork, and
+per-node-pool fingerprinted service-account emails as correlation anchors.
+Master-authorized-network CIDR values and node-pool OAuth scope values are
+never decoded, and the GKE API's "default" service-account sentinel is never
+fingerprinted or anchored since it does not identify a specific account.
+
 **Secret Manager Secret Version**
 (`secretmanager.googleapis.com/SecretVersion`) captures the lifecycle state
 (ENABLED / DISABLED / DESTROYED), create and destroy times, replication type
