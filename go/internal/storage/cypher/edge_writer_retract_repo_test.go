@@ -46,7 +46,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyDispatch(t *testing.T) {
 		t.Fatalf("cypher must anchor Repository before relationship expansion: %s", executor.calls[0].Cypher)
 	}
 	if !strings.Contains(executor.calls[1].Cypher, "MATCH (repo:Repository {id: $repo_id})") {
-		t.Fatalf("cypher missing indexed RUNS_ON Repository anchor: %s", executor.calls[0].Cypher)
+		t.Fatalf("cypher missing indexed RUNS_ON Repository anchor: %s", executor.calls[1].Cypher)
 	}
 	if !strings.Contains(executor.calls[2].Cypher, "HAS_DEPLOYMENT_EVIDENCE") {
 		t.Fatalf("artifact retract cypher missing evidence edge: %s", executor.calls[2].Cypher)

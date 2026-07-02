@@ -4,9 +4,11 @@ Scope: `repo_dependency` retract execution in the shared Cypher edge writer.
 The original change added structured role attribution around the grouped
 retract path. The follow-up diagnostic mode split bounded proof runs into
 repository relationship edge, `RUNS_ON`, and evidence-artifact cleanup timings.
-This slice makes that three-role split the production grouped shape too: the
-transaction boundary, retry wrapper, batch ownership, and worker count stay the
-same, but single-repository cycles use direct `$repo_id` anchors instead of
+This slice keeps the production grouped transaction boundary intact while
+making each grouped statement role visible in the log summary. The measured
+per-role timings below come from the diagnostic path, where the flag deliberately
+executes the same three statements one at a time. The production change itself
+is narrower: single-repository cycles use direct `$repo_id` anchors instead of
 `UNWIND $repo_ids` for the repository relationship delete.
 
 ## No-regression evidence
@@ -67,7 +69,7 @@ The #4507 baseline run
 `runs_on_relationships` at count `22`, avg `1.872s`, max `10.215s`; and
 `evidence_artifacts` at count `22`, avg `2.008s`, max `11.200s`.
 
-The #4508 bounded run stopped at the short cap after 20
+The #4508 bounded diagnostic run stopped at the short cap after 20
 `repository_relationship_edges` samples, before full-corpus completion. It
 recorded `repository_relationship_edges` at count `20`, avg `2.950s`, max
 `8.155s`; `runs_on_relationships` at count `20`, avg `1.366s`, max `5.221s`;
@@ -75,8 +77,12 @@ and `evidence_artifacts` at count `20`, avg `1.598s`, max `6.690s`. Queue
 state at stop showed `source_local` at 40 succeeded / 2 claimed and
 `code_import_repo_edge` at 40 succeeded. The table-count query used the wrong
 table name after stop, so table counts are not claimed for this bounded proof.
-This is a handler/query-shape win for the measured repo-dependency retract
-role, not a full-corpus wall-clock completion claim.
+Because `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING=true` bypasses
+`ExecuteGroup`, these timings prove the diagnostic statement shapes and the
+single-repository bound-delete rewrite. They do not prove the default atomic
+group duration. The default grouped path is covered by the grouped-path unit
+test and by the new grouped log summary; a later production-profile run must use
+that grouped duration before claiming full-corpus wall-clock improvement.
 
 ## Observability evidence
 
