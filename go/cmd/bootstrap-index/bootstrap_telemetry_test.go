@@ -4,11 +4,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -317,105 +320,117 @@ func TestRunPipelinedRecordsDeploymentReopenPhaseOnError(t *testing.T) {
 	}
 }
 
-var errInjectedIaCFailure = errInjected("injected iac reachability failure")
+// TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion proves the
+// #4271 fix: runPipelined must emit an explicit "bootstrap phase start" log
+// signal for relationship_backfill BEFORE BackfillAllRelationshipEvidence
+// RETURNS — the exact silent gap #4271 describes, where operators watching
+// logs see "bootstrap projection complete" and then nothing until the
+// (possibly very long) backfill call returns.
+//
+// An earlier version of this test only asserted that the "bootstrap phase
+// start" log line's byte offset preceded the "bootstrap phase complete" log
+// line's offset. That is necessary but not sufficient: "bootstrap phase
+// complete" is logged AFTER BackfillAllRelationshipEvidence returns, so a
+// regression that moved the start-log call to right after the (still
+// blocking) call returns but before the completion log would still satisfy
+// startIdx < completeIdx and pass — without ever proving the signal fires
+// while the call is in flight (review finding on PR #4521; codex + Copilot,
+// same gap, 3 comments).
+//
+// This version closes that gap directly: the fake committer's
+// BackfillAllRelationshipEvidence blocks on a channel the instant it is
+// entered. runPipelined runs in a goroutine; the test waits for that
+// channel, then asserts the "bootstrap phase start" line is ALREADY present
+// in the captured logs while the call is still blocked (release has not
+// been signaled), before letting the call return. This proves the start
+// signal is emitted before/during the blocked call, not merely before a
+// later log line.
+func TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion(t *testing.T) {
+	t.Parallel()
 
-type errInjected string
+	var mu sync.Mutex
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(lockedWriter{mu: &mu, w: &logs}, nil))
 
-func (e errInjected) Error() string { return string(e) }
+	source := &fakeSource{generations: nil}
+	ws := &concurrentWorkSource{items: nil}
+	sink := &concurrentWorkSink{}
 
-// contentEntityEmittedValue returns the counter value for
-// eshu_dp_content_entity_emitted_total at the given source_file_kind under the
-// bootstrap-index collector_kind.
-func contentEntityEmittedValue(t *testing.T, rm metricdata.ResourceMetrics, kind string) int64 {
-	t.Helper()
-	const name = "eshu_dp_content_entity_emitted_total"
-	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
-			if m.Name != name {
-				continue
-			}
-			sum, ok := m.Data.(metricdata.Sum[int64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Sum[int64]", name, m.Data)
-			}
-			for _, p := range sum.DataPoints {
-				if metricPointHasAttrs(p.Attributes, map[string]string{
-					telemetry.MetricDimensionSourceFileKind: kind,
-					telemetry.MetricDimensionCollectorKind:  "bootstrap-index",
-				}) {
-					return p.Value
-				}
-			}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	committer := &fakeCommitter{backfillStarted: started, backfillRelease: release}
+	cd := collectorDeps{source: source, committer: committer}
+	pd := projectorDeps{
+		workSource: ws,
+		factStore:  &fakeFactStore{},
+		runner:     &fakeProjectionRunner{},
+		workSink:   sink,
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runPipelined(context.Background(), cd, pd, 2, nil, nil, logger)
+	}()
+
+	select {
+	case <-started:
+		// BackfillAllRelationshipEvidence has been entered and is now
+		// blocked on release. Fall through to assert on the logs while it
+		// is still blocked.
+	case err := <-done:
+		t.Fatalf("runPipelined() returned (err=%v) before BackfillAllRelationshipEvidence was ever entered", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for BackfillAllRelationshipEvidence to start")
+	}
+
+	backfillPhaseAttr := `"bootstrap_phase":"` + telemetry.BootstrapPhaseRelationshipBackfill + `"`
+	mu.Lock()
+	snapshot := logs.String()
+	mu.Unlock()
+	found := false
+	for _, line := range strings.Split(snapshot, "\n") {
+		if strings.Contains(line, backfillPhaseAttr) && strings.Contains(line, `"msg":"bootstrap phase start"`) {
+			found = true
+			break
 		}
 	}
-	t.Fatalf("metric %s for source_file_kind %q not found", name, kind)
-	return 0
+	if !found {
+		t.Fatalf("logs while backfill still blocked = %q, want a %q line with %s BEFORE the call returns",
+			snapshot, "bootstrap phase start", backfillPhaseAttr)
+	}
+	// The completion log for this phase must NOT exist yet: the call has not
+	// returned, so recordPhase(relationship_backfill, ...) cannot have run.
+	// This is the assertion the byte-offset-only version of this test could
+	// never make, because it only inspected logs after runPipelined had
+	// already returned.
+	for _, line := range strings.Split(snapshot, "\n") {
+		if strings.Contains(line, backfillPhaseAttr) && strings.Contains(line, `"msg":"bootstrap phase complete"`) {
+			t.Fatalf("logs while backfill still blocked = %q, unexpectedly already contain the phase complete line for %s; the call has not returned yet", snapshot, backfillPhaseAttr)
+		}
+	}
+
+	close(release)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runPipelined() error = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for runPipelined to finish after releasing backfill")
+	}
 }
 
-// bootstrapPhaseRecorded reports whether a histogram data point exists for the
-// named phase on eshu_dp_bootstrap_pipeline_phase_seconds.
-func bootstrapPhaseRecorded(t *testing.T, rm metricdata.ResourceMetrics, phase string) bool {
-	t.Helper()
-	const name = "eshu_dp_bootstrap_pipeline_phase_seconds"
-	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
-			if m.Name != name {
-				continue
-			}
-			hist, ok := m.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Histogram[float64]", name, m.Data)
-			}
-			for _, p := range hist.DataPoints {
-				if metricPointHasAttrs(p.Attributes, map[string]string{
-					telemetry.MetricDimensionBootstrapPhase: phase,
-					telemetry.MetricDimensionCollectorKind:  "bootstrap-index",
-				}) {
-					return true
-				}
-			}
-		}
-	}
-	return false
+// lockedWriter serializes writes with an external mutex so a test can safely
+// read the underlying buffer's contents from the test goroutine while
+// runPipelined's goroutine may still be writing log lines concurrently.
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  *bytes.Buffer
 }
 
-// bootstrapPhaseDurationSeconds returns the recorded histogram Sum (total
-// seconds) for the named phase. A single Record per run means Sum equals that
-// run's measured duration, which lets a test assert relative phase magnitudes.
-func bootstrapPhaseDurationSeconds(t *testing.T, rm metricdata.ResourceMetrics, phase string) float64 {
-	t.Helper()
-	const name = "eshu_dp_bootstrap_pipeline_phase_seconds"
-	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
-			if m.Name != name {
-				continue
-			}
-			hist, ok := m.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("%s data type = %T, want Histogram[float64]", name, m.Data)
-			}
-			for _, p := range hist.DataPoints {
-				if metricPointHasAttrs(p.Attributes, map[string]string{
-					telemetry.MetricDimensionBootstrapPhase: phase,
-					telemetry.MetricDimensionCollectorKind:  "bootstrap-index",
-				}) {
-					return p.Sum
-				}
-			}
-		}
-	}
-	t.Fatalf("metric %s for phase %q not found", name, phase)
-	return 0
-}
-
-// metricPointHasAttrs reports whether every want key/value pair is present in
-// the data point attribute set.
-func metricPointHasAttrs(set attribute.Set, want map[string]string) bool {
-	for k, v := range want {
-		val, ok := set.Value(attribute.Key(k))
-		if !ok || val.AsString() != v {
-			return false
-		}
-	}
-	return true
+func (l lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }

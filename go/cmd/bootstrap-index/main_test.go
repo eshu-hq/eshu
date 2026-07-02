@@ -389,6 +389,17 @@ type fakeCommitter struct {
 	// the given duration. Used to prove the projection phase duration excludes
 	// the backfill wait (#3678 P2#1).
 	backfillDelay time.Duration
+	// backfillStarted and backfillRelease, when both non-nil, make
+	// BackfillAllRelationshipEvidence close backfillStarted the instant it is
+	// entered and then block until backfillRelease is closed, before
+	// backfillDelay (if any) and before returning. This lets a test observe
+	// state (e.g. captured logs) at the exact moment the call is in flight and
+	// has not yet returned, which backfillDelay alone cannot prove: a fixed
+	// sleep only bounds how long the call blocks, it does not let the test
+	// synchronize with "the call has been entered and is still blocked"
+	// (#4271 review follow-up).
+	backfillStarted chan struct{}
+	backfillRelease chan struct{}
 }
 
 func (f *fakeCommitter) CommitScopeGeneration(
@@ -409,6 +420,10 @@ func (f *fakeCommitter) BackfillAllRelationshipEvidence(
 	_ trace.Tracer,
 	_ *telemetry.Instruments,
 ) error {
+	if f.backfillStarted != nil && f.backfillRelease != nil {
+		close(f.backfillStarted)
+		<-f.backfillRelease
+	}
 	if f.backfillDelay > 0 {
 		time.Sleep(f.backfillDelay)
 	}

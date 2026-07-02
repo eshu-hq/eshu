@@ -256,7 +256,14 @@ line every 10 repos (`scopes_done`, `total_facts_emitted`,
 collected` line carrying `content_entity_count` plus `entity_kind_<kind>`
 breakdown, so a long full-corpus run shows continuous progress in logs without
 strace or SQL forensics. Each post-collection phase emits a `bootstrap phase
-complete` log line with `bootstrap_phase` and `phase_duration_seconds`.
+complete` log line with `bootstrap_phase` and `phase_duration_seconds`. The
+`relationship_backfill` phase additionally emits a `bootstrap phase start` log
+line (same `bootstrap_phase` label, no attributes beyond that and the shared
+`pipeline_phase`) immediately before `BackfillAllRelationshipEvidence` is
+called (#4271), so an operator watching logs during a full-corpus run sees an
+explicit signal that the deferred backfill has begun instead of a silent gap
+between `bootstrap projection succeeded` and the (potentially very long)
+completion log for that phase.
 
 Enable OTEL export by setting OTEL_EXPORTER_OTLP_ENDPOINT. When unset, a
 noop exporter is used and only local structured logs flow.
@@ -333,6 +340,41 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
   behavior (facts emitted, projections completed, queue drain) is unchanged and
   covered by the existing `cmd/bootstrap-index` pipeline tests, which continue to
   pass.
+
+### Evidence (#4271 relationship_backfill phase-start signal)
+
+- Observability Evidence: `runPipelined` now logs a `bootstrap phase start`
+  line (with `bootstrap_phase=relationship_backfill`) immediately before
+  calling `BackfillAllRelationshipEvidence`, closing the previously silent gap
+  between `bootstrap projection succeeded` and the phase's own completion log.
+  This is a log-only signal; no new metric is added because
+  `eshu_dp_bootstrap_pipeline_phase_seconds` already covers the phase's
+  duration once it completes (`No-Observability-Change` for the metric layer).
+  - Regression coverage:
+    `TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion`
+    (`bootstrap_telemetry_test.go`) drives the real `runPipelined` in a
+    goroutine against a fake committer whose `BackfillAllRelationshipEvidence`
+    blocks on a channel the instant it is entered. The test waits for that
+    channel, then — while the call is still blocked and has not returned —
+    asserts the `relationship_backfill` phase's `bootstrap phase start` log
+    line is already present in the captured logs, and that its `bootstrap
+    phase complete` line is NOT yet present (that line can only be written
+    after the call returns). Only then does the test release the block and
+    let `runPipelined` finish. This proves the start signal is emitted
+    before/during the blocked call, not merely before a later log line — an
+    earlier version of this test asserted only that the start line's byte
+    offset preceded the complete line's offset, which does not rule out a
+    regression that logs "start" immediately after the (still-blocking) call
+    returns but before the completion log (review finding on PR #4521;
+    confirmed as a genuine guard by temporarily moving the production
+    `recordPhaseStart` call to after `BackfillAllRelationshipEvidence`, which
+    made this test fail, then reverting, which made it pass again).
+  - Full gate: `go test ./cmd/bootstrap-index -count=1`.
+- No-Regression Evidence: The added call is a single conditional `logger`
+  call with no I/O, no lock, and no new goroutine; it cannot change phase
+  ordering, the one-shot exit contract, or the pipelined collector/projector
+  concurrency model. `TestPipelinedBootstrapRunsDeferredBackfillWorkflow` and
+  the other 70 tests in `cmd/bootstrap-index` continue to pass unchanged.
 
 ## Configuration
 
