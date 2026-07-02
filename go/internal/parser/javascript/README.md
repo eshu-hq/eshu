@@ -57,6 +57,12 @@ The `embedded_shell_commands` payload bucket records import-backed
 `child_process` calls with function, line, API, and language metadata only. It
 does not retain command strings, arguments, or environment values.
 
+`PreScan` uses a declaration-only AST walk for functions, classes, interfaces,
+function-valued variables, and function-valued object pairs. It intentionally
+skips tsconfig/package resolution, framework semantics, shell evidence,
+dead-code roots, call rows, variables, and sibling-file parsing because the
+collector runs full parse immediately afterward.
+
 ## Dependencies
 
 This package imports tree-sitter, the Go standard library, and
@@ -150,6 +156,15 @@ side by side for future profiling. Classification: handler win and diagnostic
 win on this hardware; the wall-clock win is expected to land on the x86
 full-corpus shape that produced the #3586 profile, where cgo crossing volume,
 not Go-side string work, dominates.
+
+Performance Evidence: `go test ./internal/parser -run '^$' -bench
+BenchmarkPreScanSelectedLanguages -benchmem -benchtime=1x -count=1` measured
+the JavaScript 10K LOC pre-scan fixture at `632644917 ns/op`, `800322576 B/op`,
+and `2450522 allocs/op` before the declaration-only pre-scan, versus
+`47006667 ns/op`, `4705528 B/op`, and `152855 allocs/op` after. The TypeScript
+fixture moved from `599210708 ns/op`, `678622440 B/op`, and `2972914 allocs/op`
+to `44396500 ns/op`, `4635872 B/op`, and `148424 allocs/op`. Compatibility is
+guarded by `TestPreScanMatchesParseDeclarationNames`.
 
 ## No-Regression Evidence
 

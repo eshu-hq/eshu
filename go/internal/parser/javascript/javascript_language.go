@@ -5,7 +5,6 @@ package javascript
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -356,17 +355,7 @@ func PreScan(
 	runtimeLanguage string,
 	outputLanguage string,
 ) ([]string, error) {
-	payload, err := Parse(parserFactory, parserReturner, repoRoot, path, runtimeLanguage, outputLanguage, false, shared.Options{})
-	if err != nil {
-		return nil, err
-	}
-	keys := []string{"functions", "classes"}
-	if outputLanguage != "javascript" {
-		keys = append(keys, "interfaces")
-	}
-	names := collectBucketNames(payload, keys...)
-	slices.Sort(names)
-	return names, nil
+	return preScanNames(parserFactory, parserReturner, path, runtimeLanguage, outputLanguage)
 }
 
 func appendFunctionDeclaration(

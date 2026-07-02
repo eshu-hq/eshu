@@ -13,7 +13,7 @@
    table semantics plus the reusable decorator/call/argument AST node helpers
 9. semantics.go, imports.go, call_inference.go, annotation_support.go - metadata helpers
 10. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over python/pydataflow
-11. payload_buckets.go - sortNamedBucket / collectBucketNames bucket utilities
+11. payload_buckets.go - named bucket sorting utilities
 12. notebook_test.go and language_test.go - child package contract coverage
 
 ## Invariants this package enforces

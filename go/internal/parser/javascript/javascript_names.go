@@ -20,6 +20,11 @@ func javaScriptFunctionName(node *tree_sitter.Node, source []byte) string {
 	switch node.Kind() {
 	case "identifier", "property_identifier", "private_property_identifier", "jsx_identifier", "type_identifier":
 		return strings.TrimSpace(nodeText(node, source))
+	case "string", "number", "template_string":
+		if resolved, ok := javaScriptStaticComputedPropertyName(node, source); ok {
+			return resolved
+		}
+		return strings.TrimSpace(nodeText(node, source))
 	case "computed_property_name":
 		return javaScriptComputedPropertyName(node, source)
 	default:

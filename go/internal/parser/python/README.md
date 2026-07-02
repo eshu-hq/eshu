@@ -52,7 +52,10 @@ The godoc contract is in doc.go.
   the opt-in `dataflow_functions`, `taint_findings`, and `interproc_findings`
   buckets (see `cfg_emit.go`); the gate is off by default and the payload is
   byte-identical when off.
-- PreScan reuses Parse for collector import-map discovery.
+- PreScan uses a declaration-only AST walk for collector import-map discovery,
+  including notebook code-cell extraction and module docstring names, so
+  pre-scan does not run framework, route, public-API, call, shell, and
+  value-flow extraction before the full parse stage.
 - NotebookSource extracts executable Python code cells from notebook JSON.
 - The `embedded_shell_commands` bucket records import-backed `subprocess` and
   `os.system` call sites with function, line, API, and language metadata only.
@@ -75,6 +78,19 @@ packages, graph query code, or reducer code.
 This package emits no telemetry directly. Parser timing and parse failure
 context remain owned by the ingester and collector runtime paths that call the
 parent Engine.
+
+## Pre-scan Performance
+
+Performance Evidence: `go test ./internal/parser -run '^$' -bench
+BenchmarkPreScanSelectedLanguages -benchmem -benchtime=1x -count=1` measured
+the Python 10K LOC pre-scan fixture at `9479073792 ns/op`, `1886298072 B/op`,
+and `76148088 allocs/op` before the declaration-only pre-scan, versus
+`49806083 ns/op`, `4682952 B/op`, and `157848 allocs/op` after. Compatibility
+is guarded by `TestPreScanMatchesParseDeclarationNames`.
+
+No-Observability-Change: this parser package still emits no metrics, spans, or
+logs. Operators diagnose parser and pre-scan cost through existing collector
+snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.
 
 ## Gotchas / invariants
 

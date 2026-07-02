@@ -35,6 +35,24 @@ func generatedNativeSnapshotSkipReason(path string) (string, bool) {
 	if isVendoredZendFrameworkFile(path) {
 		return "vendored-zend-framework", true
 	}
+	if isVendoredPluploadFile(path) {
+		return "vendored-plupload", true
+	}
+	if isVendoredAurigmaFile(path) {
+		return "vendored-aurigma", true
+	}
+	if isVendoredPHPCASFile(path) {
+		return "vendored-phpcas", true
+	}
+	if isVendoredMinifyFile(path) {
+		return "vendored-minify", true
+	}
+	if isVendoredFusionChartsFile(path) {
+		return "vendored-fusioncharts", true
+	}
+	if isVendoredMapControlFile(path) {
+		return "vendored-mapcontrol", true
+	}
 	if isVendoredBrowserLibraryFile(path) {
 		return "vendored-browser-library", true
 	}
@@ -124,6 +142,84 @@ func isVendoredZendFrameworkFile(path string) bool {
 	return ext == ".php"
 }
 
+func isVendoredPluploadFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
+		return false
+	}
+	normalizedPath := strings.ToLower(filepath.ToSlash(path))
+	name := strings.ToLower(filepath.Base(path))
+	if !strings.Contains(normalizedPath, "/plupload/js/") || !strings.HasPrefix(name, "plupload.") {
+		return false
+	}
+	prefix, ok := javascriptFilePrefix(path, vendoredBrowserLibraryPrefixBytes)
+	if !ok {
+		return false
+	}
+	normalizedPrefix := strings.ToLower(prefix)
+	return strings.Contains(normalizedPrefix, "window.plupload") &&
+		strings.Contains(normalizedPrefix, "version")
+}
+
+func isVendoredAurigmaFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
+		return false
+	}
+	normalizedPath := strings.ToLower(filepath.ToSlash(path))
+	if !strings.Contains(normalizedPath, "/aurigma/") {
+		return false
+	}
+	name := strings.ToLower(filepath.Base(path))
+	prefix, ok := javascriptFilePrefix(path, vendoredBrowserLibraryPrefixBytes)
+	if !ok {
+		return false
+	}
+	normalizedPrefix := strings.ToLower(prefix)
+	switch {
+	case strings.HasPrefix(name, "aurigma.htmluploader."):
+		return strings.Contains(normalizedPrefix, "htmluploadercontrol")
+	case strings.HasPrefix(name, "aurigma.imageuploader"):
+		return strings.Contains(normalizedPrefix, "imageuploaderflash")
+	default:
+		return false
+	}
+}
+
+func isVendoredPHPCASFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".php" {
+		return false
+	}
+	normalized := strings.ToLower(filepath.ToSlash(path))
+	return strings.Contains(normalized, "/library/cas/cas/")
+}
+
+func isVendoredMinifyFile(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(path))
+	return strings.Contains(normalized, "/library/minify/min/")
+}
+
+func isVendoredFusionChartsFile(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(path))
+	return strings.Contains(normalized, "/library/fusioncharts/") ||
+		strings.Contains(normalized, "/library/powercharts/")
+}
+
+func isVendoredMapControlFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
+		return false
+	}
+	if strings.ToLower(filepath.Base(path)) != "mapcontrol.js" {
+		return false
+	}
+	prefix, ok := javascriptFilePrefix(path, vendoredBrowserLibraryPrefixBytes)
+	if !ok {
+		return false
+	}
+	normalized := strings.ToLower(prefix)
+	return strings.Contains(normalized, "bing maps") &&
+		strings.Contains(normalized, "virtual earth") &&
+		strings.Contains(normalized, "mapcontrol.features")
+}
+
 func isVendoredBrowserLibraryFile(path string) bool {
 	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
 		return false
@@ -133,7 +229,7 @@ func isVendoredBrowserLibraryFile(path string) bool {
 	case name == "jquery.js" || name == "jquery-ui.js":
 		return true
 	case strings.HasPrefix(name, "jquery.") || strings.HasPrefix(name, "jquery-"):
-		return true
+		return hasVendoredBrowserLibrarySignature(path)
 	case strings.HasPrefix(name, "galleria") && strings.HasSuffix(name, ".js"):
 		return true
 	case strings.HasPrefix(name, "shadowbox") && strings.HasSuffix(name, ".js"):
@@ -155,6 +251,7 @@ func hasVendoredBrowserLibrarySignature(path string) bool {
 		return false
 	}
 	normalized := strings.ToLower(prefix)
+	name := strings.ToLower(filepath.Base(path))
 	switch {
 	case strings.Contains(normalized, "jquery foundation") &&
 		strings.Contains(normalized, "jquery.org/license"):
@@ -184,8 +281,41 @@ func hasVendoredBrowserLibrarySignature(path string) bool {
 	case strings.Contains(normalized, "prototype javascript framework") &&
 		strings.Contains(normalized, "prototypejs.org"):
 		return true
+	case strings.Contains(normalized, "script.aculo.us") &&
+		strings.Contains(normalized, "effects.js"):
+		return true
 	case strings.Contains(normalized, "reveal.js") &&
 		strings.Contains(normalized, "lab.hakim.se/reveal-js"):
+		return true
+	case strings.Contains(normalized, "camera slideshow") &&
+		(strings.Contains(normalized, "pixedelic.com") ||
+			strings.Contains(normalized, "jquery slideshow")):
+		return true
+	case strings.Contains(name, "jssor") &&
+		strings.Contains(normalized, "jssor") &&
+		(strings.Contains(normalized, "$jssorslider$") ||
+			strings.Contains(normalized, "/*! jssor") ||
+			strings.Contains(normalized, "jssor slider")):
+		return true
+	case strings.Contains(normalized, "mootools") &&
+		(strings.Contains(normalized, "my object oriented javascript tools") ||
+			strings.Contains(normalized, "mootools core") ||
+			strings.Contains(normalized, "mootools more")):
+		return true
+	case strings.Contains(normalized, "less - leaner css") &&
+		strings.Contains(normalized, "lesscss"):
+		return true
+	case strings.Contains(normalized, "uglifyjs") &&
+		strings.Contains(normalized, "javascript parser") &&
+		strings.Contains(normalized, "compressor") &&
+		strings.Contains(normalized, "beautifier"):
+		return true
+	case strings.Contains(normalized, "@license uglifyweb") &&
+		strings.Contains(normalized, "this file includes uglifyjs") &&
+		strings.Contains(normalized, "es5-shim"):
+		return true
+	case strings.Contains(normalized, "window.__sharethis__") &&
+		strings.Contains(normalized, "sharethis"):
 		return true
 	default:
 		return false

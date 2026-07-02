@@ -4,7 +4,6 @@
 package python
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -24,20 +23,4 @@ func sortNamedBucket(payload map[string]any, key string) {
 		return strings.Compare(leftName, rightName)
 	})
 	payload[key] = items
-}
-
-// collectBucketNames returns the cleaned, non-empty "name" values across the
-// given payload buckets.
-func collectBucketNames(payload map[string]any, keys ...string) []string {
-	var names []string
-	for _, key := range keys {
-		items, _ := payload[key].([]map[string]any)
-		for _, item := range items {
-			name, _ := item["name"].(string)
-			if strings.TrimSpace(name) != "" {
-				names = append(names, filepath.Clean(name))
-			}
-		}
-	}
-	return names
 }

@@ -4,7 +4,6 @@
 package php
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
@@ -30,6 +29,7 @@ type phpParseState struct {
 	methodReturnTypes   map[string]map[string]string
 	functionReturnTypes map[string]string
 	importAliases       map[string]string
+	parents             *phpParentLookup
 	deadCodeFacts       phpDeadCodeFacts
 	deadCodeFunctions   []phpDeadCodeFunctionFact
 }
@@ -69,9 +69,11 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	}
 
 	root := tree.RootNode()
+	parents := buildPHPParentLookup(root)
 
 	// Phase 1: collect declarations, imports, type evidence, and dead-code
 	// facts so call and variable inference in phase 2 sees the whole file.
+	state.parents = parents
 	collectPHPDeclarations(state, root)
 
 	// Phase 2: emit variables and call rows that depend on the type evidence.
@@ -112,13 +114,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 
 // PreScan returns PHP function, class, trait, and interface names used by repository pre-scan.
 func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
-	payload, err := Parse(path, false, shared.Options{}, parser)
-	if err != nil {
-		return nil, err
-	}
-	names := shared.CollectBucketNames(payload, "functions", "classes", "traits", "interfaces")
-	slices.Sort(names)
-	return names, nil
+	return preScanNames(path, parser)
 }
 
 // collectPHPDeclarations walks the AST once to populate declaration buckets,

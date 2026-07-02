@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -256,13 +255,7 @@ func Parse(
 
 // PreScan returns Python names used by the collector import-map pre-scan.
 func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
-	payload, err := Parse(filepath.Dir(path), path, false, shared.Options{}, parser)
-	if err != nil {
-		return nil, err
-	}
-	names := collectBucketNames(payload, "functions", "classes", "modules")
-	slices.Sort(names)
-	return names, nil
+	return preScanNames(path, parser)
 }
 
 func pythonCallName(node *tree_sitter.Node, source []byte) string {
@@ -378,4 +371,4 @@ func pythonModuleScoped(node *tree_sitter.Node) bool {
 	return true
 }
 
-// sortNamedBucket and collectBucketNames live in payload_buckets.go.
+// sortNamedBucket lives in payload_buckets.go.
