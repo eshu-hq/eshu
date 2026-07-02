@@ -222,12 +222,23 @@ var uidConstraintLabels = []string{
 // performance for common access patterns.
 var schemaPerformanceIndexes = []string{
 	"CREATE INDEX function_lang IF NOT EXISTS FOR (f:Function) ON (f.lang)",
-	// Function edge retractions (shell_exec, invokes_cloud_action, and adjacent
-	// reducer-owned Function relationship domains) anchor cleanup by repo_id or
+	// Function and inheritance edge retractions anchor cleanup by repo_id or
 	// changed file path. Keep those cleanup passes index-backed on NornicDB
-	// instead of scanning every Function in large corpora.
+	// instead of scanning every code-entity label in large corpora.
 	"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
 	"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
+	"CREATE INDEX class_repo_id IF NOT EXISTS FOR (c:Class) ON (c.repo_id)",
+	"CREATE INDEX class_path IF NOT EXISTS FOR (c:Class) ON (c.path)",
+	"CREATE INDEX interface_repo_id IF NOT EXISTS FOR (i:Interface) ON (i.repo_id)",
+	"CREATE INDEX interface_path IF NOT EXISTS FOR (i:Interface) ON (i.path)",
+	"CREATE INDEX trait_repo_id IF NOT EXISTS FOR (t:Trait) ON (t.repo_id)",
+	"CREATE INDEX trait_path IF NOT EXISTS FOR (t:Trait) ON (t.path)",
+	"CREATE INDEX struct_repo_id IF NOT EXISTS FOR (s:Struct) ON (s.repo_id)",
+	"CREATE INDEX struct_path IF NOT EXISTS FOR (s:Struct) ON (s.path)",
+	"CREATE INDEX enum_repo_id IF NOT EXISTS FOR (e:Enum) ON (e.repo_id)",
+	"CREATE INDEX enum_path IF NOT EXISTS FOR (e:Enum) ON (e.path)",
+	"CREATE INDEX protocol_repo_id IF NOT EXISTS FOR (p:Protocol) ON (p.repo_id)",
+	"CREATE INDEX protocol_path IF NOT EXISTS FOR (p:Protocol) ON (p.path)",
 	"CREATE INDEX class_lang IF NOT EXISTS FOR (c:Class) ON (c.lang)",
 	"CREATE INDEX annotation_lang IF NOT EXISTS FOR (a:Annotation) ON (a.lang)",
 	"CREATE INDEX k8s_kind IF NOT EXISTS FOR (k:K8sResource) ON (k.kind)",
