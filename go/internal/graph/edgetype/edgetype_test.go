@@ -46,6 +46,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		HasRole:                            "HAS_ROLE",
 		HasTaintEvidence:                   "HAS_TAINT_EVIDENCE",
 		HasVersion:                         "HAS_VERSION",
+		HelmValueReference:                 "HELM_VALUE_REFERENCE",
 		Implements:                         "IMPLEMENTS",
 		Imports:                            "IMPORTS",
 		Indexes:                            "INDEXES",

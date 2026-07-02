@@ -40,14 +40,17 @@ the hot-path-by-location files this change touches
 No-Regression Evidence:
 
 - The edge is produced in the existing `structural_edges` projection phase
-  alongside the Atlantis/GitLab structural edges; it adds at most one UNWIND
-  MERGE (grouped) and one generation-guarded retract per chart, both bounded by
-  the `.Values` usage count in a single chart's templates. The retract runs as a
-  standalone autocommit statement (Drain-marked) rather than inside the grouped
-  ExecuteWrite transaction: an UNWIND relationship DELETE inside an explicit
-  transaction silently no-ops on commit (#4476), so autocommit is required for
-  the deletes to persist. No new worker, lease, batch, or concurrency knob is
-  introduced.
+  alongside the Atlantis/GitLab structural edges; it adds one UNWIND MERGE
+  (grouped), one generation-guarded dedicated-type retract, and one one-time
+  legacy-`REFERENCES` migration retract per chart, all bounded by the `.Values`
+  usage count in a single chart's templates and seeded by the indexed usage uid.
+  Both retracts run as standalone autocommit statements (Drain-marked) rather
+  than inside the grouped ExecuteWrite transaction: an UNWIND relationship DELETE
+  inside an explicit transaction silently no-ops on commit (#4476), so autocommit
+  is required for the deletes to persist. The legacy retract matches nothing once
+  an installation has converged to the dedicated type (the seed uid has no
+  `REFERENCES` out-edge), so it is cheap in steady state. No new worker, lease,
+  batch, or concurrency knob is introduced.
 - The builder (`helmTemplateValueEdgeStatements`) returns `nil` for any
   materialization with no `HelmTemplateValueUsage`/`HelmValueDefinition`
   entities, so non-Helm repos pay only a single map/slice scan already performed

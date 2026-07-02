@@ -25,17 +25,15 @@ import (
 // a single autocommit DELETE is fast — no LIMIT drain loop is needed here (that
 // is reserved for all-retract node phases via executeSequentialRetractPhase).
 //
-// When no drain reader is wired (some tests), Drain statements fall through to
-// the grouped path unchanged, matching prior behavior.
+// A Drain-marked statement is NEVER added to the grouped chunk, even when no
+// drain reader is wired: grouping the relationship DELETE with its sibling
+// upsert inside one ExecuteWrite transaction is exactly the no-op this PR fixes.
+// executeAutocommitRetract runs it outside the group in every case.
 func (e nornicDBPhaseGroupExecutor) executeGroupedChunksWithDrain(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
 	stmts []sourcecypher.Statement,
 ) error {
-	if e.drainReader == nil {
-		return e.executeGroupedChunks(ctx, ge, stmts, e.phaseGroupStatementLimit(stmts))
-	}
-
 	remaining := make([]sourcecypher.Statement, 0, len(stmts))
 	for i, stmt := range stmts {
 		if !stmt.Drain {
@@ -60,14 +58,28 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunksWithDrain(
 // (e.g. HELM_VALUE_REFERENCE), so one autocommit DELETE is fast and correct.
 // Autocommit is required: the same DELETE inside the grouped ExecuteWrite
 // transaction silently no-ops on commit (#4476).
+//
+// The statement is sanitized before it reaches the driver: canonical-write
+// statements carry `_eshu_*` phase metadata in their parameters, and the
+// sanitize contract warns those unreferenced keys can make NornicDB deletes
+// no-op. The original (unsanitized) statement is retained for the drift-retract
+// telemetry, which reads that metadata to classify the statement.
 func (e nornicDBPhaseGroupExecutor) executeAutocommitRetract(
 	ctx context.Context,
 	stmt sourcecypher.Statement,
 	stmtIdx, stmtTotal int,
 	statementSummary string,
 ) error {
+	sanitized := sanitizedStatement(stmt)
+	if e.drainReader == nil {
+		// No RunWrite-capable executor is wired (some tests / non-Bolt
+		// executors). Run the retract as its own statement through the inner
+		// executor so it is still never batched with the sibling upsert;
+		// correctness does not depend on drainReader being present.
+		return e.inner.Execute(ctx, sanitized)
+	}
 	start := time.Now()
-	result, err := e.drainReader.RunWrite(ctx, stmt.Cypher, stmt.Parameters)
+	result, err := e.drainReader.RunWrite(ctx, sanitized.Cypher, sanitized.Parameters)
 	if err != nil {
 		return fmt.Errorf(
 			"phase-group autocommit retract statement %d/%d (duration=%s, first_statement=%q): %w",

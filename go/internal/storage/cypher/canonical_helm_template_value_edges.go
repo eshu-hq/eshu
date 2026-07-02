@@ -61,7 +61,27 @@ SET r.evidence_source = 'projector/canonical',
 const retractHelmTemplateValueReferenceEdgesCypher = `UNWIND $source_uids AS uid
 MATCH (u:HelmTemplateValueUsage {uid: uid})-[r:HELM_VALUE_REFERENCE]->(:HelmValueDefinition)
 WHERE r.evidence_source = 'projector/canonical'
+  AND r.call_kind = 'helm_template_value_reference'
   AND r.generation_id <> $generation_id
+DELETE r`
+
+// retractLegacyHelmReferenceEdgesCypher removes Helm template-value edges that a
+// pre-#4476 release wrote on the SHARED REFERENCES type (before this edge moved
+// to the dedicated HELM_VALUE_REFERENCE type). On an in-place upgrade those old
+// edges survive: entity_retract does not remove them because both endpoint nodes
+// are re-upserted into the current generation, and the new-type retract only
+// touches HELM_VALUE_REFERENCE. This one-time migration deletes every REFERENCES
+// edge carrying the helm_template_value_reference call_kind (all of which are
+// legacy — the current writer never emits that verb on the REFERENCES type), so
+// upgraded installations converge to the dedicated type without a clean rebuild.
+// It is scoped to this materialization's usage source uids (indexed seed) and,
+// once the legacy edges are gone, matches nothing and is cheap. Not
+// generation-guarded: every such edge is legacy and must be removed regardless
+// of generation. Drain-marked so it runs autocommit (an UNWIND relationship
+// DELETE no-ops inside the grouped ExecuteWrite transaction, #4476).
+const retractLegacyHelmReferenceEdgesCypher = `UNWIND $source_uids AS uid
+MATCH (u:HelmTemplateValueUsage {uid: uid})-[r:REFERENCES]->(:HelmValueDefinition)
+WHERE r.call_kind = 'helm_template_value_reference'
 DELETE r`
 
 // helmTemplateValueEntity is one Helm template-value content entity (a usage or a
@@ -140,6 +160,19 @@ func helmTemplateValueEdgeStatements(mat projector.CanonicalMaterialization) []S
 	// the writer, so emitting the retract first guarantees it executes before the
 	// MERGE in the same structural_edges phase.
 	if sourceUIDs := helmTemplateValueSourceUIDs(rows); len(sourceUIDs) > 0 {
+		// One-time upgrade migration: drop any legacy Helm edges written on the
+		// shared REFERENCES type by a pre-#4476 release, before the new-type
+		// retract/MERGE. Drain-marked (autocommit) and emitted first so it runs
+		// before the dedicated-type writes in the same phase; matches nothing
+		// once an installation has converged to HELM_VALUE_REFERENCE.
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractLegacyHelmReferenceEdgesCypher,
+			Parameters: map[string]any{
+				"source_uids": sourceUIDs,
+			},
+			Drain: true,
+		})
 		stmts = append(stmts, Statement{
 			Operation: OperationCanonicalRetract,
 			Cypher:    retractHelmTemplateValueReferenceEdgesCypher,
