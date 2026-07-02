@@ -119,7 +119,7 @@ held time for large repositories.
 | `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `60s` | reducer repo-dependency sidecar | Lease TTL. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` | reducer repo-dependency sidecar | Claim batch size. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER` | `repo-dependency-projection-runner` | reducer repo-dependency sidecar | Lease owner name. |
-| `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` | `false` | reducer repo-dependency sidecar | Diagnostic-only switch that executes repo-dependency retract cleanup as timed `repository_relationship_edges`, `runs_on_relationships`, and `evidence_artifacts` statements; leave disabled for production grouped retracts. |
+| `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` | `false` | reducer repo-dependency sidecar | Diagnostic-only switch that bypasses the grouped transaction and logs timed `repository_relationship_edges`, `runs_on_relationships`, and `evidence_artifacts` statements; leave disabled for production grouped retracts. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_POLL_INTERVAL` | `1s` | reducer repairer | Poll interval for graph projection phase repair. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` | reducer repairer | Repair rows per batch. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` | reducer repairer | Delay before retrying repair. |

@@ -199,10 +199,11 @@ never deferred, so the backlog cannot stall.
 
 `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING=true` is a diagnostic-only
 switch for bounded performance proof runs. The production default remains the
-grouped retract transaction. When the switch is true, the reducer executes the
-`repo_dependency` retract cleanup as three timed statements and logs
-per-statement durations for `repository_relationship_edges`,
-`runs_on_relationships`, and `evidence_artifacts`.
+grouped retract transaction, now containing separate
+`repository_relationship_edges`, `runs_on_relationships`, and
+`evidence_artifacts` statements so single-repo relationship deletes can use the
+bound-delete Cypher shape. When the switch is true, the reducer bypasses the
+group and logs per-statement durations for the same three roles.
 
 ### Edge writers
 

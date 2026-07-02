@@ -147,15 +147,6 @@ func buildRetractStatement(
 	evidenceSource string,
 ) (Statement, error) {
 	switch domain {
-	case reducer.DomainRepoDependency:
-		return Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    retractRepoRelationshipAndRunsOnEdgesCypher,
-			Parameters: map[string]any{
-				"repo_ids":        repoIDs,
-				"evidence_source": evidenceSource,
-			},
-		}, nil
 	case reducer.DomainWorkloadDependency:
 		return BuildRetractWorkloadDependencyEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainCodeCalls:

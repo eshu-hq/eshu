@@ -70,13 +70,9 @@ func TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys(t *testing.T) {
 	}
 	foundRepoA := false
 	for _, stmt := range executor.groupCalls[0] {
-		repoIDs, ok := stmt.Parameters["repo_ids"].([]string)
-		if !ok {
-			continue
-		}
-		for _, id := range repoIDs {
+		for _, id := range statementRepoAnchorIDs(stmt) {
 			if id == "edge-gen1" {
-				t.Fatalf("retract keyed on opaque edge key edge-gen1: %v", repoIDs)
+				t.Fatalf("retract keyed on opaque edge key edge-gen1: %#v", stmt.Parameters)
 			}
 			if id == "repo-a" {
 				foundRepoA = true
