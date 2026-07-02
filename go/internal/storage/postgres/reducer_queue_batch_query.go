@@ -4,8 +4,8 @@
 package postgres
 
 var claimReducerWorkBatchQuery = `
-WITH ` + supersedeInactiveReducerGenerationsCTE + `,
-` + reducerClaimReadinessRequirementsCTE() + `,
+WITH ` + reducerClaimReadinessRequirementsCTE() + `,
+` + supersedeInactiveReducerGenerationsCTE + `,
 reducer_source_inflight AS (
     SELECT
         COALESCE(NULLIF(BTRIM(payload->>'source_system'), ''), 'unknown') AS reducer_source_system,

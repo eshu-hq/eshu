@@ -4,8 +4,8 @@
 package postgres
 
 var claimReducerWorkQuery = `
-WITH ` + supersedeInactiveReducerGenerationsCTE + `,
-` + reducerClaimReadinessRequirementsCTE() + `,
+WITH ` + reducerClaimReadinessRequirementsCTE() + `,
+` + supersedeInactiveReducerGenerationsCTE + `,
 candidate AS (
     SELECT work_item_id
     FROM fact_work_items

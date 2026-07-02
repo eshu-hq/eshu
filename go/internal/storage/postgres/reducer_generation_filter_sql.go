@@ -38,7 +38,28 @@ active_fact_work_items AS (
 // supersedeInactiveReducerGenerationsCTE terminalizes unleased older-generation
 // reducer rows during claim so audit history remains durable without letting
 // obsolete work keep readiness in progress forever.
-const supersedeInactiveReducerGenerationsCTE = `
+//
+// A readiness-gated domain (reducer_claim_readiness_requirements) must NOT be
+// superseded while its required canonical-node phase is still unmet
+// (#4445/A2): 'superseded' is a terminal, unreplayable status (only
+// status='succeeded' rows are reopened by ReopenSucceeded/ReplayDomain), so
+// superseding a row whose readiness gate never opened permanently drops that
+// materialization intent and produces incomplete graph output for the
+// domain. The trailing readiness-gate predicate mirrors
+// reducerClaimReadinessGateSQL: it holds a stale row out of the supersede
+// sweep for exactly as long as the outer candidate CTE would also refuse to
+// claim it on readiness grounds, so a stale row becomes supersede-eligible
+// the moment (and not before) its domain's readiness would independently
+// allow a claim. Domains with no readiness requirement row are unaffected —
+// the NOT EXISTS is vacuously true for them, preserving today's
+// generation-ordering-only behavior.
+//
+// This CTE must be declared AFTER reducerClaimReadinessRequirementsCTE in the
+// enclosing WITH clause so the readiness-gate predicate below can reference
+// reducer_claim_readiness_requirements; Postgres CTEs may only reference
+// earlier siblings in the same WITH list (barring RECURSIVE, which is not
+// used here).
+var supersedeInactiveReducerGenerationsCTE = `
 superseded_stale_reducer_generations AS (
     UPDATE fact_work_items AS stale
     SET status = 'superseded',
@@ -76,6 +97,7 @@ superseded_stale_reducer_generations AS (
           AND stale_generation.generation_id < active_generation.generation_id
         )
       )
+      AND ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
     RETURNING stale.work_item_id
 )
 `
