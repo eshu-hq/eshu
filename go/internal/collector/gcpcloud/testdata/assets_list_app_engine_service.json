@@ -1,0 +1,25 @@
+{
+  "readTime": "2026-07-01T00:00:00Z",
+  "assets": [
+    {
+      "name": "//appengine.googleapis.com/apps/demo-project/services/default",
+      "assetType": "appengine.googleapis.com/Service",
+      "updateTime": "2026-06-30T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "apps/demo-project/services/default",
+          "id": "default",
+          "split": {
+            "shardBy": "IP",
+            "allocations": {
+              "v1": 0.7,
+              "v2": 0.3
+            }
+          }
+        }
+      }
+    }
+  ]
+}
