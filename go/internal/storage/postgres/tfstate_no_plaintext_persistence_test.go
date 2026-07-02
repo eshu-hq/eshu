@@ -151,7 +151,7 @@ func TestTerraformStateClaimedCommitDoesNotPersistPlaintextSecrets(t *testing.T)
 		t.Fatal("transaction committed = false, want true")
 	}
 
-	assertExecArgsDoNotContain(t, db.tx.execs, []string{
+	assertExecArgsDoNotContain(t, persistedArgLists(db.tx.execs, db.tx.queries), []string{
 		statePathToken,
 		outputSecret,
 		attributeSecret,
@@ -172,16 +172,34 @@ func writeNoPlaintextState(t *testing.T, pathToken string, content string) strin
 	return path
 }
 
-func assertExecArgsDoNotContain(t *testing.T, execs []fakeExecCall, needles []string) {
+// persistedArgLists flattens execs and queries into one ordered list of
+// argument lists so plaintext-persistence assertions can scan every value the
+// production code sent to Postgres, regardless of whether the statement ran
+// through ExecContext or QueryContext. The fact_records upsert runs as a
+// query (INSERT ... RETURNING fact_id, issue #4444 review, codex P1), so a
+// redaction proof that only scanned execs would silently stop covering the
+// fact payload.
+func persistedArgLists(execs []fakeExecCall, queries []fakeQueryCall) [][]any {
+	argLists := make([][]any, 0, len(execs)+len(queries))
+	for _, exec := range execs {
+		argLists = append(argLists, exec.args)
+	}
+	for _, query := range queries {
+		argLists = append(argLists, query.args)
+	}
+	return argLists
+}
+
+func assertExecArgsDoNotContain(t *testing.T, argLists [][]any, needles []string) {
 	t.Helper()
-	for execIndex, exec := range execs {
-		for argIndex, arg := range exec.args {
+	for listIndex, args := range argLists {
+		for argIndex, arg := range args {
 			text := persistedArgText(arg)
 			for _, needle := range needles {
 				if strings.Contains(text, needle) {
 					t.Fatalf(
-						"exec[%d].args[%d] persisted plaintext %q in %s",
-						execIndex,
+						"call[%d].args[%d] persisted plaintext %q in %s",
+						listIndex,
 						argIndex,
 						needle,
 						text,

@@ -198,6 +198,12 @@ func (f *fakeExecQueryer) QueryContext(
 			query == semanticQueueOldestAgeQuery {
 			return &queueFakeRows{}, nil
 		}
+		if strings.Contains(query, "INSERT INTO fact_records") && strings.Contains(query, "RETURNING fact_id") {
+			// Default: every fact_id in the batch is accepted (no fencing
+			// conflict). Tests simulating a fenced-out fact_id stage an explicit
+			// queryResponses entry instead.
+			return &queueFakeRows{rows: fakeAcceptedFactIDRows(args)}, nil
+		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 

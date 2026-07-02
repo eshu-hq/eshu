@@ -106,12 +106,19 @@ func TestIngestionStoreCommitScopeGenerationSkipsRelationshipBackfillWhenConfigu
 	// Issue #3481/#3521: the repository catalog loads through the shared cache,
 	// and the cold load runs on the OPEN ingestion transaction's connection (so a
 	// single-connection pool cannot deadlock). With backfill skipped the only
-	// transaction read is that catalog load, and the base connection issues none.
-	if got, want := len(db.tx.queries), 1; got != want {
+	// transaction reads are that catalog load and the fact_records upsert's
+	// RETURNING fact_id query (issue #4444 review, codex P1 — the upsert must
+	// run as a query so upsertFactBatchReturningAccepted can learn which
+	// fact_ids the fencing_token guard accepted); the base connection issues
+	// none of either.
+	if got, want := len(db.tx.queries), 2; got != want {
 		t.Fatalf("transaction query count = %d, want %d", got, want)
 	}
 	if !strings.Contains(db.tx.queries[0].query, "fact_kind = 'repository'") {
-		t.Fatalf("transaction query = %q, want repository catalog load only", db.tx.queries[0].query)
+		t.Fatalf("transaction query[0] = %q, want repository catalog load first", db.tx.queries[0].query)
+	}
+	if !strings.Contains(db.tx.queries[1].query, "INSERT INTO fact_records") {
+		t.Fatalf("transaction query[1] = %q, want fact_records upsert", db.tx.queries[1].query)
 	}
 	if got, want := len(db.queries), 0; got != want {
 		t.Fatalf("base connection query count = %d, want %d (catalog must not use a second connection)", got, want)

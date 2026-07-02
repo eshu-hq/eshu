@@ -119,42 +119,6 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		}
 		tx.state.generations[generation.GenerationID] = generation
 		return proofResult{}, nil
-	case strings.Contains(query, "INSERT INTO fact_records"):
-		// Batch INSERT: args contains N * columnsPerFactRow parameters.
-		if len(args)%columnsPerFactRow != 0 {
-			return nil, fmt.Errorf("fact batch args = %d, not a multiple of %d", len(args), columnsPerFactRow)
-		}
-		for off := 0; off < len(args); off += columnsPerFactRow {
-			a := args[off : off+columnsPerFactRow]
-			payload, err := unmarshalPayload(a[16].([]byte))
-			if err != nil {
-				return nil, err
-			}
-			envelope := facts.Envelope{
-				FactID:           a[0].(string),
-				ScopeID:          a[1].(string),
-				GenerationID:     a[2].(string),
-				FactKind:         a[3].(string),
-				StableFactKey:    a[4].(string),
-				SchemaVersion:    a[5].(string),
-				CollectorKind:    a[6].(string),
-				FencingToken:     a[7].(int64),
-				SourceConfidence: a[8].(string),
-				ObservedAt:       a[13].(time.Time).UTC(),
-				IsTombstone:      a[15].(bool),
-				Payload:          payload,
-				SourceRef: facts.Ref{
-					SourceSystem:   a[9].(string),
-					ScopeID:        a[1].(string),
-					GenerationID:   a[2].(string),
-					FactKey:        a[10].(string),
-					SourceURI:      stringFromAny(a[11]),
-					SourceRecordID: stringFromAny(a[12]),
-				},
-			}
-			tx.state.facts[envelope.FactID] = envelope
-		}
-		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO fact_work_items") && strings.Contains(query, "'projector'"):
 		workItemID := args[0].(string)
 		if _, exists := tx.state.workItems[workItemID]; exists {
@@ -200,9 +164,68 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 		return newProofRows(proofLatestRelationshipFactRows(tx.state)), nil
 	case strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'"):
 		return newProofRows(proofRepositoryCatalogRows(tx.state.facts)), nil
+	case strings.Contains(query, "INSERT INTO fact_records") && strings.Contains(query, "RETURNING fact_id"):
+		accepted, err := proofUpsertFactRecordsReturningAccepted(tx.state.facts, args)
+		if err != nil {
+			return nil, err
+		}
+		return newProofRows(accepted), nil
 	default:
 		return nil, errors.New("unexpected query in transaction")
 	}
+}
+
+// proofUpsertFactRecordsReturningAccepted simulates the production
+// upsertFactBatchSuffixReturningFactID upsert against the in-memory proof
+// state: a fact_id is accepted (returned) when it is new or its incoming
+// fencing_token is >= the currently stored token, mirroring
+// "WHERE fact_records.fencing_token <= EXCLUDED.fencing_token" (issue #4444).
+// A fenced-out fact_id is neither written to state.facts nor returned, so
+// callers that filter afterBatch by the returned set see the same
+// derived-evidence behavior the real guarded UPSERT produces.
+func proofUpsertFactRecordsReturningAccepted(state map[string]facts.Envelope, args []any) ([][]any, error) {
+	if len(args)%columnsPerFactRow != 0 {
+		return nil, fmt.Errorf("fact batch args = %d, not a multiple of %d", len(args), columnsPerFactRow)
+	}
+
+	var accepted [][]any
+	for off := 0; off < len(args); off += columnsPerFactRow {
+		a := args[off : off+columnsPerFactRow]
+		payload, err := unmarshalPayload(a[16].([]byte))
+		if err != nil {
+			return nil, err
+		}
+		envelope := facts.Envelope{
+			FactID:           a[0].(string),
+			ScopeID:          a[1].(string),
+			GenerationID:     a[2].(string),
+			FactKind:         a[3].(string),
+			StableFactKey:    a[4].(string),
+			SchemaVersion:    a[5].(string),
+			CollectorKind:    a[6].(string),
+			FencingToken:     a[7].(int64),
+			SourceConfidence: a[8].(string),
+			ObservedAt:       a[13].(time.Time).UTC(),
+			IsTombstone:      a[15].(bool),
+			Payload:          payload,
+			SourceRef: facts.Ref{
+				SourceSystem:   a[9].(string),
+				ScopeID:        a[1].(string),
+				GenerationID:   a[2].(string),
+				FactKey:        a[10].(string),
+				SourceURI:      stringFromAny(a[11]),
+				SourceRecordID: stringFromAny(a[12]),
+			},
+		}
+
+		if existing, ok := state[envelope.FactID]; ok && existing.FencingToken > envelope.FencingToken {
+			continue // fenced out: stale fencing_token loses the WHERE guard
+		}
+		state[envelope.FactID] = envelope
+		accepted = append(accepted, []any{envelope.FactID})
+	}
+
+	return accepted, nil
 }
 
 func (tx *proofDomainTx) Commit() error {

@@ -54,8 +54,14 @@ func TestIngestionStoreCommitClaimedScopeGenerationLocksTenantGrantBeforeFactWri
 	if got := db.tx.execs[0].query; !strings.Contains(got, "workflow_claims") {
 		t.Fatalf("first exec query = %q, want heartbeat claim fence before grant lock", got)
 	}
-	if got := db.tx.execs[4].query; !strings.Contains(got, "INSERT INTO fact_records") {
-		t.Fatalf("fifth exec query = %q, want fact write after grant lock and maintenance barrier", got)
+	// The fact_records upsert runs as a query (INSERT ... RETURNING fact_id),
+	// not a plain exec, so upsertFactBatchReturningAccepted can learn which
+	// fact_ids the fencing_token guard accepted (issue #4444 review, codex P1).
+	// It is the last query recorded on the transaction, after the grant lock
+	// and maintenance barrier execs.
+	lastQuery := db.tx.queries[len(db.tx.queries)-1]
+	if !strings.Contains(lastQuery.query, "INSERT INTO fact_records") {
+		t.Fatalf("last transaction query = %q, want fact write after grant lock and maintenance barrier", lastQuery.query)
 	}
 	if !db.tx.committed {
 		t.Fatal("transaction committed = false, want true")
