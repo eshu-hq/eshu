@@ -114,6 +114,38 @@
 
 ## Evidence notes
 
+No-Regression Evidence: #4444 review (codex P1) changes upsertStreamingFacts's
+write call from upsertFactBatch (ExecContext) to upsertFactBatchReturningAccepted
+(QueryContext with a RETURNING fact_id clause appended to the existing
+ON CONFLICT ... WHERE fencing_token <= EXCLUDED.fencing_token guard), so
+afterBatch's repository-catalog and relationship-evidence derivation only sees
+envelopes whose fact_records write actually accepted. Baseline: before this
+change, a fenced-out stale batch's payload still reached afterBatch and could
+insert stale relationship_evidence_facts rows in the same transaction even
+though its fact_records row was correctly rejected. After: filterAcceptedEnvelopes
+narrows every batch to the RETURNING-reported accepted set before afterBatch
+runs. Backend/proof shape: local Go unit tests
+(`go test ./internal/storage/postgres -count=1`, 1199 passed, no regression
+across the whole package) plus a live-Postgres two-sided proof —
+`postgres:16-alpine` throwaway container,
+`go test ./internal/storage/postgres -run
+'TestUpsertFactBatchCrossBatchFencingTokenGuard|TestIngestionStoreCommitScopeGenerationFencesDerivedRelationshipEvidence'
+-v -count=1` — reproduces the pre-fix leak (both repo-target-a and
+repo-target-b evidence rows land after a stale second commit) and proves the
+post-fix guard (only repo-target-a remains). The write shape adds one
+RETURNING clause to an existing primary-key-scoped ON CONFLICT statement; no
+new query, index, batch size, or worker/lease/concurrency knob changes. The
+non-streaming upsertFactBatch/upsertFacts path (no afterBatch consumer) is
+byte-identical to before.
+
+No-Observability-Change: #4444 adds no new metric, span, log key, route,
+worker, lease, or runtime knob. The fact_records upsert is still covered by
+the existing `eshu_dp_postgres_query_duration_seconds` Postgres query-span
+instrumentation regardless of whether the statement runs through ExecContext
+or QueryContext; operators diagnose fencing/derived-evidence correctness
+through the same row-shape truth (fencing_token, payload,
+relationship_evidence_facts) the new tests assert directly.
+
 No-Regression Evidence: #2718 code reachability watermarks use the
 repository-generation row key `(scope_id, generation_id, repository_id)`.
 `go test ./internal/reducer -run 'CodeReachabilityProjectionRunner' -count=1`
