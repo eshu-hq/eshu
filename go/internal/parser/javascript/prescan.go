@@ -71,7 +71,7 @@ func javaScriptPreScanNames(root *tree_sitter.Node, source []byte, outputLanguag
 }
 
 func appendPreScanName(names []string, node *tree_sitter.Node, source []byte) []string {
-	name := strings.TrimSpace(nodeText(node, source))
+	name := strings.TrimSpace(javaScriptFunctionName(node, source))
 	if name == "" {
 		return names
 	}

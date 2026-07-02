@@ -18,6 +18,7 @@ func TestPreScanMatchesParseDeclarationNames(t *testing.T) {
 		file string
 		body string
 		keys []string
+		want []string
 	}{
 		{
 			name: "javascript",
@@ -25,12 +26,16 @@ func TestPreScanMatchesParseDeclarationNames(t *testing.T) {
 			body: `class Greeter {}
 function hello() {}
 const world = () => world;
-const handlers = { onStart() {}, onStop: function onStop() {} };
-module.exports.encode = async data => String(data);
-exports.decorate = function decorate(value) { return value; };
-export default function exported() {}
-`,
+	const handlers = { onStart() {}, onStop: function onStop() {} };
+	const computedHandlers = { ['health']: () => true, ["ready"]: function ready() {} };
+	module.exports.encode = async data => String(data);
+	module.exports['validate'] = function validate(data) { return Boolean(data); };
+	exports.decorate = function decorate(value) { return value; };
+	exports['build'] = () => ({ ok: true });
+	export default function exported() {}
+			`,
 			keys: []string{"functions", "classes"},
+			want: []string{"build", "health", "ready", "validate"},
 		},
 		{
 			name: "typescript",
@@ -97,6 +102,11 @@ def hello(name):
 				t.Fatalf("ParsePath() error = %v, want nil", err)
 			}
 			want := prescanMapFromPayload(sourcePath, payload, tt.keys...)
+			for _, name := range tt.want {
+				if _, ok := want[name]; !ok {
+					t.Fatalf("ParsePath() declaration names missing %q in %#v", name, want)
+				}
+			}
 
 			got, err := engine.PreScanRepositoryPaths(repoRoot, []string{sourcePath})
 			if err != nil {

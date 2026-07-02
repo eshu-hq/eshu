@@ -194,22 +194,32 @@ func javaScriptIsCommonJSMixinExport(node *tree_sitter.Node, name string, source
 }
 
 func javaScriptCommonJSExportName(node *tree_sitter.Node, source []byte) string {
-	if node == nil || node.Kind() != "member_expression" {
+	if node == nil {
 		return ""
 	}
-	objectNode := node.ChildByFieldName("object")
-	propertyNode := node.ChildByFieldName("property")
+	objectNode, propertyNode := javaScriptCommonJSExportTargetNodes(node)
 	if objectNode == nil || propertyNode == nil {
 		return ""
 	}
 	objectText := strings.TrimSpace(nodeText(objectNode, source))
 	switch {
 	case objectText == "module.exports" || strings.HasPrefix(objectText, "module.exports."):
-		return javaScriptIdentifierName(propertyNode, source)
+		return javaScriptFunctionName(propertyNode, source)
 	case objectText == "exports" || strings.HasPrefix(objectText, "exports."):
-		return javaScriptIdentifierName(propertyNode, source)
+		return javaScriptFunctionName(propertyNode, source)
 	default:
 		return ""
+	}
+}
+
+func javaScriptCommonJSExportTargetNodes(node *tree_sitter.Node) (*tree_sitter.Node, *tree_sitter.Node) {
+	switch node.Kind() {
+	case "member_expression":
+		return node.ChildByFieldName("object"), node.ChildByFieldName("property")
+	case "subscript_expression":
+		return node.ChildByFieldName("object"), node.ChildByFieldName("index")
+	default:
+		return nil, nil
 	}
 }
 
@@ -228,16 +238,16 @@ func javaScriptCommonJSAliasTargetName(node *tree_sitter.Node, source []byte) st
 	if strings.TrimSpace(nodeText(objectNode, source)) != "module.exports" {
 		return ""
 	}
-	return javaScriptIdentifierName(propertyNode, source)
+	return javaScriptFunctionName(propertyNode, source)
 }
 
 func javaScriptExportAssignmentNameNode(node *tree_sitter.Node, source []byte) *tree_sitter.Node {
-	if node == nil || node.Kind() != "member_expression" {
+	if node == nil {
 		return nil
 	}
 	if javaScriptCommonJSExportName(node, source) == "" {
 		return nil
 	}
-	propertyNode := node.ChildByFieldName("property")
+	_, propertyNode := javaScriptCommonJSExportTargetNodes(node)
 	return cloneNode(propertyNode)
 }

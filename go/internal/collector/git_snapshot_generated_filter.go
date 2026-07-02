@@ -164,9 +164,24 @@ func isVendoredAurigmaFile(path string) bool {
 	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
 		return false
 	}
+	normalizedPath := strings.ToLower(filepath.ToSlash(path))
+	if !strings.Contains(normalizedPath, "/aurigma/") {
+		return false
+	}
 	name := strings.ToLower(filepath.Base(path))
-	return strings.HasPrefix(name, "aurigma.htmluploader.") ||
-		strings.HasPrefix(name, "aurigma.imageuploader")
+	prefix, ok := javascriptFilePrefix(path, vendoredBrowserLibraryPrefixBytes)
+	if !ok {
+		return false
+	}
+	normalizedPrefix := strings.ToLower(prefix)
+	switch {
+	case strings.HasPrefix(name, "aurigma.htmluploader."):
+		return strings.Contains(normalizedPrefix, "htmluploadercontrol")
+	case strings.HasPrefix(name, "aurigma.imageuploader"):
+		return strings.Contains(normalizedPrefix, "imageuploaderflash")
+	default:
+		return false
+	}
 }
 
 func isVendoredPHPCASFile(path string) bool {
@@ -214,7 +229,7 @@ func isVendoredBrowserLibraryFile(path string) bool {
 	case name == "jquery.js" || name == "jquery-ui.js":
 		return true
 	case strings.HasPrefix(name, "jquery.") || strings.HasPrefix(name, "jquery-"):
-		return true
+		return hasVendoredBrowserLibrarySignature(path)
 	case strings.HasPrefix(name, "galleria") && strings.HasSuffix(name, ".js"):
 		return true
 	case strings.HasPrefix(name, "shadowbox") && strings.HasSuffix(name, ".js"):

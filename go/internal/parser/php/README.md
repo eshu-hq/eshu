@@ -73,10 +73,10 @@ Performance Evidence: remote collector-discovered five-repo parse profiling
 on 2026-07-02, with 16 parse workers and NornicDB PR #230 backend bits,
 measured PHP parser parent lookup before/after on the same corpus slice. The
 sum of per-file parse durations across the five profiled repositories fell from
-`65570.959 ms` to `48307.175 ms`; PHP in `ycweb_v2` fell from `24870.458 ms`
-to `11293.407 ms` (-54.6%), PHP in `revolutionyachtgroup` fell from
-`6288.188 ms` to `3436.674 ms` (-45.3%), and PHP in
-`portal-boattrader-zf1` fell from `4583.049 ms` to `3685.342 ms` (-19.6%).
+`65570.959 ms` to `48307.175 ms`. The three largest PHP-heavy repositories in
+that slice improved from `24870.458 ms` to `11293.407 ms` (-54.6%),
+`6288.188 ms` to `3436.674 ms` (-45.3%), and `4583.049 ms` to `3685.342 ms`
+(-19.6%).
 `TestPHPParentLookupEliminatesScopeContextParentCgoCrossings` proves the
 production scope/context helpers preserve `Node.Parent()` identity while
 reducing cgo crossings on the regression fixture from `31512` to `16726`.

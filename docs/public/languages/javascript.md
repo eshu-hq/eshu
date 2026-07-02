@@ -24,7 +24,7 @@ Detailed parser mechanics live in `go/internal/parser/README.md` and
 | Framework and package roots | Node package entrypoints, CommonJS exports, Next.js routes/app exports, Express, Koa, Fastify, NestJS, Hapi, AMQP consumers, migration exports, and seed-style execute functions. |
 | Graph-backed queries | `code/language-query`, `code/search`, `entities/resolve`, entity-context, `code/call-chain`, `code/relationships`, `code/complexity`, and dead-code responses preserve JavaScript semantic metadata when graph or content rows carry it. |
 | Semantic metadata | JSDoc, generator signal, getter/setter/async method kind, semantic summaries, `semantic_profile`, and `javascript_semantics`. |
-| Repository pre-scan | Function and class names, function-valued object members, and CommonJS property export assignments such as `module.exports.name = ...` and `exports.name = ...` feed the deterministic import map used by reducer code-call resolution. |
+| Repository pre-scan | Function and class names, function-valued object members, static computed object keys, and CommonJS property or subscript export assignments such as `module.exports.name = ...`, `module.exports['name'] = ...`, and `exports.name = ...` feed the deterministic import map used by reducer code-call resolution. |
 
 ## Capability Claim Ledger
 

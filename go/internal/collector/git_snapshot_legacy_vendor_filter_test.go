@@ -16,8 +16,11 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 	repoRoot := t.TempDir()
 	writeCollectorTestFile(t, filepath.Join(repoRoot, ".git", "HEAD"), "ref: refs/heads/main\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "jquery_adapter.js"), "export function adaptJQuery() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "jquery.analytics.js"), "export function authoredJQueryAnalytics() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "jquery-payments.js"), "export function authoredJQueryPayments() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "bootstrap.js"), "export function bootstrapApplication() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "aurigma", "aurigma.custom.js"), "export function authoredUploader() { return true; }\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "aurigma.htmluploader.analytics.js"), "export function authoredAurigmaAnalytics() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "mapcontrol.js"), "export function mapControl() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "plupload", "js", "plupload.app.js"), "export function authoredPluploadIntegration() { return true; }\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "less.js"), "export function compileProjectLess() { return true; }\n")
@@ -71,15 +74,18 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 		t.Fatalf("resolveNativeSnapshotFileSet() error = %v", err)
 	}
 
-	if got, want := len(fileSet.Files), 10; got != want {
+	if got, want := len(fileSet.Files), 13; got != want {
 		t.Fatalf("file count = %d, want %d; files=%v", got, want, fileSet.Files)
 	}
 	for _, wantSuffix := range []string{
 		"src/aurigma/aurigma.custom.js",
+		"src/aurigma.htmluploader.analytics.js",
 		"src/bootstrap.js",
 		"src/camera.js",
 		"src/jssor.slider.js",
+		"src/jquery.analytics.js",
 		"src/jquery_adapter.js",
+		"src/jquery-payments.js",
 		"src/less.js",
 		"src/mapcontrol.js",
 		"src/mootools.js",
