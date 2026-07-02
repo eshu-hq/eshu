@@ -314,26 +314,34 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 	}
 
 	execCtx, stopHeartbeat := s.startHeartbeat(ctx, intent, workerID)
+	var stopOnce sync.Once
+	var stopHeartbeatErr error
+	stopHeartbeatOnce := func() error {
+		stopOnce.Do(func() { stopHeartbeatErr = stopHeartbeat() })
+		return stopHeartbeatErr
+	}
 	defer func() {
-		_ = stopHeartbeat()
+		_ = stopHeartbeatOnce()
 	}()
 
 	// If the immediate pre-heartbeat already failed, startHeartbeat cancelled
 	// execCtx before returning it, and no handler work has run yet. Detect
 	// that via execCtx.Err() rather than calling stopHeartbeat() here: the
-	// stop function is a single-shot (sync.Once) close over the heartbeat
-	// goroutine, and calling it before Executor.Execute would tear down a
-	// healthy periodic heartbeat loop before the handler ever starts. Do not
-	// call Executor.Execute (it would only observe the cancellation and
-	// return context.Canceled) and do not route through WorkSink.Fail:
-	// neither IsRetryable nor the dead-letter triage path knows this claim
-	// never started real work, so Fail here can wrongly dead-letter an intent
-	// that simply lost its lease before starting. Leaving the lease
-	// unrenewed lets the expired-lease reclaim path (#4464) pick it back up
-	// (#4447 follow-up).
+	// stop function is a single-shot close over the heartbeat goroutine, and
+	// calling it before Executor.Execute would tear down a healthy periodic
+	// heartbeat loop before the handler ever starts. stopHeartbeatOnce above
+	// caches the first call's result so every call site below -- this one
+	// included -- observes the same error instead of losing it to a second,
+	// no-op call. Do not call Executor.Execute (it would only observe the
+	// cancellation and return context.Canceled) and do not route through
+	// WorkSink.Fail: neither IsRetryable nor the dead-letter triage path
+	// knows this claim never started real work, so Fail here can wrongly
+	// dead-letter an intent that simply lost its lease before starting.
+	// Leaving the lease unrenewed lets the expired-lease reclaim path
+	// (#4464) pick it back up (#4447 follow-up).
 	if execCtx.Err() != nil {
 		var preFailure *reducerPreHeartbeatFailure
-		err := stopHeartbeat()
+		err := stopHeartbeatOnce()
 		if errors.As(err, &preFailure) {
 			duration := time.Since(start).Seconds()
 			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_before_start", workerID, err)
@@ -346,7 +354,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 	status := "succeeded"
 
 	if err != nil {
-		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+		if heartbeatErr := stopHeartbeatOnce(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}
 		status = "failed"
@@ -361,7 +369,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 		status = "superseded"
 	}
 
-	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+	if heartbeatErr := stopHeartbeatOnce(); heartbeatErr != nil {
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
 		return fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
