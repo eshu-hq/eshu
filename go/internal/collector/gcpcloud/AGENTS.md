@@ -91,6 +91,13 @@
    `dnsName` and forwarding target-name-server IPs/hostnames never leave the
    parser — distinct from the `dns.googleapis.com/ResourceRecordSet` asset type,
    which flows through the separate `gcp_dns_record` fact family).
+28. `extractor_storage_bucket.go` - typed-depth extractor for
+   `storage.googleapis.com/Bucket` (placement, storage class, timestamps,
+   uniform-bucket-level-access and public-access-prevention posture, versioning,
+   a bounded lifecycle-rule count, and retention-policy posture; CMEK edge to the
+   Cloud KMS CryptoKey and usage-logging export edge to the destination log
+   bucket; the bucket ACL/IAM policy, object contents, and notification
+   configuration are never decoded).
 
 ## Invariants
 
