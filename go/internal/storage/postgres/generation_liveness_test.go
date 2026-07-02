@@ -39,7 +39,12 @@ func TestRecoverWedgedActiveGenerationsQueryContract(t *testing.T) {
 		"reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')",
 		"projector_work.stage = 'projector'",
 		"projector_work.domain = 'source_local'",
-		"projector_work.status IN ('pending', 'claimed', 'running', 'retrying')",
+		// The in-flight guard excludes queued rows unconditionally and
+		// claimed/running rows only while their lease is still live; see
+		// TestRecoverWedgedActiveGenerationsQueryReclaimsExpiredProjectorLease
+		// for the #4464 Bug 2 orphaned-lease reclaim contract.
+		"projector_work.status IN ('pending', 'retrying')",
+		"projector_work.claim_until > $4",
 		"existing.domain = 'source_local'",
 		"graph_projection_phase_state",
 		"backward_evidence_committed",
@@ -67,6 +72,95 @@ func TestRecoverWedgedActiveGenerationsQueryContract(t *testing.T) {
 	// durable counter can never exceed the budget on repeated re-enqueue.
 	if !strings.Contains(recoverWedgedActiveGenerationsQuery, "LEAST(COALESCE((fact_work_items.payload ->> 'liveness_recovery_attempts')::int, 0) + 1, $2)") {
 		t.Fatalf("recover wedged query does not cap the re-drive budget at the ceiling:\n%s", recoverWedgedActiveGenerationsQuery)
+	}
+}
+
+// TestRecoverWedgedActiveGenerationsQueryReclaimsExpiredProjectorLease pins
+// the #4464 Bug 2 fix: a source-local projector work item stuck in
+// 'claimed'/'running' with an EXPIRED lease (claim_until in the past) must
+// NOT block the wedged re-drive. Before this fix, the in-flight guard
+// excluded any 'claimed'/'running' row regardless of lease expiry, so a
+// one-shot claimer (bootstrap-index) that died holding a claim left the row
+// permanently invisible to this liveness sweep — the only other consumer
+// that could ever transition the row out of 'claimed'/'running' is a fresh
+// Claim() call, and nothing in the runtime topology issues one once the sole
+// source_local claimer process has exited (ingester depends_on
+// bootstrap-index: condition: service_completed_successfully, so it never
+// starts after a bootstrap-index crash). A live (unexpired) lease must still
+// block re-drive, since that row is genuinely being worked right now.
+func TestRecoverWedgedActiveGenerationsQueryReclaimsExpiredProjectorLease(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(recoverWedgedActiveGenerationsQuery, "projector_work.claim_until > $4") {
+		t.Fatalf(
+			"recover wedged query must gate the claimed/running exclusion on an unexpired lease (projector_work.claim_until > $4):\n%s",
+			recoverWedgedActiveGenerationsQuery,
+		)
+	}
+	// The exclusion for claimed/running rows must be conditioned on the lease
+	// still being live, not on status alone — a bare
+	// status IN ('claimed', 'running') check without a claim_until comparison
+	// would re-introduce the orphaned-lease wedge.
+	if strings.Contains(recoverWedgedActiveGenerationsQuery, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying')") {
+		t.Fatalf(
+			"recover wedged query still excludes claimed/running rows unconditionally on status alone (must also require an unexpired lease):\n%s",
+			recoverWedgedActiveGenerationsQuery,
+		)
+	}
+	// pending/retrying rows have no active lease owner but are still
+	// legitimately queued for a live claimer, so they must remain excluded
+	// unconditionally.
+	if !strings.Contains(recoverWedgedActiveGenerationsQuery, "projector_work.status IN ('pending', 'retrying')") {
+		t.Fatalf(
+			"recover wedged query must still unconditionally exclude pending/retrying source-local projector rows:\n%s",
+			recoverWedgedActiveGenerationsQuery,
+		)
+	}
+}
+
+// TestRecoverWedgedActiveGenerationsQueryReVerifiesLeaseAtWriteTime pins a
+// TOCTOU fix on top of TestRecoverWedgedActiveGenerationsQueryReclaimsExpiredProjectorLease:
+// the wedged CTE reads the projector row's lease state from a snapshot taken
+// before the re_enqueued INSERT ... ON CONFLICT DO UPDATE executes. Between
+// that snapshot and the UPDATE, a live worker's Heartbeat can extend
+// claim_until (or a fresh Claim() can move status to claimed/running),
+// making the row genuinely in-flight again. Without a WHERE guard on the
+// ON CONFLICT DO UPDATE that re-checks the same in-flight condition at write
+// time, the UPDATE would unconditionally clobber that concurrently-renewed
+// claim back to lease_owner=NULL/claim_until=NULL — reintroducing, at the
+// liveness-sweep layer, the same "one actor's write silently cancels
+// another's in-flight work" defect class this issue is about, just via a
+// write race instead of a shared context.
+func TestRecoverWedgedActiveGenerationsQueryReVerifiesLeaseAtWriteTime(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(recoverWedgedActiveGenerationsQuery, "ON CONFLICT (work_item_id) DO UPDATE") {
+		t.Fatalf("recover wedged query missing the expected upsert clause:\n%s", recoverWedgedActiveGenerationsQuery)
+	}
+	// The WHERE guard must sit after the ON CONFLICT DO UPDATE's SET clause
+	// (i.e. as the conflict-action WHERE, which Postgres evaluates per
+	// candidate row under the row's own lock, atomically with the write) and
+	// must re-express the same in-flight condition as the read-side gate, so
+	// a row that became genuinely in-flight between the SELECT snapshot and
+	// this UPDATE is left untouched instead of being clobbered.
+	setIdx := strings.Index(recoverWedgedActiveGenerationsQuery, "ON CONFLICT (work_item_id) DO UPDATE")
+	if setIdx < 0 {
+		t.Fatal("could not locate ON CONFLICT DO UPDATE clause")
+	}
+	conflictAction := recoverWedgedActiveGenerationsQuery[setIdx:]
+	if !strings.Contains(conflictAction, "WHERE NOT (") {
+		t.Fatalf(
+			"recover wedged query's ON CONFLICT DO UPDATE is missing a write-time re-verification WHERE guard (TOCTOU: a concurrent Heartbeat/Claim between the wedged CTE snapshot and this UPDATE must not be clobbered):\n%s",
+			conflictAction,
+		)
+	}
+	if !strings.Contains(conflictAction, "fact_work_items.status IN ('pending', 'retrying')") ||
+		!strings.Contains(conflictAction, "fact_work_items.status IN ('claimed', 'running')") ||
+		!strings.Contains(conflictAction, "fact_work_items.claim_until > $4") {
+		t.Fatalf(
+			"recover wedged query's write-time guard must mirror the read-side in-flight condition exactly (status IN pending/retrying, or claimed/running with a live lease):\n%s",
+			conflictAction,
+		)
 	}
 }
 
@@ -210,8 +304,9 @@ func TestGenerationLivenessStoreCountActiveByAge(t *testing.T) {
 		t.Fatalf("count query stuck bucket missing reducer-work backlog exclusion:\n%s", db.queries[0].query)
 	}
 	if !strings.Contains(db.queries[0].query, "projector_work.stage = 'projector'") ||
-		!strings.Contains(db.queries[0].query, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying')") {
-		t.Fatalf("count query stuck bucket missing source-local in-flight projector gate:\n%s", db.queries[0].query)
+		!strings.Contains(db.queries[0].query, "projector_work.status IN ('pending', 'retrying')") ||
+		!strings.Contains(db.queries[0].query, "projector_work.claim_until > $3") {
+		t.Fatalf("count query stuck bucket missing source-local in-flight projector gate (queued rows excluded unconditionally, claimed/running only while the lease is live):\n%s", db.queries[0].query)
 	}
 	if !strings.Contains(db.queries[0].query, "graph_projection_phase_state") ||
 		!strings.Contains(db.queries[0].query, "backward_evidence_committed") ||

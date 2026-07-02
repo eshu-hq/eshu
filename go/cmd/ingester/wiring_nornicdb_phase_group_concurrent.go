@@ -86,10 +86,16 @@ func nornicDBDefaultEntityPhaseConcurrency() int {
 // When workers <= 1 or the chunk count is <= 1, the function delegates to
 // executeGroupedChunksObserved so single-chunk and serial-by-config callers
 // do not pay a goroutine setup tax. The first worker error is buffered to
-// errCh and cancels the shared context so in-flight peers stop dispatching;
-// the wrapper drains errCh and returns that wrapped worker error in
-// preference to ctx.Err(), so callers see the original ExecuteGroup failure
-// class rather than the cancellation that propagated from it.
+// errCh and cancels `dispatchCtx`, a dispatch-control context that only gates
+// admission of new chunks (stopping the dispatch loop and idle workers from
+// pulling another job). `dispatchCtx` is never passed to `ge.ExecuteGroup` —
+// each in-flight chunk executes against `ctx` (the caller's context)
+// directly, so one chunk's failure (including a graph-write timeout) cannot
+// cancel a sibling chunk's already-running canonical write (#4464 Bug 1: a
+// single slow/timed-out MERGE must not abort concurrent siblings). The
+// wrapper drains errCh and returns that wrapped worker error in preference to
+// dispatchCtx.Err(), so callers see the original ExecuteGroup failure class
+// rather than the cancellation that propagated from it.
 func (e nornicDBPhaseGroupExecutor) executeGroupedChunksConcurrentlyObserved(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
@@ -115,8 +121,8 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunksConcurrentlyObserved(
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	dispatchCtx, cancelDispatch := context.WithCancel(ctx)
+	defer cancelDispatch()
 
 	type chunkJob struct {
 		index int
@@ -134,12 +140,15 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunksConcurrentlyObserved(
 		go func() {
 			defer wg.Done()
 			for job := range jobs {
-				if ctx.Err() != nil {
+				if dispatchCtx.Err() != nil {
 					return
 				}
 				chunk := stmts[job.start:job.end]
 				statementSummary := summarizePhaseGroupChunk(chunk)
 				chunkStart := time.Now()
+				// ctx, not dispatchCtx: this chunk's write must run to its own
+				// natural conclusion even if a sibling chunk fails and calls
+				// cancelDispatch concurrently.
 				err := ge.ExecuteGroup(ctx, sanitizedPhaseGroupChunk(chunk))
 				chunkDuration := time.Since(chunkStart)
 				if err != nil {
@@ -159,7 +168,7 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunksConcurrentlyObserved(
 					case errCh <- wrapped:
 					default:
 					}
-					cancel()
+					cancelDispatch()
 					return
 				}
 				if observer != nil {
@@ -195,7 +204,7 @@ dispatch:
 		}
 		select {
 		case jobs <- chunkJob{index: chunkIndex, start: start, end: end}:
-		case <-ctx.Done():
+		case <-dispatchCtx.Done():
 			// Stop dispatching the remaining chunks so the workers can
 			// drain and exit; continuing to push into `jobs` after cancel
 			// would block on a closed channel or spin through every

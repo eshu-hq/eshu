@@ -170,7 +170,7 @@ func (s GenerationLivenessStore) CountActiveGenerationsByAge(
 	agingBoundary := now.Add(-policy.ActivationDeadline / 2)
 	stuckBoundary := now.Add(-policy.ActivationDeadline)
 
-	rows, err := s.db.QueryContext(ctx, countActiveGenerationsByAgeQuery, agingBoundary, stuckBoundary)
+	rows, err := s.db.QueryContext(ctx, countActiveGenerationsByAgeQuery, agingBoundary, stuckBoundary, now)
 	if err != nil {
 		return nil, fmt.Errorf("count active generations by age: %w", err)
 	}

@@ -498,6 +498,13 @@ Why safe: mirrors the continuous projector (`internal/projector`
 dead-lettered. Backend: NornicDB (default). Terminal state after fix: queue
 drains; failures bounded to retry/dead-letter.
 
+Two residual gaps in the same issue — the intra-materialization entity-phase
+chunk fan-out sharing a cancelable context one level below this fix, and
+orphaned expired-lease projector claims never reclaimed when the one-shot
+process itself dies — are fixed in the same issue's follow-up; see
+`docs/internal/design/4464-pipeline-wedge-percall-timeout-lease-reclaim.md`
+for the full evidence (performance, no-regression, and observability notes).
+
 ## Related docs
 
 - [Service Runtimes — Bootstrap Index](../../../docs/public/deployment/service-runtimes.md#bootstrap-index)
