@@ -152,11 +152,16 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	conn := reducerClaimBenchmarkConn{conn: sqlConn}
 
 	schemaName := fmt.Sprintf("status_active_gen_proof_%d", time.Now().UnixNano())
+	// The dedicated connection is always closed on test end, whether or not the
+	// schema itself is kept for inspection: the connection is a test resource
+	// (leaking it exhausts db.SetMaxOpenConns(1) on repeated runs against the
+	// same DSN), while the schema is durable Postgres state the operator
+	// explicitly asked to keep.
+	t.Cleanup(func() { _ = sqlConn.Close() })
 	if os.Getenv("ESHU_STATUS_ACTIVE_GENERATION_KEEP_SCHEMA") == "" {
-		defer func() {
+		t.Cleanup(func() {
 			_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-			_ = sqlConn.Close()
-		}()
+		})
 	} else {
 		t.Logf("keeping schema %s for inspection", schemaName)
 	}

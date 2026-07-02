@@ -310,6 +310,7 @@ Each domain has a depth/age gauge pair sourced from the queue observer.
 | go runtime memory limit | go/cmd/ingester/main.go:61 | `eshu_dp_gomemlimit_bytes` | queue runtime |
 | reducer graph-write-timeout retrying | go/internal/storage/postgres/queue_observer.go:168 | `eshu_dp_queue_depth`, `eshu_dp_graph_write_backpressure_engaged_total` | queue runtime |
 | workflow run terminal dead-letter block | go/internal/storage/postgres/workflow_run_reconciliation.go (recordTerminalDeadLetterBlocks) | `eshu_dp_workflow_run_terminal_dead_letter_blocks_total` | queue runtime |
+| status stage-counts cache | go/internal/storage/postgres/status_stage_counts_cache.go:121 (listStageCounts) | `eshu_dp_status_stage_counts_cache_total` | status query cache |
 
 <!-- eshu:metric:section=api-lifecycle -->
 ## API Lifecycle

@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // statusStageCountsCacheTTL bounds how long a stage-counts read is served from
@@ -95,48 +95,18 @@ const (
 	statusStageCountsCacheOutcomeError = "error"
 )
 
-// The postgres package is not handed a *telemetry.Instruments today (see
-// internal/query/semantic_search_telemetry.go for the identical pattern in a
-// sibling package), so the stage-counts cache counter is registered lazily
-// here and recorded directly from listStageCounts. The meter is fetched from
-// the current global provider inside the once (not cached at package init)
-// so a test that installs its own meter provider before the first record
-// observes the counter regardless of ordering.
-var (
-	statusStageCountsCacheInstrumentsOnce sync.Once
-	statusStageCountsCacheTotal           metric.Int64Counter
-)
-
-// initStatusStageCountsCacheInstruments registers the cache-outcome counter
-// exactly once. A registration error leaves the instrument nil so recording
-// becomes a no-op and a telemetry pipeline fault never fails a status read.
-func initStatusStageCountsCacheInstruments() {
-	statusStageCountsCacheInstrumentsOnce.Do(func() {
-		var err error
-		statusStageCountsCacheTotal, err = otel.Meter("eshu/go/internal/storage/postgres").Int64Counter(
-			"eshu_dp_status_stage_counts_cache_total",
-			metric.WithDescription(
-				"Status-query stage-counts reads (activeFactWorkItemsCTE via "+
-					"stageCountsQuery) by cache outcome: hit (served from the "+
-					"in-memory TTL cache, no Postgres round trip), miss (cache cold "+
-					"or expired, Postgres query ran and succeeded), or error "+
-					"(Postgres query ran and failed; never cached).",
-			),
-		)
-		if err != nil {
-			statusStageCountsCacheTotal = nil
-		}
-	})
-}
-
-// recordStatusStageCountsCacheOutcome increments the cache-outcome counter.
-// outcome must be one of the statusStageCountsCacheOutcome* constants.
-func recordStatusStageCountsCacheOutcome(ctx context.Context, outcome string) {
-	initStatusStageCountsCacheInstruments()
-	if statusStageCountsCacheTotal == nil {
+// recordStatusStageCountsCacheOutcome increments the
+// StatusStageCountsCacheTotal counter registered in
+// go/internal/telemetry/instruments.go. outcome must be one of the
+// statusStageCountsCacheOutcome* constants. instruments may be nil (e.g. a
+// StatusStore constructed without a telemetry.Instruments handle, or a
+// registration error at startup), in which case recording is a no-op so a
+// telemetry pipeline fault never fails a status read.
+func recordStatusStageCountsCacheOutcome(ctx context.Context, instruments *telemetry.Instruments, outcome string) {
+	if instruments == nil || instruments.StatusStageCountsCacheTotal == nil {
 		return
 	}
-	statusStageCountsCacheTotal.Add(
+	instruments.StatusStageCountsCacheTotal.Add(
 		ctx, 1,
 		metric.WithAttributes(attribute.String("outcome", outcome)),
 	)
@@ -152,17 +122,18 @@ func listStageCounts(
 	ctx context.Context,
 	queryer Queryer,
 	cache *statusStageCountsCache,
+	instruments *telemetry.Instruments,
 ) ([]statuspkg.StageStatusCount, error) {
 	if cache != nil {
 		if counts, hit := cache.get(); hit {
-			recordStatusStageCountsCacheOutcome(ctx, statusStageCountsCacheOutcomeHit)
+			recordStatusStageCountsCacheOutcome(ctx, instruments, statusStageCountsCacheOutcomeHit)
 			return counts, nil
 		}
 	}
 
 	rows, err := queryer.QueryContext(ctx, stageCountsQuery)
 	if err != nil {
-		recordStatusStageCountsCacheOutcome(ctx, statusStageCountsCacheOutcomeError)
+		recordStatusStageCountsCacheOutcome(ctx, instruments, statusStageCountsCacheOutcomeError)
 		return nil, fmt.Errorf("list stage counts: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
@@ -173,7 +144,7 @@ func listStageCounts(
 		var state string
 		var count int64
 		if scanErr := rows.Scan(&stage, &state, &count); scanErr != nil {
-			recordStatusStageCountsCacheOutcome(ctx, statusStageCountsCacheOutcomeError)
+			recordStatusStageCountsCacheOutcome(ctx, instruments, statusStageCountsCacheOutcomeError)
 			return nil, fmt.Errorf("list stage counts: %w", scanErr)
 		}
 		counts = append(counts, statuspkg.StageStatusCount{
@@ -183,14 +154,14 @@ func listStageCounts(
 		})
 	}
 	if err := rows.Err(); err != nil {
-		recordStatusStageCountsCacheOutcome(ctx, statusStageCountsCacheOutcomeError)
+		recordStatusStageCountsCacheOutcome(ctx, instruments, statusStageCountsCacheOutcomeError)
 		return nil, fmt.Errorf("list stage counts: %w", err)
 	}
 
 	if cache != nil {
 		cache.set(counts)
 	}
-	recordStatusStageCountsCacheOutcome(ctx, statusStageCountsCacheOutcomeMiss)
+	recordStatusStageCountsCacheOutcome(ctx, instruments, statusStageCountsCacheOutcomeMiss)
 
 	return counts, nil
 }

@@ -1052,6 +1052,14 @@ type Instruments struct {
 	// by result (success, error, timeout) to let operators distinguish clean
 	// shutdowns from forced terminations.
 	APIShutdownDuration metric.Float64Histogram
+	// StatusStageCountsCacheTotal counts status-query stage-counts reads
+	// (activeFactWorkItemsCTE via stageCountsQuery, issue #4446) by cache
+	// outcome. Labeled by outcome: hit (served from the in-memory TTL cache,
+	// no Postgres round trip), miss (cache cold or expired, Postgres query ran
+	// and succeeded), or error (Postgres query ran and failed; never cached).
+	// Lets an operator read the cache hit-rate for the status stage-counts
+	// read at 3 AM.
+	StatusStageCountsCacheTotal metric.Int64Counter
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the
@@ -3833,6 +3841,20 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register APIShutdownDuration histogram: %w", err)
+	}
+
+	inst.StatusStageCountsCacheTotal, err = meter.Int64Counter(
+		"eshu_dp_status_stage_counts_cache_total",
+		metric.WithDescription(
+			"Status-query stage-counts reads (activeFactWorkItemsCTE via "+
+				"stageCountsQuery) by cache outcome: hit (served from the "+
+				"in-memory TTL cache, no Postgres round trip), miss (cache cold "+
+				"or expired, Postgres query ran and succeeded), or error "+
+				"(Postgres query ran and failed; never cached).",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register StatusStageCountsCacheTotal counter: %w", err)
 	}
 
 	return inst, nil

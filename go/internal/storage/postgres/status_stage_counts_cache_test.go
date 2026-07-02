@@ -51,7 +51,7 @@ func TestListStageCountsCacheServesRepeatReadsWithinTTL(t *testing.T) {
 	now := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
 	store.stageCountsCache.nowFunc = func() time.Time { return now }
 
-	first, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache)
+	first, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache, store.Instruments)
 	if err != nil {
 		t.Fatalf("listStageCounts() first call error = %v, want nil", err)
 	}
@@ -60,7 +60,7 @@ func TestListStageCountsCacheServesRepeatReadsWithinTTL(t *testing.T) {
 	}
 
 	// Second read, still within TTL: must be served from cache, not Postgres.
-	second, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache)
+	second, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache, store.Instruments)
 	if err != nil {
 		t.Fatalf("listStageCounts() second call error = %v, want nil", err)
 	}
@@ -73,7 +73,7 @@ func TestListStageCountsCacheServesRepeatReadsWithinTTL(t *testing.T) {
 
 	// Advance past the TTL: the next read must go back to Postgres.
 	now = now.Add(statusStageCountsCacheTTL + time.Millisecond)
-	if _, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache); err != nil {
+	if _, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache, store.Instruments); err != nil {
 		t.Fatalf("listStageCounts() post-TTL call error = %v, want nil", err)
 	}
 	if queryer.calls != 2 {
@@ -90,7 +90,7 @@ func TestListStageCountsCachePropagatesQueryErrors(t *testing.T) {
 	queryer := &erroringQueryer{err: errStageCountsCacheProbe}
 	store := NewStatusStore(queryer)
 
-	if _, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache); err == nil {
+	if _, err := listStageCounts(context.Background(), store.queryer, store.stageCountsCache, store.Instruments); err == nil {
 		t.Fatal("listStageCounts() error = nil, want error")
 	}
 

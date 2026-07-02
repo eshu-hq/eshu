@@ -25,10 +25,13 @@ Performance Evidence: A 2s-TTL in-process cache (`status_stage_counts_cache.go`)
 
 ## Observability
 
-Observability Evidence: New counter `eshu_dp_status_stage_counts_cache_total` (bounded `result`
-  label: hit/miss) with its X1 row in
-  `docs/public/observability/telemetry-coverage.md`, so an operator can read
-  cache hit-rate at 3 AM.
+Observability Evidence: New counter `eshu_dp_status_stage_counts_cache_total` (bounded `outcome`
+  label: hit/miss/error) registered in `go/internal/telemetry/instruments.go`
+  (`Instruments.StatusStageCountsCacheTotal`) and recorded from
+  `listStageCounts` via the nil-safe `StatusStore.Instruments` field, with its
+  X1 row in `docs/public/observability/telemetry-coverage.md` under "Queue
+  Domains", so an operator can read the cache hit/miss/error split for the
+  status stage-counts read at 3 AM.
 
 ## No-Regression
 

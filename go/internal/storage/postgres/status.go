@@ -11,6 +11,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Rows is the small read-only row cursor surface used by the status reader.
@@ -42,9 +43,17 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 // that StatusStore, which is deliberately copied by value at every call site
 // (see ReadRawSnapshot/ReadStatusSnapshot above), never duplicates the
 // cache's mutex. All value copies of a StatusStore share one cache instance.
+//
+// Instruments is exported and left nil by NewStatusStore (see
+// AWSPaginationCheckpointStore for the identical pattern) so the ~30
+// existing NewStatusStore call sites across go/cmd/* stay source-compatible;
+// a caller that wants the eshu_dp_status_stage_counts_cache_total signal
+// sets the field explicitly after construction. All recording is nil-safe
+// (see recordStatusStageCountsCacheOutcome).
 type StatusStore struct {
 	queryer          Queryer
 	stageCountsCache *statusStageCountsCache
+	Instruments      *telemetry.Instruments
 }
 
 // NewStatusStore constructs a read-only status store.
@@ -92,7 +101,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	stageCounts, err := listStageCounts(ctx, s.queryer, s.stageCountsCache)
+	stageCounts, err := listStageCounts(ctx, s.queryer, s.stageCountsCache, s.Instruments)
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
