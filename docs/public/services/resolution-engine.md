@@ -85,6 +85,11 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
   shared projection is the bottleneck.
 - The main loop, shared projection runner, code-call runner, and
   repo-dependency runner run as concurrent goroutines inside `Service.Run()`.
+- `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is a diagnostic-only switch
+  for bounded proof runs. Leave it off for normal operation; when enabled it
+  splits repo-dependency retract execution into the two existing statement roles
+  so logs show whether repository-relationship cleanup or evidence-artifact
+  cleanup owns the cost.
 - The generation-retention runner runs beside those loops and relies on
   Postgres row locks plus bounded batch and row limits. Do not reduce reducer
   worker counts to make retention safe.
@@ -115,6 +120,7 @@ Important env vars:
 - `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT`
 - `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT`
 - `ESHU_CODE_CALL_PROJECTION_WORKERS`
+- `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING`
 - `ESHU_GENERATION_RETENTION_ENABLED`
 - `ESHU_GENERATION_RETENTION_POLL_INTERVAL`
 - `ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS`

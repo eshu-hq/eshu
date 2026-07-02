@@ -47,7 +47,7 @@ func buildRepoDependencyRetractStatements(repoIDs []string, evidenceSource strin
 
 func (w *EdgeWriter) executeRepoDependencyRetractStatements(ctx context.Context, repoIDs []string, evidenceSource string) error {
 	items := buildRepoDependencyRetractStatements(repoIDs, evidenceSource)
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(GroupExecutor); ok && !w.RepoDependencyRetractStatementTiming {
 		executableStmts := make([]Statement, 0, len(items))
 		logStmts := make([]Statement, 0, len(items))
 		for _, item := range items {
@@ -68,6 +68,15 @@ func (w *EdgeWriter) executeRepoDependencyRetractStatements(ctx context.Context,
 		return nil
 	}
 
+	return w.executeRepoDependencyRetractStatementsSequential(ctx, items, repoIDs, evidenceSource)
+}
+
+func (w *EdgeWriter) executeRepoDependencyRetractStatementsSequential(
+	ctx context.Context,
+	items []repoDependencyRetractStatement,
+	repoIDs []string,
+	evidenceSource string,
+) error {
 	for _, item := range items {
 		start := time.Now()
 		if err := w.executor.Execute(ctx, SanitizeStatement(item.stmt)); err != nil {

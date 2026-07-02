@@ -194,6 +194,63 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsGroupedStatementRoles(t *testin
 	}
 }
 
+func TestEdgeWriterRetractEdgesRepoDependencyDiagnosticStatementTimingBypassesGroup(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingRepoDependencyGroupExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Logger = logger
+	writer.RepoDependencyRetractStatementTiming = true
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("group calls = %d, want 0 diagnostic grouped calls", got)
+	}
+	if got, want := len(executor.calls), 2; got != want {
+		t.Fatalf("executor calls = %d, want %d diagnostic statement calls", got, want)
+	}
+
+	entries := decodeJSONLogEntries(t, logs.Bytes())
+	if got, want := len(entries), 2; got != want {
+		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
+	}
+	for i, wantRole := range []string{"repository_relationships", "evidence_artifacts"} {
+		entry := entries[i]
+		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
+			t.Fatalf("entry %d msg = %v, want %v", i, got, want)
+		}
+		if got := entry["statement_role"]; got != wantRole {
+			t.Fatalf("entry %d statement_role = %v, want %v", i, got, wantRole)
+		}
+	}
+}
+
+type recordingRepoDependencyGroupExecutor struct {
+	calls      []Statement
+	groupCalls [][]Statement
+}
+
+func (r *recordingRepoDependencyGroupExecutor) Execute(_ context.Context, statement Statement) error {
+	r.calls = append(r.calls, statement)
+	return nil
+}
+
+func (r *recordingRepoDependencyGroupExecutor) ExecuteGroup(_ context.Context, stmts []Statement) error {
+	cloned := make([]Statement, len(stmts))
+	copy(cloned, stmts)
+	r.groupCalls = append(r.groupCalls, cloned)
+	return nil
+}
+
 func decodeJSONLogEntries(t *testing.T, raw []byte) []map[string]any {
 	t.Helper()
 

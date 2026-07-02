@@ -43,6 +43,7 @@ const (
 	repoDependencyProjectionLeaseTTLEnv      = "ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL"
 	repoDependencyProjectionBatchLimitEnv    = "ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT"
 	repoDependencyProjectionLeaseOwnerEnv    = "ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER"
+	repoDependencyRetractStatementTimingEnv  = "ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING"
 	codeCallEdgeBatchSizeEnv                 = "ESHU_CODE_CALL_EDGE_BATCH_SIZE"
 	codeCallEdgeGroupBatchSizeEnv            = "ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE"
 	inheritanceEdgeGroupBatchSizeEnv         = "ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE"

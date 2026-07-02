@@ -26,8 +26,12 @@ type EdgeWriter struct {
 	CodeCallGroupBatchSize        int
 	InheritanceGroupBatchSize     int
 	SQLRelationshipGroupBatchSize int
-	Instruments                   *telemetry.Instruments
-	Logger                        *slog.Logger
+	// RepoDependencyRetractStatementTiming splits repo_dependency retracts into
+	// per-statement executions for diagnostic timing. Leave false for the
+	// production grouped transaction boundary.
+	RepoDependencyRetractStatementTiming bool
+	Instruments                          *telemetry.Instruments
+	Logger                               *slog.Logger
 }
 
 // NewEdgeWriter returns an EdgeWriter backed by the given Executor.
