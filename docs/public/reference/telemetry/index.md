@@ -444,18 +444,6 @@ Phase 1 per-domain attribution:
   Combine with an intent-emit counter to derive per-domain pending depth and
   drain rate without a per-scrape table scan.
 
-Graph-write back-pressure gate-acquire wait is already covered by the existing
-`eshu_dp_graph_write_backpressure_wait_seconds` histogram (labeled by
-`operation` and, since issue #4448, `gate`), which records every time a write
-blocks for a permit. The reducer now bounds canonical and semantic graph
-writes with two independent pools (`ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT`,
-`ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT`, each falling back to
-`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` when unset) rather than one shared pool, so
-the `gate` label lets an operator see each pool's wait distribution
-independently instead of a blended signal that could mask one class starving
-the other. No new metric name was needed — the existing histogram gained a
-label.
-
 Performance Evidence: Phase 2 remote measurement pending — these instruments
 exist so the next corpus run can provide the per-domain latency distribution
 that confirms the Phase 2 scaling parameters
@@ -478,3 +466,61 @@ calls (`Float64Histogram.Record`, `Int64Counter.Add`) inside the existing
 graph write, or queue behavior is introduced. Verified by
 `go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
 (2678 tests, all passing).
+
+## Graph-Write Permit Pool Split By Class (#4448)
+
+Before this change every reducer graph write — canonical, handler-edge,
+shared-projection, secrets/IAM, orphan-sweep, materializer, and semantic
+entity writes — drew from ONE shared `cypher.BackpressureGate` permit pool
+sized by `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` (#3652). That coupling meant a slow
+write on one class could exhaust the shared permits and starve every other
+class's writes even when the starved class's own workload never came close to
+saturating its logical share of the pool (head-of-line blocking).
+
+The reducer now bounds canonical-class and semantic-class writes with two
+INDEPENDENT permit pools:
+
+- `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` sizes the canonical gate
+  (canonical, handler-edge, shared-projection, secrets/IAM, orphan-sweep, and
+  materializer writes).
+- `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` sizes the semantic gate (the
+  semantic entity write path).
+- Either unset falls back to the legacy `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT`, so an
+  operator who only configured the old shared knob keeps an identical bound on
+  both classes until they opt into per-class tuning.
+
+The projector has only one write class, so it is unaffected and keeps using
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` as its single knob.
+
+The existing `eshu_dp_graph_write_backpressure_engaged_total` counter and
+`eshu_dp_graph_write_backpressure_wait_seconds` histogram now carry a `gate`
+label (`canonical` or `semantic`) in addition to `operation`, so an operator
+can read each pool's engagement rate and wait-time distribution
+independently instead of a blended signal that could mask one class starving
+the other. No new metric name was introduced.
+
+Performance Evidence: this is a structural concurrency fix, not a throughput
+change under normal (non-starved) load — with both gates sized generously
+relative to their own class's workload, wall-clock behavior is unchanged from
+before the split. The fix targets the pathological case where one class's
+writes are slow: before the split that pathological case degraded the OTHER
+class's latency too; after the split it does not. No-Regression Evidence:
+verified by the full reducer/graphbackpressure/telemetry/projector suites
+under `-race` (`go test ./cmd/reducer ./internal/graphbackpressure
+./internal/telemetry ./cmd/projector -race -count=1`, all passing) proving no
+new goroutine leaks, deadlocks, or worker-count changes were introduced.
+
+Observability Evidence: `TestGraphWriteGateSplitEliminatesHeadOfLineBlocking`
+in `go/cmd/reducer/graph_write_permit_split_test.go` is the deterministic
+regression: it saturates one class's single-permit gate with a write that
+blocks forever, then proves a write on the OTHER class completes within a
+500ms deadline instead of queuing behind the stuck permit, in both directions
+(slow semantic blocking canonical, and slow canonical blocking semantic). The
+test was verified two-sided by temporarily forcing both gates to share one
+underlying `*cypher.BackpressureGate` (simulating the pre-#4448 behavior) and
+confirming the test fails in both directions against that simulation, then
+reverting to the real independent-gate implementation and confirming it
+passes. The `gate` label on `eshu_dp_graph_write_backpressure_wait_seconds`
+is the runtime signal an operator uses to confirm the same property in
+production: independent per-gate wait distributions rather than one blended
+series.
