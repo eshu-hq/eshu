@@ -12,7 +12,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
-	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -35,6 +34,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	ctx context.Context,
 	intent Intent,
 ) (Result, error) {
+	totalStarted := time.Now()
+	var timing deployableUnitCorrelationTiming
+	var signals deployableUnitCorrelationSignals
+
 	if intent.Domain != DomainDeployableUnitCorrelation {
 		return Result{}, fmt.Errorf(
 			"deployable unit correlation handler does not accept domain %q",
@@ -50,6 +53,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, err
 	}
 
+	loadStarted := time.Now()
 	envelopes, err := loadFactsForKinds(
 		ctx,
 		h.FactLoader,
@@ -60,21 +64,40 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for deployable unit correlation: %w", err)
 	}
+	timing.loadFactsDuration = time.Since(loadStarted)
+	signals.factCount = len(envelopes)
 
+	extractStarted := time.Now()
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
+	timing.extractCandidatesDuration = time.Since(extractStarted)
+	signals.rawCandidateCount = len(candidates)
 	if h.ResolvedLoader != nil {
+		resolvedStarted := time.Now()
 		resolved, err := loadResolvedRelationshipsForIntent(ctx, h.ResolvedLoader, intent)
+		timing.loadResolvedDuration = time.Since(resolvedStarted)
 		if err != nil {
 			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 		}
+		applyStarted := time.Now()
 		candidates = applyResolvedDeploymentSources(candidates, resolved)
+		timing.applyResolvedDuration = time.Since(applyStarted)
 	}
 
+	filterStarted := time.Now()
 	candidates = filterDeployableUnitCandidates(candidates, entityKeys)
+	timing.filterCandidatesDuration = time.Since(filterStarted)
+	signals.candidateCount = len(candidates)
 	if len(candidates) == 0 {
-		if err := h.retractDeployableUnitEdges(ctx, deployableUnitRetractRowsFromFacts(intent, envelopes)); err != nil {
+		retractRows := deployableUnitRetractRowsFromFacts(intent, envelopes, entityKeys)
+		signals.retractRows = len(retractRows)
+		edgeStarted := time.Now()
+		retractStarted := time.Now()
+		if err := h.retractDeployableUnitEdges(ctx, retractRows); err != nil {
 			return Result{}, err
 		}
+		timing.edgeRetractDuration = time.Since(retractStarted)
+		timing.edgeMaterializeDuration = time.Since(edgeStarted)
+		phaseStarted := time.Now()
 		if err := publishIntentGraphPhase(
 			ctx,
 			h.PhasePublisher,
@@ -85,28 +108,46 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		); err != nil {
 			return Result{}, err
 		}
+		timing.phasePublishDuration = time.Since(phaseStarted)
+		timing.totalDuration = time.Since(totalStarted)
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainDeployableUnitCorrelation,
 			Status:          ResultStatusSucceeded,
 			EvidenceSummary: "no deployable unit candidates found",
+			SubDurations:    deployableUnitCorrelationSubDurations(timing),
+			SubSignals:      deployableUnitCorrelationSubSignals(signals),
 		}, nil
 	}
 
+	evaluateStarted := time.Now()
 	evaluation, err := evaluateDeployableUnitCandidates(intent, candidates)
 	if err != nil {
 		return Result{}, err
 	}
+	timing.evaluateCandidatesDuration = time.Since(evaluateStarted)
 	summary := correlation.BuildSummary(evaluation)
 	evaluatedCandidateCount := len(evaluation.Results)
+	signals.evaluatedCandidates = evaluatedCandidateCount
 	edgeRows := deployableUnitCorrelationRows(intent, evaluation)
-	canonicalWrites, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
+	signals.edgeRows = len(edgeRows)
+	edgeStarted := time.Now()
+	edgeResult, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, canonicalWrites); err != nil {
+	timing.edgeMaterializeDuration = time.Since(edgeStarted)
+	timing.edgeRetractDuration = edgeResult.retractDuration
+	timing.edgeWriteDuration = edgeResult.writeDuration
+	signals.retractRows = edgeResult.retractRows
+	signals.writeRows = edgeResult.writeRows
+	signals.canonicalWrites = edgeResult.canonicalWrites
+	decisionStarted := time.Now()
+	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, edgeResult.canonicalWrites); err != nil {
 		return Result{}, err
 	}
+	timing.admissionDecisionDuration = time.Since(decisionStarted)
+	phaseStarted := time.Now()
 	if err := publishIntentGraphPhase(
 		ctx,
 		h.PhasePublisher,
@@ -117,13 +158,17 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	); err != nil {
 		return Result{}, err
 	}
+	timing.phasePublishDuration = time.Since(phaseStarted)
+	timing.totalDuration = time.Since(totalStarted)
 
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDeployableUnitCorrelation,
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: deployableUnitCorrelationSummary(evaluatedCandidateCount, summary),
-		CanonicalWrites: canonicalWrites,
+		CanonicalWrites: edgeResult.canonicalWrites,
+		SubDurations:    deployableUnitCorrelationSubDurations(timing),
+		SubSignals:      deployableUnitCorrelationSubSignals(signals),
 	}, nil
 }
 
@@ -236,45 +281,6 @@ func evaluateDeployableUnitCandidates(
 	}
 
 	return merged, nil
-}
-
-func deployableUnitRulePack(candidate WorkloadCandidate) rules.RulePack {
-	switch {
-	case hasProvenance(candidate.Provenance, "argocd_application_source", "argocd_applicationset_deploy_source"):
-		return rules.ArgoCDRulePack()
-	case hasProvenance(candidate.Provenance, "kustomize_resource"):
-		return rules.KustomizeRulePack()
-	case hasProvenance(candidate.Provenance, "helm_deployment"):
-		return rules.HelmRulePack()
-	case hasProvenance(candidate.Provenance, "jenkins_pipeline") &&
-		hasProvenance(candidate.Provenance, "dockerfile_runtime"):
-		return rules.JenkinsRulePack()
-	case hasProvenance(candidate.Provenance, "github_actions_workflow") &&
-		hasProvenance(candidate.Provenance, "dockerfile_runtime"):
-		return rules.GitHubActionsRulePack()
-	case hasProvenance(candidate.Provenance, "dockerfile_runtime"):
-		return rules.DockerfileRulePack()
-	case hasProvenance(candidate.Provenance, "docker_compose_runtime"):
-		return rules.DockerComposeRulePack()
-	case hasProvenance(candidate.Provenance, "cloudformation_template"):
-		return rules.CloudFormationRulePack()
-	case hasProvenance(candidate.Provenance, "jenkins_pipeline"):
-		return rules.JenkinsRulePack()
-	case hasProvenance(candidate.Provenance, "github_actions_workflow"):
-		return rules.GitHubActionsRulePack()
-	default:
-		return rules.RulePack{
-			Name:                   "deployable-unit-fallback",
-			MinAdmissionConfidence: deployableUnitCorrelationFallbackThreshold,
-			Rules: []rules.Rule{
-				{Name: "extract-normalized-deployable-unit-key", Kind: rules.RuleKindExtractKey, Priority: 10},
-				{Name: "match-evidence-within-bounded-scope", Kind: rules.RuleKindMatch, Priority: 20, MaxMatches: 8},
-				{Name: "derive-admission-shape", Kind: rules.RuleKindDerive, Priority: 30},
-				{Name: "admit-strong-runtime-evidence", Kind: rules.RuleKindAdmit, Priority: 40},
-				{Name: "explain-correlation-decision", Kind: rules.RuleKindExplain, Priority: 50},
-			},
-		}
-	}
 }
 
 func deployableUnitModelCandidates(

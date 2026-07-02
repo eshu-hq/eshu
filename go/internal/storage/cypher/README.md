@@ -512,6 +512,9 @@ tracks this package's broader transient graph-write retry class.
   shape is batched `UNWIND` + `MATCH` source repository + `MATCH` deployment
   repository + static-token `MERGE`; missing endpoints are no-ops and stale
   rows retract only evidence source `reducer/deployable-unit-correlation`.
+  Single-repository retracts use a direct `Repository {id: $repo_id}` anchor
+  followed by a bound outgoing relationship delete, while multi-repository
+  retracts keep the batched `UNWIND $repo_ids` shape.
 - `OrphanSweepStore` — counts, marks, clears, and deletes aged
   zero-relationship graph nodes from the closed cleanup label set; constructed
   with `NewOrphanSweepStore`
@@ -550,6 +553,23 @@ writes 5,000 `CORRELATES_DEPLOYABLE_UNIT` rows at `2.94-3.05 ms/op`,
 `1.16-1.23 ms/op`, `2.16 MB/op`, and `25,098 allocs/op`; the deployable-unit
 path is heavier because it carries the generic shared-intent row map and
 admission metadata, but it remains one batched no-N+1 write surface.
+Performance Evidence: remote bounded NornicDB PR #230 full-corpus samples on
+commit `03c1eb07e` showed deployable-unit correlation still spending
+`204.150s` of `210.577s` total sampled handler time inside `edge_retract`; the
+slowest sampled retract deleted one stale relationship row and took `12.365915s`
+with `write_rows=0`. Current NornicDB source routes bound relationship deletes
+through its adjacency fast path only for simple `MATCH` segments; the previous
+deployable retract always emitted `UNWIND $repo_ids AS repo_id MATCH
+(source_repo:Repository {id: repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->...`
+even when the reducer supplied one repository. The new one-repo statement shape
+is `MATCH (source_repo:Repository {id: $repo_id}) MATCH
+(source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(:Repository) WHERE
+rel.evidence_source = $evidence_source DELETE rel`, matching NornicDB's tested
+bound-delete template while preserving the existing batched `UNWIND` statement
+for multi-repo retracts. Shape proof:
+`go test ./internal/storage/cypher -run
+'TestBuildRetractDeployableUnitCorrelationEdges(SingleRepoUsesBoundDeleteShape|MultiRepoKeepsBatchedShape)|TestEdgeWriterRetractEdgesDeployableUnitDispatch'
+-count=1`.
 
 No-Observability-Change: deployable-unit writes flow through
 `EdgeWriter.WriteEdges` / `RetractEdges`, existing retry wrapping, grouped

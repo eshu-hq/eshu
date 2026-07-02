@@ -183,3 +183,33 @@ func TestDeployableUnitCorrelationHandleRetractsWithoutWritingDroppedCandidate(t
 		t.Fatalf("write calls = %d, want 0", len(writer.writeCalls))
 	}
 }
+
+func TestDeployableUnitCorrelationNoCandidateRetractIsIntentScoped(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingDeployableUnitEdgeWriter{}
+	envelopes := deployableUnitCorrelationEnvelopes("repo-docs", "documentation", nil)
+	envelopes = append(envelopes, deployableUnitCorrelationEnvelopes("repo-other", "other", nil)...)
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader: &stubDeployableUnitFactLoader{
+			envelopes: envelopes,
+		},
+		PhasePublisher: &recordingGraphProjectionPhasePublisher{},
+		EdgeWriter:     writer,
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("documentation"))
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got, want := len(writer.retractCalls), 1; got != want {
+		t.Fatalf("retract calls = %d, want %d", got, want)
+	}
+	gotRows := writer.retractCalls[0].rows
+	if got, want := len(gotRows), 1; got != want {
+		t.Fatalf("retract rows = %d, want %d; rows=%#v", got, want, gotRows)
+	}
+	if got, want := gotRows[0].RepositoryID, "repo-docs"; got != want {
+		t.Fatalf("retract row RepositoryID = %q, want %q", got, want)
+	}
+}

@@ -20,24 +20,40 @@ const (
 	deployableUnitCorrelationRelationshipType = string(edgetype.CorrelatesDeployableUnit)
 )
 
+type deployableUnitEdgeMaterializeResult struct {
+	canonicalWrites int
+	retractRows     int
+	writeRows       int
+	retractDuration time.Duration
+	writeDuration   time.Duration
+}
+
 func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	ctx context.Context,
 	rows []SharedProjectionIntentRow,
-) (int, error) {
+) (deployableUnitEdgeMaterializeResult, error) {
+	var result deployableUnitEdgeMaterializeResult
 	if h.EdgeWriter == nil || len(rows) == 0 {
-		return 0, nil
+		return result, nil
 	}
+	result.retractRows = len(rows)
+	retractStarted := time.Now()
 	if err := h.retractDeployableUnitEdges(ctx, rows); err != nil {
-		return 0, err
+		return result, err
 	}
+	result.retractDuration = time.Since(retractStarted)
 	writeRows := admittedDeployableUnitRows(rows)
+	result.writeRows = len(writeRows)
 	if len(writeRows) == 0 {
-		return 0, nil
+		return result, nil
 	}
+	writeStarted := time.Now()
 	if err := h.EdgeWriter.WriteEdges(ctx, DomainDeployableUnitEdges, writeRows, deployableUnitCorrelationEvidenceSource); err != nil {
-		return 0, fmt.Errorf("write deployable unit correlation edges: %w", err)
+		return result, fmt.Errorf("write deployable unit correlation edges: %w", err)
 	}
-	return len(writeRows), nil
+	result.writeDuration = time.Since(writeStarted)
+	result.canonicalWrites = len(writeRows)
+	return result, nil
 }
 
 func (h DeployableUnitCorrelationHandler) retractDeployableUnitEdges(
@@ -89,7 +105,11 @@ func deployableUnitCorrelationRows(
 	return rows
 }
 
-func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func deployableUnitRetractRowsFromFacts(
+	intent Intent,
+	envelopes []facts.Envelope,
+	entityKeys map[string]struct{},
+) []SharedProjectionIntentRow {
 	var rows []SharedProjectionIntentRow
 	for _, envelope := range envelopes {
 		if envelope.FactKind != factKindRepository {
@@ -100,6 +120,9 @@ func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelop
 			repoID = strings.TrimSpace(anyToString(envelope.Payload["repo_id"]))
 		}
 		if repoID == "" {
+			continue
+		}
+		if !deployableUnitRepositoryMatchesEntityKeys(envelope, repoID, entityKeys) {
 			continue
 		}
 		rows = append(rows, SharedProjectionIntentRow{
@@ -120,6 +143,28 @@ func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelop
 		})
 	}
 	return rows
+}
+
+func deployableUnitRepositoryMatchesEntityKeys(
+	envelope facts.Envelope,
+	repoID string,
+	entityKeys map[string]struct{},
+) bool {
+	for _, key := range []string{
+		repoID,
+		anyToString(envelope.Payload["repo_id"]),
+		anyToString(envelope.Payload["graph_id"]),
+		anyToString(envelope.Payload["name"]),
+		normalizedEntityKey(repoID),
+		normalizedEntityKey(anyToString(envelope.Payload["repo_id"])),
+		normalizedEntityKey(anyToString(envelope.Payload["graph_id"])),
+		normalizedEntityKey(anyToString(envelope.Payload["name"])),
+	} {
+		if _, ok := entityKeys[strings.ToLower(strings.TrimSpace(key))]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func deployableUnitCorrelationRow(

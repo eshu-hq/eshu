@@ -27,10 +27,25 @@ MATCH (source_repo:Repository {id: repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractDeployableUnitCorrelationEdgesSingleRepoCypher = `MATCH (source_repo:Repository {id: $repo_id})
+MATCH (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(:Repository)
+WHERE rel.evidence_source = $evidence_source
+DELETE rel`
+
 // BuildRetractDeployableUnitCorrelationEdges deletes deployable-unit
 // correlation edges for repository acceptance units owned by one evidence
 // source.
 func BuildRetractDeployableUnitCorrelationEdges(repoIDs []string, evidenceSource string) Statement {
+	if len(repoIDs) == 1 {
+		return Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractDeployableUnitCorrelationEdgesSingleRepoCypher,
+			Parameters: map[string]any{
+				"repo_id":         repoIDs[0],
+				"evidence_source": evidenceSource,
+			},
+		}
+	}
 	return Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher:    retractDeployableUnitCorrelationEdgesCypher,

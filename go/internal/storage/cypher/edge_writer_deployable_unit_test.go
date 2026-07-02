@@ -101,3 +101,49 @@ func TestEdgeWriterRetractEdgesDeployableUnitDispatch(t *testing.T) {
 		t.Fatalf("retract cypher missing deployable-unit token: %s", executor.calls[0].Cypher)
 	}
 }
+
+func TestBuildRetractDeployableUnitCorrelationEdgesSingleRepoUsesBoundDeleteShape(t *testing.T) {
+	t.Parallel()
+
+	stmt := BuildRetractDeployableUnitCorrelationEdges(
+		[]string{"repo-edge-api"},
+		"reducer/deployable-unit-correlation",
+	)
+
+	for _, want := range []string{
+		"MATCH (source_repo:Repository {id: $repo_id})",
+		"MATCH (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(:Repository)",
+		"WHERE rel.evidence_source = $evidence_source",
+		"DELETE rel",
+	} {
+		if !strings.Contains(stmt.Cypher, want) {
+			t.Fatalf("single-repo retract cypher missing %q:\n%s", want, stmt.Cypher)
+		}
+	}
+	if strings.Contains(stmt.Cypher, "UNWIND") {
+		t.Fatalf("single-repo retract should avoid UNWIND so NornicDB can use bound relationship delete:\n%s", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["repo_id"], "repo-edge-api"; got != want {
+		t.Fatalf("repo_id = %#v, want %#v", got, want)
+	}
+	if _, ok := stmt.Parameters["repo_ids"]; ok {
+		t.Fatalf("single-repo retract should not include repo_ids parameter: %#v", stmt.Parameters)
+	}
+}
+
+func TestBuildRetractDeployableUnitCorrelationEdgesMultiRepoKeepsBatchedShape(t *testing.T) {
+	t.Parallel()
+
+	stmt := BuildRetractDeployableUnitCorrelationEdges(
+		[]string{"repo-edge-api", "repo-deployments"},
+		"reducer/deployable-unit-correlation",
+	)
+
+	if !strings.Contains(stmt.Cypher, "UNWIND $repo_ids AS repo_id") {
+		t.Fatalf("multi-repo retract should keep batched UNWIND shape:\n%s", stmt.Cypher)
+	}
+	repoIDs, ok := stmt.Parameters["repo_ids"].([]string)
+	if !ok || !reflect.DeepEqual(repoIDs, []string{"repo-edge-api", "repo-deployments"}) {
+		t.Fatalf("repo_ids = %#v, want two repo ids", stmt.Parameters["repo_ids"])
+	}
+}

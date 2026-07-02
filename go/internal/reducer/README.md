@@ -3186,7 +3186,6 @@ The remaining long-pole domains from issue #3624 are deferred to a follow-up PR
 to keep this change focused and reviewable:
 - `sql_relationship_materialization`
 - `shell_exec_materialization`
-- `deployable_unit_correlation`
 - `workload_materialization` (already has SubDurations; needs `SubSignals`
   input_ready + written_rows backfill)
 
@@ -3235,6 +3234,39 @@ work-happened / genuine-empty (writer-based domains plus inheritance's
 context-present/no-entities case) / stall, asserting `input_ready` and reading
 `written_rows` from `SubSignals` (not `result.CanonicalWrites`) so a missing-key
 defect fails red.
+
+## Deployable Unit Correlation Handler Attribution (#4526)
+
+`deployable_unit_correlation` emits reducer result sub-durations and bounded
+sub-signals for the handler path that dominated a bounded full-corpus run in
+#3624. No-candidate cleanup is also scoped to the intent's repository identity:
+the handler no longer retracts deployable-unit edges for every repository fact
+loaded in the scope when one repo has no candidate. Candidate extraction,
+correlation scoring, admission decisions, Cypher, graph write shape, worker
+counts, batch sizes, and queue conflict keys are unchanged.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+TestDeployableUnitCorrelationReportsSubDurationsAndSignals -count=1` failed
+first because `DeployableUnitCorrelationHandler.Handle` returned nil
+`SubDurations`, then passed after the handler populated timing and signal maps.
+`go test ./internal/reducer -run
+TestDeployableUnitCorrelationNoCandidateRetractIsIntentScoped -count=1` failed
+first because the no-candidate path retracted two repository rows for a
+single-repo intent, then passed after retract rows were filtered by the
+normalized intent entity key. The timing work is bounded to `time.Now()` diffs
+around existing phases plus one small result map for durations and one small
+signal map for counts.
+
+Observability Evidence: the existing reducer service log path emits the new
+durations as `sub_duration_{load_facts,extract_candidates,load_resolved,
+apply_resolved,filter_candidates,evaluate_candidates,edge_materialize,
+edge_retract,edge_write,admission_decisions,phase_publish,total}_seconds` and the counts as
+`sub_signal_{fact_count,raw_candidate_count,candidate_count,
+evaluated_candidates,edge_rows,retract_rows,write_rows,canonical_writes}`.
+These fields separate fact load, candidate extraction, resolved-edge lookup,
+resolved-edge enrichment, entity-key filtering, rules evaluation, graph edge
+retract, graph edge write, admission-decision writes, and phase publication on the single
+`reducer execution succeeded` log line.
 
 ## Supply-Chain Impact Handler Attribution (#4429)
 
