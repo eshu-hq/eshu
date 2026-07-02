@@ -440,6 +440,19 @@ worker, queue domain, or runtime surface is removed.
   wrong clause for the shape returns `__drained=0` (no nodes deleted).
   Delta retracts and positive-list retracts are unaffected.
   The knob is NornicDB-only; Neo4j uses the original single-statement path.
+- `openIngesterCanonicalWriter` and its NornicDB/Neo4j tuning-knob loaders
+  live in `wiring_canonical_writer_open.go`, split out of `wiring.go` once the
+  latter regressed past the repo's 500-line cap. The move is line-for-line:
+  no logic, ordering, or defaults changed.
+  No-Regression Evidence: same function body relocated verbatim (`git diff`
+  shows a pure move, confirmed by diffing pre/post function text); full
+  `go/cmd/ingester` package test suite passes unchanged before and after the
+  split (`go test ./cmd/ingester/... -count=1` — before: all pass; after: all
+  pass, same test count). `go build ./...` and `golangci-lint run ./...`
+  clean on the whole module post-split.
+  No-Observability-Change: telemetry, span, and log call sites are untouched
+  — only their containing file changed, not their behavior or instrument
+  wiring.
 
 ## Related docs
 
