@@ -86,46 +86,52 @@ func TestEdgeWriterRetractEdgesShellExecDeltaUsesFileScope(t *testing.T) {
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "MATCH (source:Function {path: file_path})") {
-		t.Fatalf("delta retract did not anchor by source.path: %s", executor.calls[0].Cypher)
+	if !strings.Contains(executor.calls[0].Cypher, "MATCH (target:ShellCommand {path: file_path})") {
+		t.Fatalf("delta retract did not anchor by target.path: %s", executor.calls[0].Cypher)
 	}
 }
 
-func TestBuildRetractShellExecEdgesUsesRepoAnchoredFunctionLookup(t *testing.T) {
+func TestBuildRetractShellExecEdgesUsesRepoAnchoredShellCommandLookup(t *testing.T) {
 	t.Parallel()
 
 	stmt := BuildRetractShellExecEdges([]string{"repo-a"}, "reducer/shell-exec")
 	if !strings.Contains(stmt.Cypher, "UNWIND $repo_ids AS repo_id") {
 		t.Fatalf("cypher = %q, want repo_id unwind", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "MATCH (source:Function {repo_id: repo_id})") {
-		t.Fatalf("cypher = %q, want indexed Function repo_id anchor", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "MATCH (target:ShellCommand {repo_id: repo_id})") {
+		t.Fatalf("cypher = %q, want indexed ShellCommand repo_id anchor", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "MATCH (source)-[rel:EXECUTES_SHELL]->()") {
-		t.Fatalf("cypher = %q, want source-bound EXECUTES_SHELL expansion", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "MATCH ()-[rel:EXECUTES_SHELL]->(target)") {
+		t.Fatalf("cypher = %q, want target-bound EXECUTES_SHELL expansion", stmt.Cypher)
 	}
-	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH (source)-[rel:") {
+	if strings.Contains(stmt.Cypher, "MATCH (source:Function {repo_id: repo_id})") {
+		t.Fatalf("cypher = %q, want ShellCommand anchor instead of Function fan-out", stmt.Cypher)
+	}
+	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH ()-[rel:") {
 		t.Fatalf("cypher starts from unbound relationship scan: %q", stmt.Cypher)
 	}
 }
 
-func TestBuildRetractShellExecEdgesByFilePathUsesPathAnchoredFunctionLookup(t *testing.T) {
+func TestBuildRetractShellExecEdgesByFilePathUsesPathAnchoredShellCommandLookup(t *testing.T) {
 	t.Parallel()
 
 	stmt := BuildRetractShellExecEdgesByFilePath([]string{"/repo/cmd/archive/main.go"}, "reducer/shell-exec")
 	if !strings.Contains(stmt.Cypher, "UNWIND $file_paths AS file_path") {
 		t.Fatalf("cypher = %q, want file path unwind", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "MATCH (source:Function {path: file_path})") {
-		t.Fatalf("cypher = %q, want indexed Function path anchor", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "MATCH (target:ShellCommand {path: file_path})") {
+		t.Fatalf("cypher = %q, want indexed ShellCommand path anchor", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "MATCH (source)-[rel:EXECUTES_SHELL]->()") {
-		t.Fatalf("cypher = %q, want source-bound EXECUTES_SHELL expansion", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "MATCH ()-[rel:EXECUTES_SHELL]->(target)") {
+		t.Fatalf("cypher = %q, want target-bound EXECUTES_SHELL expansion", stmt.Cypher)
 	}
 	if strings.Contains(stmt.Cypher, "source.path IN $file_paths") {
 		t.Fatalf("cypher = %q, want bound path lookup rather than post-match IN filter", stmt.Cypher)
 	}
-	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH (source)-[rel:") {
+	if strings.Contains(stmt.Cypher, "MATCH (source:Function {path: file_path})") {
+		t.Fatalf("cypher = %q, want ShellCommand anchor instead of Function fan-out", stmt.Cypher)
+	}
+	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH ()-[rel:") {
 		t.Fatalf("cypher starts from unbound relationship scan: %q", stmt.Cypher)
 	}
 }

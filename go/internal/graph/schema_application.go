@@ -24,8 +24,16 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "489250e081f0328b36cc7eb4fd21d25eb789b17e63ea64341e678f00be681ecd"
-	graphSchemaNornicDBFingerprint = "14acea00f37e5c8ad971662dde5fbebddffc6eab8a6d2cd7544c2f966a10c054"
+	graphSchemaNeo4jFingerprint    = "556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53"
+	graphSchemaNornicDBFingerprint = "1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae"
+
+	// graphSchemaNeo4jPreShellExecRetractIndexesFingerprint and its NornicDB
+	// peer are the schema fingerprints immediately before ShellCommand repo_id/path
+	// lookup indexes were added. The bump is additive: older writers do not rely
+	// on the indexes being absent, and newer writers only gain faster
+	// reducer-owned shell_exec edge retractions.
+	graphSchemaNeo4jPreShellExecRetractIndexesFingerprint    = "489250e081f0328b36cc7eb4fd21d25eb789b17e63ea64341e678f00be681ecd"
+	graphSchemaNornicDBPreShellExecRetractIndexesFingerprint = "14acea00f37e5c8ad971662dde5fbebddffc6eab8a6d2cd7544c2f966a10c054"
 
 	// graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint and its NornicDB
 	// peer are the schema fingerprints immediately before inheritance child
@@ -75,6 +83,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
 			graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint,
 			graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
 			graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
@@ -83,6 +92,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
 			graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,
 			graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,
 			graphSchemaNornicDBPreHelmTemplateValuesFingerprint,

@@ -20,14 +20,14 @@ SET rel.confidence = 0.95,
     rel.evidence_source = row.evidence_source`
 
 const retractShellExecEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source:Function {repo_id: repo_id})
-MATCH (source)-[rel:EXECUTES_SHELL]->()
+MATCH (target:ShellCommand {repo_id: repo_id})
+MATCH ()-[rel:EXECUTES_SHELL]->(target)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
 const retractShellExecEdgesByFileCypher = `UNWIND $file_paths AS file_path
-MATCH (source:Function {path: file_path})
-MATCH (source)-[rel:EXECUTES_SHELL]->()
+MATCH (target:ShellCommand {path: file_path})
+MATCH ()-[rel:EXECUTES_SHELL]->(target)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
