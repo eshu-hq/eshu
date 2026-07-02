@@ -318,14 +318,19 @@ ON CONFLICT (fact_id) DO UPDATE SET
     ingested_at = EXCLUDED.ingested_at,
     is_tombstone = EXCLUDED.is_tombstone,
     payload = EXCLUDED.payload
+WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
 `
 
 // upsertStreamingFacts reads fact envelopes from a channel and persists them
 // in batched multi-row INSERT statements. Each batch inserts up to
 // factBatchSize rows (500), matching the non-streaming path. Envelopes are
 // deduplicated within each batch to avoid Postgres SQLSTATE 21000 on
-// ON CONFLICT DO UPDATE; cross-batch duplicates are handled by Postgres
-// naturally (later batch overwrites earlier).
+// ON CONFLICT DO UPDATE. Cross-batch duplicates are resolved by fencing token,
+// not commit order: upsertFactBatchSuffix's
+// "WHERE fact_records.fencing_token <= EXCLUDED.fencing_token" guard (issue
+// #4444) makes the higher-fencing-token fact win regardless of which batch's
+// INSERT commits last, so an out-of-order or retried stale batch cannot
+// resurrect a fact a newer batch already superseded.
 //
 // Per-envelope validation ensures scope_id and generation_id match the
 // expected values, replacing the upfront validateProjectionInput check

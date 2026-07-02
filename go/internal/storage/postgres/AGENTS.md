@@ -36,6 +36,12 @@
   `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on
   `ON CONFLICT DO UPDATE` when the same `fact_id` appears twice in one batch
   (`facts.go:206`).
+- **Fact-record cross-batch fencing** — `upsertFactBatchSuffix` must keep the
+  `WHERE fact_records.fencing_token <= EXCLUDED.fencing_token` conflict guard
+  (issue #4444). Without it, a stale or out-of-order batch that commits after a
+  newer batch silently overwrites the newer fact_id row (and resurrects its
+  payload) purely on commit order; `deduplicateEnvelopes` only protects against
+  duplicate `fact_id` values inside one batch, not across batches.
 - **Freshness de-dupe covers in-flight generations** —
   `CommitScopeGeneration` must compare the incoming `FreshnessHint` with the
   newest same-scope `pending` or `active` generation. Restricting the check to
