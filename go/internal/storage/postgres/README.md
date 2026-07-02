@@ -86,6 +86,13 @@ High-signal invariants for this package:
   unleased older-generation reducer rows once the same scope has a newer active
   generation, and status/drain/observer reads exclude those inactive rows from
   live readiness while preserving the durable work item for audit history.
+  Supersession composes with the readiness gate rather than racing ahead of it
+  (#4445): a stale row for a readiness-gated domain
+  (`reducer_claim_readiness_requirements`) is held out of the supersede sweep
+  for as long as the outer candidate query would also refuse to claim it on
+  readiness grounds, so a still-pending gate never gets permanently
+  terminalized into the unreplayable `superseded` status the instant a newer
+  generation activates.
 - Workflow, AWS pagination, AWS scan-status, webhook, incident freshness, and
   hosted tenant/workspace grant stores use fencing, coalescing, or idempotent
   conflict keys so stale workers or replayed deliveries cannot overwrite newer
