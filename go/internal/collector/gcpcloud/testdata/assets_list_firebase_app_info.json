@@ -1,0 +1,37 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//firebase.googleapis.com/projects/demo-project/webApps/1:123456789:web:abc123",
+      "assetType": "firebase.googleapis.com/FirebaseAppInfo",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/webApps/1:123456789:web:abc123",
+          "appId": "1:123456789:web:abc123",
+          "displayName": "Demo Web App",
+          "platform": "WEB",
+          "namespace": "com.example.demo",
+          "state": "ACTIVE"
+        }
+      }
+    },
+    {
+      "name": "//firebase.googleapis.com/projects/demo-project/androidApps/1:123456789:android:def456",
+      "assetType": "firebase.googleapis.com/FirebaseAppInfo",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/androidApps/1:123456789:android:def456",
+          "appId": "1:123456789:android:def456",
+          "displayName": "Demo Android App",
+          "platform": "ANDROID",
+          "namespace": "com.example.demo.android",
+          "state": "ACTIVE"
+        }
+      }
+    }
+  ]
+}
