@@ -44,8 +44,36 @@ Performance Evidence:
   stamp every target `ShellCommand` with the source repo and path and target IDs
   are derived from repo, path, function, line, and API.
 - Candidate 2 local status: focused regression and package gates pass. This is
-  not PR-ready until the same branch is pulled onto the remote NornicDB #230
-  stack and the bounded corpus proof shows a material retract/runtime win.
+  now backed by the remote bounded proof below.
+- Candidate 2 remote run: `4512-shell-exec-target-pr230-20260702T054348Z`.
+- Candidate 2 remote Eshu commit:
+  `8ca851015b425b38a31cc1ebdf2e89f28c661823`.
+- Candidate 2 backend/version: NornicDB #230 branch image
+  `eshu-nornicdb-pr230:c4901451`, commit
+  `c4901451963aac00b069722178958e1c99755884`.
+- Candidate 2 profile:
+  `GOMAXPROCS16 parse16 snapshot16 projection8 large_repo4 reducer16 shared4
+  partitions8 codecall4 pg96 graph_inflight0 timeout120s`.
+- Candidate 2 stopped at `2026-07-02T05:50:09Z` with reason
+  `source_local_40_shell_exec_4_cycles`.
+- Candidate 2 terminal queue sample: `projector/source_local` had 43
+  succeeded and 2 claimed; `reducer/shell_exec_materialization` had 38
+  succeeded and 5 pending.
+- Candidate 2 `shell_exec` cycles: count 35, total duration `57.138315s`,
+  median `1.595175s`, p95 `4.534482s`, max `5.117172s`.
+- Candidate 2 `shell_exec` retract time: total `56.955925s`, median
+  `1.591695s`, p95 `4.531769s`, max `5.115573s`.
+- Candidate 2 result: the target-side `ShellCommand` anchor plus
+  `repo_id`/`path` indexes removes the previous shell-exec long pole. At the
+  same bounded stop shape, max shell-exec cycle time dropped from
+  `121.605655s` on current main and `149.150518s` on candidate 1 to
+  `5.117172s`.
+- Remaining measured bottleneck at the bounded stop is earlier in bootstrap,
+  not this retract path: `pre_scan` totaled `991.478031s` across 75 completed
+  samples with max `142.383317s`; `parse` totaled `651.565142s` across 64
+  completed samples with max `66.608678s`. Those should be handled as separate
+  performance slices because this change is scoped to the `shell_exec` retract
+  query shape.
 
 No-Regression Evidence:
 
