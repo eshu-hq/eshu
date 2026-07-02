@@ -60,6 +60,11 @@ func javaScriptPreScanNames(root *tree_sitter.Node, source []byte, outputLanguag
 			if isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
 				names = appendPreScanName(names, node.ChildByFieldName("key"), source)
 			}
+		case "assignment_expression":
+			if !isJavaScriptFunctionValue(node.ChildByFieldName("right")) {
+				return
+			}
+			names = appendPreScanName(names, javaScriptExportAssignmentNameNode(node.ChildByFieldName("left"), source), source)
 		}
 	})
 	return names

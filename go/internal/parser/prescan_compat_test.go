@@ -26,6 +26,8 @@ func TestPreScanMatchesParseDeclarationNames(t *testing.T) {
 function hello() {}
 const world = () => world;
 const handlers = { onStart() {}, onStop: function onStop() {} };
+module.exports.encode = async data => String(data);
+exports.decorate = function decorate(value) { return value; };
 export default function exported() {}
 `,
 			keys: []string{"functions", "classes"},
