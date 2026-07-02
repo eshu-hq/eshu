@@ -111,6 +111,13 @@ type Instruments struct {
 	ReducerIntentsEnqueued    metric.Int64Counter
 	ReducerAdmissionDeferrals metric.Int64Counter
 	ReducerExecutions         metric.Int64Counter
+	// ReducerHeartbeatMissed counts reducer lease heartbeat failures, whether
+	// from the immediate pre-heartbeat emitted at claim time (#4447) or a
+	// later periodic tick. Labeled by domain only (a bounded closed set). A
+	// non-zero rate means a worker's lease heartbeat could not reach the
+	// lease store and the intent's lease may be reclaimed and re-executed by
+	// another worker.
+	ReducerHeartbeatMissed metric.Int64Counter
 	// WorkflowRunTerminalDeadLetterBlocks counts workflow run completeness
 	// reconciliations that terminated a run (blocked/failed, not left
 	// wedged in reducer_converging) because a required graph-projection
@@ -131,10 +138,17 @@ type Instruments struct {
 	// intent_id, scope_id, or generation_id. Lets an operator derive per-domain
 	// drain rate (completed/s) and — combined with an intent-emit counter —
 	// pending depth per domain without a per-scrape table scan.
-	SharedProjectionIntentsCompleted          metric.Int64Counter
-	SharedAcceptanceUpserts                   metric.Int64Counter
-	SharedAcceptanceLookupErrors              metric.Int64Counter
-	SharedProjectionStaleIntents              metric.Int64Counter
+	SharedProjectionIntentsCompleted metric.Int64Counter
+	SharedAcceptanceUpserts          metric.Int64Counter
+	SharedAcceptanceLookupErrors     metric.Int64Counter
+	SharedProjectionStaleIntents     metric.Int64Counter
+	// SharedProjectionPartitionHeartbeatMissed counts shared-projection
+	// partition lease heartbeat failures (#4449). Labeled by domain only (a
+	// bounded closed set). A non-zero rate means a slow partition cycle's
+	// lease heartbeat could not reach the lease store, risking reclaim and
+	// double-write by another worker while the original holder is still
+	// processing.
+	SharedProjectionPartitionHeartbeatMissed  metric.Int64Counter
 	GenerationRetentionPruned                 metric.Int64Counter
 	GenerationRetentionRowsPruned             metric.Int64Counter
 	GenerationRetentionFailures               metric.Int64Counter
@@ -1089,6 +1103,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ReducerExecutions counter: %w", err)
 	}
 
+	inst.ReducerHeartbeatMissed, err = meter.Int64Counter(
+		"eshu_dp_reducer_heartbeat_missed_total",
+		metric.WithDescription("Total reducer lease heartbeat failures, including the immediate pre-heartbeat emitted at claim time"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerHeartbeatMissed counter: %w", err)
+	}
+
 	inst.WorkflowRunTerminalDeadLetterBlocks, err = meter.Int64Counter(
 		"eshu_dp_workflow_run_terminal_dead_letter_blocks_total",
 		metric.WithDescription("Total workflow run completeness reconciliations that terminated a run because a required phase's owning reducer domain had a terminal fact_work_items dead-letter, labeled by collector_kind and domain (#4459)"),
@@ -1159,6 +1181,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionStaleIntents counter: %w", err)
+	}
+
+	inst.SharedProjectionPartitionHeartbeatMissed, err = meter.Int64Counter(
+		"eshu_dp_shared_projection_partition_heartbeat_missed_total",
+		metric.WithDescription("Total shared projection partition lease heartbeat failures"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedProjectionPartitionHeartbeatMissed counter: %w", err)
 	}
 
 	inst.GenerationRetentionPruned, err = meter.Int64Counter(

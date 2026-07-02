@@ -438,12 +438,27 @@ func reducerExecutionFailureClass(err error) string {
 
 type reducerHeartbeatStop func() error
 
+// startHeartbeat starts the reducer lease heartbeat loop for a claimed
+// intent. It emits one heartbeat synchronously, before returning, so a
+// worker that stalls (GC pause, slow first graph write) immediately after
+// claim cannot let the lease expire before any heartbeat has landed (#4447).
+// HeartbeatInterval = LeaseDuration/2 and the periodic ticker only fires
+// after a full interval has elapsed, leaving that startup window open
+// without this immediate pre-heartbeat.
 func (s Service) startHeartbeat(ctx context.Context, intent Intent, workerID int) (context.Context, reducerHeartbeatStop) {
 	if s.Heartbeater == nil || s.HeartbeatInterval <= 0 {
 		return ctx, func() error { return nil }
 	}
 
 	heartbeatCtx, cancel := context.WithCancel(ctx)
+
+	if err := s.Heartbeater.Heartbeat(heartbeatCtx, intent); err != nil {
+		heartbeatErr := fmt.Errorf("heartbeat reducer work: %w", err)
+		s.recordReducerHeartbeatMissed(heartbeatCtx, intent, workerID, heartbeatErr)
+		cancel()
+		return heartbeatCtx, func() error { return heartbeatErr }
+	}
+
 	done := make(chan error, 1)
 	go func() {
 		ticker := time.NewTicker(s.HeartbeatInterval)
@@ -458,24 +473,7 @@ func (s Service) startHeartbeat(ctx context.Context, intent Intent, workerID int
 			case <-ticker.C:
 				if err := s.Heartbeater.Heartbeat(heartbeatCtx, intent); err != nil {
 					heartbeatErr = fmt.Errorf("heartbeat reducer work: %w", err)
-					if s.Logger != nil {
-						domainAttrs := telemetry.DomainAttrs(string(intent.Domain), firstReducerPartitionKey(intent))
-						logAttrs := make([]any, 0, len(domainAttrs)+5)
-						for _, a := range domainAttrs {
-							logAttrs = append(logAttrs, a)
-						}
-						logAttrs = append(
-							logAttrs,
-							log.Queue("reducer"),
-							log.IntentID(intent.IntentID),
-							log.WorkerID(fmt.Sprintf("%d", workerID)),
-							slog.Duration("heartbeat_interval", s.HeartbeatInterval),
-							telemetry.PhaseAttr(telemetry.PhaseReduction),
-							telemetry.FailureClassAttr("lease_heartbeat_failure"),
-							log.Err(heartbeatErr),
-						)
-						s.Logger.ErrorContext(heartbeatCtx, "reducer lease heartbeat failed", logAttrs...)
-					}
+					s.recordReducerHeartbeatMissed(heartbeatCtx, intent, workerID, heartbeatErr)
 					cancel()
 				}
 			}
@@ -490,6 +488,35 @@ func (s Service) startHeartbeat(ctx context.Context, intent Intent, workerID int
 			heartbeatErr = <-done
 		})
 		return heartbeatErr
+	}
+}
+
+// recordReducerHeartbeatMissed logs and increments the operator-facing
+// missed-heartbeat signal for a reducer lease heartbeat failure, whether it
+// came from the immediate pre-heartbeat or a later periodic tick.
+func (s Service) recordReducerHeartbeatMissed(ctx context.Context, intent Intent, workerID int, heartbeatErr error) {
+	if s.Instruments != nil {
+		s.Instruments.ReducerHeartbeatMissed.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrDomain(string(intent.Domain)),
+		))
+	}
+	if s.Logger != nil {
+		domainAttrs := telemetry.DomainAttrs(string(intent.Domain), firstReducerPartitionKey(intent))
+		logAttrs := make([]any, 0, len(domainAttrs)+5)
+		for _, a := range domainAttrs {
+			logAttrs = append(logAttrs, a)
+		}
+		logAttrs = append(
+			logAttrs,
+			log.Queue("reducer"),
+			log.IntentID(intent.IntentID),
+			log.WorkerID(fmt.Sprintf("%d", workerID)),
+			slog.Duration("heartbeat_interval", s.HeartbeatInterval),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+			telemetry.FailureClassAttr("lease_heartbeat_failure"),
+			log.Err(heartbeatErr),
+		)
+		s.Logger.ErrorContext(ctx, "reducer lease heartbeat failed", logAttrs...)
 	}
 }
 

@@ -81,6 +81,85 @@ func TestServiceRunHeartbeatsLongRunningReducerWork(t *testing.T) {
 	}
 }
 
+// TestServiceRunPreHeartbeatsImmediatelyOnClaim reproduces #4447: a reducer
+// claim has a startup window where the lease can expire before the first
+// heartbeat because the periodic ticker inside startHeartbeat does not fire
+// until a full HeartbeatInterval has elapsed. A worker that stalls (GC pause,
+// slow first graph write) immediately after claim can let the lease expire
+// before any heartbeat lands, causing at-least-twice execution when the lease
+// is reclaimed.
+//
+// HeartbeatInterval is set to one hour so the periodic ticker cannot possibly
+// fire during the test. The executor blocks until the heartbeater observes
+// its first call. If the fix (an immediate heartbeat emitted synchronously at
+// claim time, before Executor.Execute runs) is not present, the executor
+// blocks forever and the test times out -- proving the startup window is
+// closed only when this test passes.
+func TestServiceRunPreHeartbeatsImmediatelyOnClaim(t *testing.T) {
+	t.Parallel()
+
+	intent := Intent{
+		IntentID:     "intent-pre-heartbeat",
+		ScopeID:      "scope-123",
+		GenerationID: "generation-456",
+		SourceSystem: "git",
+		Domain:       DomainSemanticEntityMaterialization,
+		Cause:        "projector emitted semantic entity work",
+		EntityKeys:   []string{"repo:eshu"},
+		EnqueuedAt:   time.Date(2026, time.April, 23, 17, 0, 0, 0, time.UTC),
+		AvailableAt:  time.Date(2026, time.April, 23, 17, 0, 0, 0, time.UTC),
+		Status:       IntentStatusPending,
+	}
+
+	firstHeartbeat := make(chan struct{})
+	var closedOnce sync.Once
+	heartbeater := &stubReducerHeartbeater{
+		afterHeartbeat: func(count int) {
+			if count == 1 {
+				closedOnce.Do(func() { close(firstHeartbeat) })
+			}
+		},
+	}
+	executor := &blockingReducerExecutor{
+		release: firstHeartbeat,
+		result: Result{
+			IntentID: intent.IntentID,
+			Domain:   intent.Domain,
+			Status:   ResultStatusSucceeded,
+		},
+	}
+	sink := &stubReducerWorkSink{}
+
+	service := Service{
+		PollInterval:      10 * time.Millisecond,
+		WorkSource:        &stubReducerWorkSource{intents: []Intent{intent}},
+		Executor:          executor,
+		WorkSink:          sink,
+		Heartbeater:       heartbeater,
+		HeartbeatInterval: time.Hour,
+		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- service.Run(context.Background()) }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run() error = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run() did not complete: executor never observed a heartbeat before the 1h ticker interval, lease-expiry startup window is not closed")
+	}
+
+	if got, want := heartbeater.calls(), 1; got < want {
+		t.Fatalf("heartbeat calls = %d, want at least %d", got, want)
+	}
+	if got, want := sink.ackCalls, 1; got != want {
+		t.Fatalf("ack calls = %d, want %d", got, want)
+	}
+}
+
 type stubReducerHeartbeater struct {
 	mu             sync.Mutex
 	heartbeatCalls int
