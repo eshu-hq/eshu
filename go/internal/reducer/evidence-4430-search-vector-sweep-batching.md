@@ -47,7 +47,7 @@ No-Regression Evidence: `cd go && go test ./internal/searchvector/... ./internal
 the pre-existing full package suites plus new regression coverage).
 
 `TestBuilderBatchesUpsertsPerPageInsteadOfPerDocument`
-(`go/internal/searchvector/builder_test.go`) is the direct regression test:
+(`go/internal/searchvector/builder_batching_test.go`) is the direct regression test:
 five documents in one page must produce exactly one `Values.UpsertBatch` call
 and one `Metadata.UpsertBatch` call, each carrying all five rows. Reverting to
 per-document upserts would make this test fail immediately (it asserts call

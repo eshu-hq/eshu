@@ -80,11 +80,11 @@ func TestEshuSearchVectorUpsertBatchScaleLive(t *testing.T) {
 	dims := 8
 	now := time.Now().UTC()
 
+	var seededScopeIDs []string
 	t.Cleanup(func() {
 		cleanCtx := context.Background()
-		for i := 0; i < scopeCount*2; i++ {
-			_, _ = sqlDB.ExecContext(cleanCtx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`,
-				fmt.Sprintf("%s:scope-%d", prefix, i))
+		for _, scopeID := range seededScopeIDs {
+			_, _ = sqlDB.ExecContext(cleanCtx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeID)
 		}
 	})
 
@@ -165,7 +165,8 @@ func TestEshuSearchVectorUpsertBatchScaleLive(t *testing.T) {
 	var perDocumentMetaRows []EshuSearchVectorMetadata
 	seedStart := time.Now()
 	for s := 0; s < scopeCount; s++ {
-		_, _, values, metas := seedScope(fmt.Sprintf("perdoc-%d", s), docsPerScope)
+		scopeID, _, values, metas := seedScope(fmt.Sprintf("perdoc-%d", s), docsPerScope)
+		seededScopeIDs = append(seededScopeIDs, scopeID)
 		perDocumentValues = append(perDocumentValues, values...)
 		perDocumentMetaRows = append(perDocumentMetaRows, metas...)
 	}
@@ -186,7 +187,8 @@ func TestEshuSearchVectorUpsertBatchScaleLive(t *testing.T) {
 	var batchedValues []EshuSearchVectorValue
 	var batchedMetaRows []EshuSearchVectorMetadata
 	for s := 0; s < scopeCount; s++ {
-		_, _, values, metas := seedScope(fmt.Sprintf("batched-%d", s), docsPerScope)
+		scopeID, _, values, metas := seedScope(fmt.Sprintf("batched-%d", s), docsPerScope)
+		seededScopeIDs = append(seededScopeIDs, scopeID)
 		batchedValues = append(batchedValues, values...)
 		batchedMetaRows = append(batchedMetaRows, metas...)
 	}

@@ -164,10 +164,14 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 
 		writeStart := time.Now()
 		if err := b.Values.UpsertBatch(ctx, dedupeValueBatch(valueBatch)); err != nil {
-			return result, fmt.Errorf("upsert vector value batch: %w", err)
+			return result, fmt.Errorf(
+				"upsert vector value batch (scope=%s generation=%s offset=%d rows=%d): %w",
+				req.ScopeID, generationID, offset, len(valueBatch), err)
 		}
 		if err := b.Metadata.UpsertBatch(ctx, dedupeMetadataBatch(metadataBatch)); err != nil {
-			return result, fmt.Errorf("upsert vector metadata batch: %w", err)
+			return result, fmt.Errorf(
+				"upsert vector metadata batch (scope=%s generation=%s offset=%d rows=%d): %w",
+				req.ScopeID, generationID, offset, len(metadataBatch), err)
 		}
 		result.WriteUpsertDuration += time.Since(writeStart)
 
