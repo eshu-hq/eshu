@@ -100,7 +100,7 @@ func (state *phpParseState) resolveVariableType(
 // assignmentRHSType infers the type assigned to a variable from the nearest
 // enclosing assignment whose left-hand side is the variable itself.
 func (state *phpParseState) assignmentRHSType(node *tree_sitter.Node, variable string, scopeKey string) string {
-	assignment := phpEnclosingAssignment(node)
+	assignment := phpEnclosingAssignment(node, state.parents)
 	if assignment == nil {
 		return ""
 	}
@@ -155,8 +155,8 @@ func phpAnonymousAssignmentType(node *tree_sitter.Node) string {
 
 // phpEnclosingAssignment returns the nearest assignment_expression ancestor of a
 // node, stopping at statement boundaries.
-func phpEnclosingAssignment(node *tree_sitter.Node) *tree_sitter.Node {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func phpEnclosingAssignment(node *tree_sitter.Node, parents *phpParentLookup) *tree_sitter.Node {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "assignment_expression":
 			return current

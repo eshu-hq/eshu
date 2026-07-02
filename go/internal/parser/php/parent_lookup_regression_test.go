@@ -72,6 +72,48 @@ func TestPHPParentLookupEliminatesScopeContextParentCgoCrossings(t *testing.T) {
 		productionCgo, oldCgo, ancestorVisits)
 }
 
+func TestPHPParentLookupEliminatesAssignmentParentCgoCrossings(t *testing.T) {
+	root, source, closeTree := parsePHPRootForTest(t, assignmentHeavyPHPSource(36))
+	defer closeTree()
+
+	variables := collectPHPVariableNodes(root)
+	if len(variables) == 0 {
+		t.Fatalf("collectPHPVariableNodes() = 0 nodes, want > 0")
+	}
+
+	lookup := buildPHPParentLookup(root)
+	for _, node := range variables {
+		got := phpEnclosingAssignment(node, lookup)
+		want := phpEnclosingAssignmentViaCgoParent(node)
+		if (want == nil) != (got == nil) || (want != nil && got != nil && want.Id() != got.Id()) {
+			t.Fatalf("phpEnclosingAssignment() mismatch for %q: lookup=%v Parent()=%v",
+				strings.TrimSpace(shared.NodeText(node, source)), phpNodeID(got), phpNodeID(want))
+		}
+	}
+
+	gcWarmup()
+	beforeProduction := runtime.NumCgoCall()
+	for _, node := range variables {
+		_ = phpEnclosingAssignment(node, lookup)
+	}
+	productionCgo := runtime.NumCgoCall() - beforeProduction
+
+	gcWarmup()
+	beforeOld := runtime.NumCgoCall()
+	for _, node := range variables {
+		_ = phpEnclosingAssignmentViaCgoParent(node)
+	}
+	oldCgo := runtime.NumCgoCall() - beforeOld
+
+	if productionCgo >= oldCgo {
+		t.Fatalf("production assignment lookup made %d cgo calls, old Parent() walk made %d; want production lower",
+			productionCgo, oldCgo)
+	}
+
+	t.Logf("production assignment lookup: %d cgo calls; old Parent() walk: %d cgo calls",
+		productionCgo, oldCgo)
+}
+
 func parsePHPRootForTest(t *testing.T, source string) (*tree_sitter.Node, []byte, func()) {
 	t.Helper()
 
@@ -110,6 +152,30 @@ func deepPHPContextSource(depth int) string {
 	return builder.String()
 }
 
+func assignmentHeavyPHPSource(depth int) string {
+	var builder strings.Builder
+	builder.WriteString("<?php\n")
+	builder.WriteString("class Demo {\n")
+	builder.WriteString("  public function run($input) {\n")
+	for i := range depth {
+		builder.WriteString(strings.Repeat(" ", i+4))
+		builder.WriteString("if ($input) {\n")
+		builder.WriteString(strings.Repeat(" ", i+6))
+		builder.WriteString("$value")
+		builder.WriteString(strings.Repeat("->next()", i%4))
+		builder.WriteString(" = new Service")
+		builder.WriteString(";")
+		builder.WriteString("\n")
+	}
+	for i := depth - 1; i >= 0; i-- {
+		builder.WriteString(strings.Repeat(" ", i+4))
+		builder.WriteString("}\n")
+	}
+	builder.WriteString("  }\n")
+	builder.WriteString("}\n")
+	return builder.String()
+}
+
 func collectPHPVariableNodes(root *tree_sitter.Node) []*tree_sitter.Node {
 	var nodes []*tree_sitter.Node
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
@@ -130,6 +196,18 @@ func phpScopeKeyForNodeViaCgoParent(node *tree_sitter.Node, source []byte) strin
 		}
 	}
 	return ""
+}
+
+func phpEnclosingAssignmentViaCgoParent(node *tree_sitter.Node) *tree_sitter.Node {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "assignment_expression":
+			return current
+		case "expression_statement", "compound_statement", "method_declaration", "function_definition":
+			return nil
+		}
+	}
+	return nil
 }
 
 func phpResolveContextViaCgoParent(node *tree_sitter.Node, source []byte) phpCallContext {
