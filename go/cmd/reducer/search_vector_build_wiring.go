@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const envSemanticSearchLocalEmbedder = searchembedruntime.EnvLocalEmbedder
@@ -21,6 +22,7 @@ func searchVectorBuildRunnerFor(
 	database postgres.ExecQueryer,
 	getenv func(string) string,
 	logger *slog.Logger,
+	instruments *telemetry.Instruments,
 ) (*reducer.SearchVectorBuildRunner, error) {
 	embeddingConfig, err := searchembedruntime.ConfigFromEnv(getenv, nil)
 	if err != nil {
@@ -54,7 +56,8 @@ func searchVectorBuildRunnerFor(
 			EmbeddingModelID:   vectorConfig.EmbeddingModelID,
 			VectorIndexVersion: vectorConfig.VectorIndexVersion,
 		},
-		Logger: logger,
+		Logger:      logger,
+		Instruments: instruments,
 	}, nil
 }
 
@@ -76,10 +79,13 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 		Limit:              req.Limit,
 	})
 	return reducer.SearchVectorBuildResult{
-		DocumentCount: result.DocumentCount,
-		VectorCount:   result.VectorCount,
-		DisabledCount: result.DisabledCount,
-		FailedCount:   result.FailedCount,
+		DocumentCount:       result.DocumentCount,
+		VectorCount:         result.VectorCount,
+		DisabledCount:       result.DisabledCount,
+		FailedCount:         result.FailedCount,
+		QueryLoadDuration:   result.QueryLoadDuration,
+		EmbedBuildDuration:  result.EmbedBuildDuration,
+		WriteUpsertDuration: result.WriteUpsertDuration,
 	}, err
 }
 

@@ -820,7 +820,12 @@ type Instruments struct {
 	SearchIndexWriteDuration               metric.Float64Histogram
 	// GCPMaterializationDuration measures GCP resource and relationship
 	// materialization stages by reducer domain and write_phase.
-	GCPMaterializationDuration           metric.Float64Histogram
+	GCPMaterializationDuration metric.Float64Histogram
+	// SearchVectorBuildPhaseDuration splits the search-vector build sweep
+	// (#4430) into scheduling_wait, query_load, embed_build, and
+	// write_upsert phases via write_phase, so the reducer-tail sweep's
+	// dominant cost slice is isolable without recomputing it from logs.
+	SearchVectorBuildPhaseDuration       metric.Float64Histogram
 	GenerationRetentionDuration          metric.Float64Histogram
 	GenerationRetentionBatchSize         metric.Int64Histogram
 	GenerationRetentionOldestEligibleAge metric.Float64Histogram
@@ -3051,6 +3056,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GCPMaterializationDuration histogram: %w", err)
+	}
+
+	inst.SearchVectorBuildPhaseDuration, err = meter.Float64Histogram(
+		"eshu_dp_search_vector_build_phase_seconds",
+		metric.WithDescription("Search vector build sweep phase duration by domain and write_phase (scheduling_wait, query_load, embed_build, write_upsert)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(reducerWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SearchVectorBuildPhaseDuration histogram: %w", err)
 	}
 
 	retentionDurationBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900}

@@ -43,7 +43,7 @@ func buildReducerService(
 	generationLivenessCfg := loadGenerationLivenessConfig(getenv)
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
-	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger)
+	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger, instruments)
 	if err != nil {
 		return reducer.Service{}, err
 	}
