@@ -14,10 +14,10 @@ import (
 // scope_id, generation_id, and document_id.
 //
 // Background (#4234): the table eshu_search_index_terms has PK
-// (scope_id, generation_id, term_key, document_id) and a lookup index on
-// (scope_id, generation_id, term_key). Neither structure supports seeking
-// directly to a document's rows; both hot DELETEs were forced to scan the
-// full (scope, generation) PK slice. The fix adds index
+// (scope_id, generation_id, term_key, document_id). That prefix supports BM25
+// term lookup but does not support seeking directly to a document's rows; both
+// hot DELETEs were forced to scan the full (scope, generation) PK slice. The
+// fix adds index
 // eshu_search_index_terms_doc_idx on (scope_id, generation_id, document_id).
 // This test ensures the query predicates remain aligned with that index:
 // if someone rewrites the queries to drop document_id from the WHERE clause,

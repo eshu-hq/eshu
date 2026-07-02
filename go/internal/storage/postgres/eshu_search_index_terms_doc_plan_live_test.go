@@ -29,12 +29,12 @@ import (
 // HERMETIC DESIGN — the test never touches the shared eshu_search_index_terms
 // table or its indexes. Instead it:
 //
-//  1. Creates a throwaway table with the identical column layout, PK, and
-//     lookup index as eshu_search_index_terms.
+//  1. Creates a throwaway table with the identical column layout and primary
+//     key as eshu_search_index_terms.
 //  2. Seeds ~100k rows (500 docs × 200 terms) for one (scope,generation) pair
 //     so the planner has a meaningful slice to reason about.
 //  3. Runs EXPLAIN ANALYZE on the DELETE without the doc index → asserts the
-//     planner uses the PK/lookup and scans the full slice (many rows/blocks).
+//     planner uses the PK prefix and scans the full slice (many rows/blocks).
 //  4. Adds the doc index, re-analyzes, runs EXPLAIN ANALYZE again → asserts
 //     the planner uses the doc index with sharply fewer blocks.
 //  5. Drops the throwaway table on cleanup.
@@ -76,8 +76,8 @@ func TestEshuSearchIndexTermsDocumentDeletePlanLive(t *testing.T) {
 	docIdx := tbl + "_doc_idx"
 
 	// Create throwaway table with identical structure to eshu_search_index_terms:
-	// same columns, same PK, same lookup index. No FK references so no FK parents
-	// need to be inserted.
+	// same columns and same PK. No FK references so no FK parents need to be
+	// inserted.
 	_, err = conn.ExecContext(ctx, fmt.Sprintf(`
 		CREATE TABLE %s (
 		    scope_id       TEXT NOT NULL,
@@ -100,18 +100,6 @@ func TestEshuSearchIndexTermsDocumentDeletePlanLive(t *testing.T) {
 			t.Errorf("cleanup: failed to drop throwaway table %s: %v", tbl, dropErr)
 		}
 	})
-
-	// Mirror the existing lookup index (scope_id, generation_id, term_key) so
-	// the planner has the same index landscape as the real table for the BEFORE
-	// phase. This ensures the planner chooses the same index-scan-then-filter
-	// path it would use on the production table without the doc index.
-	_, err = conn.ExecContext(ctx, fmt.Sprintf(
-		`CREATE INDEX %s_lookup_idx ON %s (scope_id, generation_id, term_key)`,
-		tbl, tbl,
-	))
-	if err != nil {
-		t.Fatalf("create lookup index: %v", err)
-	}
 
 	// Seed data in two phases so the planner sees a realistic table shape:
 	//
@@ -268,6 +256,119 @@ WHERE scope_id      = $1
 				"expected fewer blocks with doc index",
 				bufsAfter, bufsBefore)
 		}
+	}
+}
+
+// TestEshuSearchIndexTermsBM25LookupUsesPrimaryKeyPrefixLive proves the BM25
+// term-frequency query does not need the redundant
+// eshu_search_index_terms_lookup_idx index. The production primary key starts
+// with (scope_id, generation_id, term_key), which is the lookup prefix used by
+// the active-generation BM25 joins. The throwaway table intentionally creates no
+// standalone lookup index; the plan must still use the primary-key index.
+func TestEshuSearchIndexTermsBM25LookupUsesPrimaryKeyPrefixLive(t *testing.T) {
+	if os.Getenv("ESHU_SEARCH_INDEX_PLAN_LIVE") != "1" {
+		t.Skip("set ESHU_SEARCH_INDEX_PLAN_LIVE=1 and ESHU_POSTGRES_DSN to run live plan proof")
+	}
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run live plan proof")
+	}
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("acquire connection: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	tbl := fmt.Sprintf("eshu_search_index_terms_bm25proof_%d", time.Now().UnixNano())
+	pkeyName := tbl + "_pkey"
+	_, err = conn.ExecContext(ctx, fmt.Sprintf(`
+		CREATE TABLE %s (
+		    scope_id       TEXT NOT NULL,
+		    generation_id  TEXT NOT NULL,
+		    document_id    TEXT NOT NULL,
+		    term_key       TEXT NOT NULL,
+		    term           TEXT NOT NULL,
+		    term_frequency INTEGER NOT NULL,
+		    PRIMARY KEY (scope_id, generation_id, term_key, document_id)
+		)`, tbl))
+	if err != nil {
+		t.Fatalf("create throwaway table: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, dropErr := db.ExecContext(context.Background(), fmt.Sprintf(`DROP TABLE IF EXISTS %s`, tbl)); dropErr != nil {
+			t.Errorf("cleanup: failed to drop throwaway table %s: %v", tbl, dropErr)
+		}
+	})
+
+	const (
+		scopeID      = "scope-bm25proof"
+		generationID = "gen-bm25proof"
+		docCount     = 500
+		termCount    = 200
+	)
+	_, err = conn.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %s (scope_id, generation_id, document_id, term_key, term, term_frequency)
+		SELECT
+		    $1,
+		    $2,
+		    'doc-' || lpad(d::text, 4, '0'),
+		    'term-' || lpad(tk::text, 4, '0'),
+		    'term-' || lpad(tk::text, 4, '0'),
+		    1
+		FROM generate_series(0, $3-1) AS d,
+		     generate_series(0, $4-1) AS tk
+	`, tbl), scopeID, generationID, docCount, termCount)
+	if err != nil {
+		t.Fatalf("seed rows: %v", err)
+	}
+	if _, analyzeErr := conn.ExecContext(ctx, fmt.Sprintf(`ANALYZE %s`, tbl)); analyzeErr != nil {
+		t.Logf("ANALYZE warning: %v", analyzeErr)
+	}
+
+	query := fmt.Sprintf(`
+WITH query_terms AS (
+    SELECT term, term_key
+    FROM unnest($3::text[], $4::text[]) AS q(term, term_key)
+)
+SELECT t.term_key, t.term, count(*)::float8 AS doc_frequency
+FROM %s t
+JOIN query_terms q ON q.term_key = t.term_key AND q.term = t.term
+WHERE t.scope_id = $1
+  AND t.generation_id = $2
+GROUP BY t.term_key, t.term
+`, tbl)
+	var raw []byte
+	err = conn.QueryRowContext(
+		ctx,
+		"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query,
+		scopeID,
+		generationID,
+		[]string{"term-0001", "term-0002", "term-0003"},
+		[]string{"term-0001", "term-0002", "term-0003"},
+	).Scan(&raw)
+	if err != nil {
+		t.Fatalf("EXPLAIN query error: %v", err)
+	}
+	plan := string(raw)
+	t.Logf("=== BM25 LOOKUP PLAN (primary-key prefix only) ===\n%s", planJSONSummary(t, plan))
+	if !strings.Contains(plan, pkeyName) {
+		t.Fatalf("BM25 lookup plan does not reference primary-key index %s:\n%s", pkeyName, plan)
+	}
+	if strings.Contains(plan, "lookup_idx") {
+		t.Fatalf("BM25 lookup plan unexpectedly references a lookup_idx:\n%s", plan)
+	}
+	if strings.Contains(plan, "Seq Scan") {
+		t.Fatalf("BM25 lookup plan used a sequential scan despite primary-key prefix:\n%s", plan)
 	}
 }
 

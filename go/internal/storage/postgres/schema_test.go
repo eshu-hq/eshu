@@ -105,7 +105,6 @@ func TestBootstrapDefinitionsIncludeEshuSearchIndex(t *testing.T) {
 		"REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE",
 		"REFERENCES scope_generations(generation_id) ON DELETE CASCADE",
 		"CREATE INDEX IF NOT EXISTS eshu_search_index_documents_repo_idx",
-		"CREATE INDEX IF NOT EXISTS eshu_search_index_terms_lookup_idx",
 	} {
 		if !strings.Contains(marker.SQL, want) {
 			t.Fatalf("eshu_search_index SQL missing %q", want)
