@@ -193,6 +193,33 @@ Each code-call statement carries a bounded route summary with relationship,
 source label, target label, and row count so slow shared-edge logs can be tied
 back to the exact Cypher shape without exposing file paths or entity IDs.
 
+Inheritance shared projection retracts seed cleanup from the child entity label
+and indexed `repo_id` or `path`, then expand only that child's outgoing
+`INHERITS`, `OVERRIDES`, `ALIASES`, and `IMPLEMENTS` relationships. Do not
+collapse these back to `MATCH (child)-[rel:...]->() WHERE child.repo_id IN ...`
+or `child.path IN ...`; that relationship-scan-first shape was measured as the
+dominant `inheritance_edges` shared-projection cost on NornicDB.
+
+Performance Evidence: a bounded NornicDB PR #230 run isolated one
+`inheritance_edges` shared projection cycle at `133.410836794s` total, with
+`retract_duration_seconds=133.408286922`, `selection_duration_seconds=0.000874641`,
+`write_duration_seconds=0.00000081`, `mark_completed_duration_seconds=0.001031401`,
+and `indexed_selection=true`. The old retract shape started from an unbound
+relationship expansion and only filtered the child node by `repo_id` afterward.
+The new repo-wide shape `UNWIND`s repo IDs, `MATCH`es
+`Function|Class|Interface|Trait|Struct|Enum|Protocol` children by indexed
+`repo_id`, and then expands the outgoing inheritance relationship; the delta
+file-scoped shape does the same by indexed `path`. NornicDB source evidence for
+the PR #230 checkout shows bound relationship `DELETE` tests using a source-node
+anchor before relationship expansion.
+
+No-Observability-Change: shared projection cycle logs already split selection,
+lease claim, retract, write, and mark-complete durations and identified retract
+as the slow layer. The updated Cypher still executes through
+`EdgeWriter.RetractEdges`, existing statement summaries, retry wrapping, graph
+write spans, and shared-edge logs; no metric name, metric label, queue domain,
+worker, lease, timeout, runtime knob, or backend-specific branch changes.
+
 Repo-dependency retract executes repository relationship edge cleanup,
 `RUNS_ON` cleanup, and evidence-artifact cleanup as separate statements inside
 one grouped transaction. Single-repository cycles use direct `$repo_id` anchors

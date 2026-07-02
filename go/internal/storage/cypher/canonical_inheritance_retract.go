@@ -3,9 +3,10 @@
 
 package cypher
 
-const retractInheritanceEdgesByFileCypher = `MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()
-WHERE child.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractInheritanceEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {path: file_path})
+MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
 // BuildRetractInheritanceEdgesByFilePath builds an inheritance edge retraction

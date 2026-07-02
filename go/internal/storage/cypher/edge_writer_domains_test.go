@@ -304,6 +304,18 @@ func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
 	if !strings.Contains(executor.calls[0].Cypher, "INHERITS") {
 		t.Fatalf("cypher missing INHERITS: %s", executor.calls[0].Cypher)
 	}
+	if !strings.Contains(executor.calls[0].Cypher, "UNWIND $repo_ids AS repo_id") {
+		t.Fatalf("cypher missing repo_id unwind: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {repo_id: repo_id})") {
+		t.Fatalf("cypher missing label-scoped repo_id child anchor: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()") {
+		t.Fatalf("cypher missing child-bound relationship expansion: %s", executor.calls[0].Cypher)
+	}
+	if strings.HasPrefix(strings.TrimSpace(executor.calls[0].Cypher), "MATCH (child)-[rel:") {
+		t.Fatalf("cypher starts from unbound relationship scan: %s", executor.calls[0].Cypher)
+	}
 	if !strings.Contains(executor.calls[0].Cypher, "DELETE rel") {
 		t.Fatalf("cypher missing DELETE: %s", executor.calls[0].Cypher)
 	}

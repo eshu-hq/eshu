@@ -16,8 +16,14 @@ func TestBuildRetractInheritanceEdgesByFilePath(t *testing.T) {
 	t.Parallel()
 
 	stmt := BuildRetractInheritanceEdgesByFilePath([]string{"/repo/src/child.go"}, "reducer/inheritance")
-	if !strings.Contains(stmt.Cypher, "child.path IN $file_paths") {
-		t.Fatalf("cypher = %q, want child.path file-scope filter", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "UNWIND $file_paths AS file_path") {
+		t.Fatalf("cypher = %q, want file path unwind", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {path: file_path})") {
+		t.Fatalf("cypher = %q, want label-scoped path child anchor", stmt.Cypher)
+	}
+	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH (child)-[rel:") {
+		t.Fatalf("cypher starts from unbound relationship scan: %q", stmt.Cypher)
 	}
 	if strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
 		t.Fatalf("cypher = %q, want no repo-wide child filter", stmt.Cypher)
@@ -67,8 +73,14 @@ func TestEdgeWriterRetractEdgesInheritanceDeltaUsesFileScope(t *testing.T) {
 	if strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
 		t.Fatalf("delta retract cypher = %q, want no repo-wide child filter", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "child.path IN $file_paths") {
-		t.Fatalf("delta retract cypher = %q, want child.path file-scope filter", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "UNWIND $file_paths AS file_path") {
+		t.Fatalf("delta retract cypher = %q, want file path unwind", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {path: file_path})") {
+		t.Fatalf("delta retract cypher = %q, want label-scoped path child anchor", stmt.Cypher)
+	}
+	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH (child)-[rel:") {
+		t.Fatalf("delta retract cypher starts from unbound relationship scan: %q", stmt.Cypher)
 	}
 	if _, ok := stmt.Parameters["repo_ids"]; ok {
 		t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", stmt.Parameters)
