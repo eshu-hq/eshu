@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 )
 
@@ -22,11 +21,19 @@ func collectPartitionJobs(partitions []parseSubtreePartition) []parseFileJob {
 	return jobs
 }
 
-// partitionWeight sums the estimated parse weight production scheduling uses.
-func partitionWeight(partition parseSubtreePartition) int64 {
+// partitionBytes sums the on-disk size of every file in a partition, falling
+// back to the same default the production code uses for unstattable files.
+func partitionBytes(t *testing.T, partition parseSubtreePartition) int64 {
+	t.Helper()
+
 	var total int64
 	for _, job := range partition.jobs {
-		total += parseFileWeightBytes(job.path)
+		info, err := os.Stat(job.path)
+		if err != nil {
+			total += defaultParseFileSizeBytes
+			continue
+		}
+		total += info.Size()
 	}
 	return total
 }
@@ -99,7 +106,7 @@ func TestBuildParseSubtreePartitionsCoversExactFileSet(t *testing.T) {
 
 // TestBuildParseSubtreePartitionsSpreadsHeavyFiles proves a few huge files are
 // spread across partitions rather than clustering in one. The heaviest
-// partition's parse weight must stay within a bounded factor of the per-worker
+// partition's byte total must stay within a bounded factor of the per-worker
 // target (total/workers), so no single worker carries all the heavy files.
 func TestBuildParseSubtreePartitionsSpreadsHeavyFiles(t *testing.T) {
 	t.Parallel()
@@ -121,24 +128,24 @@ func TestBuildParseSubtreePartitionsSpreadsHeavyFiles(t *testing.T) {
 	workers := 4
 	partitions := buildParseSubtreePartitions(repoRoot, files, workers)
 
-	var totalWeight int64
-	var maxPartitionWeight int64
+	var totalBytes int64
+	var maxPartitionBytes int64
 	for _, partition := range partitions {
-		weight := partitionWeight(partition)
-		totalWeight += weight
-		if weight > maxPartitionWeight {
-			maxPartitionWeight = weight
+		b := partitionBytes(t, partition)
+		totalBytes += b
+		if b > maxPartitionBytes {
+			maxPartitionBytes = b
 		}
 	}
 
-	target := totalWeight / int64(workers)
+	target := totalBytes / int64(workers)
 	// The heaviest partition must not exceed the per-worker target by more than
-	// one extra heavy file (100_000 weight). A count-only balancer would let one
-	// partition hold 6 heavy files (~600_000 weight); cost-aware chunking caps it.
+	// one extra heavy file (100_000 bytes). A count-only balancer would let one
+	// partition hold 6 heavy files (~600_000 bytes); byte-aware chunking caps it.
 	bound := target + 100_000
-	if maxPartitionWeight > bound {
-		t.Fatalf("max partition weight = %d exceeds bound %d (target %d); heavy files clustered",
-			maxPartitionWeight, bound, target)
+	if maxPartitionBytes > bound {
+		t.Fatalf("max partition bytes = %d exceeds bound %d (target %d); heavy files clustered",
+			maxPartitionBytes, bound, target)
 	}
 }
 
@@ -173,62 +180,6 @@ func TestBuildParseSubtreePartitionsSpreadsEmptyFiles(t *testing.T) {
 	}
 	if maxJobs >= fileCount {
 		t.Fatalf("max partition holds %d/%d files; empty files clustered into one partition", maxJobs, fileCount)
-	}
-}
-
-// TestBuildParseSubtreePartitionsSpreadsTinyExpensiveLanguageFiles proves tiny
-// files for slower parser adapters are weighted high enough to spread across
-// parse workers even when a large cheap file in the same subtree dominates raw
-// bytes. This protects the remote full-corpus path where PHP/JS/TS/Python parse
-// cost is not proportional to file size.
-func TestBuildParseSubtreePartitionsSpreadsTinyExpensiveLanguageFiles(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	files := make([]string, 0, 41)
-	for i := 0; i < 40; i++ {
-		path := filepath.Join(repoRoot, "app", "src", fmt.Sprintf("handler_%02d.php", i))
-		writeSizedFile(t, path, 64)
-		files = append(files, path)
-	}
-	largeConfig := filepath.Join(repoRoot, "app", "src", "generated.tf")
-	writeSizedFile(t, largeConfig, 1<<20)
-	files = append(files, largeConfig)
-
-	partitions := buildParseSubtreePartitions(repoRoot, files, 4)
-
-	maxPHPJobs := 0
-	for _, partition := range partitions {
-		phpJobs := 0
-		for _, job := range partition.jobs {
-			if strings.HasSuffix(job.path, ".php") {
-				phpJobs++
-			}
-		}
-		if phpJobs > maxPHPJobs {
-			maxPHPJobs = phpJobs
-		}
-	}
-	if maxPHPJobs > 20 {
-		t.Fatalf("max PHP jobs per partition = %d, want <= 20; tiny expensive parser files clustered", maxPHPJobs)
-	}
-}
-
-func TestParseFileWeightUsesCostlyParserAliases(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	for _, ext := range []string{".cjs", ".mjs", ".cts", ".mts", ".pyw", ".ipynb"} {
-		ext := ext
-		t.Run(ext, func(t *testing.T) {
-			t.Parallel()
-
-			path := filepath.Join(repoRoot, "sample"+ext)
-			writeSizedFile(t, path, 64)
-			if got := parseFileWeightBytes(path); got < minCostlyParserFileWeightBytes {
-				t.Fatalf("parseFileWeightBytes(%q) = %d, want at least %d", ext, got, minCostlyParserFileWeightBytes)
-			}
-		})
 	}
 }
 

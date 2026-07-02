@@ -31,10 +31,10 @@ type parseSubtreePartition struct {
 	jobs []parseFileJob
 }
 
-// defaultParseFileWeightBytes is the weight assumed for a file whose os.Stat fails.
+// defaultParseFileSizeBytes is the size assumed for a file whose os.Stat fails.
 // Unstattable files are never dropped from a partition; they are weighted at
 // this default so balancing stays loss-free.
-const defaultParseFileWeightBytes int64 = 4096
+const defaultParseFileSizeBytes int64 = 4096
 
 // minParseFileWeightBytes floors every file's parse weight so a large group of
 // empty or tiny files still spreads across workers by count instead of
@@ -43,40 +43,15 @@ const defaultParseFileWeightBytes int64 = 4096
 // count-clustering this byte-balancing avoids.
 const minParseFileWeightBytes int64 = 512
 
-// minCostlyParserFileWeightBytes floors files handled by slower parser adapters.
-// Full-corpus measurements show PHP, JavaScript, TypeScript, Python, Java, and
-// SQL parse cost is often dominated by parser setup and AST traversal rather
-// than raw bytes, so tiny files in those languages need enough weight to avoid
-// clustering behind one worker.
-const minCostlyParserFileWeightBytes int64 = 32 * 1024
-
-var costlyParserExtensions = map[string]struct{}{
-	".cjs":   {},
-	".cts":   {},
-	".ipynb": {},
-	".java":  {},
-	".js":    {},
-	".jsx":   {},
-	".mjs":   {},
-	".mts":   {},
-	".php":   {},
-	".py":    {},
-	".pyw":   {},
-	".sql":   {},
-	".ts":    {},
-	".tsx":   {},
-}
-
 type parseFileJobSized struct {
-	job    parseFileJob
-	weight int64
+	job  parseFileJob
+	size int64
 }
 
 // buildParseSubtreePartitions groups files by subtree key for parse context,
-// then balances the partitions by estimated parse cost rather than file count
-// so a subtree dominated by a few heavy or parser-expensive files does not pin
-// one parse worker. The resulting partitions cover the exact same file set as
-// the input — same
+// then balances the partitions by total bytes rather than file count so a
+// subtree dominated by a few heavy files does not pin one parse worker. The
+// resulting partitions cover the exact same file set as the input — same
 // indexes, no file dropped or duplicated — so the parse result is unchanged;
 // only the worker distribution differs.
 func buildParseSubtreePartitions(repoPath string, files []string, workerCount int) []parseSubtreePartition {
@@ -86,50 +61,50 @@ func buildParseSubtreePartitions(repoPath string, files []string, workerCount in
 
 	groupOrder := make([]string, 0, len(files))
 	groups := make(map[string][]parseFileJobSized)
-	var totalWeight int64
+	var totalBytes int64
 	for index, filePath := range files {
 		key := parseSubtreePartitionKey(repoPath, filePath)
 		if _, ok := groups[key]; !ok {
 			groupOrder = append(groupOrder, key)
 		}
-		weight := parseFileWeightBytes(filePath)
-		totalWeight += weight
+		size := parseFileSizeBytes(filePath)
+		totalBytes += size
 		groups[key] = append(groups[key], parseFileJobSized{
-			job:    parseFileJob{index: index, path: filePath},
-			weight: weight,
+			job:  parseFileJob{index: index, path: filePath},
+			size: size,
 		})
 	}
 	sort.Strings(groupOrder)
 
-	targetWeight := parseSubtreePartitionTargetWeight(totalWeight, workerCount)
+	targetBytes := parseSubtreePartitionTargetBytes(totalBytes, workerCount)
 
 	partitions := make([]parseSubtreePartition, 0, len(groupOrder))
 	for _, key := range groupOrder {
 		sized := groups[key]
-		var groupWeight int64
+		var groupBytes int64
 		for _, item := range sized {
-			groupWeight += item.weight
+			groupBytes += item.size
 		}
-		// Keep a group whole when its estimated parse cost fits within one
-		// worker's target. Heavier groups are split so their cost spreads across
+		// Keep a group whole when its total bytes fit within one worker's
+		// target. Heavier groups are split so their bytes spread across
 		// partitions.
-		if groupWeight <= targetWeight {
+		if groupBytes <= targetBytes {
 			partitions = append(partitions, parseSubtreePartition{key: key, jobs: jobsFromSized(sized)})
 			continue
 		}
-		partitions = append(partitions, chunkGroupByWeight(key, sized, targetWeight)...)
+		partitions = append(partitions, chunkGroupByBytes(key, sized, targetBytes)...)
 	}
 	return partitions
 }
 
-// chunkGroupByWeight splits one subtree group into parse-cost-balanced chunks.
-// A file is always placed in the current chunk first (so a single file larger
-// than the target still lands in exactly one chunk, never dropped); a new chunk
-// starts once the running total reaches the target and files remain.
-func chunkGroupByWeight(key string, sized []parseFileJobSized, targetWeight int64) []parseSubtreePartition {
+// chunkGroupByBytes splits one subtree group into byte-balanced chunks. A file
+// is always placed in the current chunk first (so a single file larger than the
+// target still lands in exactly one chunk, never dropped); a new chunk starts
+// once the running total reaches the target and files remain.
+func chunkGroupByBytes(key string, sized []parseFileJobSized, targetBytes int64) []parseSubtreePartition {
 	partitions := make([]parseSubtreePartition, 0)
 	current := make([]parseFileJob, 0, len(sized))
-	var currentWeight int64
+	var currentBytes int64
 	chunk := 1
 	flush := func() {
 		partitions = append(partitions, parseSubtreePartition{
@@ -138,12 +113,12 @@ func chunkGroupByWeight(key string, sized []parseFileJobSized, targetWeight int6
 		})
 		chunk++
 		current = make([]parseFileJob, 0, len(sized))
-		currentWeight = 0
+		currentBytes = 0
 	}
 	for i, item := range sized {
 		current = append(current, item.job)
-		currentWeight += item.weight
-		if currentWeight >= targetWeight && i < len(sized)-1 {
+		currentBytes += item.size
+		if currentBytes >= targetBytes && i < len(sized)-1 {
 			flush()
 		}
 	}
@@ -161,31 +136,25 @@ func jobsFromSized(sized []parseFileJobSized) []parseFileJob {
 	return jobs
 }
 
-// parseFileWeightBytes returns the estimated parse cost of a file. It starts
-// with on-disk size, applies a per-file floor, and uses a higher floor for
-// parser adapters whose remote corpus timings show fixed per-file overhead.
-// When os.Stat fails, it falls back to a default weight so an unstattable file
-// is still scheduled (never dropped).
-func parseFileWeightBytes(filePath string) int64 {
+// parseFileSizeBytes returns the on-disk size of a file, falling back to a
+// default weight when os.Stat fails so an unstattable file is still scheduled
+// (never dropped).
+func parseFileSizeBytes(filePath string) int64 {
 	info, err := os.Stat(filePath)
 	if err != nil || info.Size() < 0 {
-		return defaultParseFileWeightBytes
+		return defaultParseFileSizeBytes
 	}
-	weight := max(info.Size(), minParseFileWeightBytes)
-	if _, ok := costlyParserExtensions[strings.ToLower(filepath.Ext(filePath))]; ok {
-		weight = max(weight, minCostlyParserFileWeightBytes)
-	}
-	return weight
+	return max(info.Size(), minParseFileWeightBytes)
 }
 
-func parseSubtreePartitionTargetWeight(totalWeight int64, workerCount int) int64 {
-	if totalWeight <= 0 {
+func parseSubtreePartitionTargetBytes(totalBytes int64, workerCount int) int64 {
+	if totalBytes <= 0 {
 		return 1
 	}
 	if workerCount <= 1 {
-		return totalWeight
+		return totalBytes
 	}
-	return max(int64(1), (totalWeight+int64(workerCount)-1)/int64(workerCount))
+	return max(int64(1), (totalBytes+int64(workerCount)-1)/int64(workerCount))
 }
 
 func parseSubtreePartitionKey(repoPath string, filePath string) string {
