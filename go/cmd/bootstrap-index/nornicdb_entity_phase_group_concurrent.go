@@ -101,8 +101,16 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedChunksConcurrently(
 	if workers > len(chunks) {
 		workers = len(chunks)
 	}
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// dispatchCtx only gates admission of new chunks: it stops the dispatch
+	// loop from pushing more work and stops idle workers from pulling
+	// another job once the first chunk error lands. dispatchCtx is never
+	// passed to ge.ExecuteGroup — each in-flight chunk executes against ctx
+	// (the caller's context) directly, so one chunk's failure (including a
+	// graph-write timeout) cannot cancel a sibling chunk's already-running
+	// canonical write (#4464 Bug 1: a single slow/timed-out MERGE must not
+	// abort concurrent siblings).
+	dispatchCtx, cancelDispatch := context.WithCancel(ctx)
+	defer cancelDispatch()
 
 	jobs := make(chan int)
 	var wg sync.WaitGroup
@@ -113,7 +121,7 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedChunksConcurrently(
 		defer firstErrMu.Unlock()
 		if firstErr == nil {
 			firstErr = err
-			cancel()
+			cancelDispatch()
 		}
 	}
 
@@ -125,7 +133,10 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedChunksConcurrently(
 			for index := range jobs {
 				chunk := chunks[index]
 				startedAt := time.Now()
-				err := ge.ExecuteGroup(runCtx, bootstrapSanitizedPhaseGroupChunk(chunk))
+				// ctx, not dispatchCtx: this chunk's write must run to its
+				// own natural conclusion even if a sibling chunk fails and
+				// calls cancelDispatch concurrently.
+				err := ge.ExecuteGroup(ctx, bootstrapSanitizedPhaseGroupChunk(chunk))
 				duration := time.Since(startedAt)
 				if err != nil {
 					recordErr(fmt.Errorf(
@@ -159,7 +170,7 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedChunksConcurrently(
 	for index := range chunks {
 		select {
 		case jobs <- index:
-		case <-runCtx.Done():
+		case <-dispatchCtx.Done():
 			close(jobs)
 			wg.Wait()
 			firstErrMu.Lock()
@@ -168,7 +179,7 @@ func (e bootstrapNornicDBPhaseGroupExecutor) executeGroupedChunksConcurrently(
 			if err != nil {
 				return err
 			}
-			return runCtx.Err()
+			return dispatchCtx.Err()
 		}
 	}
 	close(jobs)

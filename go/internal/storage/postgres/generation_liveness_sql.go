@@ -152,11 +152,28 @@ WITH wedged AS (
             AND reducer_work.generation_id = generation.generation_id
             AND reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')
       )
-      -- A source-local projector row that is already pending or in progress is
-      -- an in-flight recovery. Do not include succeeded here: a succeeded
+      -- A source-local projector row that is genuinely in flight must not be
+      -- re-driven out from under it. "In flight" means either queued
+      -- (pending/retrying, no active lease owner but still visible to the
+      -- next live Claim()) or claimed/running with a lease that has not yet
+      -- expired ($4 = now). Do not include succeeded here: a succeeded
       -- source-local row is the normal activation lifecycle state, and the
       -- liveness upsert below must be allowed to reopen it when downstream
       -- blockage still makes the generation wedged.
+      --
+      -- A claimed/running row whose lease HAS expired is not excluded here:
+      -- it is an orphaned claim, not live work. This is the #4464 Bug 2 fix.
+      -- The claim SQL (claimProjectorWorkQuery) already ranks an
+      -- expired-lease claimed/running row first and reclaims it directly, but
+      -- that logic only runs when something calls Claim() again. When the
+      -- sole source_local claimer (a one-shot bootstrap-index) dies holding
+      -- claims, nothing else in the runtime topology issues that call — the
+      -- continuous ingester's depends_on: bootstrap-index:
+      -- condition: service_completed_successfully gate means ingester never
+      -- starts after a bootstrap-index crash. Without this relaxation the
+      -- expired-lease row looked permanently "in flight" to this sweep too,
+      -- so the work was neither retried, failed, nor dead-lettered: a
+      -- permanent wedge with zero dead-letters.
       AND NOT EXISTS (
           SELECT 1
           FROM fact_work_items AS projector_work
@@ -164,7 +181,13 @@ WITH wedged AS (
             AND projector_work.domain = 'source_local'
             AND projector_work.scope_id = generation.scope_id
             AND projector_work.generation_id = generation.generation_id
-            AND projector_work.status IN ('pending', 'claimed', 'running', 'retrying')
+            AND (
+                projector_work.status IN ('pending', 'retrying')
+                OR (
+                    projector_work.status IN ('claimed', 'running')
+                    AND projector_work.claim_until > $4
+                )
+            )
       )
       AND COALESCE(
           (
@@ -266,6 +289,7 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 //
 //	$1 aging boundary   (now minus half the activation deadline)
 //	$2 stuck boundary   (now minus the activation deadline)
+//	$3 now              (lease-expiry comparison for the in-flight gate)
 const countActiveGenerationsByAgeQuery = `
 SELECT
     CASE
@@ -300,13 +324,25 @@ SELECT
               AND reducer_work.generation_id = generation.generation_id
               AND reducer_work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')
         ) AND NOT EXISTS (
+            -- Mirrors recoverWedgedActiveGenerationsQuery's in-flight gate: a
+            -- claimed/running row only counts as in-flight while its lease is
+            -- still live ($3 = now). An expired lease is an orphaned claim,
+            -- not live work, so it must not keep the alarm from firing (#4464
+            -- Bug 2) — the stuck bucket must match what the recovery sweep
+            -- will actually re-drive.
             SELECT 1
             FROM fact_work_items AS projector_work
             WHERE projector_work.stage = 'projector'
               AND projector_work.domain = 'source_local'
               AND projector_work.scope_id = generation.scope_id
               AND projector_work.generation_id = generation.generation_id
-              AND projector_work.status IN ('pending', 'claimed', 'running', 'retrying')
+              AND (
+                  projector_work.status IN ('pending', 'retrying')
+                  OR (
+                      projector_work.status IN ('claimed', 'running')
+                      AND projector_work.claim_until > $3
+                  )
+              )
         ) THEN 'stuck'
         WHEN generation.activated_at < $1 THEN 'aging'
         ELSE 'fresh'

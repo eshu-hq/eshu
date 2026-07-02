@@ -38,11 +38,16 @@ import (
 // and singleton statements still serialize behind a drain because they read
 // graph state mutated by prior chunks.
 //
-// Errors from any worker surface through `errCh` and cancel `poolCtx`. The
-// producer's `pushChunk` returns early when `poolCtx` is done, so a failing
-// run does not push more chunks into a canceled pool. The function waits for
-// workers to drain on every exit path so callers do not leak goroutines or
-// see partial per-label stats.
+// Errors from any worker surface through `errCh` and cancel `poolCtx`, which
+// only gates admission of new work: the producer's `pushChunk` returns early
+// when `poolCtx` is done (so a failing run does not push more chunks into a
+// draining pool), and idle workers stop pulling from `jobs` once it is
+// canceled. `poolCtx` is never passed to `ge.ExecuteGroup` — each in-flight
+// chunk executes against `ctx` (the caller's context) directly, so one
+// chunk's write-timeout error cannot cancel a sibling chunk's already-running
+// canonical write (#4464 Bug 1: a single slow/timed-out MERGE must not abort
+// concurrent siblings). The function waits for workers to drain on every exit
+// path so callers do not leak goroutines or see partial per-label stats.
 func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
@@ -51,6 +56,10 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 	phase := statementPhase(stmts)
 	labelStats := make(map[string]*entityPhaseLabelStats)
 
+	// poolCtx only bounds admission of new chunks (pushChunk / the worker's
+	// pre-dispatch poolCtx.Err() check); it is intentionally never threaded
+	// into ge.ExecuteGroup so a sibling chunk's failure cannot reach into
+	// another chunk's in-flight canonical write.
 	poolCtx, poolCancel := context.WithCancel(ctx)
 	defer poolCancel()
 
@@ -90,7 +99,11 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroupStreaming(
 					chunk := job.chunk
 					summary := summarizePhaseGroupChunk(chunk)
 					start := time.Now()
-					err := ge.ExecuteGroup(poolCtx, sanitizedPhaseGroupChunk(chunk))
+					// ctx, not poolCtx: this chunk's write must keep running to
+					// its own natural conclusion (success, its own timeout, or
+					// genuine caller cancellation) even if a sibling chunk
+					// fails and calls raiseErr/poolCancel concurrently.
+					err := ge.ExecuteGroup(ctx, sanitizedPhaseGroupChunk(chunk))
 					duration := time.Since(start)
 					if err != nil {
 						raiseErr(fmt.Errorf(

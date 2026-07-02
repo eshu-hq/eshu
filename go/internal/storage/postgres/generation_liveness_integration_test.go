@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"testing"
 	"time"
@@ -55,6 +56,15 @@ import (
 //     attempt count, a pending source-local liveness recovery row is still not
 //     selected again. The runner must not burn the remaining retry budget before
 //     the projector can process the pending work.
+//
+//  6. Expired-lease reclaim (#4464 Bug 2): a source-local projector work item
+//     stuck in 'claimed' with a lease that expired 25 minutes ago (the sole
+//     claimer process died holding it, and nothing else in the runtime
+//     topology ever calls Claim() again for source_local) IS re-driven — the
+//     expired lease is an orphaned claim, not live work. A sibling case with
+//     the same status but a lease that has NOT yet expired must still be
+//     excluded, proving the fix discriminates on lease expiry, not status
+//     alone.
 func TestGenerationLivenessIntegration(t *testing.T) {
 	dsn := os.Getenv("ESHU_GENERATION_LIVENESS_PROOF_DSN")
 	if dsn == "" {
@@ -368,6 +378,98 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		}
 		if attempts != 1 || status != "pending" {
 			t.Fatalf("recovery-inflight work = attempts %d status %q, want attempts 1 status pending", attempts, status)
+		}
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 6 (positive): expired-lease reclaim (#4464 Bug 2).
+	// Isolated schema: only scope-expired-lease is seeded with a 'claimed'
+	// source-local projector row whose lease expired 25 minutes ago. The sole
+	// claimer (a one-shot bootstrap-index) died holding the claim; nothing else
+	// in the runtime topology ever calls Claim() again for source_local. The
+	// row must be reclaimed — reopened to 'pending' — even though its status is
+	// 'claimed', because the lease itself is no longer live.
+	// ---------------------------------------------------------------------------
+	t.Run("ExpiredLeaseReclaimed", func(t *testing.T) {
+		db := openLivenessProofDB(t, dsn)
+		provisionLivenessSchema(t, db, generationLivenessExpiredLeaseOnlySeedSQL)
+		store := NewGenerationLivenessStore(SQLDB{DB: db})
+		ctx := context.Background()
+
+		result, err := store.RecoverWedgedGenerations(ctx, policy, now)
+		if err != nil {
+			t.Fatalf("RecoverWedgedGenerations() error = %v", err)
+		}
+		if got, want := result.Recovered, 1; got != want {
+			t.Fatalf("Recovered = %d, want %d (expired-lease claimed row must be reclaimed)", got, want)
+		}
+		if len(result.RecoveredScopeIDs) != 1 || result.RecoveredScopeIDs[0] != "scope-expired-lease" {
+			t.Fatalf("RecoveredScopeIDs = %v, want [scope-expired-lease]", result.RecoveredScopeIDs)
+		}
+
+		var status string
+		var leaseOwner sql.NullString
+		var claimUntil sql.NullTime
+		if err := db.QueryRowContext(ctx, `
+			SELECT status, lease_owner, claim_until
+			FROM fact_work_items
+			WHERE scope_id = 'scope-expired-lease'
+			  AND generation_id = 'gen-expired-lease'
+			  AND stage = 'projector'
+			  AND domain = 'source_local'
+		`).Scan(&status, &leaseOwner, &claimUntil); err != nil {
+			t.Fatalf("query reclaimed projector work: %v", err)
+		}
+		if status != "pending" {
+			t.Fatalf("reclaimed status = %q, want pending", status)
+		}
+		if leaseOwner.Valid {
+			t.Fatalf("reclaimed lease_owner = %q, want cleared (NULL)", leaseOwner.String)
+		}
+		if claimUntil.Valid {
+			t.Fatalf("reclaimed claim_until = %v, want cleared (NULL)", claimUntil.Time)
+		}
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 6 (negative): a LIVE lease must still block re-drive.
+	// Isolated schema: only scope-live-lease is seeded with a 'running'
+	// source-local projector row whose lease does not expire for 4 more
+	// minutes — a worker is genuinely, currently projecting it. This proves the
+	// fix discriminates on lease expiry, not merely on status, so it cannot
+	// race a live worker's in-flight canonical write.
+	// ---------------------------------------------------------------------------
+	t.Run("LiveLeaseNotReclaimed", func(t *testing.T) {
+		db := openLivenessProofDB(t, dsn)
+		provisionLivenessSchema(t, db, generationLivenessLiveLeaseOnlySeedSQL)
+		store := NewGenerationLivenessStore(SQLDB{DB: db})
+		ctx := context.Background()
+
+		result, err := store.RecoverWedgedGenerations(ctx, policy, now)
+		if err != nil {
+			t.Fatalf("RecoverWedgedGenerations() error = %v", err)
+		}
+		if result.Recovered != 0 {
+			t.Fatalf("Recovered = %d, want 0 (a live lease must still block re-drive)", result.Recovered)
+		}
+
+		var status string
+		var leaseOwner sql.NullString
+		if err := db.QueryRowContext(ctx, `
+			SELECT status, lease_owner
+			FROM fact_work_items
+			WHERE scope_id = 'scope-live-lease'
+			  AND generation_id = 'gen-live-lease'
+			  AND stage = 'projector'
+			  AND domain = 'source_local'
+		`).Scan(&status, &leaseOwner); err != nil {
+			t.Fatalf("query live-lease projector work: %v", err)
+		}
+		if status != "running" {
+			t.Fatalf("live-lease status = %q, want running (untouched)", status)
+		}
+		if !leaseOwner.Valid || leaseOwner.String != "ingester" {
+			t.Fatalf("live-lease lease_owner = %v, want 'ingester' (untouched)", leaseOwner)
 		}
 	})
 }
