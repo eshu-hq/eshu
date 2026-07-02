@@ -20,7 +20,7 @@ func emitPHPVariableName(state *phpParseState, node *tree_sitter.Node) {
 		return
 	}
 
-	ctx := phpResolveContext(node, state.source)
+	ctx := phpResolveContext(node, state.source, state.parents)
 	bareName := strings.TrimPrefix(variable, "$")
 	variableType := state.resolveVariableType(node, variable, bareName, ctx)
 
@@ -34,7 +34,7 @@ func emitPHPVariableName(state *phpParseState, node *tree_sitter.Node) {
 			state.classPropertyTypes[ctx.name][bareName] = variableType
 		}
 	}
-	if scopeKey := phpScopeKeyForNode(node, state.source); scopeKey != "" && variableType != "" && variableType != "mixed" {
+	if scopeKey := phpScopeKeyForNode(node, state.source, state.parents); scopeKey != "" && variableType != "" && variableType != "mixed" {
 		if state.localVariableTypes[scopeKey] == nil {
 			state.localVariableTypes[scopeKey] = make(map[string]string)
 		}
@@ -83,7 +83,7 @@ func (state *phpParseState) resolveVariableType(
 		}
 	}
 
-	scopeKey := phpScopeKeyForNode(node, state.source)
+	scopeKey := phpScopeKeyForNode(node, state.source, state.parents)
 	if scopeKey != "" {
 		if known := state.localVariableTypes[scopeKey][bareName]; known != "" {
 			return known
@@ -120,7 +120,7 @@ func (state *phpParseState) assignmentRHSType(node *tree_sitter.Node, variable s
 	}
 
 	expr := phpNormalizeNullsafe(shared.NodeText(rightNode, state.source))
-	classContext := phpNearestTypeContext(node, state.source)
+	classContext := phpNearestTypeContext(node, state.source, state.parents)
 	if inferred := inferPHPReferenceType(
 		expr,
 		classContext,

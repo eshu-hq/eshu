@@ -20,8 +20,8 @@ type phpCallContext struct {
 
 // phpResolveContext returns the nearest enclosing function, method, or type
 // declaration for a node, mirroring the legacy scope-stack context contract.
-func phpResolveContext(node *tree_sitter.Node, source []byte) phpCallContext {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func phpResolveContext(node *tree_sitter.Node, source []byte, parents *phpParentLookup) phpCallContext {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "function_definition", "method_declaration":
 			nameNode := current.ChildByFieldName("name")
@@ -53,8 +53,8 @@ func phpFunctionContextKind(node *tree_sitter.Node) string {
 
 // phpNearestTypeContext returns the nearest enclosing class, interface, or trait
 // name for receiver inference of self/static/parent and $this chains.
-func phpNearestTypeContext(node *tree_sitter.Node, source []byte) string {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func phpNearestTypeContext(node *tree_sitter.Node, source []byte, parents *phpParentLookup) string {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "class_declaration", "interface_declaration", "trait_declaration":
 			return strings.TrimSpace(shared.NodeText(current.ChildByFieldName("name"), source))
@@ -67,12 +67,12 @@ func phpNearestTypeContext(node *tree_sitter.Node, source []byte) string {
 
 // phpScopeKeyForNode returns the local-variable scope key for the function or
 // method that encloses a node, or the empty string outside any function.
-func phpScopeKeyForNode(node *tree_sitter.Node, source []byte) string {
-	for current := node.Parent(); current != nil; current = current.Parent() {
+func phpScopeKeyForNode(node *tree_sitter.Node, source []byte, parents *phpParentLookup) string {
+	for current := parents.parent(node); current != nil; current = parents.parent(current) {
 		switch current.Kind() {
 		case "function_definition", "method_declaration":
 			functionName := strings.TrimSpace(shared.NodeText(current.ChildByFieldName("name"), source))
-			typeName := phpNearestTypeContext(current, source)
+			typeName := phpNearestTypeContext(current, source, parents)
 			return phpFunctionScopeKey(typeName, functionName)
 		}
 	}
@@ -94,7 +94,7 @@ func emitPHPMemberCall(state *phpParseState, node *tree_sitter.Node) {
 	receiverText := phpNormalizeNullsafe(shared.NodeText(objectNode, state.source))
 	chainExpr := receiverText + "->" + methodName
 	fullName := normalizePHPMethodCall(chainExpr)
-	ctx := phpResolveContext(node, state.source)
+	ctx := phpResolveContext(node, state.source, state.parents)
 	inferred := state.inferReceiverType(receiverText, node)
 	appendUniquePHPCall(
 		state.payload, state.seenCalls,
@@ -116,7 +116,7 @@ func emitPHPScopedCall(state *phpParseState, node *tree_sitter.Node) {
 	if methodName == "" {
 		return
 	}
-	classContext := phpNearestTypeContext(node, state.source)
+	classContext := phpNearestTypeContext(node, state.source, state.parents)
 	receiver := normalizePHPStaticReceiver(
 		shared.NodeText(scopeNode, state.source),
 		classContext,
@@ -127,7 +127,7 @@ func emitPHPScopedCall(state *phpParseState, node *tree_sitter.Node) {
 		return
 	}
 	fullName := receiver + "." + methodName
-	ctx := phpResolveContext(node, state.source)
+	ctx := phpResolveContext(node, state.source, state.parents)
 	appendUniquePHPCall(
 		state.payload, state.seenCalls,
 		methodName, fullName, shared.NodeLine(node),
@@ -147,7 +147,7 @@ func emitPHPObjectCreation(state *phpParseState, node *tree_sitter.Node) {
 	if className == "" {
 		return
 	}
-	ctx := phpResolveContext(node, state.source)
+	ctx := phpResolveContext(node, state.source, state.parents)
 	appendUniquePHPCall(
 		state.payload, state.seenCalls,
 		className, className, shared.NodeLine(node),
@@ -168,7 +168,7 @@ func emitPHPFunctionCall(state *phpParseState, node *tree_sitter.Node) {
 	if name == "" {
 		return
 	}
-	ctx := phpResolveContext(node, state.source)
+	ctx := phpResolveContext(node, state.source, state.parents)
 	appendUniquePHPCall(
 		state.payload, state.seenCalls,
 		name, name, shared.NodeLine(node),
@@ -181,8 +181,8 @@ func emitPHPFunctionCall(state *phpParseState, node *tree_sitter.Node) {
 // expression using the file's accumulated property, parent, variable, and
 // return-type evidence.
 func (state *phpParseState) inferReceiverType(receiverText string, node *tree_sitter.Node) string {
-	classContext := phpNearestTypeContext(node, state.source)
-	scopeKey := phpScopeKeyForNode(node, state.source)
+	classContext := phpNearestTypeContext(node, state.source, state.parents)
+	scopeKey := phpScopeKeyForNode(node, state.source, state.parents)
 	return inferPHPReferenceType(
 		receiverText,
 		classContext,

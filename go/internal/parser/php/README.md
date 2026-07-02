@@ -69,6 +69,18 @@ the PHP 10K LOC pre-scan fixture at `194719834 ns/op`, `36197800 B/op`, and
 `56014375 ns/op`, `4063064 B/op`, and `134765 allocs/op` after.
 Compatibility is guarded by `TestPreScanMatchesParseDeclarationNames`.
 
+Performance Evidence: remote collector-discovered five-repo parse profiling
+on 2026-07-02, with 16 parse workers and NornicDB PR #230 backend bits,
+measured PHP parser parent lookup before/after on the same corpus slice. The
+sum of per-file parse durations across the five profiled repositories fell from
+`65570.959 ms` to `48307.175 ms`; PHP in `ycweb_v2` fell from `24870.458 ms`
+to `11293.407 ms` (-54.6%), PHP in `revolutionyachtgroup` fell from
+`6288.188 ms` to `3436.674 ms` (-45.3%), and PHP in
+`portal-boattrader-zf1` fell from `4583.049 ms` to `3685.342 ms` (-19.6%).
+`TestPHPParentLookupEliminatesScopeContextParentCgoCrossings` proves the
+production scope/context helpers preserve `Node.Parent()` identity while
+reducing cgo crossings on the regression fixture from `31512` to `16726`.
+
 No-Observability-Change: this parser package emits no metrics, spans, or logs.
 Operators continue to diagnose parser cost through collector snapshot stage
 logs and `eshu_dp_file_parse_duration_seconds`.

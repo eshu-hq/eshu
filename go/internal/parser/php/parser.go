@@ -29,6 +29,7 @@ type phpParseState struct {
 	methodReturnTypes   map[string]map[string]string
 	functionReturnTypes map[string]string
 	importAliases       map[string]string
+	parents             *phpParentLookup
 	deadCodeFacts       phpDeadCodeFacts
 	deadCodeFunctions   []phpDeadCodeFunctionFact
 }
@@ -68,9 +69,11 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	}
 
 	root := tree.RootNode()
+	parents := buildPHPParentLookup(root)
 
 	// Phase 1: collect declarations, imports, type evidence, and dead-code
 	// facts so call and variable inference in phase 2 sees the whole file.
+	state.parents = parents
 	collectPHPDeclarations(state, root)
 
 	// Phase 2: emit variables and call rows that depend on the type evidence.
