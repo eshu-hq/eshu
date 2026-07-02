@@ -176,7 +176,6 @@ func TestIngestionStoreReusesRepositoryCatalogAcrossCommits(t *testing.T) {
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	const commits = 5
 	for i := 0; i < commits; i++ {
@@ -214,7 +213,6 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	// Commit 1: a known repo. Loads the catalog once and caches it.
 	if err := store.CommitScopeGeneration(
@@ -257,10 +255,16 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 		t.Fatalf("commit 3: CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	// Exactly two loads: the initial load, then one reload triggered by the
-	// new repo in commit 2. Commit 3 reuses the refreshed cache.
-	if got := db.catalogQueries; got != 2 {
-		t.Fatalf("repository catalog loads = %d, want 2 (initial + one reload after onboarding)", got)
+	// Three loads: the initial shared-cache load (commit 1), the post-commit
+	// relationship backfill's own uncached reload for the new repo onboarded in
+	// commit 2 (issue #4451, § T8 — the backfill needs the catalog including
+	// the row this generation just committed, so it always reloads fresh
+	// rather than reusing the shared cache), and the shared cache's own reload
+	// for commit 3 after commit 2 invalidated it. Commit 3 reuses the
+	// now-refreshed cache and triggers no further backfill load since
+	// repo-known is no longer new.
+	if got := db.catalogQueries; got != 3 {
+		t.Fatalf("repository catalog loads = %d, want 3 (initial + backfill reload + one shared-cache reload after onboarding)", got)
 	}
 }
 
@@ -280,7 +284,6 @@ func TestIngestionStoreSharedCatalogCacheIsConcurrencySafe(t *testing.T) {
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	const workers = 16
 	var wg sync.WaitGroup
@@ -336,7 +339,6 @@ func TestIngestionStoreLoadsCatalogOnOpenTransaction(t *testing.T) {
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	// Cold cache: this commit must load the catalog, and it must do so on the
 	// transaction connection.
@@ -388,7 +390,6 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	// Commit 1: caches the catalog with alias "old-slug".
 	if err := store.CommitScopeGeneration(

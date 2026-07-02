@@ -33,6 +33,7 @@ func buildCollectorService(
 
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 
 	// committer doubles as the delta-baseline resolver so git delta syncs
 	// baseline on the last projected commit per scope rather than local HEAD

@@ -22,7 +22,15 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{tx: &fakeTx{}}
+	commitTx := &fakeTx{}
+	// The committed generation introduces repo-123, previously unknown to the
+	// (empty) catalog cache, so CommitScopeGeneration also opens a second short
+	// transaction for the post-commit relationship backfill (issue #4451, § T8)
+	// after releasing the first. The default fakeTx query fallback answers its
+	// repository-catalog reload with an empty result, so the backfill finds no
+	// cross-repo evidence and commits with no further queries.
+	backfillTx := &fakeTx{}
+	db := &fakeTransactionalDB{tx: commitTx, txs: []*fakeTx{commitTx, backfillTx}}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
 
@@ -62,20 +70,29 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	if got, want := db.beginCalls, 1; got != want {
+	// Two Begin() calls: the atomic commit above, plus the post-commit
+	// relationship backfill transaction it triggers for the newly onboarded
+	// repo-123 (issue #4451, § T8).
+	if got, want := db.beginCalls, 2; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
-	if !db.tx.committed {
-		t.Fatal("transaction committed = false, want true")
+	if !commitTx.committed {
+		t.Fatal("commit transaction committed = false, want true")
 	}
-	if db.tx.rolledBack {
-		t.Fatal("transaction rolledBack = true, want false")
+	if commitTx.rolledBack {
+		t.Fatal("commit transaction rolledBack = true, want false")
+	}
+	if !backfillTx.committed {
+		t.Fatal("post-commit backfill transaction committed = false, want true")
+	}
+	if backfillTx.rolledBack {
+		t.Fatal("post-commit backfill transaction rolledBack = true, want false")
 	}
 	// The fact_records upsert now runs as a query (INSERT ... RETURNING
 	// fact_id), not a plain exec, so upsertFactBatchReturningAccepted can learn
 	// which fact_ids the fencing_token guard actually accepted (issue #4444
-	// review, codex P1). It no longer appears in db.tx.execs.
-	if got, want := len(db.tx.execs), 4; got != want {
+	// review, codex P1). It no longer appears in commitTx.execs.
+	if got, want := len(commitTx.execs), 4; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for index, want := range []string{
@@ -84,22 +101,22 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 		"INSERT INTO scope_generations",
 		"INSERT INTO fact_work_items",
 	} {
-		if !strings.Contains(db.tx.execs[index].query, want) {
-			t.Fatalf("exec[%d] query = %q, want substring %q", index, db.tx.execs[index].query, want)
+		if !strings.Contains(commitTx.execs[index].query, want) {
+			t.Fatalf("exec[%d] query = %q, want substring %q", index, commitTx.execs[index].query, want)
 		}
 	}
-	if got, want := db.tx.execs[3].args[3], "source_local"; got != want {
+	if got, want := commitTx.execs[3].args[3], "source_local"; got != want {
 		t.Fatalf("projector domain arg = %v, want %v", got, want)
 	}
 	foundFactRecordsQuery := false
-	for _, query := range db.tx.queries {
+	for _, query := range commitTx.queries {
 		if strings.Contains(query.query, "INSERT INTO fact_records") && strings.Contains(query.query, "RETURNING fact_id") {
 			foundFactRecordsQuery = true
 			break
 		}
 	}
 	if !foundFactRecordsQuery {
-		t.Fatalf("transaction queries = %#v, want a fact_records RETURNING fact_id upsert", db.tx.queries)
+		t.Fatalf("transaction queries = %#v, want a fact_records RETURNING fact_id upsert", commitTx.queries)
 	}
 }
 
@@ -111,7 +128,6 @@ func TestIngestionStoreCommitScopeGenerationLogsCommitStages(t *testing.T) {
 	var logs bytes.Buffer
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 	store.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
 	scopeValue := scope.IngestionScope{

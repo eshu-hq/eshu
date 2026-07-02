@@ -53,6 +53,7 @@ func buildCollectorService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.Service{
 		Source:       newLiveSource(config, tracer, instruments, logger),
 		Committer:    committer,
@@ -78,6 +79,7 @@ func buildCassetteService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return collector.Service{
 		Source:       src,
 		Committer:    committer,

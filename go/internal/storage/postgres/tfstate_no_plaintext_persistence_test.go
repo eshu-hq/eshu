@@ -127,7 +127,6 @@ func TestTerraformStateClaimedCommitDoesNotPersistPlaintextSecrets(t *testing.T)
 	}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return observedAt }
-	store.SkipRelationshipBackfill = true
 
 	err = store.CommitClaimedScopeGenerationWithStreamError(
 		context.Background(),

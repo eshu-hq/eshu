@@ -6,10 +6,136 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
+
+// runPostCommitRelationshipBackfill runs the per-commit new-repository
+// relationship backfill in its own short transaction, AFTER the caller's main
+// ingestion commit has already released the deferred-maintenance shared
+// advisory barrier (issue #4451, § T8). Before this split,
+// backfillRelationshipEvidenceForNewRepositories ran inside the same locked
+// transaction as the atomic scope/generation/fact commit, so the barrier — and
+// therefore any same-repo deferred-maintenance exclusive-lock batch waiting on
+// it — was held for the backfill's corpus-anchor read and DiscoverEvidence
+// pass too, not just the atomic write.
+//
+// This method re-acquires the barrier for only its own bounded backfill write,
+// so a same-repo deferred-maintenance batch now waits at most for whichever of
+// the two short critical sections (the atomic commit or this backfill) it
+// overlaps, never both combined. Lock ordering is unchanged (same
+// deferredMaintenanceRepoLockKey), so this introduces no new deadlock class:
+// see TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks.
+//
+// Errors are logged, never returned: the generation this call enriches is
+// already durably committed by the time this runs, so surfacing an error here
+// would make collector.Service.Run treat an already-successful commit as a
+// commit_failure and dead-letter/retry an already-landed generation. The
+// periodic corpus-wide BackfillAllRelationshipEvidence pass (cmd/ingester)
+// already re-discovers evidence for every active repository on its own
+// schedule, so a failure here only delays — never drops — the evidence.
+func (s IngestionStore) runPostCommitRelationshipBackfill(
+	ctx context.Context,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	knownRepoIDs map[string]struct{},
+	currentGenerationRepos map[string]relationships.CatalogEntry,
+) {
+	// Gate: skip the barrier transaction entirely unless a genuinely-new
+	// repository was onboarded this generation. currentGenerationRepos
+	// routinely includes the already-known repo on every commit, so gating on
+	// the raw non-empty set would open the extra transaction on every commit
+	// (issue #4451, per PR review). The backfill itself still receives the FULL
+	// current set below: it uses the known repositories as evidence targets and
+	// does its own new-vs-known filtering, so pre-filtering here would drop
+	// those targets and discover zero evidence.
+	hasNewRepo := false
+	for repoID := range currentGenerationRepos {
+		if _, known := knownRepoIDs[repoID]; !known {
+			hasNewRepo = true
+			break
+		}
+	}
+	if !hasNewRepo {
+		return
+	}
+	if s.beginner == nil {
+		return
+	}
+
+	currentGenerationRepoIDs := catalogEntryIDSet(currentGenerationRepos)
+	start := time.Now()
+	if err := s.commitPostCommitRelationshipBackfillTx(ctx, scopeValue, generation, knownRepoIDs, currentGenerationRepoIDs); err != nil {
+		if s.Logger != nil {
+			s.Logger.ErrorContext(
+				ctx, "post-commit relationship backfill failed",
+				slog.String("scope_id", scopeValue.ScopeID),
+				slog.String("generation_id", generation.GenerationID),
+				slog.Float64("duration_seconds", time.Since(start).Seconds()),
+				slog.String("error", err.Error()),
+			)
+		}
+		return
+	}
+	s.logCommitStage(ctx, scopeValue, generation, "post_commit_relationship_backfill", start)
+}
+
+// commitPostCommitRelationshipBackfillTx takes the deferred-maintenance shared
+// barrier for scopeValue's repository partition and runs the new-repository
+// relationship backfill, all inside one short transaction separate from the
+// caller's main ingestion commit.
+func (s IngestionStore) commitPostCommitRelationshipBackfillTx(
+	ctx context.Context,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	knownRepoIDs map[string]struct{},
+	newRepoIDs map[string]struct{},
+) error {
+	tx, err := s.beginner.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin post-commit relationship backfill transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, deferredMaintenanceRepoLockKey(scopeValue)); err != nil {
+		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
+	}
+
+	relationshipStore := NewRelationshipStore(tx)
+	if err := backfillRelationshipEvidenceForNewRepositories(
+		ctx, tx, relationshipStore, generation.GenerationID, knownRepoIDs, newRepoIDs,
+	); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit post-commit relationship backfill transaction: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// recordSharedLockHoldDuration reports how long CommitScopeGeneration held the
+// deferred-maintenance shared advisory barrier for one atomic commit (issue
+// #4451, § T8). It is the operator-visible proof that the lock split shrank
+// the hold window to the atomic commit, since the per-commit relationship
+// backfill (previously run inside that same window) now runs after release in
+// runPostCommitRelationshipBackfill.
+func (s IngestionStore) recordSharedLockHoldDuration(ctx context.Context, d time.Duration) {
+	if s.Instruments == nil || s.Instruments.IngestionSharedLockHoldDuration == nil {
+		return
+	}
+	s.Instruments.IngestionSharedLockHoldDuration.Record(ctx, d.Seconds())
+}
 
 func backfillRelationshipEvidenceForNewRepositories(
 	ctx context.Context,

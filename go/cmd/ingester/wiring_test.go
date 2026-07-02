@@ -203,7 +203,7 @@ func mapGetenv(values map[string]string) func(string) string {
 	}
 }
 
-func TestBuildIngesterCollectorServiceDefersRelationshipBackfillToBatchDrain(t *testing.T) {
+func TestBuildIngesterCollectorServiceWiresDeferredMaintenanceDrainHook(t *testing.T) {
 	t.Parallel()
 
 	service, err := buildIngesterCollectorService(
@@ -224,7 +224,7 @@ func TestBuildIngesterCollectorServiceDefersRelationshipBackfillToBatchDrain(t *
 		t.Fatalf("Committer type = %T, want postgres.IngestionStore", service.Committer)
 	}
 	if !committer.SkipRelationshipBackfill {
-		t.Fatal("Committer.SkipRelationshipBackfill = false, want true for deferred batch-drain backfill")
+		t.Fatal("Committer.SkipRelationshipBackfill = false, want true for deferred batch-drain backfill (#4451 must preserve the skip)")
 	}
 	if service.AfterBatchDrained == nil {
 		t.Fatal("AfterBatchDrained = nil, want deferred relationship maintenance hook")

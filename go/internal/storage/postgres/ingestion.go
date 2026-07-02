@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // Ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the SkipRelationshipBackfill/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
+package postgres //nolint:filelength // Ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the CommitScopeGeneration/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
 
 import (
 	"context"
@@ -35,11 +35,18 @@ const deferredMaintenanceBarrierLockKey int64 = 0x45534855444d42
 // repository catalog cache. It is nil only for stores constructed without
 // NewIngestionStore, in which case the catalog falls back to a per-commit load.
 type IngestionStore struct {
-	db                       ExecQueryer
-	beginner                 Beginner
-	Now                      func() time.Time
+	db          ExecQueryer
+	beginner    Beginner
+	Now         func() time.Time
+	Logger      *slog.Logger
+	Instruments *telemetry.Instruments
+	// SkipRelationshipBackfill disables the per-commit new-repository
+	// relationship backfill. The ingester and bootstrap-index runtimes set this
+	// true because they run the corpus-wide deferred relationship backfill as a
+	// separate batch phase, so per-commit backfill there would be duplicate work
+	// (issue #4451, § T8; part of the bootstrap phase contract — see the package
+	// doc comment). Callers that leave it false get the post-commit backfill.
 	SkipRelationshipBackfill bool
-	Logger                   *slog.Logger
 	// maintenanceBatchSize overrides the deferred-maintenance per-batch
 	// repository count. Zero uses deferredMaintenanceRepoBatchSize. It exists so
 	// tests can force multiple independent batch transactions deterministically.
@@ -200,6 +207,9 @@ func (s IngestionStore) commitScopeGeneration(
 	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, deferredMaintenanceRepoLockKey(scopeValue)); err != nil {
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
+	// Held from here until tx.Commit() releases it (recordSharedLockHoldDuration
+	// below measures that window; issue #4451, § T8).
+	sharedLockAcquiredAt := time.Now()
 	s.logCommitStage(ctx, scopeValue, generation, "deferred_maintenance_shared_barrier", stageStart)
 
 	stageStart = time.Now()
@@ -291,21 +301,6 @@ func (s IngestionStore) commitScopeGeneration(
 		slog.Int("fact_count", factStats.Rows),
 		slog.Int("batch_count", factStats.Batches),
 	)
-	if !s.SkipRelationshipBackfill {
-		stageStart = time.Now()
-		if err := backfillRelationshipEvidenceForNewRepositories(
-			ctx,
-			tx,
-			relationshipStore,
-			generation.GenerationID,
-			knownRepoIDs,
-			catalogEntryIDSet(currentGenerationRepos),
-		); err != nil {
-			return err
-		}
-		s.logCommitStage(ctx, scopeValue, generation, "relationship_backfill", stageStart)
-	}
-
 	queue := ProjectorQueue{db: tx, Now: s.now}
 	stageStart = time.Now()
 	if err := queue.Enqueue(ctx, scopeValue.ScopeID, generation.GenerationID); err != nil {
@@ -319,6 +314,7 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	committed = true
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
+	s.recordSharedLockHoldDuration(ctx, time.Since(sharedLockAcquiredAt))
 
 	// Invalidate the shared catalog only after the generation is durably
 	// committed, so a rolled-back transaction never evicts a valid snapshot. A
@@ -336,6 +332,16 @@ func (s IngestionStore) commitScopeGeneration(
 			stageStart,
 			slog.Int("current_generation_repo_count", len(currentGenerationRepos)),
 		)
+	}
+
+	// Relationship backfill for any newly onboarded repository runs AFTER the
+	// barrier above is released, in its own short transaction (issue #4451,
+	// § T8; see runPostCommitRelationshipBackfill for the lock-split rationale
+	// and why its errors are logged rather than returned here). Skipped for
+	// runtimes that run the corpus-wide deferred backfill separately
+	// (ingester, bootstrap-index) so per-commit backfill is not duplicated.
+	if !s.SkipRelationshipBackfill {
+		s.runPostCommitRelationshipBackfill(ctx, scopeValue, generation, knownRepoIDs, currentGenerationRepos)
 	}
 
 	return nil

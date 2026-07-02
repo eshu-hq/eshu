@@ -971,6 +971,9 @@ type Instruments struct {
 	// Evidence discovery metrics (during ingestion)
 	EvidenceFactsDiscovered metric.Int64Counter
 
+	// Ingestion-TX lock split (issue #4451, § T8)
+	IngestionSharedLockHoldDuration metric.Float64Histogram
+
 	// Deferred bootstrap backfill and reopen metrics
 	DeferredBackfillDuration               metric.Float64Histogram
 	DeferredBackfillBatchDuration          metric.Float64Histogram
@@ -3660,6 +3663,20 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register EvidenceFactsDiscovered counter: %w", err)
+	}
+
+	// Ingestion-TX lock split instrument (issue #4451, § T8): how long
+	// CommitScopeGeneration holds the deferred-maintenance shared advisory
+	// barrier for one atomic commit. Low values confirm the per-commit
+	// relationship backfill runs after release, not inside the held window.
+	inst.IngestionSharedLockHoldDuration, err = meter.Float64Histogram(
+		"eshu_dp_ingestion_shared_lock_hold_duration_seconds",
+		metric.WithDescription("Duration the ingestion commit holds the deferred-maintenance shared advisory barrier for one atomic scope/generation/fact commit"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IngestionSharedLockHoldDuration histogram: %w", err)
 	}
 
 	// Deferred bootstrap backfill and reopen instruments

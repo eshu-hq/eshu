@@ -42,6 +42,7 @@ func buildService(
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
+	committer.Instruments = instruments
 	return scannerworker.Service{
 		ControlStore:        postgres.NewWorkflowControlStore(database),
 		Committer:           committer,

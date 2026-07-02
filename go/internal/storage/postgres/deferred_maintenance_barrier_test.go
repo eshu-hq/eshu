@@ -21,7 +21,6 @@ func TestIngestionStoreCommitScopeGenerationTakesSharedMaintenanceBarrier(t *tes
 	db := &fakeTransactionalDB{tx: &fakeTx{}}
 	store := NewIngestionStore(db)
 	store.Now = func() time.Time { return now }
-	store.SkipRelationshipBackfill = true
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:       "scope-123",
