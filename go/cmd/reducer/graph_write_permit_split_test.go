@@ -100,10 +100,21 @@ func testHeadOfLineBlockingEliminated(t *testing.T, order classOrder) {
 		otherBound = gate.boundSemanticEntityExecutorForTest(other)
 	}
 
+	// Both goroutines run under a single cancelable context so that ANY exit
+	// path from this function — a t.Fatal on the holder-entered wait, a
+	// t.Fatal on the other-class deadline (the exact failure this regression
+	// catches), or normal completion — unblocks both Execute calls via
+	// ctx.Done(). Without this, a failure before the explicit holder release
+	// below would leak the holder goroutine (it blocks on <-e.release forever)
+	// and, on the deadline-fires path, the other-class goroutine too (it can
+	// still be blocked acquiring a permit that never frees).
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	holderDone := make(chan struct{})
 	go func() {
 		defer close(holderDone)
-		_ = holderBound.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
+		_ = holderBound.Execute(ctx, sourcecypher.Statement{Cypher: "RETURN 1"})
 	}()
 	select {
 	case <-holder.entered:
@@ -118,7 +129,7 @@ func testHeadOfLineBlockingEliminated(t *testing.T, order classOrder) {
 	// within this generous deadline.
 	otherDone := make(chan error, 1)
 	go func() {
-		otherDone <- otherBound.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
+		otherDone <- otherBound.Execute(ctx, sourcecypher.Statement{Cypher: "RETURN 1"})
 	}()
 
 	select {
@@ -134,7 +145,9 @@ func testHeadOfLineBlockingEliminated(t *testing.T, order classOrder) {
 		t.Fatalf("other-class write calls = %d, want 1", got)
 	}
 
-	// Release the holder so its goroutine does not leak past the test.
+	// Release the holder so its goroutine exits via the release channel on the
+	// success path; cancel (deferred above) is the backstop for every failure
+	// path, including the two t.Fatal calls above.
 	close(holder.release)
 	<-holderDone
 }

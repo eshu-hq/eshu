@@ -552,3 +552,53 @@ it passes. `TestPerClassConfigDisablesAggregateGate`,
 `TestAnyClassMaxInFlightSet`, and `TestAggregateMaxInFlight` in
 `go/internal/graphbackpressure/backpressure_test.go` cover the
 opt-in/opt-out boundary directly.
+
+### Gate-Label Cardinality Guard
+
+A second review (Copilot) flagged that `NewObserver` in
+`go/internal/graphbackpressure/backpressure.go` documented `gateName` as
+required to be one of the closed set (`CanonicalGateName`, `SemanticGateName`,
+`AggregateGateName`) but recorded whatever string was passed with no
+validation, so a future call-site mistake — for example accidentally passing
+an operation or raw Cypher statement string instead of a gate name — could
+explode the `gate` label's cardinality on
+`eshu_dp_graph_write_backpressure_engaged_total` and
+`eshu_dp_graph_write_backpressure_wait_seconds`.
+
+The fix mirrors the existing `source_tool` coercion pattern
+(`sourcetool.IsValid` / `"unknown"` in
+`go/internal/telemetry/instruments.go:4745`): `IsValidGateName` checks
+membership in the closed vocabulary, and `NewObserver` coerces any
+out-of-vocabulary `gateName` to `"unknown"` before storing it, so the `gate`
+label's value space stays bounded to four values
+(`canonical`/`semantic`/`aggregate`/`unknown`) regardless of what a future
+caller passes in. `TestIsValidGateName` and
+`TestNewObserverCoercesUnknownGateName` are the direct regressions, verified
+two-sided by temporarily removing the coercion and confirming
+`TestNewObserverCoercesUnknownGateName` fails (the stored `gateName` was the
+raw unvalidated input instead of `"unknown"`), then restoring the fix and
+confirming it passes.
+
+### Test Goroutine Hygiene
+
+The same Copilot review flagged two goroutine leaks in
+`testHeadOfLineBlockingEliminated`
+(`go/cmd/reducer/graph_write_permit_split_test.go`): the holder and
+"other-class" write goroutines both ran under `context.Background()`, so if
+the test failed before the explicit `close(holder.release)` cleanup — either
+on the holder-entered wait or on the 500ms other-class deadline, the exact
+failure path this regression exists to catch — the blocked goroutine(s) would
+run until the test process exited rather than being released. The fix threads
+one `context.WithCancel(context.Background())` with a `defer cancel()` through
+both goroutines' `Execute` calls, so every exit path (both `t.Fatal` calls and
+normal completion) unblocks both via `ctx.Done()`, which
+`cypher.BackpressureGate.Acquire` and `slowThenSignalExecutor.Execute` both
+already select on.
+
+No-Regression Evidence: verified with a temporary scratch harness
+(deleted before commit) that forced the 500ms deadline path deterministically
+and measured `runtime.NumGoroutine()` before and after. With the cancelable
+context, goroutine count stayed flat (3→3) despite the forced failure; with
+`context.Background()` restored (simulating the pre-fix shape), goroutine
+count grew by exactly 2 (3→5) — the holder and other-class goroutines both
+leaking, reproducing the bug Copilot flagged.

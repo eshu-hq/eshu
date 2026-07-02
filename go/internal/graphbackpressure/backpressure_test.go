@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestMaxInFlight(t *testing.T) {
@@ -205,6 +206,76 @@ func TestNewObserverNilInstruments(t *testing.T) {
 
 	if obs := NewObserver(nil, CanonicalGateName); obs != nil {
 		t.Fatalf("NewObserver(nil, _) = %v, want nil", obs)
+	}
+}
+
+// TestIsValidGateName is the direct regression for the cardinality-safety
+// finding on issue #4448: IsValidGateName must accept exactly the closed
+// three-member vocabulary (CanonicalGateName, SemanticGateName,
+// AggregateGateName) and reject everything else, including empty strings,
+// case variants, and arbitrary operation/statement-like strings a future
+// call-site mistake might pass.
+func TestIsValidGateName(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]bool{
+		CanonicalGateName:     true,
+		SemanticGateName:      true,
+		AggregateGateName:     true,
+		"":                    false,
+		"Canonical":           false, // case-sensitive: not a silent alias
+		"unknown":             false, // "unknown" is the coercion TARGET, not itself valid input
+		"materialize_cypher":  false, // an operation label, the exact mistake this guards against
+		"CREATE (n) RETURN n": false, // a raw statement/Cypher string, the exact mistake this guards against
+	}
+
+	for name, want := range cases {
+		if got := IsValidGateName(name); got != want {
+			t.Fatalf("IsValidGateName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// TestNewObserverCoercesUnknownGateName is the regression for the
+// cardinality-safety finding on issue #4448: NewObserver must not trust an
+// arbitrary caller-supplied gateName. A call site that accidentally passes an
+// operation name, a raw Cypher statement, or any other out-of-vocabulary
+// string must have it coerced to "unknown" before it is stored, so the "gate"
+// telemetry label's cardinality stays bounded to the closed vocabulary plus
+// one escape value no matter what a future caller passes in.
+func TestNewObserverCoercesUnknownGateName(t *testing.T) {
+	t.Parallel()
+
+	inst := &telemetry.Instruments{}
+
+	cases := []string{
+		"",
+		"materialize_cypher",
+		"CREATE (n) RETURN n",
+		"Canonical", // wrong case is also out-of-vocabulary
+	}
+
+	for _, bad := range cases {
+		obs := NewObserver(inst, bad)
+		got, ok := obs.(observer)
+		if !ok {
+			t.Fatalf("NewObserver(_, %q) returned %T, want observer", bad, obs)
+		}
+		if got.gateName != unknownGateName {
+			t.Fatalf("NewObserver(_, %q).gateName = %q, want %q", bad, got.gateName, unknownGateName)
+		}
+	}
+
+	// Valid gate names must pass through unchanged.
+	for _, valid := range []string{CanonicalGateName, SemanticGateName, AggregateGateName} {
+		obs := NewObserver(inst, valid)
+		got, ok := obs.(observer)
+		if !ok {
+			t.Fatalf("NewObserver(_, %q) returned %T, want observer", valid, obs)
+		}
+		if got.gateName != valid {
+			t.Fatalf("NewObserver(_, %q).gateName = %q, want %q (valid names must not be coerced)", valid, got.gateName, valid)
+		}
 	}
 }
 

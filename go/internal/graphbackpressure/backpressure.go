@@ -150,12 +150,40 @@ func parseMaxInFlight(raw string) int {
 	return n
 }
 
+// unknownGateName is the safe fallback label for any gateName that is not a
+// member of the closed gate-name vocabulary (CanonicalGateName,
+// SemanticGateName, AggregateGateName). NewObserver coerces to this value
+// before storing gateName, so a future call-site mistake — for example
+// passing an operation or statement name instead of a gate name — cannot
+// explode the "gate" label's cardinality. This mirrors the
+// sourcetool.IsValid / "unknown" coercion pattern used for source_tool labels
+// in go/internal/telemetry/instruments.go.
+const unknownGateName = "unknown"
+
+// IsValidGateName reports whether name is a member of the closed gate-name
+// vocabulary used for the "gate" telemetry label: CanonicalGateName,
+// SemanticGateName, or AggregateGateName. Callers building a
+// cypher.BackpressureObserver must validate through this function (see
+// NewObserver) rather than trusting an arbitrary caller-supplied string,
+// because the "gate" label is a bounded-cardinality dimension shared across
+// every graph-write backpressure metric.
+func IsValidGateName(name string) bool {
+	switch name {
+	case CanonicalGateName, SemanticGateName, AggregateGateName:
+		return true
+	default:
+		return false
+	}
+}
+
 // observer bridges cypher.BackpressureExecutor signals to telemetry.Instruments
 // so an operator sees backpressure engage without coupling the cypher package to
 // the meter. It is nil-instrument tolerant: a runtime without telemetry still
 // gets a working bound, just no metrics. gateName labels every metric this
 // observer records so an operator can distinguish which permit pool a write
-// waited on (issue #4448).
+// waited on (issue #4448); it is always a member of the closed vocabulary
+// IsValidGateName checks, because NewObserver coerces out-of-vocabulary input
+// before it reaches this field.
 type observer struct {
 	instruments *telemetry.Instruments
 	gateName    string
@@ -164,10 +192,17 @@ type observer struct {
 // NewObserver returns a cypher.BackpressureObserver that records engaged-count
 // and wait-duration metrics labeled with gateName, or nil when instruments is
 // nil so the executor skips observation entirely. gateName must be
-// CanonicalGateName or SemanticGateName.
+// CanonicalGateName, SemanticGateName, or AggregateGateName; any other value
+// (including a call-site mistake such as passing an operation or statement
+// name) is coerced to "unknown" before it is stored, so the "gate" label's
+// cardinality stays bounded to this closed set plus the one escape value
+// regardless of what a future caller passes in.
 func NewObserver(instruments *telemetry.Instruments, gateName string) cypher.BackpressureObserver {
 	if instruments == nil {
 		return nil
+	}
+	if !IsValidGateName(gateName) {
+		gateName = unknownGateName
 	}
 	return observer{instruments: instruments, gateName: gateName}
 }

@@ -92,8 +92,11 @@ const (
 	// per-class env is set). Splitting the pool by gate is issue #4448: before
 	// the split, a slow semantic write could starve canonical writes (and vice
 	// versa) because both drew from one shared permit pool (head-of-line
-	// blocking). The value space is this fixed three-member set, never a raw
-	// operation or statement name.
+	// blocking). The value space is this closed three-member set plus
+	// "unknown" as the coercion target for any out-of-vocabulary value a
+	// future call-site mistake might pass (see
+	// graphbackpressure.IsValidGateName); it must never carry a raw operation
+	// or statement name.
 	MetricDimensionGate           = "gate"
 	MetricDimensionService        = "service"
 	MetricDimensionAccount        = "account"
