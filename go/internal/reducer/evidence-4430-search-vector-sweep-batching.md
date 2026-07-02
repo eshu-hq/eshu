@@ -88,8 +88,17 @@ Full-scale run at the #4430 issue evidence shape (33 scopes x 5800 docs =
 191,400 rows, matching the reported "33 scopes / 185k-198k documents"):
 
 ```
-<FILLED IN AFTER FULL-SCALE RUN COMPLETES>
+per_document=11m1.799715375s (191400 rows, 3.458ms/row)
+batched=13.570806167s (191400 rows, 0.071ms/row)
+speedup=48.8x
 ```
+
+The batched write phase alone (13.57s for 191,400 rows) is well inside the
+issue's reported 100-104s per-sweep envelope, so the write path is no longer
+the dominant cost slice at this scale; the remaining sweep time is now
+attributable to query/load and embed/build phases (both already split out
+separately by this fix's telemetry) rather than write-round-trip
+amplification.
 
 Backend/version: Postgres 16 (`postgres:16-alpine`), local Docker container,
 default configuration, no connection pooling beyond `database/sql`'s default
