@@ -36,6 +36,14 @@ before touching any file in this directory.
 - **Heartbeat renews at `LeaseDuration / 2`** — `main.go:353`
   `HeartbeatInterval: workQueue.LeaseDuration / 2`; do not set
   `ESHU_REDUCER_RETRY_DELAY` shorter than the lease TTL or claims will churn.
+- **Retry delay is exponential + jittered, not fixed** (#4450) — `failIntent`
+  (`reducer_queue_helpers.go`) computes `visible_at` via `computeRetryDelay`
+  (`retry_backoff.go`): `ESHU_REDUCER_RETRY_DELAY*(1<<attempt)` capped at
+  `ESHU_REDUCER_MAX_RETRY_DELAY`, plus jitter from
+  `[0, ESHU_REDUCER_RETRY_DELAY*ESHU_REDUCER_RETRY_JITTER_FRACTION)`. Do not
+  reintroduce a fixed `now().Add(retryDelay)` retry schedule; many
+  same-instant failures reconverging on one `visible_at` is the retry-storm
+  this replaced.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
   `PriorConfigDepth` is set from `parsePriorConfigDepth` in
   `buildReducerDriftHandlers` (`wiring_handlers.go`).
@@ -101,6 +109,11 @@ before touching any file in this directory.
   TTL causes failed intents to re-enter immediately; check
   `eshu_dp_queue_claim_duration_seconds` and `eshu_dp_reducer_executions_total`
   with status `failed`.
+- **Retry storm** (#4450): a burst of same-instant failures reconverging on
+  one `visible_at` and starving new work; check
+  `eshu_dp_reducer_retry_surge_total` by `failure_class` for a spike, and
+  confirm `ESHU_REDUCER_RETRY_JITTER_FRACTION` was not set to `0` (disables
+  jitter, restoring the pre-#4450 fixed-delay behavior).
 - **Projector drain gate deadlock** (NornicDB local-authoritative): the
   drain gate blocks semantic-entity claims until
   `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` projectors have published;

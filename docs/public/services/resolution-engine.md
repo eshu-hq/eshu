@@ -104,12 +104,23 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
 Do not lower worker counts as a shipped fix for non-idempotent writes or graph
 MERGE races. Diagnose the conflict key, retry, and write path.
 
+Retry scheduling uses exponential backoff plus jitter, not a fixed delay:
+`visible_at = now + ESHU_REDUCER_RETRY_DELAY*(1<<attempt) +
+rand(0, ESHU_REDUCER_RETRY_DELAY*ESHU_REDUCER_RETRY_JITTER_FRACTION)`, capped
+at `ESHU_REDUCER_MAX_RETRY_DELAY`. A fixed delay let many work items that fail
+at the same instant reconverge on the identical `visible_at` and self-reinforce
+into a retry storm that starves new work; the exponential term and jitter both
+exist to break that synchronization. `eshu_dp_reducer_retry_surge_total`
+(labeled by `failure_class`) tracks the rate of scheduled retries.
+
 ## Configuration
 
 Important env vars:
 
 - `ESHU_REDUCER_RETRY_DELAY`
 - `ESHU_REDUCER_MAX_ATTEMPTS`
+- `ESHU_REDUCER_MAX_RETRY_DELAY`
+- `ESHU_REDUCER_RETRY_JITTER_FRACTION`
 - `ESHU_REDUCER_WORKERS`
 - `ESHU_REDUCER_BATCH_CLAIM_SIZE`
 - `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT`

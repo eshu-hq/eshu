@@ -10,8 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ProjectorQueue provides projector-stage queue claim and ack behavior.
@@ -23,6 +26,25 @@ type ProjectorQueue struct {
 	MaxAttempts       int
 	ClaimSourceSystem string
 	Now               func() time.Time
+
+	// MaxRetryDelay caps the exponential-backoff retry term computed by
+	// Fail. Zero/unset falls back to a 1-hour cap (see retryMaxDelay).
+	MaxRetryDelay time.Duration
+	// JitterFraction scales the random jitter added on top of the
+	// exponential backoff term, relative to RetryDelay: jitter is drawn
+	// uniformly from [0, RetryDelay*JitterFraction). Zero means no jitter
+	// (legacy fixed-delay behavior). Callers wired through
+	// runtime.LoadRetryPolicyConfig get 0.1 by default (#4450); a caller
+	// that constructs ProjectorQueue directly and leaves this at its Go
+	// zero value keeps the pre-#4450 fixed-delay retry schedule.
+	JitterFraction float64
+	// JitterSource draws jitter in [0, 1); nil defaults to
+	// defaultJitterSource (math/rand/v2). Tests inject a seeded or fixed
+	// source for deterministic, non-flaky assertions.
+	JitterSource func() float64
+	// Instruments records operator-facing retry telemetry. Nil is safe
+	// (no-op) so existing callers that do not wire it keep working.
+	Instruments *telemetry.Instruments
 }
 
 // ErrProjectorClaimRejected means the claimed projector work item no longer
@@ -275,18 +297,25 @@ func (q ProjectorQueue) Fail(
 		// Retry path: keep the existing retryable class and preserve any
 		// detailed failure context the error carries for diagnosis.
 		_, failureMessage, failureDetails := queueFailureMetadata(cause, "projection_retryable")
+		now := q.now()
+		delay := computeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, work.AttemptCount, q.jitterSource())
 		args := []any{
-			q.now(),
+			now,
 			"projection_retryable",
 			failureMessage,
 			failureDetails,
-			q.now().Add(q.retryDelay()),
+			now.Add(delay),
 			work.Scope.ScopeID,
 			work.Generation.GenerationID,
 			q.LeaseOwner,
 		}
 		if _, err := q.db.ExecContext(ctx, retryProjectorWorkQuery, args...); err != nil {
 			return fmt.Errorf("fail projector work: %w", err)
+		}
+		if q.Instruments != nil && q.Instruments.ProjectorRetrySurge != nil {
+			q.Instruments.ProjectorRetrySurge.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrFailureClass("projection_retryable"),
+			))
 		}
 		return nil
 	}
@@ -351,6 +380,27 @@ func (q ProjectorQueue) retryDelay() time.Duration {
 	}
 
 	return 30 * time.Second
+}
+
+// retryMaxDelay caps the exponential backoff term computed by Fail. Zero/
+// unset falls back to defaultRetryMaxDelayFallback (1 hour), matching
+// runtime.RetryPolicyConfig's default.
+func (q ProjectorQueue) retryMaxDelay() time.Duration {
+	if q.MaxRetryDelay > 0 {
+		return q.MaxRetryDelay
+	}
+
+	return defaultRetryMaxDelayFallback
+}
+
+// jitterSource returns the configured JitterSource, defaulting to
+// defaultJitterSource (math/rand/v2's global source) in production.
+func (q ProjectorQueue) jitterSource() func() float64 {
+	if q.JitterSource != nil {
+		return q.JitterSource
+	}
+
+	return defaultJitterSource
 }
 
 func (q ProjectorQueue) maxAttempts() int {

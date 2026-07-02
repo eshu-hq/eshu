@@ -155,6 +155,18 @@ phases, while entity containment is folded into row-scoped entity upserts by
 default for NornicDB after high-cardinality Java proof runs showed the older
 file-scoped shape over-fragmented canonical writes.
 
+The embedded projector queue's retry policy is loaded via
+`runtimecfg.LoadRetryPolicyConfig(getenv, "PROJECTOR")` (same stage prefix the
+standalone projector binary uses) and threaded onto `postgres.ProjectorQueue`
+in `buildIngesterProjectorService`, including `MaxRetryDelay`
+(`ESHU_PROJECTOR_MAX_RETRY_DELAY`, default `1h`) and `JitterFraction`
+(`ESHU_PROJECTOR_RETRY_JITTER_FRACTION`, default `0.1`). `ProjectorQueue.Fail`
+schedules retries with exponential backoff plus jitter, not a fixed delay, so
+many work items failing at the same instant do not reconverge on one
+`visible_at` and self-reinforce into a retry storm (#4450);
+`eshu_dp_projector_retry_surge_total` tracks the scheduled-retry rate by
+`failure_class`.
+
 Positive list-seeded canonical retract statements are split into 25-key chunks
 inside the NornicDB phase-group executor before execution. Negative `NOT IN`
 cleanup statements stay intact because splitting a keep-list would make each

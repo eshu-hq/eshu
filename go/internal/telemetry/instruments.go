@@ -118,6 +118,27 @@ type Instruments struct {
 	// lease store and the intent's lease may be reclaimed and re-executed by
 	// another worker.
 	ReducerHeartbeatMissed metric.Int64Counter
+	// ProjectorRetrySurge counts every projector work-item retry scheduled
+	// via ProjectorQueue.Fail's retry path (#4450), labeled by failure_class
+	// only (a bounded closed set from queueFailureMetadata/deadLetterTriage
+	// classification — never by scope_id or generation_id). Retries now
+	// carry exponential backoff plus jitter instead of a fixed delay, so a
+	// burst of same-instant failures no longer reconverges on one
+	// visible_at and starves new work. An operator can graph this
+	// counter's rate by failure_class to spot a genuine retry surge (many
+	// items failing the same way) independently of whether the spread
+	// mitigation is working — the spread itself is not directly observable
+	// from a counter and is proven by the deterministic backoff/jitter unit
+	// tests instead.
+	ProjectorRetrySurge metric.Int64Counter
+	// ReducerRetrySurge counts every reducer intent retry scheduled via
+	// ReducerQueue.failIntent's retry path (#4450), labeled by failure_class
+	// only (a bounded closed set — the same self-classified or fallback
+	// reducer_retryable class recorded on the row, never scope_id or
+	// generation_id). Mirrors ProjectorRetrySurge: reducer retries now carry
+	// exponential backoff plus jitter instead of a fixed delay, so a burst
+	// of same-instant failures no longer reconverges on one visible_at.
+	ReducerRetrySurge metric.Int64Counter
 	// WorkflowRunTerminalDeadLetterBlocks counts workflow run completeness
 	// reconciliations that terminated a run (blocked/failed, not left
 	// wedged in reducer_converging) because a required graph-projection
@@ -1128,6 +1149,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerHeartbeatMissed counter: %w", err)
+	}
+
+	inst.ProjectorRetrySurge, err = meter.Int64Counter(
+		"eshu_dp_projector_retry_surge_total",
+		metric.WithDescription("Total projector work-item retries scheduled with exponential backoff and jitter, labeled by failure_class (#4450)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorRetrySurge counter: %w", err)
+	}
+
+	inst.ReducerRetrySurge, err = meter.Int64Counter(
+		"eshu_dp_reducer_retry_surge_total",
+		metric.WithDescription("Total reducer intent retries scheduled with exponential backoff and jitter, labeled by failure_class (#4450)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerRetrySurge counter: %w", err)
 	}
 
 	inst.WorkflowRunTerminalDeadLetterBlocks, err = meter.Int64Counter(

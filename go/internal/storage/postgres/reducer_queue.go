@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -98,6 +99,25 @@ type ReducerQueue struct {
 	RetryDelay    time.Duration
 	MaxAttempts   int
 	Now           func() time.Time
+
+	// MaxRetryDelay caps the exponential-backoff retry term computed by
+	// failIntent. Zero/unset falls back to defaultRetryMaxDelayFallback (1
+	// hour), matching runtime.RetryPolicyConfig's default.
+	MaxRetryDelay time.Duration
+	// JitterFraction scales the random jitter added on top of the
+	// exponential backoff term, relative to RetryDelay: jitter is drawn
+	// uniformly from [0, RetryDelay*JitterFraction). Zero means no jitter
+	// (legacy fixed-delay behavior); callers wired through
+	// runtime.LoadRetryPolicyConfig get 0.1 by default (#4450).
+	JitterFraction float64
+	// JitterSource draws jitter in [0, 1); nil defaults to
+	// defaultJitterSource (math/rand/v2). Tests inject a seeded or fixed
+	// source for deterministic, non-flaky assertions.
+	JitterSource func() float64
+	// Instruments records operator-facing retry telemetry
+	// (eshu_dp_reducer_retry_surge_total, #4450). Nil is safe (no-op) so
+	// existing callers that do not wire it keep working.
+	Instruments *telemetry.Instruments
 
 	// ClaimDomain optionally restricts this queue instance to one reducer domain.
 	// Prefer ClaimDomains for new multi-domain reducer lanes.

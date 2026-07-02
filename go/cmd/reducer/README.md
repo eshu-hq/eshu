@@ -130,8 +130,10 @@ All env vars parsed in `config.go` and `neo4j_wiring.go`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_REDUCER_RETRY_DELAY` | `30s` | Delay before a failed intent becomes re-claimable |
+| `ESHU_REDUCER_RETRY_DELAY` | `30s` | Base delay before a failed intent becomes re-claimable; the actual delay grows exponentially with attempt count (#4450) |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | `5` | Terminal failure threshold |
+| `ESHU_REDUCER_MAX_RETRY_DELAY` | `1h` | Caps the exponential backoff term so a high attempt count cannot grow the delay unboundedly (#4450) |
+| `ESHU_REDUCER_RETRY_JITTER_FRACTION` | `0.1` | Fraction of `ESHU_REDUCER_RETRY_DELAY` used as the random jitter window added on top of the backoff term, breaking same-instant retry storms (#4450); `0` disables jitter |
 | `ESHU_REDUCER_WORKERS` | `NumCPU` NornicDB / `min(NumCPU,4)` Neo4j | Concurrent intent workers |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | `workers` NornicDB / `workers×4 (max 64)` Neo4j | Items per claim batch |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | `""` (all domains) | Restrict claims to one `Domain`; kept for older single-lane deployments |
