@@ -866,6 +866,30 @@ resource name as the correlation anchor. Cloud KMS never returns key
 material, key state history, or any data-plane content on this resource, and
 none is read here.
 
+**Cloud SQL Instance** (`sqladmin.googleapis.com/Instance`) captures database
+version, region, state, instance type, tier, availability type, data disk size,
+public-IP posture (`ipv4Enabled`), SSL mode, backup and point-in-time-recovery
+posture, transaction-log retention days, CMEK key name, replica count, and
+creation time; emits the typed `sql_instance_in_network` edge to the private
+Compute `Network`, the `sql_instance_encrypted_by_kms_key` edge to the CMEK
+`CryptoKey`, and the replica-topology edges — `sql_instance_has_replica` from a
+primary to each entry in `replicaNames` and `sql_instance_replica_of` from a
+read replica to its `masterInstanceName`; and surfaces the private network,
+CMEK key, and replica/master resource names as correlation anchors. The
+sqladmin API commonly reports `masterInstanceName`/`replicaNames` entries as a
+bare instance name with no project qualifier in the common same-project case
+(rather than a `projects/<p>/instances/<i>` reference), so a bare name is
+resolved against the instance's own project before the edge is built. The
+`kmsKeyName` value is normalized the same way as other CMEK references: an
+already CAI-prefixed (`//cloudkms.googleapis.com/...`) value is kept as-is,
+and a bare value is prefixed only when it matches the expected
+`projects/.../locations/.../keyRings/.../cryptoKeys/...` CryptoKey path shape,
+so the anchor and edge target are never double-prefixed. No public or private
+IP address (`ipAddresses[].ipAddress`) or authorized-network CIDR or label
+(`settings.ipConfiguration.authorizedNetworks[].value`/`.name`) is ever
+decoded — only the boolean `ipv4Enabled` posture and the authorized-network
+entry count are kept, per the GCP collector contract Payload Boundaries.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
@@ -991,7 +1015,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, Forwarding Rule, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Cloud Functions Function, Secret Manager Secret Version, BigQuery Routine, API Key, Cloud Functions (gen1), Dataform Repository, reCAPTCHA Enterprise Key, BigQuery Data Transfer Config, Cloud Build Build, Identity Platform Config, Dataplex Entry Group, Artifact Registry Repository, Logging Log Bucket, Eventarc Trigger, Cloud Scheduler Job, Logging Log Sink, Cloud Tasks Queue, Firebase Project, App Engine Service, App Engine Application, Firebase App Info, Firebase Rules Ruleset, Cloud DNS Managed Zone, Cloud Storage Bucket) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length; a Forwarding Rule's reserved IP address is never decoded at all), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag), Firebase rule source content is never read (only the source file count and target-service enum are kept), and the Managed Zone's own DNS name and forwarding target IPs/hostnames are never decoded into an attribute or anchor (only bounded posture and resolvable VPC network edges are kept). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, Forwarding Rule, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Cloud Functions Function, Secret Manager Secret Version, BigQuery Routine, API Key, Cloud Functions (gen1), Dataform Repository, reCAPTCHA Enterprise Key, BigQuery Data Transfer Config, Cloud Build Build, Identity Platform Config, Dataplex Entry Group, Artifact Registry Repository, Logging Log Bucket, Eventarc Trigger, Cloud Scheduler Job, Logging Log Sink, Cloud Tasks Queue, Firebase Project, App Engine Service, App Engine Application, Firebase App Info, Firebase Rules Ruleset, Cloud DNS Managed Zone, Cloud Storage Bucket, KMS CryptoKey, GKE Cluster, Cloud SQL Instance) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address, CIDR, or authorized-network label is persisted (subnet ranges are reduced to a prefix length; a Forwarding Rule's reserved IP address is never decoded at all; Cloud SQL IP posture is reduced to the `ipv4Enabled` boolean plus an authorized-network count), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag), Firebase rule source content is never read (only the source file count and target-service enum are kept), and the Managed Zone's own DNS name and forwarding target IPs/hostnames are never decoded into an attribute or anchor (only bounded posture and resolvable VPC network edges are kept). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 
