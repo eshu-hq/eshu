@@ -100,11 +100,12 @@ func TestAWSLambdaCommitDoesNotPersistPlaintextEnvironmentValues(t *testing.T) {
 		t.Fatal("transaction committed = false, want true")
 	}
 
-	assertExecArgsDoNotContain(t, db.tx.execs, []string{
+	argLists := persistedArgLists(db.tx.execs, db.tx.queries)
+	assertExecArgsDoNotContain(t, argLists, []string{
 		databaseURL,
 		logLevel,
 	})
-	assertExecArgsContain(t, db.tx.execs, awscloud.RedactionPolicyVersion)
+	assertExecArgsContain(t, argLists, awscloud.RedactionPolicyVersion)
 }
 
 type lambdaNoPlaintextClient struct {
@@ -129,15 +130,15 @@ func (c lambdaNoPlaintextClient) ListEventSourceMappings(
 	return nil, nil
 }
 
-func assertExecArgsContain(t *testing.T, execs []fakeExecCall, needle string) {
+func assertExecArgsContain(t *testing.T, argLists [][]any, needle string) {
 	t.Helper()
-	for _, exec := range execs {
-		for _, arg := range exec.args {
+	for _, args := range argLists {
+		for _, arg := range args {
 			text := persistedArgText(arg)
 			if strings.Contains(text, needle) {
 				return
 			}
 		}
 	}
-	t.Fatalf("exec args did not contain %q", needle)
+	t.Fatalf("exec/query args did not contain %q", needle)
 }

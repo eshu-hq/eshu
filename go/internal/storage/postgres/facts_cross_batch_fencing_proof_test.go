@@ -5,20 +5,21 @@ package postgres
 
 // Cross-batch fencing proof for issue #4444 (parent epic #4442).
 //
-// facts.go:298-321 upserts fact_records with `ON CONFLICT (fact_id) DO UPDATE
-// SET ... EXCLUDED...` and no fencing_token guard. Within one batch,
-// deduplicateEnvelopes keeps the LAST array position for a duplicate fact_id
-// (facts.go:410-428) — order-of-arrival, not fencing-token order. Across
-// batches, Postgres unconditionally applies whatever batch commits last. Both
-// paths let a stale/out-of-order batch clobber a fact that a newer batch
-// (higher fencing_token) already superseded, and the projector then
-// materializes stale edges from the resurrected payload.
+// Before this fix, facts.go:298-321 upserted fact_records with
+// `ON CONFLICT (fact_id) DO UPDATE SET ... EXCLUDED...` and no fencing_token
+// guard. Within one batch, deduplicateEnvelopes kept the LAST array position
+// for a duplicate fact_id (facts.go:410-428) — order-of-arrival, not
+// fencing-token order. Across batches, Postgres unconditionally applied
+// whatever batch committed last. Both paths let a stale/out-of-order batch
+// clobber a fact that a newer batch (higher fencing_token) had already
+// superseded, and the projector would then materialize stale edges from the
+// resurrected payload.
 //
 // This test drives the real upsertFactBatch/upsertFacts production path
 // against a live Postgres instance twice — once with a newer-token batch
-// landing first (proving the current unguarded UPSERT clobbers it when the
-// stale batch commits second) and once with the fenced guard restored — so it
-// is a true two-sided proof: fails on the unpatched path, passes with the
+// landing first (proving the pre-fix unguarded UPSERT clobbered it when the
+// stale batch committed second) and once with the fenced guard restored — so
+// it is a true two-sided proof: fails on the pre-fix path, passes with the
 // guard. It is skipped when no DSN is configured so the hermetic unit suite
 // stays green without Postgres.
 //
@@ -46,6 +47,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )

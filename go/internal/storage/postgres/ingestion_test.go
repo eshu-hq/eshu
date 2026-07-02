@@ -71,22 +71,35 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	if db.tx.rolledBack {
 		t.Fatal("transaction rolledBack = true, want false")
 	}
-	if got, want := len(db.tx.execs), 5; got != want {
+	// The fact_records upsert now runs as a query (INSERT ... RETURNING
+	// fact_id), not a plain exec, so upsertFactBatchReturningAccepted can learn
+	// which fact_ids the fencing_token guard actually accepted (issue #4444
+	// review, codex P1). It no longer appears in db.tx.execs.
+	if got, want := len(db.tx.execs), 4; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for index, want := range []string{
 		"pg_advisory_xact_lock_shared",
 		"INSERT INTO ingestion_scopes",
 		"INSERT INTO scope_generations",
-		"INSERT INTO fact_records",
 		"INSERT INTO fact_work_items",
 	} {
 		if !strings.Contains(db.tx.execs[index].query, want) {
 			t.Fatalf("exec[%d] query = %q, want substring %q", index, db.tx.execs[index].query, want)
 		}
 	}
-	if got, want := db.tx.execs[4].args[3], "source_local"; got != want {
+	if got, want := db.tx.execs[3].args[3], "source_local"; got != want {
 		t.Fatalf("projector domain arg = %v, want %v", got, want)
+	}
+	foundFactRecordsQuery := false
+	for _, query := range db.tx.queries {
+		if strings.Contains(query.query, "INSERT INTO fact_records") && strings.Contains(query.query, "RETURNING fact_id") {
+			foundFactRecordsQuery = true
+			break
+		}
+	}
+	if !foundFactRecordsQuery {
+		t.Fatalf("transaction queries = %#v, want a fact_records RETURNING fact_id upsert", db.tx.queries)
 	}
 }
 
@@ -271,7 +284,10 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
-	if got, want := len(db.tx.execs), 6; got != want {
+	// The fact_records upsert now runs as a query (INSERT ... RETURNING
+	// fact_id), not a plain exec (issue #4444 review, codex P1), so it no
+	// longer appears in db.tx.execs.
+	if got, want := len(db.tx.execs), 5; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if got := db.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {
@@ -368,12 +384,30 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (Row
 	if strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'") {
 		return &queueFakeRows{}, nil
 	}
+	if strings.Contains(query, "INSERT INTO fact_records") && strings.Contains(query, "RETURNING fact_id") {
+		// Default: every fact_id in the batch is accepted (no fencing conflict),
+		// matching the common case tests in this file exercise. Tests that need
+		// to simulate a fenced-out fact_id stage an explicit queryResponses entry
+		// instead.
+		return &queueFakeRows{rows: fakeAcceptedFactIDRows(args)}, nil
+	}
 	if strings.Contains(query, "domain = 'code_import_repo_edge'") {
 		// code_import_repo_edge reopen listing: default to no succeeded items so
 		// the reopen no-ops in tests that do not stage explicit responses for it.
 		return &queueFakeRows{}, nil
 	}
 	return nil, errors.New("unexpected query in transaction")
+}
+
+// fakeAcceptedFactIDRows extracts the fact_id ($1 of every columnsPerFactRow
+// argument group) from a fact-batch RETURNING query's args, simulating "every
+// row accepted" for fakes that do not track fencing_token state.
+func fakeAcceptedFactIDRows(args []any) [][]any {
+	rows := make([][]any, 0, len(args)/columnsPerFactRow)
+	for off := 0; off < len(args); off += columnsPerFactRow {
+		rows = append(rows, []any{args[off].(string)})
+	}
+	return rows
 }
 
 func (f *fakeTx) Commit() error {

@@ -87,11 +87,19 @@ func (t *catalogTx) ExecContext(context.Context, string, ...any) (sql.Result, er
 	return fakeResult{}, nil
 }
 
-func (t *catalogTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (t *catalogTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	t.db.mu.Lock()
 	defer t.db.mu.Unlock()
 	if strings.Contains(query, "fact_kind = 'repository'") {
 		return t.db.catalogRows(), nil
+	}
+	if strings.Contains(query, "INSERT INTO fact_records") && strings.Contains(query, "RETURNING fact_id") {
+		// Default: every fact_id in the batch is accepted (no fencing
+		// conflict). Without this, afterBatch would always see an empty
+		// filtered batch and this harness's repository-onboarding detection
+		// (which reads FactKind=="repository" envelopes from afterBatch) would
+		// never fire, breaking the catalog-reload assertions this file makes.
+		return &queueFakeRows{rows: fakeAcceptedFactIDRows(args)}, nil
 	}
 	return &queueFakeRows{}, nil
 }
