@@ -357,6 +357,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | NornicDB entity upsert row cap |
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | per-label defaults | Per-label batch size overrides (`Label=size,...`) |
 | `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Parallel canonical `entities` and `entity_containment` phase chunk dispatch on NornicDB |
+| `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | `true` | Fold entity containment into row-scoped entity upserts; set `false` only for measured fallback comparisons |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
@@ -416,9 +417,12 @@ exposing repository paths or raw parameters.
   same-transaction read-your-writes backend (Neo4j), via the ingester path's
   GroupExecutor.
 - **NornicDB entity containment.** Bootstrap enables row-scoped batched entity
-  containment for NornicDB (`canonical_writer_config.go:20-38`) so cold-start
+  containment for NornicDB (`configureBootstrapCanonicalWriter`) so cold-start
   indexing and the steady-state ingester use the same high-cardinality entity
-  write shape.
+  write shape. Set `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=false` only for a
+  measured comparison against the older file-scoped shape; do not use one slow
+  run as a reason to disable the default without statement counts, phase
+  timings, retry state, and terminal queue state.
 - **Discovery advisory reports.** Set `ESHU_DISCOVERY_REPORT=<path>` to write a
   per-repo advisory JSON. Useful for diagnosing oversized repositories before
   committing to a full bootstrap run.
