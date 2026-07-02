@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 620 lines: eshu search document writer. The writer owns the full durable search-document payload (id, payload, score, version, metadata) so the search subsystem reads from one source of truth.
+package reducer
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -51,6 +49,7 @@ type EshuSearchDocumentWriteBegin struct {
 type EshuSearchDocumentWriteResult struct {
 	CanonicalWrites int
 	Retired         int
+	Timings         EshuSearchDocumentWriteTimings
 }
 
 // PostgresEshuSearchDocumentWriter persists curated search documents into the
@@ -155,6 +154,7 @@ type eshuSearchDocumentWriteSession struct {
 	keepDocIDs  []string
 	written     int
 	totalLength int
+	timings     EshuSearchDocumentWriteTimings
 }
 
 // InsertPage upserts one page of curated documents and accumulates their keys.
@@ -162,13 +162,16 @@ func (s *eshuSearchDocumentWriteSession) InsertPage(ctx context.Context, documen
 	if len(documents) == 0 {
 		return nil
 	}
+	factStarted := time.Now()
 	indexRows, factIDs, err := s.writer.insertSearchDocumentFacts(
 		ctx, s.scopeID, s.generationID, s.sourceSystem, s.intentID, s.now, documents,
 	)
+	s.timings.FactUpsertDuration += time.Since(factStarted)
 	if err != nil {
 		return err
 	}
-	pageLength, err := s.writer.insertSearchIndexPage(ctx, s.scopeID, s.generationID, indexRows, s.now)
+	pageLength, pageTimings, err := s.writer.insertSearchIndexPage(ctx, s.scopeID, s.generationID, indexRows, s.now)
+	s.timings.add(pageTimings)
 	if err != nil {
 		return err
 	}
@@ -184,14 +187,18 @@ func (s *eshuSearchDocumentWriteSession) InsertPage(ctx context.Context, documen
 // Finalize issues the single authoritative retire over the union keep-set and
 // upserts the search-index stats for the whole generation.
 func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSearchDocumentWriteResult, error) {
+	factRetireStarted := time.Now()
 	retired, err := s.writer.retireSearchDocumentFacts(ctx, s.scopeID, s.generationID, s.keepFactIDs)
+	s.timings.FactRetireDuration += time.Since(factRetireStarted)
 	if err != nil {
 		return EshuSearchDocumentWriteResult{}, err
 	}
-	if err := s.writer.finalizeSearchIndex(ctx, s.scopeID, s.generationID, s.keepDocIDs, s.written, s.totalLength, s.now); err != nil {
+	finalizeTimings, err := s.writer.finalizeSearchIndex(ctx, s.scopeID, s.generationID, s.keepDocIDs, s.written, s.totalLength, s.now)
+	s.timings.add(finalizeTimings)
+	if err != nil {
 		return EshuSearchDocumentWriteResult{}, err
 	}
-	return EshuSearchDocumentWriteResult{CanonicalWrites: s.written, Retired: retired}, nil
+	return EshuSearchDocumentWriteResult{CanonicalWrites: s.written, Retired: retired, Timings: s.timings}, nil
 }
 
 // Cancel removes every document inserted by this session for the generation by
@@ -329,254 +336,6 @@ func (w PostgresEshuSearchDocumentWriter) retireSearchDocumentFacts(
 		}
 	}
 	return retired, nil
-}
-
-type eshuSearchIndexDocumentWrite struct {
-	DocumentID string
-	FactID     string
-	RepoID     string
-	SourceKind string
-	Document   searchdocs.Document
-	Terms      map[string]int
-	Length     int
-}
-
-func newEshuSearchIndexDocumentWrite(
-	scopeID string,
-	generationID string,
-	factID string,
-	doc searchdocs.Document,
-) eshuSearchIndexDocumentWrite {
-	terms := searchhybrid.DocumentTerms(doc)
-	length := 0
-	for _, count := range terms {
-		length += count
-	}
-	return eshuSearchIndexDocumentWrite{
-		DocumentID: strings.TrimSpace(doc.ID),
-		FactID:     factID,
-		RepoID:     strings.TrimSpace(doc.RepoID),
-		SourceKind: string(doc.SourceKind),
-		Document:   doc,
-		Terms:      terms,
-		Length:     length,
-	}
-}
-
-// insertSearchIndexPage upserts one bounded page of index-document and term rows
-// in O(1) bulk statements (doc upsert, per-doc term refresh-delete, term
-// upsert). It issues NO retire-by-absence statement so earlier pages survive.
-// Stale-row retirement and stats are deferred to finalizeSearchIndex. It returns
-// the summed document length for the page so Finalize can compute the average.
-func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-	documents []eshuSearchIndexDocumentWrite,
-	now time.Time,
-) (int, error) {
-	if len(documents) == 0 {
-		return 0, nil
-	}
-	ctx, span := w.startSearchIndexWriteSpan(ctx, scopeID, generationID, len(documents))
-	if span != nil {
-		defer span.End()
-	}
-	start := time.Now()
-	totalLength := 0
-	finish := func(err error, operation string) (int, error) {
-		result := "success"
-		if err != nil {
-			result = "error"
-			w.recordSearchIndexError(ctx, operation)
-			if span != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-			}
-		}
-		w.recordSearchIndexWriteDuration(ctx, time.Since(start), result)
-		return totalLength, err
-	}
-
-	documentIDs := make([]string, 0, len(documents))
-	for _, doc := range documents {
-		documentIDs = append(documentIDs, doc.DocumentID)
-		totalLength += doc.Length
-	}
-
-	// 1. Bulk upsert all index-document rows in one round-trip.
-	docScopeIDs := make([]string, len(documents))
-	docGenerationIDs := make([]string, len(documents))
-	docDocumentIDs := make([]string, len(documents))
-	docFactIDs := make([]string, len(documents))
-	docRepoIDs := make([]string, len(documents))
-	docSourceKinds := make([]string, len(documents))
-	docPayloads := make([]string, len(documents))
-	docLengths := make([]int, len(documents))
-	docUpdatedAts := make([]time.Time, len(documents))
-
-	for i, doc := range documents {
-		payload, err := json.Marshal(doc.Document)
-		if err != nil {
-			return finish(fmt.Errorf("marshal eshu search index document: %w", err), "document_marshal")
-		}
-		docScopeIDs[i] = scopeID
-		docGenerationIDs[i] = generationID
-		docDocumentIDs[i] = doc.DocumentID
-		docFactIDs[i] = doc.FactID
-		docRepoIDs[i] = doc.RepoID
-		docSourceKinds[i] = doc.SourceKind
-		docPayloads[i] = string(payload)
-		docLengths[i] = doc.Length
-		docUpdatedAts[i] = now
-	}
-
-	if _, err := w.DB.ExecContext(
-		ctx,
-		eshuSearchIndexBatchDocumentUpsertQuery,
-		docScopeIDs,
-		docGenerationIDs,
-		docDocumentIDs,
-		docFactIDs,
-		docRepoIDs,
-		docSourceKinds,
-		docPayloads,
-		docLengths,
-		docUpdatedAts,
-	); err != nil {
-		return finish(fmt.Errorf("write eshu search index documents: %w", err), "document_upsert")
-	}
-	w.recordSearchIndexMutation(ctx, "document", "upsert", int64(len(documents)))
-
-	// 2. Delete current terms for the documents being re-written (single ANY call).
-	deleteTermResult, err := w.DB.ExecContext(
-		ctx,
-		eshuSearchIndexRefreshDocumentTermsQuery,
-		scopeID,
-		generationID,
-		documentIDs,
-	)
-	if err != nil {
-		return finish(fmt.Errorf("refresh eshu search index terms: %w", err), "term_refresh")
-	}
-	if affected := rowsAffected(deleteTermResult); affected > 0 {
-		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
-	}
-
-	// 3. Bulk upsert all terms across all documents in one round-trip.
-	var (
-		termDocumentIDs []string
-		termValues      []string
-		termKeys        []string
-		termFrequencies []int
-	)
-	for _, doc := range documents {
-		if len(doc.Terms) == 0 {
-			continue
-		}
-		sortedTerms, sortedTermKeys, sortedFrequencies := sortedSearchIndexTerms(doc.Terms)
-		for j, term := range sortedTerms {
-			termDocumentIDs = append(termDocumentIDs, doc.DocumentID)
-			termValues = append(termValues, term)
-			termKeys = append(termKeys, sortedTermKeys[j])
-			termFrequencies = append(termFrequencies, sortedFrequencies[j])
-		}
-	}
-
-	if len(termValues) > 0 {
-		if _, err := w.DB.ExecContext(
-			ctx,
-			eshuSearchIndexBatchTermUpsertQuery,
-			scopeID,
-			generationID,
-			termDocumentIDs,
-			termValues,
-			termKeys,
-			termFrequencies,
-		); err != nil {
-			return finish(fmt.Errorf("write eshu search index terms: %w", err), "term_upsert")
-		}
-		w.recordSearchIndexMutation(ctx, "term", "upsert", int64(len(termValues)))
-	}
-	return finish(nil, "")
-}
-
-// finalizeSearchIndex runs the single authoritative search-index retire (stale
-// terms then stale documents absent from the union keep-set) and upserts the
-// stats row. It mirrors the deferred retire of the fact store so the read model
-// converges only after every page has been inserted. An empty keep-set retires
-// all index rows for the generation, matching the empty-write contract.
-func (w PostgresEshuSearchDocumentWriter) finalizeSearchIndex(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-	keepDocumentIDs []string,
-	documentCount int,
-	totalLength int,
-	now time.Time,
-) error {
-	ctx, span := w.startSearchIndexWriteSpan(ctx, scopeID, generationID, len(keepDocumentIDs))
-	if span != nil {
-		defer span.End()
-	}
-	start := time.Now()
-	finish := func(err error, operation string) error {
-		result := "success"
-		if err != nil {
-			result = "error"
-			w.recordSearchIndexError(ctx, operation)
-			if span != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-			}
-		}
-		w.recordSearchIndexWriteDuration(ctx, time.Since(start), result)
-		return err
-	}
-
-	// 1. Retire stale terms (docs absent from the union keep-set).
-	retireTermsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, scopeID, generationID, keepDocumentIDs)
-	if err != nil {
-		return finish(fmt.Errorf("retire stale eshu search index terms: %w", err), "term_retire")
-	}
-	if affected := rowsAffected(retireTermsResult); affected > 0 {
-		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
-	}
-
-	// 2. Retire stale index documents (docs absent from the union keep-set).
-	retireDocumentsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, scopeID, generationID, keepDocumentIDs)
-	if err != nil {
-		return finish(fmt.Errorf("retire stale eshu search index documents: %w", err), "document_retire")
-	}
-	if affected := rowsAffected(retireDocumentsResult); affected > 0 {
-		w.recordSearchIndexMutation(ctx, "document", "retire", affected)
-	}
-
-	// 3. Upsert stats — written last so the scope becomes "done" in the sweeper
-	// only when the full streamed write has succeeded.
-	averageLength := 0.0
-	if documentCount > 0 {
-		averageLength = float64(totalLength) / float64(documentCount)
-	}
-	if _, err := w.DB.ExecContext(ctx, eshuSearchIndexStatsUpsertQuery, scopeID, generationID, documentCount, averageLength, now); err != nil {
-		return finish(fmt.Errorf("write eshu search index stats: %w", err), "stats_upsert")
-	}
-	return finish(nil, "")
-}
-
-func sortedSearchIndexTerms(terms map[string]int) ([]string, []string, []int) {
-	keys := make([]string, 0, len(terms))
-	for term := range terms {
-		keys = append(keys, term)
-	}
-	sort.Strings(keys)
-	termKeys := make([]string, 0, len(keys))
-	frequencies := make([]int, 0, len(keys))
-	for _, term := range keys {
-		termKeys = append(termKeys, searchhybrid.TermKey(term))
-		frequencies = append(frequencies, terms[term])
-	}
-	return keys, termKeys, frequencies
 }
 
 // eshuSearchDocumentFactID derives the deterministic fact id for one document.

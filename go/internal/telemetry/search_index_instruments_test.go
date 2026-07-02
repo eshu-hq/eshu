@@ -44,6 +44,7 @@ func TestSearchIndexInstrumentsRecordBoundedLabels(t *testing.T) {
 	))
 	inst.SearchIndexWriteDuration.Record(context.Background(), 0.25, metric.WithAttributes(
 		AttrDomain("eshu_search_document"),
+		AttrOperation("term_upsert"),
 		AttrResult("success"),
 	))
 
@@ -66,8 +67,9 @@ func TestSearchIndexInstrumentsRecordBoundedLabels(t *testing.T) {
 		t.Fatalf("search-index errors = %d, want 1", got)
 	}
 	searchIndexHistogramPoint(t, rm, "eshu_dp_search_index_write_duration_seconds", map[string]string{
-		MetricDimensionDomain: "eshu_search_document",
-		MetricDimensionResult: "success",
+		MetricDimensionDomain:    "eshu_search_document",
+		MetricDimensionOperation: "term_upsert",
+		MetricDimensionResult:    "success",
 	})
 }
 

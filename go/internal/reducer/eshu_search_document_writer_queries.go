@@ -163,9 +163,14 @@ WHERE scope_id      = $1
   AND document_id   = ANY($3::text[])
 `
 
-// eshuSearchIndexBatchTermUpsertQuery bulk-upserts all term rows for a scope in
-// one round-trip using unnest. Each element in the parallel arrays corresponds to
-// one (document_id, term) pair; the document_id array is repeated per term.
+// eshuSearchIndexBatchTermUpsertQuery bulk-inserts all refreshed term rows for
+// a scope in one round-trip using unnest. The page refresh delete removes
+// existing rows for the same document IDs before this insert runs; reducer queue
+// conflict fencing prevents same-scope writers from overlapping, so this avoids
+// PostgreSQL's expensive ON CONFLICT update path while preserving retry
+// idempotency.
+// Each element in the parallel arrays corresponds to one (document_id, term)
+// pair; the document_id array is repeated per term.
 // Arg layout: $1=scope_id, $2=generation_id, $3=document_ids, $4=terms,
 // $5=term_keys, $6=term_frequencies.
 const eshuSearchIndexBatchTermUpsertQuery = `
@@ -180,9 +185,7 @@ INSERT INTO eshu_search_index_terms (
 SELECT $1, $2, document_id, term_key, term, term_frequency
 FROM unnest($3::text[], $4::text[], $5::text[], $6::int[])
      AS t(document_id, term, term_key, term_frequency)
-ON CONFLICT (scope_id, generation_id, term_key, document_id) DO UPDATE SET
-    term           = EXCLUDED.term,
-    term_frequency = EXCLUDED.term_frequency
+ORDER BY term_key, document_id
 `
 
 const eshuSearchIndexStatsUpsertQuery = `

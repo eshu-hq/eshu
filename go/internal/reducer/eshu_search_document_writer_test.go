@@ -302,10 +302,49 @@ func TestWriteEshuSearchDocumentsRecordsSearchIndexErrors(t *testing.T) {
 		t.Fatalf("search index error metric = %d, want 1", got)
 	}
 	assertHistogramPoint(t, rm, "eshu_dp_search_index_write_duration_seconds", map[string]string{
-		telemetry.MetricDimensionDomain: string(DomainEshuSearchDocument),
-		telemetry.MetricDimensionResult: "error",
+		telemetry.MetricDimensionDomain:    string(DomainEshuSearchDocument),
+		telemetry.MetricDimensionOperation: "term_upsert",
+		telemetry.MetricDimensionResult:    "error",
 	})
 	_ = requireSpan(t, spanRecorder.Ended(), telemetry.SpanReducerEshuSearchIndexWrite)
+}
+
+func TestWriteEshuSearchDocumentsReportsSubphaseTimings(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{delay: time.Millisecond}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+
+	result, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			sampleSearchDoc("searchdoc:content_entity:e-1"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		duration time.Duration
+	}{
+		{name: "fact upsert", duration: result.Timings.FactUpsertDuration},
+		{name: "document upsert", duration: result.Timings.IndexDocumentUpsertDuration},
+		{name: "term refresh", duration: result.Timings.IndexTermRefreshDuration},
+		{name: "term upsert", duration: result.Timings.IndexTermUpsertDuration},
+		{name: "fact retire", duration: result.Timings.FactRetireDuration},
+		{name: "term retire", duration: result.Timings.IndexTermRetireDuration},
+		{name: "document retire", duration: result.Timings.IndexDocumentRetireDuration},
+		{name: "stats upsert", duration: result.Timings.IndexStatsUpsertDuration},
+	}
+	for _, tt := range tests {
+		if tt.duration <= 0 {
+			t.Errorf("%s duration = %v, want positive subphase timing", tt.name, tt.duration)
+		}
+	}
 }
 
 func TestWriteEshuSearchDocumentsEmptySetRetiresAll(t *testing.T) {
@@ -411,4 +450,35 @@ func TestWriteEshuSearchDocumentsBatchedWritesBoundedExecCount(t *testing.T) {
 	if got >= maxAllowed {
 		t.Fatalf("ExecContext calls = %d for %d documents, want < %d (batched writes required, got O(N) per-doc loop)", got, docCount, maxAllowed)
 	}
+}
+
+func TestWriteEshuSearchDocumentsTermInsertAvoidsConflictUpdate(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		IntentID:     "intent-term-insert",
+		ScopeID:      "scope-term-insert",
+		GenerationID: "gen-term-insert",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			sampleSearchDoc("searchdoc:content_entity:e-1"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+
+	for _, exec := range db.execs {
+		if !strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms") {
+			continue
+		}
+		if strings.Contains(exec.query, "ON CONFLICT") {
+			t.Fatalf("term insert query still uses conflict-update path after page refresh:\n%s", exec.query)
+		}
+		return
+	}
+	t.Fatalf("missing eshu_search_index_terms insert in execs: %#v", db.execs)
 }

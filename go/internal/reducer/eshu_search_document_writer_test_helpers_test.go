@@ -9,6 +9,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"go.opentelemetry.io/otel/attribute"
@@ -36,6 +37,7 @@ type fakeSearchDocExecer struct {
 	retireAffected int64
 	failOn         string
 	affected       []fakeSearchDocAffected
+	delay          time.Duration
 }
 
 type fakeSearchDocAffected struct {
@@ -45,6 +47,9 @@ type fakeSearchDocAffected struct {
 
 func (f *fakeSearchDocExecer) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	f.execs = append(f.execs, fakeSearchDocExecCall{query: query, args: args})
+	if f.delay > 0 {
+		time.Sleep(f.delay)
+	}
 	if f.failOn != "" && strings.Contains(query, f.failOn) {
 		return nil, errors.New("boom")
 	}
