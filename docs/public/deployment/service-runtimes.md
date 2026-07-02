@@ -56,6 +56,9 @@ before treating a graph as current:
 - Scale API and MCP for read traffic.
 - Scale the resolution engine only after queue and Postgres telemetry show the
   reducer is the bottleneck.
+- Use `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` only for bounded
+  resolution-engine proof runs that need repo-dependency retract substatement
+  attribution; leave it disabled for normal grouped graph writes.
 - Keep claim-driven collectors behind an active workflow coordinator.
 - Keep scanner workers in their own Deployment or Compose service; do not move
   image unpacking, SBOM generation, source scanning, secret scanning, license

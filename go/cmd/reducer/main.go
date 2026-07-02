@@ -49,6 +49,7 @@ func buildReducerService(
 	}
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
+	repoDependencyRetractStatementTiming := loadRepoDependencyRetractStatementTiming(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
 	serviceDocumentationEvidenceLoader := serviceDocumentationEvidenceLoaderFor(database)
 	serviceIncidentEvidenceLoader := serviceIncidentEvidenceLoaderFor(database)
@@ -281,6 +282,7 @@ func buildReducerService(
 	edgeWriter.CodeCallGroupBatchSize = codeCallEdgeGroupBatchSize
 	edgeWriter.InheritanceGroupBatchSize = inheritanceEdgeGroupBatchSize
 	edgeWriter.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
+	edgeWriter.RepoDependencyRetractStatementTiming = repoDependencyRetractStatementTiming
 
 	reducerGraphDrain := reducerGraphDrainFor(projectorDrainGate, database)
 

@@ -193,6 +193,27 @@ Each code-call statement carries a bounded route summary with relationship,
 source label, target label, and row count so slow shared-edge logs can be tied
 back to the exact Cypher shape without exposing file paths or entity IDs.
 
+Repo-dependency retract normally executes its repository-relationship cleanup
+and evidence-artifact cleanup as one grouped transaction. The
+`ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` diagnostic switch keeps the
+same two statements and the same default off state, but executes them
+sequentially during a bounded proof run so `shared edge retract statement
+completed` logs can attribute time to `repository_relationships` versus
+`evidence_artifacts`. Leave the switch disabled for production timing.
+
+No-Regression Evidence: the default path still uses the grouped
+`ExecuteGroup` transaction boundary. `go test ./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesRepoDependency(LogsGroupedStatementRoles|DiagnosticStatementTimingBypassesGroup)' -count=1`
+proves grouped logging remains default and the diagnostic switch is the only path
+that bypasses grouping for per-statement timing. This is a diagnostic-only mode,
+not a wall-clock optimization.
+
+Observability Evidence: the diagnostic path reuses the existing
+`shared edge retract statement completed` log shape with `domain`,
+`evidence_source`, `statement_role`, `repo_count`, `duration_seconds`, and the
+bounded `statement_summary`; it adds no metric name, metric label, queue domain,
+worker, lease, timeout, Cypher text, or graph backend branch.
+
 Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
 binding, tag-key hashes, and hashed correlation anchors on the node without

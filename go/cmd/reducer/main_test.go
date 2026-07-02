@@ -142,6 +142,9 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got, want := codeCallEdgeWriter.SQLRelationshipGroupBatchSize, defaultSQLRelationshipEdgeGroupBatchSize; got != want {
 		t.Fatalf("sql relationship edge group batch size = %d, want %d", got, want)
 	}
+	if codeCallEdgeWriter.RepoDependencyRetractStatementTiming {
+		t.Fatal("repo dependency retract statement timing = true, want default false")
+	}
 	if service.GraphProjectionPhaseRepairer == nil {
 		t.Fatal("buildReducerService() graph projection repairer = nil, want non-nil")
 	}
@@ -264,6 +267,40 @@ func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 	}
 	if got, want := edgeWriter.SQLRelationshipGroupBatchSize, 4; got != want {
 		t.Fatalf("sql relationship edge group batch size = %d, want %d", got, want)
+	}
+}
+
+func TestBuildReducerServiceWiresRepoDependencyRetractStatementTiming(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		repoDependencyRetractStatementTimingEnv: "true",
+	}
+	getenv := func(key string) string { return env[key] }
+
+	db := &fakeReducerDB{}
+	service, err := buildReducerService(
+		db,
+		stubGraphExecutor{},
+		stubCypherExecutor{},
+		postgres.NewSharedIntentStore(db),
+		stubCypherReader{},
+		stubCypherReader{},
+		getenv,
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildReducerService() error = %v", err)
+	}
+
+	edgeWriter, ok := service.RepoDependencyProjectionRunner.EdgeWriter.(*sourcecypher.EdgeWriter)
+	if !ok {
+		t.Fatalf("repo dependency edge writer type = %T, want *cypher.EdgeWriter", service.RepoDependencyProjectionRunner.EdgeWriter)
+	}
+	if !edgeWriter.RepoDependencyRetractStatementTiming {
+		t.Fatal("repo dependency retract statement timing = false, want true")
 	}
 }
 
