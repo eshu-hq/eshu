@@ -147,6 +147,10 @@ func buildIngesterCollectorService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	committer.Instruments = instruments
+	// The ingester runs the corpus-wide deferred relationship backfill as a
+	// separate batch phase, so per-commit backfill would be duplicate work
+	// (#4451, § T8).
+	committer.SkipRelationshipBackfill = true
 
 	scheduledSyncConfig, err := collector.LoadScheduledSyncConfig(getenv)
 	if err != nil {

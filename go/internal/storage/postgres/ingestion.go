@@ -40,6 +40,13 @@ type IngestionStore struct {
 	Now         func() time.Time
 	Logger      *slog.Logger
 	Instruments *telemetry.Instruments
+	// SkipRelationshipBackfill disables the per-commit new-repository
+	// relationship backfill. The ingester and bootstrap-index runtimes set this
+	// true because they run the corpus-wide deferred relationship backfill as a
+	// separate batch phase, so per-commit backfill there would be duplicate work
+	// (issue #4451, § T8; part of the bootstrap phase contract — see the package
+	// doc comment). Callers that leave it false get the post-commit backfill.
+	SkipRelationshipBackfill bool
 	// maintenanceBatchSize overrides the deferred-maintenance per-batch
 	// repository count. Zero uses deferredMaintenanceRepoBatchSize. It exists so
 	// tests can force multiple independent batch transactions deterministically.
@@ -330,8 +337,12 @@ func (s IngestionStore) commitScopeGeneration(
 	// Relationship backfill for any newly onboarded repository runs AFTER the
 	// barrier above is released, in its own short transaction (issue #4451,
 	// § T8; see runPostCommitRelationshipBackfill for the lock-split rationale
-	// and why its errors are logged rather than returned here).
-	s.runPostCommitRelationshipBackfill(ctx, scopeValue, generation, knownRepoIDs, currentGenerationRepos)
+	// and why its errors are logged rather than returned here). Skipped for
+	// runtimes that run the corpus-wide deferred backfill separately
+	// (ingester, bootstrap-index) so per-commit backfill is not duplicated.
+	if !s.SkipRelationshipBackfill {
+		s.runPostCommitRelationshipBackfill(ctx, scopeValue, generation, knownRepoIDs, currentGenerationRepos)
+	}
 
 	return nil
 }

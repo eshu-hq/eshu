@@ -29,7 +29,7 @@ import (
 // the two short critical sections (the atomic commit or this backfill) it
 // overlaps, never both combined. Lock ordering is unchanged (same
 // deferredMaintenanceRepoLockKey), so this introduces no new deadlock class:
-// see TestIngestionCommitAndDeferredMaintenanceNeverDeadlocks.
+// see TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks.
 //
 // Errors are logged, never returned: the generation this call enriches is
 // already durably committed by the time this runs, so surfacing an error here
@@ -45,16 +45,31 @@ func (s IngestionStore) runPostCommitRelationshipBackfill(
 	knownRepoIDs map[string]struct{},
 	currentGenerationRepos map[string]relationships.CatalogEntry,
 ) {
-	newRepoIDs := catalogEntryIDSet(currentGenerationRepos)
-	if len(newRepoIDs) == 0 {
+	// Gate: skip the barrier transaction entirely unless a genuinely-new
+	// repository was onboarded this generation. currentGenerationRepos
+	// routinely includes the already-known repo on every commit, so gating on
+	// the raw non-empty set would open the extra transaction on every commit
+	// (issue #4451, per PR review). The backfill itself still receives the FULL
+	// current set below: it uses the known repositories as evidence targets and
+	// does its own new-vs-known filtering, so pre-filtering here would drop
+	// those targets and discover zero evidence.
+	hasNewRepo := false
+	for repoID := range currentGenerationRepos {
+		if _, known := knownRepoIDs[repoID]; !known {
+			hasNewRepo = true
+			break
+		}
+	}
+	if !hasNewRepo {
 		return
 	}
 	if s.beginner == nil {
 		return
 	}
 
+	currentGenerationRepoIDs := catalogEntryIDSet(currentGenerationRepos)
 	start := time.Now()
-	if err := s.commitPostCommitRelationshipBackfillTx(ctx, scopeValue, generation, knownRepoIDs, newRepoIDs); err != nil {
+	if err := s.commitPostCommitRelationshipBackfillTx(ctx, scopeValue, generation, knownRepoIDs, currentGenerationRepoIDs); err != nil {
 		if s.Logger != nil {
 			s.Logger.ErrorContext(
 				ctx, "post-commit relationship backfill failed",

@@ -74,6 +74,10 @@ func buildBootstrapCollector(
 	committer := postgres.NewIngestionStore(instrumentedDB)
 	committer.Logger = logger
 	committer.Instruments = instruments
+	// bootstrap-index runs the corpus-wide deferred relationship backfill as a
+	// dedicated phase, so per-commit backfill would be duplicate work
+	// (#4451, § T8).
+	committer.SkipRelationshipBackfill = true
 
 	return collectorDeps{
 		source:    source,

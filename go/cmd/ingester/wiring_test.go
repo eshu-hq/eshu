@@ -219,8 +219,12 @@ func TestBuildIngesterCollectorServiceWiresDeferredMaintenanceDrainHook(t *testi
 		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
 	}
 
-	if _, ok := service.Committer.(postgres.IngestionStore); !ok {
+	committer, ok := service.Committer.(postgres.IngestionStore)
+	if !ok {
 		t.Fatalf("Committer type = %T, want postgres.IngestionStore", service.Committer)
+	}
+	if !committer.SkipRelationshipBackfill {
+		t.Fatal("Committer.SkipRelationshipBackfill = false, want true for deferred batch-drain backfill (#4451 must preserve the skip)")
 	}
 	if service.AfterBatchDrained == nil {
 		t.Fatal("AfterBatchDrained = nil, want deferred relationship maintenance hook")
