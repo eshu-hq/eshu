@@ -289,18 +289,29 @@ func ProcessPartitionOnce(
 	// selection/retract/edge-write/mark-completed work exceeds the lease TTL
 	// lets the lease be reclaimed by another worker while this call is still
 	// writing, causing a double-write.
+	//
+	// releaseCtx is the pre-heartbeat context, deliberately NOT the
+	// heartbeat-derived leaseCtx assigned to ctx below. stopHeartbeat()
+	// cancels leaseCtx before this defer's ReleasePartitionLease call runs,
+	// so releasing through leaseCtx (or a ctx variable reassigned to it)
+	// would hand Postgres an already-cancelled context: the release query
+	// fails, the error is swallowed, and the lease sits held until it
+	// expires on its own TTL -- defeating the point of releasing early.
+	releaseCtx := ctx
 	leaseCtx, stopHeartbeat := startSharedProjectionLeaseHeartbeat(ctx, cfg, leaseManager, cfg.Instruments, cfg.Logger)
 	defer func() {
+		// stopHeartbeat() already wraps a claim/rejection failure in
+		// "heartbeat shared projection partition lease: ...";
+		// re-wrapping here would double the prefix.
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			wrapped := fmt.Errorf("heartbeat shared projection partition lease: %w", heartbeatErr)
 			if retErr == nil {
-				retErr = wrapped
+				retErr = heartbeatErr
 			} else {
-				retErr = errors.Join(retErr, wrapped)
+				retErr = errors.Join(retErr, heartbeatErr)
 			}
 		}
 		_ = leaseManager.ReleasePartitionLease(
-			ctx, cfg.Domain, cfg.PartitionID, cfg.PartitionCount, cfg.LeaseOwner,
+			releaseCtx, cfg.Domain, cfg.PartitionID, cfg.PartitionCount, cfg.LeaseOwner,
 		)
 	}()
 	ctx = leaseCtx

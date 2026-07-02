@@ -163,6 +163,127 @@ func TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres(t *testing.
 	<-rivalDone
 }
 
+// TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres
+// proves a bug introduced by the #4449 heartbeat fix itself (flagged in PR
+// #4524 review, Copilot on shared_projection_worker.go:306): ProcessPartitionOnce
+// reassigns its ctx variable to the heartbeat-derived leaseCtx, and the
+// deferred ReleasePartitionLease call closed over that same ctx variable.
+// stopHeartbeat() cancels leaseCtx before the deferred release runs, so the
+// release's real UPDATE ... SET lease_owner = NULL ... query ran with an
+// already-cancelled context.
+//
+//   - Unpatched: sql.DB.ExecContext rejects the query immediately with
+//     "context canceled" before it reaches Postgres, the UPDATE never runs,
+//     and the row keeps its lease_owner/lease_expires_at until the lease's
+//     own TTL naturally elapses -- another worker cannot claim the partition
+//     in the meantime, defeating the point of releasing early.
+//   - Patched: the release runs with a live (pre-heartbeat) context, the
+//     UPDATE commits, and the row is immediately claimable again.
+//
+// This test uses a fast cycle (no slow WriteEdges) so it isolates the
+// release-context bug from the renewal behavior already proven above.
+func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *testing.T) {
+	dsn := os.Getenv("ESHU_SHARED_PROJECTION_HEARTBEAT_PROOF_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_SHARED_PROJECTION_HEARTBEAT_PROOF_DSN to run the shared projection partition lease release proof")
+	}
+
+	bootstrapDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open bootstrap connection: %v", err)
+	}
+	ctx := context.Background()
+	schemaName := fmt.Sprintf("shared_projection_release_proof_%d", time.Now().UnixNano())
+	if _, err := bootstrapDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+		_ = bootstrapDB.Close()
+		t.Fatalf("create proof schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+		_ = bootstrapDB.Close()
+	})
+
+	scopedDSN := dsn + "?search_path=" + schemaName
+	if strings.Contains(dsn, "?") {
+		scopedDSN = dsn + "&search_path=" + schemaName
+	}
+	db, err := sql.Open("pgx", scopedDSN)
+	if err != nil {
+		t.Fatalf("open scoped connection pool: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	db.SetMaxOpenConns(6)
+
+	if _, err := db.ExecContext(ctx, SharedIntentSchemaSQL()); err != nil {
+		t.Fatalf("create proof schema tables: %v", err)
+	}
+
+	store := reducer.PartitionLeaseManager(NewSharedIntentStore(SQLDB{DB: db}))
+
+	const domain = "platform_infra"
+	const owner = "worker-release-proof"
+	leaseTTL := 30 * time.Second // long TTL: any release must come from the explicit release, not natural expiry
+
+	edges := &postgresProofSlowEdgeWriter{writeBlock: closedChan()}
+	reader := &postgresProofEmptyIntentReader{}
+	lookup := func(reducer.SharedProjectionAcceptanceKey) (string, bool) { return "gen-1", true }
+
+	cfg := reducer.PartitionProcessorConfig{
+		Domain:         domain,
+		PartitionID:    0,
+		PartitionCount: 1,
+		LeaseOwner:     owner,
+		LeaseTTL:       leaseTTL,
+		BatchLimit:     100,
+	}
+
+	seedProofIntent(t, db, ctx)
+
+	if _, err := reducer.ProcessPartitionOnce(
+		ctx, time.Now().UTC(), cfg, store, reader, edges,
+		lookup, nil, nil, nil, nil, nil,
+	); err != nil {
+		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+	}
+
+	var leaseOwner sql.NullString
+	var leaseExpiresAt sql.NullTime
+	if err := db.QueryRowContext(ctx, `
+		SELECT lease_owner, lease_expires_at
+		FROM shared_projection_partition_leases
+		WHERE projection_domain = $1 AND partition_id = $2 AND partition_count = $3
+	`, domain, 0, 1).Scan(&leaseOwner, &leaseExpiresAt); err != nil {
+		t.Fatalf("query lease row: %v", err)
+	}
+
+	if leaseOwner.Valid {
+		t.Fatalf(
+			"lease_owner = %q, want NULL: ReleasePartitionLease ran with a cancelled context and its UPDATE never committed, so the row still shows the original holder as owner and stays held until the %s TTL naturally elapses",
+			leaseOwner.String, leaseTTL,
+		)
+	}
+	if leaseExpiresAt.Valid {
+		t.Fatalf("lease_expires_at = %v, want NULL: the release UPDATE did not commit", leaseExpiresAt.Time)
+	}
+
+	// A rival can now claim the released partition immediately, proving the
+	// row is genuinely releasable rather than merely reporting released=true
+	// from a call whose underlying query silently no-op'd.
+	claimed, err := store.ClaimPartitionLease(ctx, domain, 0, 1, "worker-rival-after-release", leaseTTL)
+	if err != nil {
+		t.Fatalf("rival ClaimPartitionLease() error = %v", err)
+	}
+	if !claimed {
+		t.Fatal("rival could not claim the partition immediately after ProcessPartitionOnce returned: the lease was not actually released")
+	}
+}
+
+func closedChan() <-chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}
+
 func seedProofIntent(t *testing.T, db *sql.DB, ctx context.Context) {
 	t.Helper()
 	if _, err := db.ExecContext(ctx, `

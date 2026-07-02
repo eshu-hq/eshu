@@ -99,6 +99,95 @@ func TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite(t *testing.T) {
 	}
 }
 
+// TestProcessPartitionOnceReleasesLeaseWithLiveContext reproduces a bug
+// introduced by the #4449 heartbeat fix itself (flagged in PR #4524 review):
+// ProcessPartitionOnce reassigns its ctx variable to the heartbeat-derived
+// leaseCtx, and the deferred ReleasePartitionLease call closes over that
+// same ctx variable. stopHeartbeat() cancels leaseCtx before the deferred
+// release runs, so the release call was handed an already-cancelled
+// context -- ctxCheckingLeaseManager.ReleasePartitionLease below fails fast
+// on ctx.Err() the way a real Postgres ExecContext call would, leaving the
+// lease held until its own TTL expiry instead of being released promptly.
+// That defeats the purpose of releasing early: other workers cannot pick up
+// the partition until the stale lease naturally times out.
+//
+// This test uses a normal (fast) cycle -- no slow WriteEdges, no lease
+// renewal needed -- specifically to isolate the release-context bug from
+// the renewal behavior already covered by
+// TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite above.
+func TestProcessPartitionOnceReleasesLeaseWithLiveContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 13, 14, 0, 0, 0, time.UTC)
+	t0 := now.Add(-time.Minute)
+
+	reader := &stubSharedIntentReader{
+		pending: []SharedProjectionIntentRow{
+			{
+				IntentID:         "intent-release-1",
+				ProjectionDomain: "platform_infra",
+				PartitionKey:     "pk-a",
+				ScopeID:          "scope-a",
+				AcceptanceUnitID: "repo-a",
+				RepositoryID:     "repo-a",
+				SourceRunID:      "run-1",
+				GenerationID:     "gen-1",
+				Payload:          map[string]any{"platform_id": "p1", "action": "upsert"},
+				CreatedAt:        t0,
+			},
+		},
+	}
+
+	lease := &ctxCheckingLeaseManager{claimResult: true}
+	edges := &stubEdgeWriter{}
+	lookup := acceptedGenerationFixed("gen-1", true)
+
+	cfg := PartitionProcessorConfig{
+		Domain:         "platform_infra",
+		PartitionID:    0,
+		PartitionCount: 1,
+		LeaseOwner:     "worker-1",
+		LeaseTTL:       30 * time.Second,
+		BatchLimit:     100,
+	}
+
+	if _, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+	}
+
+	if lease.releaseCtxErr != nil {
+		t.Fatalf("ReleasePartitionLease observed a cancelled context (%v): the lease release runs after the heartbeat context is cancelled and stays held until TTL expiry instead of releasing promptly", lease.releaseCtxErr)
+	}
+	if !lease.released {
+		t.Error("lease was not released")
+	}
+}
+
+// ctxCheckingLeaseManager records whether the context passed to
+// ReleasePartitionLease was already cancelled, the way a real
+// sql.DB.ExecContext call would observe and fail fast on a dead context.
+type ctxCheckingLeaseManager struct {
+	mu            sync.Mutex
+	claimResult   bool
+	released      bool
+	releaseCtxErr error
+}
+
+func (l *ctxCheckingLeaseManager) ClaimPartitionLease(_ context.Context, _ string, _, _ int, _ string, _ time.Duration) (bool, error) {
+	return l.claimResult, nil
+}
+
+func (l *ctxCheckingLeaseManager) ReleasePartitionLease(ctx context.Context, _ string, _, _ int, _ string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.released = true
+	l.releaseCtxErr = ctx.Err()
+	if l.releaseCtxErr != nil {
+		return l.releaseCtxErr
+	}
+	return nil
+}
+
 // heartbeatCountingLeaseManager wraps stubLeaseManager's claim/release
 // contract but distinguishes the initial claim from later renewal claims so
 // tests can assert a heartbeat loop is actually renewing the lease rather

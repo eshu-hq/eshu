@@ -318,6 +318,29 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 		_ = stopHeartbeat()
 	}()
 
+	// If the immediate pre-heartbeat already failed, startHeartbeat cancelled
+	// execCtx before returning it, and no handler work has run yet. Detect
+	// that via execCtx.Err() rather than calling stopHeartbeat() here: the
+	// stop function is a single-shot (sync.Once) close over the heartbeat
+	// goroutine, and calling it before Executor.Execute would tear down a
+	// healthy periodic heartbeat loop before the handler ever starts. Do not
+	// call Executor.Execute (it would only observe the cancellation and
+	// return context.Canceled) and do not route through WorkSink.Fail:
+	// neither IsRetryable nor the dead-letter triage path knows this claim
+	// never started real work, so Fail here can wrongly dead-letter an intent
+	// that simply lost its lease before starting. Leaving the lease
+	// unrenewed lets the expired-lease reclaim path (#4464) pick it back up
+	// (#4447 follow-up).
+	if execCtx.Err() != nil {
+		var preFailure *reducerPreHeartbeatFailure
+		err := stopHeartbeat()
+		if errors.As(err, &preFailure) {
+			duration := time.Since(start).Seconds()
+			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_before_start", workerID, err)
+			return nil
+		}
+	}
+
 	result, err := s.Executor.Execute(execCtx, intent)
 	duration := time.Since(start).Seconds()
 	status := "succeeded"
@@ -416,6 +439,16 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 		case "superseded":
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr("generation_superseded"))
 			s.Logger.InfoContext(ctx, "reducer intent superseded", logAttrs...)
+		case "lease_lost_before_start":
+			// No handler work ran under this claim; the lease is left
+			// unrenewed for the expired-lease reclaim path (#4464) rather
+			// than dead-lettered, so this is an operator-visible warning, not
+			// a terminal failure.
+			logAttrs = append(logAttrs, telemetry.FailureClassAttr("lease_heartbeat_failure"))
+			if execErr != nil {
+				logAttrs = append(logAttrs, log.Err(execErr))
+			}
+			s.Logger.WarnContext(ctx, "reducer claim lost its lease before handler start", logAttrs...)
 		default:
 			s.Logger.InfoContext(ctx, "reducer execution succeeded", logAttrs...)
 		}
@@ -438,6 +471,19 @@ func reducerExecutionFailureClass(err error) string {
 
 type reducerHeartbeatStop func() error
 
+// reducerPreHeartbeatFailure marks a heartbeat failure that happened before
+// Executor.Execute ever ran, so the caller can tell it apart from a failure
+// during or after real handler work. No handler work ran under this claim,
+// so the intent must never be routed through WorkSink.Fail (which can
+// dead-letter it): the correct recovery is to leave the lease unrenewed so
+// the expired-lease reclaim path (#4464) picks it back up, or a retry.
+type reducerPreHeartbeatFailure struct {
+	err error
+}
+
+func (e *reducerPreHeartbeatFailure) Error() string { return e.err.Error() }
+func (e *reducerPreHeartbeatFailure) Unwrap() error { return e.err }
+
 // startHeartbeat starts the reducer lease heartbeat loop for a claimed
 // intent. It emits one heartbeat synchronously, before returning, so a
 // worker that stalls (GC pause, slow first graph write) immediately after
@@ -445,6 +491,11 @@ type reducerHeartbeatStop func() error
 // HeartbeatInterval = LeaseDuration/2 and the periodic ticker only fires
 // after a full interval has elapsed, leaving that startup window open
 // without this immediate pre-heartbeat.
+//
+// If the immediate pre-heartbeat itself fails, the returned stop function's
+// error is wrapped in reducerPreHeartbeatFailure so executeWithTelemetry can
+// skip Executor.Execute and WorkSink.Fail entirely (#4447 follow-up): no
+// handler work has run yet, so there is nothing to execute or dead-letter.
 func (s Service) startHeartbeat(ctx context.Context, intent Intent, workerID int) (context.Context, reducerHeartbeatStop) {
 	if s.Heartbeater == nil || s.HeartbeatInterval <= 0 {
 		return ctx, func() error { return nil }
@@ -456,7 +507,8 @@ func (s Service) startHeartbeat(ctx context.Context, intent Intent, workerID int
 		heartbeatErr := fmt.Errorf("heartbeat reducer work: %w", err)
 		s.recordReducerHeartbeatMissed(heartbeatCtx, intent, workerID, heartbeatErr)
 		cancel()
-		return heartbeatCtx, func() error { return heartbeatErr }
+		preFailure := &reducerPreHeartbeatFailure{err: heartbeatErr}
+		return heartbeatCtx, func() error { return preFailure }
 	}
 
 	done := make(chan error, 1)
