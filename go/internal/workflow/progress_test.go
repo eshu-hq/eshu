@@ -12,6 +12,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// TestPhaseRequirementValidate lives in phase_requirement_test.go, split out
+// to keep this file under the 500-line cap (#4459).
+
 func TestReconcileRunProgressPendingCollection(t *testing.T) {
 	t.Parallel()
 

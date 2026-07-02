@@ -22,36 +22,56 @@ import (
 // workflowReducerDeadLetterPhaseBridgeSQL (this package) and every
 // PhaseRequirement.DeadLetterDomain registered in
 // go/internal/workflow/collector_contract.go: every bridged domain named by a
-// collector contract MUST appear in the SQL bridge, or a genuinely terminal
-// dead-letter for that domain would silently fail closed (never surfaced as
-// a block) instead of terminating the wedged run. This test enumerates the
-// collector kinds with a registered PhaseRequirement.DeadLetterDomain today
-// (CollectorGit); add a kind here when a new bridged domain is registered.
+// collector contract MUST appear in the SQL bridge as the EXACT
+// (domain, keyspace, phase) tuple the contract requires — not merely the
+// domain name. A keyspace or phase typo/drift on either side must fail this
+// test: if the bridge names the right domain but the wrong keyspace or
+// phase, listWorkflowCollectorTerminalDeadLetterCountsQuery would silently
+// stop attributing that domain's terminal dead-letters to the required
+// phase, re-opening the exact #4459 wedge this bridge exists to close, with
+// no test failure to catch it (Copilot review finding on PR #4518). This
+// test enumerates the collector kinds with a registered
+// PhaseRequirement.DeadLetterDomain today (CollectorGit); add a kind here
+// when a new bridged domain is registered.
 func TestWorkflowReducerDeadLetterPhaseBridgeMatchesCollectorContractDeadLetterDomains(t *testing.T) {
 	t.Parallel()
 
-	bridgedDomains := make(map[string]bool)
+	type bridgedRequirement struct {
+		domain   string
+		keyspace string
+		phase    string
+	}
+
+	var bridged []bridgedRequirement
 	for _, kind := range []scope.CollectorKind{scope.CollectorGit} {
 		for _, requirement := range workflow.RequiredPhasesForCollector(kind) {
 			if requirement.DeadLetterDomain == "" {
 				continue
 			}
-			bridgedDomains[string(requirement.DeadLetterDomain)] = true
+			bridged = append(bridged, bridgedRequirement{
+				domain:   string(requirement.DeadLetterDomain),
+				keyspace: string(requirement.Keyspace),
+				phase:    string(requirement.PhaseName),
+			})
 		}
 	}
-	if len(bridgedDomains) == 0 {
+	if len(bridged) == 0 {
 		t.Fatal("no bridged DeadLetterDomain found on CollectorGit; update this test's collector-kind list if the contract changed")
 	}
-	for domain := range bridgedDomains {
-		// Match the domain specifically as the FIRST value in a VALUES
-		// tuple ("('domain', ...") rather than a bare substring: a domain
-		// name that is also a phase name (true for both bridged domains
-		// today) would otherwise still substring-match the third (phase)
-		// column of an unrelated or mistyped row, producing a false green.
-		if !strings.Contains(workflowReducerDeadLetterPhaseBridgeSQL, "('"+domain+"',") {
+	for _, want := range bridged {
+		// Match the FULL three-value tuple, not just the leading domain: a
+		// domain name that also happens to equal its own phase name (true
+		// for both bridged domains today) would otherwise let a keyspace or
+		// phase typo on either side substring-match a different column and
+		// produce a false green (see the earlier version of this test,
+		// caught in review by injecting a domain-column typo — this
+		// stronger check also catches a keyspace/phase-column typo the same
+		// way).
+		wantTuple := "('" + want.domain + "', '" + want.keyspace + "', '" + want.phase + "')"
+		if !strings.Contains(workflowReducerDeadLetterPhaseBridgeSQL, wantTuple) {
 			t.Fatalf(
-				"collector_contract.go registers DeadLetterDomain %q but workflowReducerDeadLetterPhaseBridgeSQL does not bridge it as the leading (domain) tuple value:\n%s",
-				domain, workflowReducerDeadLetterPhaseBridgeSQL,
+				"collector_contract.go requires DeadLetterDomain %q to publish (keyspace=%q, phase=%q) but workflowReducerDeadLetterPhaseBridgeSQL does not contain the exact tuple %s:\n%s",
+				want.domain, want.keyspace, want.phase, wantTuple, workflowReducerDeadLetterPhaseBridgeSQL,
 			)
 		}
 	}

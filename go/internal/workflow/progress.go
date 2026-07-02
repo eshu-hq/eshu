@@ -41,13 +41,23 @@ type PhasePublicationKey struct {
 	PhaseName reducer.GraphProjectionPhase
 }
 
-// Validate checks that the phase requirement is well formed.
+// Validate checks that the phase requirement is well formed. DeadLetterDomain
+// is validated only when set: blank is the valid "not bridged yet" sentinel
+// (#4459), but a non-blank value now participates in completeness blocking
+// (ReconcileRunProgress), so it must name a real, known reducer.Domain rather
+// than an accidental or misspelled string that could never match a live
+// fact_work_items.domain value (Copilot review finding on PR #4518).
 func (r PhaseRequirement) Validate() error {
 	if err := validateIdentifier("keyspace", string(r.Keyspace)); err != nil {
 		return err
 	}
 	if err := validateIdentifier("phase_name", string(r.PhaseName)); err != nil {
 		return err
+	}
+	if r.DeadLetterDomain != "" {
+		if err := r.DeadLetterDomain.Validate(); err != nil {
+			return fmt.Errorf("dead_letter_domain: %w", err)
+		}
 	}
 	return nil
 }
