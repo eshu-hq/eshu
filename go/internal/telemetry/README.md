@@ -71,6 +71,7 @@ when the reducer has a graph orphan observer.
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
 | `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
 | `ReducerExecutions` | `eshu_dp_reducer_executions_total` |
+| `ReducerHeartbeatMissed` | `eshu_dp_reducer_heartbeat_missed_total` |
 | `SearchIndexMutations` | `eshu_dp_search_index_mutations_total` |
 | `SearchIndexErrors` | `eshu_dp_search_index_errors_total` |
 | `CanonicalWrites` | `eshu_dp_canonical_writes_total` |
@@ -80,6 +81,7 @@ when the reducer has a graph orphan observer.
 | `CanonicalAtomicFallbacks` | `eshu_dp_canonical_atomic_fallbacks_total` |
 | `SharedProjectionCycles` | `eshu_dp_shared_projection_cycles_total` |
 | `SharedProjectionStaleIntents` | `eshu_dp_shared_projection_stale_intents_total` |
+| `SharedProjectionPartitionHeartbeatMissed` | `eshu_dp_shared_projection_partition_heartbeat_missed_total` |
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
 | `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |
