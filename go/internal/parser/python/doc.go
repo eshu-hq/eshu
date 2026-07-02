@@ -9,10 +9,11 @@
 // declarations, imports, calls, annotations, framework metadata, structural
 // shell-command call-site evidence, and dead-code root hints, including cached
 // properties, module dunder hooks, and nested dunder protocol hooks with
-// same-scope assignment evidence. PreScan uses
-// the same adapter path for import-map discovery. NotebookSource preserves the
-// notebook code-cell invariant so notebook parsing cannot index markdown, raw
-// cells, or partial JSON.
+// same-scope assignment evidence. PreScan uses a declaration-only AST name pass
+// for import-map discovery while preserving notebook code-cell extraction and
+// module-name behavior. NotebookSource preserves the notebook code-cell
+// invariant so notebook parsing cannot index markdown, raw cells, or partial
+// JSON.
 //
 // When Options.EmitDataflow is set, Parse also emits the opt-in value-flow
 // buckets "dataflow_functions", "taint_findings", and "interproc_findings"

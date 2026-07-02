@@ -50,14 +50,28 @@ parameters resolve declared type nodes (`named_type`, `optional_type`,
 are reconstructed from receiver node source text, with nullsafe `?->`
 normalized to `->` and the final `->method` rendered as `.method` in
 `full_name`. Call rows are deduplicated by full name and source line so repeated
-calls on different lines remain visible. PreScan sorts names after collecting
-them from the parsed function, class, trait, and interface buckets. Type
-inference resolves receivers through a two-pass walk so declarations later in
+calls on different lines remain visible. PreScan uses a declaration-only AST
+walk over functions, methods, classes, traits, interfaces, and anonymous
+classes, then sorts the names so repository import-map discovery does not pay
+for full variable/call/dead-code semantic extraction before the full parse
+stage. Type inference resolves receivers through a two-pass walk so
+declarations later in
 the file still inform earlier call sites. Symfony route entries stay bounded to
 source-proven method attributes whose imported, aliased, or fully qualified name
 resolves to Symfony `Route` with literal path and method arguments; dynamic
 attributes, Composer/autoload breadth, reflection, and dynamic dispatch remain
 query-layer exactness blockers.
+
+Performance Evidence: `go test ./internal/parser -run '^$' -bench
+BenchmarkPreScanSelectedLanguages -benchmem -benchtime=1x -count=1` measured
+the PHP 10K LOC pre-scan fixture at `194719834 ns/op`, `36197800 B/op`, and
+`1180568 allocs/op` before the declaration-only pre-scan, versus
+`56014375 ns/op`, `4063064 B/op`, and `134765 allocs/op` after.
+Compatibility is guarded by `TestPreScanMatchesParseDeclarationNames`.
+
+No-Observability-Change: this parser package emits no metrics, spans, or logs.
+Operators continue to diagnose parser cost through collector snapshot stage
+logs and `eshu_dp_file_parse_duration_seconds`.
 
 ## Related docs
 

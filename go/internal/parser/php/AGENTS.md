@@ -22,7 +22,8 @@
   namespace, context metadata, aliases, and receiver inference. The migration
   from the line scanner to the tree-sitter AST kept the payload byte-identical;
   the parent PHP parity tests pin that contract.
-- PreScan derives names from Parse so parent pre-scan and full parse agree.
+- PreScan uses a declaration-only AST walk so parent pre-scan and full parse
+  agree on declaration names without running full semantic extraction twice.
 - Phase 1 collects declarations, imports, type evidence, and dead-code facts;
   phase 2 emits variables and calls so cross-statement inference sees the whole
   file. Do not collapse the two passes.

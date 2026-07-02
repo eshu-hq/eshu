@@ -11,8 +11,8 @@
 // declarations, import aliases, property and return types, and bounded
 // dead-code facts; a second pass emits variable rows and call rows whose
 // inferred_obj_type depends on that file-level evidence. PreScan returns
-// declaration names from the same payload path so repository pre-scan and full
-// parse stay aligned.
+// declaration names through a cheaper AST-only name pass whose output is kept
+// aligned with Parse's declaration buckets by parent parser tests.
 //
 // Receiver and return-type inference resolves $this property chains, typed
 // parameters, new expressions, self/static/parent scopes, static properties,

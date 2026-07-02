@@ -4,7 +4,6 @@
 package php
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
@@ -112,13 +111,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 
 // PreScan returns PHP function, class, trait, and interface names used by repository pre-scan.
 func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
-	payload, err := Parse(path, false, shared.Options{}, parser)
-	if err != nil {
-		return nil, err
-	}
-	names := shared.CollectBucketNames(payload, "functions", "classes", "traits", "interfaces")
-	slices.Sort(names)
-	return names, nil
+	return preScanNames(path, parser)
 }
 
 // collectPHPDeclarations walks the AST once to populate declaration buckets,
