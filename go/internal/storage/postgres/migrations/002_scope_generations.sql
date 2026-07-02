@@ -44,3 +44,20 @@ CREATE INDEX IF NOT EXISTS scope_generations_active_pending_activity_idx
 CREATE UNIQUE INDEX IF NOT EXISTS scope_generations_active_scope_idx
     ON scope_generations (scope_id)
     WHERE status = 'active';
+
+-- Backs activeFactWorkItemsCTE's stale_generation/active_generation self-join
+-- (issue #4446): the CTE resolves each work item's own generation row by
+-- primary key (cheap) but resolves the scope's ACTIVE generation row by
+-- (scope_id, active_generation_id) equality
+-- ("scope.active_generation_id = active_generation.generation_id"). None of
+-- the existing scope_generations indexes lead with generation_id, so that
+-- join could only use scope_generations_scope_idx to fetch every generation
+-- row for the scope (all re-ingestion history) and filter the one matching
+-- generation_id via a post-scan Join Filter — a per-status-query cost that
+-- scales with total re-ingestion churn (generations per scope), not with the
+-- work item count. This index lets the planner resolve the active-generation
+-- side of the join with a single equality index scan instead of a per-scope
+-- generation-history fetch; ingested_at is INCLUDEd so the CTE's tiebreak
+-- ordering predicate is covered without a heap fetch.
+CREATE INDEX IF NOT EXISTS scope_generations_scope_generation_idx
+    ON scope_generations (scope_id, generation_id) INCLUDE (ingested_at);

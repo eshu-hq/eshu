@@ -37,13 +37,19 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 }
 
 // StatusStore reads live operator status aggregates from the Wave 2 schema.
+//
+// stageCountsCache is a pointer field (see status_stage_counts_cache.go) so
+// that StatusStore, which is deliberately copied by value at every call site
+// (see ReadRawSnapshot/ReadStatusSnapshot above), never duplicates the
+// cache's mutex. All value copies of a StatusStore share one cache instance.
 type StatusStore struct {
-	queryer Queryer
+	queryer          Queryer
+	stageCountsCache *statusStageCountsCache
 }
 
 // NewStatusStore constructs a read-only status store.
 func NewStatusStore(queryer Queryer) StatusStore {
-	return StatusStore{queryer: queryer}
+	return StatusStore{queryer: queryer, stageCountsCache: newStatusStageCountsCache()}
 }
 
 // ReadRawSnapshot returns the raw aggregate snapshot needed by the operator
@@ -86,7 +92,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	stageCounts, err := listStageCounts(ctx, s.queryer)
+	stageCounts, err := listStageCounts(ctx, s.queryer, s.stageCountsCache)
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
@@ -278,33 +284,9 @@ func listNamedCounts(
 	return counts, nil
 }
 
-func listStageCounts(ctx context.Context, queryer Queryer) ([]statuspkg.StageStatusCount, error) {
-	rows, err := queryer.QueryContext(ctx, stageCountsQuery)
-	if err != nil {
-		return nil, fmt.Errorf("list stage counts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	counts := []statuspkg.StageStatusCount{}
-	for rows.Next() {
-		var stage string
-		var state string
-		var count int64
-		if scanErr := rows.Scan(&stage, &state, &count); scanErr != nil {
-			return nil, fmt.Errorf("list stage counts: %w", scanErr)
-		}
-		counts = append(counts, statuspkg.StageStatusCount{
-			Stage:  stage,
-			Status: state,
-			Count:  int(count),
-		})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list stage counts: %w", err)
-	}
-
-	return counts, nil
-}
+// listStageCounts lives in status_stage_counts_cache.go alongside the cache
+// it consults, so the read and its cache stay in one 500-line-cap-compliant
+// file.
 
 func listGenerationTransitions(
 	ctx context.Context,
