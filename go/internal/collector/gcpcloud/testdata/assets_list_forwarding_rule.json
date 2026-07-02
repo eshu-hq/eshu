@@ -1,0 +1,50 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/regions/us-central1/forwardingRules/frontend-lb",
+      "assetType": "compute.googleapis.com/ForwardingRule",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "frontend-lb",
+          "region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+          "loadBalancingScheme": "EXTERNAL",
+          "IPAddress": "203.0.113.10",
+          "IPProtocol": "TCP",
+          "portRange": "80-80",
+          "target": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/targetPools/frontend-pool",
+          "network": "projects/demo-project/global/networks/main-vpc",
+          "subnetwork": "projects/demo-project/regions/us-central1/subnetworks/private-subnet",
+          "ipVersion": "IPV4",
+          "allPorts": false,
+          "networkTier": "PREMIUM",
+          "creationTimestamp": "2024-06-01T00:00:00.000-07:00",
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/regions/us-central1/forwardingRules/internal-lb",
+      "assetType": "compute.googleapis.com/ForwardingRule",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "internal-lb",
+          "region": "projects/demo-project/regions/us-central1",
+          "loadBalancingScheme": "INTERNAL",
+          "IPAddress": "10.0.0.20",
+          "IPProtocol": "TCP",
+          "ports": ["80", "443"],
+          "backendService": "projects/demo-project/regions/us-central1/backendServices/internal-backend",
+          "network": "projects/demo-project/global/networks/main-vpc",
+          "subnetwork": "projects/demo-project/regions/us-central1/subnetworks/private-subnet"
+        }
+      }
+    }
+  ]
+}
