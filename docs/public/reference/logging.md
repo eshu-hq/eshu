@@ -100,6 +100,8 @@ Examples of current Go runtime messages include:
 - `bootstrap collection complete`
 - `bootstrap projection succeeded`
 - `bootstrap projection failed`
+- `bootstrap phase start`
+- `bootstrap phase complete`
 - `cross-repo relationship resolution started`
 - `cross-repo relationship resolution completed`
 - `sql relationship materialization started`
