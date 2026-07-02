@@ -37,6 +37,22 @@ in this slice:
   `gcp_collection_warning` facts. It is **not wired as a default**, so the
   command path can use it only in explicit claimed-live mode; it is still not a
   default provider.
+- `LiveClient.QuotaProjectID` is an explicit, name-only opt-in. When set, it is
+  sent as the `x-goog-user-project` header on `assets.list` requests. Leave it
+  empty for service-account/Workload Identity Federation ADC (the identity is
+  its own quota consumer). Set it when the resolved ADC is a user credential
+  (e.g. local `gcloud auth application-default login`), which otherwise gets a
+  403 quota-project error from Cloud Asset Inventory. The claimed command
+  reads it from `ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID`.
+
+  No-Regression Evidence: the header set is a single conditional
+  `strings.TrimSpace` plus one `http.Header.Set` per `assets.list` attempt,
+  gated on `QuotaProjectID != ""`; when unset (the default — SA/WIF ADC) this
+  is a no-op branch taken once per page fetch, no allocation or measurable
+  cost added to the existing retry/backoff loop. No-Observability-Change:
+  extraction/paging telemetry is unaffected — the header only changes which
+  billing project Cloud Asset Inventory attributes quota usage to; it does
+  not change request count, page shape, or error/warning classification.
 
 `TagProvider.FetchTagPage` is the opt-in Resource Manager tag API boundary.
 `LiveClient` implements it for `tagBindings.list` and `effectiveTags.list`.

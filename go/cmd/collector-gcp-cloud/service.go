@@ -80,7 +80,7 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
-	liveClient, err := newGCPADCLiveClient(ctx, config.CredentialRef)
+	liveClient, err := newGCPADCLiveClient(ctx, config.CredentialRef, config.QuotaProjectID)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}

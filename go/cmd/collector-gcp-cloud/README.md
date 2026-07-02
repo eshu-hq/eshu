@@ -69,6 +69,7 @@ Claimed-live mode uses:
 | `ESHU_GCP_COLLECTOR_POLL_INTERVAL` | Idle poll interval for claim acquisition. |
 | `ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL` | Workflow claim lease duration. |
 | `ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL` | Claim heartbeat cadence; must be shorter than the lease TTL. |
+| `ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID` | Optional billing/quota project id sent as `x-goog-user-project` on Cloud Asset Inventory requests. Leave unset for service-account/Workload Identity Federation ADC. Set it when the resolved ADC is a user credential (e.g. local `gcloud auth application-default login`), which otherwise gets a 403 quota-project error. Name/id only, never credential material. |
 
 The collector instance `configuration` must include
 `live_collection_enabled=true` and at least one enabled scope. Scope entries

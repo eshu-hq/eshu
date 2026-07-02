@@ -23,6 +23,14 @@ const (
 	envHeartbeatInterval   = "ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL"
 	envOwnerID             = "ESHU_GCP_COLLECTOR_OWNER_ID"
 	envCollectorInstances  = "ESHU_COLLECTOR_INSTANCES_JSON"
+	// envQuotaProjectID is an explicit opt-in billing/quota project id sent as
+	// the x-goog-user-project header on Cloud Asset Inventory requests. Leave
+	// unset for service-account/Workload Identity Federation ADC; set it when
+	// the resolved ADC is a user credential (e.g. local `gcloud auth
+	// application-default login`), which otherwise gets a 403 quota-project
+	// error from Cloud Asset Inventory. It is a project id/name only, never
+	// credential material.
+	envQuotaProjectID = "ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID"
 )
 
 type claimedRuntimeConfig struct {
@@ -33,6 +41,7 @@ type claimedRuntimeConfig struct {
 	HeartbeatInterval time.Duration
 	Source            gcpruntime.Config
 	CredentialRef     string
+	QuotaProjectID    string
 }
 
 type claimedGCPConfiguration struct {
@@ -95,6 +104,7 @@ func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig,
 		HeartbeatInterval: heartbeatInterval,
 		Source:            sourceConfig,
 		CredentialRef:     credentialRef,
+		QuotaProjectID:    strings.TrimSpace(getenv(envQuotaProjectID)),
 	}, nil
 }
 
