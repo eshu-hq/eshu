@@ -31,6 +31,18 @@ MATCH ()-[rel:EXECUTES_SHELL]->(target)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
+const cleanupOrphanShellCommandsCypher = `UNWIND $repo_ids AS repo_id
+MATCH (target:ShellCommand {repo_id: repo_id})
+WHERE target.evidence_source = $evidence_source
+  AND NOT (target)--()
+DELETE target`
+
+const cleanupOrphanShellCommandsByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (target:ShellCommand {path: file_path})
+WHERE target.evidence_source = $evidence_source
+  AND NOT (target)--()
+DELETE target`
+
 func buildShellExecRowMap(
 	payload map[string]any,
 	evidenceSource string,
@@ -56,6 +68,15 @@ func buildShellExecRowMap(
 	}, true
 }
 
+// BuildRetractShellExecEdgeStatements builds the ordered shell execution
+// retraction and orphan cleanup statements for repos.
+func BuildRetractShellExecEdgeStatements(repoIDs []string, evidenceSource string) []Statement {
+	return []Statement{
+		BuildRetractShellExecEdges(repoIDs, evidenceSource),
+		BuildCleanupOrphanShellCommands(repoIDs, evidenceSource),
+	}
+}
+
 // BuildRetractShellExecEdges builds shell execution edge retraction for repos.
 func BuildRetractShellExecEdges(repoIDs []string, evidenceSource string) Statement {
 	return Statement{
@@ -68,12 +89,47 @@ func BuildRetractShellExecEdges(repoIDs []string, evidenceSource string) Stateme
 	}
 }
 
+// BuildRetractShellExecEdgeStatementsByFilePath builds the ordered shell
+// execution retraction and orphan cleanup statements for source file paths.
+func BuildRetractShellExecEdgeStatementsByFilePath(filePaths []string, evidenceSource string) []Statement {
+	return []Statement{
+		BuildRetractShellExecEdgesByFilePath(filePaths, evidenceSource),
+		BuildCleanupOrphanShellCommandsByFilePath(filePaths, evidenceSource),
+	}
+}
+
 // BuildRetractShellExecEdgesByFilePath builds shell execution edge retraction
 // for repo-qualified source file paths.
 func BuildRetractShellExecEdgesByFilePath(filePaths []string, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher:    retractShellExecEdgesByFileCypher,
+		Parameters: map[string]any{
+			"file_paths":      filePaths,
+			"evidence_source": evidenceSource,
+		},
+	}
+}
+
+// BuildCleanupOrphanShellCommands builds bounded cleanup for repo-scoped
+// ShellCommand nodes left without graph relationships after shell edge retracts.
+func BuildCleanupOrphanShellCommands(repoIDs []string, evidenceSource string) Statement {
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    cleanupOrphanShellCommandsCypher,
+		Parameters: map[string]any{
+			"repo_ids":        repoIDs,
+			"evidence_source": evidenceSource,
+		},
+	}
+}
+
+// BuildCleanupOrphanShellCommandsByFilePath builds bounded cleanup for
+// file-scoped ShellCommand nodes left without graph relationships.
+func BuildCleanupOrphanShellCommandsByFilePath(filePaths []string, evidenceSource string) Statement {
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    cleanupOrphanShellCommandsByFileCypher,
 		Parameters: map[string]any{
 			"file_paths":      filePaths,
 			"evidence_source": evidenceSource,

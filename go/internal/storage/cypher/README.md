@@ -339,7 +339,10 @@ No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestEdgeWriter(WriteEdgesShellExec|RetractEdgesShellExecDeltaUsesFileScope)'
 -count=1` covers the static-token MERGE shape and file-scoped retract. The
 writer adds one `UNWIND` + `MATCH Function uid` + `MERGE ShellCommand uid`
-statement and no per-row graph round trip.
+write statement and no per-row graph round trip. Shell-exec retracts run the
+edge delete first, then a same-scope `ShellCommand` orphan cleanup anchored by
+indexed repo or path so removed command-call churn does not grow future retract
+anchors.
 
 No-Observability-Change: shell-exec writes use the existing
 `EdgeWriter.WriteEdges` / `RetractEdges` path, statement summaries,

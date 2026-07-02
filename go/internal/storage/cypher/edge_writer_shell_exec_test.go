@@ -83,12 +83,14 @@ func TestEdgeWriterRetractEdgesShellExecDeltaUsesFileScope(t *testing.T) {
 	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
+	if got, want := len(executor.calls), 2; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
 	if !strings.Contains(executor.calls[0].Cypher, "MATCH (target:ShellCommand {path: file_path})") {
 		t.Fatalf("delta retract did not anchor by target.path: %s", executor.calls[0].Cypher)
 	}
+	assertShellExecRetractScopesEvidenceSource(t, executor.calls[0], "file_paths")
+	assertShellExecCleanupStatement(t, executor.calls[1], "file_paths", "MATCH (target:ShellCommand {path: file_path})")
 }
 
 func TestBuildRetractShellExecEdgesUsesRepoAnchoredShellCommandLookup(t *testing.T) {
@@ -110,6 +112,7 @@ func TestBuildRetractShellExecEdgesUsesRepoAnchoredShellCommandLookup(t *testing
 	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH ()-[rel:") {
 		t.Fatalf("cypher starts from unbound relationship scan: %q", stmt.Cypher)
 	}
+	assertShellExecRetractScopesEvidenceSource(t, stmt, "repo_ids")
 }
 
 func TestBuildRetractShellExecEdgesByFilePathUsesPathAnchoredShellCommandLookup(t *testing.T) {
@@ -133,5 +136,95 @@ func TestBuildRetractShellExecEdgesByFilePathUsesPathAnchoredShellCommandLookup(
 	}
 	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH ()-[rel:") {
 		t.Fatalf("cypher starts from unbound relationship scan: %q", stmt.Cypher)
+	}
+	assertShellExecRetractScopesEvidenceSource(t, stmt, "file_paths")
+}
+
+func TestBuildCleanupOrphanShellCommandsUsesRepoAnchor(t *testing.T) {
+	t.Parallel()
+
+	stmt := BuildCleanupOrphanShellCommands([]string{"repo-a"}, "reducer/shell-exec")
+	assertShellExecCleanupStatement(t, stmt, "repo_ids", "MATCH (target:ShellCommand {repo_id: repo_id})")
+}
+
+func TestBuildCleanupOrphanShellCommandsByFilePathUsesPathAnchor(t *testing.T) {
+	t.Parallel()
+
+	stmt := BuildCleanupOrphanShellCommandsByFilePath(
+		[]string{"/repo/cmd/archive/main.go"},
+		"reducer/shell-exec",
+	)
+	assertShellExecCleanupStatement(t, stmt, "file_paths", "MATCH (target:ShellCommand {path: file_path})")
+}
+
+func TestEdgeWriterRetractEdgesShellExecUsesAtomicGroupForCleanup(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id": "repo-a",
+			},
+		},
+	}
+
+	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.groupCalls), 1; got != want {
+		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
+	}
+	stmts := executor.groupCalls[0]
+	if got, want := len(stmts), 2; got != want {
+		t.Fatalf("group statement count = %d, want %d", got, want)
+	}
+	if !strings.Contains(stmts[0].Cypher, "MATCH ()-[rel:EXECUTES_SHELL]->(target)") {
+		t.Fatalf("first statement should retract EXECUTES_SHELL relationships: %s", stmts[0].Cypher)
+	}
+	assertShellExecCleanupStatement(t, stmts[1], "repo_ids", "MATCH (target:ShellCommand {repo_id: repo_id})")
+}
+
+func assertShellExecRetractScopesEvidenceSource(t *testing.T, stmt Statement, scopeParam string) {
+	t.Helper()
+
+	if !strings.Contains(stmt.Cypher, "rel.evidence_source = $evidence_source") {
+		t.Fatalf("cypher = %q, want rel.evidence_source predicate", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["evidence_source"], "reducer/shell-exec"; got != want {
+		t.Fatalf("evidence_source = %#v, want %#v", got, want)
+	}
+	if _, ok := stmt.Parameters[scopeParam]; !ok {
+		t.Fatalf("%s parameter missing: %#v", scopeParam, stmt.Parameters)
+	}
+}
+
+func assertShellExecCleanupStatement(t *testing.T, stmt Statement, scopeParam string, anchor string) {
+	t.Helper()
+
+	if stmt.Operation != OperationCanonicalRetract {
+		t.Fatalf("operation = %q, want %q", stmt.Operation, OperationCanonicalRetract)
+	}
+	for _, want := range []string{
+		anchor,
+		"target.evidence_source = $evidence_source",
+		"NOT (target)--()",
+		"DELETE target",
+	} {
+		if !strings.Contains(stmt.Cypher, want) {
+			t.Fatalf("cleanup cypher = %q, want %q", stmt.Cypher, want)
+		}
+	}
+	if strings.Contains(stmt.Cypher, "DETACH DELETE") {
+		t.Fatalf("cleanup cypher = %q, want orphan-only DELETE not DETACH DELETE", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["evidence_source"], "reducer/shell-exec"; got != want {
+		t.Fatalf("evidence_source = %#v, want %#v", got, want)
+	}
+	if _, ok := stmt.Parameters[scopeParam]; !ok {
+		t.Fatalf("%s parameter missing: %#v", scopeParam, stmt.Parameters)
 	}
 }

@@ -42,7 +42,10 @@ Performance Evidence:
   `EXECUTES_SHELL` relationships, with graph schema indexes on both properties.
   This preserves the same edge deletion semantics because shell execution writes
   stamp every target `ShellCommand` with the source repo and path and target IDs
-  are derived from repo, path, function, line, and API.
+  are derived from repo, path, function, line, and API. Retracts now also run a
+  second bounded cleanup statement for the same repo or file scope, deleting
+  zero-relationship `ShellCommand` targets from the same evidence source so
+  historical command churn cannot grow future target-anchor scans.
 - Candidate 2 local status: focused regression and package gates pass. This is
   now backed by the remote bounded proof below.
 - Candidate 2 remote run: `4512-shell-exec-target-pr230-20260702T054348Z`.
@@ -64,8 +67,9 @@ Performance Evidence:
 - Candidate 2 `shell_exec` retract time: total `56.955925s`, median
   `1.591695s`, p95 `4.531769s`, max `5.115573s`.
 - Candidate 2 result: the target-side `ShellCommand` anchor plus
-  `repo_id`/`path` indexes removes the previous shell-exec long pole. At the
-  same bounded stop shape, max shell-exec cycle time dropped from
+  `repo_id`/`path` indexes removes the previous shell-exec long pole. The
+  follow-up orphan cleanup keeps that anchor bounded across later refreshes. At
+  the same bounded stop shape, max shell-exec cycle time dropped from
   `121.605655s` on current main and `149.150518s` on candidate 1 to
   `5.117172s`.
 - Remaining measured bottleneck at the bounded stop is earlier in bootstrap,
@@ -95,6 +99,17 @@ No-Regression Evidence:
   `GOCACHE=$WORKTREE/.gocache go test ./internal/storage/cypher -run 'Test(BuildRetractShellExecEdges|EdgeWriterRetractEdgesShellExec)' -count=1 -v`
   and
   `GOCACHE=$WORKTREE/.gocache.graph-green go test ./internal/graph -run 'TestSchemaStatementsIncludeShellExecRetractLookupIndexes' -count=1 -v`.
+- Review-fix red test first:
+  `GOCACHE=$PWD/.gocache-red go test ./internal/storage/cypher -run 'Test(BuildRetractShellExecEdges|BuildCleanupOrphanShellCommands|EdgeWriterRetractEdgesShellExec)' -count=1`
+  failed because the cleanup builders did not exist. The companion graph
+  placement check
+  `GOCACHE=$PWD/.gocache-red-graph go test ./internal/graph -run 'TestSchemaStatementsInclude(ShellExec|Inheritance|Function)RetractLookupIndexes' -count=1`
+  passed after moving the shell-exec index test into a dedicated
+  `schema_shell_exec_indexes_test.go` file.
+- Review-fix focused gates passed:
+  `GOCACHE=$PWD/.gocache-focus go test ./internal/storage/cypher -run 'Test(BuildRetractShellExecEdges|BuildCleanupOrphanShellCommands|EdgeWriterRetractEdgesShellExec)' -count=1`
+  and
+  `GOCACHE=$PWD/.gocache-focus-graph go test ./internal/graph -run 'TestSchemaStatementsInclude(ShellExec|Inheritance|Function)RetractLookupIndexes' -count=1`.
 - Candidate 2 package gates passed:
   `GOCACHE=$WORKTREE/.gocache.graph-package-2 go test ./internal/graph -count=1`
   and
