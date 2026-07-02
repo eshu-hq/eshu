@@ -19,14 +19,16 @@ SET rel.confidence = 0.95,
     rel.reason = 'Parser command-call evidence resolved a shell execution edge',
     rel.evidence_source = row.evidence_source`
 
-const retractShellExecEdgesCypher = `MATCH (source:Function)-[rel:EXECUTES_SHELL]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+const retractShellExecEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source:Function {repo_id: repo_id})
+MATCH (source)-[rel:EXECUTES_SHELL]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractShellExecEdgesByFileCypher = `MATCH (source:Function)-[rel:EXECUTES_SHELL]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractShellExecEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (source:Function {path: file_path})
+MATCH (source)-[rel:EXECUTES_SHELL]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
 func buildShellExecRowMap(
