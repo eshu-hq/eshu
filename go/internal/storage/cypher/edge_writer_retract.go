@@ -101,9 +101,11 @@ func (w *EdgeWriter) RetractEdges(
 			return err
 		}
 		if hasDeltaScope {
-			stmt := BuildRetractShellExecEdgesByFilePath(filePaths, evidenceSource)
-			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+			stmts := BuildRetractShellExecEdgeStatementsByFilePath(filePaths, evidenceSource)
+			return w.executeShellExecRetractStatements(ctx, stmts)
 		}
+		stmts := BuildRetractShellExecEdgeStatements(repoIDs, evidenceSource)
+		return w.executeShellExecRetractStatements(ctx, stmts)
 	}
 	if domain == reducer.DomainRepoDependency {
 		return w.executeRepoDependencyRetractStatements(ctx, repoIDs, evidenceSource)
@@ -118,6 +120,18 @@ func (w *EdgeWriter) RetractEdges(
 }
 
 func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context, stmts []Statement) error {
+	if ge, ok := w.executor.(GroupExecutor); ok {
+		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+func (w *EdgeWriter) executeShellExecRetractStatements(ctx context.Context, stmts []Statement) error {
 	if ge, ok := w.executor.(GroupExecutor); ok {
 		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
 	}

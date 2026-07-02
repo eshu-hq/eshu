@@ -227,6 +227,8 @@ var schemaPerformanceIndexes = []string{
 	// instead of scanning every code-entity label in large corpora.
 	"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
 	"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
+	"CREATE INDEX shell_command_repo_id IF NOT EXISTS FOR (s:ShellCommand) ON (s.repo_id)",
+	"CREATE INDEX shell_command_path IF NOT EXISTS FOR (s:ShellCommand) ON (s.path)",
 	"CREATE INDEX class_repo_id IF NOT EXISTS FOR (c:Class) ON (c.repo_id)",
 	"CREATE INDEX class_path IF NOT EXISTS FOR (c:Class) ON (c.path)",
 	"CREATE INDEX interface_repo_id IF NOT EXISTS FOR (i:Interface) ON (i.repo_id)",

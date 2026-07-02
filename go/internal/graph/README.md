@@ -189,14 +189,13 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
 No-Regression Evidence: #2902 adds
 `TestSchemaApplicationsDeclareCompatibilityDecision`, which pins the
 current Neo4j fingerprint
-`489250e081f0328b36cc7eb4fd21d25eb789b17e63ea64341e678f00be681ecd`
-(225 statements) and NornicDB fingerprint
-`14acea00f37e5c8ad971662dde5fbebddffc6eab8a6d2cd7544c2f966a10c054`
-(287 statements). The latest DDL bump adds only `repo_id` and `path` lookup
-indexes for the inheritance child labels (`Class`, `Interface`, `Trait`,
-`Struct`, `Enum`, and `Protocol`; `Function` already had both indexes), so
-older writers remain compatible while reducer-owned inheritance edge
-retractions can avoid large label scans.
+`556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53`
+(227 statements) and NornicDB fingerprint
+`1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae`
+(289 statements). The latest DDL bump adds only `repo_id` and `path` lookup
+indexes for `ShellCommand`, so older writers remain compatible while
+reducer-owned shell execution edge retractions can avoid large Function-label
+fan-outs.
 
 No-Observability-Change: graph schema compatibility remains a Postgres marker
 read/write contract through `graphschemacompat`; this update changes only the
