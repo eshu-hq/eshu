@@ -1,0 +1,61 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//container.googleapis.com/projects/demo-project/locations/us-central1/clusters/prod",
+      "assetType": "container.googleapis.com/Cluster",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "location": "us-central1",
+          "status": "RUNNING",
+          "currentMasterVersion": "1.29.1-gke.1589000",
+          "currentNodeVersion": "1.29.1-gke.1589000",
+          "network": "projects/demo-project/global/networks/vpc-main",
+          "subnetwork": "projects/demo-project/regions/us-central1/subnetworks/sub-main",
+          "releaseChannel": {"channel": "REGULAR"},
+          "createTime": "2026-01-15T10:00:00Z",
+          "privateClusterConfig": {"enablePrivateNodes": true, "enablePrivateEndpoint": false},
+          "workloadIdentityConfig": {"workloadPool": "demo-project.svc.id.goog"},
+          "nodePools": [
+            {
+              "name": "default-pool",
+              "config": {
+                "machineType": "e2-standard-4",
+                "serviceAccount": "gke-nodes@demo-project.iam.gserviceaccount.com",
+                "oauthScopes": ["https://www.googleapis.com/auth/cloud-platform"]
+              },
+              "autoscaling": {"enabled": true, "minNodeCount": 1, "maxNodeCount": 5},
+              "initialNodeCount": 3
+            }
+          ],
+          "labels": {"env": "prod"}
+        }
+      }
+    },
+    {
+      "name": "//container.googleapis.com/projects/demo-project/locations/us-central1/clusters/staging",
+      "assetType": "container.googleapis.com/Cluster",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "location": "us-central1",
+          "status": "RUNNING",
+          "network": "default",
+          "subnetwork": "default",
+          "nodePools": [
+            {
+              "name": "default-pool",
+              "config": {"machineType": "e2-medium", "serviceAccount": "default"},
+              "initialNodeCount": 1
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
