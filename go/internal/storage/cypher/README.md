@@ -195,18 +195,18 @@ back to the exact Cypher shape without exposing file paths or entity IDs.
 
 Repo-dependency retract normally executes its repository-relationship cleanup
 and evidence-artifact cleanup as one grouped transaction. The
-`ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` diagnostic switch keeps the
-same two statements and the same default off state, but executes them
-sequentially during a bounded proof run so `shared edge retract statement
-completed` logs can attribute time to `repository_relationships` versus
+`ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` diagnostic switch keeps the same
+default off state, but executes the cleanup as three timed statements during a
+bounded proof run so `shared edge retract statement completed` logs can
+attribute time to `repository_relationship_edges`, `runs_on_relationships`, and
 `evidence_artifacts`. Leave the switch disabled for production timing.
 
 No-Regression Evidence: the default path still uses the grouped
 `ExecuteGroup` transaction boundary. `go test ./internal/storage/cypher -run
 'TestEdgeWriterRetractEdgesRepoDependency(LogsGroupedStatementRoles|DiagnosticStatementTimingBypassesGroup)' -count=1`
-proves grouped logging remains default and the diagnostic switch is the only path
-that bypasses grouping for per-statement timing. This is a diagnostic-only mode,
-not a wall-clock optimization.
+proves grouped logging remains default and the diagnostic switch is the only
+path that bypasses grouping for per-statement timing. This is a diagnostic-only
+mode, not a wall-clock optimization.
 
 Observability Evidence: the diagnostic path reuses the existing
 `shared edge retract statement completed` log shape with `domain`,

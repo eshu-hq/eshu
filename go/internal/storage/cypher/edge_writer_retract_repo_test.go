@@ -215,15 +215,15 @@ func TestEdgeWriterRetractEdgesRepoDependencyDiagnosticStatementTimingBypassesGr
 	if got := len(executor.groupCalls); got != 0 {
 		t.Fatalf("group calls = %d, want 0 diagnostic grouped calls", got)
 	}
-	if got, want := len(executor.calls), 2; got != want {
+	if got, want := len(executor.calls), 3; got != want {
 		t.Fatalf("executor calls = %d, want %d diagnostic statement calls", got, want)
 	}
 
 	entries := decodeJSONLogEntries(t, logs.Bytes())
-	if got, want := len(entries), 2; got != want {
+	if got, want := len(entries), 3; got != want {
 		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
 	}
-	for i, wantRole := range []string{"repository_relationships", "evidence_artifacts"} {
+	for i, wantRole := range []string{"repository_relationship_edges", "runs_on_relationships", "evidence_artifacts"} {
 		entry := entries[i]
 		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
 			t.Fatalf("entry %d msg = %v, want %v", i, got, want)
@@ -231,6 +231,47 @@ func TestEdgeWriterRetractEdgesRepoDependencyDiagnosticStatementTimingBypassesGr
 		if got := entry["statement_role"]; got != wantRole {
 			t.Fatalf("entry %d statement_role = %v, want %v", i, got, wantRole)
 		}
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM") {
+		t.Fatalf("first diagnostic call must retract repository relationship edges: %s", executor.calls[0].Cypher)
+	}
+	if strings.Contains(executor.calls[0].Cypher, "RUNS_ON") {
+		t.Fatalf("first diagnostic call must not include RUNS_ON cleanup: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[1].Cypher, "RUNS_ON") {
+		t.Fatalf("second diagnostic call must retract RUNS_ON edges: %s", executor.calls[1].Cypher)
+	}
+	if strings.Contains(executor.calls[1].Cypher, "DEPENDS_ON|DEPLOYS_FROM") {
+		t.Fatalf("second diagnostic call must not include repository relationship cleanup: %s", executor.calls[1].Cypher)
+	}
+	if !strings.Contains(executor.calls[2].Cypher, "DETACH DELETE artifact") {
+		t.Fatalf("third diagnostic call must retract evidence artifacts: %s", executor.calls[2].Cypher)
+	}
+}
+
+func TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes(t *testing.T) {
+	t.Parallel()
+
+	grouped := buildRepoDependencyRetractStatements([]string{"repo-a"}, "projection/code-imports")
+	diagnostic := buildRepoDependencyDiagnosticRetractStatements([]string{"repo-a"}, "projection/code-imports")
+
+	wantGroupedSummary := repoDependencyRetractSummary(
+		"repository_relationships",
+		repoDependencyRelationshipEdgeTypes+"|RUNS_ON",
+	)
+	if got := grouped[0].stmt.Parameters[StatementMetadataSummaryKey]; got != wantGroupedSummary {
+		t.Fatalf("grouped relationship summary = %v, want %s", got, wantGroupedSummary)
+	}
+
+	wantDiagnosticSummary := repoDependencyRetractSummary(
+		"repository_relationship_edges",
+		repoDependencyRelationshipEdgeTypes,
+	)
+	if got := diagnostic[0].stmt.Parameters[StatementMetadataSummaryKey]; got != wantDiagnosticSummary {
+		t.Fatalf("diagnostic relationship summary = %v, want %s", got, wantDiagnosticSummary)
+	}
+	if strings.Contains(wantDiagnosticSummary, "RUNS_ON") {
+		t.Fatalf("diagnostic repository relationship summary must not include RUNS_ON: %s", wantDiagnosticSummary)
 	}
 }
 
