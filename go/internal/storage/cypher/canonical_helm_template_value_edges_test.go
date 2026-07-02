@@ -56,7 +56,26 @@ func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) 
 	if retract.Operation != OperationCanonicalRetract {
 		t.Fatalf("stmts[0].Operation = %v, want retract", retract.Operation)
 	}
+	// The retract must be Drain-marked so the phase-group executor runs it as a
+	// standalone autocommit statement (it silently no-ops inside the grouped
+	// ExecuteWrite transaction, #4476).
+	if !retract.Drain {
+		t.Fatalf("retract statement must be Drain-marked for autocommit routing")
+	}
+	// Both edge statements must use the dedicated HELM_VALUE_REFERENCE type, not
+	// the shared REFERENCES type, so the retract's delete-index stays small
+	// (#4476). A stray [r:REFERENCES] would re-widen the delete to the whole
+	// code-symbol REFERENCES population.
+	if !strings.Contains(retract.Cypher, "[r:HELM_VALUE_REFERENCE]") {
+		t.Fatalf("retract Cypher must match the dedicated HELM_VALUE_REFERENCE type: %s", retract.Cypher)
+	}
+	if strings.Contains(retract.Cypher, "[r:REFERENCES]") {
+		t.Fatalf("retract Cypher must not touch the shared REFERENCES type: %s", retract.Cypher)
+	}
 	upsert := stmts[1]
+	if !strings.Contains(upsert.Cypher, "MERGE (u)-[r:HELM_VALUE_REFERENCE]->(d)") {
+		t.Fatalf("upsert Cypher must MERGE the dedicated HELM_VALUE_REFERENCE type: %s", upsert.Cypher)
+	}
 	if !strings.Contains(upsert.Cypher, "r.source_tool = row.source_tool") {
 		t.Fatalf("upsert Cypher missing source_tool SET: %s", upsert.Cypher)
 	}

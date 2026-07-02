@@ -53,7 +53,7 @@ unaffected.
 ## No-Regression Evidence
 
 No-Regression Evidence: B-7 golden corpus gate green after the change — rc-35
-`(HelmTemplateValueUsage)-[:REFERENCES]->(HelmValueDefinition)` count rose from 7
+`(HelmTemplateValueUsage)-[:HELM_VALUE_REFERENCE]->(HelmValueDefinition)` count rose from 7
 to **8** (the nested `templates/config/configmap.yaml` `.Values.service.type`
 usage now projects and resolves its edge), all 50 checks pass, ~37s
 wall-clock (budget ceiling 1800s). `minimum_count` for rc-35 was raised to 8 so a
