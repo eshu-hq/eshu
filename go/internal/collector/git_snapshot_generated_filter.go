@@ -236,6 +236,7 @@ func hasVendoredBrowserLibrarySignature(path string) bool {
 		return false
 	}
 	normalized := strings.ToLower(prefix)
+	name := strings.ToLower(filepath.Base(path))
 	switch {
 	case strings.Contains(normalized, "jquery foundation") &&
 		strings.Contains(normalized, "jquery.org/license"):
@@ -275,14 +276,22 @@ func hasVendoredBrowserLibrarySignature(path string) bool {
 		(strings.Contains(normalized, "pixedelic.com") ||
 			strings.Contains(normalized, "jquery slideshow")):
 		return true
-	case strings.Contains(normalized, "jssor") &&
+	case strings.Contains(name, "jssor") &&
+		strings.Contains(normalized, "jssor") &&
 		(strings.Contains(normalized, "$jssorslider$") ||
+			strings.Contains(normalized, "/*! jssor") ||
 			strings.Contains(normalized, "jssor slider")):
 		return true
 	case strings.Contains(normalized, "mootools") &&
 		(strings.Contains(normalized, "my object oriented javascript tools") ||
 			strings.Contains(normalized, "mootools core") ||
 			strings.Contains(normalized, "mootools more")):
+		return true
+	case strings.Contains(normalized, "less - leaner css") &&
+		strings.Contains(normalized, "lesscss"):
+		return true
+	case strings.Contains(normalized, "uglifyjs") &&
+		strings.Contains(normalized, "javascript parser/compressor/beautifier"):
 		return true
 	case strings.Contains(normalized, "window.__sharethis__") &&
 		strings.Contains(normalized, "sharethis"):

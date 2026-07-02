@@ -41,6 +41,8 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "shadowbox.js"), "/* Shadowbox.js */\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "effects.js"), "// script.aculo.us effects.js v1.8.2\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "less.min.js"), "/* LESS - Leaner CSS v1.3.0\n * http://lesscss.org\n */\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "less.js"), "/* LESS - Leaner CSS v1.3.0\n * http://lesscss.org\n */\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "uglify.js"), "/* UglifyJS -- JavaScript parser/compressor/beautifier toolkit */\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "camera.js"), "// Camera slideshow v1.4.0 - a jQuery slideshow\n// www.pixedelic.com\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "jssor.slider.mini.js"), "/* Jssor Slider 22.0.15 */\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "mootools.js"), "/* MooTools Core v1.4.5 */\n")
@@ -90,8 +92,8 @@ func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) 
 	if got := stats.FilesSkippedByContent["vendored-zend-framework"]; got != 1 {
 		t.Fatalf("FilesSkippedByContent[vendored-zend-framework] = %d, want 1", got)
 	}
-	if got := stats.FilesSkippedByContent["vendored-browser-library"]; got != 18 {
-		t.Fatalf("FilesSkippedByContent[vendored-browser-library] = %d, want 18", got)
+	if got := stats.FilesSkippedByContent["vendored-browser-library"]; got != 20 {
+		t.Fatalf("FilesSkippedByContent[vendored-browser-library] = %d, want 20", got)
 	}
 	if got := stats.FilesSkippedByContent["vendored-fpdf"]; got != 1 {
 		t.Fatalf("FilesSkippedByContent[vendored-fpdf] = %d, want 1", got)
