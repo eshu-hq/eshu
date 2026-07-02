@@ -103,8 +103,9 @@ func TestExtractFirebaseAppInfoNoProjectNoEdge(t *testing.T) {
 	}
 }
 
-// TestExtractFirebaseAppInfoEmpty proves an empty blob yields no edges and no
-// panic.
+// TestExtractFirebaseAppInfoEmpty proves an empty data blob yields no attributes
+// and no panic, while the parent-project edge is still derived from the full
+// resource name (so exactly one relationship is emitted).
 func TestExtractFirebaseAppInfoEmpty(t *testing.T) {
 	got, err := extractFirebaseAppInfo(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project/webApps/x",
