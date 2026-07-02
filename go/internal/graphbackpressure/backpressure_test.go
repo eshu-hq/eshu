@@ -44,8 +44,8 @@ func TestMaxInFlight(t *testing.T) {
 func TestNewObserverNilInstruments(t *testing.T) {
 	t.Parallel()
 
-	if obs := NewObserver(nil); obs != nil {
-		t.Fatalf("NewObserver(nil) = %v, want nil", obs)
+	if obs := NewObserver(nil, CanonicalGateName); obs != nil {
+		t.Fatalf("NewObserver(nil, _) = %v, want nil", obs)
 	}
 }
 
