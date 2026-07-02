@@ -122,7 +122,7 @@ func wireAPI(
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
 	statusReader := status.WithSemanticProviderProfiles(
-		pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+		newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments),
 		semanticProviderProfiles...,
 	)
 	governanceAudit := pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
@@ -250,7 +250,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 	readImpactFromWinners bool,
 ) *query.APIRouter {
 	if statusReader == nil {
-		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+		statusReader = newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments)
 	}
 	if governanceAudit == nil && db != nil {
 		governanceAudit = pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})

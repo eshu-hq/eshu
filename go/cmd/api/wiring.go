@@ -115,8 +115,20 @@ func wireAPI(
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
+	// Build instruments before the status reader so the StatusStore can carry
+	// the shared meter provider (see newStatusStore): the status query cache
+	// metric eshu_dp_status_stage_counts_cache_total only emits when the
+	// operator status-serving StatusStore has Instruments wired.
+	instruments, err := telemetry.NewInstruments(otel.Meter(telemetry.DefaultSignalName))
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
+	}
 	statusReader := status.WithSemanticProviderProfiles(
-		pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+		newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments),
 		semanticProviderProfiles...,
 	)
 	metricsSource, err := metricsTimeSeriesSourceFromEnv(getenv, nil)
@@ -126,14 +138,6 @@ func wireAPI(
 			_ = driver.Close(ctx)
 		}
 		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
-	}
-	instruments, err := telemetry.NewInstruments(otel.Meter(telemetry.DefaultSignalName))
-	if err != nil {
-		_ = db.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
-		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
 	governanceAudit := newGovernanceAuditStore(db, instruments)
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))

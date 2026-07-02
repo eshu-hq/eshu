@@ -86,7 +86,7 @@ func newRouterWithSemanticEmbedding(
 	readImpactFromWinners bool,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
-		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+		statusReader = newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments)
 	}
 	if governanceAudit == nil && db != nil {
 		governanceAudit = newGovernanceAuditStore(db, instruments)
