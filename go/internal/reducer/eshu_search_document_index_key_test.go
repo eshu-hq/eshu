@@ -63,6 +63,9 @@ func TestWriteEshuSearchDocumentsUsesBoundedSearchTermKeys(t *testing.T) {
 	if strings.Contains(termUpsert.query, "ON CONFLICT") {
 		t.Fatalf("term insert query must not use conflict-update path after page refresh:\n%s", termUpsert.query)
 	}
+	if !strings.Contains(termUpsert.query, "ORDER BY term_key, document_id") {
+		t.Fatalf("term insert query must order rows by the primary-key suffix for index locality:\n%s", termUpsert.query)
+	}
 	if got, want := len(termUpsert.args), 6; got != want {
 		t.Fatalf("term insert args = %d, want %d", got, want)
 	}

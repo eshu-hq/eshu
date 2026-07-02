@@ -185,6 +185,7 @@ INSERT INTO eshu_search_index_terms (
 SELECT $1, $2, document_id, term_key, term, term_frequency
 FROM unnest($3::text[], $4::text[], $5::text[], $6::int[])
      AS t(document_id, term, term_key, term_frequency)
+ORDER BY term_key, document_id
 `
 
 const eshuSearchIndexStatsUpsertQuery = `
