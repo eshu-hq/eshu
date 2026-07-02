@@ -166,8 +166,11 @@ func TestWriteEshuSearchDocumentsEqualsStreamingOnePage(t *testing.T) {
 		t.Fatalf("Finalize error = %v", err)
 	}
 
-	if singleResult != streamResult {
+	if singleResult.CanonicalWrites != streamResult.CanonicalWrites || singleResult.Retired != streamResult.Retired {
 		t.Fatalf("single-shot result %+v != streamed result %+v", singleResult, streamResult)
+	}
+	if singleResult.Timings.FactUpsertDuration <= 0 || streamResult.Timings.FactUpsertDuration <= 0 {
+		t.Fatalf("single-shot and streamed writes should both report subphase timings: single=%+v stream=%+v", singleResult.Timings, streamResult.Timings)
 	}
 	// Both paths must issue the same set of retire-by-absence statements once.
 	if got := countRetireByAbsence(singleShotDB.execs); got != countRetireByAbsence(streamDB.execs) {

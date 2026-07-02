@@ -63,6 +63,7 @@ func (w PostgresEshuSearchDocumentWriter) recordSearchIndexError(ctx context.Con
 
 func (w PostgresEshuSearchDocumentWriter) recordSearchIndexWriteDuration(
 	ctx context.Context,
+	operation string,
 	duration time.Duration,
 	result string,
 ) {
@@ -71,6 +72,7 @@ func (w PostgresEshuSearchDocumentWriter) recordSearchIndexWriteDuration(
 	}
 	w.Instruments.SearchIndexWriteDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(
 		telemetry.AttrDomain(string(DomainEshuSearchDocument)),
+		telemetry.AttrOperation(operation),
 		telemetry.AttrResult(result),
 	))
 }

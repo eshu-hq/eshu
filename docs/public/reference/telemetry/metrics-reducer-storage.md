@@ -25,7 +25,7 @@ High run duration points to the handler, store, or graph-write path.
 | --- | --- | --- |
 | `eshu_dp_search_index_mutations_total` | counter | Document and term upsert/retire volume for the persisted semantic search index. |
 | `eshu_dp_search_index_errors_total` | counter | Search index write failures by bounded operation. |
-| `eshu_dp_search_index_write_duration_seconds` | histogram | End-to-end persisted search index write duration for one reducer intent. |
+| `eshu_dp_search_index_write_duration_seconds` | histogram | Persisted search index write duration split by bounded operation and result. |
 
 Search index metrics use bounded labels such as `domain`, `kind`, `operation`,
 and `result`. Scope IDs, generation IDs, document IDs, paths, terms, and

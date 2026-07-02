@@ -748,8 +748,11 @@ curated search projection, kept separate from canonical graph writes:
   incrementally; a single `Finalize` runs the authoritative retire. It aggregates
   the curation summary across pages and emits the canonical-write
   counter/duration plus a structured cycle log
-  (`considered`/`included`/`skipped`/`written`/`retired`). Streaming bounds peak
-  memory to one page regardless of repository size (issue #3440).
+  (`considered`/`included`/`skipped`/`written`/`retired`) with write subphase
+  timings for fact upsert, index document upsert, term refresh, term upsert,
+  fact retire, stale term retire, stale document retire, and stats upsert.
+  Streaming bounds peak memory to one page regardless of repository size
+  (issue #3440).
 - `SearchDocumentSourceLoader.StreamSearchDocumentSources`
   (`postgres.EshuSearchDocumentSourceLoader`) keyset-paginates the scope's
   repository content (entities by `entity_id`, files by `relative_path`) so each
@@ -774,6 +777,23 @@ shape. Observability Evidence: `go test ./internal/reducer -run
 'TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry|TestWriteEshuSearchDocumentsRecordsSearchIndexErrors'
 -count=1` and `go test ./internal/telemetry -run
 'TestSearchIndexInstrumentsRecordBoundedLabels|TestSpanNames' -count=1`.
+
+Observability Evidence: #4529 split the search-document writer's operator
+signals by bounded write operation after a remote reducer proof showed
+`eshu_search_document` handler time dominated the tail but did not expose which
+Postgres mutation was slow. `EshuSearchDocumentWriteResult.Timings` feeds the
+cycle log fields `fact_upsert_seconds`, `index_document_upsert_seconds`,
+`index_term_refresh_seconds`, `index_term_upsert_seconds`,
+`fact_retire_seconds`, `index_term_retire_seconds`,
+`index_document_retire_seconds`, and `index_stats_upsert_seconds`.
+`eshu_dp_search_index_write_duration_seconds` also carries the bounded
+`operation` label so dashboards can separate `document_upsert`, `term_refresh`,
+`term_upsert`, `term_retire`, `document_retire`, `stats_upsert`,
+`page_total`, and `finalize_total` without scope, generation, document, path,
+or term labels. No-Regression Evidence:
+`go test ./internal/reducer -run TestWriteEshuSearchDocumentsReportsSubphaseTimings -count=1`
+fails without the timing fields and passes once every write subphase reports a
+positive duration in a delayed fake-DB proof.
 
 `SearchVectorBuildRunner` is a side runner that can build derived vector rows
 after search documents are active. The command layer wires it when the

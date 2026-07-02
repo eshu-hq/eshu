@@ -3088,7 +3088,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SearchIndexWriteDuration, err = meter.Float64Histogram(
 		"eshu_dp_search_index_write_duration_seconds",
-		metric.WithDescription("Persisted search index write duration by reducer domain and result"),
+		metric.WithDescription("Persisted search index write duration by reducer domain, operation, and result"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(reducerWaitBuckets...),
 	)

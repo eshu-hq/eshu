@@ -157,6 +157,7 @@ func (h EshuSearchDocumentHandler) recordCycle(
 	for kind, count := range summary.IncludedBySourceKind {
 		logAttrs = append(logAttrs, slog.Int("included_"+string(kind), count))
 	}
+	logAttrs = appendEshuSearchDocumentTimingLogAttrs(logAttrs, write.Timings)
 	h.Logger.InfoContext(ctx, "eshu search document projection cycle completed", logAttrs...)
 }
 

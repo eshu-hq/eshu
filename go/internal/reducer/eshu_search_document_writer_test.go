@@ -302,10 +302,49 @@ func TestWriteEshuSearchDocumentsRecordsSearchIndexErrors(t *testing.T) {
 		t.Fatalf("search index error metric = %d, want 1", got)
 	}
 	assertHistogramPoint(t, rm, "eshu_dp_search_index_write_duration_seconds", map[string]string{
-		telemetry.MetricDimensionDomain: string(DomainEshuSearchDocument),
-		telemetry.MetricDimensionResult: "error",
+		telemetry.MetricDimensionDomain:    string(DomainEshuSearchDocument),
+		telemetry.MetricDimensionOperation: "term_upsert",
+		telemetry.MetricDimensionResult:    "error",
 	})
 	_ = requireSpan(t, spanRecorder.Ended(), telemetry.SpanReducerEshuSearchIndexWrite)
+}
+
+func TestWriteEshuSearchDocumentsReportsSubphaseTimings(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{delay: time.Millisecond}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+
+	result, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			sampleSearchDoc("searchdoc:content_entity:e-1"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		duration time.Duration
+	}{
+		{name: "fact upsert", duration: result.Timings.FactUpsertDuration},
+		{name: "document upsert", duration: result.Timings.IndexDocumentUpsertDuration},
+		{name: "term refresh", duration: result.Timings.IndexTermRefreshDuration},
+		{name: "term upsert", duration: result.Timings.IndexTermUpsertDuration},
+		{name: "fact retire", duration: result.Timings.FactRetireDuration},
+		{name: "term retire", duration: result.Timings.IndexTermRetireDuration},
+		{name: "document retire", duration: result.Timings.IndexDocumentRetireDuration},
+		{name: "stats upsert", duration: result.Timings.IndexStatsUpsertDuration},
+	}
+	for _, tt := range tests {
+		if tt.duration <= 0 {
+			t.Errorf("%s duration = %v, want positive subphase timing", tt.name, tt.duration)
+		}
+	}
 }
 
 func TestWriteEshuSearchDocumentsEmptySetRetiresAll(t *testing.T) {

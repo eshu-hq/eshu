@@ -1,0 +1,287 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package reducer
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/searchdocs"
+	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
+	"go.opentelemetry.io/otel/codes"
+)
+
+type eshuSearchIndexDocumentWrite struct {
+	DocumentID string
+	FactID     string
+	RepoID     string
+	SourceKind string
+	Document   searchdocs.Document
+	Terms      map[string]int
+	Length     int
+}
+
+func newEshuSearchIndexDocumentWrite(
+	scopeID string,
+	generationID string,
+	factID string,
+	doc searchdocs.Document,
+) eshuSearchIndexDocumentWrite {
+	terms := searchhybrid.DocumentTerms(doc)
+	length := 0
+	for _, count := range terms {
+		length += count
+	}
+	return eshuSearchIndexDocumentWrite{
+		DocumentID: strings.TrimSpace(doc.ID),
+		FactID:     factID,
+		RepoID:     strings.TrimSpace(doc.RepoID),
+		SourceKind: string(doc.SourceKind),
+		Document:   doc,
+		Terms:      terms,
+		Length:     length,
+	}
+}
+
+// insertSearchIndexPage upserts one bounded page of index-document and term rows
+// in O(1) bulk statements (doc upsert, per-doc term refresh-delete, term
+// upsert). It issues NO retire-by-absence statement so earlier pages survive.
+// Stale-row retirement and stats are deferred to finalizeSearchIndex. It returns
+// the summed document length for the page so Finalize can compute the average.
+func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	documents []eshuSearchIndexDocumentWrite,
+	now time.Time,
+) (int, EshuSearchDocumentWriteTimings, error) {
+	var timings EshuSearchDocumentWriteTimings
+	if len(documents) == 0 {
+		return 0, timings, nil
+	}
+	ctx, span := w.startSearchIndexWriteSpan(ctx, scopeID, generationID, len(documents))
+	if span != nil {
+		defer span.End()
+	}
+	start := time.Now()
+	totalLength := 0
+	finish := func(err error, operation string) (int, EshuSearchDocumentWriteTimings, error) {
+		result := "success"
+		if err != nil {
+			result = "error"
+			w.recordSearchIndexError(ctx, operation)
+			if span != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+		}
+		w.recordSearchIndexWriteDuration(ctx, "page_total", time.Since(start), result)
+		return totalLength, timings, err
+	}
+
+	documentIDs := make([]string, 0, len(documents))
+	for _, doc := range documents {
+		documentIDs = append(documentIDs, doc.DocumentID)
+		totalLength += doc.Length
+	}
+
+	docScopeIDs := make([]string, len(documents))
+	docGenerationIDs := make([]string, len(documents))
+	docDocumentIDs := make([]string, len(documents))
+	docFactIDs := make([]string, len(documents))
+	docRepoIDs := make([]string, len(documents))
+	docSourceKinds := make([]string, len(documents))
+	docPayloads := make([]string, len(documents))
+	docLengths := make([]int, len(documents))
+	docUpdatedAts := make([]time.Time, len(documents))
+
+	for i, doc := range documents {
+		payload, err := json.Marshal(doc.Document)
+		if err != nil {
+			return finish(fmt.Errorf("marshal eshu search index document: %w", err), "document_marshal")
+		}
+		docScopeIDs[i] = scopeID
+		docGenerationIDs[i] = generationID
+		docDocumentIDs[i] = doc.DocumentID
+		docFactIDs[i] = doc.FactID
+		docRepoIDs[i] = doc.RepoID
+		docSourceKinds[i] = doc.SourceKind
+		docPayloads[i] = string(payload)
+		docLengths[i] = doc.Length
+		docUpdatedAts[i] = now
+	}
+
+	operationStarted := time.Now()
+	if _, err := w.DB.ExecContext(
+		ctx,
+		eshuSearchIndexBatchDocumentUpsertQuery,
+		docScopeIDs,
+		docGenerationIDs,
+		docDocumentIDs,
+		docFactIDs,
+		docRepoIDs,
+		docSourceKinds,
+		docPayloads,
+		docLengths,
+		docUpdatedAts,
+	); err != nil {
+		timings.IndexDocumentUpsertDuration += time.Since(operationStarted)
+		w.recordSearchIndexWriteDuration(ctx, "document_upsert", timings.IndexDocumentUpsertDuration, "error")
+		return finish(fmt.Errorf("write eshu search index documents: %w", err), "document_upsert")
+	}
+	timings.IndexDocumentUpsertDuration += time.Since(operationStarted)
+	w.recordSearchIndexWriteDuration(ctx, "document_upsert", timings.IndexDocumentUpsertDuration, "success")
+	w.recordSearchIndexMutation(ctx, "document", "upsert", int64(len(documents)))
+
+	operationStarted = time.Now()
+	deleteTermResult, err := w.DB.ExecContext(
+		ctx,
+		eshuSearchIndexRefreshDocumentTermsQuery,
+		scopeID,
+		generationID,
+		documentIDs,
+	)
+	timings.IndexTermRefreshDuration += time.Since(operationStarted)
+	if err != nil {
+		w.recordSearchIndexWriteDuration(ctx, "term_refresh", timings.IndexTermRefreshDuration, "error")
+		return finish(fmt.Errorf("refresh eshu search index terms: %w", err), "term_refresh")
+	}
+	w.recordSearchIndexWriteDuration(ctx, "term_refresh", timings.IndexTermRefreshDuration, "success")
+	if affected := rowsAffected(deleteTermResult); affected > 0 {
+		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
+	}
+
+	var (
+		termDocumentIDs []string
+		termValues      []string
+		termKeys        []string
+		termFrequencies []int
+	)
+	for _, doc := range documents {
+		if len(doc.Terms) == 0 {
+			continue
+		}
+		sortedTerms, sortedTermKeys, sortedFrequencies := sortedSearchIndexTerms(doc.Terms)
+		for j, term := range sortedTerms {
+			termDocumentIDs = append(termDocumentIDs, doc.DocumentID)
+			termValues = append(termValues, term)
+			termKeys = append(termKeys, sortedTermKeys[j])
+			termFrequencies = append(termFrequencies, sortedFrequencies[j])
+		}
+	}
+
+	if len(termValues) > 0 {
+		operationStarted = time.Now()
+		if _, err := w.DB.ExecContext(
+			ctx,
+			eshuSearchIndexBatchTermUpsertQuery,
+			scopeID,
+			generationID,
+			termDocumentIDs,
+			termValues,
+			termKeys,
+			termFrequencies,
+		); err != nil {
+			timings.IndexTermUpsertDuration += time.Since(operationStarted)
+			w.recordSearchIndexWriteDuration(ctx, "term_upsert", timings.IndexTermUpsertDuration, "error")
+			return finish(fmt.Errorf("write eshu search index terms: %w", err), "term_upsert")
+		}
+		timings.IndexTermUpsertDuration += time.Since(operationStarted)
+		w.recordSearchIndexWriteDuration(ctx, "term_upsert", timings.IndexTermUpsertDuration, "success")
+		w.recordSearchIndexMutation(ctx, "term", "upsert", int64(len(termValues)))
+	}
+	return finish(nil, "")
+}
+
+// finalizeSearchIndex runs the single authoritative search-index retire (stale
+// terms then stale documents absent from the union keep-set) and upserts the
+// stats row. It mirrors the deferred retire of the fact store so the read model
+// converges only after every page has been inserted. An empty keep-set retires
+// all index rows for the generation, matching the empty-write contract.
+func (w PostgresEshuSearchDocumentWriter) finalizeSearchIndex(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	keepDocumentIDs []string,
+	documentCount int,
+	totalLength int,
+	now time.Time,
+) (EshuSearchDocumentWriteTimings, error) {
+	var timings EshuSearchDocumentWriteTimings
+	ctx, span := w.startSearchIndexWriteSpan(ctx, scopeID, generationID, len(keepDocumentIDs))
+	if span != nil {
+		defer span.End()
+	}
+	start := time.Now()
+	finish := func(err error, operation string) (EshuSearchDocumentWriteTimings, error) {
+		result := "success"
+		if err != nil {
+			result = "error"
+			w.recordSearchIndexError(ctx, operation)
+			if span != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+		}
+		w.recordSearchIndexWriteDuration(ctx, "finalize_total", time.Since(start), result)
+		return timings, err
+	}
+
+	operationStarted := time.Now()
+	retireTermsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, scopeID, generationID, keepDocumentIDs)
+	timings.IndexTermRetireDuration += time.Since(operationStarted)
+	if err != nil {
+		w.recordSearchIndexWriteDuration(ctx, "term_retire", timings.IndexTermRetireDuration, "error")
+		return finish(fmt.Errorf("retire stale eshu search index terms: %w", err), "term_retire")
+	}
+	w.recordSearchIndexWriteDuration(ctx, "term_retire", timings.IndexTermRetireDuration, "success")
+	if affected := rowsAffected(retireTermsResult); affected > 0 {
+		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
+	}
+
+	operationStarted = time.Now()
+	retireDocumentsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, scopeID, generationID, keepDocumentIDs)
+	timings.IndexDocumentRetireDuration += time.Since(operationStarted)
+	if err != nil {
+		w.recordSearchIndexWriteDuration(ctx, "document_retire", timings.IndexDocumentRetireDuration, "error")
+		return finish(fmt.Errorf("retire stale eshu search index documents: %w", err), "document_retire")
+	}
+	w.recordSearchIndexWriteDuration(ctx, "document_retire", timings.IndexDocumentRetireDuration, "success")
+	if affected := rowsAffected(retireDocumentsResult); affected > 0 {
+		w.recordSearchIndexMutation(ctx, "document", "retire", affected)
+	}
+
+	averageLength := 0.0
+	if documentCount > 0 {
+		averageLength = float64(totalLength) / float64(documentCount)
+	}
+	operationStarted = time.Now()
+	if _, err := w.DB.ExecContext(ctx, eshuSearchIndexStatsUpsertQuery, scopeID, generationID, documentCount, averageLength, now); err != nil {
+		timings.IndexStatsUpsertDuration += time.Since(operationStarted)
+		w.recordSearchIndexWriteDuration(ctx, "stats_upsert", timings.IndexStatsUpsertDuration, "error")
+		return finish(fmt.Errorf("write eshu search index stats: %w", err), "stats_upsert")
+	}
+	timings.IndexStatsUpsertDuration += time.Since(operationStarted)
+	w.recordSearchIndexWriteDuration(ctx, "stats_upsert", timings.IndexStatsUpsertDuration, "success")
+	return finish(nil, "")
+}
+
+func sortedSearchIndexTerms(terms map[string]int) ([]string, []string, []int) {
+	keys := make([]string, 0, len(terms))
+	for term := range terms {
+		keys = append(keys, term)
+	}
+	sort.Strings(keys)
+	termKeys := make([]string, 0, len(keys))
+	frequencies := make([]int, 0, len(keys))
+	for _, term := range keys {
+		termKeys = append(termKeys, searchhybrid.TermKey(term))
+		frequencies = append(frequencies, terms[term])
+	}
+	return keys, termKeys, frequencies
+}
