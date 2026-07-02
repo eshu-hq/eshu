@@ -35,11 +35,11 @@ const deferredMaintenanceBarrierLockKey int64 = 0x45534855444d42
 // repository catalog cache. It is nil only for stores constructed without
 // NewIngestionStore, in which case the catalog falls back to a per-commit load.
 type IngestionStore struct {
-	db                       ExecQueryer
-	beginner                 Beginner
-	Now                      func() time.Time
-	SkipRelationshipBackfill bool
-	Logger                   *slog.Logger
+	db          ExecQueryer
+	beginner    Beginner
+	Now         func() time.Time
+	Logger      *slog.Logger
+	Instruments *telemetry.Instruments
 	// maintenanceBatchSize overrides the deferred-maintenance per-batch
 	// repository count. Zero uses deferredMaintenanceRepoBatchSize. It exists so
 	// tests can force multiple independent batch transactions deterministically.
@@ -200,6 +200,13 @@ func (s IngestionStore) commitScopeGeneration(
 	if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, deferredMaintenanceRepoLockKey(scopeValue)); err != nil {
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
+	// The barrier is held from this point (acquired, after any wait logged by
+	// the stage above) until tx.Commit() below releases it at the database.
+	// eshu_dp_ingestion_shared_lock_hold_duration_seconds measures exactly that
+	// window so operators can confirm issue #4451's split shrank hold time to
+	// the atomic commit only, independent of the wait time the stage log above
+	// already reports.
+	sharedLockAcquiredAt := time.Now()
 	s.logCommitStage(ctx, scopeValue, generation, "deferred_maintenance_shared_barrier", stageStart)
 
 	stageStart = time.Now()
@@ -291,21 +298,6 @@ func (s IngestionStore) commitScopeGeneration(
 		slog.Int("fact_count", factStats.Rows),
 		slog.Int("batch_count", factStats.Batches),
 	)
-	if !s.SkipRelationshipBackfill {
-		stageStart = time.Now()
-		if err := backfillRelationshipEvidenceForNewRepositories(
-			ctx,
-			tx,
-			relationshipStore,
-			generation.GenerationID,
-			knownRepoIDs,
-			catalogEntryIDSet(currentGenerationRepos),
-		); err != nil {
-			return err
-		}
-		s.logCommitStage(ctx, scopeValue, generation, "relationship_backfill", stageStart)
-	}
-
 	queue := ProjectorQueue{db: tx, Now: s.now}
 	stageStart = time.Now()
 	if err := queue.Enqueue(ctx, scopeValue.ScopeID, generation.GenerationID); err != nil {
@@ -319,6 +311,7 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	committed = true
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
+	s.recordSharedLockHoldDuration(ctx, time.Since(sharedLockAcquiredAt))
 
 	// Invalidate the shared catalog only after the generation is durably
 	// committed, so a rolled-back transaction never evicts a valid snapshot. A
@@ -337,6 +330,27 @@ func (s IngestionStore) commitScopeGeneration(
 			slog.Int("current_generation_repo_count", len(currentGenerationRepos)),
 		)
 	}
+
+	// The per-commit new-repository relationship backfill (issue #4451, § T8)
+	// runs AFTER this commit releases the deferred-maintenance shared barrier,
+	// in its own short transaction that re-takes the barrier only for its own
+	// bounded write. Before this split the backfill's corpus-anchor read and
+	// DiscoverEvidence pass ran INSIDE the locked commit above, so a same-repo
+	// deferred-maintenance exclusive-lock batch had to wait for the whole
+	// backfill, not just the atomic scope/generation/fact commit. Splitting the
+	// backfill out shrinks the commit's lock hold to the atomic write only.
+	//
+	// A backfill failure here is deliberately swallowed (logged, never
+	// returned): the generation this backfill enriches is already durably
+	// committed above, so surfacing an error would make Service.Run treat an
+	// already-successful commit as a commit_failure, dead-letter it, and
+	// potentially replay an already-landed generation (issue #4451 review).
+	// The periodic corpus-wide BackfillAllRelationshipEvidence pass
+	// (cmd/ingester) already re-discovers evidence for every active
+	// repository, including ones this call fails to enrich, so accuracy is
+	// preserved by that existing eventually-consistent safety net; only
+	// backfill latency for this one generation is affected.
+	s.runPostCommitRelationshipBackfill(ctx, scopeValue, generation, knownRepoIDs, currentGenerationRepos)
 
 	return nil
 }
