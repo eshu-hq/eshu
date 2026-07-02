@@ -243,24 +243,33 @@ func upsertFacts(ctx context.Context, db ExecQueryer, envelopes []facts.Envelope
 //     (collector/git_followup_facts.go) and awsFactID
 //     (collector/awscloud/envelope.go). Two envelopes that share a fact_id
 //     therefore share the same (scope_id, generation_id).
-//   - FencingToken is a property of the workflow claim, which is 1:1 with a
-//     (scope, generation) acquisition, and is stamped uniformly onto every
-//     envelope of that generation
-//     (boundary.FencingToken == claim.FencingToken == item.CurrentFencingToken;
-//     see collector/awscloud/checkpoint/types.go and awsruntime/source.go). A
-//     stale reclaim receives a *higher* token, so tokens diverge only ACROSS
-//     generations, never within one.
+//   - FencingToken identifies a single claim epoch, not a generation. One
+//     flushed batch is produced by one owner's one commit, and every collector
+//     stamps the same token onto every envelope it emits for that commit
+//     (boundary.FencingToken := item.CurrentFencingToken, see
+//     collector/awscloud/awsruntime/source.go; the git collector leaves it at
+//     the zero default). So all envelopes in one flushed batch carry the
+//     identical FencingToken, and last-position and highest-token select the
+//     same envelope.
 //
-// Consequently every duplicate fact_id inside a single flushed batch carries
-// the identical FencingToken, so last-position and highest-token select the
-// same envelope. The only production caller, upsertStreamingFacts, additionally
-// rejects any envelope whose generation_id differs from the batch's generation,
-// so a batch can never mix generations (and thus never mix tokens). The
-// descending-token-within-one-batch case that would make last-position wrong is
-// therefore unconstructible today. If a future collector ever assigns per-fact
-// fencing tokens within one generation, prefer the higher token here (falling
-// back to last position on ties to preserve the common zero/equal-token case)
-// and add a regression test.
+// Tokens for the same (scope_id, generation_id)/fact_id CAN differ, but only
+// across claim epochs: reclaiming an expired work item increments
+// current_fencing_token on the same workflow_work_items row WITHOUT changing
+// generation_id (claimNextWorkflowWorkItemQuery in workflow_control_sql.go). A
+// reclaim epoch that re-emits the same fact does so in a SEPARATE commit — a
+// different flushed batch — which is exactly the cross-batch, out-of-order
+// arrival that the upsertFactBatchSuffix guard
+// (WHERE fact_records.fencing_token <= EXCLUDED.fencing_token, issue #4444)
+// resolves. It never lands two differing tokens for one fact_id inside one
+// batch.
+//
+// The only production caller, upsertStreamingFacts, additionally rejects any
+// envelope whose generation_id differs from the batch's generation, so a batch
+// cannot even mix generations. The descending-token-within-one-batch case that
+// would make last-position wrong is therefore unconstructible today. If a
+// future collector ever assigns per-fact fencing tokens within a single commit,
+// prefer the higher token here (falling back to last position on ties to
+// preserve the common zero/equal-token case) and add a regression test.
 func deduplicateEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
 	if len(envelopes) == 0 {
 		return envelopes
