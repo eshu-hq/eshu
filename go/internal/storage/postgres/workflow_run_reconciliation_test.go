@@ -17,6 +17,46 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// TestWorkflowReducerDeadLetterPhaseBridgeMatchesCollectorContractDeadLetterDomains
+// guards the #4459 lockstep requirement between
+// workflowReducerDeadLetterPhaseBridgeSQL (this package) and every
+// PhaseRequirement.DeadLetterDomain registered in
+// go/internal/workflow/collector_contract.go: every bridged domain named by a
+// collector contract MUST appear in the SQL bridge, or a genuinely terminal
+// dead-letter for that domain would silently fail closed (never surfaced as
+// a block) instead of terminating the wedged run. This test enumerates the
+// collector kinds with a registered PhaseRequirement.DeadLetterDomain today
+// (CollectorGit); add a kind here when a new bridged domain is registered.
+func TestWorkflowReducerDeadLetterPhaseBridgeMatchesCollectorContractDeadLetterDomains(t *testing.T) {
+	t.Parallel()
+
+	bridgedDomains := make(map[string]bool)
+	for _, kind := range []scope.CollectorKind{scope.CollectorGit} {
+		for _, requirement := range workflow.RequiredPhasesForCollector(kind) {
+			if requirement.DeadLetterDomain == "" {
+				continue
+			}
+			bridgedDomains[string(requirement.DeadLetterDomain)] = true
+		}
+	}
+	if len(bridgedDomains) == 0 {
+		t.Fatal("no bridged DeadLetterDomain found on CollectorGit; update this test's collector-kind list if the contract changed")
+	}
+	for domain := range bridgedDomains {
+		// Match the domain specifically as the FIRST value in a VALUES
+		// tuple ("('domain', ...") rather than a bare substring: a domain
+		// name that is also a phase name (true for both bridged domains
+		// today) would otherwise still substring-match the third (phase)
+		// column of an unrelated or mistyped row, producing a false green.
+		if !strings.Contains(workflowReducerDeadLetterPhaseBridgeSQL, "('"+domain+"',") {
+			t.Fatalf(
+				"collector_contract.go registers DeadLetterDomain %q but workflowReducerDeadLetterPhaseBridgeSQL does not bridge it as the leading (domain) tuple value:\n%s",
+				domain, workflowReducerDeadLetterPhaseBridgeSQL,
+			)
+		}
+	}
+}
+
 func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +125,8 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *t
 					},
 				},
 			},
+			// No terminal reducer dead-letters for this scope generation.
+			{rows: nil},
 		},
 	}
 	store := NewWorkflowControlStore(db)
@@ -252,6 +294,8 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 					},
 				},
 			},
+			// No terminal reducer dead-letters for this scope generation.
+			{rows: nil},
 		},
 	}
 	db := &fakeTransactionalDB{
@@ -400,6 +444,8 @@ func workflowRunReconciliationTx() *fakeTx {
 					},
 				},
 			},
+			// No terminal reducer dead-letters for this scope generation.
+			{rows: nil},
 		},
 	}
 }

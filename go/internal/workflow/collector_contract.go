@@ -51,11 +51,21 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 				Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
 				PhaseName: reducer.GraphProjectionPhaseDeploymentMapping,
 				Required:  true,
+				// DomainDeploymentMapping is the sole reducer domain that
+				// publishes this phase (platform_materialization.go), so a
+				// terminal dead-letter for it can be attributed directly
+				// (#4459).
+				DeadLetterDomain: reducer.DomainDeploymentMapping,
 			},
 			{
 				Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
 				PhaseName: reducer.GraphProjectionPhaseWorkloadMaterialization,
 				Required:  true,
+				// DomainWorkloadMaterialization is the sole reducer domain
+				// that publishes this phase
+				// (workload_materialization_handler.go), so a terminal
+				// dead-letter for it can be attributed directly (#4459).
+				DeadLetterDomain: reducer.DomainWorkloadMaterialization,
 			},
 		},
 	},

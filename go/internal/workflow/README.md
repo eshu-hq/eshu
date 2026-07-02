@@ -66,15 +66,25 @@ Types in this package flow through four phases of the workflow control plane:
 
 4. **Run progress and completeness** — reducer phases publish checkpoints that
    the coordinator observes. `ReconcileRunProgress(snapshot, observedAt)` takes
-   a `RunProgressSnapshot` (a `Run` plus per-collector counts and published phase
-   counts) and derives an updated `Run.Status` and a sorted slice of
-   `CompletenessState` rows. Terminal collector failures produce blocked
-   completeness rows before downstream phases can be marked ready. The
-   transition table:
+   a `RunProgressSnapshot` (a `Run` plus per-collector counts, published phase
+   counts, and terminal reducer dead-letter counts) and derives an updated
+   `Run.Status` and a sorted slice of `CompletenessState` rows. Terminal
+   collector failures produce blocked completeness rows before downstream
+   phases can be marked ready. So does a terminal reducer dead-letter on a
+   required, bridged phase (`PhaseRequirement.DeadLetterDomain`,
+   `CollectorRunProgress.TerminalDeadLetterCounts`) — see issue #4459: before
+   this bridge, a permanently dead-lettered reducer intent (`fact_work_items`,
+   `status = 'dead_letter'`) never published its phase, so the phase stayed
+   pending forever and the run wedged in `reducer_converging` with no
+   terminal signal. Only a confirmed `dead_letter` row on a phase whose
+   `PhaseRequirement.DeadLetterDomain` names the exact reducer domain that
+   owns it may trip this; a still-retrying row, or a dead-letter on a
+   non-bridged phase, leaves the phase merely `pending` so in-flight work is
+   never mistaken for a permanent block. The transition table:
 
    | Condition | `RunStatus` |
    |---|---|
-   | any `failed_terminal` work items | `failed` |
+   | any `failed_terminal` work items, or a required phase's owning reducer domain has a terminal dead-letter | `failed` |
    | all collection complete + all required phases ready | `complete` |
    | all collection complete, some phases pending | `reducer_converging` |
    | any claimed or mix of pending/completed | `collection_active` |
@@ -126,10 +136,20 @@ Types in this package flow through four phases of the workflow control plane:
   `CollectorSecurityAlert`, `CollectorCICDRun`, `CollectorPagerDuty`,
   `CollectorJira`, `CollectorScannerWorker`
 - `PhaseRequirement`, `PhasePublicationKey` — per-phase requirement and
-  publication checkpoint key types
+  publication checkpoint key types. `PhaseRequirement.DeadLetterDomain` names
+  the sole reducer `Domain` that owns publishing that phase, when known; blank
+  means no reducer domain is bridged yet, so a dead-letter can never be
+  attributed to that phase (fails closed, never a false block). Currently
+  bridged: `DomainDeploymentMapping` and `DomainWorkloadMaterialization` on
+  `CollectorGit` (#4459).
 
 **Run progress**:
-- `CollectorRunProgress`, `RunProgressSnapshot` — inputs to `ReconcileRunProgress`
+- `CollectorRunProgress`, `RunProgressSnapshot` — inputs to `ReconcileRunProgress`.
+  `CollectorRunProgress.TerminalDeadLetterCounts` carries, per bridged
+  `PhasePublicationKey`, how many same-scope-generation `fact_work_items` rows
+  are genuinely terminal (`status = 'dead_letter'`) for that phase's owning
+  reducer domain. Populate this ONLY from a confirmed terminal dead-letter —
+  never from a retrying, pending, claimed, or running row.
 - `ReconcileRunProgress(snapshot, observedAt)` — pure derivation of `Run` status
   and completeness rows
 - `CompletenessStatusPending`, `CompletenessStatusReady`,
@@ -431,6 +451,30 @@ by reason, ecosystem, source family, collector kind, target class, source, and
 selected/limit counts only.
 
 Observability Evidence: no new metrics were required. Single-pass proof mode is visible in collector instance configuration, stable workflow run IDs, zero-offset target-reader requests in tests, and `/api/v0/index-status` queue totals. The remote runtime-state gate now fails representative proofs whose outstanding queue grows beyond the configured derived-target budget guard.
+
+No-Regression Evidence (#4459): `go test ./internal/workflow -run
+'TestReconcileRunProgressTerminalReducerDeadLetterBlocksConvergence|TestReconcileRunProgressRetryableDeadLetterDoesNotBlockConvergence'
+-count=1` plus `ESHU_POSTGRES_DSN=<local Postgres> go test
+./internal/storage/postgres -run
+'TestWorkflowControlStoreIntegrationReconcileWorkflowRuns' -count=1` prove a
+terminal `fact_work_items` dead-letter (`status = 'dead_letter'`) on a
+required, bridged phase now terminates the run as `blocked`/`failed` instead
+of wedging in `reducer_converging` forever, while a still-retrying row or a
+dead-letter on a non-bridged phase leaves completeness `pending` (no false
+block). Two worktrees at main (18b78ac5a) versus this fix, identical seeded
+scenario: main wedges across three reconciliation cycles spanning 24
+simulated hours; this branch terminates on the first cycle. No claim
+ordering, worker count, graph write, reducer claiming, or NornicDB setting
+changed — only a new `fact_work_items` read inside `ReconcileWorkflowRuns`
+and a completeness-blocking branch gated on a confirmed terminal row.
+
+Observability Evidence (#4459): added
+`eshu_dp_workflow_run_terminal_dead_letter_blocks_total`
+(`go/internal/telemetry/instruments.go`), labeled by `collector_kind` and
+`domain` only (bounded, never run/scope/generation IDs), plus a "workflow run
+blocked by terminal reducer dead-letter" structured log carrying `run_id`,
+`keyspace`, `phase`, `domain`, and the dead-lettered item count. See the
+Queue Domains section of `docs/public/observability/telemetry-coverage.md`.
 
 ## Extension points
 

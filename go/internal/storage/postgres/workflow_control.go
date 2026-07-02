@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -36,6 +37,10 @@ type WorkflowControlStore struct {
 	DefaultClaimLeaseTTL       time.Duration
 	DefaultHeartbeatInterval   time.Duration
 	DefaultExpiredRequeueDelay time.Duration
+	// Instruments records the terminal-dead-letter-block signal during
+	// ReconcileWorkflowRuns (#4459). Nil is a no-op, so binaries without a
+	// wired meter provider are unaffected.
+	Instruments *telemetry.Instruments
 }
 
 // NewWorkflowControlStore constructs a Postgres-backed workflow control store.

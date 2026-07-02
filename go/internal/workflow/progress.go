@@ -25,6 +25,14 @@ type PhaseRequirement struct {
 	Keyspace  reducer.GraphProjectionKeyspace
 	PhaseName reducer.GraphProjectionPhase
 	Required  bool
+	// DeadLetterDomain names the reducer Domain that owns writing this phase,
+	// when exactly one reducer domain is responsible for its publication
+	// (issue #4459). A blank value means no reducer domain is bridged for
+	// this phase yet, so a terminal dead-letter can never be attributed to
+	// it — the readiness gate stays a pure "not yet published" pending state
+	// instead of guessing, which fails closed (never a false block) rather
+	// than open (never wedging attribution).
+	DeadLetterDomain reducer.Domain
 }
 
 // PhasePublicationKey identifies one published reducer checkpoint.
@@ -65,6 +73,17 @@ type CollectorRunProgress struct {
 	CompletedWorkItems   int
 	FailedTerminalItems  int
 	PublishedPhaseCounts map[PhasePublicationKey]int
+	// TerminalDeadLetterCounts counts, per required phase, how many
+	// same-scope-generation fact_work_items rows have permanently
+	// dead-lettered (status = 'dead_letter', a genuinely terminal,
+	// non-retryable reducer failure — never 'retrying', 'pending',
+	// 'claimed', or 'running') for the reducer domain that owns publishing
+	// that phase. A non-zero count here is the only signal that may block a
+	// required phase's completeness on a terminal failure instead of
+	// leaving it pending; see #4459. Callers MUST NOT populate this map from
+	// anything other than a confirmed terminal dead-letter row, or a
+	// transient retry will be mis-reported as a permanent block.
+	TerminalDeadLetterCounts map[PhasePublicationKey]int
 }
 
 // Validate checks that the collector progress row is internally consistent.
@@ -148,19 +167,39 @@ func ReconcileRunProgress(snapshot RunProgressSnapshot, observedAt time.Time) (R
 				Keyspace:  requirement.Keyspace,
 				PhaseName: requirement.PhaseName,
 			}
+			published := collector.PublishedPhaseCounts[publicationKey]
 			status := CompletenessStatusPending
 			detail := fmt.Sprintf(
 				"published for %d of %d work items",
-				collector.PublishedPhaseCounts[publicationKey],
+				published,
 				collector.TotalWorkItems,
 			)
-			if collector.FailedTerminalItems > 0 {
+			// terminalDeadLetters only ever reflects a confirmed
+			// fact_work_items status='dead_letter' row (#4459); a
+			// still-retrying or otherwise non-terminal reducer failure MUST
+			// leave this at zero, so an in-flight phase always reports
+			// pending here, never a false block.
+			terminalDeadLetters := requirement.DeadLetterDomain != "" && collector.TerminalDeadLetterCounts[publicationKey] > 0
+			switch {
+			case collector.FailedTerminalItems > 0:
 				status = CompletenessStatusBlocked
 				detail = "terminal collector failure prevents downstream completion"
-			} else if collector.TotalWorkItems > 0 && collector.PublishedPhaseCounts[publicationKey] >= collector.TotalWorkItems {
+			case collector.TotalWorkItems > 0 && published >= collector.TotalWorkItems:
 				status = CompletenessStatusReady
 				detail = fmt.Sprintf("published for all %d work items", collector.TotalWorkItems)
-			} else {
+			case terminalDeadLetters:
+				// The phase never published and never will: its owning
+				// reducer domain dead-lettered terminally for this scope
+				// generation. Report the run as blocked/failed instead of
+				// wedging in reducer_converging forever.
+				status = CompletenessStatusBlocked
+				detail = fmt.Sprintf(
+					"reducer domain %q dead-lettered %d work item(s) terminally; phase will never publish for this generation",
+					requirement.DeadLetterDomain,
+					collector.TerminalDeadLetterCounts[publicationKey],
+				)
+				anyFailedTerminal = true
+			default:
 				allRequiredPhasesReady = false
 			}
 			completeness = append(completeness, CompletenessState{

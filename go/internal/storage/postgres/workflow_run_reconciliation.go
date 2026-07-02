@@ -8,13 +8,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -64,6 +67,51 @@ JOIN graph_projection_phase_state AS phase
 WHERE item.run_id = $1
 GROUP BY item.collector_kind, phase.keyspace, phase.phase
 ORDER BY item.collector_kind ASC, phase.keyspace ASC, phase.phase ASC
+`
+
+// workflowReducerDeadLetterPhaseBridge lists the reducer domains that
+// terminally dead-letter into a bounded, single-owner graph projection phase,
+// so a fact_work_items dead-letter can be attributed to the exact required
+// phase it will never publish (#4459). Keep this list in lockstep with the
+// DeadLetterDomain values set in collector_contract.go: both sides name the
+// same reducer domain as the sole writer of that phase. Only add a domain
+// here when it owns publishing exactly one (keyspace, phase) pair, so a
+// dead-letter can never be mis-attributed to a phase another domain might
+// still legitimately publish.
+const workflowReducerDeadLetterPhaseBridgeSQL = `
+    VALUES
+        ('deployment_mapping', 'service_uid', 'deployment_mapping'),
+        ('workload_materialization', 'service_uid', 'workload_materialization')
+`
+
+// listWorkflowCollectorTerminalDeadLetterCountsQuery counts, per collector
+// kind and bridged phase, how many same-scope-generation fact_work_items rows
+// have permanently dead-lettered (status = 'dead_letter', never a retrying or
+// otherwise non-terminal status) for the reducer domain that owns that
+// phase's publication. This is deliberately scoped to the domains in
+// workflowReducerDeadLetterPhaseBridgeSQL: a dead-letter on any other domain
+// is not attributed to a required phase and leaves that phase's completeness
+// at its normal "still pending" status, never a false block (#4459).
+const listWorkflowCollectorTerminalDeadLetterCountsQuery = `
+WITH reducer_dead_letter_phase_bridge(domain, keyspace, phase) AS (
+` + workflowReducerDeadLetterPhaseBridgeSQL + `
+)
+SELECT
+    item.collector_kind,
+    bridge.keyspace,
+    bridge.phase,
+    COUNT(DISTINCT fact.work_item_id) AS dead_lettered_work_items
+FROM workflow_work_items AS item
+JOIN fact_work_items AS fact
+  ON fact.scope_id = item.scope_id
+ AND fact.generation_id = item.generation_id
+ AND fact.stage = 'reducer'
+ AND fact.status = 'dead_letter'
+JOIN reducer_dead_letter_phase_bridge AS bridge
+  ON bridge.domain = fact.domain
+WHERE item.run_id = $1
+GROUP BY item.collector_kind, bridge.keyspace, bridge.phase
+ORDER BY item.collector_kind ASC, bridge.keyspace ASC, bridge.phase ASC
 `
 
 const updateWorkflowRunStatusQuery = `
@@ -152,8 +200,13 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 	if err != nil {
 		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
 	}
+	deadLetterCounts, err := s.listWorkflowCollectorTerminalDeadLetterCounts(ctx, queryTarget, run.RunID)
+	if err != nil {
+		return fmt.Errorf("reconcile workflow run %s: %w", run.RunID, err)
+	}
 	for i := range progress {
 		progress[i].PublishedPhaseCounts = phaseCounts[string(progress[i].CollectorKind)]
+		progress[i].TerminalDeadLetterCounts = deadLetterCounts[string(progress[i].CollectorKind)]
 	}
 
 	nextRun, completeness, err := workflow.ReconcileRunProgress(workflow.RunProgressSnapshot{
@@ -180,7 +233,81 @@ func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run
 		return fmt.Errorf("reconcile workflow run %s: commit transaction: %w", run.RunID, err)
 	}
 	rollback = func() error { return nil }
+	// Emit only after a successful commit: reconcileWorkflowRun retries this
+	// function up to workflowRunReconciliationMaxAttempts times on a
+	// deadlock/serialization conflict, and a retried attempt must not double
+	// count (or count at all, if it never committed) the terminal-dead-letter
+	// block signal.
+	s.recordTerminalDeadLetterBlocks(ctx, run.RunID, progress, completeness)
 	return nil
+}
+
+// recordTerminalDeadLetterBlocks emits the operator-facing signal for #4459:
+// which required phase was blocked because its owning reducer domain
+// dead-lettered terminally. Labeled by collector_kind and domain only
+// (bounded, never run_id/scope_id/generation_id, per telemetry cardinality
+// rules). A nil Instruments (the default) makes this a no-op so binaries
+// without a wired meter provider are unaffected.
+func (s *WorkflowControlStore) recordTerminalDeadLetterBlocks(
+	ctx context.Context,
+	runID string,
+	progress []workflow.CollectorRunProgress,
+	completeness []workflow.CompletenessState,
+) {
+	deadLetterCountsByCollector := make(map[string]map[workflow.PhasePublicationKey]int, len(progress))
+	for _, collector := range progress {
+		deadLetterCountsByCollector[string(collector.CollectorKind)] = collector.TerminalDeadLetterCounts
+	}
+
+	for _, state := range completeness {
+		if state.Status != workflow.CompletenessStatusBlocked {
+			continue
+		}
+		counts := deadLetterCountsByCollector[string(state.CollectorKind)]
+		key := workflow.PhasePublicationKey{
+			Keyspace:  state.Keyspace,
+			PhaseName: reducer.GraphProjectionPhase(state.PhaseName),
+		}
+		if counts[key] <= 0 {
+			// Blocked for a different reason (terminal collector failure),
+			// not a bridged reducer dead-letter. Do not attribute it here.
+			continue
+		}
+		domain := workflowReducerDeadLetterDomainForPhase(state.PhaseName)
+		if s.Instruments != nil && s.Instruments.WorkflowRunTerminalDeadLetterBlocks != nil {
+			s.Instruments.WorkflowRunTerminalDeadLetterBlocks.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrCollectorKind(string(state.CollectorKind)),
+				telemetry.AttrDomain(domain),
+			))
+		}
+		slog.WarnContext(
+			ctx, "workflow run blocked by terminal reducer dead-letter",
+			slog.String("run_id", runID),
+			slog.String("collector_kind", string(state.CollectorKind)),
+			slog.String("keyspace", string(state.Keyspace)),
+			slog.String("phase", state.PhaseName),
+			slog.String("domain", domain),
+			slog.Int("dead_lettered_work_items", counts[key]),
+		)
+	}
+}
+
+// workflowReducerDeadLetterDomainForPhase reports the reducer domain
+// attributed to a blocked phase name for the log/metric emitted by
+// recordTerminalDeadLetterBlocks. Kept in lockstep with
+// workflowReducerDeadLetterPhaseBridgeSQL and the DeadLetterDomain values in
+// collector_contract.go: today both bridged phases carry the same string as
+// their owning domain, but this indirection keeps the log/metric correct even
+// if that coincidence ever changes.
+func workflowReducerDeadLetterDomainForPhase(phaseName string) string {
+	switch phaseName {
+	case string(reducer.GraphProjectionPhaseDeploymentMapping):
+		return string(reducer.DomainDeploymentMapping)
+	case string(reducer.GraphProjectionPhaseWorkloadMaterialization):
+		return string(reducer.DomainWorkloadMaterialization)
+	default:
+		return phaseName
+	}
 }
 
 func isRetryableWorkflowReconciliationError(err error) bool {
@@ -260,6 +387,47 @@ func (s *WorkflowControlStore) listWorkflowCollectorPhaseCounts(
 		return nil, fmt.Errorf("list workflow collector phase counts: %w", err)
 	}
 	return phaseCounts, nil
+}
+
+// listWorkflowCollectorTerminalDeadLetterCounts loads, per collector kind,
+// the terminal reducer dead-letter count for each bridged
+// (keyspace, phase) pair the run's work items map to (#4459). The returned
+// map only ever contains bridged phases with a confirmed dead_letter row —
+// an absent entry means zero, which callers must treat as "no terminal
+// dead-letter observed," never as a block.
+func (s *WorkflowControlStore) listWorkflowCollectorTerminalDeadLetterCounts(
+	ctx context.Context,
+	queryer Queryer,
+	runID string,
+) (map[string]map[workflow.PhasePublicationKey]int, error) {
+	rows, err := queryer.QueryContext(ctx, listWorkflowCollectorTerminalDeadLetterCountsQuery, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list workflow collector terminal dead letter counts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	deadLetterCounts := make(map[string]map[workflow.PhasePublicationKey]int)
+	for rows.Next() {
+		var collectorKind string
+		var keyspace string
+		var phaseName string
+		var deadLetteredCount int
+		if err := rows.Scan(&collectorKind, &keyspace, &phaseName, &deadLetteredCount); err != nil {
+			return nil, fmt.Errorf("list workflow collector terminal dead letter counts: %w", err)
+		}
+		collectorKind = strings.TrimSpace(collectorKind)
+		if _, ok := deadLetterCounts[collectorKind]; !ok {
+			deadLetterCounts[collectorKind] = make(map[workflow.PhasePublicationKey]int)
+		}
+		deadLetterCounts[collectorKind][workflow.PhasePublicationKey{
+			Keyspace:  reducer.GraphProjectionKeyspace(strings.TrimSpace(keyspace)),
+			PhaseName: reducer.GraphProjectionPhase(strings.TrimSpace(phaseName)),
+		}] = deadLetteredCount
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list workflow collector terminal dead letter counts: %w", err)
+	}
+	return deadLetterCounts, nil
 }
 
 func scanWorkflowRun(rows Rows) (workflow.Run, error) {

@@ -4,6 +4,7 @@
 package workflow
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -279,6 +280,151 @@ func TestReconcileRunProgressFailed(t *testing.T) {
 		}
 		if got, want := state.Status, CompletenessStatusBlocked; got != want {
 			t.Fatalf("phase %q status = %q, want %q", state.PhaseName, got, want)
+		}
+	}
+}
+
+func TestReconcileRunProgressTerminalReducerDeadLetterBlocksConvergence(t *testing.T) {
+	t.Parallel()
+
+	// Regression for #4459: a permanently dead-lettered reducer intent on a
+	// required phase (deployment_mapping / workload_materialization) never
+	// publishes its graph_projection_phase_state row, so
+	// allRequiredPhasesReady stays false forever and the run wedges in
+	// reducer_converging with no terminal signal. TerminalDeadLetterCounts
+	// bridges the reducer's own dead-letter queue into completeness so the
+	// run instead terminates as blocked/failed.
+	now := time.Date(2026, time.July, 1, 12, 0, 0, 0, time.UTC)
+	run, completeness, err := ReconcileRunProgress(RunProgressSnapshot{
+		Run: Run{
+			RunID:       "run-dlq-wedge",
+			TriggerKind: TriggerKindBootstrap,
+			Status:      RunStatusCollectionActive,
+			CreatedAt:   now.Add(-time.Hour),
+			UpdatedAt:   now.Add(-time.Hour),
+		},
+		Collectors: []CollectorRunProgress{{
+			CollectorKind:      scope.CollectorGit,
+			TotalWorkItems:     1,
+			CompletedWorkItems: 1,
+			PublishedPhaseCounts: map[PhasePublicationKey]int{
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				}: 1,
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+					PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+				}: 1,
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceDeployableUnitUID,
+					PhaseName: reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+				}: 1,
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
+					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				}: 1,
+				// deployment_mapping and workload_materialization are
+				// intentionally absent: their reducer intents dead-lettered
+				// terminally and never published.
+			},
+			TerminalDeadLetterCounts: map[PhasePublicationKey]int{
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
+					PhaseName: reducer.GraphProjectionPhaseDeploymentMapping,
+				}: 1,
+			},
+		}},
+	}, now)
+	if err != nil {
+		t.Fatalf("ReconcileRunProgress() error = %v, want nil", err)
+	}
+	if got, want := run.Status, RunStatusFailed; got != want {
+		t.Fatalf("run.Status = %q, want %q (must not wedge in reducer_converging on a terminal dead-letter)", got, want)
+	}
+	if run.FinishedAt.IsZero() {
+		t.Fatal("run.FinishedAt = zero, want non-zero when a run terminates on a terminal dead-letter")
+	}
+
+	var sawBlockedDeploymentMapping bool
+	for _, state := range completeness {
+		if state.Keyspace == reducer.GraphProjectionKeyspaceServiceUID &&
+			state.PhaseName == string(reducer.GraphProjectionPhaseDeploymentMapping) {
+			sawBlockedDeploymentMapping = true
+			if got, want := state.Status, CompletenessStatusBlocked; got != want {
+				t.Fatalf("deployment_mapping completeness status = %q, want %q", got, want)
+			}
+			if !strings.Contains(state.Detail, "dead_letter") && !strings.Contains(state.Detail, "dead-letter") {
+				t.Fatalf("deployment_mapping completeness detail = %q, want it to name the dead-letter reason", state.Detail)
+			}
+		}
+	}
+	if !sawBlockedDeploymentMapping {
+		t.Fatal("completeness rows missing the blocked deployment_mapping phase")
+	}
+}
+
+func TestReconcileRunProgressRetryableDeadLetterDoesNotBlockConvergence(t *testing.T) {
+	t.Parallel()
+
+	// Negative/false-fail guard: a still-retrying (non-terminal) reducer
+	// item, or a dead-letter on a phase with no bridged reducer domain, must
+	// NOT flip the run to blocked/failed. Only a genuinely terminal
+	// dead-letter on a required, bridged phase may terminate convergence.
+	// Here TerminalDeadLetterCounts is empty (as it must be for anything
+	// short of a confirmed dead_letter row), so the run must still converge
+	// normally while deployment_mapping remains merely pending.
+	now := time.Date(2026, time.July, 1, 12, 5, 0, 0, time.UTC)
+	run, completeness, err := ReconcileRunProgress(RunProgressSnapshot{
+		Run: Run{
+			RunID:       "run-retrying-not-blocked",
+			TriggerKind: TriggerKindBootstrap,
+			Status:      RunStatusCollectionActive,
+			CreatedAt:   now.Add(-time.Hour),
+			UpdatedAt:   now.Add(-time.Hour),
+		},
+		Collectors: []CollectorRunProgress{{
+			CollectorKind:      scope.CollectorGit,
+			TotalWorkItems:     1,
+			CompletedWorkItems: 1,
+			PublishedPhaseCounts: map[PhasePublicationKey]int{
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				}: 1,
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+					PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+				}: 1,
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceDeployableUnitUID,
+					PhaseName: reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+				}: 1,
+				{
+					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
+					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				}: 1,
+				// deployment_mapping/workload_materialization still
+				// legitimately in flight (retrying, not dead-lettered).
+			},
+			TerminalDeadLetterCounts: map[PhasePublicationKey]int{},
+		}},
+	}, now)
+	if err != nil {
+		t.Fatalf("ReconcileRunProgress() error = %v, want nil", err)
+	}
+	if got, want := run.Status, RunStatusReducerConverging; got != want {
+		t.Fatalf("run.Status = %q, want %q (a non-terminal gap must keep converging, not false-fail)", got, want)
+	}
+	if !run.FinishedAt.IsZero() {
+		t.Fatal("run.FinishedAt = non-zero, want zero for a still-converging run")
+	}
+	for _, state := range completeness {
+		if state.Keyspace == reducer.GraphProjectionKeyspaceServiceUID &&
+			state.PhaseName == string(reducer.GraphProjectionPhaseDeploymentMapping) {
+			if got, want := state.Status, CompletenessStatusPending; got != want {
+				t.Fatalf("deployment_mapping completeness status = %q, want %q (must not false-block on non-terminal work)", got, want)
+			}
 		}
 	}
 }
