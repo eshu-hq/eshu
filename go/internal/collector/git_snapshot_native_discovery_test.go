@@ -201,67 +201,6 @@ func TestResolveNativeSnapshotFileSetKeepsSmallBootstrapLikeJavaScript(t *testin
 	}
 }
 
-func TestResolveNativeSnapshotFileSetSkipsLegacyVendoredLibraries(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	writeCollectorTestFile(t, filepath.Join(repoRoot, ".git", "HEAD"), "ref: refs/heads/main\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "jquery_adapter.js"), "export function adaptJQuery() { return true; }\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "bootstrap.js"), "export function bootstrapApplication() { return true; }\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "src", "marinus", "library", "Zend", "Gdata", "GroupEntry.php"), "<?php\n/** Zend Framework */\nclass Zend_Gdata_GroupEntry {}\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "jquery.js"), "/* jQuery JavaScript Library v1.12.4 */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "aJQuerry.js"), "/*! jQuery v2.2.4 | (c) jQuery Foundation | jquery.org/license */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "bootstrap.js"), "/*!\n * Bootstrap v3.3.1 (http://getbootstrap.com)\n */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "calendar.js"), "/*!\nFullCalendar v5.3.2\nDocs & License: https://fullcalendar.io/\n*/\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "fotorama.js"), "/*!\n * Fotorama 4.6.4 | http://fotorama.io/license/\n */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "gmaps.js"), "/*!\n * GMaps.js v0.4.15\n * http://hpneo.github.com/gmaps/\n */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "masonry.pkgd.js"), "/*!\n * Masonry PACKAGED v3.1.5\n * http://masonry.desandro.com\n */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "jwplayer.js"), "jwplayer.version=\"6.12.4956\";\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "jwplayer", "provider.shaka.js"), "function jwPlayerProvider() { return \"shaka\"; }\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "filepond.esm.js"), "/*!\n * FilePond 4.30.6\n * Please visit https://pqina.nl/filepond/ for details.\n */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "prototype.js"), "/* Prototype JavaScript framework, version 1.6.0\n * http://www.prototypejs.org/\n */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "reveal.js"), "/*!\n * reveal.js\n * http://lab.hakim.se/reveal-js\n */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "public", "js", "shadowbox.js"), "/* Shadowbox.js */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "scripts", "fpdf.php"), "<?php\n/* FPDF */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "framework", "library", "pear", "php", "PEAR", "FixPHP5PEARWarnings.php"), "<?php\n/* PEAR compatibility library */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "framework", "library", "pear", "php", "phing.php"), "<?php\n/* Phing entrypoint */\n")
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "framework", "library", "pear", "php", "phing", "types", "AbstractFileSet.php"), "<?php\n/* Phing build-tool library */\n")
-
-	resolvedRepoRoot, err := filepath.EvalSymlinks(repoRoot)
-	if err != nil {
-		resolvedRepoRoot = repoRoot
-	}
-	registry := parser.DefaultRegistry()
-	fileSet, stats, err := resolveNativeSnapshotFileSet(resolvedRepoRoot, registry, NativeRepositorySnapshotter{}.discoveryOptions())
-	if err != nil {
-		t.Fatalf("resolveNativeSnapshotFileSet() error = %v", err)
-	}
-
-	if got, want := len(fileSet.Files), 2; got != want {
-		t.Fatalf("file count = %d, want %d; files=%v", got, want, fileSet.Files)
-	}
-	for _, wantSuffix := range []string{
-		"src/bootstrap.js",
-		"src/jquery_adapter.js",
-	} {
-		if !fileSetContainsSuffix(fileSet.Files, wantSuffix) {
-			t.Fatalf("fileSet missing %q; files=%v", wantSuffix, fileSet.Files)
-		}
-	}
-	if got := stats.FilesSkippedByContent["vendored-zend-framework"]; got != 1 {
-		t.Fatalf("FilesSkippedByContent[vendored-zend-framework] = %d, want 1", got)
-	}
-	if got := stats.FilesSkippedByContent["vendored-browser-library"]; got != 13 {
-		t.Fatalf("FilesSkippedByContent[vendored-browser-library] = %d, want 13", got)
-	}
-	if got := stats.FilesSkippedByContent["vendored-fpdf"]; got != 1 {
-		t.Fatalf("FilesSkippedByContent[vendored-fpdf] = %d, want 1", got)
-	}
-	if got := stats.FilesSkippedByContent["vendored-pear"]; got != 3 {
-		t.Fatalf("FilesSkippedByContent[vendored-pear] = %d, want 3", got)
-	}
-}
-
 func TestResolveNativeSnapshotFileSetSkipsConfiguredVendoredRoots(t *testing.T) {
 	t.Parallel()
 

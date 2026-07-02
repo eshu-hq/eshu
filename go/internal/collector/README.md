@@ -514,6 +514,29 @@ claim/execute spans for the value-flow evidence domains.
   lockfiles. Generated package caches under that name need repo-local
   `.eshuignore`, `.eshu/discovery.json`, or operator ignored-path globs so the
   exclusion is visible in discovery stats.
+- Legacy vendored-library pruning is intentionally signature- or path-family
+  specific. It skips known third-party libraries such as Zend, PEAR, FPDF,
+  Plupload, Aurigma uploaders, phpCAS, Minify, FusionCharts, Scriptaculous, and
+  legacy Microsoft map-control assets while preserving authored files with
+  similar names. Do not broaden this to generic `framework`, `library`, `tests`,
+  or `public` roots without repository-scale proof that authored source is not
+  lost.
+
+  Performance Evidence: On 2026-07-02, a collector-discovered remote profile of
+  one large legacy PHP/JavaScript repository on `codex/4515-prescan-parse-lanes`
+  with `ESHU_PARSE_WORKERS=16` and NornicDB PR #230 bits showed parser input
+  drop from 5,953 to 5,661 files and parser wall time drop from 4.077s to
+  2.638s after the vendored-library filters were added. A bounded production
+  profile with the same `GOMAXPROCS=16`, parse/snapshot worker settings, and
+  graph backend showed the heavy repository parse stage drop from 96.332s to
+  82.497s, and the first 85 parse samples drop from 947.914s total to 868.837s
+  total. The same run showed pre-scan remained the next bottleneck; this change
+  is a parse/input-shape win, not end-to-end closure.
+
+  No-Observability-Change: The filters only add discovery skip reasons under
+  the existing `FilesSkippedByContent` stats and
+  `eshu_dp_discovery_files_skipped_total` metric. They add no worker, queue,
+  graph write, span, metric name, runtime knob, or status field.
 - Filesystem manifest fingerprints include `.gitignore` and `.eshuignore` rule
   files but exclude paths filtered by those rules. Changing an ignore rule
   reselects the repository; changing only ignored output does not.

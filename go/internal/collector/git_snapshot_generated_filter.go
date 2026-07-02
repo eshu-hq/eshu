@@ -35,6 +35,24 @@ func generatedNativeSnapshotSkipReason(path string) (string, bool) {
 	if isVendoredZendFrameworkFile(path) {
 		return "vendored-zend-framework", true
 	}
+	if isVendoredPluploadFile(path) {
+		return "vendored-plupload", true
+	}
+	if isVendoredAurigmaFile(path) {
+		return "vendored-aurigma", true
+	}
+	if isVendoredPHPCASFile(path) {
+		return "vendored-phpcas", true
+	}
+	if isVendoredMinifyFile(path) {
+		return "vendored-minify", true
+	}
+	if isVendoredFusionChartsFile(path) {
+		return "vendored-fusioncharts", true
+	}
+	if isVendoredMapControlFile(path) {
+		return "vendored-mapcontrol", true
+	}
 	if isVendoredBrowserLibraryFile(path) {
 		return "vendored-browser-library", true
 	}
@@ -124,6 +142,69 @@ func isVendoredZendFrameworkFile(path string) bool {
 	return ext == ".php"
 }
 
+func isVendoredPluploadFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
+		return false
+	}
+	normalizedPath := strings.ToLower(filepath.ToSlash(path))
+	name := strings.ToLower(filepath.Base(path))
+	if !strings.Contains(normalizedPath, "/plupload/js/") || !strings.HasPrefix(name, "plupload.") {
+		return false
+	}
+	prefix, ok := javascriptFilePrefix(path, vendoredBrowserLibraryPrefixBytes)
+	if !ok {
+		return false
+	}
+	normalizedPrefix := strings.ToLower(prefix)
+	return strings.Contains(normalizedPrefix, "window.plupload") &&
+		strings.Contains(normalizedPrefix, "version")
+}
+
+func isVendoredAurigmaFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
+		return false
+	}
+	name := strings.ToLower(filepath.Base(path))
+	return strings.HasPrefix(name, "aurigma.htmluploader.") ||
+		strings.HasPrefix(name, "aurigma.imageuploader")
+}
+
+func isVendoredPHPCASFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".php" {
+		return false
+	}
+	normalized := strings.ToLower(filepath.ToSlash(path))
+	return strings.Contains(normalized, "/library/cas/cas/")
+}
+
+func isVendoredMinifyFile(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(path))
+	return strings.Contains(normalized, "/library/minify/min/")
+}
+
+func isVendoredFusionChartsFile(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(path))
+	return strings.Contains(normalized, "/library/fusioncharts/") ||
+		strings.Contains(normalized, "/library/powercharts/")
+}
+
+func isVendoredMapControlFile(path string) bool {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
+		return false
+	}
+	if strings.ToLower(filepath.Base(path)) != "mapcontrol.js" {
+		return false
+	}
+	prefix, ok := javascriptFilePrefix(path, vendoredBrowserLibraryPrefixBytes)
+	if !ok {
+		return false
+	}
+	normalized := strings.ToLower(prefix)
+	return strings.Contains(normalized, "bing maps") &&
+		strings.Contains(normalized, "virtual earth") &&
+		strings.Contains(normalized, "mapcontrol.features")
+}
+
 func isVendoredBrowserLibraryFile(path string) bool {
 	if ext := strings.ToLower(filepath.Ext(path)); ext != ".js" && ext != ".mjs" && ext != ".cjs" {
 		return false
@@ -183,6 +264,9 @@ func hasVendoredBrowserLibrarySignature(path string) bool {
 		return true
 	case strings.Contains(normalized, "prototype javascript framework") &&
 		strings.Contains(normalized, "prototypejs.org"):
+		return true
+	case strings.Contains(normalized, "script.aculo.us") &&
+		strings.Contains(normalized, "effects.js"):
 		return true
 	case strings.Contains(normalized, "reveal.js") &&
 		strings.Contains(normalized, "lab.hakim.se/reveal-js"):
