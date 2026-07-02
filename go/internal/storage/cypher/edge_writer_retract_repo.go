@@ -21,73 +21,86 @@ func repoDependencyRetractSummary(role string, relationships string) string {
 }
 
 func buildRepoDependencyRetractStatements(repoIDs []string, evidenceSource string) []repoDependencyRetractStatement {
-	return []repoDependencyRetractStatement{
-		{
-			role: "repository_relationships",
-			stmt: Statement{
-				Operation: OperationCanonicalRetract,
-				Cypher:    retractRepoRelationshipAndRunsOnEdgesCypher,
-				Parameters: map[string]any{
-					"repo_ids":                  repoIDs,
-					"evidence_source":           evidenceSource,
-					StatementMetadataSummaryKey: repoDependencyRetractSummary("repository_relationships", repoDependencyRelationshipEdgeTypes+"|RUNS_ON"),
-				},
-			},
-		},
-		{
-			role: "evidence_artifacts",
-			stmt: Statement{
-				Operation: OperationCanonicalRetract,
-				Cypher:    retractRepoEvidenceArtifactsCypher,
-				Parameters: map[string]any{
-					"repo_ids":                  repoIDs,
-					"evidence_source":           evidenceSource,
-					StatementMetadataSummaryKey: "role=evidence_artifacts relationships=HAS_DEPLOYMENT_EVIDENCE",
-				},
-			},
-		},
-	}
+	return buildRepoDependencySplitRetractStatements(repoIDs, evidenceSource)
 }
 
 func buildRepoDependencyDiagnosticRetractStatements(repoIDs []string, evidenceSource string) []repoDependencyRetractStatement {
+	return buildRepoDependencySplitRetractStatements(repoIDs, evidenceSource)
+}
+
+func buildRepoDependencySplitRetractStatements(repoIDs []string, evidenceSource string) []repoDependencyRetractStatement {
 	return []repoDependencyRetractStatement{
 		{
 			role: "repository_relationship_edges",
 			stmt: Statement{
 				Operation: OperationCanonicalRetract,
-				Cypher:    retractRepoRelationshipEdgesCypher,
-				Parameters: map[string]any{
-					"repo_ids":                  repoIDs,
-					"evidence_source":           evidenceSource,
-					StatementMetadataSummaryKey: repoDependencyRetractSummary("repository_relationship_edges", repoDependencyRelationshipEdgeTypes),
-				},
+				Cypher:    repoDependencyRelationshipRetractCypher(repoIDs),
+				Parameters: repoDependencyRetractParameters(
+					repoIDs,
+					evidenceSource,
+					repoDependencyRetractSummary("repository_relationship_edges", repoDependencyRelationshipEdgeTypes),
+				),
 			},
 		},
 		{
 			role: "runs_on_relationships",
 			stmt: Statement{
 				Operation: OperationCanonicalRetract,
-				Cypher:    retractRepoRunsOnEdgesCypher,
-				Parameters: map[string]any{
-					"repo_ids":                  repoIDs,
-					"evidence_source":           evidenceSource,
-					StatementMetadataSummaryKey: "role=runs_on_relationships relationships=RUNS_ON",
-				},
+				Cypher:    repoDependencyRunsOnRetractCypher(repoIDs),
+				Parameters: repoDependencyRetractParameters(
+					repoIDs,
+					evidenceSource,
+					"role=runs_on_relationships relationships=RUNS_ON",
+				),
 			},
 		},
 		{
 			role: "evidence_artifacts",
 			stmt: Statement{
 				Operation: OperationCanonicalRetract,
-				Cypher:    retractRepoEvidenceArtifactsCypher,
-				Parameters: map[string]any{
-					"repo_ids":                  repoIDs,
-					"evidence_source":           evidenceSource,
-					StatementMetadataSummaryKey: "role=evidence_artifacts relationships=HAS_DEPLOYMENT_EVIDENCE",
-				},
+				Cypher:    repoDependencyEvidenceArtifactRetractCypher(repoIDs),
+				Parameters: repoDependencyRetractParameters(
+					repoIDs,
+					evidenceSource,
+					"role=evidence_artifacts relationships=HAS_DEPLOYMENT_EVIDENCE",
+				),
 			},
 		},
 	}
+}
+
+func repoDependencyRelationshipRetractCypher(repoIDs []string) string {
+	if len(repoIDs) == 1 {
+		return retractSingleRepoRelationshipEdgesCypher
+	}
+	return retractRepoRelationshipEdgesCypher
+}
+
+func repoDependencyRunsOnRetractCypher(repoIDs []string) string {
+	if len(repoIDs) == 1 {
+		return retractSingleRepoRunsOnEdgesCypher
+	}
+	return retractRepoRunsOnEdgesCypher
+}
+
+func repoDependencyEvidenceArtifactRetractCypher(repoIDs []string) string {
+	if len(repoIDs) == 1 {
+		return retractSingleRepoEvidenceArtifactsCypher
+	}
+	return retractRepoEvidenceArtifactsCypher
+}
+
+func repoDependencyRetractParameters(repoIDs []string, evidenceSource string, summary string) map[string]any {
+	params := map[string]any{
+		"evidence_source":           evidenceSource,
+		StatementMetadataSummaryKey: summary,
+	}
+	if len(repoIDs) == 1 {
+		params["repo_id"] = repoIDs[0]
+		return params
+	}
+	params["repo_ids"] = repoIDs
+	return params
 }
 
 func (w *EdgeWriter) executeRepoDependencyRetractStatements(ctx context.Context, repoIDs []string, evidenceSource string) error {

@@ -165,10 +165,7 @@ func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 		if stmt.Operation != OperationCanonicalRetract {
 			t.Fatalf("statement operation = %q, want canonical_retract", stmt.Operation)
 		}
-		repoIDs, ok := stmt.Parameters["repo_ids"].([]string)
-		if !ok {
-			continue
-		}
+		repoIDs := statementRepoAnchorIDs(stmt)
 		if len(repoIDs) == 1 && repoIDs[0] == "repo-a" {
 			foundRepoIDAnchor = true
 		}

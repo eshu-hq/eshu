@@ -28,37 +28,34 @@ func TestEdgeWriterRetractEdgesRepoDependencyDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 2; got != want {
+	if got, want := len(executor.calls), 3; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
 	if !strings.Contains(executor.calls[0].Cypher, "source_repo:Repository") {
 		t.Fatalf("cypher missing Repository match: %s", executor.calls[0].Cypher)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "UNWIND $repo_ids AS repo_id") {
-		t.Fatalf("cypher missing per-repo unwind anchor: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: repo_id})") {
+	if !strings.Contains(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: $repo_id})") {
 		t.Fatalf("cypher missing indexed source Repository anchor: %s", executor.calls[0].Cypher)
 	}
-	if strings.Contains(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: repo_id})-[") {
+	if strings.Contains(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: $repo_id})-[") {
 		t.Fatalf("cypher expands relationships before completing indexed Repository anchor: %s", executor.calls[0].Cypher)
 	}
-	anchorIndex := strings.Index(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: repo_id})")
+	anchorIndex := strings.Index(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: $repo_id})")
 	expansionIndex := strings.Index(executor.calls[0].Cypher, "MATCH (source_repo)-[rel:")
 	if anchorIndex < 0 || expansionIndex < 0 || anchorIndex >= expansionIndex {
 		t.Fatalf("cypher must anchor Repository before relationship expansion: %s", executor.calls[0].Cypher)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "MATCH (repo:Repository {id: repo_id})") {
-		t.Fatalf("cypher missing indexed RUNS_ON Repository anchor: %s", executor.calls[0].Cypher)
+	if !strings.Contains(executor.calls[1].Cypher, "MATCH (repo:Repository {id: $repo_id})") {
+		t.Fatalf("cypher missing indexed RUNS_ON Repository anchor: %s", executor.calls[1].Cypher)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "HAS_DEPLOYMENT_EVIDENCE") {
-		t.Fatalf("artifact retract cypher missing evidence edge: %s", executor.calls[1].Cypher)
+	if !strings.Contains(executor.calls[2].Cypher, "HAS_DEPLOYMENT_EVIDENCE") {
+		t.Fatalf("artifact retract cypher missing evidence edge: %s", executor.calls[2].Cypher)
 	}
-	if strings.Contains(executor.calls[1].Cypher, "MATCH (source_repo:Repository {id: repo_id})-[") {
-		t.Fatalf("artifact retract expands relationships before completing indexed Repository anchor: %s", executor.calls[1].Cypher)
+	if strings.Contains(executor.calls[2].Cypher, "MATCH (source_repo:Repository {id: $repo_id})-[") {
+		t.Fatalf("artifact retract expands relationships before completing indexed Repository anchor: %s", executor.calls[2].Cypher)
 	}
-	if !strings.Contains(executor.calls[1].Cypher, "DETACH DELETE artifact") {
-		t.Fatalf("artifact retract cypher missing DETACH DELETE: %s", executor.calls[1].Cypher)
+	if !strings.Contains(executor.calls[2].Cypher, "DETACH DELETE artifact") {
+		t.Fatalf("artifact retract cypher missing DETACH DELETE: %s", executor.calls[2].Cypher)
 	}
 }
 
@@ -82,7 +79,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 	}
 
 	entries := decodeJSONLogEntries(t, logs.Bytes())
-	if got, want := len(entries), 2; got != want {
+	if got, want := len(entries), 3; got != want {
 		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
 	}
 	for i, call := range executor.calls {
@@ -90,7 +87,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 			t.Fatalf("executor call %d passed diagnostic statement summary to backend: %#v", i, call.Parameters)
 		}
 	}
-	for i, wantRole := range []string{"repository_relationships", "evidence_artifacts"} {
+	for i, wantRole := range []string{"repository_relationship_edges", "runs_on_relationships", "evidence_artifacts"} {
 		entry := entries[i]
 		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
 			t.Fatalf("entry %d msg = %v, want %v", i, got, want)
@@ -110,7 +107,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 		if _, ok := entry["duration_seconds"]; !ok {
 			t.Fatalf("entry %d missing duration_seconds: %v", i, entry)
 		}
-		if wantRole == "repository_relationships" {
+		if wantRole == "repository_relationship_edges" {
 			summary, _ := entry["statement_summary"].(string)
 			for _, wantRelationship := range []string{
 				"DEPENDS_ON",
@@ -119,11 +116,13 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 				"PROVISIONS_DEPENDENCY_FOR",
 				"USES_MODULE",
 				"READS_CONFIG_FROM",
-				"RUNS_ON",
 			} {
 				if !strings.Contains(summary, wantRelationship) {
 					t.Fatalf("entry %d statement_summary = %q, missing %s", i, summary, wantRelationship)
 				}
+			}
+			if strings.Contains(summary, "RUNS_ON") {
+				t.Fatalf("entry %d statement_summary = %q, must not include RUNS_ON", i, summary)
 			}
 		}
 	}
@@ -167,17 +166,17 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsGroupedStatementRoles(t *testin
 		t.Fatalf("execution_mode = %v, want %v", got, want)
 	}
 	rawSummaries, ok := entry["statement_summaries"].([]any)
-	if !ok || len(rawSummaries) != 2 {
-		t.Fatalf("statement_summaries = %#v, want two statement roles", entry["statement_summaries"])
+	if !ok || len(rawSummaries) != 3 {
+		t.Fatalf("statement_summaries = %#v, want three statement roles", entry["statement_summaries"])
 	}
 	for _, want := range []string{
-		"role=repository_relationships",
+		"role=repository_relationship_edges",
 		"DEPLOYS_FROM",
 		"DISCOVERS_CONFIG_IN",
 		"PROVISIONS_DEPENDENCY_FOR",
 		"USES_MODULE",
 		"READS_CONFIG_FROM",
-		"RUNS_ON",
+		"role=runs_on_relationships",
 		"role=evidence_artifacts",
 	} {
 		found := false
@@ -191,6 +190,45 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsGroupedStatementRoles(t *testin
 		if !found {
 			t.Fatalf("statement_summaries = %#v, missing %q", rawSummaries, want)
 		}
+	}
+}
+
+func TestEdgeWriterRetractEdgesRepoDependencySingleRepoGroupUsesBoundDeleteShape(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.groupCalls), 1; got != want {
+		t.Fatalf("group calls = %d, want %d", got, want)
+	}
+	group := executor.groupCalls[0]
+	if got, want := len(group), 3; got != want {
+		t.Fatalf("grouped repo dependency statements = %d, want %d", got, want)
+	}
+	repoRelationships := group[0]
+	if strings.Contains(repoRelationships.Cypher, "UNWIND") {
+		t.Fatalf("single-repo relationship retract must avoid UNWIND to stay on bound-delete path: %s", repoRelationships.Cypher)
+	}
+	if !strings.Contains(repoRelationships.Cypher, "MATCH (source_repo:Repository {id: $repo_id})") {
+		t.Fatalf("single-repo relationship retract must use direct repo_id parameter: %s", repoRelationships.Cypher)
+	}
+	if _, ok := repoRelationships.Parameters["repo_id"]; !ok {
+		t.Fatalf("single-repo relationship retract missing repo_id parameter: %#v", repoRelationships.Parameters)
+	}
+	if _, ok := repoRelationships.Parameters["repo_ids"]; ok {
+		t.Fatalf("single-repo relationship retract must not pass repo_ids: %#v", repoRelationships.Parameters)
+	}
+	if !strings.Contains(group[1].Cypher, "RUNS_ON") {
+		t.Fatalf("second grouped statement should retract RUNS_ON edges: %s", group[1].Cypher)
 	}
 }
 
@@ -255,12 +293,12 @@ func TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes(t *testing.T) 
 	grouped := buildRepoDependencyRetractStatements([]string{"repo-a"}, "projection/code-imports")
 	diagnostic := buildRepoDependencyDiagnosticRetractStatements([]string{"repo-a"}, "projection/code-imports")
 
-	wantGroupedSummary := repoDependencyRetractSummary(
-		"repository_relationships",
-		repoDependencyRelationshipEdgeTypes+"|RUNS_ON",
-	)
+	wantGroupedSummary := repoDependencyRetractSummary("repository_relationship_edges", repoDependencyRelationshipEdgeTypes)
 	if got := grouped[0].stmt.Parameters[StatementMetadataSummaryKey]; got != wantGroupedSummary {
 		t.Fatalf("grouped relationship summary = %v, want %s", got, wantGroupedSummary)
+	}
+	if got := grouped[1].stmt.Parameters[StatementMetadataSummaryKey]; got != "role=runs_on_relationships relationships=RUNS_ON" {
+		t.Fatalf("grouped RUNS_ON summary = %v, want RUNS_ON role", got)
 	}
 
 	wantDiagnosticSummary := repoDependencyRetractSummary(
@@ -308,4 +346,14 @@ func decodeJSONLogEntries(t *testing.T, raw []byte) []map[string]any {
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func statementRepoAnchorIDs(stmt Statement) []string {
+	if repoID, ok := stmt.Parameters["repo_id"].(string); ok {
+		return []string{repoID}
+	}
+	if repoIDs, ok := stmt.Parameters["repo_ids"].([]string); ok {
+		return repoIDs
+	}
+	return nil
 }

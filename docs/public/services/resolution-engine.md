@@ -86,8 +86,9 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
 - The main loop, shared projection runner, code-call runner, and
   repo-dependency runner run as concurrent goroutines inside `Service.Run()`.
 - `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is a diagnostic-only switch
-  for bounded proof runs. Leave it off for normal operation; when enabled it
-  splits repo-dependency retract execution into timed
+  for bounded proof runs. Leave it off for normal operation; grouped production
+  execution still uses the same three role statements in one transaction. When
+  enabled it executes those statements separately and times
   `repository_relationship_edges`, `runs_on_relationships`, and
   `evidence_artifacts` roles so logs show which cleanup owns the cost.
 - The generation-retention runner runs beside those loops and relies on

@@ -193,20 +193,23 @@ Each code-call statement carries a bounded route summary with relationship,
 source label, target label, and row count so slow shared-edge logs can be tied
 back to the exact Cypher shape without exposing file paths or entity IDs.
 
-Repo-dependency retract normally executes its repository-relationship cleanup
-and evidence-artifact cleanup as one grouped transaction. The
+Repo-dependency retract executes repository relationship edge cleanup,
+`RUNS_ON` cleanup, and evidence-artifact cleanup as separate statements inside
+one grouped transaction. Single-repository cycles use direct `$repo_id` anchors
+instead of `UNWIND $repo_ids` for the repository relationship statement so
+NornicDB can stay on its bound relationship delete path. The
 `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` diagnostic switch keeps the same
-default off state, but executes the cleanup as three timed statements during a
-bounded proof run so `shared edge retract statement completed` logs can
-attribute time to `repository_relationship_edges`, `runs_on_relationships`, and
-`evidence_artifacts`. Leave the switch disabled for production timing.
+default off state, but executes those statements sequentially during a bounded
+proof run so `shared edge retract statement completed` logs can attribute time
+to `repository_relationship_edges`, `runs_on_relationships`, and
+`evidence_artifacts`. Leave the switch disabled for production grouped timing.
 
 No-Regression Evidence: the default path still uses the grouped
 `ExecuteGroup` transaction boundary. `go test ./internal/storage/cypher -run
-'TestEdgeWriterRetractEdgesRepoDependency(LogsGroupedStatementRoles|DiagnosticStatementTimingBypassesGroup)' -count=1`
-proves grouped logging remains default and the diagnostic switch is the only
-path that bypasses grouping for per-statement timing. This is a diagnostic-only
-mode, not a wall-clock optimization.
+'TestEdgeWriterRetractEdgesRepoDependency(LogsGroupedStatementRoles|SingleRepoGroupUsesBoundDeleteShape|DiagnosticStatementTimingBypassesGroup)' -count=1`
+proves grouped logging remains default, single-repo cycles use the direct
+bound-delete shape, and the diagnostic switch is the only path that bypasses
+grouping for per-statement timing.
 
 Observability Evidence: the diagnostic path reuses the existing
 `shared edge retract statement completed` log shape with `domain`,
