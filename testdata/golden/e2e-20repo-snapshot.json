@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 67,
-        "max": 91,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 67: 2 AWS + 65 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "min": 77,
+        "max": 101,
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 77: 2 AWS + 75 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -110,12 +110,12 @@
       "REPO_CONTAINS": {
         "min": 40,
         "max": 20000,
-        "note": "every Repository→File edge (observed 78, tracks File); floor catches a major projection drop, ceiling wide for corpus growth"
+        "note": "every Repository\u2192File edge (observed 78, tracks File); floor catches a major projection drop, ceiling wide for corpus growth"
       },
       "DEFINES": {
         "min": 1,
         "max": 50000,
-        "note": "File→Function definition edges (observed 5; the demo fixtures are largely config, few code functions); floor 1 catches total loss"
+        "note": "File\u2192Function definition edges (observed 5; the demo fixtures are largely config, few code functions); floor 1 catches total loss"
       },
       "IMPORTS": {
         "min": 0,
@@ -130,12 +130,12 @@
       "DEPENDS_ON": {
         "min": 1,
         "max": 2000,
-        "note": "cross-repo Repository→Repository dependency edges from code-import and package-consumption domains (B-13 fix)"
+        "note": "cross-repo Repository\u2192Repository dependency edges from code-import and package-consumption domains (B-13 fix)"
       },
       "DEPENDS_ON_PACKAGE": {
         "min": 1,
         "max": 5000,
-        "note": "Repository→PackageVersion manifest-level dependency edges"
+        "note": "Repository\u2192PackageVersion manifest-level dependency edges"
       },
       "DECLARES_DEPENDENCY": {
         "min": 1,
@@ -145,22 +145,22 @@
       "HAS_VERSION": {
         "min": 1,
         "max": 200,
-        "note": "Package→PackageVersion version edges from package_registry canonical writer"
+        "note": "Package\u2192PackageVersion version edges from package_registry canonical writer"
       },
       "CORRELATES_DEPLOYABLE_UNIT": {
         "min": 1,
         "max": 20,
-        "note": "Repository(source)→Repository(deployment-config) deployable-unit correlation edge"
+        "note": "Repository(source)\u2192Repository(deployment-config) deployable-unit correlation edge"
       },
       "RUNS_IN": {
         "min": 1,
         "max": 5000,
-        "note": "Function→Workload code-to-workload binding (not WorkloadInstance→CloudResource)"
+        "note": "Function\u2192Workload code-to-workload binding (not WorkloadInstance\u2192CloudResource)"
       },
       "RUNS_IMAGE": {
         "min": 1,
         "max": 30,
-        "note": "KubernetesWorkload→OciImageManifest supply-chain image correlation"
+        "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation"
       },
       "HANDLES_ROUTE": {
         "min": 1,
@@ -175,12 +175,12 @@
       "USES": {
         "min": 0,
         "max": 100,
-        "note": "WorkloadInstance→CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
+        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
       },
       "GRANTS_ACCESS_TO": {
         "min": 0,
         "max": 100,
-        "note": "CloudResource→ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
+        "note": "CloudResource\u2192ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
       },
       "CAN_ASSUME": {
         "min": 0,
@@ -205,12 +205,12 @@
       "PROVISIONS_PLATFORM": {
         "min": 0,
         "max": 20,
-        "note": "Repository→Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
+        "note": "Repository\u2192Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
       },
       "PROVISIONS_DEPENDENCY_FOR": {
         "min": 0,
         "max": 100,
-        "note": "Repository→Repository service materialization dependency edges"
+        "note": "Repository\u2192Repository service materialization dependency edges"
       },
       "SECRETS_IAM_USES_SERVICE_ACCOUNT": {
         "min": 0,
@@ -225,7 +225,7 @@
       "SECRETS_IAM_GRANTS_SECRET_READ": {
         "min": 0,
         "max": 0,
-        "note": "vault_live policy→secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
+        "note": "vault_live policy\u2192secret-path grant edges; 0 if no secret-path facts in the supply-chain-demo cassette"
       },
       "SECRETS_IAM_USES_VAULT_POLICY": {
         "min": 0,
@@ -249,7 +249,7 @@
       },
       {
         "id": "rc-2",
-        "description": "At least one Function RUNS_IN a Workload; confirms code-to-workload binding ran (RUNS_IN goes Function→Workload, not WorkloadInstance→CloudResource)",
+        "description": "At least one Function RUNS_IN a Workload; confirms code-to-workload binding ran (RUNS_IN goes Function\u2192Workload, not WorkloadInstance\u2192CloudResource)",
         "relationship": "RUNS_IN",
         "from_label": "Function",
         "to_label": "Workload",
@@ -257,7 +257,7 @@
       },
       {
         "id": "rc-3",
-        "description": "Cross-repo Repository DEPENDS_ON Repository edges exist; confirms the B-13 fix — repo_dependency shared_projection_intents drained correctly",
+        "description": "Cross-repo Repository DEPENDS_ON Repository edges exist; confirms the B-13 fix \u2014 repo_dependency shared_projection_intents drained correctly",
         "relationship": "DEPENDS_ON",
         "from_label": "Repository",
         "to_label": "Repository",
@@ -1150,12 +1150,116 @@
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-104",
+        "description": "A Cloud Functions Function CloudResource is connected to its source Storage Bucket CloudResource via a GCP_function_source_bucket edge; the gcpcloud cassette carries gcp_cloud_resource facts for BOTH the demo-fn-gen2 gen2 Function (asset_type cloudfunctions.googleapis.com/Function, environment=GEN_2, from the #4431 extractor) and the demo-fn-gen1 gen1 CloudFunction (asset_type cloudfunctions.googleapis.com/CloudFunction, from the #4452 extractor sharing extractor_cloud_function.go's relationship constants per extractor_cloud_function_v1.go), each with a gcp_cloud_relationship fact with relationship_type function_source_bucket targeting the shared demo-bucket Bucket. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The minimum_count of 2 is provably unreachable unless BOTH the gen2 (#4431) and gen1 (#4452) Function projections emit their source-bucket edge \u2014 the count-2 floor is what isolates a single-generation projection regression, since a plain count-1 assertion would false-green when only one generation projects. This locks in the source-bucket edge for both Cloud Functions extractor registrations (#4431, #4452).",
+        "relationship": "GCP_function_source_bucket",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 2
+      },
+      {
+        "id": "rc-105",
+        "description": "A Cloud Functions Function CloudResource is connected to its VPC Access Connector CloudResource via a GCP_function_uses_vpc_connector edge; both the demo-fn-gen2 gen2 Function (#4431) and the demo-fn-gen1 gen1 CloudFunction (#4452) carry a gcp_cloud_relationship fact with relationship_type function_uses_vpc_connector targeting the shared demo-connector Connector. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The minimum_count of 2 is provably unreachable unless both the gen2 and gen1 Function projections emit their VPC connector edge, isolating a single-generation projection regression. This locks in the VPC connector edge for both Cloud Functions extractor registrations (#4431, #4452).",
+        "relationship": "GCP_function_uses_vpc_connector",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 2
+      },
+      {
+        "id": "rc-106",
+        "description": "A Cloud Functions Function CloudResource is connected to a mounted Secret Manager Secret CloudResource via a GCP_function_mounts_secret edge; both the demo-fn-gen2 gen2 Function (#4431) and the demo-fn-gen1 gen1 CloudFunction (#4452) carry a gcp_cloud_relationship fact with relationship_type function_mounts_secret targeting the shared demo-secret Secret. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The minimum_count of 2 is provably unreachable unless both the gen2 and gen1 Function projections emit their secret-mount edge, isolating a single-generation projection regression. This locks in the secret-mount edge for both Cloud Functions extractor registrations (#4431, #4452).",
+        "relationship": "GCP_function_mounts_secret",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 2
+      },
+      {
+        "id": "rc-107",
+        "description": "A Cloud Functions Function CloudResource is connected to its trigger Pub/Sub Topic CloudResource via a GCP_function_triggered_by_topic edge; both the demo-fn-gen2 gen2 Function (#4431) and the demo-fn-gen1 gen1 CloudFunction (#4452) carry a gcp_cloud_relationship fact with relationship_type function_triggered_by_topic targeting the shared demo-topic-2 Topic. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The minimum_count of 2 is provably unreachable unless both the gen2 and gen1 Function projections emit their trigger-topic edge, isolating a single-generation projection regression. This locks in the trigger-topic edge for both Cloud Functions extractor registrations and completes full Cloud Functions edge coverage (#4431, #4452).",
+        "relationship": "GCP_function_triggered_by_topic",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 2
+      },
+      {
+        "id": "rc-108",
+        "description": "A Cloud Run Revision CloudResource is connected to its parent Cloud Run Service CloudResource via a GCP_revision_of_service edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-run-service-rev-1 Revision (asset_type run.googleapis.com/Revision, with bounded execution_environment/vpc_egress/scaling/container_image/env_keys/ready_condition_state attributes) and a gcp_cloud_relationship fact with relationship_type revision_of_service targeting the shared demo-run-service Service, matching the #4416 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Revision cloud_resource + relationship facts, so this locks in the Cloud Run Revision typed-depth extractor's golden-corpus follow-up (#4416).",
+        "relationship": "GCP_revision_of_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-109",
+        "description": "A Cloud Run Revision CloudResource is connected to its VPC Access Connector CloudResource via a GCP_revision_uses_vpc_connector edge; the demo-run-service-rev-1 Revision fact carries a gcp_cloud_relationship fact with relationship_type revision_uses_vpc_connector targeting the shared demo-connector Connector, matching the #4416 extractor's VPC connector edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Revision->Connector relationship fact, so this locks in the Cloud Run Revision VPC connector edge path (#4416).",
+        "relationship": "GCP_revision_uses_vpc_connector",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-110",
+        "description": "A Cloud Run Revision CloudResource is connected to a mounted Secret Manager Secret CloudResource via a GCP_revision_mounts_secret edge; the demo-run-service-rev-1 Revision fact carries a gcp_cloud_relationship fact with relationship_type revision_mounts_secret targeting the shared demo-run-secret Secret, matching the #4416 extractor's secret-mount edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Revision->Secret relationship fact, so this locks in the Cloud Run Revision secret-mount edge path and completes full Revision edge coverage (#4416).",
+        "relationship": "GCP_revision_mounts_secret",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-111",
+        "description": "A BigQuery Routine CloudResource is connected to its parent BigQuery Dataset CloudResource via a GCP_bigquery_routine_in_dataset edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-enrich-routine Routine (asset_type bigquery.googleapis.com/Routine, with bounded routine_type/language/argument_count/return_type_kind/has_definition_body/imported_library_count attributes) and a gcp_cloud_relationship fact with relationship_type bigquery_routine_in_dataset targeting the shared analytics Dataset, matching the #4441 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Routine cloud_resource + relationship facts, so this locks in the BigQuery Routine typed-depth extractor's golden-corpus follow-up (#4441).",
+        "relationship": "GCP_bigquery_routine_in_dataset",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-112",
+        "description": "A BigQuery Routine CloudResource is connected to the BigQuery Connection its remote function uses via a GCP_bigquery_routine_uses_connection edge; the demo-enrich-routine Routine fact carries a gcp_cloud_relationship fact with relationship_type bigquery_routine_uses_connection targeting the synthetic demo-bq-connection Connection (asset_type bigqueryconnection.googleapis.com/Connection, which has no typed extractor yet so it projects as a generic CloudResource), matching the #4441 extractor's remote-function connection edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Routine->Connection relationship fact, so this locks in the BigQuery Routine connection edge path and completes full Routine edge coverage (#4441).",
+        "relationship": "GCP_bigquery_routine_uses_connection",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-113",
+        "description": "A Dataform Repository CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_dataform_repository_encrypted_by_kms_key edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-dataform-repo Repository (asset_type dataform.googleapis.com/Repository, with bounded git_default_branch/git_remote_host_fingerprint/workspace_default_database/customer_managed_encryption attributes) and a gcp_cloud_relationship fact with relationship_type dataform_repository_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4462 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Repository cloud_resource + relationship facts, so this locks in the Dataform Repository typed-depth extractor's golden-corpus follow-up (#4462).",
+        "relationship": "GCP_dataform_repository_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-114",
+        "description": "A Secret Manager SecretVersion CloudResource is connected to its parent Secret CloudResource via a GCP_secret_version_of_secret edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-secret-version-1 SecretVersion (asset_type secretmanager.googleapis.com/SecretVersion, with bounded state/replication_type/customer_managed_encryption attributes) and a gcp_cloud_relationship fact with relationship_type secret_version_of_secret targeting the shared demo-secret Secret, matching the #4438 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the SecretVersion cloud_resource + relationship facts, so this locks in the Secret Manager SecretVersion typed-depth extractor's golden-corpus follow-up (#4438).",
+        "relationship": "GCP_secret_version_of_secret",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-115",
+        "description": "A Secret Manager SecretVersion CloudResource is connected to the Cloud KMS CryptoKeyVersion that wraps it via a GCP_secret_version_encrypted_by_kms_key_version edge; the demo-secret-version-1 SecretVersion fact carries a gcp_cloud_relationship fact with relationship_type secret_version_encrypted_by_kms_key_version targeting the synthetic demo-secret-key-version CryptoKeyVersion (asset_type cloudkms.googleapis.com/CryptoKeyVersion, which has no typed extractor yet so it projects as a generic CloudResource), matching the #4438 extractor's user-managed CMEK edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the SecretVersion->CryptoKeyVersion relationship fact, so this locks in the SecretVersion CMEK edge path and completes full SecretVersion edge coverage (#4438).",
+        "relationship": "GCP_secret_version_encrypted_by_kms_key_version",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-116",
+        "description": "An IAM ServiceAccountKey CloudResource is connected to its parent IAM ServiceAccount CloudResource via a GCP_service_account_key_of edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-deployer-key-1 ServiceAccountKey (asset_type iam.googleapis.com/ServiceAccountKey, with bounded key_type/key_algorithm/key_origin/valid_after_time/valid_before_time/disabled/parent_service_account_email_fingerprint attributes and never any key material) and a gcp_cloud_relationship fact with relationship_type service_account_key_of targeting the synthetic demo-deployer-sa ServiceAccount, matching the #4414 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the ServiceAccountKey cloud_resource + relationship facts, so this locks in the IAM ServiceAccountKey typed-depth extractor's golden-corpus follow-up (#4414).",
+        "relationship": "GCP_service_account_key_of",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
       {
         "id": "rn-file-language",
-        "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor — legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.",
+        "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor \u2014 legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.",
         "label": "File",
         "minimum_count": 10,
         "required_node_properties": [
@@ -1172,7 +1276,7 @@
     },
     "shared_projection_intents": {
       "nonterminal_max": 0,
-      "note": "all rows must have completed_at IS NOT NULL; the repo_dependency domain (B-13 #3859) is the primary gate — nonterminal intents here indicate the activation-gate bypass is not working or the drain budget was exceeded"
+      "note": "all rows must have completed_at IS NOT NULL; the repo_dependency domain (B-13 #3859) is the primary gate \u2014 nonterminal intents here indicate the activation-gate bypass is not working or the drain budget was exceeded"
     }
   },
   "query_shapes": {
