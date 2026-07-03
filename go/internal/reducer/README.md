@@ -814,6 +814,36 @@ same-scope conflict fencing and inserts refreshed term rows without PostgreSQL's
 fails if the term insert reintroduces conflict-update churn after the refresh
 delete.
 
+Performance Evidence: #4621 current-main proof after #4614
+(`current-main-post4614-cap30-20260703T182320Z`, commit
+`177e2beb6e33090fa2ac3882a12218e03277554e`, NornicDB main image
+`eshu-nornicdb-main:5646d7ee`, 895-repository corpus, 30-minute cap) completed
+source-local projection for all 895 repositories but stopped with reducer
+backlog still open. In that window `eshu_search_document` completed 137 cycles
+with 419 still pending, the persisted search index held 995,121 documents and
+27,780,113 term rows, and `index_term_upsert_seconds` summed to 1,940.446s
+(14.164s average, 251.732s max). The #4621 local preparation benchmark isolates
+one in-process part of that timed subphase: on darwin/arm64 Apple M5 Max,
+`go test ./internal/reducer -run '^$' -bench '^BenchmarkBuildSearchIndexTermColumns$' -benchmem -count=5`
+over a 2,000-document / 150-term synthetic page (300,000 term rows) measured the
+old global row sort at 119.220-131.184ms/op and about 169MB/op, while the
+bucketed primary-key-order builder measured 34.029-34.492ms/op and about
+92MB/op. Classification: handler win for term-column preparation only; wall
+clock still requires a bounded remote proof on the branch.
+No-Regression Evidence: `go test ./internal/reducer -count=1` covers the
+streaming writer, term lifecycle, and COPY/fallback paths. The focused
+regressions `TestWriteSearchIndexTermsCopyPathPreservesPreparedOrder`,
+`TestBuildSearchIndexTermColumnsMatchesGlobalSortOrdering`, and
+`TestBuildSearchIndexTermColumnsSortsUnorderedDocuments` prove the COPY helper
+no longer performs a hidden full-row sort, while the page builder still emits
+the same `(term_key, document_id)` primary-key suffix order as the old global
+sort even when callers provide documents out of order.
+No-Observability-Change: the change adds no metric, span, log field, queue,
+worker, SQL statement, graph write, runtime knob, or high-cardinality label.
+Operators still diagnose this path through the existing
+`index_term_upsert_seconds` cycle log field and the bounded
+`eshu_dp_search_index_write_duration_seconds{operation="term_upsert"}` metric.
+
 `SearchVectorBuildRunner` is a side runner that can build derived vector rows
 after search documents are active. The command layer wires it when the
 semantic-search selector chooses either the deterministic local override or one

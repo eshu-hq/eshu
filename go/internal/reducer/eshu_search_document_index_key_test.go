@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -160,6 +161,54 @@ func TestWriteEshuSearchDocumentsUsesTermCopierWhenAvailable(t *testing.T) {
 		if strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms") {
 			t.Fatalf("term insert ExecContext ran despite copy fast path:\n%s", exec.query)
 		}
+	}
+}
+
+func TestWriteSearchIndexTermsCopyPathPreservesPreparedOrder(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	copier := &fakeSearchIndexTermCopier{}
+	writer := PostgresEshuSearchDocumentWriter{
+		DB:               db,
+		SearchTermCopier: copier,
+	}
+
+	preparedDocumentIDs := []string{"doc-b", "doc-a", "doc-c"}
+	preparedTerms := []string{"beta", "alpha", "gamma"}
+	preparedTermKeys := []string{"beta", "alpha", "gamma"}
+	preparedFrequencies := []int{2, 1, 3}
+
+	if err := writer.writeSearchIndexTerms(
+		context.Background(),
+		"scope-1",
+		"gen-1",
+		preparedDocumentIDs,
+		preparedTerms,
+		preparedTermKeys,
+		preparedFrequencies,
+	); err != nil {
+		t.Fatalf("writeSearchIndexTerms error = %v", err)
+	}
+	if got := len(copier.calls); got != 1 {
+		t.Fatalf("copy calls = %d, want 1", got)
+	}
+	call := copier.calls[0]
+	if !slices.Equal(call.documentIDs, preparedDocumentIDs) ||
+		!slices.Equal(call.terms, preparedTerms) ||
+		!slices.Equal(call.termKeys, preparedTermKeys) ||
+		!slices.Equal(call.frequencies, preparedFrequencies) {
+		t.Fatalf(
+			"copy path reordered prepared columns: docs=%v terms=%v keys=%v freqs=%v; want docs=%v terms=%v keys=%v freqs=%v",
+			call.documentIDs,
+			call.terms,
+			call.termKeys,
+			call.frequencies,
+			preparedDocumentIDs,
+			preparedTerms,
+			preparedTermKeys,
+			preparedFrequencies,
+		)
 	}
 }
 
