@@ -469,9 +469,12 @@ resolved network and the CMEK key are surfaced as correlation anchors.
 former is a CIDR range and the latter carries no typed-depth value — and no
 per-file-share name or capacity is persisted, since `fileShares` is an
 unbounded, caller-controlled array; only a bounded count crosses the parser
-boundary. Label values are reduced to a count for the same reason label
-values are fingerprinted elsewhere in this collector — only the count, never
-the key/value content, leaves the parser.
+boundary. The typed-depth `attributes` map surfaces only a bounded
+`label_count`, not the label entries themselves; the instance's labels are
+still captured and, where sensitive, value-fingerprinted per
+`redaction_policy_version` through the collector's shared label path, the same
+as every sibling extractor — the extractor simply does not re-copy them into
+typed depth.
 
 **IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
 fingerprinted email, display name, OAuth2 client id, disabled posture, and a

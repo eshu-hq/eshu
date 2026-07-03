@@ -344,10 +344,12 @@
    CryptoKey (an already CAI-prefixed `kmsKeyName` is kept as-is, mirroring the
    Memorystore Redis Instance CMEK normalization); never reads
    `networks[].reservedIpRange` or `networks[].modes` — the former is a CIDR
-   range and never decoded into Go memory at all — and never persists
-   per-file-share name/capacity or label key/value content, since `fileShares`
-   and `labels` are unbounded, caller-controlled — only bounded counts cross
-   the parser boundary.
+   range and never decoded into Go memory at all. The typed-depth `attributes`
+   map carries only a bounded `file_share_count` and `label_count`, never
+   per-file-share name/capacity or label entries; the labels themselves are
+   still captured and value-fingerprinted per `redaction_policy_version` by the
+   collector's shared label path (the extractor just does not re-copy them into
+   typed depth).
 
 ## Invariants
 

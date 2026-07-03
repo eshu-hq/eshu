@@ -79,7 +79,10 @@ type filestoreNetworkData struct {
 // each attached VPC Network and the CMEK CryptoKey resource names as
 // cross-source correlation anchors; and one typed network edge per networks
 // entry plus the CMEK encryption edge. No reservedIpRange, network mode, file
-// share name/capacity, or label value ever reaches the output.
+// share name/capacity, or label entry ever reaches this extractor's typed-depth
+// output; the labels themselves are still captured and value-fingerprinted per
+// the redaction policy by the collector's shared label path, this extractor
+// simply surfaces only a bounded label_count in typed depth.
 func extractFilestoreInstance(ctx ExtractContext) (AttributeExtraction, error) {
 	var data filestoreInstanceData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
