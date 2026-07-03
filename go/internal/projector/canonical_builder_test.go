@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package projector //nolint:filelength // Legacy canonical materialization coverage predates the 500-line hook; this change only adjusts existing assertions while new coverage lives in focused files.
 
 import (
 	"fmt"
@@ -1424,16 +1424,16 @@ func TestExtractEntitiesHandlesPascalCaseEntityTypes(t *testing.T) {
 
 	result := buildCanonicalMaterialization(sc, gen, envelopes)
 
-	if len(result.Entities) != 4 {
+	if len(result.Entities) != 3 {
 		var labels []string
 		for _, e := range result.Entities {
 			labels = append(labels, e.Label)
 		}
-		t.Fatalf("len(Entities) = %d, want 4; labels=%v", len(result.Entities), labels)
+		t.Fatalf("len(Entities) = %d, want 3; labels=%v", len(result.Entities), labels)
 	}
 
 	// Verify all PascalCase types resolved to the correct Neo4j labels.
-	expectedLabels := []string{"Function", "Variable", "K8sResource", "TerraformResource"}
+	expectedLabels := []string{"Function", "K8sResource", "TerraformResource"}
 	for i, want := range expectedLabels {
 		if result.Entities[i].Label != want {
 			t.Errorf("Entities[%d].Label = %q, want %q", i, result.Entities[i].Label, want)
@@ -1466,7 +1466,6 @@ func TestCanonicalMaterializationOwnsSemanticEntityLabelsExceptModule(t *testing
 		"ImplBlock",
 		"Protocol",
 		"ProtocolImplementation",
-		"Variable",
 		"Function",
 	}
 	for i, label := range canonicalOwnedSemanticLabels {

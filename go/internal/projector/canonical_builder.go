@@ -238,6 +238,12 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 		if label == "Module" || label == "Parameter" {
 			continue
 		}
+		// Plain Variable rows remain in the content store/search surface. The
+		// reducer-owned semantic entity path writes the much smaller graph
+		// subset for module attributes and TSX component assertions.
+		if label == "Variable" {
+			continue
+		}
 
 		entityName, _ := payloadString(p, "entity_name")
 		relativePath, _ := payloadString(p, "relative_path")

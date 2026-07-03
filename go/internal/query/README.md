@@ -896,6 +896,17 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).
+- `/api/v0/code/language-query` treats `entity_type=variable` as
+  graph-first/content-backed: semantic `Variable` graph rows such as TSX
+  component assertions and Elixir module attributes keep graph metadata, while
+  plain variables fall back to `content_entities` so source-local projection
+  does not need to graph-write every local variable.
+  No-Regression Evidence: `go test ./internal/query -run
+  'TestHandleLanguageQueryVariableFallsBackToContentStore|TestHandleLanguageQuery_TSXVariableAssertionUsesGraphMetadataWithoutContent|TestHandleLanguageQuery_TSXReactFCWrapperUsesGraphFirstPath|TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesGraphFirstPath|TestHandleLanguageQuery_ElixirModuleAttributeUsesGraphMetadataWithoutContent'
+  -count=1` proves plain variable fallback and semantic variable graph-first
+  readback. No-Observability-Change: existing graph query spans,
+  content-store Postgres spans, HTTP route attribution, result limits, and
+  response fields diagnose the path; no new telemetry or public field is added.
 - Repository-language inventory reads use the Postgres content index through
   `CountRepositoriesByLanguage`, `ListRepositoriesByLanguage`, and
   `RepositoryLanguageInventory`. The API and MCP contract is count-first and

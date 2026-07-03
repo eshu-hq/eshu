@@ -390,6 +390,10 @@ backend-specific adapters.
 - `Module` and `Parameter` entity types are excluded from the generic
   `EntityRow` extraction path because they use different MERGE keys in the graph
   schema; they get their own extraction phases (`canonical_builder.go:227`).
+- Plain `Variable` content entities are excluded from source-local canonical
+  `EntityRow` extraction. They stay in the Postgres content/search surface;
+  reducer-owned semantic entity materialization writes the smaller graph-backed
+  `Variable` subset for module attributes and TSX component assertions.
 - Terraform entity labels from the content store include backends, imports,
   moved blocks, removed blocks, checks, and lockfile providers. `EntityTypeLabel`
   must know each label before canonical graph writes can project it.
@@ -437,6 +441,28 @@ covered by `go test ./internal/projector -run 'SchemaVersion|TestProjectEnforces
 No-Observability-Change: admission rejection continues to surface through the
 existing projector `build_projection` stage error and the projection failure
 path; no new metric, span, log field, or status row is added.
+
+Performance Evidence: post-#4623 current-main NornicDB full-corpus proof
+`post4623-current-main-e2e-cap30-20260703T2225Z` stopped after 18m51s once the
+15-minute target was already missed. At stop, source-local projection had
+273/895 repositories succeeded with zero failed, retrying, or dead-lettered
+items. Among completed source-local writes, `canonical_write` summed 4,754.276s
+with a 482.143s max; canonical phase logs split that into `entities` 3,514.763s
+sum and 426.327s max, `files` 912.185s sum and 50.210s max. Chunk logs showed
+`entities|Variable` as the largest cumulative entity family: 12,887 chunks,
+64,005 statements, and 21,515.213s cumulative chunk time. The worst completed
+repository carried 12,402 files and 241,719 content entities; its first-
+generation canonical write spent 46.686s in files and 426.327s in entities.
+Removing plain `Variable` from source-local canonical graph projection targets
+that measured graph-write amplification while keeping plain variable lookup in
+the content index and semantic variable graph truth in the reducer-owned
+semantic entity path.
+
+Observability Evidence: this split uses existing projector stage logs
+(`projector runtime stage completed`), canonical phase logs
+(`canonical phase group completed`), content-store spans for variable lookups,
+and semantic entity reducer logs. It adds no metric name, metric label, worker,
+queue domain, runtime knob, graph backend branch, or response field.
 
 No-Regression Evidence: Terraform-state snapshot-only and warning-only phase
 publication is covered by

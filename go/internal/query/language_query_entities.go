@@ -16,7 +16,6 @@ var graphBackedEntityTypes = map[string]string{
 	"enum":            "Enum",
 	"union":           "Union",
 	"macro":           "Macro",
-	"variable":        "Variable",
 	"type_annotation": "TypeAnnotation",
 }
 
@@ -44,6 +43,7 @@ var graphFirstContentBackedEntityTypes = map[string]string{
 	"impl_block":              "ImplBlock",
 	"protocol":                "Protocol",
 	"protocol_implementation": "ProtocolImplementation",
+	"variable":                "Variable",
 	"module_attribute":        "Variable",
 	"terraform_backend":       "TerraformBackend",
 	"terraform_check":         "TerraformCheck",
