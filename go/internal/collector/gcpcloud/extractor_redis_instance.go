@@ -81,8 +81,8 @@ func extractRedisInstance(ctx ExtractContext) (AttributeExtraction, error) {
 	}
 
 	if kms := strings.TrimSpace(data.CustomerManagedKey); kms != "" {
-		attrs["customer_managed_key"] = kms
 		if kmsName := redisInstanceKMSKeyFullName(kms); kmsName != "" {
+			attrs["customer_managed_key"] = strings.TrimPrefix(kmsName, cloudKMSResourceNamePrefix)
 			anchors = append(anchors, kmsName)
 			rels = append(rels, redisInstanceEdge(ctx, relationshipTypeRedisInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 		}

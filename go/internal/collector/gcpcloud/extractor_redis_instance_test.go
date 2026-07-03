@@ -167,8 +167,8 @@ func TestExtractRedisInstanceCMEKAlreadyCAIPrefixedNotDoublePrefixed(t *testing.
 
 	assertRelationship(t, got.Relationships, relationshipTypeRedisInstanceEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key", assetTypeKMSCryptoKey)
-	if got.Attributes["customer_managed_key"] != "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key" {
-		t.Errorf("customer_managed_key = %v, want unchanged CAI-prefixed value", got.Attributes["customer_managed_key"])
+	if got.Attributes["customer_managed_key"] != "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key" {
+		t.Errorf("customer_managed_key = %v, want bare relative form matching the anchor/edge normalization", got.Attributes["customer_managed_key"])
 	}
 	for _, rel := range got.Relationships {
 		if rel.RelationshipType == relationshipTypeRedisInstanceEncryptedByKMSKey {
@@ -176,6 +176,48 @@ func TestExtractRedisInstanceCMEKAlreadyCAIPrefixedNotDoublePrefixed(t *testing.
 				t.Fatalf("kms target double-prefixed or malformed: %q", got)
 			}
 		}
+	}
+}
+
+// TestExtractRedisInstanceCMEKLeadingSlashNormalizesSameAsBare proves a
+// leading-slash customerManagedKey value normalizes identically to the same
+// reference without the leading slash, for both the stored attribute and the
+// anchor/edge target. Before the fix for the Copilot review on PR #4563, the
+// attribute stored the raw (unnormalized) string while the anchor/edge used
+// the normalized string, so a leading slash produced two different
+// representations of the same underlying key.
+func TestExtractRedisInstanceCMEKLeadingSlashNormalizesSameAsBare(t *testing.T) {
+	const dataWithSlash = `{
+		"customerManagedKey": "/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key"
+	}`
+	const dataBare = `{
+		"customerManagedKey": "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key"
+	}`
+
+	gotSlash, err := extractRedisInstance(redisInstanceContext(dataWithSlash))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	gotBare, err := extractRedisInstance(redisInstanceContext(dataBare))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantAttr := "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key"
+	if gotSlash.Attributes["customer_managed_key"] != wantAttr {
+		t.Errorf("leading-slash customer_managed_key = %v, want %v", gotSlash.Attributes["customer_managed_key"], wantAttr)
+	}
+	if gotSlash.Attributes["customer_managed_key"] != gotBare.Attributes["customer_managed_key"] {
+		t.Errorf("leading-slash and bare customer_managed_key differ: %v vs %v",
+			gotSlash.Attributes["customer_managed_key"], gotBare.Attributes["customer_managed_key"])
+	}
+
+	wantTarget := "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key"
+	assertRelationship(t, gotSlash.Relationships, relationshipTypeRedisInstanceEncryptedByKMSKey, wantTarget, assetTypeKMSCryptoKey)
+	assertRelationship(t, gotBare.Relationships, relationshipTypeRedisInstanceEncryptedByKMSKey, wantTarget, assetTypeKMSCryptoKey)
+
+	if !reflect.DeepEqual(gotSlash.CorrelationAnchors, gotBare.CorrelationAnchors) {
+		t.Errorf("leading-slash and bare anchors differ: %v vs %v", gotSlash.CorrelationAnchors, gotBare.CorrelationAnchors)
 	}
 }
 
