@@ -108,14 +108,17 @@ func ExtractIAMCanPerformEdges(
 	resourceEnvelopes []facts.Envelope,
 	permissionEnvelopes []facts.Envelope,
 	resourcePolicyEnvelopeSets ...[]facts.Envelope,
-) IAMCanPerformResult {
+) (IAMCanPerformResult, error) {
 	result := IAMCanPerformResult{EdgesByMode: make(map[string]int)}
 	resourcePolicyEnvelopes := flattenResourcePolicyEnvelopeSets(resourcePolicyEnvelopeSets)
 	if len(permissionEnvelopes) == 0 && len(resourcePolicyEnvelopes) == 0 {
-		return result
+		return result, nil
 	}
 
-	index := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
+	}
 	principals := groupIAMCanPerformByPrincipal(index, permissionEnvelopes, &result.Tally)
 	boundariesByPrincipal := groupIAMCanPerformBoundaryEvidence(index, permissionEnvelopes)
 	catalog := iamCanPerformCatalogByAction()
@@ -183,7 +186,7 @@ func ExtractIAMCanPerformEdges(
 
 	addIAMCanPerformResourcePolicyEdges(index, resourcePolicyEnvelopes, catalog, edges, &result.Tally)
 	result.Edges = buildIAMCanPerformEdgeRows(edges, result.EdgesByMode)
-	return result
+	return result, nil
 }
 
 // iamCanPerformActionIsCatalogued reports whether one granted action covers at

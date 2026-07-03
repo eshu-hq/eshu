@@ -87,13 +87,16 @@ func (t securityGroupReachabilityTally) total() int {
 func ExtractSecurityGroupReachability(
 	resourceEnvelopes []facts.Envelope,
 	ruleEnvelopes []facts.Envelope,
-) SecurityGroupReachabilityResult {
+) (SecurityGroupReachabilityResult, error) {
 	result := SecurityGroupReachabilityResult{}
 	if len(ruleEnvelopes) == 0 {
-		return result
+		return result, nil
 	}
 
-	index := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return SecurityGroupReachabilityResult{}, err
+	}
 
 	ruleNodesByUID := make(map[string]map[string]any)
 	sgEdgesByKey := make(map[string]map[string]any)
@@ -186,7 +189,7 @@ func ExtractSecurityGroupReachability(
 	result.RuleNodes = sortReachabilityRows(ruleNodesByUID, "uid")
 	result.SGRuleEdges = sortReachabilitySGEdges(sgEdgesByKey)
 	result.RuleEndpointEdges = sortReachabilityToEdges(toEdgesByKey)
-	return result
+	return result, nil
 }
 
 // resolveSecurityGroupNode recomputes the CloudResource uid for a security group

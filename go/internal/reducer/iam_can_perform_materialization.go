@@ -162,7 +162,13 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 	permissionInputs = append(permissionInputs, permissionBoundaryEnvelopes...)
 
 	extractStart := time.Now()
-	result := ExtractIAMCanPerformEdges(resourceEnvelopes, permissionInputs, resourcePolicyEnvelopes)
+	result, err := ExtractIAMCanPerformEdges(resourceEnvelopes, permissionInputs, resourcePolicyEnvelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of resolving edges against an empty-string node identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

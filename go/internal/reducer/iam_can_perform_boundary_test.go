@@ -53,7 +53,10 @@ func TestIAMCanPerformPermissionBoundaryAllowsIdentityGrant(t *testing.T) {
 		canPerformBoundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	edge := canPerformEdgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))
 	if edge == nil {
 		t.Fatalf("identity grant allowed by boundary must emit CAN_PERFORM edge; rows=%v tally=%+v", result.Edges, result.Tally)
@@ -85,7 +88,10 @@ func TestIAMCanPerformPermissionBoundaryMissingAllowSuppressesGrant(t *testing.T
 		canPerformBoundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:putobject"}, []string{canPerformBucketARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("identity grant without matching boundary allow must not emit edge; got %v", result.Edges)
 	}
@@ -111,7 +117,10 @@ func TestIAMCanPerformPermissionBoundaryDenySuppressesGrant(t *testing.T) {
 		canPerformBoundaryPermissionEnvelope(attackerUserARN, "Deny", []string{"s3:getobject"}, []string{"*"}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("boundary Deny must suppress the identity grant; got %v", result.Edges)
 	}
@@ -132,7 +141,10 @@ func TestIAMCanPerformPermissionBoundaryMissingDocumentIsUnresolved(t *testing.T
 		canPerformBoundaryEnvelope(attackerUserARN),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("boundary attachment without a document must not emit edge; got %v", result.Edges)
 	}
@@ -154,7 +166,10 @@ func TestIAMCanPerformPermissionBoundaryConditionedAllowSkipped(t *testing.T) {
 		canPerformBoundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}, withConditions()),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("conditioned boundary allow must not emit edge; got %v", result.Edges)
 	}
@@ -176,7 +191,10 @@ func TestIAMCanPerformPermissionBoundaryNotResourceSkipped(t *testing.T) {
 		canPerformBoundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}, withBoundaryNotResources("arn:aws:s3:::restricted/*")),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("boundary NotResource statement must not emit edge; got %v", result.Edges)
 	}
@@ -200,7 +218,10 @@ func TestIAMCanPerformPermissionBoundaryDuplicateFactsConverge(t *testing.T) {
 		canPerformBoundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 1 {
 		t.Fatalf("duplicate boundary facts must converge to one edge; rows=%v tally=%+v", result.Edges, result.Tally)
 	}
@@ -223,7 +244,10 @@ func TestIAMCanPerformPermissionBoundaryStatementWithoutAttachmentDoesNotGrant(t
 		canPerformBoundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("boundary policy statement without an identity grant must not emit edge; got %v", result.Edges)
 	}
@@ -243,7 +267,10 @@ func TestIAMCanPerformNoPermissionBoundaryKeepsIdentityScope(t *testing.T) {
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	edge := canPerformEdgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))
 	if edge == nil {
 		t.Fatalf("identity grant without boundary should still emit edge; rows=%v tally=%+v", result.Edges, result.Tally)

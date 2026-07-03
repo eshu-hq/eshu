@@ -119,7 +119,10 @@ func TestExtractSecurityGroupReachabilityResolvesCIDREndpoint(t *testing.T) {
 		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
 	))
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 
 	if len(result.RuleNodes) != 1 {
 		t.Fatalf("rule nodes = %d, want 1", len(result.RuleNodes))
@@ -172,7 +175,10 @@ func TestExtractSecurityGroupReachabilityEgressUsesAllowsEgress(t *testing.T) {
 		"sg-0abc", "egress", "tcp", int32(443), int32(443), "cidr_ipv4", "0.0.0.0/0",
 	))
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.SGRuleEdges) != 1 {
 		t.Fatalf("SG->rule edges = %d, want 1", len(result.SGRuleEdges))
 	}
@@ -196,7 +202,10 @@ func TestExtractSecurityGroupReachabilityReferencedSGEndpoint(t *testing.T) {
 		"sg-0abc", "ingress", "tcp", int32(5432), int32(5432), "referenced_security_group", "sg-0def",
 	))
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor, referenced}, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor, referenced}, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleEndpointEdges) != 1 {
 		t.Fatalf("rule->endpoint edges = %d, want 1", len(result.RuleEndpointEdges))
 	}
@@ -220,7 +229,10 @@ func TestExtractSecurityGroupReachabilityPrefixListEndpoint(t *testing.T) {
 		"sg-0abc", "ingress", "tcp", int32(80), int32(80), "prefix_list", "pl-1234",
 	))
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleEndpointEdges) != 1 {
 		t.Fatalf("rule->endpoint edges = %d, want 1", len(result.RuleEndpointEdges))
 	}
@@ -244,7 +256,10 @@ func TestExtractSecurityGroupReachabilityUnresolvedAnchorSkips(t *testing.T) {
 		"sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8",
 	))
 
-	result := ExtractSecurityGroupReachability(nil, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability(nil, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleNodes) != 0 || len(result.SGRuleEdges) != 0 || len(result.RuleEndpointEdges) != 0 {
 		t.Fatalf("unresolved anchor must produce nothing: %+v", result)
 	}
@@ -265,7 +280,10 @@ func TestExtractSecurityGroupReachabilityReferencedSGEndpointUnresolvedSkips(t *
 		"sg-0abc", "ingress", "tcp", int32(5432), int32(5432), "referenced_security_group", "sg-0def",
 	))
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleNodes) != 0 || len(result.SGRuleEdges) != 0 || len(result.RuleEndpointEdges) != 0 {
 		t.Fatalf("unresolved endpoint must produce nothing: %+v", result)
 	}
@@ -284,7 +302,10 @@ func TestExtractSecurityGroupReachabilityUnknownSourceSkips(t *testing.T) {
 		"sg-0abc", "ingress", "-1", nil, nil, "unknown", "",
 	))
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleNodes) != 0 || len(result.RuleEndpointEdges) != 0 {
 		t.Fatalf("unknown source must produce no node/endpoint edge: %+v", result)
 	}
@@ -307,7 +328,10 @@ func TestExtractSecurityGroupReachabilityPerPortDistinctness(t *testing.T) {
 		"sg-0abc", "ingress", "tcp", int32(443), int32(443), "cidr_ipv4", "10.0.0.0/8",
 	))
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule22, rule443})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule22, rule443})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleNodes) != 2 {
 		t.Fatalf("two ports must produce two rule nodes, got %d", len(result.RuleNodes))
 	}
@@ -325,10 +349,13 @@ func TestExtractSecurityGroupReachabilityIdempotentDuplicateRule(t *testing.T) {
 	rule := sgReachabilityRulePayload("sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8")
 	dup := sgReachabilityRulePayload("sg-0abc", "ingress", "tcp", int32(22), int32(22), "cidr_ipv4", "10.0.0.0/8")
 
-	result := ExtractSecurityGroupReachability(
+	result, err := ExtractSecurityGroupReachability(
 		[]facts.Envelope{anchor},
 		[]facts.Envelope{sgReachabilityRuleEnvelope(rule), sgReachabilityRuleEnvelope(dup)},
 	)
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleNodes) != 1 || len(result.SGRuleEdges) != 1 || len(result.RuleEndpointEdges) != 1 {
 		t.Fatalf("duplicate rule must converge: nodes=%d sg=%d to=%d",
 			len(result.RuleNodes), len(result.SGRuleEdges), len(result.RuleEndpointEdges))
@@ -346,7 +373,10 @@ func TestExtractSecurityGroupReachabilityTombstoneSkips(t *testing.T) {
 	))
 	rule.IsTombstone = true
 
-	result := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	result, err := ExtractSecurityGroupReachability([]facts.Envelope{anchor}, []facts.Envelope{rule})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleNodes) != 0 || len(result.SGRuleEdges) != 0 || len(result.RuleEndpointEdges) != 0 {
 		t.Fatalf("tombstoned rule must produce nothing: %+v", result)
 	}
@@ -357,7 +387,10 @@ func TestExtractSecurityGroupReachabilityTombstoneSkips(t *testing.T) {
 func TestExtractSecurityGroupReachabilityEmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	result := ExtractSecurityGroupReachability(nil, nil)
+	result, err := ExtractSecurityGroupReachability(nil, nil)
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupReachability() error = %v, want nil", err)
+	}
 	if len(result.RuleNodes) != 0 || len(result.SGRuleEdges) != 0 || len(result.RuleEndpointEdges) != 0 {
 		t.Fatalf("empty generation must produce nothing: %+v", result)
 	}

@@ -52,10 +52,13 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByARN(t *testing.T) {
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally := ExtractAWSRelationshipEdgeRows(
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
 	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -97,10 +100,13 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByBareID(t *testing.T) {
 		"target_type":        "aws_ec2_vpc",
 	})
 
-	rows, tally := ExtractAWSRelationshipEdgeRows(
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
 	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -132,10 +138,13 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByCorrelationAnchor(t *testing.T)
 		"target_type":        "aws_sagemaker_endpoint_config",
 	})
 
-	rows, tally := ExtractAWSRelationshipEdgeRows(
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
 	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -166,10 +175,13 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedTargetCountedNotWritten(t *test
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally := ExtractAWSRelationshipEdgeRows(
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source},
 		[]facts.Envelope{rel},
 	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for unresolved target", len(rows))
 	}
@@ -203,10 +215,13 @@ func TestExtractAWSRelationshipEdgeRowsCrossAccountTargetStaysUnresolved(t *test
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally := ExtractAWSRelationshipEdgeRows(
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, otherAccountKey},
 		[]facts.Envelope{rel},
 	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for cross-account target", len(rows))
 	}
@@ -232,10 +247,13 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedSourceStaysUnresolved(t *testin
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally := ExtractAWSRelationshipEdgeRows(
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{target},
 		[]facts.Envelope{rel},
 	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for unresolved source", len(rows))
 	}
@@ -264,10 +282,13 @@ func TestExtractAWSRelationshipEdgeRowsDeduplicatesAndSortsDeterministically(t *
 	})
 
 	// Same edge fact twice (duplicate / retry) must converge on one row.
-	rows, _ := ExtractAWSRelationshipEdgeRows(
+	rows, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel, rel},
 	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 deduplicated edge", len(rows))
 	}
@@ -276,7 +297,10 @@ func TestExtractAWSRelationshipEdgeRowsDeduplicatesAndSortsDeterministically(t *
 func TestExtractAWSRelationshipEdgeRowsEmptyInputsAreNil(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractAWSRelationshipEdgeRows(nil, nil)
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(nil, nil)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if rows != nil {
 		t.Fatalf("rows = %v, want nil", rows)
 	}
@@ -300,7 +324,10 @@ func TestExtractAWSRelationshipEdgeRowsSelfEdgeSkipped(t *testing.T) {
 		"target_type":        "aws_ec2_vpc",
 	})
 
-	rows, _ := ExtractAWSRelationshipEdgeRows([]facts.Envelope{res}, []facts.Envelope{rel})
+	rows, _, err := ExtractAWSRelationshipEdgeRows([]facts.Envelope{res}, []facts.Envelope{rel})
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for self edge", len(rows))
 	}

@@ -145,7 +145,14 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	resourceEnvelopes, relationshipEnvelopes := splitAWSFactEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally := ExtractAWSRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	rows, tally, err := ExtractAWSRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	if err != nil {
+		// A malformed aws_resource or aws_relationship payload (a missing
+		// required field) is a classified input_invalid decode failure. Return
+		// it so the durable queue dead-letters the intent instead of writing an
+		// edge against an empty-string graph identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

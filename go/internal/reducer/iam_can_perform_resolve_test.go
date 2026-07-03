@@ -27,7 +27,10 @@ func TestIAMCanPerformCrossServiceFixture(t *testing.T) {
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"dynamodb:getitem"}, []string{canPerformTableARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 3 {
 		t.Fatalf("expected 3 cross-service edges; got %d (%v)", len(result.Edges), result.Edges)
 	}
@@ -64,8 +67,16 @@ func TestIAMCanPerformDeterministicAndIdempotent(t *testing.T) {
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"kms:decrypt"}, []string{canPerformKMSKeyARN}),
 	}
-	first := ExtractIAMCanPerformEdges(resources, perms).Edges
-	second := ExtractIAMCanPerformEdges(resources, perms).Edges
+	firstResult, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
+	first := firstResult.Edges
+	secondResult, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
+	second := secondResult.Edges
 	if !reflect.DeepEqual(first, second) {
 		t.Fatalf("extraction is not deterministic:\n%v\n%v", first, second)
 	}

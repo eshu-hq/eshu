@@ -377,6 +377,8 @@ func TestAWSRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode(
 	kms := resourceEnvelope("111122223333", "us-east-1", "aws_kms_key",
 		"arn:aws:kms:us-east-1:111122223333:key/abc", "arn:aws:kms:us-east-1:111122223333:key/abc")
 	resolved := awsRelationshipEnvelope(map[string]any{
+		"account_id":         "111122223333",
+		"region":             "us-east-1",
 		"relationship_type":  "USES_KMS_KEY",
 		"source_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:fn",
 		"source_arn":         "arn:aws:lambda:us-east-1:111122223333:function:fn",
@@ -386,6 +388,8 @@ func TestAWSRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode(
 	})
 	// Resolvable source, target VPC not scanned in this generation -> unresolved.
 	unresolved := awsRelationshipEnvelope(map[string]any{
+		"account_id":         "111122223333",
+		"region":             "us-east-1",
 		"relationship_type":  "ATTACHED_TO_VPC",
 		"source_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:fn",
 		"source_arn":         "arn:aws:lambda:us-east-1:111122223333:function:fn",

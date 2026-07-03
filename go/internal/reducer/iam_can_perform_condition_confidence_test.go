@@ -31,7 +31,10 @@ func TestIAMCanPerformConditionedIdentityGrantIsProvenanceOnly(t *testing.T) {
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("conditioned grant must remain provenance-only, got edges %v", result.Edges)
 	}
@@ -61,7 +64,10 @@ func TestIAMCanPerformConditionedResourcePolicyGrantIsProvenanceOnly(t *testing.
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("conditioned resource-policy grant must remain provenance-only, got edges %v", result.Edges)
 	}

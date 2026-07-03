@@ -90,13 +90,16 @@ type iamPrincipalStatements struct {
 func ExtractIAMEscalationEdges(
 	resourceEnvelopes []facts.Envelope,
 	permissionEnvelopes []facts.Envelope,
-) IAMEscalationResult {
+) (IAMEscalationResult, error) {
 	result := IAMEscalationResult{}
 	if len(permissionEnvelopes) == 0 {
-		return result
+		return result, nil
 	}
 
-	index := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return IAMEscalationResult{}, err
+	}
 	principals := groupIAMPermissionsByPrincipal(index, permissionEnvelopes, &result.Tally)
 
 	// edge identity -> merged primitive token set, so two primitives reaching the
@@ -137,7 +140,7 @@ func ExtractIAMEscalationEdges(
 	}
 
 	result.Edges = buildIAMEscalationEdgeRows(primitivesByEdge)
-	return result
+	return result, nil
 }
 
 // groupIAMPermissionsByPrincipal buckets permission facts by principal_arn and

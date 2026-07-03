@@ -172,7 +172,13 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 	resourceEnvelopes, ruleEnvelopes := splitSecurityGroupReachabilityEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	reach := ExtractSecurityGroupReachability(resourceEnvelopes, ruleEnvelopes)
+	reach, err := ExtractSecurityGroupReachability(resourceEnvelopes, ruleEnvelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of resolving reachability against an empty-string node identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
