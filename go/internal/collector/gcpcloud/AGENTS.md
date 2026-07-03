@@ -350,6 +350,33 @@
    still captured and value-fingerprinted per `redaction_policy_version` by the
    collector's shared label path (the extractor just does not re-copy them into
    typed depth).
+45. `extractor_spanner_instance.go` - typed-depth extractor for
+   `spanner.googleapis.com/Instance` (instance config short name — the
+   trailing `instanceConfigs/<id>` topology segment — display name, node
+   count or processing units decoded independently since an instance is
+   provisioned by exactly one of the two capacity modes, lifecycle state, and
+   a bounded label count). A node/processing-units `*int64` explicit `0` is
+   PRESERVED, not dropped: the Spanner `projects.instances` REST resource
+   reports `0` for a `FREE_INSTANCE` and for a `CREATING` instance, so the
+   nil-vs-zero distinction is symmetric (nil omits, explicit zero is kept) — a
+   `> 0` guard would erase real capacity evidence. Emits a
+   `spanner_instance_uses_instance_config` edge to the resolved InstanceConfig:
+   `spanner.googleapis.com/InstanceConfig` is itself a separately
+   CAI-inventoried asset type (per the CAI supported-asset-types list), so the
+   `config` reference resolves to a real edge endpoint (full
+   `//spanner.googleapis.com/projects/<p>/instanceConfigs/<id>` name; a bare id
+   is qualified against the instance's own project, an already CAI-prefixed
+   reference is not double-prefixed) while the short name stays the `config`
+   attribute. Emits NO CMEK edge — CMEK is a per-database property
+   (`encryptionConfig.kmsKeyName`) carried by the child
+   `spanner.googleapis.com/Database` asset type (a separate, not-yet-registered
+   extractor), not by the Instance, so the child Database extractor, when added,
+   will own the CMEK edge (the same ownership split as the child Table extractor
+   owning the BigQuery Table→Dataset edge). Never decodes raw label
+   keys/values (only the bounded count — per-key/value fingerprinting is the
+   base observation path's job in `parse.go`, not this extractor's), and never
+   declares a struct field for the data-plane `endpointUris` connection
+   endpoints at all.
 
 ## Invariants
 
