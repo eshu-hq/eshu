@@ -100,14 +100,21 @@ func major(schemaVersion string) string {
 	return schemaVersion[:idx]
 }
 
-// requiredFields lists, per decoded Go type, the JSON payload keys that
+// requiredFields lists, per fact kind, the JSON payload keys that
 // decodeAndValidate treats as required — the same set the schema generator
 // derives from the struct's pointer/omitempty shape (see aws/v1/resource.go
 // and internal/schemagen). Keeping this list beside decodeAndValidate rather
 // than deriving it via reflection keeps the missing-field check independent
-// of any future encoding/json behavior change; the schema_gen_test.go drift
-// test is what keeps this list and the generated schema in lockstep with
-// the struct.
+// of any future encoding/json behavior change.
+//
+// Two tests keep this list from drifting out of that agreement:
+// TestRequiredFieldsMatchStructShape (decode_test.go) recomputes the required
+// set from the awsv1.Resource struct by reflection and asserts it equals this
+// map's entry, so adding a required struct field without updating this map is
+// a test failure rather than a silently unvalidated field; and
+// TestAWSResourceSchemaHasNoDrift (schema_gen_test.go) keeps the generated
+// schema in lockstep with the struct. Struct → this map, and struct → schema,
+// are each independently test-locked.
 var requiredFields = map[string][]string{
 	FactKindAWSResource: {"account_id", "resource_id", "region", "resource_type"},
 }

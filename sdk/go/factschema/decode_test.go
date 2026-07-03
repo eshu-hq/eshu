@@ -6,6 +6,7 @@ package factschema
 import (
 	"errors"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -213,6 +214,51 @@ func TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty(t *te
 			t.Fatalf("expected field %q not found on awsv1.Resource", name)
 		}
 	}
+}
+
+// TestRequiredFieldsMatchStructShape locks decode.go's requiredFields map to
+// awsv1.Resource's actual struct shape. requiredFields drives decodeAndValidate's
+// missing-field check; if it drifts from the struct — for example a new
+// required (non-pointer, non-omitempty) field is added to the struct but not
+// to requiredFields — decodeAndValidate silently skips validating that field
+// and decodes its absence to a zero value, the exact silent-zero-value
+// failure this module exists to prevent. This test computes the required set
+// by reflection over the struct and asserts it equals the map entry, so that
+// drift is a test failure rather than a latent accuracy hole.
+func TestRequiredFieldsMatchStructShape(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]bool{}
+	typ := reflect.TypeOf(awsv1.Resource{})
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		jsonName, hasOmitEmpty := parseJSONTag(field.Tag.Get("json"))
+		isPointerOrMap := field.Type.Kind() == reflect.Ptr || field.Type.Kind() == reflect.Map
+		if !isPointerOrMap && !hasOmitEmpty {
+			want[jsonName] = true
+		}
+	}
+
+	got := map[string]bool{}
+	for _, name := range requiredFields[FactKindAWSResource] {
+		if got[name] {
+			t.Fatalf("requiredFields[%q] lists %q more than once", FactKindAWSResource, name)
+		}
+		got[name] = true
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("requiredFields[%q] = %v, want %v (derived from awsv1.Resource struct shape); update decode.go's requiredFields to match the struct", FactKindAWSResource, sortedKeys(got), sortedKeys(want))
+	}
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func parseJSONTag(tag string) (name string, omitEmpty bool) {
