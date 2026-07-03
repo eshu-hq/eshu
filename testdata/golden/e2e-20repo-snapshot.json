@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 23,
+        "min": 29,
         "max": 60,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 23: 2 AWS + 21 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage, Pub/Sub Topic); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 29: 2 AWS + 27 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage, Pub/Sub Topic, Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -747,6 +747,54 @@
         "id": "rc-53",
         "description": "A Secret Manager Secret CloudResource is connected to a Pub/Sub Topic CloudResource via a GCP_secret_notifies_topic edge; the gcpcloud cassette's demo-secret Secret fact carries a topic_count attribute and a gcp_cloud_relationship fact with relationship_type secret_notifies_topic targeting the demo-rotation-topic Topic resource, matching the #4293 extractor's rotation-notification contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Secret->Topic relationship fact, so this locks in the Secret Manager Secret rotation-notification edge path end-to-end (#4385).",
         "relationship": "GCP_secret_notifies_topic",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-54",
+        "description": "A compute Router CloudResource is connected to its enclosing VPC Network CloudResource via a GCP_router_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-router Router (asset_type compute.googleapis.com/Router, with bounded bgp_asn/bgp_advertise_mode/interface_count attributes) and a gcp_cloud_relationship fact with relationship_type router_in_network targeting the shared demo-vpc Network, matching the #4301 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Router cloud_resource + relationship facts, so this locks in the Cloud Router typed-depth extractor's golden-corpus follow-up (#4552).",
+        "relationship": "GCP_router_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-55",
+        "description": "A compute VpnGateway CloudResource is connected to its enclosing VPC Network CloudResource via a GCP_vpn_gateway_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-vpn-gateway VpnGateway (asset_type compute.googleapis.com/VpnGateway, with bounded stack_type/gateway_ip_version/vpn_interface_count attributes) and a gcp_cloud_relationship fact with relationship_type vpn_gateway_in_network targeting the shared demo-vpc Network, matching the #4302 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the VpnGateway cloud_resource + relationship facts, so this locks in the Cloud VPN Gateway typed-depth extractor's golden-corpus follow-up (#4554).",
+        "relationship": "GCP_vpn_gateway_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-56",
+        "description": "A compute VpnTunnel CloudResource is connected to its own HA VPN Gateway CloudResource via a GCP_vpn_tunnel_uses_vpn_gateway edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-vpn-tunnel VpnTunnel (asset_type compute.googleapis.com/VpnTunnel, with bounded ike_version/status/traffic-selector-count attributes) and a gcp_cloud_relationship fact with relationship_type vpn_tunnel_uses_vpn_gateway targeting the demo-vpn-gateway VpnGateway, matching the #4303 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the VpnTunnel cloud_resource + relationship facts, so this locks in the Cloud VPN Tunnel typed-depth extractor's golden-corpus follow-up (#4556).",
+        "relationship": "GCP_vpn_tunnel_uses_vpn_gateway",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-57",
+        "description": "A compute VpnTunnel CloudResource is connected to the Cloud Router CloudResource it uses for BGP dynamic routing via a GCP_vpn_tunnel_uses_router edge; the gcpcloud cassette's demo-vpn-tunnel VpnTunnel fact carries a gcp_cloud_relationship fact with relationship_type vpn_tunnel_uses_router targeting the shared demo-router Router, matching the #4303 extractor's dynamic-routing contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the VpnTunnel->Router relationship fact, so this locks in the Cloud VPN Tunnel dynamic-routing edge path end-to-end (#4556).",
+        "relationship": "GCP_vpn_tunnel_uses_router",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-58",
+        "description": "A compute BackendService CloudResource is connected to a HealthCheck CloudResource via a GCP_backend_service_uses_health_check edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-backend-service BackendService (asset_type compute.googleapis.com/BackendService, with bounded protocol/load_balancing_scheme/backend_count attributes) and a gcp_cloud_relationship fact with relationship_type backend_service_uses_health_check targeting the demo-health-check HealthCheck resource, matching the #4305 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the BackendService cloud_resource + relationship facts, so this locks in the Backend Service typed-depth extractor's golden-corpus follow-up (#4553).",
+        "relationship": "GCP_backend_service_uses_health_check",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-59",
+        "description": "A compute UrlMap CloudResource is connected to its default BackendService CloudResource via a GCP_url_map_default_service edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-url-map UrlMap (asset_type compute.googleapis.com/UrlMap, with bounded host_rule_count/path_matcher_count/path_rule_count attributes) and a gcp_cloud_relationship fact with relationship_type url_map_default_service targeting the shared demo-backend-service BackendService, matching the #4306 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the UrlMap cloud_resource + relationship facts, so this locks in the URL Map typed-depth extractor's golden-corpus follow-up (#4557).",
+        "relationship": "GCP_url_map_default_service",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
