@@ -113,11 +113,25 @@ func run(parent context.Context) error {
 			return err
 		}
 	}
+	var gcpFreshnessStore *postgres.GCPFreshnessStore
+	if cfg.GCPFreshnessToken != "" {
+		gcpFreshnessDB := &postgres.InstrumentedDB{
+			Inner:       postgres.SQLDB{DB: db},
+			Tracer:      tracer,
+			Instruments: instruments,
+			StoreName:   "gcp_freshness_triggers",
+		}
+		gcpFreshnessStore = postgres.NewGCPFreshnessStore(gcpFreshnessDB)
+		if err := gcpFreshnessStore.EnsureSchema(parent); err != nil {
+			return err
+		}
+	}
 	webhookMux, err := newWebhookMux(webhookHandler{
 		Config:                 cfg,
 		Store:                  store,
 		IncidentFreshnessStore: incidentFreshnessStore,
 		AWSFreshnessStore:      awsFreshnessStore,
+		GCPFreshnessStore:      gcpFreshnessStore,
 		Logger:                 logger,
 		Instruments:            instruments,
 		Tracer:                 tracer,

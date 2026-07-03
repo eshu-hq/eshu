@@ -58,4 +58,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"collector_evidence_summary",
 	"eshu_search_index_terms_doc_idx",
 	"drop_eshu_search_index_terms_lookup_idx",
+	"gcp_freshness_triggers",
 }

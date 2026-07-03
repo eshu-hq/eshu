@@ -505,6 +505,12 @@ type Instruments struct {
 	// reducer domain and write kind (node or edge). Labels are bounded enums:
 	// domain and kind.
 	GCPMaterializationGraphWrites metric.Int64Counter
+	// GCPFreshnessEvents counts GCP Cloud Asset Inventory feed freshness
+	// events by bounded kind and action, mirroring AWSFreshnessEvents. Labels
+	// are bounded enums: kind (asset_change / asset_deleted / unknown) and
+	// action (a closed intake or handoff action). Raw asset names, parent
+	// scope ids, and push payload bodies stay in logs/traces.
+	GCPFreshnessEvents metric.Int64Counter
 	// ObservabilityCoverageEdges counts observability COVERS edge projection
 	// outcomes (issue #391 PR3). Labels: coverage_signal (alarm / composite_alarm
 	// / dashboard / log_group / trace_sampling) and resolution_mode (arn /
@@ -2465,6 +2471,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GCPMaterializationGraphWrites counter: %w", err)
+	}
+
+	inst.GCPFreshnessEvents, err = meter.Int64Counter(
+		"eshu_dp_gcp_freshness_events_total",
+		metric.WithDescription("Total GCP Cloud Asset Inventory freshness events by bounded kind and action"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GCPFreshnessEvents counter: %w", err)
 	}
 
 	inst.ObservabilityCoverageEdges, err = meter.Int64Counter(

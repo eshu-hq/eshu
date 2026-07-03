@@ -354,6 +354,19 @@ metric labels. Access Analyzer finding aggregate buckets are counted through
 `eshu_dp_aws_resources_emitted_total{service="accessanalyzer"}` with bounded
 `resource_type=aws_accessanalyzer_finding_count`.
 
+## GCP Cloud Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_gcp_freshness_events_total` | `kind`, `action` | Cloud Asset Inventory Pub/Sub push freshness intake and handoff. |
+
+`kind` is one of `asset_change`, `asset_deleted`, or `unknown`. Raw CAI asset
+names, parent scope ids, and push payload bodies stay out of metric labels;
+see the normalization contract in
+`go/internal/collector/gcpcloud/freshness/README.md`. GCP resource,
+relationship, and materialization metrics are documented in
+[Reducer And Storage Metrics](metrics-reducer-storage.md).
+
 ## Confluence Collector
 
 | Metric | Key labels | Use |

@@ -18,12 +18,14 @@ type webhookListenerConfig struct {
 	PagerDutySecret     string
 	JiraSecret          string
 	AWSFreshnessToken   string
+	GCPFreshnessToken   string
 	GitHubPath          string
 	GitLabPath          string
 	BitbucketPath       string
 	PagerDutyPath       string
 	JiraPath            string
 	AWSFreshnessPath    string
+	GCPFreshnessPath    string
 	PagerDutyScopeID    string
 	JiraScopeID         string
 	MaxRequestBodyBytes int64
@@ -41,20 +43,22 @@ func loadWebhookListenerConfig(getenv func(string) string) (webhookListenerConfi
 		PagerDutySecret:     strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_SECRET")),
 		JiraSecret:          strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_SECRET")),
 		AWSFreshnessToken:   strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_TOKEN")),
+		GCPFreshnessToken:   strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_TOKEN")),
 		GitHubPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_PATH")), "/webhooks/github"),
 		GitLabPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_PATH")), "/webhooks/gitlab"),
 		BitbucketPath:       firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_PATH")), "/webhooks/bitbucket"),
 		PagerDutyPath:       firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_PATH")), "/webhooks/pagerduty"),
 		JiraPath:            firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_PATH")), "/webhooks/jira"),
 		AWSFreshnessPath:    firstNonEmpty(strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_PATH")), "/webhooks/aws/eventbridge"),
+		GCPFreshnessPath:    firstNonEmpty(strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_PATH")), "/webhook/gcp-freshness"),
 		PagerDutyScopeID:    strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID")),
 		JiraScopeID:         strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_SCOPE_ID")),
 		MaxRequestBodyBytes: int64FromEnv(getenv, "ESHU_WEBHOOK_MAX_BODY_BYTES", defaultMaxWebhookBodyBytes),
 		DefaultBranch:       strings.TrimSpace(getenv("ESHU_WEBHOOK_DEFAULT_BRANCH")),
 	}
 	if cfg.GitHubSecret == "" && cfg.GitLabToken == "" && cfg.BitbucketSecret == "" &&
-		cfg.PagerDutySecret == "" && cfg.JiraSecret == "" && cfg.AWSFreshnessToken == "" {
-		return webhookListenerConfig{}, fmt.Errorf("at least one webhook provider secret or AWS freshness token is required")
+		cfg.PagerDutySecret == "" && cfg.JiraSecret == "" && cfg.AWSFreshnessToken == "" && cfg.GCPFreshnessToken == "" {
+		return webhookListenerConfig{}, fmt.Errorf("at least one webhook provider secret, AWS freshness token, or GCP freshness token is required")
 	}
 	if cfg.PagerDutySecret != "" && cfg.PagerDutyScopeID == "" {
 		return webhookListenerConfig{}, fmt.Errorf("pagerduty webhook scope id is required")
