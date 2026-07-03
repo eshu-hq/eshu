@@ -152,6 +152,24 @@
    local declarations here; never reads the tunnel's own `peerIp`,
    `sharedSecret`, `sharedSecretHash`, or `detailedStatus` fields, and
    traffic-selector CIDR values are reduced to counts, never persisted).
+34. `extractor_backend_service.go` - typed-depth extractor for
+   `compute.googleapis.com/BackendService` (protocol, load-balancing scheme,
+   port name, timeout, CDN posture as an explicit tri-state so a false is kept,
+   session affinity, region omitted for a global backend service, backend-entry
+   count, creation time); `backend_service_uses_security_policy` edge to the
+   Cloud Armor SecurityPolicy, `backend_service_uses_health_check` edge to each
+   HealthCheck, and a shared `backend_service_has_backend` edge to each
+   backend's InstanceGroup or NetworkEndpointGroup (the same relationship type
+   for both group kinds, distinguished by `target_asset_type`, mirroring the
+   ForwardingRule extractor's shared target-proxy relationship type); this is
+   the other side of the edge the ForwardingRule extractor already resolves
+   toward `assetTypeComputeBackendService` (declared in
+   `extractor_forwarding_rule.go` and reused here, never redeclared); CAI
+   reports one `BackendService` asset type for both regional and global scope
+   (no distinct Global variant, unlike ForwardingRule/Address); IAP OAuth
+   client id/secret and CDN cache-key/signed-URL key material are never
+   decoded, and per-backend balancing-mode/capacity/utilization tuning fields
+   are dropped by omission.
 
 ## Invariants
 
