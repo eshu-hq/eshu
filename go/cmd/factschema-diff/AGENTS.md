@@ -21,7 +21,8 @@
   in `README.md` and re-checking `docs/internal/design/contract-system-v1.md`
   §5/§6 for whether a contracts release tag now exists.
 - Every reported violation must name the specific field and violation kind
-  (`removed_required_field`, `narrowed_type`, `widened_required`). Do not
+  (`removed_required_field`, `removed_field`, `narrowed_type`,
+  `widened_required`, `added_required_field`, `removed_schema`). Do not
   regress to a generic "schema changed" message — an external collector
   author must be able to act on the message alone.
 - Keep this package under the repo's 500-line file cap; `diff.go` and

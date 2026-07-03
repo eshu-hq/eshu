@@ -27,8 +27,11 @@ type options struct {
 const helpText = `factschema-diff diffs the checked-in JSON Schemas under
 sdk/go/factschema/schema/ against a baseline git ref and fails when a schema
 changed in a way that breaks compatibility without a corresponding major
-version bump (Contract System v1 section 5: remove/rename a required field,
-narrow a type, or widen the required set).
+version bump (Contract System v1 section 5). A breaking change is: removing or
+renaming a field (a required field always; an optional field when the baseline
+is fail-closed with additionalProperties:false), narrowing a type (including a
+nested map-value or array-item type), widening the required set, adding a new
+required field, or deleting an entire schema file.
 
 Baseline resolution:
   There is no contracts release tag yet (only product v0.0.x tags), so this
@@ -45,7 +48,8 @@ Exit status:
   0  no breaking changes detected.
   1  one or more breaking changes detected, or a usage/git error occurred.
      Every breaking-change failure names the specific field and violation
-     type (removed_required_field, narrowed_type, widened_required) so an
+     type (removed_required_field, removed_field, narrowed_type,
+     widened_required, added_required_field, removed_schema) so an
      external collector author can act on it without asking a human.
 
 Flags:

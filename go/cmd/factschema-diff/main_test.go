@@ -47,11 +47,11 @@ func gitInit(t *testing.T, dir string, commits []string) {
 	}
 }
 
-// TestRunDetectsBreakAgainstMergeBase proves the CLI's default baseline
-// resolution (merge-base against origin/main, here simulated as the first
-// commit on the "main" branch) catches a breaking change introduced on a
-// feature branch, and reports the field + violation type on stderr.
-func TestRunDetectsBreakAgainstMergeBase(t *testing.T) {
+// TestRunDetectsBreakAgainstExplicitBaseRef proves that, given an explicit
+// -base-ref, the CLI catches a breaking change introduced on a feature branch
+// and reports the field + violation type on stderr. The default merge-base
+// resolution (the path CI runs) is covered by TestRunResolvesMergeBaseDefault.
+func TestRunDetectsBreakAgainstExplicitBaseRef(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	gitInit(t, dir, []string{baselineSchema})
@@ -101,6 +101,63 @@ func TestRunDetectsBreakAgainstMergeBase(t *testing.T) {
 	}
 	if !strings.Contains(got, string(ViolationRemovedRequiredField)) {
 		t.Fatalf("stderr = %q, want it to name the violation type %q", got, ViolationRemovedRequiredField)
+	}
+}
+
+// TestRunResolvesMergeBaseDefault proves the default baseline resolution — the
+// merge-base of HEAD against origin/main, used when -base-ref is omitted (the
+// path the CI workflow actually runs) — resolves and catches a break.
+func TestRunResolvesMergeBaseDefault(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	gitInit(t, dir, []string{baselineSchema})
+
+	gitRun := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(
+			os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+
+	// The default path resolves `git merge-base HEAD origin/main`, so the
+	// baseline must exist as a remote-tracking ref, not just a local branch.
+	gitRun("update-ref", "refs/remotes/origin/main", "main")
+	gitRun("checkout", "-q", "-b", "feature")
+
+	broken := `{
+  "properties": {
+    "account_id": {"type": "string"},
+    "region": {"type": "string"},
+    "resource_type": {"type": "string"},
+    "name": {"type": "string"},
+    "tags": {"additionalProperties": {"type": "string"}, "type": "object"}
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": ["account_id", "region", "resource_type"],
+  "title": "Eshu aws.resource Payload (schema version 1)"
+}`
+	schemaFile := filepath.Join(dir, "sdk", "go", "factschema", "schema", "aws_resource.v1.schema.json")
+	if err := os.WriteFile(schemaFile, []byte(broken), 0o644); err != nil { //nolint:gosec // test fixture
+		t.Fatalf("WriteFile: %v", err)
+	}
+	gitRun("commit", "-q", "-am", "break schema")
+
+	var stdout, stderr bytes.Buffer
+	// No -base-ref: exercise the merge-base-against-origin/main default.
+	if err := run([]string{"-repo-root", dir}, &stdout, &stderr); err == nil {
+		t.Fatalf("run() error = nil, want a breaking-change failure via the merge-base default")
+	}
+	got := stderr.String()
+	if !strings.Contains(got, "resource_id") || !strings.Contains(got, string(ViolationRemovedRequiredField)) {
+		t.Fatalf("stderr = %q, want it to name resource_id and %q", got, ViolationRemovedRequiredField)
 	}
 }
 
