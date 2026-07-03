@@ -17,12 +17,13 @@ treat that claim as unvalidated and do not build on it.
 
 Ifá is a **validated conformance platform**: a single named identity that binds
 Eshu's already-existing record/replay, canonicalization, golden-corpus, perf,
-gate-registry, and coverage machinery into one contract surface, and **broadens
-the one thing those cover only narrowly** — cross-run, worker-scaled determinism
-over the real pipeline and full corpus (a pattern `schedulereplay` already proves
-in miniature). The name follows the repository's Yoruba naming
-convention (Eshu, Odù); an *Odù* in Ifá is a validated conformance case a
-contributor drops in.
+gate-registry, and coverage machinery into one contract surface, and broadens
+what those cover only narrowly. The target capability is an **end-to-end
+offline tester, replayer, and load tester** that needs no provider
+infrastructure or credentials — a contributor with no Azure, AWS, or GCP access
+can prove conformance, determinism, throughput, and failure behavior locally.
+The name follows the repository's Yoruba naming convention (Eshu, Odù); an
+*Odù* in Ifá is a validated conformance case a contributor drops in.
 
 Ifá **is**:
 
@@ -34,6 +35,17 @@ Ifá **is**:
   `schedulereplay` invariance pattern — that replays the same recorded input
   through the full pipeline at varied worker counts and asserts an identical
   canonical graph.
+- A **load and saturation harness** — adopting the scale-lab corpus taxonomy
+  (`specs/scale-lab-corpus.v1.yaml`, #3170) — that amplifies one Odù across N
+  synthetic scopes and asserts perfcontract thresholds and backpressure
+  failure shape. See [Layer 3](#layer-3-load-and-saturation-adopts-the-scale-lab-taxonomy).
+- A **deterministic fault-injection harness** — extending the schedulereplay
+  script vocabulary from orders to faults — that proves lease reclaim,
+  retry, and idempotent replay actually converge. See
+  [Layer 4](#layer-4-deterministic-fault-injection).
+- A **public-corpus policy**: synthetic, seeded, schema-valid provider corpora
+  are the shareable path; recorded provider cassettes stay maintainer-private.
+  See [Public corpora without provider access](#public-corpora-without-provider-access).
 - A **placement and contributor discipline**: where the new code lives, what it
   is allowed to depend on, and how a contributor proves an Odù.
 
@@ -292,6 +304,19 @@ are **derived, not hand-listed**:
   (`replay-coverage-gate`, `replaycoverage/README.md:1-161`) so every
   conformance-relevant surface is either covered or explicitly exempt.
 
+**Cross-wiring with the contract system (epic #4566).** The contract-system
+work adds per-fact-kind typed payload structs and generated JSON Schemas
+(#4567) and versioned fixture packs (#4572). Ifá does not build parallel
+machinery for either:
+
+- Expectation derivation validates Odù payloads against the #4567 JSON
+  Schemas in addition to registry + B-12 normalization, so a schema-invalid
+  payload fails conformance before it fails a reducer.
+- **An Odù is a fixture-pack entry.** The #4572 fixture packs and the Odù
+  corpus are one artifact, versioned with the contracts module. An external
+  collector repo pins a fixture-pack version and runs the same Odù offline in
+  its own CI. Two competing fixture systems is a rejected outcome.
+
 The contract layer is assertion + derivation only. It has no concurrency of its
 own; it defines *what an identical graph means* so the determinism layer can
 assert *that the graph stays identical under load*.
@@ -334,6 +359,105 @@ This layer directly honors the repo's "Serialization Is Not A Fix" rule: it is
 the gate that would *catch* a MERGE race being papered over by dropping worker
 count, because a serialized workaround changes the worker-count matrix behavior
 Ifá asserts on.
+
+### Layer 3 — load and saturation (adopts the scale-lab taxonomy)
+
+Layer 2 varies worker count to catch race defects; it never varies **load**.
+Layer 3 closes that gap without inventing a taxonomy, because the taxonomy
+already exists: `specs/scale-lab-corpus.v1.yaml` (issue #3170, currently
+`gate_status: proposed`) defines the smoke/small/medium/large/pathological
+corpus slots and the measurement contract (fact rows/sec, queue-claim p95,
+reducer drain, graph-write p95, API/MCP p95). Ifá **adopts** that spec as its
+load vocabulary; accepting #3170 becomes a Layer 3 dependency, not a parallel
+effort.
+
+Design:
+
+1. **Corpus amplifier (net-new, small).** Replay one Odù across N synthetic
+   scopes by deterministically rewriting `scope_id` and `stable_fact_key`
+   (seed-indexed), following the same derived-identity pattern the
+   canonicalizer already exports (`DerivedGenerationID`,
+   `canonical.go:281-283`). One recorded or synthetic 1-repo Odù becomes a
+   500-scope load run with zero new recordings and zero credentials. Amplified
+   scopes reuse the Layer 2 driver; the fan-out is data, not new concurrency
+   machinery.
+2. **Throughput Odù.** Run an amplified Odù at a named scale slot and assert
+   the perfcontract thresholds for that slot's class. Smoke/small slots run
+   hermetic (`EnforcementHermeticGate`); medium and above run operator-gated
+   on consistent hardware (`EnforcementOperatorGated`, `contract.go:6-19`) —
+   the same split perfcontract already defines, so no second perf contract
+   appears (anti-rewrite rule 5).
+3. **Saturation Odù.** Deliberately drive past the graph-write permit pools
+   (`ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` /
+   `..._SEMANTIC_MAX_IN_FLIGHT`, `go/internal/graphbackpressure`) and assert
+   the **failure shape**, not just survival: backpressure engages (observer
+   wait signal fires), work retries with backoff, nothing dead-letters
+   spuriously, and the queue drains to the B-12 residual assertions after
+   pressure releases. This regression-proofs the #3560 failure class
+   (backend slowness dead-lettering recoverable work) as a permanent gate
+   instead of a fixed incident.
+
+Net-new here is the amplifier and the saturation scenario runner. Slots,
+metrics, thresholds, enforcement classes, drain assertions, and the replay
+driver are all adopted.
+
+### Layer 4 — deterministic fault injection
+
+The determinism matrix varies scheduling; nothing varies **failure**. The
+platform's recovery story rests on three mechanisms — lease expiry reclaim,
+retry with backoff, and idempotent replay (`MERGE` / `ON CONFLICT`) — plus
+queue-replay recovery endpoints (`go/internal/runtime/recovery_handler.go`).
+Today those are proven piecemeal by unit tests; no gate proves they converge
+end to end under injected failure.
+
+Design:
+
+1. **Fault scripts extend the schedulereplay vocabulary.** `schedulereplay`
+   already scripts *orders* (in-order/reverse/rotated/duplicate,
+   `scenario_test.go:39-153`). Layer 4 adds *faults* to the same script model:
+   `kill-worker-after-claim(n)`, `expire-lease-mid-handler`,
+   `fail-graph-write-once-then-succeed`,
+   `restart-backend-between-phase-groups`. Scripts are data; a fault run is
+   replayable byte-for-byte like any other Odù run.
+2. **Injection at existing seams only.** Faults inject where decorators
+   already wrap: the graph executor seam (precedent:
+   `BackpressureExecutor` and `RetryingExecutor` wrap the same interface),
+   the claim/heartbeat store interface, and driver-level worker lifecycle.
+   No fault hooks inside handlers or collectors — the anti-rewrite placement
+   rule holds.
+3. **The assertion is unchanged.** After the fault script completes and the
+   queue drains, canonicalize and compare against the fault-free run of the
+   same Odù: byte-identical canonical graph, B-12 drain assertions green, and
+   dead letters only where the script *says* a terminal failure was injected.
+   Layers 1–2 already define "still correct"; Layer 4 is another axis on the
+   same matrix, which is what keeps it cheap.
+
+---
+
+## Public corpora without provider access
+
+The platform goal includes contributors who have **no cloud account at all**.
+Cassette replay alone does not deliver that: someone must record against real
+Azure/AWS/GCP once, and sharing recordings publicly is blocked by the
+validated redaction limitation — key-name-based only, payloads opaque
+(`canonical.go:49-83`).
+
+Decision:
+
+- **Synthetic provider corpora are the primary public mechanism.** A
+  deterministic, seeded generator per provider family emits v1 cassettes
+  whose payloads are schema-valid against the #4567 payload schemas. Nothing
+  sensitive exists to redact, so the corpora are committable and shareable by
+  construction. Generators are boring by design: seed in, cassette out,
+  byte-identical for the same seed.
+- **Recorded provider cassettes stay maintainer-private**, used for parity
+  runs that confirm the synthetic corpora still reflect real provider shapes
+  (the `parity/` harness precedent).
+- **The obfuscator stays shelved with a narrowed trigger:** un-shelve only
+  when a bug class is demonstrated that synthetic corpora provably cannot
+  reproduce *and* sharing the recorded corpus requires value-level redaction
+  that key-name redaction cannot provide. Both conditions, documented, not
+  either.
 
 ---
 
@@ -413,12 +537,15 @@ languages (`registry_definitions.go:10-208`) and re-parse independently. That is
 a separate language-aware binary with its own grammar infrastructure — real
 maintenance surface for a capability the platform does not currently need.
 
-**Trigger to un-shelve:** adopt the obfuscator only when a concrete requirement
-appears to ship or share **conformance corpora whose payloads cannot be
-redacted by key name alone** — i.e., when opaque payloads
-(`canonical.go:76-83`) contain value-level sensitive content that the existing
-key-name redaction (`canonical.go:49-66`) provably cannot cover. Until that
-requirement is real and documented, obfuscation stays out of Ifá.
+**Trigger to un-shelve (narrowed).** The original trigger was "a requirement
+to share corpora whose payloads cannot be redacted by key name alone." The
+public-corpus decision above meets most of that requirement more cheaply with
+synthetic generation, so the trigger narrows to **both** conditions holding,
+documented: (1) a bug class is demonstrated that synthetic corpora provably
+cannot reproduce and only a recorded corpus exhibits, **and** (2) sharing that
+recorded corpus requires value-level redaction that key-name redaction
+(`canonical.go:49-66`) provably cannot provide. Until both are real,
+obfuscation stays out of Ifá.
 
 ---
 
@@ -448,6 +575,17 @@ These are hard constraints. Ifá reuses; it does not reimplement.
 8. **Do not fix a determinism failure by lowering worker count.** Per repo rule,
    serialization is not a fix; the determinism matrix exists to catch exactly
    that.
+9. **Do not invent a second load-testing taxonomy.** Adopt the scale-lab
+   corpus slots and measurement contract (`specs/scale-lab-corpus.v1.yaml`,
+   #3170). If a slot or metric is missing, amend that spec, not Ifá.
+10. **Do not fork fixture systems.** An Odù is a fixture-pack entry
+    (contract-system epic #4566, fixture packs #4572) — one artifact,
+    versioned with the contracts module, consumed identically in-tree and by
+    external collector repos.
+11. **Do not commit recorded provider cassettes to public corpora.** Redaction
+    is key-name-only with opaque payloads (`canonical.go:49-83`); the public
+    path is synthetic generation. Recorded cassettes are maintainer-private
+    parity inputs.
 
 ---
 
@@ -461,12 +599,16 @@ Evidence: package builds, one Odù canonicalizes idempotently (reusing
 `canonical_test.go` patterns), gate selected by `select-gates.sh` on changed
 paths.
 
-**P1 — derived expectations + coverage reconciliation.**
+**P1 — derived expectations + coverage reconciliation + contract-system wiring.**
 Derive expectations from `fact-kind-registry.v1.yaml` and the B-12 snapshot with
-`EvidenceKinds`/`RequiredEdgeProperties` normalization. Reconcile Odù coverage
-against a manifest using the `replaycoverage` pattern. Evidence: a new fact kind
-without an Odù reports uncovered; false-green case (kustomize vs ArgoCD)
-correctly fails.
+`EvidenceKinds`/`RequiredEdgeProperties` normalization, and validate Odù
+payloads against the #4567 JSON Schemas where they exist (schema absent =
+registry-only derivation, flagged in the report, so P1 does not block on
+epic #4566 completing). Register Odù as fixture-pack entries per #4572 —
+one artifact, not two. Reconcile Odù coverage against a manifest using the
+`replaycoverage` pattern. Evidence: a new fact kind without an Odù reports
+uncovered; false-green case (kustomize vs ArgoCD) correctly fails; a
+schema-invalid payload fails conformance.
 
 **P2 — concurrent replay driver (net-new).**
 Build the thread-safe wrapper around `cassette.Source` (modeled on
@@ -487,6 +629,26 @@ parser 7-step model). Flip the Ifá gate from advisory to blocking following the
 mirrors CI; docs build gate passes; blocking flip recorded in
 `specs/ci-gates.v1.yaml`.
 
+**P5 — load and saturation (Layer 3).**
+Build the corpus amplifier and the throughput/saturation Odù classes over the
+P2 driver. Depends on scale-lab corpus acceptance (#3170) for slot definitions
+and on P3 for the determinism baseline. Smoke/small slots register hermetic;
+medium+ register operator-gated. Evidence: one amplified Odù at a small slot
+holds its perfcontract thresholds; the saturation Odù reproduces the #3560
+failure shape against a permit-starved backend and drains clean after release
+(regression test first for the dead-letter-flood assertion).
+
+**P6 — deterministic fault injection (Layer 4).**
+Add the fault-script schema and injection decorators at the executor, claim
+store, and worker-lifecycle seams. Evidence: each scripted fault class runs to
+a byte-identical canonical graph versus the fault-free baseline; a
+deliberately non-idempotent write under `expire-lease-mid-handler` is caught
+(teeth test, mirroring the schedulereplay divergence test); `-race` clean.
+
+Synthetic provider corpus generators land incrementally from P1 onward (each
+generator is an Odù source, not a phase of its own); the first generator ships
+with P1 so derivation has a fully synthetic case from the start.
+
 ---
 
 ## Open questions
@@ -496,3 +658,8 @@ mirrors CI; docs build gate passes; blocking flip recorded in
 - Worker-count matrix upper bound and per-class timing budgets for the
   determinism gate need operator-gated measurement on consistent hardware
   (`perfcontract` `EnforcementOperatorGated`).
+- Layer 3 depends on the scale-lab corpus spec (#3170) moving from
+  `gate_status: proposed` to accepted; if that spec changes shape during
+  acceptance, the Layer 3 slot bindings follow it (anti-rewrite rule 9).
+- Saturation budgets (how far past the permit pool, for how long) need
+  operator-gated calibration before the saturation Odù can be blocking.
