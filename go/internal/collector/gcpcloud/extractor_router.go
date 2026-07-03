@@ -40,11 +40,14 @@ func init() {
 // routerData is the bounded view of a CAI compute.googleapis.com/Router
 // resource.data blob. EncryptedInterconnectRouter is a pointer so an absent
 // field is distinguished from an explicit false. Router interface IP ranges
-// (routerInterfaceData.IPRange) and BGP peer/interface IP addresses
-// (routerBgpPeerData.IPAddress, PeerIPAddress) are intentionally never
-// decoded here, per the GCP collector contract Payload Boundaries: only
-// resource identities (names, ASNs, linked-resource references) leave this
-// extractor.
+// (CAI field interfaces[].ipRange) and BGP peer/interface IP addresses (CAI
+// fields bgpPeers[].ipAddress, bgpPeers[].peerIpAddress) are intentionally
+// omitted from routerInterfaceData and routerBgpPeerData below, per the GCP
+// collector contract Payload Boundaries: only resource identities (names,
+// ASNs, linked-resource references) ever exist in Go memory for this
+// extractor. encoding/json silently ignores JSON object keys with no
+// matching struct field, so these values are never decoded at all, not just
+// never emitted.
 type routerData struct {
 	Region                      string                `json:"region"`
 	Network                     string                `json:"network"`
@@ -64,40 +67,36 @@ type routerBgpData struct {
 	AdvertiseMode string `json:"advertiseMode"`
 }
 
-// routerBgpPeerData is the bounded view of one Router BGP peer entry.
-// IPAddress and PeerIPAddress are declared only so json.Unmarshal does not
-// error on their presence; they are never read by any attribute builder in
-// this file, so no BGP peer address reaches the extraction output.
+// routerBgpPeerData is the bounded view of one Router BGP peer entry. The CAI
+// ipAddress and peerIpAddress fields are intentionally omitted from this
+// struct: encoding/json ignores JSON keys with no matching field, so these
+// addresses are never decoded into Go memory at all, not just never read by
+// an attribute builder.
 type routerBgpPeerData struct {
 	Name          string `json:"name"`
 	PeerAsn       int64  `json:"peerAsn"`
 	InterfaceName string `json:"interfaceName"`
-	IPAddress     string `json:"ipAddress"`
-	PeerIPAddress string `json:"peerIpAddress"`
 }
 
 // routerNatData is the bounded view of one Cloud NAT service configured on a
-// Router. NatIps and DrainNatIps are declared only so json.Unmarshal does not
-// error on their presence; neither is read by any attribute builder in this
-// file, so no NAT IP resource reference reaches the extraction output.
+// Router. The CAI natIps and drainNatIps fields are intentionally omitted
+// from this struct: encoding/json ignores JSON keys with no matching field,
+// so no NAT IP resource reference is ever decoded into Go memory.
 type routerNatData struct {
-	Name                          string   `json:"name"`
-	NatIpAllocateOption           string   `json:"natIpAllocateOption"`
-	SourceSubnetworkIpRangesToNat string   `json:"sourceSubnetworkIpRangesToNat"`
-	NatIps                        []string `json:"natIps"`
-	DrainNatIps                   []string `json:"drainNatIps"`
+	Name                          string `json:"name"`
+	NatIpAllocateOption           string `json:"natIpAllocateOption"`
+	SourceSubnetworkIpRangesToNat string `json:"sourceSubnetworkIpRangesToNat"`
 }
 
-// routerInterfaceData is the bounded view of one Router interface entry.
-// IPRange is declared only so json.Unmarshal does not error on its presence;
-// it is never read by any attribute builder in this file, so no interface IP
-// range reaches the extraction output. Each interface names at most one
-// linked resource (a VPN tunnel, an Interconnect attachment, or a
-// subnetwork); LinkedVpnTunnel, LinkedInterconnectAttachment, and Subnetwork
-// resolve to independent edges when present.
+// routerInterfaceData is the bounded view of one Router interface entry. The
+// CAI ipRange field is intentionally omitted from this struct: encoding/json
+// ignores JSON keys with no matching field, so no interface IP range is ever
+// decoded into Go memory. Each interface names at most one linked resource (a
+// VPN tunnel, an Interconnect attachment, or a subnetwork); LinkedVpnTunnel,
+// LinkedInterconnectAttachment, and Subnetwork resolve to independent edges
+// when present.
 type routerInterfaceData struct {
 	Name                         string `json:"name"`
-	IPRange                      string `json:"ipRange"`
 	LinkedVpnTunnel              string `json:"linkedVpnTunnel"`
 	LinkedInterconnectAttachment string `json:"linkedInterconnectAttachment"`
 	Subnetwork                   string `json:"subnetwork"`
@@ -197,8 +196,9 @@ func routerAttributes(data routerData) map[string]any {
 }
 
 // routerBgpPeerSummaries builds the bounded per-peer summary list: name, peer
-// ASN, and interface name only. Neither ipAddress nor peerIpAddress is ever
-// read, so no BGP peer address reaches the summary.
+// ASN, and interface name only. routerBgpPeerData never decodes ipAddress or
+// peerIpAddress in the first place, so no BGP peer address reaches the
+// summary.
 func routerBgpPeerSummaries(peers []routerBgpPeerData) []map[string]any {
 	if len(peers) == 0 {
 		return nil
@@ -221,9 +221,9 @@ func routerBgpPeerSummaries(peers []routerBgpPeerData) []map[string]any {
 }
 
 // routerNatSummaries builds the bounded per-NAT summary list: name, IP
-// allocation option, and source-subnetwork-ranges option only. Neither natIps
-// nor drainNatIps is ever read, so no NAT IP resource reference reaches the
-// summary.
+// allocation option, and source-subnetwork-ranges option only. routerNatData
+// never decodes natIps or drainNatIps in the first place, so no NAT IP
+// resource reference reaches the summary.
 func routerNatSummaries(nats []routerNatData) []map[string]any {
 	if len(nats) == 0 {
 		return nil
