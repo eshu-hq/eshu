@@ -84,16 +84,32 @@ by the search-document reducer writer. Local proof:
 'Test(EshuSearchDocumentStoreListsPendingVectorDocuments|BootstrapDefinitionsIncludeEshuSearchIndex|BootstrapDefinitionsBoundEshuSearchIndexTermKeys|WriteEshuSearchDocumentsMaintainsPersistedSearchIndex|BuilderUsesPendingVectorDocumentsWhenAvailable|SearchVector|ProductionWiring)'
 -count=1` and `go test -timeout 240s ./internal/searchvector/...
 ./internal/storage/postgres/... ./internal/reducer/... ./cmd/reducer -count=1`
-passed locally. A bounded remote corpus rerun is still required before claiming
-wall-clock improvement for this selector rewrite.
+passed locally.
+
+Remote selector proof on `search-vector-index-docs-cap15-20260703T115240Z`
+showed the persisted-document reader lowered many sweeps but still left an
+ORDER BY-driven full-scope sort under live write load. The run was stopped
+early to preserve the live database after 9 search-vector sweeps, 102,848
+documents/vectors, `query_load=271.805s`, `embed=1.090s`, and
+`write=33.669s`. Two selector phases were still too slow:
+25 scopes / 12,000 documents at `query_load=174.500s`, and
+79 scopes / 36,489 documents at `query_load=86.762s`.
+
+On the preserved remote database, the ordered query for the largest pending
+scope scanned and sorted all 86,746 search-index documents before returning
+500 rows: `EXPLAIN (ANALYZE, BUFFERS)` reported 494.709ms quiesced execution.
+Removing the ordering, which is not required for vector correctness because the
+query is already bounded and idempotent, let Postgres stop after enough pending
+rows: the same scope returned 500 rows in 82.789ms quiesced execution. A bounded
+remote corpus rerun is still required before claiming wall-clock improvement
+for the orderless selector rewrite.
 
 ## No-Observability-Change:
 
 The change adds no route, graph query, queue table, worker, lease, runtime
 knob, metric instrument, or metric label. The follow-up selector change adds
-one search-index document column and one read-path index but no new runtime
-signal shape. Operators continue to diagnose the path through existing
-search-vector sweep logs and
+one search-index document column but no new runtime signal shape. Operators
+continue to diagnose the path through existing search-vector sweep logs and
 `eshu_dp_search_vector_build_phase_seconds` split timing for scheduling,
 query/load, embed/build, and write/upsert. The existing fields should show
 lower `document_count`, `vector_count`, `query_load_seconds`, and

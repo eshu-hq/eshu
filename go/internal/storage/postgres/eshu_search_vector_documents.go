@@ -136,7 +136,6 @@ func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (
 	builder.WriteString("      AND (meta.build_state = 'disabled' OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))\n")
 	builder.WriteString("  )\n")
 	limit := addArg(filter.Limit)
-	builder.WriteString("ORDER BY doc.updated_at DESC, doc.document_id ASC\n")
 	_, _ = fmt.Fprintf(&builder, "LIMIT %s\n", limit)
 	return builder.String(), args
 }

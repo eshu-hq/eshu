@@ -185,6 +185,9 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
 	if strings.Contains(q, "OFFSET") {
 		t.Fatalf("pending vector document query must not OFFSET a shrinking pending set:\n%s", q)
 	}
+	if strings.Contains(q, "ORDER BY") {
+		t.Fatalf("pending vector document query should stay limit-driven instead of sorting full scopes:\n%s", q)
+	}
 	if strings.Contains(q, "fact_records") || strings.Contains(q, "fact.payload") {
 		t.Fatalf("pending vector document query should use the persisted search index, not fact_records payload scans:\n%s", q)
 	}

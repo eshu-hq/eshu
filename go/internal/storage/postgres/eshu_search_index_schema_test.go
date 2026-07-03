@@ -81,7 +81,6 @@ func TestDataPlaneSearchIndexSchemaAvoidsRedundantTermLookupIndex(t *testing.T) 
 	for _, want := range []string{
 		"content_hash TEXT NOT NULL DEFAULT ''",
 		"ADD COLUMN IF NOT EXISTS content_hash TEXT NOT NULL DEFAULT ''",
-		"eshu_search_index_documents_vector_pending_idx",
 	} {
 		if !strings.Contains(sql, want) {
 			t.Fatalf("data-plane search-index schema missing %q:\n%s", want, sql)

@@ -68,6 +68,3 @@ ALTER TABLE eshu_search_index_terms
 
 CREATE INDEX IF NOT EXISTS eshu_search_index_documents_repo_idx
     ON eshu_search_index_documents (scope_id, generation_id, repo_id, source_kind);
-
-CREATE INDEX IF NOT EXISTS eshu_search_index_documents_vector_pending_idx
-    ON eshu_search_index_documents (scope_id, generation_id, repo_id, updated_at DESC, document_id);
