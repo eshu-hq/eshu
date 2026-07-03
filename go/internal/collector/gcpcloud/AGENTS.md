@@ -137,6 +137,21 @@
    never reads a public/private IP address or an authorized-network
    CIDR/label — only `ipv4Enabled` and the authorized-network count are
    kept).
+33. `extractor_vpn_tunnel.go` - typed-depth extractor for
+   `compute.googleapis.com/VpnTunnel` (region, IKE version, tunnel status,
+   HA/Classic gateway-interface indexes, and bounded local/remote
+   traffic-selector counts; `vpn_tunnel_uses_vpn_gateway` edge for an HA VPN
+   tunnel's own gateway, `vpn_tunnel_uses_target_vpn_gateway` edge for a
+   Classic VPN tunnel's target gateway, `vpn_tunnel_peers_with_vpn_gateway`
+   edge to either an HA peer-to-peer gateway or an external peer gateway, and
+   `vpn_tunnel_uses_router` edge to the Cloud Router used for BGP dynamic
+   routing when configured; declares local `assetTypeComputeVPNGateway` and
+   `assetTypeComputeRouter` constants pending the sibling Cloud VPN Gateway
+   (#4302) and Cloud Router (#4301) extractors, which will own those
+   declarations once merged — a follow-up dedup pass must then remove the
+   local declarations here; never reads the tunnel's own `peerIp`,
+   `sharedSecret`, `sharedSecretHash`, or `detailedStatus` fields, and
+   traffic-selector CIDR values are reduced to counts, never persisted).
 
 ## Invariants
 
