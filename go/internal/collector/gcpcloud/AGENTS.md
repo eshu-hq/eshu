@@ -91,7 +91,7 @@
    posture, exclusion count, creation time, fingerprinted writer-identity email;
    export edge to the destination Storage Bucket / BigQuery Dataset / Pub/Sub
    Topic / Log Bucket; raw filter and writer email never leave the parser).
-27. `extractor_dns_managed_zone.go` - typed-depth extractor for
+28. `extractor_dns_managed_zone.go` - typed-depth extractor for
    `dns.googleapis.com/ManagedZone` (visibility, DNSSEC state, creation time,
    private-network count, forwarding enabled/target-count, peering flag;
    visible-from-network edge to each private-visibility VPC Network and
@@ -99,14 +99,14 @@
    `dnsName` and forwarding target-name-server IPs/hostnames never leave the
    parser — distinct from the `dns.googleapis.com/ResourceRecordSet` asset type,
    which flows through the separate `gcp_dns_record` fact family).
-28. `extractor_storage_bucket.go` - typed-depth extractor for
+29. `extractor_storage_bucket.go` - typed-depth extractor for
    `storage.googleapis.com/Bucket` (placement, storage class, timestamps,
    uniform-bucket-level-access and public-access-prevention posture, versioning,
    a bounded lifecycle-rule count, and retention-policy posture; CMEK edge to the
    Cloud KMS CryptoKey and usage-logging export edge to the destination log
    bucket; the bucket ACL/IAM policy, object contents, and notification
    configuration are never decoded).
-29. `extractor_kms_crypto_key.go` - typed-depth extractor for
+30. `extractor_kms_crypto_key.go` - typed-depth extractor for
    `cloudkms.googleapis.com/CryptoKey` (purpose, version-template protection
    level and algorithm, rotation schedule present only for keys that rotate,
    primary-version lifecycle state, creation time; `kms_crypto_key_in_key_ring`
@@ -114,7 +114,7 @@
    CryptoKey's own resource-name path since Cloud KMS reports no separate
    KeyRing field; never reads key material, key state history, or any
    data-plane content).
-30. `extractor_gke_cluster.go` - typed-depth extractor for
+31. `extractor_gke_cluster.go` - typed-depth extractor for
    `container.googleapis.com/Cluster` (location, status, master/node version,
    release channel, create time, private-cluster and master-authorized-networks
    posture, workload identity pool, addon posture, and a per-node-pool summary
@@ -123,6 +123,20 @@
    / `gke_cluster_uses_subnetwork` edges to the cluster's Network/Subnetwork;
    master-authorized-network CIDR values, node-pool OAuth scope values, and the
    GKE "default" service-account sentinel never reach the output.
+32. `extractor_sql_instance.go` - typed-depth extractor for
+   `sqladmin.googleapis.com/Instance` (database version, region, state,
+   instance type, tier, availability type, disk size, public-IP posture,
+   SSL mode, authorized-network count, backup/PITR posture, CMEK key name,
+   replica count, creation time; `sql_instance_in_network` edge to the private
+   Compute Network, `sql_instance_encrypted_by_kms_key` edge to the CMEK
+   CryptoKey, and `sql_instance_has_replica`/`sql_instance_replica_of`
+   replica-topology edges; a bare `masterInstanceName`/`replicaNames` entry
+   with no project qualifier — the common same-project sqladmin API shape — is
+   resolved against the instance's own project, and `kmsKeyName` is
+   normalized so an already CAI-prefixed value is never double-prefixed;
+   never reads a public/private IP address or an authorized-network
+   CIDR/label — only `ipv4Enabled` and the authorized-network count are
+   kept).
 
 ## Invariants
 
