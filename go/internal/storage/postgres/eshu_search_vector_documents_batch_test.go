@@ -80,3 +80,36 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocumentsForScopes(t *testing.
 		}
 	}
 }
+
+func TestEshuSearchDocumentStoreBatchFilterDoesNotMutateCallerScopes(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: nil}},
+	}
+	store := NewEshuSearchDocumentStore(db)
+	filter := EshuSearchVectorDocumentBatchFilter{
+		Scopes: []EshuSearchVectorDocumentScope{
+			{ScopeID: " scope-a ", GenerationID: " gen-a ", RepoID: " repo-a "},
+		},
+		ProviderProfileID:  " local ",
+		SourceClass:        " search_documents ",
+		EmbeddingModelID:   " local-hash-v1 ",
+		VectorIndexVersion: " vector-v1 ",
+		Limit:              500,
+	}
+
+	if _, err := store.ListPendingVectorDocumentsForScopes(context.Background(), filter); err != nil {
+		t.Fatalf("ListPendingVectorDocumentsForScopes error = %v", err)
+	}
+
+	if got, want := filter.Scopes[0].ScopeID, " scope-a "; got != want {
+		t.Fatalf("caller scope id mutated to %q, want %q", got, want)
+	}
+	if got, want := filter.Scopes[0].GenerationID, " gen-a "; got != want {
+		t.Fatalf("caller generation id mutated to %q, want %q", got, want)
+	}
+	if got, want := filter.Scopes[0].RepoID, " repo-a "; got != want {
+		t.Fatalf("caller repo id mutated to %q, want %q", got, want)
+	}
+}

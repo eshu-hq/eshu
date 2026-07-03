@@ -319,7 +319,7 @@ func normalizeEshuSearchVectorDocumentBatchFilter(filter EshuSearchVectorDocumen
 	if normalized.Limit <= 0 || normalized.Limit > eshuSearchDocumentMaxLimit {
 		normalized.Limit = eshuSearchDocumentMaxLimit
 	}
-	normalized.Scopes = normalized.Scopes[:0]
+	normalized.Scopes = make([]EshuSearchVectorDocumentScope, 0, len(filter.Scopes))
 	for _, scope := range filter.Scopes {
 		scope.ScopeID = strings.TrimSpace(scope.ScopeID)
 		scope.GenerationID = strings.TrimSpace(scope.GenerationID)

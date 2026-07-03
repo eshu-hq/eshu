@@ -30,6 +30,9 @@ func (b Builder) BuildBatch(ctx context.Context, reqs []BuildRequest) (BuildResu
 		}
 	}
 	if batch, ok := b.Documents.(BatchPendingDocumentStore); ok {
+		if err := validateBatchPendingBuildRequests(normalized); err != nil {
+			return BuildResult{}, err
+		}
 		return b.buildBatchPendingDocuments(ctx, batch, normalized)
 	}
 	return b.buildBatchSerial(ctx, normalized)
@@ -158,6 +161,16 @@ func buildRequestsShareBatchTuple(req BuildRequest, first BuildRequest) bool {
 		}
 	}
 	return true
+}
+
+func validateBatchPendingBuildRequests(reqs []BuildRequest) error {
+	var problems []error
+	for i, req := range reqs {
+		if req.GenerationID == "" {
+			problems = append(problems, fmt.Errorf("batched vector build request %d for scope %q requires generation id", i, req.ScopeID))
+		}
+	}
+	return errors.Join(problems...)
 }
 
 func buildPendingDocumentScopes(reqs []BuildRequest) []postgres.EshuSearchVectorDocumentScope {

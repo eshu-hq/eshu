@@ -172,3 +172,30 @@ func TestBuilderBatchRejectsMixedSourceKinds(t *testing.T) {
 		t.Fatalf("batch pending reads = %d, want 0 after validation rejection", got)
 	}
 }
+
+func TestBuilderBatchRejectsMissingGenerationForBatchedPendingStore(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingBatchPendingDocumentStore{}
+	_, err := Builder{
+		Documents: store,
+		Metadata:  &recordingVectorMetadataStore{},
+		Values:    &recordingVectorValueStore{},
+		Embedder:  &recordingEmbedder{dims: 2},
+	}.BuildBatch(context.Background(), []BuildRequest{
+		{
+			ScopeID:            "scope-a",
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
+			EmbeddingModelID:   "local-hash-v1",
+			VectorIndexVersion: "vector-v1",
+			Limit:              50,
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "generation") {
+		t.Fatalf("BuildBatch error = %v, want missing generation rejection", err)
+	}
+	if got := len(store.batchFilters); got != 0 {
+		t.Fatalf("batch pending reads = %d, want 0 after validation rejection", got)
+	}
+}

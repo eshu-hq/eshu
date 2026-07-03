@@ -136,6 +136,14 @@ Local proof for the batch selector:
   join, selected scope/generation/repo predicates, per-scope `LIMIT`, persisted
   search-index-document source, and no `ORDER BY`, `OFFSET`, `fact_records`, or
   `fact.payload`.
+- Review-fix proof: `TestBuilderBatchRejectsMissingGenerationForBatchedPendingStore`
+  failed before the batch-capable builder rejected empty generation IDs, then
+  passed after `BuildBatch` stopped before issuing a batched pending-document
+  read. `TestEshuSearchDocumentStoreBatchFilterDoesNotMutateCallerScopes`
+  failed before batch-filter normalization reused the caller's scope slice
+  backing array, then passed after normalization allocated a fresh scope slice.
+  The fixed paths preserve the same selected-scope SQL and vector identity while
+  preventing silent zero-row selection and caller-owned filter mutation.
 
 Remote batch-selector proof: `search-vector-batch-selector-cap15-20260703T140409Z`
 ran the same 895-repository corpus, same NornicDB image
@@ -178,3 +186,6 @@ scheduling, query/load, embed/build, and write/upsert. The existing fields
 should show lower `document_count`, `vector_count`, `query_load_seconds`, and
 `write_upsert_seconds` when scopes have mostly ready vectors, and the batch
 selector proof should specifically lower the serial per-scope query-load tail.
+The review-fix changes add no new signal shape; they fail closed before the
+existing batch read when a required generation ID is absent and make
+normalization side-effect free without changing runtime telemetry.
