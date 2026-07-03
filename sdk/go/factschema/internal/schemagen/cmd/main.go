@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/eshu-hq/eshu/sdk/go/factschema/internal/schemagen"
 )
@@ -29,7 +30,6 @@ func main() {
 }
 
 func run() error {
-	// internal/schemagen/cmd -> module root is two levels up.
 	moduleRoot, err := moduleRootDir()
 	if err != nil {
 		return err
@@ -57,17 +57,53 @@ func run() error {
 	return nil
 }
 
+// modulePath is the module path declared in this module's go.mod. It anchors
+// the upward search in moduleRootDir so the command finds this module's root
+// rather than a parent module's go.mod higher up the tree.
+const modulePath = "module github.com/eshu-hq/eshu/sdk/go/factschema"
+
+// byteOrderMark is a UTF-8 BOM that a go.mod file may carry as its first
+// bytes; declaresModule trims it before comparing the module line.
+const byteOrderMark = "\ufeff"
+
+// moduleRootDir returns the directory holding this module's go.mod by walking
+// up from the working directory. It matches on the module path declared in
+// go.mod, not merely the presence of a go.mod, so it never mistakes a parent
+// module's root for this one. It fails fast with a clear error rather than
+// writing the schema files to a wrong path.
 func moduleRootDir() (string, error) {
-	wd, err := os.Getwd()
+	dir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("schemagen: getwd: %w", err)
 	}
-	// go run ./internal/schemagen/cmd is invoked from the module root, so
-	// os.Getwd() already is the module root in the go:generate and
-	// documented invocation. Guard against accidental invocation from
-	// inside the cmd directory itself.
-	if filepath.Base(wd) == "cmd" {
-		return filepath.Dir(filepath.Dir(wd)), nil
+
+	for {
+		goMod := filepath.Join(dir, "go.mod")
+		if raw, readErr := os.ReadFile(goMod); readErr == nil {
+			if declaresModule(raw, modulePath) {
+				return dir, nil
+			}
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf(
+				"schemagen: could not locate the %q module root above the working directory; run via `go generate ./...` from the module root",
+				modulePath,
+			)
+		}
+		dir = parent
 	}
-	return wd, nil
+}
+
+// declaresModule reports whether a go.mod file's contents declare
+// wantModuleLine as the module path, tolerating a leading UTF-8 byte-order
+// mark and surrounding whitespace on the module line.
+func declaresModule(goMod []byte, wantModuleLine string) bool {
+	for _, line := range strings.Split(string(goMod), "\n") {
+		if strings.TrimSpace(strings.TrimPrefix(line, byteOrderMark)) == wantModuleLine {
+			return true
+		}
+	}
+	return false
 }

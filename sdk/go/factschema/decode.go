@@ -56,9 +56,10 @@ type DecodeError struct {
 	FactKind string
 	// Classification is one of this package's Classification* constants.
 	Classification string
-	// Field is the JSON payload key that was missing or invalid. Empty when
-	// the error is not attributable to a single field (for example an
-	// unsupported schema major).
+	// Field names the required JSON payload key that was missing or present
+	// as an explicit null; Error formats it as a missing-required-field
+	// message. Empty when the error is not attributable to a single field
+	// (for example an unsupported schema major).
 	Field string
 	// Err is the underlying cause, when one exists (for example a
 	// json.Unmarshal error). May be nil.

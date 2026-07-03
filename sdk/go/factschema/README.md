@@ -1,20 +1,18 @@
 # Fact Schema Contracts
 
 This module defines the versioned collector-to-reducer **payload** contracts
-described in
-[Contract System v1](../../../docs/internal/design/contract-system-v1.md)
-(§3.1, "The contracts module") and its
-[contributor summary](../../../docs/internal/contract-system-contributor-summary.md).
-It intentionally does not import `github.com/eshu-hq/eshu/go/internal`
-packages — the same constraint `sdk/go/collector` already satisfies. Both
-collector repositories and the core reducer depend on this module; they
-never depend on each other.
+described in Contract System v1 §3.1, "The contracts module"
+(`docs/internal/design/contract-system-v1.md`), and its contributor summary
+(`docs/internal/contract-system-contributor-summary.md`). It intentionally
+does not import `github.com/eshu-hq/eshu/go/internal` packages — the same
+constraint `sdk/go/collector` already satisfies. Both collector repositories
+and the core reducer depend on this module; they never depend on each other.
 
 This is a **scaffold**: it demonstrates the pattern end to end with one
 sample fact kind, `aws.resource` (schema version 1). It intentionally does
-not migrate any existing fact family. See
-[Contract System v1 §7](../../../docs/internal/design/contract-system-v1.md#7-migration-plan)
-for the family-by-family migration plan this scaffold is step 1 of.
+not migrate any existing fact family. See Contract System v1 §7
+(`docs/internal/design/contract-system-v1.md`) for the family-by-family
+migration plan this scaffold is step 1 of.
 
 ## Compatibility
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -337,14 +338,54 @@ func sortedKeys(m map[string]bool) []string {
 	return keys
 }
 
+// TestParseJSONTag covers the tag-splitting helper the reflection lock tests
+// rely on, including multi-option tags where omitempty is not the last option
+// (json.Marshal accepts options in any order) and the skip tag "-".
+func TestParseJSONTag(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		tag           string
+		wantName      string
+		wantOmitEmpty bool
+	}{
+		{tag: "name", wantName: "name", wantOmitEmpty: false},
+		{tag: "name,omitempty", wantName: "name", wantOmitEmpty: true},
+		{tag: "name,omitempty,string", wantName: "name", wantOmitEmpty: true},
+		{tag: "name,string,omitempty", wantName: "name", wantOmitEmpty: true},
+		{tag: "-", wantName: "", wantOmitEmpty: false},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.tag, func(t *testing.T) {
+			t.Parallel()
+
+			name, omitEmpty := parseJSONTag(tc.tag)
+			if name != tc.wantName {
+				t.Fatalf("parseJSONTag(%q) name = %q, want %q", tc.tag, name, tc.wantName)
+			}
+			if omitEmpty != tc.wantOmitEmpty {
+				t.Fatalf("parseJSONTag(%q) omitEmpty = %v, want %v", tc.tag, omitEmpty, tc.wantOmitEmpty)
+			}
+		})
+	}
+}
+
+// parseJSONTag splits a struct json tag into its field name and whether it
+// carries the omitempty option. The tag is a comma-separated list whose first
+// element is the field name and whose remaining elements are options in any
+// order (json.Marshal does not require omitempty to be last). The skip tag "-"
+// yields an empty name.
 func parseJSONTag(tag string) (name string, omitEmpty bool) {
-	name = tag
-	for i := 0; i < len(tag); i++ {
-		if tag[i] == ',' {
-			name = tag[:i]
-			omitEmpty = tag[i:] == ",omitempty"
-			return name, omitEmpty
+	parts := strings.Split(tag, ",")
+	name = parts[0]
+	if name == "-" {
+		name = ""
+	}
+	for _, option := range parts[1:] {
+		if option == "omitempty" {
+			omitEmpty = true
 		}
 	}
-	return name, false
+	return name, omitEmpty
 }

@@ -13,8 +13,8 @@ of these structs, validated.
 
 ## Required vs. optional fields
 
-Field mutability encodes the contract, per
-[Contract System v1 §3.1](../../../../docs/internal/design/contract-system-v1.md):
+Field mutability encodes the contract, per Contract System v1 §3.1
+(`docs/internal/design/contract-system-v1.md`):
 
 - **Required**: a non-pointer field with no `omitempty` tag. `Resource`'s
   `AccountID`, `ResourceID`, `Region`, and `ResourceType` are required — the
