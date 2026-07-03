@@ -165,8 +165,32 @@ func extractURLMap(ctx ExtractContext) (AttributeExtraction, error) {
 	return AttributeExtraction{
 		Attributes:         attrs,
 		CorrelationAnchors: dedupeNonEmpty(anchors),
-		Relationships:      rels,
+		Relationships:      dedupeURLMapRelationships(rels),
 	}, nil
+}
+
+// dedupeURLMapRelationships drops duplicate relationship observations keyed
+// on (RelationshipType, TargetFullResourceName, TargetAssetType). A URL Map
+// commonly references the same backend from more than one path — the same
+// BackendService as both a pathMatcher's defaultService and one of its
+// pathRules[].service, or the same backend repeated across pathRules and
+// routeRules — and without this dedup each repetition would emit a separate
+// gcp_cloud_relationship fact for the same logical edge.
+func dedupeURLMapRelationships(rels []RelationshipObservation) []RelationshipObservation {
+	if len(rels) == 0 {
+		return rels
+	}
+	seen := make(map[string]struct{}, len(rels))
+	deduped := make([]RelationshipObservation, 0, len(rels))
+	for _, rel := range rels {
+		key := rel.RelationshipType + "|" + rel.TargetFullResourceName + "|" + rel.TargetAssetType
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, rel)
+	}
+	return deduped
 }
 
 // urlMapAttributes assembles the bounded attribute map. Empty or absent

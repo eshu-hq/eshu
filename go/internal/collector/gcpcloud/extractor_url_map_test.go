@@ -307,6 +307,34 @@ func TestExtractURLMapRouteRuleUnresolvableBackendReferenceEmitsNoEdge(t *testin
 	}
 }
 
+func TestExtractURLMapDedupesRepeatedBackendReference(t *testing.T) {
+	// The same BackendService is referenced as both a pathMatcher's
+	// defaultService and one of its pathRules[].service; the extractor must
+	// emit exactly one edge per distinct (relationship_type, target) pair,
+	// not a duplicate relationship fact per repetition.
+	const data = `{
+		"pathMatchers": [
+			{
+				"defaultService": "projects/p/global/backendServices/shared-backend",
+				"pathRules": [
+					{"service": "projects/p/global/backendServices/shared-backend"},
+					{"service": "projects/p/global/backendServices/shared-backend"}
+				]
+			}
+		]
+	}`
+	got, err := extractURLMap(urlMapContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 2 {
+		t.Fatalf("expected 2 deduped edges (default-service + path-rule-service, each pointing at the same backend once), got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+	if len(got.CorrelationAnchors) != 1 {
+		t.Errorf("expected 1 deduped anchor, got %#v", got.CorrelationAnchors)
+	}
+}
+
 func TestURLMapBackendEdgeDispatch(t *testing.T) {
 	cases := []struct {
 		name          string
