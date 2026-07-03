@@ -85,6 +85,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_GCP_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
 | `ESHU_GCP_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
 | `ESHU_GCP_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+| `ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID` | string | — | Optional billing/quota project id sent as x-goog-user-project on Cloud Asset Inventory requests. Leave unset for service-account/Workload Identity Federation ADC; set it when the resolved ADC is a user credential, which otherwise gets a 403 quota-project error. |
 
 ## collector-grafana
 
@@ -349,4 +350,3 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED` | bool | `false` | Enable the semantic-provider worker claim loop. |
 | `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` | enum | — | Deterministic no-network or auto-local semantic search selector for API, MCP, and reducer. Allowed: `hash`, `local_hash`, `auto_hash`. |
 | `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID` | string | — | Selects one governed search_documents provider profile when multiple semantic search providers are configured. |
-

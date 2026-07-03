@@ -74,11 +74,10 @@ func TestLiveClientFetchPageUsesBoundedAssetsListRequest(t *testing.T) {
 
 func TestLiveClientFetchPageOmitsQuotaProjectHeaderByDefault(t *testing.T) {
 	scopeCfg := testScope().withDefaults()
-	gotHeaderSet := false
+	headerSetCh := make(chan bool, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := r.Header["X-Goog-User-Project"]; ok {
-			gotHeaderSet = true
-		}
+		_, ok := r.Header["X-Goog-User-Project"]
+		headerSetCh <- ok
 		_, _ = w.Write([]byte(`{"readTime":"2026-06-16T12:00:00Z","assets":[]}`))
 	}))
 	t.Cleanup(server.Close)
@@ -91,16 +90,16 @@ func TestLiveClientFetchPageOmitsQuotaProjectHeaderByDefault(t *testing.T) {
 	if _, err := client.FetchPage(context.Background(), PageRequest{Scope: scopeCfg}); err != nil {
 		t.Fatalf("FetchPage: %v", err)
 	}
-	if gotHeaderSet {
+	if gotHeaderSet := <-headerSetCh; gotHeaderSet {
 		t.Fatal("x-goog-user-project header set, want omitted when QuotaProjectID is empty")
 	}
 }
 
 func TestLiveClientFetchPageSetsQuotaProjectHeaderWhenConfigured(t *testing.T) {
 	scopeCfg := testScope().withDefaults()
-	var gotQuotaProject string
+	quotaProjectCh := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuotaProject = r.Header.Get("X-Goog-User-Project")
+		quotaProjectCh <- r.Header.Get("X-Goog-User-Project")
 		_, _ = w.Write([]byte(`{"readTime":"2026-06-16T12:00:00Z","assets":[]}`))
 	}))
 	t.Cleanup(server.Close)
@@ -114,7 +113,7 @@ func TestLiveClientFetchPageSetsQuotaProjectHeaderWhenConfigured(t *testing.T) {
 	if _, err := client.FetchPage(context.Background(), PageRequest{Scope: scopeCfg}); err != nil {
 		t.Fatalf("FetchPage: %v", err)
 	}
-	if gotQuotaProject != "my-quota-project" {
+	if gotQuotaProject := <-quotaProjectCh; gotQuotaProject != "my-quota-project" {
 		t.Fatalf("x-goog-user-project header = %q, want my-quota-project", gotQuotaProject)
 	}
 }

@@ -62,6 +62,7 @@ var collectorEntries = func() []Entry {
 	add(collectorFrameworkEntries("collector-gcp-cloud",
 		"ESHU_GCP_COLLECTOR_INSTANCE_ID", "ESHU_GCP_COLLECTOR_OWNER_ID",
 		"ESHU_GCP_COLLECTOR_POLL_INTERVAL", "", "ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL", "ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL")...)
+	add(Entry{Name: "ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID", Type: VarString, Subsystem: "collector-gcp-cloud", Description: "Optional billing/quota project id sent as x-goog-user-project on Cloud Asset Inventory requests. Leave unset for service-account/Workload Identity Federation ADC; set it when the resolved ADC is a user credential, which otherwise gets a 403 quota-project error."})
 
 	// Collectors whose poll/lease/heartbeat omit the "_COLLECTOR_" infix.
 	add(collectorFrameworkEntries("collector-jira",
