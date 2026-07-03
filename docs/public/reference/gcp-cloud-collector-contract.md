@@ -809,6 +809,26 @@ extractor is distinct from the `dns.googleapis.com/ResourceRecordSet` asset
 type, whose record observations flow through the separate `gcp_dns_record` fact
 family (`dns_record.go`), not this typed-depth seam.
 
+**Cloud Storage Bucket** (`storage.googleapis.com/Bucket`) captures placement
+(location, location type), storage class, timestamps, uniform-bucket-level-access
+and public-access-prevention posture, versioning, a bounded lifecycle-rule
+count, and retention-policy posture (retention period and lock state); emits the
+typed `storage_bucket_encrypted_by_kms_key` edge to the CMEK Cloud KMS
+`CryptoKey` and the `storage_bucket_logs_to_bucket` usage-logging export edge to
+the destination log bucket; and surfaces the KMS key resource name and the
+logging destination bucket's full resource name as correlation anchors. The
+bucket's `acl`, `defaultObjectAcl`, and `iamConfiguration.bucketPolicyOnly`
+legacy IAM policy fields, object contents, and notification/pubsub
+configuration are never decoded.
+
+Performance Evidence: this extractor adds no new hot path. It is a pure
+in-process function over one already-parsed, bounded CAI `resource.data` JSON
+blob (no loop over external data, no Cypher, no graph or Postgres write, no
+worker/lease/queue, no live provider call); cost is O(1) per bucket asset.
+No-Observability-Change: extraction outcomes are covered by the existing
+`eshu_dp_gcp_cloud_attribute_extractions_total` and
+`eshu_dp_gcp_cloud_facts_emitted_total` counters; no new metric is needed.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
@@ -934,7 +954,7 @@ The first code PRs must prove these cases before any live smoke:
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
 | Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
-| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Cloud Functions Function, Secret Manager Secret Version, BigQuery Routine, API Key, Cloud Functions (gen1), Dataform Repository, reCAPTCHA Enterprise Key, BigQuery Data Transfer Config, Cloud Build Build, Identity Platform Config, Dataplex Entry Group, Artifact Registry Repository, Logging Log Bucket, Eventarc Trigger, Cloud Scheduler Job, Logging Log Sink, Cloud Tasks Queue, Firebase Project, App Engine Service, App Engine Application, Firebase App Info, Firebase Rules Ruleset, Cloud DNS Managed Zone) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag), Firebase rule source content is never read (only the source file count and target-service enum are kept), and the Managed Zone's own DNS name and forwarding target IPs/hostnames are never decoded into an attribute or anchor (only bounded posture and resolvable VPC network edges are kept). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
+| Typed-depth extraction | A registered asset-type extractor (BigQuery Table, BigQuery Dataset, Subnetwork, Artifact Registry DockerImage, VPC Network, IAM Service Account, Persistent Disk, Secret Manager Secret, Custom IAM Role, Pub/Sub Topic, Cloud Run Service, Pub/Sub Subscription, Cloud Run Revision, IAM Service Account Key, Firestore Database, IAM Workload Identity Pool, IAM Workload Identity Pool Provider, Dataproc Cluster, Cloud Functions Function, Secret Manager Secret Version, BigQuery Routine, API Key, Cloud Functions (gen1), Dataform Repository, reCAPTCHA Enterprise Key, BigQuery Data Transfer Config, Cloud Build Build, Identity Platform Config, Dataplex Entry Group, Artifact Registry Repository, Logging Log Bucket, Eventarc Trigger, Cloud Scheduler Job, Logging Log Sink, Cloud Tasks Queue, Firebase Project, App Engine Service, App Engine Application, Firebase App Info, Firebase Rules Ruleset, Cloud DNS Managed Zone, Cloud Storage Bucket) produces a bounded `attributes` map, `correlation_anchors`, and typed edges from `resource.data`; the raw blob never leaves the parser, external object paths are dropped, no public/private IP address or CIDR is persisted (subnet ranges are reduced to a prefix length), KMS references are reduced to the CryptoKey resource name with no key material, no secret payload is persisted, Cloud Run env values are never read (only env keys and control-plane references) with runtime service-account emails reduced to a fingerprint, Pub/Sub push endpoints are reduced to scheme plus a host fingerprint with paths and query dropped, no service-account private/public key material is persisted, Workload Identity provider OIDC JWKS/SAML metadata and attribute-mapping/condition expressions are never persisted (only the external trust anchor, mapping key count, and a condition-presence flag), Firebase rule source content is never read (only the source file count and target-service enum are kept), and the Managed Zone's own DNS name and forwarding target IPs/hostnames are never decoded into an attribute or anchor (only bounded posture and resolvable VPC network edges are kept). The `attributes` map surfaces through the cloud inventory readback with truth labels. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
 
