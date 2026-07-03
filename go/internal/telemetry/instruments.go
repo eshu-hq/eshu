@@ -513,6 +513,15 @@ type Instruments struct {
 	// labels; the push payload body is dropped entirely and never reaches
 	// logs, traces, or metrics.
 	GCPFreshnessEvents metric.Int64Counter
+	// GCPFreshnessFanOut records the number of configured scopes one GCP
+	// freshness trigger resolved to (#4338). A CAI asset-change event carries
+	// no content_family signal, so one trigger legitimately fans out to every
+	// configured scope sharing (parent_scope_kind, parent_scope_id,
+	// asset_type_family, location_bucket) regardless of content_family. This
+	// histogram is the fan-out cardinality distribution an operator reads to
+	// confirm the coordinator is not systematically over- or under-scanning.
+	// No labels; value is the resolved scope count for one trigger.
+	GCPFreshnessFanOut metric.Int64Histogram
 	// ObservabilityCoverageEdges counts observability COVERS edge projection
 	// outcomes (issue #391 PR3). Labels: coverage_signal (alarm / composite_alarm
 	// / dashboard / log_group / trace_sampling) and resolution_mode (arn /
@@ -2481,6 +2490,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GCPFreshnessEvents counter: %w", err)
+	}
+
+	gcpFreshnessFanOutBuckets := []float64{1, 2, 4, 8, 16, 32, 64}
+	inst.GCPFreshnessFanOut, err = meter.Int64Histogram(
+		"eshu_dp_gcp_freshness_fanout_scope_count",
+		metric.WithDescription("Number of configured scopes one GCP freshness trigger resolved to (fan-out cardinality)"),
+		metric.WithExplicitBucketBoundaries(gcpFreshnessFanOutBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GCPFreshnessFanOut histogram: %w", err)
 	}
 
 	inst.ObservabilityCoverageEdges, err = meter.Int64Counter(

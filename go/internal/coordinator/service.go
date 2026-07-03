@@ -170,8 +170,13 @@ type Service struct {
 	AWSFreshnessTriggers              AWSFreshnessTriggerStore
 	AWSFreshnessPlanner               AWSFreshnessPlanner
 	AWSFreshnessEvents                awsFreshnessEventCounter
-	IncidentFreshnessTriggers         IncidentFreshnessTriggerStore
-	GovernanceAudit                   GovernanceAuditAppender
+	GCPFreshnessTriggers              GCPFreshnessTriggerStore
+	GCPFreshnessEvents                gcpFreshnessEventCounter
+	// GCPFreshnessFanOut is optional. When set, it records the number of
+	// scopes one GCP freshness trigger fanned out to (#4338).
+	GCPFreshnessFanOut        gcpFreshnessFanOutRecorder
+	IncidentFreshnessTriggers IncidentFreshnessTriggerStore
+	GovernanceAudit           GovernanceAuditAppender
 	// SemanticProviderWorker is the optional egress-gated semantic-provider
 	// execution worker. It is nil unless explicitly configured, and even when
 	// configured it makes no real provider traffic unless its default-OFF
@@ -458,6 +463,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleAWSFreshnessWork(ctx, observedAt, schedulingInstances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleGCPFreshnessWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

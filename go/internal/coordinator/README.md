@@ -480,6 +480,43 @@ first reproduced same-run target replay and terminal-run append on
 preserved-volume restart, then proved deterministic scheduled run ids do not
 append duplicate or newly discovered target work after the run is terminal.
 
+### GCP freshness handoff fan-out (#4338)
+
+`scheduleGCPFreshnessWork`/`handoffGCPFreshnessTrigger` mirror the AWS
+freshness handoff shape above (claim via `GCPFreshnessTriggerStore`, plan via
+`GCPPlanner.PlanGCPWork`, hand off through the same
+`createWorkflowWorkIfNoOpenTargets` admission guard), wired into both the
+reconcile tick and active-maintenance tick exactly like AWS freshness. The one
+GCP-specific difference: a CAI asset-change trigger carries no
+`content_family` signal, so `resolveGCPFreshnessScopeIDs` resolves to every
+configured scope sharing `(parent_scope_kind, parent_scope_id,
+asset_type_family, location_bucket)` — a fan-out, not a single-scope pick —
+recorded via the `GCPFreshnessFanOut` histogram.
+
+Performance Evidence: this adds no new hot path shape. `ClaimQueuedTriggers`
+reuses the exact `FOR UPDATE SKIP LOCKED` claim pattern already proven by AWS
+freshness at the same default 100-row claim limit; the fan-out join
+(`matchingGCPFreshnessScopeIDs`) is an in-memory linear scan over one
+collector instance's already-loaded scope list (typically single digits to
+low hundreds of scopes), not a new query or graph write.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'GCPFreshness' -race -count=1`
+covers claim-and-handoff, the fan-out-to-multiple-content-families case,
+idempotent-skip on an already-open target, unauthorized-target handling, and
+best-effort failure-marking. Full package run: `go test -race -count=1
+./internal/coordinator ./internal/telemetry ./cmd/workflow-coordinator`.
+
+Observability Evidence: `eshu_dp_gcp_freshness_events_total` (kind/action,
+mirrors `AWSFreshnessEvents`) and the new `eshu_dp_gcp_freshness_fanout_scope_count`
+histogram (bounded buckets 1/2/4/8/16/32/64) give an operator the per-trigger
+fan-out cardinality distribution — a trigger resolving to an unexpectedly wide
+scope set is visible without a DB query.
+
+Known gap tracked separately, not introduced by this change: neither
+`gcp_freshness_triggers` nor `aws_freshness_triggers` has a claim-expiry
+column, so a mid-batch handoff error strands the remaining claimed-but-unhandled
+triggers in that tick — see #4576.
+
 Observability Evidence: AWS scheduled runs persist valid planned targets and
 skipped invalid configured tuples in `workflow_runs.requested_scope_set`; the
 existing workflow coordinator reconcile metrics and run rows show whether the

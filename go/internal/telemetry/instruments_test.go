@@ -150,6 +150,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.AWSOrgAccessSkipped, "AWSOrgAccessSkipped counter should be registered")
 	assert.NotNil(t, inst.GCPMaterializationFacts, "GCPMaterializationFacts counter should be registered")
 	assert.NotNil(t, inst.GCPMaterializationGraphWrites, "GCPMaterializationGraphWrites counter should be registered")
+	assert.NotNil(t, inst.GCPFreshnessEvents, "GCPFreshnessEvents counter should be registered")
+	assert.NotNil(t, inst.GCPFreshnessFanOut, "GCPFreshnessFanOut histogram should be registered")
 	assert.NotNil(t, inst.AWSScanStatusStaleFence, "AWSScanStatusStaleFence counter should be registered")
 	assert.NotNil(t, inst.WorkflowClaimAttemptBudgetExhausted, "WorkflowClaimAttemptBudgetExhausted counter should be registered")
 

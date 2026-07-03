@@ -25,12 +25,31 @@ func (s Service) runAWSFreshnessHandoff(ctx context.Context) error {
 	return s.scheduleAWSFreshnessWork(ctx, observedAt, filtered)
 }
 
+func (s Service) runGCPFreshnessHandoff(ctx context.Context) error {
+	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled || s.GCPFreshnessTriggers == nil {
+		return nil
+	}
+	observedAt := s.now().UTC()
+	instances, err := s.Store.ListCollectorInstances(ctx)
+	if err != nil {
+		return fmt.Errorf("list durable collector instances for GCP freshness handoff: %w", err)
+	}
+	filtered, err := s.filterCollectorInstancesByEgress(ctx, observedAt, instances)
+	if err != nil {
+		return err
+	}
+	return s.scheduleGCPFreshnessWork(ctx, observedAt, filtered)
+}
+
 func (s Service) runActiveMaintenance(ctx context.Context) error {
 	if err := s.runReapExpiredClaims(ctx); err != nil {
 		return fmt.Errorf("reap expired claims: %w", err)
 	}
 	if err := s.runAWSFreshnessHandoff(ctx); err != nil {
 		return fmt.Errorf("handoff AWS freshness triggers: %w", err)
+	}
+	if err := s.runGCPFreshnessHandoff(ctx); err != nil {
+		return fmt.Errorf("handoff GCP freshness triggers: %w", err)
 	}
 	if err := s.runIncidentFreshnessHandoff(ctx); err != nil {
 		return fmt.Errorf("handoff incident freshness triggers: %w", err)

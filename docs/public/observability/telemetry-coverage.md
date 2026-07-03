@@ -244,6 +244,7 @@ land at the same call sites.
 | GCP freshness webhook | go/cmd/webhook-listener/gcp_freshness_handler.go:33 | `eshu_dp_gcp_freshness_events_total` | webhook surface |
 | GCP freshness normalizer (pubsub decode) | go/internal/collector/gcpcloud/freshness/pubsub.go | `No-Observability-Change: pure in-process Pub/Sub push envelope decode with no metric of its own; the intake outcome is covered by eshu_dp_gcp_freshness_events_total at the webhook handler call site` | collector gcp |
 | GCP freshness normalizer (types) | go/internal/collector/gcpcloud/freshness/types.go | `No-Observability-Change: pure in-process Trigger/StoredTrigger type definitions with no metric of their own; the intake outcome is covered by eshu_dp_gcp_freshness_events_total at the webhook handler call site` | collector gcp |
+| GCP freshness coordinator handoff | go/internal/coordinator/service_gcp_freshness.go | `eshu_dp_gcp_freshness_events_total` (kind/action, mirrors AWSFreshnessEvents), `eshu_dp_gcp_freshness_fanout_scope_count` (Int64Histogram, bounded buckets 1/2/4/8/16/32/64 — per-trigger resolved-scope-count distribution) | coordinator |
 | Cassette replay source | go/internal/replay/cassette/source.go | `No-Observability-Change: collector.Service poll-loop metrics (eshu_dp_facts_emitted_total, eshu_dp_fact_batches_committed_total) cover cassette replay throughput; the cassette Source adds no new instruments` | replay cassette |
 | Cassette replay format | go/internal/replay/cassette/format.go | `No-Observability-Change: cassette file loading is a startup-path read; no runtime metrics needed` | replay cassette |
 | Cassette replay README | go/internal/replay/cassette/README.md | `No-Observability-Change: documentation file, no runtime stage` | replay cassette |
@@ -621,6 +622,7 @@ set, and every documented set has a matching variable in the code.
 | collector-stage-seconds | 0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
 | scip-process-wait-seconds | 0, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60 |
 | generation-fact-count | 10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 300000 |
+| gcp-freshness-fanout-scope-count | 1, 2, 4, 8, 16, 32, 64 |
 | large-repo-semaphore-seconds | 0, 0.1, 0.5, 1, 5, 10, 30, 60, 120, 300 |
 | batch-claim-count | 1, 4, 8, 16, 32, 64, 128 |
 | neo4j-batch-count | 1, 10, 50, 100, 250, 500, 1000 |

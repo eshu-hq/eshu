@@ -127,6 +127,16 @@ func run(parent context.Context) error {
 	if err := awsFreshnessStore.EnsureSchema(parent); err != nil {
 		return err
 	}
+	gcpFreshnessDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "gcp_freshness_triggers",
+	}
+	gcpFreshnessStore := postgres.NewGCPFreshnessStore(gcpFreshnessDB)
+	if err := gcpFreshnessStore.EnsureSchema(parent); err != nil {
+		return err
+	}
 	incidentFreshnessDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
 		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
@@ -181,6 +191,9 @@ func run(parent context.Context) error {
 		AWSFreshnessTriggers:              awsFreshnessStore,
 		AWSFreshnessPlanner:               coordinator.AWSFreshnessWorkPlanner{},
 		AWSFreshnessEvents:                instruments.AWSFreshnessEvents,
+		GCPFreshnessTriggers:              gcpFreshnessStore,
+		GCPFreshnessEvents:                instruments.GCPFreshnessEvents,
+		GCPFreshnessFanOut:                instruments.GCPFreshnessFanOut,
 		IncidentFreshnessTriggers:         incidentFreshnessStore,
 		GovernanceAudit:                   governanceAuditStore,
 		Metrics:                           metrics,
