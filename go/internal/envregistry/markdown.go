@@ -11,7 +11,8 @@ import (
 
 // RenderMarkdown renders the registry as the operator-facing reference document.
 // The output is deterministic (entries sorted by subsystem then name) so it can
-// be committed and checked for drift by a test.
+// be committed and checked for drift by a test. The output ends with exactly
+// one newline so the committed doc passes CI's whitespace gate.
 func (r *Registry) RenderMarkdown() string {
 	var b strings.Builder
 	b.WriteString("# Environment Variable Reference\n\n")
@@ -42,7 +43,9 @@ func (r *Registry) RenderMarkdown() string {
 		}
 		b.WriteString("\n")
 	}
-	return b.String()
+	// The single trailing newline is load-bearing: CI's whitespace gate
+	// (git show --check) rejects a blank line at EOF in the committed doc.
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func defaultCell(e Entry) string {
