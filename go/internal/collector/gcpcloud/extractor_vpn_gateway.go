@@ -31,19 +31,21 @@ func init() {
 // vpnGatewayData is the bounded view of a CAI compute.googleapis.com/VpnGateway
 // resource.data blob. Only safe control-plane metadata and resource
 // identifiers are decoded. vpnInterfaces carries per-interface identity and
-// address fields, but only the interface count is kept: per the GCP collector
-// contract Payload Boundaries, no public or private IP address (ipAddress,
-// ipv6Address), interface id, and no interconnect-attachment resource
-// reference is ever decoded into Go memory at all, mirroring the
-// ForwardingRule/Address extractors' treatment of their own reserved address
-// fields — the struct declares no fields for them, so json.Unmarshal never
-// populates them in the first place.
+// address fields in the CAI payload, but only the interface count is kept:
+// per the GCP collector contract Payload Boundaries, no public or private IP
+// address (ipAddress, ipv6Address), no interconnect-attachment resource
+// reference, and no per-interface id crosses into Go memory. VPNInterfaces is
+// declared as []struct{} rather than a struct with an id field because
+// encoding/json silently ignores JSON object keys with no matching struct
+// field, so these values are never decoded at all, not just never emitted,
+// mirroring the ForwardingRule/Address extractors' treatment of their own
+// reserved address fields.
 type vpnGatewayData struct {
-	Region            string `json:"region"`
-	Network           string `json:"network"`
-	StackType         string `json:"stackType"`
-	GatewayIPVersion  string `json:"gatewayIpVersion"`
-	CreationTimestamp string `json:"creationTimestamp"`
+	Region            string     `json:"region"`
+	Network           string     `json:"network"`
+	StackType         string     `json:"stackType"`
+	GatewayIPVersion  string     `json:"gatewayIpVersion"`
+	CreationTimestamp string     `json:"creationTimestamp"`
 	VPNInterfaces     []struct{} `json:"vpnInterfaces"`
 }
 
