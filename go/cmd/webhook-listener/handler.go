@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 504 lines: full webhook handler set (provider routes, body limits, normalization, OTEL). Per cmd/webhook-listener/AGENTS.md, handler.go owns the provider route behavior; splitting across files would scatter the per-provider test coverage that handler_test.go already exercises.
+package main //nolint:filelength // 525 lines: full webhook handler set (provider routes, body limits, normalization, OTEL). Per cmd/webhook-listener/AGENTS.md, handler.go owns the provider route behavior; splitting across files would scatter the per-provider test coverage that handler_test.go already exercises.
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -39,11 +40,16 @@ type awsFreshnessStore interface {
 	StoreTrigger(context.Context, freshness.Trigger, time.Time) (freshness.StoredTrigger, error)
 }
 
+type gcpFreshnessStore interface {
+	StoreTrigger(context.Context, gcpfreshness.Trigger, time.Time) (gcpfreshness.StoredTrigger, error)
+}
+
 type webhookHandler struct {
 	Config                 webhookListenerConfig
 	Store                  triggerStore
 	IncidentFreshnessStore incidentFreshnessStore
 	AWSFreshnessStore      awsFreshnessStore
+	GCPFreshnessStore      gcpFreshnessStore
 	Clock                  func() time.Time
 	Logger                 *slog.Logger
 	Instruments            *telemetry.Instruments
@@ -88,6 +94,9 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	if handler.AWSFreshnessStore == nil && handler.Config.AWSFreshnessToken != "" {
 		return nil, fmt.Errorf("AWS freshness trigger store is required")
 	}
+	if handler.GCPFreshnessStore == nil && handler.Config.GCPFreshnessToken != "" {
+		return nil, fmt.Errorf("GCP freshness trigger store is required")
+	}
 	mux := http.NewServeMux()
 	if handler.Config.GitHubSecret != "" {
 		mux.HandleFunc(handler.Config.GitHubPath, handler.handleGitHub)
@@ -106,6 +115,9 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	}
 	if handler.Config.AWSFreshnessToken != "" {
 		mux.HandleFunc(handler.Config.AWSFreshnessPath, handler.handleAWSFreshnessEventBridge)
+	}
+	if handler.Config.GCPFreshnessToken != "" {
+		mux.HandleFunc(handler.Config.GCPFreshnessPath, handler.handleGCPFreshnessPubSubPush)
 	}
 	return mux, nil
 }

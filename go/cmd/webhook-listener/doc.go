@@ -2,8 +2,8 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package main runs the eshu-webhook-listener binary, the public webhook intake
-// runtime for GitHub, GitLab, Bitbucket, AWS freshness triggers, PagerDuty, and
-// Jira.
+// runtime for GitHub, GitLab, Bitbucket, AWS freshness triggers, GCP freshness
+// triggers, PagerDuty, and Jira.
 //
 // The runtime verifies provider authentication, normalizes webhook payloads,
 // persists trigger decisions in Postgres, and exposes the shared Eshu admin
@@ -14,17 +14,23 @@
 // X-Hub-Signature verification. The runtime does not mount the repository
 // workspace, connect to the graph backend, or mark webhook metadata as graph
 // truth. AWS EventBridge and AWS Config deliveries are normalized into
-// service-tuple wake-up triggers and never write graph truth directly.
-// PagerDuty and Jira deliveries are normalized into scoped incident freshness
-// wake-ups and never emit incident, change, work-item, deployment, code, or PR
-// facts directly. Jira intake admits only issue created, updated, and deleted
-// events as collector wake-ups. Request body handling returns 413 only when
-// MaxRequestBodyBytes is exceeded; other
+// service-tuple wake-up triggers and never write graph truth directly. GCP
+// Cloud Asset Inventory Pub/Sub push deliveries are normalized into
+// parent-scope/asset-type/location wake-up triggers, drop the raw asset data
+// blob, and never write graph truth directly; the route requires the shared
+// X-Eshu-GCP-Freshness-Token as its sole auth mechanism today (real Pub/Sub
+// push OIDC verification is tracked separately) and stays unmounted until
+// that token is configured. PagerDuty and Jira deliveries are normalized into
+// scoped incident freshness wake-ups and never emit incident, change,
+// work-item, deployment, code, or PR facts directly. Jira intake admits only
+// issue created, updated, and deleted events as collector wake-ups. Request
+// body handling returns 413 only when MaxRequestBodyBytes is exceeded; other
 // body read failures are rejected as bad requests. Provider intake records
 // bounded structured logs plus OTEL counters, histograms, and spans through
 // telemetry.Instruments and telemetry.SpanWebhookHandle/
 // telemetry.SpanWebhookStore. Provider, event kind, decision, status, outcome,
-// reason, AWS freshness kind, and AWS freshness action are bounded metric
-// labels; repository, delivery identity, incident IDs, issue keys, resource
-// names, and ARNs stay out of metrics.
+// reason, AWS freshness kind, AWS freshness action, GCP freshness kind, and
+// GCP freshness action are bounded metric labels; repository, delivery
+// identity, incident IDs, issue keys, resource names, and ARNs stay out of
+// metrics.
 package main
