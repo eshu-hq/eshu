@@ -170,3 +170,50 @@ func TestRunHelpDocumentsBaselineBehavior(t *testing.T) {
 		}
 	}
 }
+
+// TestRunDetectsDeletedSchemaFile proves that deleting an entire schema file
+// on a feature branch fails the gate. Deleting a fact-kind payload contract
+// is a major break, and it must not slip through just because the current
+// working tree no longer enumerates the file. The gate must enumerate the
+// baseline schema set too and flag any baseline path absent from the current
+// tree.
+func TestRunDetectsDeletedSchemaFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	gitInit(t, dir, []string{baselineSchema})
+
+	cmd := exec.Command("git", "checkout", "-q", "-b", "feature")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v\n%s", err, out)
+	}
+
+	rmCmd := exec.Command("git", "rm", "-q", "sdk/go/factschema/schema/aws_resource.v1.schema.json")
+	rmCmd.Dir = dir
+	if out, err := rmCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git rm: %v\n%s", err, out)
+	}
+	commitCmd := exec.Command("git", "commit", "-q", "-m", "delete aws_resource schema")
+	commitCmd.Dir = dir
+	commitCmd.Env = append(
+		os.Environ(),
+		"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com",
+	)
+	if out, err := commitCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git commit: %v\n%s", err, out)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"-repo-root", dir, "-base-ref", "main"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatalf("run() error = nil, want a deleted-schema failure; stdout=%s", stdout.String())
+	}
+	got := stderr.String()
+	if !strings.Contains(got, "aws_resource.v1.schema.json") {
+		t.Fatalf("stderr = %q, want it to name the deleted schema file", got)
+	}
+	if !strings.Contains(got, string(ViolationRemovedSchema)) {
+		t.Fatalf("stderr = %q, want it to name the violation type %q", got, ViolationRemovedSchema)
+	}
+}

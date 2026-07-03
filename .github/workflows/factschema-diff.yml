@@ -5,11 +5,12 @@
 # Diffs every generated JSON Schema under sdk/go/factschema/schema/ against a
 # baseline git ref (default: the merge-base of HEAD against origin/main,
 # since no factschema-* release tag exists yet — see
-# go/cmd/factschema-diff/README.md) and fails when a schema removed, renamed,
-# or narrowed a field, or added a required field, without a corresponding
-# major version bump in the schema's title marker. An additive OPTIONAL
-# field, or a schema with no baseline counterpart (a brand-new fact kind), is
-# not a break.
+# go/cmd/factschema-diff/README.md), comparing the UNION of baseline and
+# current schema files, and fails when a schema removed, renamed, or narrowed
+# a field, added a required field, or was deleted outright, without a
+# corresponding major version bump in the schema's title marker. An additive
+# OPTIONAL field, or a schema with no baseline counterpart (a brand-new fact
+# kind), is not a break.
 #
 # What this gate catches (Contract System v1 §5/§6.1 — "remove/rename key",
 # "removed, renamed, or narrowed field"; the schemas set
@@ -21,11 +22,15 @@
 #      schema-invalid payload / input_invalid dead letter).
 #   3. A field renamed (surfaces as a removal on the old name, required or
 #      optional).
-#   4. A field's type or value space narrowed, e.g. string -> enum subset
-#      (narrowed_type).
+#   4. A field's type or value space narrowed, e.g. string -> enum subset, or
+#      a nested map-value / array-item type change like tags map[string]string
+#      -> map[string]int (narrowed_type).
 #   5. A field promoted from optional to required (widened_required).
 #   6. A brand-new required field absent from the baseline properties
 #      (added_required_field — breaks any collector that never emitted it).
+#   7. An entire schema file deleted (removed_schema — enumerated via the
+#      union of baseline and current schema files, so a whole-contract
+#      deletion cannot pass by emptying the current set).
 #   All without a corresponding major version bump in the schema's title.
 #
 # What is NOT drift (not caught, by design):
@@ -39,7 +44,7 @@
 #   1. Run: bash scripts/verify-factschema-diff.sh
 #   2. Read the reported field name and violation type (removed_required_field
 #      / removed_field / narrowed_type / widened_required /
-#      added_required_field).
+#      added_required_field / removed_schema).
 #   3. Either revert the breaking change, or bump the schema's title version
 #      marker to the next major and add a decode shim per Contract System v1
 #      §3.2 before merging.

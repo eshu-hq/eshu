@@ -9,6 +9,8 @@
 #   (d) additive optional field -> pass
 #   (f) removed optional field (fail-closed) -> fail
 #   (g) added new required field -> fail
+#   (h) deleted schema file -> fail
+#   (i) nested map value type narrowed -> fail
 #   plus a new-schema-passes case and a help-text content check.
 set -euo pipefail
 
@@ -39,9 +41,12 @@ git_env=(
 
 setup_fixture_repo() {
   local dir="$1"
+  # Optional $2 overrides the baseline schema contents (defaults to the shared
+  # baseline_schema); fixtures that need a different baseline shape pass it in.
+  local baseline="${2:-$baseline_schema}"
   mkdir -p "$dir/$(dirname "$schema_rel")"
   ( cd "$dir" && git init -q -b main )
-  printf '%s\n' "$baseline_schema" >"$dir/$schema_rel"
+  printf '%s\n' "$baseline" >"$dir/$schema_rel"
   ( cd "$dir" && git add -A && env "${git_env[@]}" git commit -q -m "baseline schema" )
   ( cd "$dir" && git checkout -q -b feature )
 }
@@ -225,6 +230,60 @@ if [ "$rc_g" -ne 0 ] && printf '%s' "$out_g" | rg -q 'partition' && printf '%s' 
 else
   printf '%s\n' "$out_g" >&2
   check "added required field fails and names field + violation type" 1
+fi
+
+# --- Fixture (h): entire schema file DELETED -> gate fails ---
+dir_h="$tmp_root/h-deleted-schema"
+setup_fixture_repo "$dir_h"
+( cd "$dir_h" && git rm -q "$schema_rel" && env "${git_env[@]}" git commit -q -m "delete aws_resource schema" )
+out_h="$(run_gate "$dir_h" 2>&1)" && rc_h=0 || rc_h=$?
+if [ "$rc_h" -ne 0 ] && printf '%s' "$out_h" | rg -q 'aws_resource.v1.schema.json' && printf '%s' "$out_h" | rg -q 'removed_schema'; then
+  check "deleted schema file fails and names file + violation type" 0
+else
+  printf '%s\n' "$out_h" >&2
+  check "deleted schema file fails and names file + violation type" 1
+fi
+
+# --- Fixture (i): nested map value type narrowed (string -> integer) -> fail ---
+# Needs a baseline whose tags value type is string, so the change is a
+# narrowing rather than an additive field.
+dir_i="$tmp_root/i-nested-narrowing"
+nested_baseline_schema='{
+  "properties": {
+    "account_id": {"type": "string"},
+    "resource_id": {"type": "string"},
+    "region": {"type": "string"},
+    "resource_type": {"type": "string"},
+    "name": {"type": "string"},
+    "tags": {"additionalProperties": {"type": "string"}, "type": "object"}
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": ["account_id", "resource_id", "region", "resource_type"],
+  "title": "Eshu aws.resource Payload (schema version 1)"
+}'
+setup_fixture_repo "$dir_i" "$nested_baseline_schema"
+nested_narrow_schema='{
+  "properties": {
+    "account_id": {"type": "string"},
+    "resource_id": {"type": "string"},
+    "region": {"type": "string"},
+    "resource_type": {"type": "string"},
+    "name": {"type": "string"},
+    "tags": {"additionalProperties": {"type": "integer"}, "type": "object"}
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": ["account_id", "resource_id", "region", "resource_type"],
+  "title": "Eshu aws.resource Payload (schema version 1)"
+}'
+commit_schema "$dir_i" "$nested_narrow_schema" "narrow tags value type to integer"
+out_i="$(run_gate "$dir_i" 2>&1)" && rc_i=0 || rc_i=$?
+if [ "$rc_i" -ne 0 ] && printf '%s' "$out_i" | rg -q 'tags' && printf '%s' "$out_i" | rg -q 'narrowed_type'; then
+  check "nested map value narrowing fails and names field + violation type" 0
+else
+  printf '%s\n' "$out_i" >&2
+  check "nested map value narrowing fails and names field + violation type" 1
 fi
 
 # --- New schema with no baseline counterpart -> gate passes ---

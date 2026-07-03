@@ -338,9 +338,11 @@ gates:
     # Contract System v1 §6 enforcement gate 1: diffs generated JSON Schemas
     # under sdk/go/factschema/schema/ against a baseline git ref (default:
     # merge-base against origin/main, since no factschema-* release tag
-    # exists yet) and fails on a removed/renamed field (required, or optional
-    # under a fail-closed additionalProperties:false schema), a narrowed type,
-    # a widened required set, or a newly added required field — all without a
+    # exists yet), comparing the union of baseline and current schema files.
+    # Fails on a removed/renamed field (required, or optional under a
+    # fail-closed additionalProperties:false schema), a narrowed type
+    # (including nested map-value/array-item types), a widened required set, a
+    # newly added required field, or a deleted schema file — all without a
     # corresponding major version bump. See go/cmd/factschema-diff/README.md.
 
   - id: mcp-schema-drift

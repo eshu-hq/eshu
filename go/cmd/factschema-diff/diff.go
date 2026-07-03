@@ -59,6 +59,14 @@ const (
 	// distinct from ViolationWidenedRequired, which covers a field that
 	// already existed as optional in the baseline.
 	ViolationAddedRequiredField ViolationKind = "added_required_field"
+
+	// ViolationRemovedSchema means an entire schema file present at the
+	// baseline ref is absent from the current working tree — a whole
+	// fact-kind payload contract was deleted. This is a major break with no
+	// bump: consumers of that kind lose their contract. It is detected at
+	// the run() level by comparing the baseline schema-file set against the
+	// current set, not by compareSchemas (which diffs one file pair).
+	ViolationRemovedSchema ViolationKind = "removed_schema"
 )
 
 // Violation is one detected breaking change: which field, what kind of
@@ -106,10 +114,67 @@ func (s jsonSchema) failClosed() bool {
 	return s.AdditionalProperties != nil && !*s.AdditionalProperties
 }
 
-// schemaProperty is one property's type-relevant shape.
+// schemaProperty is one property's type-relevant shape, captured deeply
+// enough to detect a narrowing that hides inside a map value schema
+// (additionalProperties) or an array element schema (items). A change like
+// tags going from map[string]string to map[string]integer leaves the
+// top-level Type unchanged ("object"), so the nested AdditionalProperties
+// value type is what must be compared.
 type schemaProperty struct {
 	Type string        `json:"type"`
 	Enum []interface{} `json:"enum"`
+	// AdditionalProperties is the value schema of a map-typed property
+	// (JSON Schema's object-form additionalProperties). It is nil when the
+	// property is not a map, or when additionalProperties is the bool form
+	// (which carries no value type to narrow); see UnmarshalJSON.
+	AdditionalProperties *schemaProperty `json:"-"`
+	// Items is the element schema of an array-typed property.
+	Items *schemaProperty `json:"items"`
+}
+
+// schemaPropertyAlias mirrors schemaProperty for the standard fields so
+// UnmarshalJSON can decode them with encoding/json's default behavior while
+// handling additionalProperties' polymorphic (bool | object) shape by hand.
+type schemaPropertyAlias struct {
+	Type  string          `json:"type"`
+	Enum  []interface{}   `json:"enum"`
+	Items *schemaProperty `json:"items"`
+}
+
+// UnmarshalJSON decodes a property while tolerating JSON Schema's two shapes
+// for additionalProperties: a bool (e.g. false, carrying no value type) or a
+// schema object (the map value type). Only the object form populates
+// AdditionalProperties; the bool form is ignored, since a bool has no type to
+// narrow.
+func (p *schemaProperty) UnmarshalJSON(data []byte) error {
+	var base schemaPropertyAlias
+	if err := json.Unmarshal(data, &base); err != nil {
+		return err //nolint:wrapcheck // json errors are self-describing here.
+	}
+	p.Type = base.Type
+	p.Enum = base.Enum
+	p.Items = base.Items
+
+	// Peek at additionalProperties without committing to a type.
+	var probe struct {
+		AdditionalProperties json.RawMessage `json:"additionalProperties"`
+	}
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return err //nolint:wrapcheck // json errors are self-describing here.
+	}
+	if len(probe.AdditionalProperties) == 0 {
+		return nil
+	}
+	// Bool form (true/false) carries no value type — leave nil.
+	if trimmed := string(probe.AdditionalProperties); trimmed == "true" || trimmed == "false" {
+		return nil
+	}
+	var nested schemaProperty
+	if err := json.Unmarshal(probe.AdditionalProperties, &nested); err != nil {
+		return err //nolint:wrapcheck // json errors are self-describing here.
+	}
+	p.AdditionalProperties = &nested
+	return nil
 }
 
 // versionMarkerPattern matches this repo's checked-in schema title
@@ -240,10 +305,13 @@ func compareSchemas(name string, baseline, current []byte) ([]Violation, error) 
 }
 
 // isNarrowedType reports whether curProp's value space is a strict subset of
-// baseProp's: an enum constraint added where none existed, or the base type
+// baseProp's: an enum constraint added where none existed, the base type
 // changed to a different type entirely (treated conservatively as narrowing,
 // since this gate cannot prove type-widening is ever safe for a payload
-// contract).
+// contract), or a nested narrowing inside a map value schema
+// (additionalProperties) or array element schema (items). The nested checks
+// recurse with the same rule so tags: map[string]string -> map[string]int, or
+// zones: []string -> []int, is caught the same way a top-level type change is.
 func isNarrowedType(base, cur schemaProperty) (bool, string) {
 	if len(base.Enum) == 0 && len(cur.Enum) > 0 {
 		return true, "gained an enum constraint, narrowing its value space"
@@ -253,6 +321,16 @@ func isNarrowedType(base, cur schemaProperty) (bool, string) {
 	}
 	if base.Type != "" && cur.Type != "" && base.Type != cur.Type {
 		return true, fmt.Sprintf("type changed from %q to %q", base.Type, cur.Type)
+	}
+	if base.AdditionalProperties != nil && cur.AdditionalProperties != nil {
+		if narrowed, reason := isNarrowedType(*base.AdditionalProperties, *cur.AdditionalProperties); narrowed {
+			return true, "map value schema narrowed: " + reason
+		}
+	}
+	if base.Items != nil && cur.Items != nil {
+		if narrowed, reason := isNarrowedType(*base.Items, *cur.Items); narrowed {
+			return true, "array item schema narrowed: " + reason
+		}
 	}
 	return false, ""
 }

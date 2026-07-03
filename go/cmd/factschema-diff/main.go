@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -74,33 +75,64 @@ func run(args []string, stdout, stderr io.Writer) error {
 		baseRef = resolved
 	}
 
-	schemaFiles, err := listSchemaFiles(opts.schemaDir)
-	if err != nil {
-		return fmt.Errorf("factschema-diff: list schema files in %s: %w", opts.schemaDir, err)
-	}
-	if len(schemaFiles) == 0 {
-		_, _ = fmt.Fprintf(stdout, "factschema-diff: no schema files found under %s, nothing to check\n", opts.schemaDir)
-		return nil
-	}
-
 	relSchemaDir, err := filepath.Rel(opts.repoRoot, opts.schemaDir)
 	if err != nil {
 		return fmt.Errorf("factschema-diff: compute schema dir relative to repo root: %w", err)
 	}
+	relSchemaDir = filepath.ToSlash(relSchemaDir)
+
+	currentFiles, err := listSchemaFiles(opts.schemaDir)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("factschema-diff: list current schema files in %s: %w", opts.schemaDir, err)
+	}
+	currentSet := toStringSet(currentFiles)
+
+	baselineFiles, err := listBaselineSchemaFiles(opts.repoRoot, baseRef, relSchemaDir)
+	if err != nil {
+		return fmt.Errorf("factschema-diff: list baseline schema files at %s: %w", baseRef, err)
+	}
+
+	// Compare the UNION of baseline and current schema files. A deletion (a
+	// baseline path with no current counterpart) is caught here; a
+	// current-only path (a new schema) is a pass. Enumerating only the
+	// current tree would let a whole-contract deletion slip through silently.
+	names := unionSorted(currentFiles, baselineFiles)
+	if len(names) == 0 {
+		_, _ = fmt.Fprintf(stdout, "factschema-diff: no schema files at %s or under %s, nothing to check\n", baseRef, opts.schemaDir)
+		return nil
+	}
 
 	var failed bool
-	for _, name := range schemaFiles {
-		relPath := filepath.ToSlash(filepath.Join(relSchemaDir, name))
+	for _, name := range names {
+		relPath := relSchemaDir + "/" + name
+
+		baseline, hasBaseline, err := showAtRef(opts.repoRoot, baseRef, relPath)
+		if err != nil {
+			return fmt.Errorf("factschema-diff: read baseline schema %s at %s: %w", name, baseRef, err)
+		}
+
+		if !currentSet[name] {
+			// Absent from the current tree. If it existed at baseline, the
+			// contract was deleted — a break. If it never existed either,
+			// there is nothing to check.
+			if hasBaseline {
+				failed = true
+				removed := Violation{
+					Kind:    ViolationRemovedSchema,
+					Field:   name,
+					Message: "schema file was present at the baseline and has been removed; deleting a fact-kind payload contract is a breaking change",
+				}
+				_, _ = fmt.Fprintf(stderr, "factschema-diff: %s: %s\n", name, removed.String())
+			}
+			continue
+		}
+
 		current, err := os.ReadFile(filepath.Join(opts.schemaDir, name)) // #nosec G304 -- name comes from listSchemaFiles(opts.schemaDir).
 		if err != nil {
 			return fmt.Errorf("factschema-diff: read current schema %s: %w", name, err)
 		}
 
-		baseline, ok, err := showAtRef(opts.repoRoot, baseRef, relPath)
-		if err != nil {
-			return fmt.Errorf("factschema-diff: read baseline schema %s at %s: %w", name, baseRef, err)
-		}
-		if !ok {
+		if !hasBaseline {
 			_, _ = fmt.Fprintf(stdout, "factschema-diff: %s has no baseline counterpart at %s (new schema) — pass\n", name, baseRef)
 			continue
 		}
@@ -173,6 +205,57 @@ func listSchemaFiles(dir string) ([]string, error) {
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// listBaselineSchemaFiles returns the sorted base names of every
+// *.schema.json file tracked under relSchemaDir at baseRef, via
+// `git ls-tree -r --name-only <ref> -- <relSchemaDir>`. It reuses gitOutput,
+// which carries the #nosec G204 annotation for the internal git invocation.
+// An empty relSchemaDir at the ref (the directory did not exist yet) returns
+// no names and no error.
+func listBaselineSchemaFiles(repoRoot, baseRef, relSchemaDir string) ([]string, error) {
+	out, err := gitOutput(repoRoot, "ls-tree", "-r", "--name-only", baseRef, "--", relSchemaDir)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.HasSuffix(line, ".schema.json") {
+			continue
+		}
+		// git returns repo-relative paths; reduce to the base name so both
+		// sides key on the same identifier.
+		names = append(names, path.Base(line))
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// toStringSet builds a set from a slice of names.
+func toStringSet(names []string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, n := range names {
+		set[n] = true
+	}
+	return set
+}
+
+// unionSorted returns the sorted, de-duplicated union of two name slices.
+func unionSorted(a, b []string) []string {
+	set := make(map[string]struct{}, len(a)+len(b))
+	for _, n := range a {
+		set[n] = struct{}{}
+	}
+	for _, n := range b {
+		set[n] = struct{}{}
+	}
+	names := make([]string, 0, len(set))
+	for n := range set {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // mergeBaseRef resolves `git merge-base HEAD <ref>` from repoRoot, returning

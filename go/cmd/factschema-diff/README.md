@@ -53,13 +53,23 @@ express structurally:
   flagged — the open schema still accepts the field.
 - **`narrowed_type`** — a field gained an `enum` constraint where none
   existed, its `enum` set shrank, or its declared `type` changed to a
-  different type.
+  different type. This recurses into a map value schema
+  (`additionalProperties`) and array element schema (`items`), so
+  `tags: map[string]string -> map[string]int` or `zones: []string -> []int`
+  is caught even though the top-level `type` (`object` / `array`) is
+  unchanged.
 - **`widened_required`** — a field that was optional in the baseline (present
   in `properties`, absent from `required`) became required in the current
   schema. This breaks any collector that never emitted the field.
 - **`added_required_field`** — a brand-new field (absent from the baseline
   `properties` entirely) was added to the current schema's `required` set.
   Existing collectors that never emitted it now fail validation.
+- **`removed_schema`** — an entire schema file present at the baseline ref is
+  absent from the current working tree. Deleting a fact-kind payload contract
+  breaks every consumer of that kind. The gate enumerates the **union** of
+  baseline and current schema files (`git ls-tree` at the baseline plus the
+  working tree) so a deletion cannot slip through by leaving the current set
+  empty.
 
 Every violation is suppressed when the current schema's title version marker
 (`"... (schema version N)"`) took a major bump relative to the baseline's
