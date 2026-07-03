@@ -854,6 +854,38 @@
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-67",
+        "description": "A GKE Cluster CloudResource is connected to its VPC Subnetwork CloudResource via a GCP_gke_cluster_uses_subnetwork edge; the gcpcloud cassette's demo-gke-cluster Cluster fact carries a gcp_cloud_relationship fact with relationship_type gke_cluster_uses_subnetwork targeting the shared demo-subnet Subnetwork, matching the #4282 extractor's second network edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Cluster->Subnetwork relationship fact, so this locks in the GKE Cluster subnetwork edge path alongside its network edge (#4539).",
+        "relationship": "GCP_gke_cluster_uses_subnetwork",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-68",
+        "description": "A Cloud SQL Instance CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_sql_instance_encrypted_by_kms_key edge; the gcpcloud cassette's demo-sql-instance Instance fact carries a gcp_cloud_relationship fact with relationship_type sql_instance_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4284 extractor's CMEK edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance->CryptoKey relationship fact, so this locks in the Cloud SQL Instance CMEK edge path alongside its private-network edge (#4540).",
+        "relationship": "GCP_sql_instance_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-69",
+        "description": "A compute ForwardingRule CloudResource is connected to the VPC Network CloudResource it fronts via a GCP_forwarding_rule_in_network edge; the gcpcloud cassette's demo-forwarding-rule ForwardingRule fact carries a gcp_cloud_relationship fact with relationship_type forwarding_rule_in_network targeting the shared demo-vpc Network, matching the #4297 extractor's network edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the ForwardingRule->Network relationship fact, so this locks in the Forwarding Rule network edge path alongside its backend-service target edge (#4542).",
+        "relationship": "GCP_forwarding_rule_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-70",
+        "description": "A Memorystore Redis Instance CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_redis_instance_encrypted_by_kms_key edge; the gcpcloud cassette's demo-redis Instance fact carries a gcp_cloud_relationship fact with relationship_type redis_instance_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4298 extractor's CMEK edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance->CryptoKey relationship fact, so this locks in the Memorystore Redis Instance CMEK edge path alongside its authorized-network edge (#4555).",
+        "relationship": "GCP_redis_instance_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
