@@ -210,6 +210,17 @@
    `routerBgpPeerData`, `routerNatData`, and `routerInterfaceData` never
    declare struct fields for the CAI IP/CIDR fields at all, so those values
    are never decoded into Go memory in the first place).
+37. `extractor_vpn_gateway.go` - typed-depth extractor for
+   `compute.googleapis.com/VpnGateway` (Cloud HA-VPN gateway: region, stack
+   type, gateway IP version, creation time, and a bounded VPN-interface count;
+   `vpn_gateway_in_network` edge to the enclosing Compute `Network`); a
+   regional-only asset type with no global variant; per-interface id, the
+   interface `ipAddress`/`ipv6Address`, and any `interconnectAttachment`
+   reference are never decoded into Go memory at all — only the interface
+   count crosses the redaction boundary, so no public or private IP address
+   reaches a fact; distinct from `compute.googleapis.com/TargetVpnGateway`
+   (the older Classic VPN target-gateway resource referenced by
+   `ForwardingRule.target` and handled by `extractor_forwarding_rule.go`).
 
 ## Invariants
 

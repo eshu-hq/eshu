@@ -1001,6 +1001,20 @@ interface IP address (`bgpPeers[].ipAddress`/`.peerIpAddress`,
 (`nats[].natIps`/`.drainNatIps`) is ever decoded into an attribute or anchor,
 per the GCP collector contract Payload Boundaries.
 
+**Cloud VPN Gateway** (`compute.googleapis.com/VpnGateway`) captures region,
+stack type, gateway IP version, creation time, and a bounded VPN-interface
+count; emits the typed `vpn_gateway_in_network` edge to the enclosing Compute
+`Network`; and surfaces the network resource name as a correlation anchor.
+VpnGateway is a regional-only asset type — GCP exposes no global variant,
+unlike `ForwardingRule`/`Address` — and is distinct from
+`compute.googleapis.com/TargetVpnGateway` (the older Classic VPN
+target-gateway resource a `ForwardingRule.target` can reference, handled by
+the Forwarding Rule extractor). Per-interface identity (`id`), the interface
+`ipAddress`/`ipv6Address`, and any `interconnectAttachment` reference are
+never decoded into Go memory at all — the interface struct declares no fields
+for them — so only the interface count crosses the redaction boundary and no
+public or private IP address reaches a fact.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
