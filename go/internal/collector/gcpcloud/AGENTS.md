@@ -396,6 +396,26 @@
    configs; there is no cross-project destination signal in CAI to prefer. The
    `params` map (user query text, source object paths, and the source-side
    project/dataset ids of a copy job) is never decoded and never leaves the parser.
+47. `extractor_workflows_workflow.go` - typed-depth extractor for
+   `workflows.googleapis.com/Workflow` (deployment state, revision id, call-log
+   level, execution-history level, create/update/revision-create time, a
+   source-contents presence flag, the CMEK key name, and the fingerprinted
+   runtime service-account email — verified against the live Workflows v1
+   discovery document); `workflow_encrypted_by_kms_key` edge to the CMEK
+   CryptoKey when `cryptoKeyName` is set (an already CAI-prefixed value is kept
+   as-is, mirroring the Dataflow Job and Memorystore Redis Instance CMEK
+   normalization); the runtime service account is carried as a fingerprinted
+   attribute/anchor only, never an edge, the same treatment as the Dataflow
+   Job, Dataproc Cluster, and GKE Cluster extractors' own service accounts,
+   since an email is not an exactly resolvable CAI endpoint; `sourceContents`
+   (the workflow's YAML/JSON definition body) is decoded only far enough to set
+   a boolean presence flag — no step, argument, header, or embedded credential
+   value from that body is ever read, so a called service (Cloud Run, Cloud
+   Functions, or an arbitrary HTTP endpoint) referenced only inside the
+   workflow definition is out of reach of this safe-metadata extractor and is
+   not modeled as an edge; `userEnvVars`, `tags`, and `labels` are not
+   re-declared in typed depth since the collector's shared label/tag path
+   already captures and fingerprints them.
 
 ## Invariants
 
