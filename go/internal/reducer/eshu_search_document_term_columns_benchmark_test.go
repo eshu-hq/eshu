@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"testing"
 
@@ -107,10 +108,10 @@ func TestBuildSearchIndexTermColumnsMatchesGlobalSortOrdering(t *testing.T) {
 	documents := makeSearchIndexTermColumnBenchmarkDocuments(25, 17)
 	wantDocumentIDs, wantTerms, wantTermKeys, wantFrequencies := buildSearchIndexTermColumnsWithGlobalSortForBenchmark(documents)
 	gotDocumentIDs, gotTerms, gotTermKeys, gotFrequencies := buildSearchIndexTermColumns(documents)
-	if fmt.Sprint(gotDocumentIDs) != fmt.Sprint(wantDocumentIDs) ||
-		fmt.Sprint(gotTerms) != fmt.Sprint(wantTerms) ||
-		fmt.Sprint(gotTermKeys) != fmt.Sprint(wantTermKeys) ||
-		fmt.Sprint(gotFrequencies) != fmt.Sprint(wantFrequencies) {
+	if !slices.Equal(gotDocumentIDs, wantDocumentIDs) ||
+		!slices.Equal(gotTerms, wantTerms) ||
+		!slices.Equal(gotTermKeys, wantTermKeys) ||
+		!slices.Equal(gotFrequencies, wantFrequencies) {
 		t.Fatalf(
 			"bucketed columns differ from global sort\nwant docs=%v terms=%v keys=%v freqs=%v\ngot docs=%v terms=%v keys=%v freqs=%v",
 			wantDocumentIDs,
@@ -138,10 +139,10 @@ func TestBuildSearchIndexTermColumnsSortsUnorderedDocuments(t *testing.T) {
 	wantTerms := []string{"alpha", "alpha", "beta", "beta"}
 	wantTermKeys := []string{searchhybrid.TermKey("alpha"), searchhybrid.TermKey("alpha"), searchhybrid.TermKey("beta"), searchhybrid.TermKey("beta")}
 	wantFrequencies := []int{1, 1, 2, 2}
-	if fmt.Sprint(gotDocumentIDs) != fmt.Sprint(wantDocumentIDs) ||
-		fmt.Sprint(gotTerms) != fmt.Sprint(wantTerms) ||
-		fmt.Sprint(gotTermKeys) != fmt.Sprint(wantTermKeys) ||
-		fmt.Sprint(gotFrequencies) != fmt.Sprint(wantFrequencies) {
+	if !slices.Equal(gotDocumentIDs, wantDocumentIDs) ||
+		!slices.Equal(gotTerms, wantTerms) ||
+		!slices.Equal(gotTermKeys, wantTermKeys) ||
+		!slices.Equal(gotFrequencies, wantFrequencies) {
 		t.Fatalf(
 			"columns not sorted by primary-key suffix\nwant docs=%v terms=%v keys=%v freqs=%v\ngot docs=%v terms=%v keys=%v freqs=%v",
 			wantDocumentIDs,

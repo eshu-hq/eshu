@@ -194,9 +194,9 @@ func TestWriteSearchIndexTermsCopyPathPreservesPreparedOrder(t *testing.T) {
 		t.Fatalf("copy calls = %d, want 1", got)
 	}
 	call := copier.calls[0]
-	if strings.Join(call.documentIDs, ",") != strings.Join(preparedDocumentIDs, ",") ||
-		strings.Join(call.terms, ",") != strings.Join(preparedTerms, ",") ||
-		strings.Join(call.termKeys, ",") != strings.Join(preparedTermKeys, ",") ||
+	if !slices.Equal(call.documentIDs, preparedDocumentIDs) ||
+		!slices.Equal(call.terms, preparedTerms) ||
+		!slices.Equal(call.termKeys, preparedTermKeys) ||
 		!slices.Equal(call.frequencies, preparedFrequencies) {
 		t.Fatalf(
 			"copy path reordered prepared columns: docs=%v terms=%v keys=%v freqs=%v; want docs=%v terms=%v keys=%v freqs=%v",
