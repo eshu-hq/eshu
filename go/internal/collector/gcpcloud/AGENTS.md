@@ -306,6 +306,33 @@
    surfaces the parent Instance and CMEK key resource names as correlation
    anchors; reuses `assetTypeBigtableInstance` from the sibling Instance
    extractor (never redeclaring it); never reads table schema or row data.
+44. `extractor_dataflow_job.go` - typed-depth extractor for
+   `dataflow.googleapis.com/Job` (job type BATCH/STREAMING, current state,
+   location, create/start time, `jobMetadata.sdkVersion` version and
+   `sdkSupportStatus` lifecycle enum, the fingerprinted runtime worker
+   service-account email, and the `environment.serviceKmsKeyName` CMEK key
+   name); `dataflow_job_uses_network` and `dataflow_job_uses_subnetwork` edges
+   resolved from the first worker pool that reports a network or subnetwork
+   reference — both endpoints come from that same single pool, never
+   cross-latched across pool indices, so a network from one pool and a
+   subnetwork from another are never paired into a placement that never
+   co-occurred (reusing `computeFullResourceNameFromSelfLink` from the Compute
+   Network extractor, with a bare subnetwork short name resolved against the
+   pool's own zone), `dataflow_job_uses_staging_bucket` edge to the GCS bucket
+   parsed from `environment.tempStoragePrefix` via `dataflowStagingBucket`,
+   which handles the two Dataflow-documented resource forms
+   (`storage.googleapis.com/{bucket}/{object}` and
+   `{bucket}.storage.googleapis.com/{object}`) plus `gs://` defensively and
+   drops the object path in every form (reusing `gcsBucketFromURI` and
+   `storageBucketResourceNamePrefixFmt` from the BigQuery Table extractor), and
+   `dataflow_job_encrypted_by_kms_key` edge to the CMEK CryptoKey (reusing
+   `assetTypeKMSCryptoKey` / `cloudKMSResourceNamePrefix`, with the same
+   already-prefixed-or-bare normalization as the Dataproc Cluster and Redis
+   Instance CMEK edges); never reads pipeline parameter values,
+   `environment.userAgent`, `environment.sdkPipelineOptions` option values, or
+   any step-graph content — only the object path after the staging bucket is
+   dropped as a data-plane locator, mirroring the BigQuery Table extractor's
+   external-source treatment.
 
 ## Invariants
 
