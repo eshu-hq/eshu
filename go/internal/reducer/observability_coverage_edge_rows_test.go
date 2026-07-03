@@ -43,7 +43,10 @@ func ec2AlarmCoverageFixture() []facts.Envelope {
 func TestExtractObservabilityCoverageEdgeRowsEmitsExactEdge(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractObservabilityCoverageEdgeRows(ec2AlarmCoverageFixture())
+	rows, tally, err := ExtractObservabilityCoverageEdgeRows(ec2AlarmCoverageFixture())
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("edge rows = %d, want 1 exact COVERS edge", len(rows))
 	}
@@ -78,7 +81,10 @@ func TestExtractObservabilityCoverageEdgeRowsGapEmitsNoEdge(t *testing.T) {
 		"arn:aws:rds:us-east-1:111122223333:db:db-prod", "db-prod", false)
 	envelopes := append(ec2AlarmCoverageFixture(), rds)
 
-	rows, _ := ExtractObservabilityCoverageEdgeRows(envelopes)
+	rows, _, err := ExtractObservabilityCoverageEdgeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	rdsUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_db_instance", "db-prod")
 	for _, row := range rows {
 		if anyToString(row["target_uid"]) == rdsUID {
@@ -104,7 +110,10 @@ func TestExtractObservabilityCoverageEdgeRowsAmbiguousEmitsNoEdge(t *testing.T) 
 		"arn:aws:cloudwatch:us-east-1:111122223333:alarm:amb", "metric-1",
 		[]map[string]any{{"name": "Dim", "value": "shared-id"}})
 
-	rows, _ := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{one, two, alarm, rel})
+	rows, _, err := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{one, two, alarm, rel})
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("ambiguous coverage produced %d edge row(s), want 0", len(rows))
 	}
@@ -124,7 +133,10 @@ func TestExtractObservabilityCoverageEdgeRowsStaleEmitsNoEdge(t *testing.T) {
 		"arn:aws:cloudwatch:us-east-1:111122223333:alarm:stale", "metric-1",
 		[]map[string]any{{"name": "InstanceId", "value": "i-stale"}})
 
-	rows, _ := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{instance, alarm, rel})
+	rows, _, err := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{instance, alarm, rel})
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("stale coverage produced %d edge row(s), want 0", len(rows))
 	}
@@ -142,7 +154,10 @@ func TestExtractObservabilityCoverageEdgeRowsRejectedEmitsNoEdge(t *testing.T) {
 		"arn:aws:cloudwatch:us-east-1:111122223333:alarm:billing", "metric-1",
 		nil)
 
-	rows, _ := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{alarm, rel})
+	rows, _, err := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{alarm, rel})
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("rejected coverage produced %d edge row(s), want 0", len(rows))
 	}
@@ -159,7 +174,10 @@ func TestExtractObservabilityCoverageEdgeRowsXRayDerivedEmitsNoEdge(t *testing.T
 	rel := xraySamplingMatchesServiceFact("fact-rel",
 		"arn:aws:xray:us-east-1:111122223333:sampling-rule/rule-1", "checkout")
 
-	rows, _ := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{rule, rel})
+	rows, _, err := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{rule, rel})
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("x-ray derived coverage produced %d edge row(s), want 0 (no target uid)", len(rows))
 	}
@@ -168,7 +186,10 @@ func TestExtractObservabilityCoverageEdgeRowsXRayDerivedEmitsNoEdge(t *testing.T
 func TestExtractObservabilityCoverageEdgeRowsEmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractObservabilityCoverageEdgeRows(nil)
+	rows, tally, err := ExtractObservabilityCoverageEdgeRows(nil)
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("empty input produced %d edge row(s), want 0", len(rows))
 	}
@@ -185,7 +206,10 @@ func TestExtractObservabilityCoverageEdgeRowsDeduplicatesAndSorts(t *testing.T) 
 	// obs uid matched; distinct alarms are distinct edges). Here we feed the same
 	// fixture twice to prove duplicate facts converge on one row.
 	envelopes := append(ec2AlarmCoverageFixture(), ec2AlarmCoverageFixture()...)
-	rows, _ := ExtractObservabilityCoverageEdgeRows(envelopes)
+	rows, _, err := ExtractObservabilityCoverageEdgeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("duplicate facts produced %d edge row(s), want 1 deduplicated edge", len(rows))
 	}

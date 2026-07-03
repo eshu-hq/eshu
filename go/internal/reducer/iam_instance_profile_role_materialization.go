@@ -122,7 +122,13 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows, tally := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of resolving a HAS_ROLE edge against an empty-string identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

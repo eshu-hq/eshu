@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 type ec2BlockDeviceKMSVolume struct {
@@ -38,7 +39,7 @@ type ec2BlockDeviceKMSIndex struct {
 func buildEC2BlockDeviceKMSIndex(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) ec2BlockDeviceKMSIndex {
+) (ec2BlockDeviceKMSIndex, error) {
 	index := ec2BlockDeviceKMSIndex{
 		volumesByID:          make(map[string]ec2BlockDeviceKMSVolume, len(resourceEnvelopes)),
 		ambiguousVolumesByID: make(map[string]struct{}),
@@ -50,14 +51,18 @@ func buildEC2BlockDeviceKMSIndex(
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		switch payloadString(env.Payload, "resource_type") {
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			return ec2BlockDeviceKMSIndex{}, err
+		}
+		switch resource.ResourceType {
 		case ec2BlockDeviceKMSResourceTypeVolume:
-			volume, ok := ec2BlockDeviceKMSVolumeFromEnvelope(env)
+			volume, ok := ec2BlockDeviceKMSVolumeFromResource(resource)
 			if ok {
 				index.indexVolume(volume)
 			}
 		case ec2BlockDeviceKMSResourceTypeKey:
-			key, identities, ok := ec2BlockDeviceKMSKeyFromEnvelope(env)
+			key, identities, ok := ec2BlockDeviceKMSKeyFromResource(resource)
 			if ok {
 				for _, identity := range identities {
 					index.keysByIdentity[identity] = key
@@ -69,24 +74,28 @@ func buildEC2BlockDeviceKMSIndex(
 		if env.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if payloadString(env.Payload, "relationship_type") != ec2BlockDeviceKMSRelationshipType {
+		relationship, err := decodeAWSRelationship(env)
+		if err != nil {
+			return ec2BlockDeviceKMSIndex{}, err
+		}
+		if relationship.RelationshipType != ec2BlockDeviceKMSRelationshipType {
 			continue
 		}
 		targetID := firstTrimmed(
-			payloadString(env.Payload, "target_arn"),
-			payloadString(env.Payload, "target_resource_id"),
+			derefString(relationship.TargetARN),
+			relationship.TargetResourceID,
 		)
 		if targetID == "" {
 			continue
 		}
 		for _, sourceID := range []string{
-			payloadString(env.Payload, "source_resource_id"),
-			payloadString(env.Payload, "source_arn"),
+			relationship.SourceResourceID,
+			derefString(relationship.SourceARN),
 		} {
 			index.indexKMSRelationship(sourceID, targetID)
 		}
 	}
-	return index
+	return index, nil
 }
 
 func (i *ec2BlockDeviceKMSIndex) indexVolume(volume ec2BlockDeviceKMSVolume) {
@@ -143,32 +152,37 @@ func (i *ec2BlockDeviceKMSIndex) indexKMSRelationship(sourceID, targetID string)
 	i.ambiguousKMSByVolume[sourceID] = struct{}{}
 }
 
-func ec2BlockDeviceKMSVolumeFromEnvelope(env facts.Envelope) (ec2BlockDeviceKMSVolume, bool) {
-	resourceID := firstTrimmed(payloadString(env.Payload, "resource_id"), payloadString(env.Payload, "arn"))
+func ec2BlockDeviceKMSVolumeFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSVolume, bool) {
+	arn := derefString(resource.ARN)
+	resourceID := firstTrimmed(resource.ResourceID, arn)
 	if resourceID == "" {
 		return ec2BlockDeviceKMSVolume{}, false
 	}
-	attrs := payloadAttributes(env.Payload)
+	// The per-volume encryption/attachment detail is a service-specific nested
+	// "attributes" object carried in the decoded struct's Attributes
+	// pass-through, not a named identity field.
+	attrs := payloadAttributes(resource.Attributes)
 	return ec2BlockDeviceKMSVolume{
 		id:          resourceID,
-		arn:         payloadString(env.Payload, "arn"),
+		arn:         arn,
 		encrypted:   payloadAttributeBool(attrs, "encrypted"),
 		attachments: ec2BlockDeviceKMSAttachments(attrs),
 	}, true
 }
 
-func ec2BlockDeviceKMSKeyFromEnvelope(env facts.Envelope) (ec2BlockDeviceKMSKey, []string, bool) {
-	resourceID := firstTrimmed(payloadString(env.Payload, "resource_id"), payloadString(env.Payload, "arn"))
+func ec2BlockDeviceKMSKeyFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSKey, []string, bool) {
+	arn := derefString(resource.ARN)
+	resourceID := firstTrimmed(resource.ResourceID, arn)
 	if resourceID == "" {
 		return ec2BlockDeviceKMSKey{}, nil, false
 	}
-	attrs := payloadAttributes(env.Payload)
+	attrs := payloadAttributes(resource.Attributes)
 	key := ec2BlockDeviceKMSKey{
-		id:         firstTrimmed(payloadString(env.Payload, "arn"), resourceID),
+		id:         firstTrimmed(arn, resourceID),
 		keyManager: strings.ToUpper(payloadString(attrs, "key_manager")),
 	}
-	identities := []string{resourceID, payloadString(env.Payload, "arn")}
-	identities = append(identities, payloadStrings(env.Payload, "", "correlation_anchors")...)
+	identities := []string{resourceID, arn}
+	identities = append(identities, resource.CorrelationAnchors...)
 	return key, uniqueSortedStrings(identities), true
 }
 

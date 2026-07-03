@@ -124,7 +124,14 @@ func (h EC2BlockDeviceKMSPostureMaterializationHandler) Handle(
 
 	resourceEnvelopes, relationshipEnvelopes, postureEnvelopes := splitEC2BlockDeviceKMSPostureEnvelopes(envelopes)
 	extractStart := time.Now()
-	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resourceEnvelopes, relationshipEnvelopes, postureEnvelopes)
+	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resourceEnvelopes, relationshipEnvelopes, postureEnvelopes)
+	if err != nil {
+		// A malformed aws_resource/aws_relationship payload (a missing required
+		// identity field) is a classified input_invalid decode failure;
+		// dead-letter the intent instead of deriving block-device KMS posture
+		// against an empty-string node identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

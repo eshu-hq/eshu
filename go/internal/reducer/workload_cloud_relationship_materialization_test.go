@@ -79,7 +79,7 @@ func workloadCloudAWSResourceEnvelope(factID string, payload map[string]any) fac
 func TestExtractWorkloadCloudRelationshipRowsPromotesExactWorkloadAnchor(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+	rows, tally, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
 		workloadCloudAWSResourceEnvelope("fact-aws-1", map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -90,6 +90,9 @@ func TestExtractWorkloadCloudRelationshipRowsPromotesExactWorkloadAnchor(t *test
 			"service_name":  "orders-api",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractWorkloadCloudRelationshipRows() error = %v, want nil", err)
+	}
 
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
@@ -132,7 +135,7 @@ func TestExtractWorkloadCloudRelationshipRowsPromotesExactWorkloadAnchor(t *test
 func TestExtractWorkloadCloudRelationshipRowsRejectsServiceOnlyAndAmbiguousAnchors(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+	rows, tally, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -155,6 +158,9 @@ func TestExtractWorkloadCloudRelationshipRowsRejectsServiceOnlyAndAmbiguousAncho
 			"workload_id":   "workload:orders-api",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractWorkloadCloudRelationshipRows() error = %v, want nil", err)
+	}
 
 	if len(rows) != 0 {
 		t.Fatalf("rows = %#v, want no materialized edges for unsafe anchors", rows)
@@ -173,7 +179,7 @@ func TestExtractWorkloadCloudRelationshipRowsRejectsServiceOnlyAndAmbiguousAncho
 func TestExtractWorkloadCloudRelationshipRowsKeepsEnvironmentSpecificEdges(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+	rows, tally, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -191,6 +197,9 @@ func TestExtractWorkloadCloudRelationshipRowsKeepsEnvironmentSpecificEdges(t *te
 			"environment":   "staging",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractWorkloadCloudRelationshipRows() error = %v, want nil", err)
+	}
 
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)

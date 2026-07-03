@@ -88,13 +88,16 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2BlockDeviceKMSPostureTally) {
+) ([]map[string]any, ec2BlockDeviceKMSPostureTally, error) {
 	tally := newEC2BlockDeviceKMSPostureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
-	index := buildEC2BlockDeviceKMSIndex(resourceEnvelopes, relationshipEnvelopes)
+	index, err := buildEC2BlockDeviceKMSIndex(resourceEnvelopes, relationshipEnvelopes)
+	if err != nil {
+		return nil, tally, err
+	}
 	postures := sortedEC2BlockDeviceKMSPostures(postureEnvelopes)
 	byUID := make(map[string]map[string]any, len(postures))
 	for _, env := range postures {
@@ -124,7 +127,7 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 	}
 
 	if len(byUID) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 	uids := make([]string, 0, len(byUID))
 	for uid := range byUID {
@@ -141,7 +144,7 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 		tally.decisionReasons[ec2BlockDeviceKMSDecisionKey{outcome: state, reason: reason}]++
 		rows = append(rows, row)
 	}
-	return rows, tally
+	return rows, tally, nil
 }
 
 func deriveEC2BlockDeviceKMSDecision(

@@ -73,6 +73,8 @@ func ec2BlockKMSRelationship(volumeID, volumeARN, keyARN string) facts.Envelope 
 	return facts.Envelope{
 		FactKind: facts.AWSRelationshipFactKind,
 		Payload: map[string]any{
+			"account_id":         "111122223333",
+			"region":             "us-east-1",
 			"relationship_type":  "ec2_volume_uses_kms_key",
 			"source_resource_id": volumeID,
 			"source_arn":         volumeARN,
@@ -120,7 +122,10 @@ func TestExtractEC2BlockDeviceKMSPostureRowsDerivesEncryptedWithCustomerKMS(t *t
 	relationships := []facts.Envelope{ec2BlockKMSRelationship("vol-a", volumeARN, keyARN)}
 	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-i-aaa", account, region, "i-aaa", "vol-a")}
 
-	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
 	row := requireEC2BlockKMSRow(t, rows, ec2BlockKMSUID(account, region, "i-aaa"))
 	if got, want := row["state"], "encrypted"; got != want {
 		t.Fatalf("state = %v, want %v", got, want)
@@ -158,7 +163,10 @@ func TestExtractEC2BlockDeviceKMSPostureRowsDerivesUnencryptedAndMixed(t *testin
 		ec2BlockKMSPostureEnvelope("fact-mixed", account, region, "i-mixed", "vol-enc", "vol-unenc"),
 	}
 
-	rows, _ := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, _, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
 	plain := requireEC2BlockKMSRow(t, rows, ec2BlockKMSUID(account, region, "i-plain"))
 	if got, want := plain["state"], "not_encrypted"; got != want {
 		t.Fatalf("plain state = %v, want %v", got, want)
@@ -199,7 +207,10 @@ func TestExtractEC2BlockDeviceKMSPostureRowsKeepsUnknownForConservativeCases(t *
 		ec2BlockKMSPostureEnvelope("fact-detached", account, region, "i-detached", "vol-detached"),
 	}
 
-	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
 	cases := []struct {
 		instanceID string
 		reason     string
@@ -233,7 +244,10 @@ func TestExtractEC2BlockDeviceKMSPostureRowsDuplicateReplayAndTombstone(t *testi
 	tombstone := ec2BlockKMSPostureEnvelope("fact-tombstone", account, region, "i-dead")
 	tombstone.IsTombstone = true
 
-	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(nil, nil, []facts.Envelope{posture, posture, tombstone})
+	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(nil, nil, []facts.Envelope{posture, posture, tombstone})
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 duplicate replay row", len(rows))
 	}
@@ -260,7 +274,10 @@ func TestExtractEC2BlockDeviceKMSPostureRowsConflictingVolumeFactsStayUnknown(t 
 	relationships := []facts.Envelope{ec2BlockKMSRelationship("vol-ambiguous", volumeARN, keyARN)}
 	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-ambiguous", account, region, "i-ambiguous", "vol-ambiguous")}
 
-	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
 	row := requireEC2BlockKMSRow(t, rows, ec2BlockKMSUID(account, region, "i-ambiguous"))
 	if got, want := row["state"], "unknown"; got != want {
 		t.Fatalf("state = %v, want %v for conflicting volume facts", got, want)
@@ -292,7 +309,10 @@ func TestExtractEC2BlockDeviceKMSPostureRowsConflictingKMSRelationshipsStayUnkno
 	}
 	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-conflict", account, region, "i-conflict", "vol-conflict")}
 
-	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
 	row := requireEC2BlockKMSRow(t, rows, ec2BlockKMSUID(account, region, "i-conflict"))
 	if got, want := row["state"], "unknown"; got != want {
 		t.Fatalf("state = %v, want %v for conflicting KMS relationships", got, want)

@@ -81,7 +81,10 @@ func TestExtractEC2UsesProfileEdgeRowsResolvesScannedProfile(t *testing.T) {
 			"arn:aws:iam::"+acct+":instance-profile/app"),
 	}
 
-	rows, tally := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, tally, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1", len(rows))
 	}
@@ -120,7 +123,10 @@ func TestExtractEC2UsesProfileEdgeRowsBlankProfileNoEdge(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-noprofile", ""),
 	}
 
-	rows, tally := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, tally, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 for blank instance_profile_arn", len(rows))
 	}
@@ -141,7 +147,10 @@ func TestExtractEC2UsesProfileEdgeRowsUnscannedProfileSkipped(t *testing.T) {
 			"arn:aws:iam::999988887777:instance-profile/external"),
 	}
 
-	rows, tally := ExtractEC2UsesProfileEdgeRows(nil, postures)
+	rows, tally, err := ExtractEC2UsesProfileEdgeRows(nil, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 for unscanned target", len(rows))
 	}
@@ -168,7 +177,10 @@ func TestExtractEC2UsesProfileEdgeRowsTwoInstancesSameProfile(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-bbb", profileARN),
 	}
 
-	rows, _ := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 2 {
 		t.Fatalf("rows = %d, want 2 distinct edges (no merge/cartesian)", len(rows))
 	}
@@ -200,7 +212,10 @@ func TestExtractEC2UsesProfileEdgeRowsDuplicateInputOneEdge(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-aaa", profileARN), // duplicate fact
 	}
 
-	rows, _ := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1 (idempotent dedup by (source,target))", len(rows))
 	}
@@ -209,7 +224,10 @@ func TestExtractEC2UsesProfileEdgeRowsDuplicateInputOneEdge(t *testing.T) {
 func TestExtractEC2UsesProfileEdgeRowsEmptyInputNoPanic(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractEC2UsesProfileEdgeRows(nil, nil)
+	rows, tally, err := ExtractEC2UsesProfileEdgeRows(nil, nil)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 for nil input", len(rows))
 	}
@@ -236,8 +254,14 @@ func TestExtractEC2UsesProfileEdgeRowsDeterministicOrder(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-bbb", profileARN),
 	}
 
-	rowsForward, _ := ExtractEC2UsesProfileEdgeRows(resources, forward)
-	rowsReverse, _ := ExtractEC2UsesProfileEdgeRows(resources, reverse)
+	rowsForward, _, err := ExtractEC2UsesProfileEdgeRows(resources, forward)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
+	rowsReverse, _, err := ExtractEC2UsesProfileEdgeRows(resources, reverse)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rowsForward) != len(rowsReverse) {
 		t.Fatalf("row count differs by ordering: %d vs %d", len(rowsForward), len(rowsReverse))
 	}
@@ -261,7 +285,10 @@ func TestExtractEC2UsesProfileEdgeRowsTombstoneSkipped(t *testing.T) {
 	tomb.IsTombstone = true
 	postures := []facts.Envelope{tomb}
 
-	rows, tally := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, tally, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 for a tombstoned instance", len(rows))
 	}

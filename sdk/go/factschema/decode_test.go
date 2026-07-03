@@ -266,6 +266,8 @@ func TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty(t *te
 		"resource_type":       true,
 		"arn":                 false,
 		"name":                false,
+		"state":               false,
+		"service_kind":        false,
 		"tags":                false,
 		"correlation_anchors": false,
 	}
@@ -276,6 +278,12 @@ func TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty(t *te
 		field := typ.Field(i)
 		tag := field.Tag.Get("json")
 		jsonName, hasOmitEmpty := parseJSONTag(tag)
+		if jsonName == "" {
+			// The Attributes pass-through carries json:"-": it is not a wire
+			// field of its own (its keys flatten to top level via the custom
+			// MarshalJSON), so it is neither required nor an expected named key.
+			continue
+		}
 		seen[jsonName] = true
 
 		isPointerOrMap := field.Type.Kind() == reflect.Ptr || field.Type.Kind() == reflect.Map

@@ -56,7 +56,10 @@ func TestExtractS3InternetExposureRowsDerivesExposedPublicPolicy(t *testing.T) {
 		},
 	)}
 
-	rows, tally := ExtractS3InternetExposureRows(resources, postures)
+	rows, tally, err := ExtractS3InternetExposureRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	row := requireS3InternetExposureRow(t, rows, s3BucketUID(account, region, "orders"))
 	if got, want := row["state"], "exposed"; got != want {
 		t.Fatalf("state = %v, want %v", got, want)
@@ -93,7 +96,10 @@ func TestExtractS3InternetExposureRowsDerivesNotExposedWhenPublicPolicyBlocked(t
 		},
 	)}
 
-	rows, tally := ExtractS3InternetExposureRows(resources, postures)
+	rows, tally, err := ExtractS3InternetExposureRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	row := requireS3InternetExposureRow(t, rows, s3BucketUID(account, region, "orders"))
 	if got, want := row["state"], "not_exposed"; got != want {
 		t.Fatalf("state = %v, want %v", got, want)
@@ -125,7 +131,10 @@ func TestExtractS3InternetExposureRowsKeepsUnknownWhenPolicyGrantUnknown(t *test
 		},
 	)}
 
-	rows, tally := ExtractS3InternetExposureRows(resources, postures)
+	rows, tally, err := ExtractS3InternetExposureRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	row := requireS3InternetExposureRow(t, rows, s3BucketUID(account, region, "orders"))
 	if got, want := row["state"], "unknown"; got != want {
 		t.Fatalf("state = %v, want %v", got, want)
@@ -158,7 +167,10 @@ func TestExtractS3InternetExposureRowsDerivesNotExposedForNoPolicyWithACLPublicA
 		},
 	)}
 
-	rows, _ := ExtractS3InternetExposureRows(resources, postures)
+	rows, _, err := ExtractS3InternetExposureRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	row := requireS3InternetExposureRow(t, rows, s3BucketUID(account, region, "orders"))
 	if got, want := row["state"], "not_exposed"; got != want {
 		t.Fatalf("state = %v, want %v", got, want)
@@ -187,7 +199,10 @@ func TestExtractS3InternetExposureRowsKeepsUnknownForPartialPublicAccessBlock(t 
 		},
 	)}
 
-	rows, _ := ExtractS3InternetExposureRows(resources, postures)
+	rows, _, err := ExtractS3InternetExposureRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	row := requireS3InternetExposureRow(t, rows, s3BucketUID(account, region, "orders"))
 	if got, want := row["state"], "unknown"; got != want {
 		t.Fatalf("state = %v, want %v", got, want)
@@ -213,7 +228,10 @@ func TestExtractS3InternetExposureRowsSkipsUnresolvedSource(t *testing.T) {
 		map[string]any{"policy_present": false},
 	)}
 
-	rows, tally := ExtractS3InternetExposureRows(nil, postures)
+	rows, tally, err := ExtractS3InternetExposureRows(nil, postures)
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for unresolved source", len(rows))
 	}
@@ -240,7 +258,10 @@ func TestExtractS3InternetExposureRowsDuplicateReplayIsIdempotent(t *testing.T) 
 		},
 	)
 
-	rows, _ := ExtractS3InternetExposureRows(resources, []facts.Envelope{posture, posture})
+	rows, _, err := ExtractS3InternetExposureRows(resources, []facts.Envelope{posture, posture})
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 for duplicate replay", len(rows))
 	}
@@ -271,7 +292,10 @@ func TestExtractS3InternetExposureRowsDuplicateBucketChoosesStableFact(t *testin
 		},
 	)
 
-	rows, _ := ExtractS3InternetExposureRows(resources, []facts.Envelope{unknown, blocked})
+	rows, _, err := ExtractS3InternetExposureRows(resources, []facts.Envelope{unknown, blocked})
+	if err != nil {
+		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 for duplicate bucket posture facts", len(rows))
 	}

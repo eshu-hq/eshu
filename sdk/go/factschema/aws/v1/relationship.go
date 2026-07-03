@@ -3,18 +3,37 @@
 
 package v1
 
+import "encoding/json"
+
 // Relationship is the schema-version-1 typed payload for the "aws_relationship"
 // fact kind (Contract System v1 §3.1,
 // docs/internal/design/contract-system-v1.md).
 //
-// The required set matches the AWS relationship collector emitter
-// (awscloud.NewRelationshipEnvelope), which validates account_id, region,
-// relationship_type, and both endpoint identities (source_resource_id defaults
-// to source_arn, target_resource_id defaults to target_arn) non-empty before it
-// emits the fact. SourceARN, TargetARN, and TargetType are optional: the emitter
-// always writes the keys but they may be empty, and the reducer resolves an
-// endpoint through the ARN index first and the resource-id index second, so an
-// empty ARN is a valid state.
+// Like aws_resource, aws_relationship is a POLYMORPHIC envelope: one fact kind
+// carries every AWS relationship verb, and verb-specific relationships (for
+// example a cloudwatch_alarm_observes_metric fact's dimension summary) contribute
+// their own nested payload under an "attributes" object. The struct types and
+// validates the shared IDENTITY contract and passes verb-specific fields through
+// untyped in Attributes, exactly like awsv1.Resource:
+//
+//   - Required (identity): AccountID, Region, RelationshipType,
+//     SourceResourceID, TargetResourceID — matching the collector emitter
+//     (awscloud.NewRelationshipEnvelope), which validates them non-empty
+//     (source_resource_id defaults to source_arn, target_resource_id to
+//     target_arn). A missing identity field dead-letters as input_invalid.
+//   - Optional (common): SourceARN, TargetARN, TargetType — always emitted but
+//     may be empty; the reducer resolves an endpoint through the ARN index
+//     first and the resource-id index second, and substitutes "unknown" for an
+//     empty TargetType.
+//   - Optional (pass-through): Attributes carries every remaining payload key
+//     (for example the verb-specific "attributes" object) UNTYPED with JSON type
+//     fidelity preserved, so a consumer reads relationship.Attributes[...]
+//     through the decoded struct, never env.Payload[...].
+//
+// Typing verb-specific relationship attributes per relationship_type is deferred
+// to the same follow-up as aws_resource service attributes (design §7, one
+// deferred-boundary issue covers both polymorphic AWS envelopes); it is a
+// distinct increment, not a gap in this issue's identity-accuracy goal.
 type Relationship struct {
 	// AccountID is the AWS account the relationship was observed in. Required.
 	AccountID string `json:"account_id"`
@@ -53,4 +72,87 @@ type Relationship struct {
 	// log's unresolved-by-type breakdown. Optional: the reducer substitutes
 	// "unknown" when it is empty, so an absent value never blocks an edge.
 	TargetType *string `json:"target_type,omitempty"`
+
+	// Attributes carries every verb-specific payload key that has no named
+	// struct field above (for example the nested "attributes" object a
+	// cloudwatch_alarm_observes_metric fact carries). It is the documented
+	// untyped pass-through, mirroring awsv1.Resource.Attributes: verb-specific
+	// reducer consumers read their fields from here through the decoded struct.
+	// JSON type fidelity is preserved by the custom UnmarshalJSON. Optional: a
+	// relationship with no verb-specific fields leaves it nil.
+	Attributes map[string]any `json:"-"`
+}
+
+// relationshipKnownKeys is the set of payload keys the named Relationship fields
+// cover. UnmarshalJSON removes them from the raw payload so Attributes captures
+// only the verb-specific remainder, and MarshalJSON re-emits the named fields
+// while flattening Attributes back to top level. It mirrors resourceKnownKeys.
+var relationshipKnownKeys = map[string]struct{}{
+	"account_id":         {},
+	"region":             {},
+	"relationship_type":  {},
+	"source_resource_id": {},
+	"target_resource_id": {},
+	"source_arn":         {},
+	"target_arn":         {},
+	"target_type":        {},
+}
+
+// relationshipAlias is Relationship without the custom JSON methods, so
+// UnmarshalJSON and MarshalJSON can decode/encode the named fields with the
+// standard library without recursing into themselves.
+type relationshipAlias Relationship
+
+// UnmarshalJSON decodes the named identity/common fields normally and captures
+// every remaining top-level payload key into Attributes with its JSON-native Go
+// type preserved. It mirrors Resource.UnmarshalJSON so a verb-specific consumer
+// that reads relationship.Attributes[...] gets the same value and Go type the
+// raw env.Payload lookup produced today.
+func (r *Relationship) UnmarshalJSON(data []byte) error {
+	var named relationshipAlias
+	if err := json.Unmarshal(data, &named); err != nil {
+		return err
+	}
+	*r = Relationship(named)
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	for key := range relationshipKnownKeys {
+		delete(raw, key)
+	}
+	if len(raw) > 0 {
+		r.Attributes = raw
+	}
+	return nil
+}
+
+// MarshalJSON emits the named fields (honoring their omitempty rules) and
+// flattens Attributes back to top-level keys, so an encoded Relationship
+// produces the same flat payload shape the collector emits. Named fields win
+// over any same-named Attributes key. It mirrors Resource.MarshalJSON.
+func (r Relationship) MarshalJSON() ([]byte, error) {
+	named, err := json.Marshal(relationshipAlias(r))
+	if err != nil {
+		return nil, err
+	}
+	if len(r.Attributes) == 0 {
+		return named, nil
+	}
+
+	var merged map[string]any
+	if err := json.Unmarshal(named, &merged); err != nil {
+		return nil, err
+	}
+	for key, value := range r.Attributes {
+		if _, isKnown := relationshipKnownKeys[key]; isKnown {
+			continue
+		}
+		if _, alreadyNamed := merged[key]; alreadyNamed {
+			continue
+		}
+		merged[key] = value
+	}
+	return json.Marshal(merged)
 }

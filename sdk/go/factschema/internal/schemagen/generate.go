@@ -27,9 +27,17 @@ const schemaBaseID = "https://eshu.dev/schemas/factschema/"
 // exactly when it is a non-pointer, non-slice, non-map type with no `omitempty`
 // json tag, matching the rule decode.go's requiredFields table encodes
 // independently.
-func reflectSchema(id, title string, v any) ([]byte, error) {
+//
+// allowAdditional controls the top-level "additionalProperties" keyword. Fully
+// typed kinds pass false so the schema rejects unknown keys (a renamed or extra
+// field is a visible schema-diff break). The aws_resource kind passes true
+// because it carries an intentional untyped pass-through (awsv1.Resource's
+// Attributes bag) for service-specific fields; a closed schema there would
+// falsely reject every valid service attribute.
+func reflectSchema(id, title string, v any, allowAdditional bool) ([]byte, error) {
 	reflector := &jsonschema.Reflector{
-		DoNotReference: true,
+		DoNotReference:            true,
+		AllowAdditionalProperties: allowAdditional,
 	}
 
 	schema := reflector.Reflect(v)
@@ -53,7 +61,7 @@ const AWSResourceSchemaID = schemaBaseID + "aws/v1/resource.schema.json"
 // function, so a generated artifact and its drift test can never disagree about
 // how the schema is built.
 func AWSResourceSchema() ([]byte, error) {
-	return reflectSchema(AWSResourceSchemaID, "Eshu aws_resource Payload (schema version 1)", &awsv1.Resource{})
+	return reflectSchema(AWSResourceSchemaID, "Eshu aws_resource Payload (schema version 1)", &awsv1.Resource{}, true)
 }
 
 // AWSRelationshipSchemaID is the checked-in JSON Schema $id for the
@@ -62,7 +70,7 @@ const AWSRelationshipSchemaID = schemaBaseID + "aws/v1/relationship.schema.json"
 
 // AWSRelationshipSchema returns the JSON Schema bytes for awsv1.Relationship.
 func AWSRelationshipSchema() ([]byte, error) {
-	return reflectSchema(AWSRelationshipSchemaID, "Eshu aws_relationship Payload (schema version 1)", &awsv1.Relationship{})
+	return reflectSchema(AWSRelationshipSchemaID, "Eshu aws_relationship Payload (schema version 1)", &awsv1.Relationship{}, true)
 }
 
 // AWSSecurityGroupRuleSchemaID is the checked-in JSON Schema $id for the
@@ -72,7 +80,7 @@ const AWSSecurityGroupRuleSchemaID = schemaBaseID + "aws/v1/security_group_rule.
 // AWSSecurityGroupRuleSchema returns the JSON Schema bytes for
 // awsv1.SecurityGroupRule.
 func AWSSecurityGroupRuleSchema() ([]byte, error) {
-	return reflectSchema(AWSSecurityGroupRuleSchemaID, "Eshu aws_security_group_rule Payload (schema version 1)", &awsv1.SecurityGroupRule{})
+	return reflectSchema(AWSSecurityGroupRuleSchemaID, "Eshu aws_security_group_rule Payload (schema version 1)", &awsv1.SecurityGroupRule{}, false)
 }
 
 // EC2InstancePostureSchemaID is the checked-in JSON Schema $id for the
@@ -82,7 +90,7 @@ const EC2InstancePostureSchemaID = schemaBaseID + "aws/v1/ec2_instance_posture.s
 // EC2InstancePostureSchema returns the JSON Schema bytes for
 // awsv1.EC2InstancePosture.
 func EC2InstancePostureSchema() ([]byte, error) {
-	return reflectSchema(EC2InstancePostureSchemaID, "Eshu ec2_instance_posture Payload (schema version 1)", &awsv1.EC2InstancePosture{})
+	return reflectSchema(EC2InstancePostureSchemaID, "Eshu ec2_instance_posture Payload (schema version 1)", &awsv1.EC2InstancePosture{}, false)
 }
 
 // S3BucketPostureSchemaID is the checked-in JSON Schema $id for the
@@ -91,7 +99,7 @@ const S3BucketPostureSchemaID = schemaBaseID + "aws/v1/s3_bucket_posture.schema.
 
 // S3BucketPostureSchema returns the JSON Schema bytes for awsv1.S3BucketPosture.
 func S3BucketPostureSchema() ([]byte, error) {
-	return reflectSchema(S3BucketPostureSchemaID, "Eshu s3_bucket_posture Payload (schema version 1)", &awsv1.S3BucketPosture{})
+	return reflectSchema(S3BucketPostureSchemaID, "Eshu s3_bucket_posture Payload (schema version 1)", &awsv1.S3BucketPosture{}, false)
 }
 
 // AWSIAMPermissionSchemaID is the checked-in JSON Schema $id for the
@@ -100,7 +108,7 @@ const AWSIAMPermissionSchemaID = schemaBaseID + "iam/v1/permission.schema.json"
 
 // AWSIAMPermissionSchema returns the JSON Schema bytes for iamv1.Permission.
 func AWSIAMPermissionSchema() ([]byte, error) {
-	return reflectSchema(AWSIAMPermissionSchemaID, "Eshu aws_iam_permission Payload (schema version 1)", &iamv1.Permission{})
+	return reflectSchema(AWSIAMPermissionSchemaID, "Eshu aws_iam_permission Payload (schema version 1)", &iamv1.Permission{}, false)
 }
 
 // AWSResourcePolicyPermissionSchemaID is the checked-in JSON Schema $id for the
@@ -110,7 +118,7 @@ const AWSResourcePolicyPermissionSchemaID = schemaBaseID + "iam/v1/resource_poli
 // AWSResourcePolicyPermissionSchema returns the JSON Schema bytes for
 // iamv1.ResourcePolicyPermission.
 func AWSResourcePolicyPermissionSchema() ([]byte, error) {
-	return reflectSchema(AWSResourcePolicyPermissionSchemaID, "Eshu aws_resource_policy_permission Payload (schema version 1)", &iamv1.ResourcePolicyPermission{})
+	return reflectSchema(AWSResourcePolicyPermissionSchemaID, "Eshu aws_resource_policy_permission Payload (schema version 1)", &iamv1.ResourcePolicyPermission{}, false)
 }
 
 // AWSIAMPrincipalSchemaID is the checked-in JSON Schema $id for the
@@ -119,5 +127,5 @@ const AWSIAMPrincipalSchemaID = schemaBaseID + "iam/v1/principal.schema.json"
 
 // AWSIAMPrincipalSchema returns the JSON Schema bytes for iamv1.Principal.
 func AWSIAMPrincipalSchema() ([]byte, error) {
-	return reflectSchema(AWSIAMPrincipalSchemaID, "Eshu aws_iam_principal Payload (schema version 1)", &iamv1.Principal{})
+	return reflectSchema(AWSIAMPrincipalSchemaID, "Eshu aws_iam_principal Payload (schema version 1)", &iamv1.Principal{}, false)
 }

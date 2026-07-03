@@ -129,28 +129,29 @@ type iamPrincipalNode struct {
 // buildIAMRoleUserJoinIndex builds the bounded in-memory index from the scope
 // generation's aws_resource fact envelopes, keeping only IAM role and user
 // resources.
-func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) iamRoleUserJoinIndex {
+func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) (iamRoleUserJoinIndex, error) {
 	index := iamRoleUserJoinIndex{byARN: make(map[string]iamPrincipalNode, len(envelopes))}
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		resourceType := payloadString(env.Payload, "resource_type")
-		kind := iamPrincipalKindForResourceType(resourceType)
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			return iamRoleUserJoinIndex{}, err
+		}
+		kind := iamPrincipalKindForResourceType(resource.ResourceType)
 		if kind == "" {
 			continue
 		}
-		accountID := payloadString(env.Payload, "account_id")
-		region := payloadString(env.Payload, "region")
-		resourceID := payloadString(env.Payload, "resource_id")
-		arn := payloadString(env.Payload, "arn")
+		arn := derefString(resource.ARN)
+		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
 		}
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(accountID, region, resourceType, resourceID)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
 		node := iamPrincipalNode{uid: uid, kind: kind}
 		// First writer wins on collision so a later duplicate cannot re-point an
 		// ARN to a different node. The ARN is the precise identity here.
@@ -165,7 +166,7 @@ func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) iamRoleUserJoinIndex 
 			}
 		}
 	}
-	return index
+	return index, nil
 }
 
 // resolve looks up an IAM principal ARN. It returns the resolved node and true
@@ -207,13 +208,16 @@ func iamPrincipalKindForResourceType(resourceType string) string {
 func ExtractIAMCanAssumeEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	permissionEnvelopes []facts.Envelope,
-) ([]map[string]any, iamCanAssumeEdgeTally) {
+) ([]map[string]any, iamCanAssumeEdgeTally, error) {
 	tally := newIAMCanAssumeEdgeTally()
 	if len(permissionEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
-	index := buildIAMRoleUserJoinIndex(resourceEnvelopes)
+	index, err := buildIAMRoleUserJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, err
+	}
 
 	type edgeKey struct {
 		principal string
@@ -272,7 +276,7 @@ func ExtractIAMCanAssumeEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -280,7 +284,7 @@ func ExtractIAMCanAssumeEdgeRows(
 		right := anyToString(rows[b]["principal_uid"]) + "->" + anyToString(rows[b]["role_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, nil
 }
 
 // classifyAssumePrincipal screens one assume-principal identifier and resolves

@@ -20,6 +20,12 @@
     "name": {
       "type": "string"
     },
+    "state": {
+      "type": "string"
+    },
+    "service_kind": {
+      "type": "string"
+    },
     "correlation_anchors": {
       "items": {
         "type": "string"
@@ -33,7 +39,6 @@
       "type": "object"
     }
   },
-  "additionalProperties": false,
   "type": "object",
   "required": [
     "account_id",

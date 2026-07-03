@@ -69,13 +69,16 @@ type s3InternetExposureDecision struct {
 func ExtractS3InternetExposureRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, s3InternetExposureTally) {
+) ([]map[string]any, s3InternetExposureTally, error) {
 	tally := newS3InternetExposureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
-	index := buildS3BucketJoinIndex(resourceEnvelopes)
+	index, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, err
+	}
 	postures := sortedS3InternetExposurePostures(postureEnvelopes)
 	seen := make(map[string]struct{}, len(postures))
 	rows := make([]map[string]any, 0, len(postures))
@@ -107,12 +110,12 @@ func ExtractS3InternetExposureRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		return anyToString(rows[i]["uid"]) < anyToString(rows[j]["uid"])
 	})
-	return rows, tally
+	return rows, tally, nil
 }
 
 func sortedS3InternetExposurePostures(envelopes []facts.Envelope) []facts.Envelope {

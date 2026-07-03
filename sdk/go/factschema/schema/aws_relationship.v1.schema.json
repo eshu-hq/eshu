@@ -27,7 +27,6 @@
       "type": "string"
     }
   },
-  "additionalProperties": false,
   "type": "object",
   "required": [
     "account_id",

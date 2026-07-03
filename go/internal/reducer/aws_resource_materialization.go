@@ -114,7 +114,13 @@ func (h AWSResourceMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of materializing a node with an empty-string uid.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -179,14 +185,17 @@ func (h AWSResourceMaterializationHandler) Handle(
 }
 
 // ExtractCloudResourceNodeRows projects aws_resource fact envelopes into
-// deterministic CloudResource node rows keyed by a stable uid. Rows are
-// deduplicated by uid so duplicate facts (retries, overlapping scans) converge
-// on a single node, and incomplete identities (missing resource_type or both
-// resource_id and arn) are dropped rather than fabricating a node. The returned
-// rows are sorted by uid for deterministic batch output.
-func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
+// deterministic CloudResource node rows keyed by a stable uid. Each fact is
+// decoded through the factschema seam, so a payload missing a required identity
+// field dead-letters (input_invalid) rather than fabricating a node with an
+// empty-string uid. Rows are deduplicated by uid so duplicate facts (retries,
+// overlapping scans) converge on a single node, and incomplete-but-valid
+// identities (present-but-empty resource_type, or both resource_id and arn
+// empty) are dropped rather than fabricating a node. The returned rows are
+// sorted by uid for deterministic batch output.
+func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, error) {
 	if len(envelopes) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	byUID := make(map[string]map[string]any, len(envelopes))
@@ -194,7 +203,10 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		row, uid, ok := cloudResourceNodeRow(env)
+		row, uid, ok, err := cloudResourceNodeRow(env)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			continue
 		}
@@ -204,7 +216,7 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
 	}
 
 	if len(byUID) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	uids := make([]string, 0, len(byUID))
@@ -217,38 +229,43 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows
+	return rows, nil
 }
 
 // cloudResourceNodeRow builds one CloudResource node row from an aws_resource
 // fact envelope, returning ok=false when the resource lacks the identity needed
-// to form a stable node uid.
-func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	resourceType := payloadString(env.Payload, "resource_type")
-	resourceID := payloadString(env.Payload, "resource_id")
-	arn := payloadString(env.Payload, "arn")
+// to form a stable node uid, or a classified decode error when a required
+// identity field is absent from the payload. Identity and common fields are read
+// from the decoded factschema struct; service-specific fields (the service-anchor
+// workload_id/service_name and any nested attributes) are read from the struct's
+// untyped Attributes pass-through, never from the raw envelope payload.
+func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
+	resource, err := decodeAWSResource(env)
+	if err != nil {
+		return nil, "", false, err
+	}
 
+	arn := derefString(resource.ARN)
+	resourceID := resource.ResourceID
 	if resourceID == "" {
 		resourceID = arn
 	}
-	if resourceType == "" || resourceID == "" {
-		return nil, "", false
+	if resource.ResourceType == "" || resourceID == "" {
+		return nil, "", false, nil
 	}
 
-	uid := cloudResourceUID(accountID, region, resourceType, resourceID)
+	uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
 	row := map[string]any{
 		"uid":                 uid,
 		"arn":                 arn,
 		"resource_id":         resourceID,
-		"resource_type":       resourceType,
-		"name":                payloadString(env.Payload, "name"),
-		"state":               payloadString(env.Payload, "state"),
-		"account_id":          accountID,
-		"region":              region,
-		"service_kind":        payloadString(env.Payload, "service_kind"),
-		"correlation_anchors": payloadStrings(env.Payload, "", "correlation_anchors"),
+		"resource_type":       resource.ResourceType,
+		"name":                derefString(resource.Name),
+		"state":               derefString(resource.State),
+		"account_id":          resource.AccountID,
+		"region":              resource.Region,
+		"service_kind":        derefString(resource.ServiceKind),
+		"correlation_anchors": resource.CorrelationAnchors,
 		"source_fact_id":      env.FactID,
 		"stable_fact_key":     env.StableFactKey,
 		"source_system":       env.SourceRef.SourceSystem,
@@ -256,10 +273,10 @@ func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
 	}
-	for key, value := range cloudResourceServiceAnchorFields(env.Payload) {
+	for key, value := range cloudResourceServiceAnchorFields(resource.Attributes, resource.ResourceType) {
 		row[key] = value
 	}
-	return row, uid, true
+	return row, uid, true, nil
 }
 
 // cloudResourceUID computes the stable CloudResource node identity. The identity

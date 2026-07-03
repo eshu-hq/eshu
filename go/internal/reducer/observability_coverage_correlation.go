@@ -139,7 +139,14 @@ func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, int
 		return Result{}, fmt.Errorf("load observability coverage correlation facts: %w", err)
 	}
 
-	decisions := BuildObservabilityCoverageDecisions(envelopes)
+	decisions, err := BuildObservabilityCoverageDecisions(envelopes)
+	if err != nil {
+		// A malformed aws_resource/aws_relationship payload (a missing required
+		// identity field) is a classified input_invalid decode failure;
+		// dead-letter the intent instead of classifying coverage against an
+		// empty-string node identity.
+		return Result{}, err
+	}
 	counts := observabilityCoverageCounts(decisions)
 	writeResult, err := h.Writer.WriteObservabilityCoverageCorrelations(ctx, ObservabilityCoverageCorrelationWrite{
 		IntentID:     intent.IntentID,
@@ -193,13 +200,19 @@ func (h ObservabilityCoverageCorrelationHandler) emitCounters(
 // BuildObservabilityCoverageDecisions classifies observability coverage without
 // fabricating a covered edge from name coincidence or a metric-name-only signal.
 // It is a pure function over fact envelopes (no I/O) so the outcome contract is
-// table-test friendly.
-func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) []ObservabilityCoverageCorrelationDecision {
-	index := buildObservabilityCoverageIndex(envelopes)
+// table-test friendly. It returns a classified error when an aws_resource or
+// aws_relationship fact is missing a required identity field, so the caller
+// dead-letters the intent (input_invalid) rather than classifying coverage
+// against an empty-string node identity.
+func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) ([]ObservabilityCoverageCorrelationDecision, error) {
+	index, err := buildObservabilityCoverageIndex(envelopes)
+	if err != nil {
+		return nil, err
+	}
 	decisions := classifyObservabilityCoverage(index)
 	decisions = append(decisions, classifyObservabilityMetadataEvidence(envelopes)...)
 	sortObservabilityCoverageDecisions(decisions)
-	return decisions
+	return decisions, nil
 }
 
 func observabilityCoverageCorrelationFactKinds() []string {

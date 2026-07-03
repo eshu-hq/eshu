@@ -14,7 +14,7 @@ import (
 func TestBuildObservabilityCoverageDecisionsClassifiesGrafanaStackEvidence(t *testing.T) {
 	t.Parallel()
 
-	decisions := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		observabilityFact("declared-dashboard", facts.ObservabilityDeclaredDashboardFactKind, map[string]any{
 			"provider":        "grafana",
 			"source_class":    "declared",
@@ -112,6 +112,9 @@ func TestBuildObservabilityCoverageDecisionsClassifiesGrafanaStackEvidence(t *te
 			"outcome":             "unsupported",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
+	}
 
 	index := observabilityDecisionsByProviderAndRef(decisions)
 	dashboard := index["grafana|dashboard|checkout-latency"]
@@ -149,7 +152,7 @@ func TestObservabilityCoverageCorrelationFactKindsIncludesGrafanaStackSources(t 
 func TestExtractObservabilityCoverageEdgeRowsDoesNotPromoteGrafanaStackOutcomes(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{
+	rows, tally, err := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{
 		observabilityFact("observed-dashboard", facts.ObservabilityObservedDashboardFactKind, map[string]any{
 			"provider":            "grafana",
 			"source_class":        "observed",
@@ -179,6 +182,9 @@ func TestExtractObservabilityCoverageEdgeRowsDoesNotPromoteGrafanaStackOutcomes(
 			"outcome":             "permission_hidden",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractObservabilityCoverageEdgeRows() error = %v, want nil", err)
+	}
 
 	if len(rows) != 0 {
 		t.Fatalf("Grafana-stack provenance decisions produced %d COVERS edge row(s), want 0: %v", len(rows), rows)

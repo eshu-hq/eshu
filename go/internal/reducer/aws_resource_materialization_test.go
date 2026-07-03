@@ -103,7 +103,10 @@ func TestAWSResourceMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractCloudResourceNodeRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if rows := ExtractCloudResourceNodeRows(nil); rows != nil {
+	if rows, err := ExtractCloudResourceNodeRows(nil); rows != nil {
+		if err != nil {
+			t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+		}
 		t.Fatalf("rows = %v, want nil", rows)
 	}
 }
@@ -125,7 +128,10 @@ func TestExtractCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 		}),
 	}
 
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -162,7 +168,10 @@ func TestExtractCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 		}),
 	}
 
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (relationship facts must be skipped)", len(rows))
 	}
@@ -189,7 +198,10 @@ func TestExtractCloudResourceNodeRowsRequiresIdentity(t *testing.T) {
 		}),
 	}
 
-	if rows := ExtractCloudResourceNodeRows(envelopes); len(rows) != 0 {
+	if rows, err := ExtractCloudResourceNodeRows(envelopes); len(rows) != 0 {
+		if err != nil {
+			t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+		}
 		t.Fatalf("len(rows) = %d, want 0 for incomplete identity", len(rows))
 	}
 }
@@ -209,7 +221,10 @@ func TestExtractCloudResourceNodeRowsDeduplicatesByUID(t *testing.T) {
 		awsResourceEnvelope(payload),
 	}
 
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (duplicate facts must converge on one node)", len(rows))
 	}

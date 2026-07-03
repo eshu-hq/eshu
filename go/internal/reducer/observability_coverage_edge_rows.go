@@ -50,11 +50,14 @@ func newObservabilityCoverageEdgeTally() observabilityCoverageEdgeTally {
 // reprojections.
 func ExtractObservabilityCoverageEdgeRows(
 	envelopes []facts.Envelope,
-) ([]map[string]any, observabilityCoverageEdgeTally) {
+) ([]map[string]any, observabilityCoverageEdgeTally, error) {
 	tally := newObservabilityCoverageEdgeTally()
-	decisions := BuildObservabilityCoverageDecisions(envelopes)
+	decisions, err := BuildObservabilityCoverageDecisions(envelopes)
+	if err != nil {
+		return nil, tally, err
+	}
 	if len(decisions) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
 	type edgeKey struct {
@@ -95,7 +98,7 @@ func ExtractObservabilityCoverageEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -107,7 +110,7 @@ func ExtractObservabilityCoverageEdgeRows(
 			anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, nil
 }
 
 // coverageDecisionIsEdgeEligible reports whether a coverage decision proves a

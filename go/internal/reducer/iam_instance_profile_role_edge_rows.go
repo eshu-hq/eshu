@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 const (
@@ -46,26 +47,28 @@ type iamRoleJoinIndex struct {
 	byARN map[string]string
 }
 
-func buildIAMRoleJoinIndex(envelopes []facts.Envelope) iamRoleJoinIndex {
+func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, error) {
 	index := iamRoleJoinIndex{byARN: make(map[string]string, len(envelopes))}
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
-		if payloadString(env.Payload, "resource_type") != iamResourceTypeRole {
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			return iamRoleJoinIndex{}, err
+		}
+		if resource.ResourceType != iamResourceTypeRole {
 			continue
 		}
-		accountID := payloadString(env.Payload, "account_id")
-		region := payloadString(env.Payload, "region")
-		arn := strings.TrimSpace(payloadString(env.Payload, "arn"))
-		resourceID := payloadString(env.Payload, "resource_id")
+		arn := strings.TrimSpace(derefString(resource.ARN))
+		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
 		}
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(accountID, region, iamResourceTypeRole, resourceID)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, iamResourceTypeRole, resourceID)
 		if arn != "" {
 			if _, exists := index.byARN[arn]; !exists {
 				index.byARN[arn] = uid
@@ -77,7 +80,7 @@ func buildIAMRoleJoinIndex(envelopes []facts.Envelope) iamRoleJoinIndex {
 			}
 		}
 	}
-	return index
+	return index, nil
 }
 
 func (i iamRoleJoinIndex) resolve(arn string) (string, bool) {
@@ -93,13 +96,16 @@ func (i iamRoleJoinIndex) resolve(arn string) (string, bool) {
 // fabricated.
 func ExtractIAMInstanceProfileRoleEdgeRows(
 	envelopes []facts.Envelope,
-) ([]map[string]any, iamInstanceProfileRoleEdgeTally) {
+) ([]map[string]any, iamInstanceProfileRoleEdgeTally, error) {
 	tally := newIAMInstanceProfileRoleEdgeTally()
 	if len(envelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
-	index := buildIAMRoleJoinIndex(envelopes)
+	index, err := buildIAMRoleJoinIndex(envelopes)
+	if err != nil {
+		return nil, tally, err
+	}
 
 	type edgeKey struct {
 		profile string
@@ -112,16 +118,23 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
-		if payloadString(env.Payload, "resource_type") != iamInstanceProfileRoleResourceTypeInstanceProfile {
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			return nil, tally, err
+		}
+		if resource.ResourceType != iamInstanceProfileRoleResourceTypeInstanceProfile {
 			continue
 		}
 
-		roleARNs := payloadStrings(env.Payload, "", "role_arns")
+		// role_arns is a service-specific field on the instance-profile
+		// aws_resource fact, carried in the decoded struct's Attributes
+		// pass-through rather than a named identity field.
+		roleARNs := payloadStrings(resource.Attributes, "", "role_arns")
 		if len(roleARNs) == 0 {
 			continue
 		}
 
-		profileUID, ok := iamInstanceProfileRoleProfileUID(env)
+		profileUID, ok := iamInstanceProfileRoleProfileUID(resource)
 		if !ok {
 			tally.skipped[iamInstanceProfileRoleSkipSourceUnresolved]++
 			continue
@@ -150,7 +163,7 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -158,19 +171,17 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 		right := anyToString(rows[b]["profile_uid"]) + "->" + anyToString(rows[b]["role_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, nil
 }
 
-func iamInstanceProfileRoleProfileUID(env facts.Envelope) (string, bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	resourceID := payloadString(env.Payload, "resource_id")
-	arn := payloadString(env.Payload, "arn")
+func iamInstanceProfileRoleProfileUID(resource awsv1.Resource) (string, bool) {
+	arn := derefString(resource.ARN)
+	resourceID := resource.ResourceID
 	if resourceID == "" {
 		resourceID = arn
 	}
 	if resourceID == "" {
 		return "", false
 	}
-	return cloudResourceUID(accountID, region, iamInstanceProfileRoleResourceTypeInstanceProfile, resourceID), true
+	return cloudResourceUID(resource.AccountID, resource.Region, iamInstanceProfileRoleResourceTypeInstanceProfile, resourceID), true
 }

@@ -52,7 +52,10 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
 		iamRoleEnvelope(acct, roleB),
 	}
 
-	rows, tally := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractIAMInstanceProfileRoleEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 2 {
 		t.Fatalf("rows = %d, want 2", len(rows))
 	}
@@ -91,9 +94,12 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
 func TestExtractIAMInstanceProfileRoleEdgeRowsEmptyRolesNoEdge(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
 		iamInstanceProfileResourceEnvelope("123456789012", "app-profile"),
 	})
+	if err != nil {
+		t.Fatalf("ExtractIAMInstanceProfileRoleEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 for profile with no roles", len(rows))
 	}
@@ -107,9 +113,12 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsUnscannedRoleSkipped(t *testing.T)
 
 	const acct = "123456789012"
 	unscanned := "arn:aws:iam::999988887777:role/external"
-	rows, tally := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
 		iamInstanceProfileResourceEnvelope(acct, "app-profile", unscanned),
 	})
+	if err != nil {
+		t.Fatalf("ExtractIAMInstanceProfileRoleEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 for unscanned target role", len(rows))
 	}
@@ -126,12 +135,15 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsDuplicateInputOneEdge(t *testing.T
 
 	const acct = "123456789012"
 	roleARN := "arn:aws:iam::" + acct + ":role/app"
-	rows, _ := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+	rows, _, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
 		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleARN, roleARN),
 		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleARN),
 		iamRoleEnvelope(acct, roleARN),
 		iamRoleEnvelope(acct, roleARN),
 	})
+	if err != nil {
+		t.Fatalf("ExtractIAMInstanceProfileRoleEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1 idempotent edge", len(rows))
 	}

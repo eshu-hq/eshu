@@ -125,7 +125,13 @@ func (h RDSPostureMaterializationHandler) Handle(
 	resourceEnvelopes, postureEnvelopes := splitRDSPostureEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally := ExtractRDSPostureRows(resourceEnvelopes, postureEnvelopes)
+	rows, tally, err := ExtractRDSPostureRows(resourceEnvelopes, postureEnvelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of attaching RDS posture to an empty-string node identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

@@ -103,26 +103,28 @@ type ec2InstanceProfileJoinIndex struct {
 // instance-profile node uid the aws_resource materialization committed is keyed by
 // the profile ARN (resource_id == arn for instance profiles), so the index value
 // is exactly that node uid.
-func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) ec2InstanceProfileJoinIndex {
+func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstanceProfileJoinIndex, error) {
 	index := ec2InstanceProfileJoinIndex{byARN: make(map[string]string, len(envelopes))}
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		if payloadString(env.Payload, "resource_type") != ec2UsesProfileResourceTypeInstanceProfile {
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			return ec2InstanceProfileJoinIndex{}, err
+		}
+		if resource.ResourceType != ec2UsesProfileResourceTypeInstanceProfile {
 			continue
 		}
-		accountID := payloadString(env.Payload, "account_id")
-		region := payloadString(env.Payload, "region")
-		arn := strings.TrimSpace(payloadString(env.Payload, "arn"))
-		resourceID := payloadString(env.Payload, "resource_id")
+		arn := strings.TrimSpace(derefString(resource.ARN))
+		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
 		}
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(accountID, region, ec2UsesProfileResourceTypeInstanceProfile, resourceID)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, ec2UsesProfileResourceTypeInstanceProfile, resourceID)
 		// First writer wins on collision so a later duplicate cannot re-point an
 		// ARN to a different node. The ARN is the precise identity here.
 		if arn != "" {
@@ -136,7 +138,7 @@ func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) ec2InstancePro
 			}
 		}
 	}
-	return index
+	return index, nil
 }
 
 // resolve looks up an instance-profile ARN and returns the scanned node uid on an
@@ -167,13 +169,16 @@ func (i ec2InstanceProfileJoinIndex) resolve(arn string) (string, bool) {
 func ExtractEC2UsesProfileEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2UsesProfileEdgeTally) {
+) ([]map[string]any, ec2UsesProfileEdgeTally, error) {
 	tally := newEC2UsesProfileEdgeTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
-	index := buildEC2InstanceProfileJoinIndex(resourceEnvelopes)
+	index, err := buildEC2InstanceProfileJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, err
+	}
 
 	type edgeKey struct {
 		source string
@@ -231,7 +236,7 @@ func ExtractEC2UsesProfileEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -239,7 +244,7 @@ func ExtractEC2UsesProfileEdgeRows(
 		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, nil
 }
 
 // ec2UsesProfileSourceUID derives the source EC2 instance CloudResource node uid

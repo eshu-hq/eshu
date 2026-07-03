@@ -113,7 +113,13 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 
 	resourceEnvelopes, postureEnvelopes := splitS3InternetExposureEnvelopes(envelopes)
 	extractStart := time.Now()
-	rows, tally := ExtractS3InternetExposureRows(resourceEnvelopes, postureEnvelopes)
+	rows, tally, err := ExtractS3InternetExposureRows(resourceEnvelopes, postureEnvelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of resolving exposure against an empty-string node identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

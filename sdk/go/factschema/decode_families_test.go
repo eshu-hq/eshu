@@ -5,7 +5,10 @@ package factschema
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // fullPayloadForKind returns a minimal valid payload map (every required key
@@ -196,5 +199,84 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)
 			}
 		})
+	}
+}
+
+// TestDecodeAWSRelationship_AttributesPassThroughPreservesJSONTypes proves the
+// aws_relationship pass-through captures verb-specific keys (the nested
+// "attributes" object a cloudwatch_alarm_observes_metric fact carries) with JSON
+// type fidelity, and that named identity fields never leak into Attributes. This
+// mirrors the aws_resource pass-through so both polymorphic AWS envelopes behave
+// identically.
+func TestDecodeAWSRelationship_AttributesPassThroughPreservesJSONTypes(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"account_id":         "111111111111",
+		"region":             "us-east-1",
+		"relationship_type":  "cloudwatch_alarm_observes_metric",
+		"source_resource_id": "arn:aws:cloudwatch:us-east-1:111111111111:alarm:cpu",
+		"target_resource_id": "i-0123456789abcdef0",
+		// Verb-specific nested attributes bag the reducer reads.
+		"attributes": map[string]any{
+			"dimensions": []any{
+				map[string]any{"name": "InstanceId", "value": "i-0123456789abcdef0"},
+			},
+		},
+	}
+
+	decoded, err := DecodeAWSRelationship(Envelope{FactKind: FactKindAWSRelationship, SchemaVersion: "1.0.0", Payload: payload})
+	if err != nil {
+		t.Fatalf("DecodeAWSRelationship() error = %v, want nil", err)
+	}
+	if decoded.Attributes == nil {
+		t.Fatal("Attributes = nil, want the verb-specific attributes captured")
+	}
+	for _, named := range []string{"account_id", "region", "relationship_type", "source_resource_id", "target_resource_id"} {
+		if _, leaked := decoded.Attributes[named]; leaked {
+			t.Fatalf("named field %q leaked into Attributes", named)
+		}
+	}
+	nested, ok := decoded.Attributes["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("Attributes[attributes] = %#v, want map[string]any", decoded.Attributes["attributes"])
+	}
+	dims, ok := nested["dimensions"].([]any)
+	if !ok || len(dims) != 1 {
+		t.Fatalf("nested dimensions = %#v, want []any of length 1", nested["dimensions"])
+	}
+}
+
+// TestDecodeAWSRelationship_RoundTrip_Attributes proves an encoded Relationship
+// carrying Attributes flattens the verb-specific keys back to the top-level
+// payload (not nested under a stray key) and decodes back deep-equal.
+func TestDecodeAWSRelationship_RoundTrip_Attributes(t *testing.T) {
+	t.Parallel()
+
+	original := awsv1.Relationship{
+		AccountID:        "111111111111",
+		Region:           "us-east-1",
+		RelationshipType: "xray_matches_service",
+		SourceResourceID: "svc-a",
+		TargetResourceID: "svc-b",
+		Attributes: map[string]any{
+			"attributes": map[string]any{"service_name": "checkout"},
+		},
+	}
+
+	payload, err := EncodeAWSRelationship(original)
+	if err != nil {
+		t.Fatalf("EncodeAWSRelationship() error = %v, want nil", err)
+	}
+	if _, ok := payload["attributes"]; !ok {
+		t.Fatalf("EncodeAWSRelationship dropped the verb-specific attributes; payload = %v", payload)
+	}
+
+	decoded, err := DecodeAWSRelationship(Envelope{FactKind: FactKindAWSRelationship, SchemaVersion: "1.0.0", Payload: payload})
+	if err != nil {
+		t.Fatalf("DecodeAWSRelationship() error = %v, want nil", err)
+	}
+	if !reflect.DeepEqual(decoded, original) {
+		t.Fatalf("DecodeAWSRelationship() = %+v, want %+v", decoded, original)
 	}
 }

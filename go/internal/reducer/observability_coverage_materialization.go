@@ -147,7 +147,14 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows, tally := ExtractObservabilityCoverageEdgeRows(envelopes)
+	rows, tally, err := ExtractObservabilityCoverageEdgeRows(envelopes)
+	if err != nil {
+		// A malformed aws_resource/aws_relationship payload (a missing required
+		// identity field) is a classified input_invalid decode failure;
+		// dead-letter the intent instead of writing a coverage edge against an
+		// empty-string node identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

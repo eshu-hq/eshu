@@ -86,7 +86,13 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("load facts for workload cloud relationship materialization: %w", err)
 	}
 
-	rows, tally := ExtractWorkloadCloudRelationshipRows(envelopes)
+	rows, tally, err := ExtractWorkloadCloudRelationshipRows(envelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of projecting a workload edge against an empty-string uid.
+		return Result{}, err
+	}
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
 		return Result{}, err
@@ -219,11 +225,15 @@ func (t workloadCloudRelationshipTally) totalSkipped() int {
 
 // ExtractWorkloadCloudRelationshipRows builds canonical USES edge rows only for
 // aws_resource facts with exactly one explicit workload anchor. Service-name-only
-// anchors stay candidate evidence and are not promoted to graph truth.
-func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[string]any, workloadCloudRelationshipTally) {
+// anchors stay candidate evidence and are not promoted to graph truth. Each
+// aws_resource fact is decoded through the factschema seam, so a payload missing
+// a required identity field dead-letters (input_invalid); the workload anchor and
+// environment (service-specific fields) are read from the decoded struct's
+// untyped Attributes pass-through.
+func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[string]any, workloadCloudRelationshipTally, error) {
 	tally := newWorkloadCloudRelationshipTally()
 	if len(envelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 
 	type edgeKey struct {
@@ -237,7 +247,11 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
-		workloadIDs := uniqueSortedStrings(payloadStrings(env.Payload, "workload_id", "workload_ids"))
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			return nil, tally, err
+		}
+		workloadIDs := uniqueSortedStrings(payloadStrings(resource.Attributes, "workload_id", "workload_ids"))
 		switch len(workloadIDs) {
 		case 0:
 			tally.skipped[workloadCloudRelationshipSkipMissingWorkloadAnchor]++
@@ -248,12 +262,15 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			continue
 		}
 
-		_, cloudUID, ok := cloudResourceNodeRow(env)
+		_, cloudUID, ok, err := cloudResourceNodeRow(env)
+		if err != nil {
+			return nil, tally, err
+		}
 		if !ok {
 			tally.skipped[workloadCloudRelationshipSkipMissingResource]++
 			continue
 		}
-		environment := payloadString(env.Payload, "environment")
+		environment := payloadString(resource.Attributes, "environment")
 		if environment == "" {
 			tally.skipped[workloadCloudRelationshipSkipMissingEnvironment]++
 			continue
@@ -263,7 +280,7 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			continue
 		}
 		seen[key] = struct{}{}
-		anchor := cloudResourceServiceAnchorDecisionForPayload(env.Payload)
+		anchor := cloudResourceServiceAnchorDecisionForPayload(resource.Attributes, resource.ResourceType)
 		rows = append(rows, map[string]any{
 			"workload_id":           workloadIDs[0],
 			"cloud_resource_uid":    cloudUID,
@@ -281,12 +298,12 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		})
 	}
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, nil
 	}
 	sort.Slice(rows, func(a, b int) bool {
 		left := anyToString(rows[a]["workload_id"]) + "@" + anyToString(rows[a]["environment"]) + "->" + anyToString(rows[a]["cloud_resource_uid"])
 		right := anyToString(rows[b]["workload_id"]) + "@" + anyToString(rows[b]["environment"]) + "->" + anyToString(rows[b]["cloud_resource_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, nil
 }

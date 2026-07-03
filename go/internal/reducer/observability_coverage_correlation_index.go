@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // Coverage signal classes (issue #391). They map the AWS-native observability
@@ -102,7 +103,11 @@ type observabilityCoverageIndex struct {
 
 // buildObservabilityCoverageIndex partitions the scope generation's facts into
 // monitored-target resources, observability objects, and coverage relationships.
-func buildObservabilityCoverageIndex(envelopes []facts.Envelope) observabilityCoverageIndex {
+// Each aws_resource and aws_relationship fact is decoded through the factschema
+// seam, so a payload missing a required identity field dead-letters
+// (input_invalid); verb-specific and service-specific fields are read from the
+// decoded struct's Attributes pass-through, never the raw envelope payload.
+func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityCoverageIndex, error) {
 	index := observabilityCoverageIndex{
 		targets:      observabilityTargetIndex{byKey: make(map[string]map[string]targetResource)},
 		objectsByRef: make(map[string]observabilityObject),
@@ -111,46 +116,53 @@ func buildObservabilityCoverageIndex(envelopes []facts.Envelope) observabilityCo
 	for _, env := range envelopes {
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
-			index.ingestResource(env)
+			resource, err := decodeAWSResource(env)
+			if err != nil {
+				return observabilityCoverageIndex{}, err
+			}
+			index.ingestResource(resource, env.FactID, env.IsTombstone)
 		case facts.AWSRelationshipFactKind:
-			index.ingestRelationship(env)
+			relationship, err := decodeAWSRelationship(env)
+			if err != nil {
+				return observabilityCoverageIndex{}, err
+			}
+			index.ingestRelationship(relationship, env.FactID)
 		}
 	}
 	sort.Strings(index.objectOrder)
-	return index
+	return index, nil
 }
 
-func (index *observabilityCoverageIndex) ingestResource(env facts.Envelope) {
-	resourceType := payloadString(env.Payload, "resource_type")
-	if resourceType == "" {
+func (index *observabilityCoverageIndex) ingestResource(resource awsv1.Resource, factID string, tombstone bool) {
+	if resource.ResourceType == "" {
 		return
 	}
-	if signal, ok := observabilityResourceSignals[resourceType]; ok {
+	if signal, ok := observabilityResourceSignals[resource.ResourceType]; ok {
 		// A tombstoned observability object (a deleted alarm/dashboard/rule) is no
 		// longer live coverage. Ingesting it would let a stale relationship fact
 		// classify a monitored target as exact/covered and overstate current
 		// coverage, so tombstoned observability objects never enter the index. The
 		// uncovered target then surfaces correctly as a gap.
-		if env.IsTombstone {
+		if tombstone {
 			return
 		}
-		index.ingestObservabilityObject(env, resourceType, signal)
+		index.ingestObservabilityObject(resource, factID, signal)
 		return
 	}
-	index.ingestTargetResource(env, resourceType)
+	index.ingestTargetResource(resource, tombstone)
 }
 
-func (index *observabilityCoverageIndex) ingestObservabilityObject(env facts.Envelope, resourceType, signal string) {
-	arn := payloadString(env.Payload, "arn")
-	resourceID := payloadString(env.Payload, "resource_id")
+func (index *observabilityCoverageIndex) ingestObservabilityObject(resource awsv1.Resource, factID, signal string) {
+	arn := derefString(resource.ARN)
+	resourceID := resource.ResourceID
 	ref := firstNonBlank(arn, resourceID)
 	if ref == "" {
 		return
 	}
 	uid := cloudResourceUID(
-		payloadString(env.Payload, "account_id"),
-		payloadString(env.Payload, "region"),
-		resourceType,
+		resource.AccountID,
+		resource.Region,
+		resource.ResourceType,
 		firstNonBlank(resourceID, arn),
 	)
 	if _, exists := index.objectsByRef[ref]; !exists {
@@ -160,28 +172,26 @@ func (index *observabilityCoverageIndex) ingestObservabilityObject(env facts.Env
 		ref:          ref,
 		uid:          uid,
 		signal:       signal,
-		resourceType: resourceType,
-		factID:       env.FactID,
+		resourceType: resource.ResourceType,
+		factID:       factID,
 	}
 }
 
-func (index *observabilityCoverageIndex) ingestTargetResource(env facts.Envelope, resourceType string) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	resourceID := payloadString(env.Payload, "resource_id")
-	arn := payloadString(env.Payload, "arn")
+func (index *observabilityCoverageIndex) ingestTargetResource(resource awsv1.Resource, tombstone bool) {
+	arn := derefString(resource.ARN)
+	resourceID := resource.ResourceID
 	if resourceID == "" {
 		resourceID = arn
 	}
 	if resourceID == "" {
 		return
 	}
-	uid := cloudResourceUID(accountID, region, resourceType, resourceID)
-	for _, ident := range targetIdentityKeys(arn, resourceID, env.Payload) {
+	uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
+	for _, ident := range targetIdentityKeys(arn, resourceID, resource.CorrelationAnchors) {
 		index.targets.add(ident.key, targetResource{
 			uid:            uid,
-			resourceType:   resourceType,
-			tombstone:      env.IsTombstone,
+			resourceType:   resource.ResourceType,
+			tombstone:      tombstone,
 			resolutionMode: ident.mode,
 		})
 	}
@@ -198,8 +208,10 @@ type targetIdentity struct {
 // use to resolve this resource — its ARN, its bare resource id, and its
 // published correlation anchors — each tagged with the resolution mode it
 // represents. Keys are the same precise identities the #805 join index uses so
-// resolution stays exact and the matched join mode is preserved on the fact.
-func targetIdentityKeys(arn, resourceID string, payload map[string]any) []targetIdentity {
+// resolution stays exact and the matched join mode is preserved on the fact. The
+// correlation anchors come from the decoded aws_resource struct, not the raw
+// payload.
+func targetIdentityKeys(arn, resourceID string, correlationAnchors []string) []targetIdentity {
 	var idents []targetIdentity
 	if trimmed := strings.TrimSpace(arn); trimmed != "" {
 		idents = append(idents, targetIdentity{key: trimmed, mode: coverageResolutionARN})
@@ -207,7 +219,7 @@ func targetIdentityKeys(arn, resourceID string, payload map[string]any) []target
 	if trimmed := strings.TrimSpace(resourceID); trimmed != "" {
 		idents = append(idents, targetIdentity{key: trimmed, mode: coverageResolutionBareID})
 	}
-	for _, anchor := range payloadStrings(payload, "", "correlation_anchors") {
+	for _, anchor := range correlationAnchors {
 		if trimmed := strings.TrimSpace(anchor); trimmed != "" {
 			idents = append(idents, targetIdentity{key: trimmed, mode: coverageResolutionCorrelationAnchor})
 		}
@@ -251,22 +263,24 @@ func coverageResolutionRank(mode string) int {
 	}
 }
 
-func (index *observabilityCoverageIndex) ingestRelationship(env facts.Envelope) {
-	relationshipType := payloadString(env.Payload, "relationship_type")
-	source := firstNonBlank(payloadString(env.Payload, "source_arn"), payloadString(env.Payload, "source_resource_id"))
+func (index *observabilityCoverageIndex) ingestRelationship(relationship awsv1.Relationship, factID string) {
+	source := firstNonBlank(derefString(relationship.SourceARN), relationship.SourceResourceID)
 	if source == "" {
 		return
 	}
 	rel := coverageRelationship{
-		factID:           env.FactID,
-		relationshipType: relationshipType,
+		factID:           factID,
+		relationshipType: relationship.RelationshipType,
 		sourceRef:        source,
 	}
-	switch relationshipType {
+	switch relationship.RelationshipType {
 	case relAlarmObservesMetric:
-		rel.targetKeys = alarmDimensionTargetKeys(env.Payload)
+		// The verb-specific dimension summary lives in the decoded relationship's
+		// Attributes pass-through (the nested "attributes" object), not a named
+		// identity field.
+		rel.targetKeys = alarmDimensionTargetKeys(relationship.Attributes)
 	case relXRayMatchesService:
-		rel.serviceRef = relationshipServiceRef(env.Payload)
+		rel.serviceRef = relationshipServiceRef(relationship.Attributes)
 	default:
 		// Only resource-bearing coverage relationships are indexed in PR1. The
 		// alarm→SNS paging fan-out targets an SNS topic, not a monitored resource,

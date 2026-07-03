@@ -152,7 +152,13 @@ func (h S3LogsToMaterializationHandler) Handle(
 	resourceEnvelopes, postureEnvelopes := splitS3LogsToEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally := ExtractS3LogsToEdgeRows(resourceEnvelopes, postureEnvelopes)
+	rows, tally, err := ExtractS3LogsToEdgeRows(resourceEnvelopes, postureEnvelopes)
+	if err != nil {
+		// A malformed aws_resource payload (a missing required identity field)
+		// is a classified input_invalid decode failure; dead-letter the intent
+		// instead of resolving a LOGS_TO edge against an empty-string identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

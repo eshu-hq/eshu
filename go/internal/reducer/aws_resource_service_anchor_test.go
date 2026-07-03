@@ -12,7 +12,7 @@ import (
 func TestExtractCloudResourceNodeRowsAdmitsStrongServiceAnchor(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractCloudResourceNodeRows([]facts.Envelope{
+	rows, err := ExtractCloudResourceNodeRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "sample-account",
 			"region":        "us-east-1",
@@ -24,6 +24,9 @@ func TestExtractCloudResourceNodeRowsAdmitsStrongServiceAnchor(t *testing.T) {
 			},
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
@@ -43,7 +46,7 @@ func TestExtractCloudResourceNodeRowsAdmitsStrongServiceAnchor(t *testing.T) {
 func TestExtractCloudResourceNodeRowsKeepsAmbiguousServiceAnchorsOutOfStrongFields(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractCloudResourceNodeRows([]facts.Envelope{
+	rows, err := ExtractCloudResourceNodeRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "sample-account",
 			"region":        "us-east-1",
@@ -55,6 +58,9 @@ func TestExtractCloudResourceNodeRowsKeepsAmbiguousServiceAnchorsOutOfStrongFiel
 			},
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
@@ -77,7 +83,7 @@ func TestExtractCloudResourceNodeRowsKeepsAmbiguousServiceAnchorsOutOfStrongFiel
 func TestExtractCloudResourceNodeRowsDoesNotPromoteGenericAWSServiceNameAttribute(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractCloudResourceNodeRows([]facts.Envelope{
+	rows, err := ExtractCloudResourceNodeRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "sample-account",
 			"region":        "us-east-1",
@@ -89,6 +95,9 @@ func TestExtractCloudResourceNodeRowsDoesNotPromoteGenericAWSServiceNameAttribut
 			},
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
