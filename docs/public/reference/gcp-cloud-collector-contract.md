@@ -458,20 +458,32 @@ config short name (the trailing `instanceConfigs/<id>` segment, the
 regional/multi-region topology such as `regional-us-central1` or
 `nam-eur-asia1`), display name, node count or processing units (a Spanner
 instance is provisioned by exactly one of the two capacity modes, so both are
-decoded independently and neither implies the other's presence), lifecycle
-state, and a bounded label count; emits no outbound edges. The instance config
-is a topology descriptor, not a separate CAI asset, so it never resolves to an
-edge target; CMEK is a per-database property (`encryptionConfig.kmsKeyName`)
-carried by the child `spanner.googleapis.com/Database` asset type — a
-separate, not-yet-registered typed-depth extractor — rather than by the
-Instance resource itself, mirroring the BigQuery Dataset extractor's treatment
-of its own non-enumerable child Tables. Raw label keys and values are never
-decoded by this extractor; only the bounded label count crosses the redaction
-boundary, since per-key/value fingerprinting is the base observation path's
-job (`parse.go`), not the typed-depth extractor's. The Spanner Admin API's
-data-plane connection endpoints (`endpointUris`) are intentionally not
-declared as a struct field at all, so they are never decoded into Go memory in
-the first place.
+decoded independently and neither implies the other's presence — an explicit
+`0` is preserved rather than dropped, since the Spanner
+`projects.instances` REST resource reports `0` for a `FREE_INSTANCE` and for a
+standard instance still in the `CREATING` state, and dropping it would erase
+real capacity evidence), lifecycle state, and a bounded label count; emits a
+`spanner_instance_uses_instance_config` edge to the resolved InstanceConfig.
+The instance config is itself a separately CAI-inventoried resource
+(`spanner.googleapis.com/InstanceConfig`), so the `config` reference resolves to
+a real typed edge target rather than staying an opaque attribute — the short
+name is kept as the `config` attribute for Terraform/drift/monitoring, and the
+full `//spanner.googleapis.com/projects/<p>/instanceConfigs/<id>` resource name
+is emitted as the edge endpoint and correlation anchor (a bare config id on a
+sparse page is qualified against the instance's own project; an already
+CAI-prefixed reference is not double-prefixed). No CMEK edge is emitted: CMEK is
+a per-database property (`encryptionConfig.kmsKeyName`) carried by the child
+`spanner.googleapis.com/Database` asset type — a separate, not-yet-registered
+typed-depth extractor — not by the Instance resource, so fabricating a KMS edge
+here would assert a relationship the Instance does not carry (the child Database
+extractor, when added, will own the CMEK edge, the same way the child Table
+extractor owns the BigQuery Table→Dataset edge rather than the Dataset
+enumerating its Tables). Raw label keys and values are never decoded by this
+extractor; only the bounded label count crosses the redaction boundary, since
+per-key/value fingerprinting is the base observation path's job (`parse.go`),
+not the typed-depth extractor's. The Spanner Admin API's data-plane connection
+endpoints (`endpointUris`) are intentionally not declared as a struct field at
+all, so they are never decoded into Go memory in the first place.
 
 **IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
 fingerprinted email, display name, OAuth2 client id, disabled posture, and a

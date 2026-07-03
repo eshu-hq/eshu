@@ -46,13 +46,20 @@ func TestExtractSpannerInstanceFullAttributesRegional(t *testing.T) {
 		"display_name": "Production Instance",
 		"node_count":   int64(3),
 		"state":        "READY",
-		"label_count":  1,
+		"label_count":  int64(1),
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
 	}
-	if len(got.Relationships) != 0 {
-		t.Errorf("expected no relationships for an instance with no config edge target, got %#v", got.Relationships)
+
+	wantConfig := "//spanner.googleapis.com/projects/demo-project/instanceConfigs/regional-us-central1"
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected exactly the instance-config edge, got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+	wantAnchors := []string{wantConfig}
+	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
+		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
 	}
 }
 
@@ -93,6 +100,75 @@ func TestExtractSpannerInstanceMultiRegionConfig(t *testing.T) {
 	}
 	if got.Attributes["config"] != "nam-eur-asia1" {
 		t.Errorf("config = %v, want nam-eur-asia1", got.Attributes["config"])
+	}
+	wantConfig := "//spanner.googleapis.com/projects/demo-project/instanceConfigs/nam-eur-asia1"
+	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+}
+
+func TestExtractSpannerInstanceBareConfigIDQualifiesToProject(t *testing.T) {
+	// A sparse CAI page may carry a bare config id with no "projects/" prefix;
+	// it is qualified against the instance's own project (a Spanner instance
+	// always references a config visible to its project), so the edge still
+	// resolves to a full InstanceConfig resource name.
+	const data = `{
+		"name": "projects/demo-project/instances/bare",
+		"config": "regional-us-central1",
+		"nodeCount": 1
+	}`
+
+	got, err := extractSpannerInstance(spannerInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["config"] != "regional-us-central1" {
+		t.Errorf("config = %v, want regional-us-central1", got.Attributes["config"])
+	}
+	wantConfig := "//spanner.googleapis.com/projects/demo-project/instanceConfigs/regional-us-central1"
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected the instance-config edge from a bare id, got %#v", got.Relationships)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+}
+
+func TestExtractSpannerInstanceAlreadyPrefixedConfigNotDoublePrefixed(t *testing.T) {
+	// An already CAI-prefixed config reference must not be double-prefixed.
+	const data = `{
+		"name": "projects/demo-project/instances/prefixed",
+		"config": "//spanner.googleapis.com/projects/demo-project/instanceConfigs/regional-us-central1"
+	}`
+
+	got, err := extractSpannerInstance(spannerInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantConfig := "//spanner.googleapis.com/projects/demo-project/instanceConfigs/regional-us-central1"
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected exactly one config edge, got %#v", got.Relationships)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+	// The short-name attribute is still the trailing segment, not the prefix.
+	if got.Attributes["config"] != "regional-us-central1" {
+		t.Errorf("config attribute = %v, want regional-us-central1", got.Attributes["config"])
+	}
+}
+
+func TestExtractSpannerInstanceNoConfigEmitsNoEdge(t *testing.T) {
+	// An instance blob with no config reference (a sparse page) emits no edge
+	// and no anchor rather than fabricating an unresolvable endpoint.
+	const data = `{"name": "projects/demo-project/instances/no-config", "nodeCount": 1, "state": "READY"}`
+
+	got, err := extractSpannerInstance(spannerInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := got.Attributes["config"]; ok {
+		t.Errorf("config attribute should be absent, got %#v", got.Attributes)
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("expected no edges without a config reference, got %#v", got.Relationships)
+	}
+	if len(got.CorrelationAnchors) != 0 {
+		t.Errorf("expected no anchors without a config reference, got %#v", got.CorrelationAnchors)
 	}
 }
 
@@ -135,19 +211,99 @@ func TestExtractSpannerInstanceMalformedDataErrors(t *testing.T) {
 	}
 }
 
-func TestExtractSpannerInstanceZeroNodeCountIsOmitted(t *testing.T) {
-	// nodeCount/processingUnits are *int64 so a genuinely absent field is
-	// distinguishable from an explicit zero; Spanner never provisions a
-	// zero-capacity instance, so a zero value here reflects a sparse CAI page,
-	// not a real posture, and must not be fabricated into an attribute.
-	const data = `{"name": "projects/demo-project/instances/sparse", "nodeCount": 0}`
+func TestExtractSpannerInstanceExplicitZeroNodeCountIsPreserved(t *testing.T) {
+	// nodeCount/processingUnits are *int64 so an explicit reported zero is
+	// distinguishable from a genuinely absent field, and the extractor must
+	// keep that distinction. Zero is a real Spanner posture, not a sparse-page
+	// artifact: the projects.instances REST resource reports nodeCount 0 for a
+	// FREE_INSTANCE and can report 0 for a standard instance still in the
+	// CREATING state before capacity is assigned. Dropping an explicit zero
+	// would erase capacity evidence and make a free-tier/creating instance
+	// indistinguishable from one whose field CAI simply did not populate.
+	const data = `{"name": "projects/demo-project/instances/free", "nodeCount": 0}`
+
+	got, err := extractSpannerInstance(spannerInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	v, ok := got.Attributes["node_count"]
+	if !ok {
+		t.Fatalf("node_count=0 must be preserved as a real reported value, got %#v", got.Attributes)
+	}
+	if v != int64(0) {
+		t.Errorf("node_count = %v, want int64(0)", v)
+	}
+}
+
+func TestExtractSpannerInstanceAbsentNodeCountIsOmitted(t *testing.T) {
+	// A genuinely absent nodeCount (the field is not present in the CAI blob at
+	// all — the common shape for a processing-units-provisioned instance) is a
+	// nil *int64 and must be omitted, so the nil-vs-explicit-zero distinction is
+	// symmetric: nil omits, explicit zero is kept.
+	const data = `{"name": "projects/demo-project/instances/pu-only", "processingUnits": 1000}`
 
 	got, err := extractSpannerInstance(spannerInstanceContext(data))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if _, ok := got.Attributes["node_count"]; ok {
-		t.Errorf("node_count=0 should be omitted as a sparse/zero-value CAI page, got %#v", got.Attributes)
+		t.Errorf("absent node_count must be omitted, got %#v", got.Attributes)
+	}
+	if got.Attributes["processing_units"] != int64(1000) {
+		t.Errorf("processing_units = %v, want 1000", got.Attributes["processing_units"])
+	}
+}
+
+func TestExtractSpannerInstanceFreeInstanceZeroCapacityPreserved(t *testing.T) {
+	// A FREE_INSTANCE reports processingUnits 0 (free tier has no provisioned
+	// compute capacity). That explicit zero must survive so an operator can
+	// distinguish a free-tier instance from a paid one whose capacity field CAI
+	// failed to populate.
+	const data = `{
+		"name": "projects/demo-project/instances/free-tier",
+		"config": "projects/demo-project/instanceConfigs/regional-us-central1",
+		"instanceType": "FREE_INSTANCE",
+		"processingUnits": 0,
+		"state": "READY"
+	}`
+
+	got, err := extractSpannerInstance(spannerInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	v, ok := got.Attributes["processing_units"]
+	if !ok {
+		t.Fatalf("processing_units=0 must be preserved for a FREE_INSTANCE, got %#v", got.Attributes)
+	}
+	if v != int64(0) {
+		t.Errorf("processing_units = %v, want int64(0)", v)
+	}
+}
+
+func TestExtractSpannerInstanceCreatingZeroNodeCountPreserved(t *testing.T) {
+	// A standard instance still in the CREATING state can report nodeCount 0
+	// before capacity is assigned. That explicit zero is real posture — the
+	// instance genuinely has no nodes yet — and must be preserved.
+	const data = `{
+		"name": "projects/demo-project/instances/provisioning",
+		"config": "projects/demo-project/instanceConfigs/regional-us-central1",
+		"nodeCount": 0,
+		"state": "CREATING"
+	}`
+
+	got, err := extractSpannerInstance(spannerInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	v, ok := got.Attributes["node_count"]
+	if !ok {
+		t.Fatalf("node_count=0 must be preserved for a CREATING instance, got %#v", got.Attributes)
+	}
+	if v != int64(0) {
+		t.Errorf("node_count = %v, want int64(0)", v)
+	}
+	if got.Attributes["state"] != "CREATING" {
+		t.Errorf("state = %v, want CREATING", got.Attributes["state"])
 	}
 }
 
@@ -164,10 +320,13 @@ func TestExtractSpannerInstanceLabelCountOnlyNoRawLabels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Attributes["label_count"] != 3 {
-		t.Errorf("label_count = %v, want 3", got.Attributes["label_count"])
+	if got.Attributes["label_count"] != int64(3) {
+		t.Errorf("label_count = %v, want int64(3)", got.Attributes["label_count"])
 	}
-	blob, _ := json.Marshal(got)
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal extraction: %v", err)
+	}
 	for _, banned := range []string{"payments", "eng-42", "customer-email@example.com", "cost-center", "\"team\""} {
 		if containsString(string(blob), banned) {
 			t.Errorf("extraction output leaked raw label content %q: %s", banned, blob)
