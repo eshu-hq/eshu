@@ -854,7 +854,20 @@ user otherwise); `serviceAccountName` is a create/patch request parameter, not a
 returned resource field, so it is not used. The `params` map (user query text, source
 object paths, and other data-source-specific values) is never read, and the data
 source is an enumerated source id rather than a resolvable CAI resource so it is
-kept only as an attribute.
+kept only as an attribute. The `transfer_config_writes_to_dataset` edge resolves
+the destination dataset against the transfer config's own project:
+`destinationDatasetId` is a bare dataset id with no project qualifier, and the
+BigQuery Data Transfer resource surfaces no separate destination-project field
+anywhere in its schema (verified against the live BigQuery Data Transfer v1
+discovery document and the googleapis `transfer.proto`). A cross-region or
+cross-project transfer config is created inside its destination project — its own
+resource name embeds that project — so the config's own project is the
+destination project by GCP's resource model, and this holds for both same-project
+and cross-project copy configs. For a `cross_region_copy` config the only second
+project that appears is the source project inside `params`, which is never
+decoded and never resolves the destination edge. There is therefore no
+cross-project destination signal in Cloud Asset Inventory for the collector to
+prefer; this is a verified bound, not an unresolved gap.
 
 **Cloud Build Build** (`cloudbuild.googleapis.com/Build`) captures build status,
 create and finish time, the log URL host (host only), source type (repo or
