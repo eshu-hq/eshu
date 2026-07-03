@@ -51,16 +51,25 @@ Contract System v1 §3.1 fixes the rule this module follows everywhere:
 
 `aws/v1.Resource` demonstrates both: `AccountID`, `ResourceID`, `Region`, and
 `ResourceType` are non-pointer fields with no `omitempty` tag (required);
-`Name` is a pointer and `Tags` carries `omitempty` (optional). The generated
-schema's `"required"` array lists exactly the four required fields —
-`schema_gen_test.go` fails if the struct and the checked-in schema ever
-disagree.
+`Name` (`*string`) and `Tags` (`*map[string]string`, `omitempty`) are pointers
+(optional). The generated schema's `"required"` array lists exactly the four
+required fields — `schema_gen_test.go` fails if the struct and the checked-in
+schema ever disagree.
 
-A required field that is **absent** from `Envelope.Payload` — not merely
-present with an empty string — decodes to a `*DecodeError` with
-`Classification == ClassificationInputInvalid` naming the missing field. A
-present-but-empty value for a required field decodes successfully, since an
-empty string is a valid (if unusual) observed value.
+`Tags` is a pointer to a map, not a plain map, so the two "empty" states stay
+distinct across a round trip: a nil pointer means the collector did not observe
+tags (omitted from the payload), while a non-nil pointer to an empty map means
+the collector observed zero tags (marshals as `"tags":{}` and round-trips back
+to a non-nil empty map). A plain map with `omitempty` could not express
+"observed empty" — an empty map would be omitted and decode back as nil.
+
+A required field that is **absent** from `Envelope.Payload`, or present with an
+explicit JSON null, decodes to a `*DecodeError` with
+`Classification == ClassificationInputInvalid` naming the field. A
+present, non-null but empty value (for example the empty string) decodes
+successfully, since an empty string is a valid (if unusual) observed value.
+Only an absent key or an explicit null is rejected — this is what stops a
+missing required identity from silently becoming an empty-string graph node.
 
 ## Decode seam and classified errors
 

@@ -43,9 +43,14 @@ type Resource struct {
 	// observe a name.
 	Name *string `json:"name,omitempty"`
 
-	// Tags holds provider tags observed on the resource. Optional: absent
-	// (nil) when the collector observed zero tags versus never having
-	// checked; collectors that support tags should emit an empty map to
-	// distinguish "observed, no tags" from "not observed."
-	Tags map[string]string `json:"tags,omitempty"`
+	// Tags holds provider tags observed on the resource. Optional, and a
+	// pointer so the two "empty" states stay distinct across a round trip:
+	// a nil pointer means the collector did not observe tags (the field is
+	// omitted from the payload), while a non-nil pointer to an empty map
+	// means the collector observed the resource and found zero tags (the
+	// field marshals as "tags":{} and round-trips back to a non-nil empty
+	// map). A populated map round-trips as observed with tags. A plain
+	// map with omitempty could not express "observed empty" because an
+	// empty map would be omitted and decode back as nil.
+	Tags *map[string]string `json:"tags,omitempty"`
 }

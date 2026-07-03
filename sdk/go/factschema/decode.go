@@ -120,15 +120,22 @@ var requiredFields = map[string][]string{
 }
 
 // decodeAndValidate unmarshals payload into a new T, first checking that
-// every JSON key requiredFields[factKind] lists is present in payload (an
-// absent key, not merely an empty value). A missing required key returns a
-// classified *DecodeError naming the field and the zero value of T, never a
-// partially populated struct.
+// every JSON key requiredFields[factKind] lists is present in payload with a
+// non-null value. An absent key, or a key present with an explicit JSON null
+// (Go nil in the map), returns a classified *DecodeError naming the field and
+// the zero value of T, never a partially populated struct. A present, non-nil
+// but empty value (for example the empty string) is a valid observed value
+// and decodes normally.
 func decodeAndValidate[T any](factKind string, payload map[string]any) (T, error) {
 	var zero T
 
 	for _, field := range requiredFields[factKind] {
-		if _, ok := payload[field]; !ok {
+		// Reject both an absent key and an explicit JSON null (Go nil in
+		// the decoded map): null would otherwise pass a presence-only
+		// check and json.Unmarshal would turn it into a zero value with no
+		// error, the silent-zero-value identity this validation exists to
+		// prevent.
+		if value, ok := payload[field]; !ok || value == nil {
 			return zero, &DecodeError{
 				FactKind:       factKind,
 				Classification: ClassificationInputInvalid,

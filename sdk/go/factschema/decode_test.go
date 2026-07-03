@@ -94,6 +94,41 @@ func TestDecodeAWSResource_MissingRequiredField_DistinguishesAbsentFromEmpty(t *
 	}
 }
 
+// TestDecodeAWSResource_NullRequiredField proves that a required key present
+// with an explicit JSON null (Go nil in the payload map) is rejected as a
+// classified error, not silently unmarshaled to a zero value. Without this,
+// json.Unmarshal turns null into "" for a string field with no error — the
+// exact silent-zero-value identity this module exists to prevent. This is
+// distinct from an empty string, which is a valid observed value (see
+// TestDecodeAWSResource_MissingRequiredField_DistinguishesAbsentFromEmpty).
+func TestDecodeAWSResource_NullRequiredField(t *testing.T) {
+	t.Parallel()
+
+	payload := fullAWSResourcePayload()
+	payload["region"] = nil // present, but explicit JSON null
+
+	got, err := DecodeAWSResource(testEnvelope(payload))
+	if err == nil {
+		t.Fatalf("DecodeAWSResource() error = nil, want non-nil for null required field")
+	}
+
+	var classified *DecodeError
+	if !errors.As(err, &classified) {
+		t.Fatalf("DecodeAWSResource() error = %T, want *DecodeError", err)
+	}
+	if classified.Classification != ClassificationInputInvalid {
+		t.Fatalf("Classification = %q, want %q", classified.Classification, ClassificationInputInvalid)
+	}
+	if classified.Field != "region" {
+		t.Fatalf("Field = %q, want %q", classified.Field, "region")
+	}
+
+	var zero awsv1.Resource
+	if !reflect.DeepEqual(got, zero) {
+		t.Fatalf("DecodeAWSResource() returned non-zero struct %+v on error, want zero value", got)
+	}
+}
+
 // TestDecodeAWSResource_RoundTrip proves that a typed struct encoded into an
 // envelope payload map decodes back, via the kind-keyed seam, to a
 // deep-equal copy of the original struct.
@@ -101,13 +136,14 @@ func TestDecodeAWSResource_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	name := "example-bucket"
+	tags := map[string]string{"env": "prod"}
 	original := awsv1.Resource{
 		AccountID:    "111111111111",
 		ResourceID:   "arn:aws:s3:::example-bucket",
 		Region:       "us-east-1",
 		ResourceType: "aws.s3.bucket",
 		Name:         &name,
-		Tags:         map[string]string{"env": "prod"},
+		Tags:         &tags,
 	}
 
 	payload, err := EncodeAWSResource(original)
@@ -118,6 +154,46 @@ func TestDecodeAWSResource_RoundTrip(t *testing.T) {
 	decoded, err := DecodeAWSResource(testEnvelope(payload))
 	if err != nil {
 		t.Fatalf("DecodeAWSResource() error = %v, want nil", err)
+	}
+	if !reflect.DeepEqual(decoded, original) {
+		t.Fatalf("DecodeAWSResource() = %+v, want %+v", decoded, original)
+	}
+}
+
+// TestDecodeAWSResource_RoundTrip_ObservedEmptyTags proves the "observed, no
+// tags" state survives a round trip: a non-nil pointer to an empty map
+// marshals as "tags":{} and decodes back to a non-nil pointer to an empty
+// map, never collapsing to nil (which would be indistinguishable from "not
+// observed"). This is the state the Tags pointer type exists to preserve.
+func TestDecodeAWSResource_RoundTrip_ObservedEmptyTags(t *testing.T) {
+	t.Parallel()
+
+	emptyTags := map[string]string{}
+	original := awsv1.Resource{
+		AccountID:    "111111111111",
+		ResourceID:   "arn:aws:s3:::example-bucket",
+		Region:       "us-east-1",
+		ResourceType: "aws.s3.bucket",
+		Tags:         &emptyTags,
+	}
+
+	payload, err := EncodeAWSResource(original)
+	if err != nil {
+		t.Fatalf("EncodeAWSResource() error = %v, want nil", err)
+	}
+	if _, ok := payload["tags"]; !ok {
+		t.Fatalf("EncodeAWSResource() omitted an observed empty tags map; payload = %v", payload)
+	}
+
+	decoded, err := DecodeAWSResource(testEnvelope(payload))
+	if err != nil {
+		t.Fatalf("DecodeAWSResource() error = %v, want nil", err)
+	}
+	if decoded.Tags == nil {
+		t.Fatalf("Tags = nil, want non-nil pointer to empty map (observed empty must not collapse to not-observed)")
+	}
+	if len(*decoded.Tags) != 0 {
+		t.Fatalf("*Tags = %v, want empty map", *decoded.Tags)
 	}
 	if !reflect.DeepEqual(decoded, original) {
 		t.Fatalf("DecodeAWSResource() = %+v, want %+v", decoded, original)

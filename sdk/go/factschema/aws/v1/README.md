@@ -18,15 +18,24 @@ Field mutability encodes the contract, per
 
 - **Required**: a non-pointer field with no `omitempty` tag. `Resource`'s
   `AccountID`, `ResourceID`, `Region`, and `ResourceType` are required — the
-  decode seam rejects a payload missing any of them with a classified
-  `input_invalid` error naming the field, never a zero-value struct.
+  decode seam rejects a payload that omits any of them, or supplies an explicit
+  JSON null for one, with a classified `input_invalid` error naming the field,
+  never a zero-value struct.
 - **Optional**: a pointer field or one carrying `omitempty`. `Resource`'s
-  `Name` (`*string`) and `Tags` (`map`, `omitempty`) are optional; an absent
+  `Name` (`*string`) and `Tags` (`*map[string]string`) are optional; an absent
   optional field decodes to nil, not a defaulted zero value.
+
+`Tags` is a pointer to a map so "observed, no tags" stays distinct from "not
+observed": a nil pointer is omitted from the payload (not observed), a non-nil
+pointer to an empty map marshals as `"tags":{}` and round-trips to a non-nil
+empty map (observed, empty), and a populated map round-trips as observed with
+tags. A plain map with `omitempty` would collapse the first two states, because
+an empty map would be omitted and decode back as nil.
 
 The generated JSON Schema at
 `../../schema/aws_resource.v1.schema.json` mirrors this: its `"required"`
-array lists exactly the required fields.
+array lists exactly the four required fields (the pointer on `Tags` is
+transparent to the value schema, so `tags` stays optional).
 
 ## Changing a struct
 
