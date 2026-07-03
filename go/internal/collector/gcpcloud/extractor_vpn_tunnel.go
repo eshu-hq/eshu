@@ -15,23 +15,25 @@ import (
 // next-hop-VPN-tunnel edge, and is reused here as this extractor's own asset
 // type. assetTypeComputeTargetVPNGateway is declared by the sibling
 // ForwardingRule extractor (extractor_forwarding_rule.go) and reused here for
-// the Classic VPN target-gateway edge.
+// the Classic VPN target-gateway edge. assetTypeComputeRouter is declared by
+// the sibling Cloud Router extractor (extractor_router.go, #4301) and reused
+// here for the BGP-dynamic-routing router edge; this file previously declared
+// its own local copy pending that extractor's merge, per the dedup-pass note
+// this comment used to carry, and that duplicate has now been removed.
 //
-// assetTypeComputeVPNGateway (HA VPN gateway) and assetTypeComputeRouter
-// (Cloud Router, for BGP dynamic routing) have no existing declaration anywhere
-// else in this package as of this extractor: the sibling gcp/B tickets for
-// Cloud VPN Gateway (#4302) and Cloud Router (#4301) had not merged when this
-// extractor was authored, so these two constants are declared locally following
-// the same `compute.googleapis.com/<Type>` naming convention as every other
-// asset-type constant in this package. If either sibling PR lands first with
-// its own declaration of the same constant, a follow-up dedup pass must remove
-// the duplicate here and reuse the sibling's declaration, exactly as this file
-// already reuses assetTypeComputeVpnTunnel and assetTypeComputeTargetVPNGateway
-// from their own sibling extractors.
+// assetTypeComputeVPNGateway (HA VPN gateway) has no existing declaration
+// anywhere else in this package as of this extractor: the sibling gcp/B
+// ticket for Cloud VPN Gateway (#4302) had not merged when this extractor was
+// authored, so this constant is still declared locally following the same
+// `compute.googleapis.com/<Type>` naming convention as every other asset-type
+// constant in this package. If that sibling PR lands with its own
+// declaration of the same constant, a follow-up dedup pass must remove the
+// duplicate here and reuse the sibling's declaration, exactly as this file
+// already reuses assetTypeComputeVpnTunnel, assetTypeComputeTargetVPNGateway,
+// and assetTypeComputeRouter from their own sibling extractors.
 const (
 	assetTypeComputeVPNGateway         = "compute.googleapis.com/VpnGateway"
 	assetTypeComputeExternalVPNGateway = "compute.googleapis.com/ExternalVpnGateway"
-	assetTypeComputeRouter             = "compute.googleapis.com/Router"
 )
 
 // Bounded provider relationship types for VpnTunnel edges, carried on
