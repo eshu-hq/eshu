@@ -240,6 +240,23 @@
    graph-relevant relationship; never reads `requestPath`, `host`, `response`,
    `proxyHeader`, or `grpcServiceName` — all data-plane routing/matching
    values, never resource identities.
+40. `extractor_ssl_certificate.go` - typed-depth extractor for
+   `compute.googleapis.com/SslCertificate` (certificate type MANAGED/SELF_MANAGED,
+   managed-certificate provisioning status, a bounded managed-domain count, a
+   bounded subject-alternative-name count present only for a self-managed
+   certificate after issuance, expiry time, creation time; an omitted `type`
+   is derived to SELF_MANAGED per the Compute sslCertificates schema, not
+   dropped, and deriving it reads no key material); declares
+   `assetTypeComputeSSLCertificate` for the Target HTTPS Proxy / Target SSL
+   Proxy extractors to reuse as their `sslCertificates[]` edge target; emits no
+   outbound edges itself, since the certificate's graph value is inbound —
+   mirroring the Custom IAM Role extractor's inbound-only edge shape; never
+   decodes `managed.domains[]` or `subjectAlternativeNames` into an attribute or
+   anchor (the extractor seam carries no redaction key, so — mirroring the
+   Managed Zone extractor's treatment of its own `dnsName` and the reCAPTCHA
+   Enterprise Key extractor's treatment of allowed-domain entries — every
+   domain value is reduced to a bounded count only), and never reads the
+   `selfManaged.certificate` or `selfManaged.privateKey` PEM material.
 
 ## Invariants
 
