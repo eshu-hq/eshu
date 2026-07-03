@@ -157,6 +157,54 @@ func TestExtractFilestoreInstanceKMSKeyAlreadyCAIPrefixedNotDoublePrefixed(t *te
 	}
 }
 
+func TestFilestoreKMSKeyFullName(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"relative key", "projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
+		{"leading slash", "/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
+		{"already kms full name", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
+		{"wrong-domain absolute name rejected", "//compute.googleapis.com/projects/p/whatever", ""},
+		{"blank", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := filestoreKMSKeyFullName(tc.in); got != tc.want {
+				t.Errorf("filestoreKMSKeyFullName(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestExtractFilestoreInstanceWrongDomainKMSKeyEmitsNoEdgeOrAttribute proves a
+// malformed/wrong-domain kmsKeyName cannot poison the anchors, the edge, or the
+// kms_key_name attribute with a non-KMS endpoint. Before hardening, the caller
+// wrote an empty kms_key_name attribute and emitted a relationship with an empty
+// TargetFullResourceName when the helper rejected the value.
+func TestExtractFilestoreInstanceWrongDomainKMSKeyEmitsNoEdgeOrAttribute(t *testing.T) {
+	const data = `{"kmsKeyName": "//compute.googleapis.com/projects/demo-project/whatever"}`
+
+	got, err := extractFilestoreInstance(filestoreInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := got.Attributes["kms_key_name"]; ok {
+		t.Errorf("kms_key_name should be absent for a wrong-domain key, got %#v", got.Attributes)
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeFilestoreInstanceEncryptedByKMSKey {
+			t.Fatalf("expected no CMEK edge for a wrong-domain key, got %#v", rel)
+		}
+	}
+	for _, a := range got.CorrelationAnchors {
+		if a == "" {
+			t.Fatalf("empty anchor emitted for a wrong-domain key: %#v", got.CorrelationAnchors)
+		}
+	}
+}
+
 func TestExtractFilestoreInstanceMultipleNetworksEachEmitAnEdge(t *testing.T) {
 	const data = `{
 		"networks": [
