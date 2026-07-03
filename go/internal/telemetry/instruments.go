@@ -509,7 +509,9 @@ type Instruments struct {
 	// events by bounded kind and action, mirroring AWSFreshnessEvents. Labels
 	// are bounded enums: kind (asset_change / asset_deleted / unknown) and
 	// action (a closed intake or handoff action). Raw asset names, parent
-	// scope ids, and push payload bodies stay in logs/traces.
+	// scope ids, and push payload bodies must never appear in these metric
+	// labels; the push payload body is dropped entirely and never reaches
+	// logs, traces, or metrics.
 	GCPFreshnessEvents metric.Int64Counter
 	// ObservabilityCoverageEdges counts observability COVERS edge projection
 	// outcomes (issue #391 PR3). Labels: coverage_signal (alarm / composite_alarm
