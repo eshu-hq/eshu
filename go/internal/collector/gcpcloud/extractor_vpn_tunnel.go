@@ -108,11 +108,11 @@ func extractVpnTunnel(ctx ExtractContext) (AttributeExtraction, error) {
 	var anchors []string
 	var rels []RelationshipObservation
 
-	if gatewayName := computeFullResourceNameFromSelfLink(data.VPNGateway, ctx.ProjectID); gatewayName != "" {
+	if gatewayName := computeResourceFullNameFromSelfLink(data.VPNGateway, "vpnGateways", ctx.ProjectID); gatewayName != "" {
 		anchors = append(anchors, gatewayName)
 		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelUsesVpnGateway, gatewayName, assetTypeComputeVPNGateway))
 	}
-	if targetGatewayName := computeFullResourceNameFromSelfLink(data.TargetVPNGateway, ctx.ProjectID); targetGatewayName != "" {
+	if targetGatewayName := computeResourceFullNameFromSelfLink(data.TargetVPNGateway, "targetVpnGateways", ctx.ProjectID); targetGatewayName != "" {
 		anchors = append(anchors, targetGatewayName)
 		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelUsesTargetVpnGateway, targetGatewayName, assetTypeComputeTargetVPNGateway))
 	}
@@ -120,7 +120,7 @@ func extractVpnTunnel(ctx ExtractContext) (AttributeExtraction, error) {
 		anchors = append(anchors, peerName)
 		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelPeersWithVpnGateway, peerName, peerType))
 	}
-	if routerName := computeFullResourceNameFromSelfLink(data.Router, ctx.ProjectID); routerName != "" {
+	if routerName := computeResourceFullNameFromSelfLink(data.Router, "routers", ctx.ProjectID); routerName != "" {
 		anchors = append(anchors, routerName)
 		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelUsesRouter, routerName, assetTypeComputeRouter))
 	}
@@ -170,14 +170,19 @@ func vpnTunnelAttributes(data vpnTunnelData) map[string]any {
 // peerExternalGateway (Classic or HA VPN peer to an external gateway resource)
 // are mutually exclusive per the compute API contract; peerGcpGateway is
 // checked first since it is only ever set together with vpnGateway (HA-only),
-// matching the API's own precedence. It returns a blank name for an empty,
-// unrecognized, or unresolvable reference, so the caller emits no edge and no
-// anchor for an ambiguous peer.
+// matching the API's own precedence. Each field is verified against its own
+// expected resource-path segment (vpnGateways for peerGcpGateway,
+// externalVpnGateways for peerExternalGateway) via
+// computeResourceFullNameFromSelfLink, so a resolvable-but-wrong-kind
+// reference in either field (for example an externalVpnGateways selfLink
+// placed in peerGcpGateway) never resolves. It returns a blank name for an
+// empty, unrecognized, wrong-segment, or otherwise unresolvable reference, so
+// the caller emits no edge and no anchor for an ambiguous or mistyped peer.
 func vpnTunnelPeerGateway(data vpnTunnelData, sourceProjectID string) (fullName, assetType string) {
-	if name := computeFullResourceNameFromSelfLink(data.PeerGCPGateway, sourceProjectID); name != "" {
+	if name := computeResourceFullNameFromSelfLink(data.PeerGCPGateway, "vpnGateways", sourceProjectID); name != "" {
 		return name, assetTypeComputeVPNGateway
 	}
-	if name := computeFullResourceNameFromSelfLink(data.PeerExternalGateway, sourceProjectID); name != "" {
+	if name := computeResourceFullNameFromSelfLink(data.PeerExternalGateway, "externalVpnGateways", sourceProjectID); name != "" {
 		return name, assetTypeComputeExternalVPNGateway
 	}
 	return "", ""

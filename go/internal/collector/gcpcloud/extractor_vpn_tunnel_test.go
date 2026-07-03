@@ -244,6 +244,75 @@ func TestExtractVpnTunnelDropsUnresolvableGatewayReferences(t *testing.T) {
 	}
 }
 
+// TestExtractVpnTunnelWrongSegmentReferencesProduceNoEdge proves each of the
+// five gateway/router reference fields is checked against its own expected
+// compute resource-path segment via computeResourceFullNameFromSelfLink, not
+// merely resolved as any well-formed compute selfLink. A resolvable-but-wrong
+// -kind reference (for example an externalVpnGateways selfLink placed in
+// peerGcpGateway, which expects vpnGateways) must never emit the field's edge
+// or anchor, matching the sibling ForwardingRule/Router segment-validation
+// fix for the identical root-cause finding: without this check, a wrong
+// selfLink placed in the wrong field would materialize a supported edge with
+// the wrong target asset type.
+func TestExtractVpnTunnelWrongSegmentReferencesProduceNoEdge(t *testing.T) {
+	const routerSelfLink = "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/routers/router-1"
+	const vpnGatewaySelfLink = "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/vpnGateways/gw-1"
+	const targetVpnGatewaySelfLink = "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/targetVpnGateways/gw-1"
+	const externalVpnGatewaySelfLink = "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/externalVpnGateways/gw-1"
+
+	cases := []struct {
+		name             string
+		data             string
+		wantRelationship string
+	}{
+		{
+			name:             "vpnGateway field with a router selfLink",
+			data:             `{"vpnGateway": "` + routerSelfLink + `"}`,
+			wantRelationship: relationshipTypeVpnTunnelUsesVpnGateway,
+		},
+		{
+			name:             "targetVpnGateway field with an HA vpnGateway selfLink",
+			data:             `{"targetVpnGateway": "` + vpnGatewaySelfLink + `"}`,
+			wantRelationship: relationshipTypeVpnTunnelUsesTargetVpnGateway,
+		},
+		{
+			name:             "peerGcpGateway field with an externalVpnGateway selfLink",
+			data:             `{"peerGcpGateway": "` + externalVpnGatewaySelfLink + `"}`,
+			wantRelationship: relationshipTypeVpnTunnelPeersWithVpnGateway,
+		},
+		{
+			name:             "peerExternalGateway field with a Classic targetVpnGateway selfLink",
+			data:             `{"peerExternalGateway": "` + targetVpnGatewaySelfLink + `"}`,
+			wantRelationship: relationshipTypeVpnTunnelPeersWithVpnGateway,
+		},
+		{
+			name:             "router field with an HA vpnGateway selfLink",
+			data:             `{"router": "` + vpnGatewaySelfLink + `"}`,
+			wantRelationship: relationshipTypeVpnTunnelUsesRouter,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := extractVpnTunnel(vpnTunnelContext(tc.data))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got.Relationships) != 0 {
+				t.Fatalf("expected no edge for a wrong-segment reference, got %#v", got.Relationships)
+			}
+			if len(got.CorrelationAnchors) != 0 {
+				t.Fatalf("expected no anchor for a wrong-segment reference, got %#v", got.CorrelationAnchors)
+			}
+			for _, rel := range got.Relationships {
+				if rel.RelationshipType == tc.wantRelationship {
+					t.Fatalf("unexpected %q edge for a wrong-segment reference: %#v", tc.wantRelationship, rel)
+				}
+			}
+		})
+	}
+}
+
 func TestExtractVpnTunnelEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractVpnTunnel(vpnTunnelContext(`{}`))
 	if err != nil {
@@ -271,7 +340,7 @@ func TestExtractVpnTunnelFullStructNeverLeaksBannedTokens(t *testing.T) {
 		"region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
 		"vpnGateway": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/vpnGateways/ha-gw-1",
 		"vpnGatewayInterface": 0,
-		"peerGcpGateway": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/externalVpnGateways/peer-gw-1",
+		"peerGcpGateway": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/vpnGateways/peer-gw-1",
 		"peerIp": "198.51.100.42",
 		"router": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/routers/router-1",
 		"ikeVersion": 2,
