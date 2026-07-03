@@ -21,20 +21,11 @@ import (
 // its own local copy pending that extractor's merge, per the dedup-pass note
 // this comment used to carry, and that duplicate has now been removed.
 //
-// assetTypeComputeVPNGateway (HA VPN gateway) has no existing declaration
-// anywhere else in this package as of this extractor: the sibling gcp/B
-// ticket for Cloud VPN Gateway (#4302) had not merged when this extractor was
-// authored, so this constant is still declared locally following the same
-// `compute.googleapis.com/<Type>` naming convention as every other asset-type
-// constant in this package. If that sibling PR lands with its own
-// declaration of the same constant, a follow-up dedup pass must remove the
-// duplicate here and reuse the sibling's declaration, exactly as this file
-// already reuses assetTypeComputeVpnTunnel, assetTypeComputeTargetVPNGateway,
-// and assetTypeComputeRouter from their own sibling extractors.
-const (
-	assetTypeComputeVPNGateway         = "compute.googleapis.com/VpnGateway"
-	assetTypeComputeExternalVPNGateway = "compute.googleapis.com/ExternalVpnGateway"
-)
+// assetTypeComputeVPNGateway is declared by the sibling Cloud VPN Gateway
+// extractor (extractor_vpn_gateway.go, #4302) and reused here for the HA
+// VPN peer-gateway edge; this file previously declared its own local copy
+// pending that extractor's merge, and that duplicate has now been removed.
+const assetTypeComputeExternalVPNGateway = "compute.googleapis.com/ExternalVpnGateway"
 
 // Bounded provider relationship types for VpnTunnel edges, carried on
 // gcp_cloud_relationship facts. The reducer materializes each edge only when
