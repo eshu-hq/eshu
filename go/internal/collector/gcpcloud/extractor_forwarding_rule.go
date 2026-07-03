@@ -10,19 +10,23 @@ import (
 )
 
 // Asset type constants for the compute ForwardingRule typed-depth extractor and
-// the relationship endpoints it derives. assetTypeComputeForwardingRule is
-// declared once here and reused by the Address extractor
-// (extractor_address.go) for its used-by-forwarding-rule edge.
+// the relationship endpoints it derives. assetTypeComputeForwardingRule and
+// assetTypeComputeGlobalForwardingRule are declared in extractor_address.go
+// (assetTypeComputeForwardingRule is reused there by the Address extractor for
+// its used-by-forwarding-rule edge) and reused here.
 // assetTypeComputeNetwork and assetTypeComputeSubnetwork are declared by the
 // sibling Network/Subnetwork extractors and reused here.
 const (
-	assetTypeComputeBackendService   = "compute.googleapis.com/BackendService"
-	assetTypeComputeTargetPool       = "compute.googleapis.com/TargetPool"
-	assetTypeComputeTargetHTTPProxy  = "compute.googleapis.com/TargetHttpProxy"
-	assetTypeComputeTargetHTTPSProxy = "compute.googleapis.com/TargetHttpsProxy"
-	assetTypeComputeTargetTCPProxy   = "compute.googleapis.com/TargetTcpProxy"
-	assetTypeComputeTargetSSLProxy   = "compute.googleapis.com/TargetSslProxy"
-	assetTypeComputeTargetGRPCProxy  = "compute.googleapis.com/TargetGrpcProxy"
+	assetTypeComputeBackendService    = "compute.googleapis.com/BackendService"
+	assetTypeComputeTargetPool        = "compute.googleapis.com/TargetPool"
+	assetTypeComputeTargetHTTPProxy   = "compute.googleapis.com/TargetHttpProxy"
+	assetTypeComputeTargetHTTPSProxy  = "compute.googleapis.com/TargetHttpsProxy"
+	assetTypeComputeTargetTCPProxy    = "compute.googleapis.com/TargetTcpProxy"
+	assetTypeComputeTargetSSLProxy    = "compute.googleapis.com/TargetSslProxy"
+	assetTypeComputeTargetGRPCProxy   = "compute.googleapis.com/TargetGrpcProxy"
+	assetTypeComputeTargetInstance    = "compute.googleapis.com/TargetInstance"
+	assetTypeComputeTargetVPNGateway  = "compute.googleapis.com/TargetVpnGateway"
+	assetTypeComputeServiceAttachment = "compute.googleapis.com/ServiceAttachment"
 )
 
 // Bounded provider relationship types for ForwardingRule edges. They are
@@ -33,11 +37,14 @@ const (
 // relationship type, so a new proxy kind is a single table entry rather than a
 // new branch.
 const (
-	relationshipTypeForwardingRuleTargetsBackendService = "forwarding_rule_targets_backend_service"
-	relationshipTypeForwardingRuleTargetsTargetPool     = "forwarding_rule_targets_target_pool"
-	relationshipTypeForwardingRuleTargetsTargetProxy    = "forwarding_rule_targets_target_proxy"
-	relationshipTypeForwardingRuleInNetwork             = "forwarding_rule_in_network"
-	relationshipTypeForwardingRuleInSubnetwork          = "forwarding_rule_in_subnetwork"
+	relationshipTypeForwardingRuleTargetsBackendService    = "forwarding_rule_targets_backend_service"
+	relationshipTypeForwardingRuleTargetsTargetPool        = "forwarding_rule_targets_target_pool"
+	relationshipTypeForwardingRuleTargetsTargetProxy       = "forwarding_rule_targets_target_proxy"
+	relationshipTypeForwardingRuleTargetsTargetInstance    = "forwarding_rule_targets_target_instance"
+	relationshipTypeForwardingRuleTargetsTargetVPNGateway  = "forwarding_rule_targets_target_vpn_gateway"
+	relationshipTypeForwardingRuleTargetsServiceAttachment = "forwarding_rule_targets_service_attachment"
+	relationshipTypeForwardingRuleInNetwork                = "forwarding_rule_in_network"
+	relationshipTypeForwardingRuleInSubnetwork             = "forwarding_rule_in_subnetwork"
 )
 
 // forwardingRuleTargetSegments maps a compute resource-path segment to its CAI
@@ -55,10 +62,21 @@ var forwardingRuleTargetSegments = map[string]struct {
 	"targetTcpProxies":   {assetTypeComputeTargetTCPProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
 	"targetSslProxies":   {assetTypeComputeTargetSSLProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
 	"targetGrpcProxies":  {assetTypeComputeTargetGRPCProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
+	"targetInstances":    {assetTypeComputeTargetInstance, relationshipTypeForwardingRuleTargetsTargetInstance},
+	"targetVpnGateways":  {assetTypeComputeTargetVPNGateway, relationshipTypeForwardingRuleTargetsTargetVPNGateway},
+	"serviceAttachments": {assetTypeComputeServiceAttachment, relationshipTypeForwardingRuleTargetsServiceAttachment},
 }
 
+// init registers extractForwardingRule for both distinct CAI asset types that
+// carry ForwardingRule.target data: regional compute.googleapis.com/ForwardingRule
+// and global compute.googleapis.com/GlobalForwardingRule (the load-balancer
+// frontend asset type CAI emits for global forwarding rules). Both asset
+// types share the same resource.data shape, so one extractor function
+// handles both; this mirrors the Address/GlobalAddress registration in
+// extractor_address.go.
 func init() {
 	RegisterAssetExtractor(assetTypeComputeForwardingRule, extractForwardingRule)
+	RegisterAssetExtractor(assetTypeComputeGlobalForwardingRule, extractForwardingRule)
 }
 
 // forwardingRuleData is the bounded view of a CAI
@@ -175,10 +193,11 @@ func forwardingRuleAttributes(data forwardingRuleData) map[string]any {
 // forwardingRuleTargetEdge resolves a ForwardingRule's `target` reference
 // (a full self-link or partial path) into its CAI asset type, bounded
 // relationship type, and full resource name. It recognizes every compute
-// resource segment ForwardingRule.target may name (target pool or one of the
-// proxy kinds) via forwardingRuleTargetSegments. It returns a blank name for
-// an empty, unrecognized, or unresolvable reference, so the caller emits no
-// edge and no anchor for an ambiguous target.
+// resource segment ForwardingRule.target may name (target pool, one of the
+// proxy kinds, a target instance, a Classic VPN target gateway, or a PSC
+// service attachment) via forwardingRuleTargetSegments. It returns a blank
+// name for an empty, unrecognized, or unresolvable reference, so the caller
+// emits no edge and no anchor for an ambiguous target.
 func forwardingRuleTargetEdge(target, sourceProjectID string) (assetType, relationshipType, fullName string) {
 	trimmed := strings.TrimSpace(target)
 	if trimmed == "" {

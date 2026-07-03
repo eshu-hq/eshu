@@ -26,7 +26,25 @@ func TestForwardingRuleExtractorIsRegistered(t *testing.T) {
 	}
 }
 
-func TestExtractForwardingRuleExternalToBackendService(t *testing.T) {
+func TestForwardingRuleExtractorIsRegisteredForGlobalAssetType(t *testing.T) {
+	// Cloud Asset Inventory reports global load-balancer frontends as the
+	// distinct GlobalForwardingRule asset type; it must dispatch to the same
+	// extractor as the regional ForwardingRule asset type, mirroring the
+	// Address/GlobalAddress registration.
+	got, ok := lookupAssetExtractor(assetTypeComputeGlobalForwardingRule)
+	if !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeGlobalForwardingRule)
+	}
+	want, ok := lookupAssetExtractor(assetTypeComputeForwardingRule)
+	if !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeForwardingRule)
+	}
+	if reflect.ValueOf(got).Pointer() != reflect.ValueOf(want).Pointer() {
+		t.Fatalf("expected %q and %q to dispatch to the same extractor function", assetTypeComputeGlobalForwardingRule, assetTypeComputeForwardingRule)
+	}
+}
+
+func TestExtractForwardingRuleExternalToTargetPool(t *testing.T) {
 	const data = `{
 		"name": "frontend-lb",
 		"region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
@@ -112,7 +130,7 @@ func TestExtractForwardingRuleTargetsBackendService(t *testing.T) {
 	assertRelationship(t, got.Relationships, relationshipTypeForwardingRuleTargetsBackendService, wantBackend, assetTypeComputeBackendService)
 }
 
-func TestExtractForwardingRuleTargetsTargetHTTPProxy(t *testing.T) {
+func TestExtractForwardingRuleTargetsTargetHTTPSProxy(t *testing.T) {
 	const data = `{
 		"name": "global-lb",
 		"loadBalancingScheme": "EXTERNAL_MANAGED",
@@ -129,6 +147,83 @@ func TestExtractForwardingRuleTargetsTargetHTTPProxy(t *testing.T) {
 	// than fabricated.
 	if _, ok := got.Attributes["region"]; ok {
 		t.Errorf("region should be omitted for a global forwarding rule, got %#v", got.Attributes)
+	}
+
+	wantProxy := "//compute.googleapis.com/projects/demo-project/global/targetHttpsProxies/global-proxy"
+	assertRelationship(t, got.Relationships, relationshipTypeForwardingRuleTargetsTargetProxy, wantProxy, assetTypeComputeTargetHTTPSProxy)
+}
+
+func TestExtractForwardingRuleTargetsTargetInstance(t *testing.T) {
+	const data = `{
+		"name": "packet-mirror-fr",
+		"region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+		"loadBalancingScheme": "",
+		"IPProtocol": "TCP",
+		"target": "https://www.googleapis.com/compute/v1/projects/demo-project/zones/us-central1-a/targetInstances/protocol-fwd-target"
+	}`
+
+	got, err := extractForwardingRule(forwardingRuleContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantTarget := "//compute.googleapis.com/projects/demo-project/zones/us-central1-a/targetInstances/protocol-fwd-target"
+	assertRelationship(t, got.Relationships, relationshipTypeForwardingRuleTargetsTargetInstance, wantTarget, assetTypeComputeTargetInstance)
+	if !containsStringSlice(got.CorrelationAnchors, wantTarget) {
+		t.Errorf("expected correlation anchor for target instance, got %#v", got.CorrelationAnchors)
+	}
+}
+
+func TestExtractForwardingRuleTargetsTargetVPNGateway(t *testing.T) {
+	const data = `{
+		"name": "classic-vpn-fr",
+		"region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+		"IPProtocol": "ESP",
+		"target": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/targetVpnGateways/classic-vpn-gw"
+	}`
+
+	got, err := extractForwardingRule(forwardingRuleContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantTarget := "//compute.googleapis.com/projects/demo-project/regions/us-central1/targetVpnGateways/classic-vpn-gw"
+	assertRelationship(t, got.Relationships, relationshipTypeForwardingRuleTargetsTargetVPNGateway, wantTarget, assetTypeComputeTargetVPNGateway)
+}
+
+func TestExtractForwardingRuleTargetsServiceAttachment(t *testing.T) {
+	const data = `{
+		"name": "psc-consumer-fr",
+		"region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+		"loadBalancingScheme": "INTERNAL",
+		"IPProtocol": "TCP",
+		"target": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1/serviceAttachments/psc-producer-sa"
+	}`
+
+	got, err := extractForwardingRule(forwardingRuleContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantTarget := "//compute.googleapis.com/projects/demo-project/regions/us-central1/serviceAttachments/psc-producer-sa"
+	assertRelationship(t, got.Relationships, relationshipTypeForwardingRuleTargetsServiceAttachment, wantTarget, assetTypeComputeServiceAttachment)
+}
+
+func TestExtractGlobalForwardingRuleUsesSameExtractor(t *testing.T) {
+	const data = `{
+		"name": "global-lb",
+		"loadBalancingScheme": "EXTERNAL_MANAGED",
+		"IPProtocol": "TCP",
+		"portRange": "443-443",
+		"target": "https://www.googleapis.com/compute/v1/projects/demo-project/global/targetHttpsProxies/global-proxy"
+	}`
+	ctx := forwardingRuleContext(data)
+	ctx.AssetType = assetTypeComputeGlobalForwardingRule
+	ctx.FullResourceName = "//compute.googleapis.com/projects/demo-project/global/forwardingRules/global-lb"
+
+	got, err := extractForwardingRule(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	wantProxy := "//compute.googleapis.com/projects/demo-project/global/targetHttpsProxies/global-proxy"
@@ -193,6 +288,9 @@ func TestExtractForwardingRuleTargetKindDispatch(t *testing.T) {
 		{"target tcp proxy", "projects/p/global/targetTcpProxies/ttp", assetTypeComputeTargetTCPProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
 		{"target ssl proxy", "projects/p/global/targetSslProxies/tsp", assetTypeComputeTargetSSLProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
 		{"target grpc proxy", "projects/p/global/targetGrpcProxies/tgp", assetTypeComputeTargetGRPCProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
+		{"target instance", "projects/p/zones/us-central1-a/targetInstances/ti", assetTypeComputeTargetInstance, relationshipTypeForwardingRuleTargetsTargetInstance},
+		{"target vpn gateway", "projects/p/regions/us-central1/targetVpnGateways/tvg", assetTypeComputeTargetVPNGateway, relationshipTypeForwardingRuleTargetsTargetVPNGateway},
+		{"service attachment", "projects/p/regions/us-central1/serviceAttachments/sa", assetTypeComputeServiceAttachment, relationshipTypeForwardingRuleTargetsServiceAttachment},
 		{"unrecognized", "projects/p/global/somethingElse/x", "", ""},
 		{"blank", "", "", ""},
 	}
