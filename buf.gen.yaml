@@ -1,7 +1,10 @@
 version: v2
 
-# Wave 1 keeps generation reproducible without requiring a local buf install.
-# Once the Go module lands, this file can drive `buf generate` into `go/gen/proto`.
+# proto/eshu/data_plane is not the collector<->reducer fact IDL source of
+# truth. See docs/internal/design/4574-fact-idl-decision.md: the normative
+# fact IDL is specs/fact-kind-registry.v1.yaml plus sdk/go/factschema, with
+# JSON Schemas generated from those Go types. This file configures generation
+# for the unwired proto/eshu/data_plane tree, tracked for removal in #4599.
 managed:
   enabled: true
 
