@@ -45,7 +45,7 @@ func (r *Registry) RenderMarkdown() string {
 	}
 	// The single trailing newline is load-bearing: CI's whitespace gate
 	// (git show --check) rejects a blank line at EOF in the committed doc.
-	return strings.TrimSuffix(b.String(), "\n")
+	return strings.TrimRight(b.String(), "\n") + "\n"
 }
 
 func defaultCell(e Entry) string {

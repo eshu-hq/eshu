@@ -64,6 +64,57 @@ func (f *fakeSearchDocExecer) ExecContext(_ context.Context, query string, args 
 	return fakeSearchDocResult{affected: 1}, nil
 }
 
+type fakeSearchIndexTermCopier struct {
+	calls       []fakeSearchIndexTermCopyCall
+	err         error
+	copiedCount int64
+}
+
+type fakeSearchIndexTermCopyCall struct {
+	scopeID      string
+	generationID string
+	documentIDs  []string
+	terms        []string
+	termKeys     []string
+	frequencies  []int
+}
+
+func (f *fakeSearchIndexTermCopier) CopySearchIndexTerms(
+	_ context.Context,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) (int64, error) {
+	f.calls = append(f.calls, fakeSearchIndexTermCopyCall{
+		scopeID:      scopeID,
+		generationID: generationID,
+		documentIDs:  append([]string(nil), documentIDs...),
+		terms:        append([]string(nil), terms...),
+		termKeys:     append([]string(nil), termKeys...),
+		frequencies:  append([]int(nil), frequencies...),
+	})
+	if f.err != nil {
+		return 0, f.err
+	}
+	if f.copiedCount > 0 {
+		return f.copiedCount, nil
+	}
+	return int64(len(terms)), nil
+}
+
+type fakeSearchIndexTermCopyUnsupportedError struct{}
+
+func (fakeSearchIndexTermCopyUnsupportedError) Error() string {
+	return "search-index term copy unsupported"
+}
+
+func (fakeSearchIndexTermCopyUnsupportedError) UnsupportedSearchIndexTermCopy() bool {
+	return true
+}
+
 // sampleSearchDoc returns a minimal valid Document for use in writer tests.
 func sampleSearchDoc(id string) searchdocs.Document {
 	return searchdocs.Document{

@@ -141,6 +141,70 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 	return rows, err
 }
 
+// CopySearchIndexTerms wraps the optional SQLDB COPY fast path with the same
+// tracing and Postgres duration metric shape used by ordinary write queries.
+func (db *InstrumentedDB) CopySearchIndexTerms(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) (int64, error) {
+	copier, ok := db.Inner.(interface {
+		CopySearchIndexTerms(context.Context, string, string, []string, []string, []string, []int) (int64, error)
+	})
+	if !ok {
+		return 0, searchIndexTermCopyUnsupportedError{driver: fmt.Sprintf("%T", db.Inner)}
+	}
+
+	start := time.Now()
+	if db.Tracer != nil {
+		var span trace.Span
+		ctx, span = db.Tracer.Start(
+			ctx,
+			"postgres.copy_from",
+			trace.WithAttributes(
+				attribute.String("db.system", "postgresql"),
+				attribute.String("db.operation", "copy_from"),
+				attribute.String("eshu.store", db.StoreName),
+			),
+		)
+		defer span.End()
+
+		copied, err := copier.CopySearchIndexTerms(ctx, scopeID, generationID, documentIDs, terms, termKeys, frequencies)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		if db.Instruments != nil {
+			db.Instruments.PostgresQueryDuration.Record(
+				ctx,
+				time.Since(start).Seconds(),
+				metric.WithAttributes(
+					attribute.String("operation", "write"),
+					attribute.String("store", db.StoreName),
+				),
+			)
+		}
+		return copied, err
+	}
+
+	copied, err := copier.CopySearchIndexTerms(ctx, scopeID, generationID, documentIDs, terms, termKeys, frequencies)
+	if db.Instruments != nil {
+		db.Instruments.PostgresQueryDuration.Record(
+			ctx,
+			time.Since(start).Seconds(),
+			metric.WithAttributes(
+				attribute.String("operation", "write"),
+				attribute.String("store", db.StoreName),
+			),
+		)
+	}
+	return copied, err
+}
+
 // Begin proxies to the inner database if it implements Beginner.
 // This allows InstrumentedDB to satisfy the Beginner interface when the
 // underlying connection supports transactions (e.g. SQLDB).

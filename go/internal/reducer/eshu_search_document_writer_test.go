@@ -48,9 +48,15 @@ func TestWriteEshuSearchDocumentsUpsertsAndRetires(t *testing.T) {
 	if got := len(db.execs); got < 6 {
 		t.Fatalf("exec calls = %d, want fact writes plus search-index maintenance", got)
 	}
-	insert := db.execs[0]
+	var insert fakeSearchDocExecCall
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "INSERT INTO fact_records") {
+			insert = exec
+			break
+		}
+	}
 	if !strings.Contains(insert.query, "INSERT INTO fact_records") {
-		t.Fatalf("first exec is not an insert: %q", insert.query)
+		t.Fatalf("missing fact insert: %#v", db.execs)
 	}
 	// Bulk insert uses 15 parallel slice args (one slice per column).
 	if got, want := len(insert.args), 15; got != want {
@@ -192,10 +198,8 @@ func TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry(t *testing.T) {
 	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
 	db := &fakeSearchDocExecer{
 		affected: []fakeSearchDocAffected{
-			{fragment: "DELETE FROM eshu_search_index_terms\nWHERE scope_id = $1\n  AND generation_id = $2\n  AND document_id <> ALL($3::text[])", affected: 4},
+			{fragment: "DELETE FROM eshu_search_index_terms\nWHERE scope_id = $1\n  AND generation_id = $2", affected: 4},
 			{fragment: "DELETE FROM eshu_search_index_documents\nWHERE scope_id = $1\n  AND generation_id = $2\n  AND document_id <> ALL($3::text[])", affected: 2},
-			// Bulk refresh: single ANY-array delete replacing the old per-doc delete.
-			{fragment: "document_id   = ANY($3::text[])", affected: 3},
 		},
 	}
 	writer := PostgresEshuSearchDocumentWriter{
@@ -241,8 +245,8 @@ func TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry(t *testing.T) {
 		telemetry.MetricDimensionKind:      "term",
 		telemetry.MetricDimensionOperation: "retire",
 		telemetry.MetricDimensionResult:    "success",
-	}); got != 7 {
-		t.Fatalf("term retire metric = %d, want 7", got)
+	}); got != 4 {
+		t.Fatalf("term retire metric = %d, want 4", got)
 	}
 	if got := int64MetricValue(t, rm, "eshu_dp_search_index_mutations_total", map[string]string{
 		telemetry.MetricDimensionDomain:    string(DomainEshuSearchDocument),
@@ -336,7 +340,6 @@ func TestWriteEshuSearchDocumentsReportsSubphaseTimings(t *testing.T) {
 		{name: "term refresh", duration: result.Timings.IndexTermRefreshDuration},
 		{name: "term upsert", duration: result.Timings.IndexTermUpsertDuration},
 		{name: "fact retire", duration: result.Timings.FactRetireDuration},
-		{name: "term retire", duration: result.Timings.IndexTermRetireDuration},
 		{name: "document retire", duration: result.Timings.IndexDocumentRetireDuration},
 		{name: "stats upsert", duration: result.Timings.IndexStatsUpsertDuration},
 	}
@@ -414,9 +417,9 @@ func TestWriteEshuSearchDocumentsRequiresDatabaseAndScope(t *testing.T) {
 // issue O(1) bulk statements — not O(N) per-document round-trips — so whale
 // repositories do not monopolise all reducer workers indefinitely.
 //
-// The bound is: fact_batch_insert(1) + fact_retire(1) + retire_terms(1) +
-// retire_docs(1) + doc_upsert(1) + term_refresh_delete(1) + term_upsert(1) +
-// stats(1) = 8 total ExecContext calls regardless of document count.
+// The bound is: generation term clear(1) + fact_batch_insert(1) +
+// fact_retire(1) + retire_docs(1) + doc_upsert(1) + term_upsert(1) + stats(1)
+// = O(1) ExecContext calls regardless of document count.
 // We allow a small constant slack for future additions but assert the count is
 // strictly less than N/2 for N=500, which would be violated by any per-doc loop.
 func TestWriteEshuSearchDocumentsBatchedWritesBoundedExecCount(t *testing.T) {

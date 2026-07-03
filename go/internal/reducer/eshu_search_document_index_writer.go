@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,10 +50,11 @@ func newEshuSearchIndexDocumentWrite(
 }
 
 // insertSearchIndexPage upserts one bounded page of index-document and term rows
-// in O(1) bulk statements (doc upsert, per-doc term refresh-delete, term
-// upsert). It issues NO retire-by-absence statement so earlier pages survive.
-// Stale-row retirement and stats are deferred to finalizeSearchIndex. It returns
-// the summed document length for the page so Finalize can compute the average.
+// in O(1) bulk statements (document upsert, term upsert). The owning session
+// clears generation term rows once before the first page so page writes do not
+// depend on a document-keyed term refresh delete. Stale document retirement and
+// stats are deferred to finalizeSearchIndex. It returns the summed document
+// length for the page so Finalize can compute the average.
 func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 	ctx context.Context,
 	scopeID string,
@@ -84,9 +86,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 		return totalLength, timings, err
 	}
 
-	documentIDs := make([]string, 0, len(documents))
 	for _, doc := range documents {
-		documentIDs = append(documentIDs, doc.DocumentID)
 		totalLength += doc.Length
 	}
 
@@ -138,24 +138,6 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 	w.recordSearchIndexWriteDuration(ctx, "document_upsert", timings.IndexDocumentUpsertDuration, "success")
 	w.recordSearchIndexMutation(ctx, "document", "upsert", int64(len(documents)))
 
-	operationStarted = time.Now()
-	deleteTermResult, err := w.DB.ExecContext(
-		ctx,
-		eshuSearchIndexRefreshDocumentTermsQuery,
-		scopeID,
-		generationID,
-		documentIDs,
-	)
-	timings.IndexTermRefreshDuration += time.Since(operationStarted)
-	if err != nil {
-		w.recordSearchIndexWriteDuration(ctx, "term_refresh", timings.IndexTermRefreshDuration, "error")
-		return finish(fmt.Errorf("refresh eshu search index terms: %w", err), "term_refresh")
-	}
-	w.recordSearchIndexWriteDuration(ctx, "term_refresh", timings.IndexTermRefreshDuration, "success")
-	if affected := rowsAffected(deleteTermResult); affected > 0 {
-		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
-	}
-
 	var (
 		termDocumentIDs []string
 		termValues      []string
@@ -177,16 +159,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 
 	if len(termValues) > 0 {
 		operationStarted = time.Now()
-		if _, err := w.DB.ExecContext(
-			ctx,
-			eshuSearchIndexBatchTermUpsertQuery,
-			scopeID,
-			generationID,
-			termDocumentIDs,
-			termValues,
-			termKeys,
-			termFrequencies,
-		); err != nil {
+		if err := w.writeSearchIndexTerms(ctx, scopeID, generationID, termDocumentIDs, termValues, termKeys, termFrequencies); err != nil {
 			timings.IndexTermUpsertDuration += time.Since(operationStarted)
 			w.recordSearchIndexWriteDuration(ctx, "term_upsert", timings.IndexTermUpsertDuration, "error")
 			return finish(fmt.Errorf("write eshu search index terms: %w", err), "term_upsert")
@@ -198,11 +171,99 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 	return finish(nil, "")
 }
 
-// finalizeSearchIndex runs the single authoritative search-index retire (stale
-// terms then stale documents absent from the union keep-set) and upserts the
-// stats row. It mirrors the deferred retire of the fact store so the read model
-// converges only after every page has been inserted. An empty keep-set retires
-// all index rows for the generation, matching the empty-write contract.
+func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTerms(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) error {
+	if len(documentIDs) != len(terms) || len(termKeys) != len(terms) || len(frequencies) != len(terms) {
+		return fmt.Errorf(
+			"write eshu search index terms requires aligned slices: docs=%d terms=%d keys=%d freqs=%d",
+			len(documentIDs),
+			len(terms),
+			len(termKeys),
+			len(frequencies),
+		)
+	}
+	if copier := w.searchIndexTermCopier(); copier != nil {
+		sortedDocumentIDs, sortedTerms, sortedTermKeys, sortedFrequencies := sortedSearchIndexTermColumns(
+			documentIDs,
+			terms,
+			termKeys,
+			frequencies,
+		)
+		copied, err := copier.CopySearchIndexTerms(
+			ctx,
+			scopeID,
+			generationID,
+			sortedDocumentIDs,
+			sortedTerms,
+			sortedTermKeys,
+			sortedFrequencies,
+		)
+		if err != nil {
+			if isSearchIndexTermCopyUnsupported(err) {
+				return w.writeSearchIndexTermsWithInsert(ctx, scopeID, generationID, documentIDs, terms, termKeys, frequencies)
+			}
+			return err
+		}
+		if copied != int64(len(terms)) {
+			return fmt.Errorf("copied %d eshu search index terms, want %d", copied, len(terms))
+		}
+		return nil
+	}
+	return w.writeSearchIndexTermsWithInsert(ctx, scopeID, generationID, documentIDs, terms, termKeys, frequencies)
+}
+
+func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTermsWithInsert(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) error {
+	_, err := w.DB.ExecContext(
+		ctx,
+		eshuSearchIndexBatchTermUpsertQuery,
+		scopeID,
+		generationID,
+		documentIDs,
+		terms,
+		termKeys,
+		frequencies,
+	)
+	return err
+}
+
+func isSearchIndexTermCopyUnsupported(err error) bool {
+	var unsupported interface {
+		UnsupportedSearchIndexTermCopy() bool
+	}
+	return errors.As(err, &unsupported) && unsupported.UnsupportedSearchIndexTermCopy()
+}
+
+func (w PostgresEshuSearchDocumentWriter) searchIndexTermCopier() eshuSearchIndexTermCopier {
+	if w.SearchTermCopier != nil {
+		return w.SearchTermCopier
+	}
+	copier, ok := w.DB.(eshuSearchIndexTermCopier)
+	if !ok {
+		return nil
+	}
+	return copier
+}
+
+// finalizeSearchIndex runs the single authoritative search-index document retire
+// and upserts the stats row. Term rows were generation-cleared before page
+// inserts, so finalize does not need a document-keyed term retire. It mirrors
+// the deferred retire of the fact store so the read model converges only after
+// every page has been inserted.
 func (w PostgresEshuSearchDocumentWriter) finalizeSearchIndex(
 	ctx context.Context,
 	scopeID string,
@@ -233,18 +294,6 @@ func (w PostgresEshuSearchDocumentWriter) finalizeSearchIndex(
 	}
 
 	operationStarted := time.Now()
-	retireTermsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, scopeID, generationID, keepDocumentIDs)
-	timings.IndexTermRetireDuration += time.Since(operationStarted)
-	if err != nil {
-		w.recordSearchIndexWriteDuration(ctx, "term_retire", timings.IndexTermRetireDuration, "error")
-		return finish(fmt.Errorf("retire stale eshu search index terms: %w", err), "term_retire")
-	}
-	w.recordSearchIndexWriteDuration(ctx, "term_retire", timings.IndexTermRetireDuration, "success")
-	if affected := rowsAffected(retireTermsResult); affected > 0 {
-		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
-	}
-
-	operationStarted = time.Now()
 	retireDocumentsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, scopeID, generationID, keepDocumentIDs)
 	timings.IndexDocumentRetireDuration += time.Since(operationStarted)
 	if err != nil {
@@ -284,4 +333,34 @@ func sortedSearchIndexTerms(terms map[string]int) ([]string, []string, []int) {
 		frequencies = append(frequencies, terms[term])
 	}
 	return keys, termKeys, frequencies
+}
+
+func sortedSearchIndexTermColumns(
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) ([]string, []string, []string, []int) {
+	order := make([]int, len(terms))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(i int, j int) bool {
+		left, right := order[i], order[j]
+		if termKeys[left] != termKeys[right] {
+			return termKeys[left] < termKeys[right]
+		}
+		return documentIDs[left] < documentIDs[right]
+	})
+	sortedDocumentIDs := make([]string, len(documentIDs))
+	sortedTerms := make([]string, len(terms))
+	sortedTermKeys := make([]string, len(termKeys))
+	sortedFrequencies := make([]int, len(frequencies))
+	for out, in := range order {
+		sortedDocumentIDs[out] = documentIDs[in]
+		sortedTerms[out] = terms[in]
+		sortedTermKeys[out] = termKeys[in]
+		sortedFrequencies[out] = frequencies[in]
+	}
+	return sortedDocumentIDs, sortedTerms, sortedTermKeys, sortedFrequencies
 }
