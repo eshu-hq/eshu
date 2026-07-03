@@ -228,6 +228,18 @@
    edge to the CMEK CryptoKey; never reads `host`, `port`, `readEndpoint`,
    `readEndpointPort`, `reservedIpRange`, or `secondaryIpRange` — all IP
    address, port, or CIDR values, never resource identities).
+39. `extractor_health_check.go` - typed-depth extractor for
+   `compute.googleapis.com/HealthCheck` (protocol type HTTP/HTTPS/TCP/SSL/
+   HTTP2/GRPC, check interval, timeout, healthy/unhealthy thresholds, creation
+   time, and the port plus port specification read from whichever
+   protocol-specific sub-object matches type; reuses `assetTypeComputeHealthCheck`
+   from the sibling Backend Service extractor (`extractor_backend_service.go`),
+   never redeclaring it, since that extractor's `backend_service_uses_health_check`
+   edge already resolves toward this asset type as its target); no outbound
+   edges or anchors, since backend services are the inbound side of the only
+   graph-relevant relationship; never reads `requestPath`, `host`, `response`,
+   `proxyHeader`, or `grpcServiceName` — all data-plane routing/matching
+   values, never resource identities.
 
 ## Invariants
 
