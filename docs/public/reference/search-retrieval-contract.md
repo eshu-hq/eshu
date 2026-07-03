@@ -269,11 +269,10 @@ curated search documents. The reducer writes the index alongside
 - `eshu_search_index_terms` stores term frequencies for BM25 lookup by
   `(scope_id, generation_id, term_key, document_id)`, retaining raw terms for
   exact equality while keeping the indexed key bounded. The primary key's
-  `(scope_id, generation_id, term_key)` prefix serves BM25 query joins, while
-  the secondary `eshu_search_index_terms_doc_idx` index on
-  `(scope_id, generation_id, document_id)` serves the per-page refresh DELETE
-  and the finalize retire DELETE (both filter by `document_id` after fixing on
-  `scope_id` and `generation_id`);
+  `(scope_id, generation_id, term_key)` prefix serves BM25 query joins. The
+  reducer clears term rows once per `(scope_id, generation_id)` before
+  inserting refreshed page terms, so the persisted term table does not require
+  a document-keyed secondary index for refresh or retire;
 - `eshu_search_index_stats` stores active corpus size and average document
   length for scoring and response metadata.
 

@@ -163,17 +163,21 @@ type eshuSearchDocumentWriteSession struct {
 	now          time.Time
 	started      time.Time
 
-	keepFactIDs []string
-	keepDocIDs  []string
-	written     int
-	totalLength int
-	timings     EshuSearchDocumentWriteTimings
+	keepFactIDs  []string
+	keepDocIDs   []string
+	written      int
+	totalLength  int
+	timings      EshuSearchDocumentWriteTimings
+	termsCleared bool
 }
 
 // InsertPage upserts one page of curated documents and accumulates their keys.
 func (s *eshuSearchDocumentWriteSession) InsertPage(ctx context.Context, documents []searchdocs.Document) error {
 	if len(documents) == 0 {
 		return nil
+	}
+	if err := s.clearSearchIndexTerms(ctx); err != nil {
+		return err
 	}
 	factStarted := time.Now()
 	indexRows, factIDs, err := s.writer.insertSearchDocumentFacts(
@@ -200,6 +204,9 @@ func (s *eshuSearchDocumentWriteSession) InsertPage(ctx context.Context, documen
 // Finalize issues the single authoritative retire over the union keep-set and
 // upserts the search-index stats for the whole generation.
 func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSearchDocumentWriteResult, error) {
+	if err := s.clearSearchIndexTerms(ctx); err != nil {
+		return EshuSearchDocumentWriteResult{}, err
+	}
 	factRetireStarted := time.Now()
 	retired, err := s.writer.retireSearchDocumentFacts(ctx, s.scopeID, s.generationID, s.keepFactIDs)
 	s.timings.FactRetireDuration += time.Since(factRetireStarted)
@@ -226,12 +233,32 @@ func (s *eshuSearchDocumentWriteSession) Cancel(ctx context.Context) error {
 		return fmt.Errorf("cancel eshu search document partial write: %w", err)
 	}
 	// Retire index rows with an empty keep-set (delete all for this generation).
-	if _, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, s.scopeID, s.generationID, []string{}); err != nil {
+	if _, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexClearGenerationTermsQuery, s.scopeID, s.generationID); err != nil {
 		return fmt.Errorf("cancel eshu search index terms: %w", err)
 	}
 	if _, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, s.scopeID, s.generationID, []string{}); err != nil {
 		return fmt.Errorf("cancel eshu search index documents: %w", err)
 	}
+	return nil
+}
+
+func (s *eshuSearchDocumentWriteSession) clearSearchIndexTerms(ctx context.Context) error {
+	if s.termsCleared {
+		return nil
+	}
+	started := time.Now()
+	result, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexClearGenerationTermsQuery, s.scopeID, s.generationID)
+	if err != nil {
+		s.timings.IndexTermRefreshDuration += time.Since(started)
+		s.writer.recordSearchIndexWriteDuration(ctx, "term_refresh", s.timings.IndexTermRefreshDuration, "error")
+		return fmt.Errorf("clear eshu search index terms: %w", err)
+	}
+	s.timings.IndexTermRefreshDuration += time.Since(started)
+	s.writer.recordSearchIndexWriteDuration(ctx, "term_refresh", s.timings.IndexTermRefreshDuration, "success")
+	if affected := rowsAffected(result); affected > 0 {
+		s.writer.recordSearchIndexMutation(ctx, "term", "retire", affected)
+	}
+	s.termsCleared = true
 	return nil
 }
 

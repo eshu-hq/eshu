@@ -182,3 +182,52 @@ func TestWriteSearchIndexTermsRejectsMisalignedColumns(t *testing.T) {
 		t.Fatalf("writeSearchIndexTerms error = %v, want aligned-slices message", err)
 	}
 }
+
+func TestWriteEshuSearchDocumentsClearsGenerationTermsOnce(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			{
+				ID:          "searchdoc:content_entity:e-1",
+				RepoID:      "repo-1",
+				SourceKind:  searchdocs.SourceKindCodeEntity,
+				ContextText: "alpha beta",
+				TruthScope:  searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived, Basis: searchdocs.TruthBasisContentIndex},
+				Freshness:   searchdocs.Freshness{State: searchdocs.FreshnessFresh},
+			},
+			{
+				ID:          "searchdoc:content_entity:e-2",
+				RepoID:      "repo-1",
+				SourceKind:  searchdocs.SourceKindCodeEntity,
+				ContextText: "gamma delta",
+				TruthScope:  searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived, Basis: searchdocs.TruthBasisContentIndex},
+				Freshness:   searchdocs.Freshness{State: searchdocs.FreshnessFresh},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+
+	clearCount := 0
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "DELETE FROM eshu_search_index_terms") &&
+			!strings.Contains(exec.query, "document_id") {
+			clearCount++
+		}
+		if strings.Contains(exec.query, "DELETE FROM eshu_search_index_terms") &&
+			strings.Contains(exec.query, "document_id") {
+			t.Fatalf("term refresh must be generation-scoped, not document-keyed:\n%s", exec.query)
+		}
+	}
+	if clearCount != 1 {
+		t.Fatalf("generation term clear count = %d, want 1; execs=%#v", clearCount, db.execs)
+	}
+}

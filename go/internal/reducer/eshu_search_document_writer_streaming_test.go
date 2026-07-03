@@ -209,9 +209,10 @@ func TestStreamingSearchDocumentWriteCancelCleansUpPartialPages(t *testing.T) {
 		t.Fatalf("Cancel error = %v", err)
 	}
 
-	// Cancel must issue the retire-by-absence statements with an empty keep-set,
-	// deleting every row written for this generation.
-	var factDeletes, indexDocDeletes, indexTermDeletes int
+	// Cancel must issue the retire-by-absence statements with an empty keep-set
+	// and clear term rows for the generation, deleting every row written for
+	// this generation.
+	var factDeletes, indexDocDeletes, indexTermClears int
 	for _, exec := range db.execs {
 		switch {
 		case strings.Contains(exec.query, "DELETE FROM fact_records"):
@@ -222,9 +223,11 @@ func TestStreamingSearchDocumentWriteCancelCleansUpPartialPages(t *testing.T) {
 			}
 		case strings.Contains(exec.query, "DELETE FROM eshu_search_index_documents"):
 			indexDocDeletes++
-		case strings.Contains(exec.query, "DELETE FROM eshu_search_index_terms") &&
-			strings.Contains(exec.query, "<> ALL"):
-			indexTermDeletes++
+		case strings.Contains(exec.query, "DELETE FROM eshu_search_index_terms"):
+			if strings.Contains(exec.query, "document_id") {
+				t.Fatalf("Cancel term clear must be generation-scoped, not document-keyed:\n%s", exec.query)
+			}
+			indexTermClears++
 		}
 	}
 	if factDeletes != 1 {
@@ -233,8 +236,8 @@ func TestStreamingSearchDocumentWriteCancelCleansUpPartialPages(t *testing.T) {
 	if indexDocDeletes != 1 {
 		t.Fatalf("index-doc deletes after Cancel = %d, want 1", indexDocDeletes)
 	}
-	if indexTermDeletes != 1 {
-		t.Fatalf("index-term deletes after Cancel = %d, want 1", indexTermDeletes)
+	if indexTermClears != 2 {
+		t.Fatalf("index-term clears after Cancel = %d, want 2", indexTermClears)
 	}
 }
 

@@ -750,7 +750,9 @@ curated search projection, kept separate from canonical graph writes:
   counter/duration plus a structured cycle log
   (`considered`/`included`/`skipped`/`written`/`retired`) with write subphase
   timings for fact upsert, index document upsert, term refresh, term upsert,
-  fact retire, stale term retire, stale document retire, and stats upsert.
+  fact retire, stale document retire, and stats upsert. The term refresh timing
+  is the generation-scoped clear that runs before refreshed page terms are
+  inserted.
   Streaming bounds peak memory to one page regardless of repository size
   (issue #3440).
 - `SearchDocumentSourceLoader.StreamSearchDocumentSources`
@@ -786,14 +788,17 @@ cycle log fields `fact_upsert_seconds`, `index_document_upsert_seconds`,
 `index_term_refresh_seconds`, `index_term_upsert_seconds`,
 `fact_retire_seconds`, `index_term_retire_seconds`,
 `index_document_retire_seconds`, and `index_stats_upsert_seconds`.
+`index_term_retire_seconds` is retained in the structured log for compatibility;
+the current generation-clear lifecycle normally records term removal under
+`index_term_refresh_seconds` instead.
 `eshu_dp_search_index_write_duration_seconds` also carries the bounded
 `operation` label so dashboards can separate `document_upsert`, `term_refresh`,
-`term_upsert`, `term_retire`, `document_retire`, `stats_upsert`,
-`page_total`, and `finalize_total` without scope, generation, document, path,
-or term labels. No-Regression Evidence:
+`term_upsert`, `document_retire`, `stats_upsert`, `page_total`, and
+`finalize_total` without scope, generation, document, path, or term labels.
+No-Regression Evidence:
 `go test ./internal/reducer -run TestWriteEshuSearchDocumentsReportsSubphaseTimings -count=1`
-fails without the timing fields and passes once every write subphase reports a
-positive duration in a delayed fake-DB proof.
+fails without the timing fields and passes once every active write subphase
+reports a positive duration in a delayed fake-DB proof.
 
 Performance Evidence: the same #4529 branch proof reran the remote full corpus
 against NornicDB PR #230 image `eshu-nornicdb-pr230:6bfaad33` and stopped after

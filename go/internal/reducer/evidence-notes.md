@@ -5,16 +5,23 @@ orientation README.
 
 ## #4234 — eshu_search_index_terms document-keyed index (2026-06-29)
 
+Superseded note: this section records the historical #4234 fix for the prior
+per-document refresh-delete shape. #4529 later removed the document-keyed term
+refresh/retire path and replaced it with a generation-scoped term clear before
+page inserts, so new schemas should not keep
+`eshu_search_index_terms_doc_idx` for the current writer lifecycle.
+
 ### Problem
 
 `eshu_search_index_terms` has PK `(scope_id, generation_id, term_key,
-document_id)`, whose left prefix covers BM25 term lookup. Two hot DELETEs filter
-by `(scope_id, generation_id, document_id)`:
+document_id)`, whose left prefix covers BM25 term lookup. The former writer
+lifecycle had two hot DELETEs filter by `(scope_id, generation_id,
+document_id)`:
 
-- `eshuSearchIndexRefreshDocumentTermsQuery` — `document_id = ANY($3::text[])`
-  — fired on **every per-page write** (hot path).
-- `eshuSearchIndexRetireTermsQuery` — `document_id <> ALL($3::text[])` —
-  fired on every Finalize (retire pass).
+- refresh terms for listed documents — `document_id = ANY($3::text[])` — fired
+  on **every per-page write** (hot path).
+- retire terms absent from the final keep-set — `document_id <> ALL($3::text[])`
+  — fired on every Finalize (retire pass).
 
 Neither the PK nor the lookup index has `document_id` usable after
 `(scope_id, generation_id)`, so the planner was forced to scan the entire
@@ -30,8 +37,7 @@ CREATE INDEX IF NOT EXISTS eshu_search_index_terms_doc_idx
     ON eshu_search_index_terms (scope_id, generation_id, document_id);
 ```
 
-Migration: `go/internal/storage/postgres/migrations/003b_eshu_search_index.sql`
-(appended after the base search-index migration).
+Migration: `go/internal/storage/postgres/migrations/037_eshu_search_index_terms_doc_idx.sql`.
 
 ### Hermetic before/after EXPLAIN — `TestEshuSearchIndexTermsDocumentDeletePlanLive`
 
@@ -226,8 +232,8 @@ constant in count regardless of N:
    which remains unchanged and shared by all other writers).
 2. `eshuSearchIndexBatchDocumentUpsertQuery` — one unnest `INSERT INTO
    eshu_search_index_documents` for all N rows.
-3. `eshuSearchIndexRefreshDocumentTermsQuery` — one `DELETE … WHERE document_id
-   = ANY($3::text[])` replacing N per-document DELETE statements.
+3. `eshuSearchIndexClearGenerationTermsQuery` — one `DELETE` for the
+   `(scope_id, generation_id)` term slice before page writes.
 4. `eshuSearchIndexBatchTermUpsertQuery` — one unnest `INSERT INTO
    eshu_search_index_terms` for all term rows across all documents.
 
@@ -306,12 +312,13 @@ per document. The run was bounded and cleaned up its Compose project and
 volumes immediately after evidence collection.
 
 No-Regression Evidence: the migration changes only index maintenance for
-`eshu_search_index_terms`. Table columns, primary key, document-keyed delete
-index, active-generation reads, BM25 term equality, reducer writer query shape,
-worker counts, queue semantics, vector writes, graph writes, and API/MCP
-response contracts are unchanged. The primary key continues to serve
-`(scope_id, generation_id, term_key)` BM25 joins; the document-keyed
-`eshu_search_index_terms_doc_idx` continues to serve refresh and retire deletes.
+`eshu_search_index_terms`. Table columns, primary key, active-generation reads,
+BM25 term equality, reducer worker counts, queue semantics, vector writes, graph
+writes, and API/MCP response contracts are unchanged. The primary key continues
+to serve `(scope_id, generation_id, term_key)` BM25 joins. A later #4529
+generation-clear slice removes the document-keyed term refresh/retire path and
+drops `eshu_search_index_terms_doc_idx`; this lookup-index slice did not depend
+on that later lifecycle change.
 
 No-Observability-Change: no metric, span, log key, queue domain, worker,
 runtime knob, route, or graph query changes. Operators still diagnose this path
@@ -354,6 +361,51 @@ The `InstrumentedDB.CopySearchIndexTerms` wrapper records the same
 metric shape used by normal Postgres writes and wraps COPY in a
 `postgres.copy_from` span. No queue domain, worker count, lease behavior,
 runtime knob, table schema, graph write, route, or API/MCP contract changes.
+
+## Search-Term Generation Clear And Document-Index Removal (#4529 follow-up)
+
+Benchmark Evidence: post-#4544 current-main bounded proof still showed
+`index_term_upsert` as the remaining `eshu_search_document` long pole:
+385.248s of 451.919s total cycle time across 21 cycles, avg 18.345s, max
+27.962s, and 0.004145s per written document. A COPY protocol experiment was a
+weak win only: normalized total cycle cost moved from 0.004863s/doc to
+0.004545s/doc and term-upsert cost from 0.004145s/doc to 0.003846s/doc, while a
+2s Postgres locktrace still showed `Lock/extend` on
+`eshu_search_index_terms_pkey`. Focused Postgres 16 scratch benchmarks then
+isolated the write-amplifying index layout: with 16 concurrent workers and
+1.344M rows, the current primary key plus document-keyed secondary index wrote
+in 3.544963993s, while the same primary-key-only shape wrote in 2.35473377s,
+about 33.6% faster. Hash partitioning alone was weaker, improving the same
+class of concurrent insert proof by about 6.8% to 9.9%.
+
+The branch changes the reducer write lifecycle so search terms are cleared once
+per `(scope_id, generation_id)` before page inserts, then terms are inserted
+without the per-page document-keyed refresh delete and finalize no longer runs a
+document-keyed term retire. This preserves generation-authoritative semantics:
+retrying a generation starts from an empty term slice, each page inserts current
+terms, document rows/facts still retire by the full keep-set at finalize, and
+active-generation reads ignore superseded generations. Existing same-scope
+reducer queue conflict fencing remains the idempotency boundary; no reducer
+worker count, lease, batch size, queue domain, graph write, route, or API/MCP
+contract changes.
+
+No-Regression Evidence: `TestWriteEshuSearchDocumentsClearsGenerationTermsOnce`
+fails if a page write uses a document-keyed term delete or clears terms more
+than once. `TestEshuSearchIndexTermClearUsesGenerationPrefix` locks the clear
+query to `(scope_id, generation_id)` and rejects `document_id`.
+`TestEshuSearchIndexRetireDocumentsNoLongerRetiresTerms` proves finalize does
+not retire term rows by document.
+`TestBootstrapDefinitionsDropSearchIndexTermsDocumentIndex` proves existing
+schemas get `DROP INDEX CONCURRENTLY IF EXISTS
+eshu_search_index_terms_doc_idx`.
+
+Observability Evidence: operators continue to diagnose this path through the
+existing `eshu_search_document` completion log fields,
+`eshu_dp_search_index_write_duration_seconds{operation="term_refresh"}` for the
+generation clear, `operation="term_upsert"` for term insertion, term-retire
+mutation counters for rows removed by the generation clear, Postgres query
+duration spans, and wait-event samples. No new metric name, high-cardinality
+label, worker knob, runtime knob, queue domain, or graph signal is introduced.
 
 ## Correlation/Identity Writer Bulk Batching (#3435)
 
@@ -461,13 +513,13 @@ per-page project -> per-page insert -> single finalize-retire:
    size is 2000 rows; file page size is 256 rows with a 16 MiB content
    byte-budget early flush so a page of large files cannot itself exhaust memory.
 2. Writer: split into `BeginEshuSearchDocumentWrite` -> session `InsertPage`
-   (insert-only: bulk fact upsert + index-doc upsert + per-doc term refresh +
+   (insert-only: generation term clear once, bulk fact upsert, index-doc upsert,
    bulk term upsert; NO retire) -> `Finalize` (single authoritative
-   retire-by-absence over the union written-id keep-set for facts, index terms,
-   and index documents, then stats). Accumulating only the keep-sets (~tens of
-   bytes per id, ~13MB for 159K ids vs. 94MB content) keeps peak content memory
-   bounded to one page while preserving the existing generation-authoritative
-   retire semantics. `WriteEshuSearchDocuments` is retained and re-implemented as
+   retire-by-absence over the union written-id keep-set for facts and index
+   documents, then stats). Accumulating only the keep-sets (~tens of bytes per
+   id, ~13MB for 159K ids vs. 94MB content) keeps peak content memory bounded to
+   one page while preserving the existing generation-authoritative retire
+   semantics. `WriteEshuSearchDocuments` is retained and re-implemented as
    `Begin -> InsertPage(all) -> Finalize`, so all prior writer tests pass
    unchanged and the single-shot path stays byte-identical (proved by
    `TestWriteEshuSearchDocumentsEqualsStreamingOnePage`).

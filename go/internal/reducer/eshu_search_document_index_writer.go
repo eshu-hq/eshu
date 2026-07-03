@@ -49,10 +49,11 @@ func newEshuSearchIndexDocumentWrite(
 }
 
 // insertSearchIndexPage upserts one bounded page of index-document and term rows
-// in O(1) bulk statements (doc upsert, per-doc term refresh-delete, term
-// upsert). It issues NO retire-by-absence statement so earlier pages survive.
-// Stale-row retirement and stats are deferred to finalizeSearchIndex. It returns
-// the summed document length for the page so Finalize can compute the average.
+// in O(1) bulk statements (document upsert, term upsert). The owning session
+// clears generation term rows once before the first page so page writes do not
+// depend on a document-keyed term refresh delete. Stale document retirement and
+// stats are deferred to finalizeSearchIndex. It returns the summed document
+// length for the page so Finalize can compute the average.
 func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 	ctx context.Context,
 	scopeID string,
@@ -84,9 +85,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 		return totalLength, timings, err
 	}
 
-	documentIDs := make([]string, 0, len(documents))
 	for _, doc := range documents {
-		documentIDs = append(documentIDs, doc.DocumentID)
 		totalLength += doc.Length
 	}
 
@@ -137,24 +136,6 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 	timings.IndexDocumentUpsertDuration += time.Since(operationStarted)
 	w.recordSearchIndexWriteDuration(ctx, "document_upsert", timings.IndexDocumentUpsertDuration, "success")
 	w.recordSearchIndexMutation(ctx, "document", "upsert", int64(len(documents)))
-
-	operationStarted = time.Now()
-	deleteTermResult, err := w.DB.ExecContext(
-		ctx,
-		eshuSearchIndexRefreshDocumentTermsQuery,
-		scopeID,
-		generationID,
-		documentIDs,
-	)
-	timings.IndexTermRefreshDuration += time.Since(operationStarted)
-	if err != nil {
-		w.recordSearchIndexWriteDuration(ctx, "term_refresh", timings.IndexTermRefreshDuration, "error")
-		return finish(fmt.Errorf("refresh eshu search index terms: %w", err), "term_refresh")
-	}
-	w.recordSearchIndexWriteDuration(ctx, "term_refresh", timings.IndexTermRefreshDuration, "success")
-	if affected := rowsAffected(deleteTermResult); affected > 0 {
-		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
-	}
 
 	var (
 		termDocumentIDs []string
@@ -255,11 +236,11 @@ func (w PostgresEshuSearchDocumentWriter) searchIndexTermCopier() eshuSearchInde
 	return copier
 }
 
-// finalizeSearchIndex runs the single authoritative search-index retire (stale
-// terms then stale documents absent from the union keep-set) and upserts the
-// stats row. It mirrors the deferred retire of the fact store so the read model
-// converges only after every page has been inserted. An empty keep-set retires
-// all index rows for the generation, matching the empty-write contract.
+// finalizeSearchIndex runs the single authoritative search-index document retire
+// and upserts the stats row. Term rows were generation-cleared before page
+// inserts, so finalize does not need a document-keyed term retire. It mirrors
+// the deferred retire of the fact store so the read model converges only after
+// every page has been inserted.
 func (w PostgresEshuSearchDocumentWriter) finalizeSearchIndex(
 	ctx context.Context,
 	scopeID string,
@@ -290,18 +271,6 @@ func (w PostgresEshuSearchDocumentWriter) finalizeSearchIndex(
 	}
 
 	operationStarted := time.Now()
-	retireTermsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, scopeID, generationID, keepDocumentIDs)
-	timings.IndexTermRetireDuration += time.Since(operationStarted)
-	if err != nil {
-		w.recordSearchIndexWriteDuration(ctx, "term_retire", timings.IndexTermRetireDuration, "error")
-		return finish(fmt.Errorf("retire stale eshu search index terms: %w", err), "term_retire")
-	}
-	w.recordSearchIndexWriteDuration(ctx, "term_retire", timings.IndexTermRetireDuration, "success")
-	if affected := rowsAffected(retireTermsResult); affected > 0 {
-		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
-	}
-
-	operationStarted = time.Now()
 	retireDocumentsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, scopeID, generationID, keepDocumentIDs)
 	timings.IndexDocumentRetireDuration += time.Since(operationStarted)
 	if err != nil {

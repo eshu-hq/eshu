@@ -15,11 +15,10 @@ WHERE fact_kind = $1
   AND fact_id <> ALL($4::text[])
 `
 
-const eshuSearchIndexRetireTermsQuery = `
+const eshuSearchIndexClearGenerationTermsQuery = `
 DELETE FROM eshu_search_index_terms
 WHERE scope_id = $1
   AND generation_id = $2
-  AND document_id <> ALL($3::text[])
 `
 
 const eshuSearchIndexRetireDocumentsQuery = `
@@ -153,22 +152,11 @@ ON CONFLICT (scope_id, generation_id, document_id) DO UPDATE SET
     updated_at      = EXCLUDED.updated_at
 `
 
-// eshuSearchIndexRefreshDocumentTermsQuery removes all current terms for the
-// listed document IDs so the subsequent bulk insert replaces them atomically.
-// This replaces the N per-document DELETE statements with a single ANY-array call.
-const eshuSearchIndexRefreshDocumentTermsQuery = `
-DELETE FROM eshu_search_index_terms
-WHERE scope_id      = $1
-  AND generation_id = $2
-  AND document_id   = ANY($3::text[])
-`
-
 // eshuSearchIndexBatchTermUpsertQuery bulk-inserts all refreshed term rows for
-// a scope in one round-trip using unnest. The page refresh delete removes
-// existing rows for the same document IDs before this insert runs; reducer queue
-// conflict fencing prevents same-scope writers from overlapping, so this avoids
-// PostgreSQL's expensive ON CONFLICT update path while preserving retry
-// idempotency.
+// a scope in one round-trip using unnest. The write session clears existing
+// generation terms before page inserts run; reducer queue conflict fencing
+// prevents same-scope writers from overlapping, so this avoids PostgreSQL's
+// expensive ON CONFLICT update path while preserving retry idempotency.
 // Each element in the parallel arrays corresponds to one (document_id, term)
 // pair; the document_id array is repeated per term.
 // Arg layout: $1=scope_id, $2=generation_id, $3=document_ids, $4=terms,
