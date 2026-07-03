@@ -6,6 +6,7 @@ package gcpcloud
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -104,6 +105,51 @@ func TestExtractSQLInstancePrimaryWithPrivateNetworkAndCMEK(t *testing.T) {
 	}
 }
 
+func TestExtractSQLInstanceBareReplicaNameResolvedAgainstProject(t *testing.T) {
+	const data = `{
+		"databaseVersion": "POSTGRES_15",
+		"region": "us-central1",
+		"state": "RUNNABLE",
+		"instanceType": "CLOUD_SQL_INSTANCE",
+		"replicaNames": ["primary-db-replica-1"]
+	}`
+
+	got, err := extractSQLInstance(sqlInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Attributes["replica_count"] != 1 {
+		t.Fatalf("replica_count = %v, want 1", got.Attributes["replica_count"])
+	}
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected 1 edge (has_replica), got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceHasReplica,
+		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db-replica-1", assetTypeSQLInstance)
+}
+
+func TestExtractSQLInstanceBareMasterNameResolvedAgainstProject(t *testing.T) {
+	const data = `{
+		"databaseVersion": "MYSQL_8_0",
+		"region": "us-east1",
+		"state": "RUNNABLE",
+		"instanceType": "READ_REPLICA_INSTANCE",
+		"masterInstanceName": "primary-db"
+	}`
+
+	got, err := extractSQLInstance(sqlInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected 1 edge (replica_of master), got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceReplicaOf,
+		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db", assetTypeSQLInstance)
+}
+
 func TestExtractSQLInstanceReadReplicaEdgeToMaster(t *testing.T) {
 	const data = `{
 		"databaseVersion": "MYSQL_8_0",
@@ -160,8 +206,9 @@ func TestExtractSQLInstanceNeverPersistsRawIPAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
+	s := string(blob)
 	for _, token := range []string{"198.51.100.7", "10.0.0.5", "203.0.113.0/24", "198.51.100.0/24", "office", "vpn"} {
-		if containsString(string(blob), token) {
+		if containsString(s, token) {
 			t.Fatalf("sql instance extraction leaked sensitive token %q: %s", token, blob)
 		}
 	}
@@ -170,6 +217,68 @@ func TestExtractSQLInstanceNeverPersistsRawIPAddresses(t *testing.T) {
 	}
 	if got.Attributes["public_ip_enabled"] != true {
 		t.Errorf("public_ip_enabled = %v, want true", got.Attributes["public_ip_enabled"])
+	}
+}
+
+func TestExtractSQLInstanceKMSKeyAlreadyCAIPrefixedNotDoublePrefixed(t *testing.T) {
+	const data = `{
+		"databaseVersion": "POSTGRES_15",
+		"diskEncryptionConfiguration": {
+			"kmsKeyName": "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/sql-key"
+		}
+	}`
+
+	got, err := extractSQLInstance(sqlInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceEncryptedByKMSKey,
+		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/sql-key", assetTypeKMSCryptoKey)
+	if got.Attributes["kms_key_name"] != "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/sql-key" {
+		t.Errorf("kms_key_name = %v, want unchanged CAI-prefixed value", got.Attributes["kms_key_name"])
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeSQLInstanceEncryptedByKMSKey {
+			if strings.Count(rel.TargetFullResourceName, cloudKMSResourceNamePrefix) != 1 {
+				t.Fatalf("kms target double-prefixed: %q", rel.TargetFullResourceName)
+			}
+		}
+	}
+}
+
+func TestExtractSQLInstancePrivateNetworkProjectLessPartialResolvedAgainstProject(t *testing.T) {
+	const data = `{
+		"settings": {
+			"ipConfiguration": {
+				"privateNetwork": "global/networks/prod-vpc"
+			}
+		}
+	}`
+
+	got, err := extractSQLInstance(sqlInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceInNetwork,
+		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
+}
+
+func TestExtractSQLInstanceDataDiskSizeGbAsJSONNumber(t *testing.T) {
+	const data = `{
+		"settings": {
+			"dataDiskSizeGb": 250
+		}
+	}`
+
+	got, err := extractSQLInstance(sqlInstanceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Attributes["data_disk_size_gb"] != int64(250) {
+		t.Fatalf("data_disk_size_gb = %v, want int64(250)", got.Attributes["data_disk_size_gb"])
 	}
 }
 

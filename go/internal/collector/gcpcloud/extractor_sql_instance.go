@@ -106,20 +106,21 @@ func extractSQLInstance(ctx ExtractContext) (AttributeExtraction, error) {
 	if data.DiskEncryptionConfiguration != nil {
 		if kms := strings.TrimSpace(data.DiskEncryptionConfiguration.KMSKeyName); kms != "" {
 			attrs["kms_key_name"] = kms
-			kmsName := cloudKMSResourceNamePrefix + kms
-			anchors = append(anchors, kmsName)
-			rels = append(rels, sqlInstanceEdge(ctx, relationshipTypeSQLInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+			if kmsName := sqlInstanceKMSKeyFullName(kms); kmsName != "" {
+				anchors = append(anchors, kmsName)
+				rels = append(rels, sqlInstanceEdge(ctx, relationshipTypeSQLInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+			}
 		}
 	}
 
-	if masterName := sqlInstanceReferenceFullName(data.MasterInstanceName); masterName != "" {
+	if masterName := sqlInstanceReferenceFullName(data.MasterInstanceName, ctx.ProjectID); masterName != "" {
 		anchors = append(anchors, masterName)
 		rels = append(rels, sqlInstanceEdge(ctx, relationshipTypeSQLInstanceReplicaOf, masterName, assetTypeSQLInstance))
 	}
 
 	replicaCount := 0
 	for _, replica := range data.ReplicaNames {
-		replicaName := sqlInstanceReferenceFullName(replica)
+		replicaName := sqlInstanceReferenceFullName(replica, ctx.ProjectID)
 		if replicaName == "" {
 			continue
 		}
@@ -206,11 +207,15 @@ func sqlInstancePrivateNetworkFullName(ref, sourceProjectID string) string {
 }
 
 // sqlInstanceReferenceFullName derives a Cloud SQL Instance CAI full resource
-// name from a masterInstanceName/replicaNames entry, which the sqladmin API
-// reports as a bare "projects/<p>/instances/<i>" reference (never a selfLink).
-// It returns "" for a blank reference or a shape that does not name a Cloud SQL
-// instance.
-func sqlInstanceReferenceFullName(ref string) string {
+// name from a masterInstanceName/replicaNames entry. The sqladmin API reports
+// this either as a project-qualified "projects/<p>/instances/<i>" reference or,
+// in the common same-project case, as a bare instance name with no project
+// qualifier at all (per the Cloud SQL Admin API's instance `name` field
+// convention, which omits the project ID) — that bare form is resolved against
+// sourceProjectID. It returns "" for a blank reference, a shape that does not
+// name a Cloud SQL instance, or a bare name with no source project to qualify
+// it against.
+func sqlInstanceReferenceFullName(ref, sourceProjectID string) string {
 	trimmed := strings.TrimSpace(ref)
 	if trimmed == "" {
 		return ""
@@ -218,10 +223,45 @@ func sqlInstanceReferenceFullName(ref string) string {
 	if strings.HasPrefix(trimmed, sqlInstanceResourceNamePrefix) {
 		return trimmed
 	}
-	if !strings.HasPrefix(trimmed, "projects/") || !strings.Contains(trimmed, "/instances/") {
+	if strings.HasPrefix(trimmed, "projects/") && strings.Contains(trimmed, "/instances/") {
+		return sqlInstanceResourceNamePrefix + trimmed
+	}
+	// Bare instance name (no "/" at all): qualify against the source project.
+	if !strings.Contains(trimmed, "/") {
+		project := strings.TrimSpace(sourceProjectID)
+		if project == "" {
+			return ""
+		}
+		return sqlInstanceResourceNamePrefix + "projects/" + project + "/instances/" + trimmed
+	}
+	return ""
+}
+
+// sqlInstanceKMSKeyFullName derives the Cloud KMS CryptoKey CAI full resource
+// name from diskEncryptionConfiguration.kmsKeyName, which the sqladmin API may
+// report as a bare "projects/.../locations/.../keyRings/.../cryptoKeys/..."
+// relative name or as an already CAI-prefixed
+// "//cloudkms.googleapis.com/..." full resource name. An already-prefixed
+// value is returned unchanged so the prefix is never doubled; a bare value is
+// prefixed only when it matches the expected CryptoKey path shape. It returns
+// "" for a blank reference or an unrecognized shape, so a malformed key name
+// never becomes an edge endpoint or anchor.
+func sqlInstanceKMSKeyFullName(kmsKeyName string) string {
+	trimmed := strings.TrimSpace(kmsKeyName)
+	if trimmed == "" {
 		return ""
 	}
-	return sqlInstanceResourceNamePrefix + trimmed
+	if strings.HasPrefix(trimmed, "//") {
+		if strings.HasPrefix(trimmed, cloudKMSResourceNamePrefix) {
+			return trimmed
+		}
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "projects/") && strings.Contains(trimmed, "/locations/") &&
+		strings.Contains(trimmed, "/keyRings/") && strings.Contains(trimmed, "/cryptoKeys/") {
+		return cloudKMSResourceNamePrefix + trimmed
+	}
+	return ""
 }
 
 // sqlInstanceEdge builds a supported typed relationship observation rooted at
