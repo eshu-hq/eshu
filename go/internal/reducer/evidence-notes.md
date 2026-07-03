@@ -378,6 +378,35 @@ in 3.544963993s, while the same primary-key-only shape wrote in 2.35473377s,
 about 33.6% faster. Hash partitioning alone was weaker, improving the same
 class of concurrent insert proof by about 6.8% to 9.9%.
 
+Remote bounded proof: run
+`4529-generation-clear-term-next-20260703T0500Z` tested Eshu commit
+`fdfb03d78c36c71062d3e4ac8c0d991b08890d70` on top of
+`8c5f3e1263b84051d15ebd8ef7a22aa37c256dd9` with NornicDB
+`eshu-nornicdb-main:5646d7ee` and the same 895-repository corpus/profile as
+the post-#4544 current-main sample
+(`GOMAXPROCS16 parse16 snapshot16 projection8 large_repo4 reducer16 shared4
+partitions8 codecall4 pg96 graph_inflight0 timeout120s entity_phase16`). It
+stopped at the bounded evidence threshold, not the 30-minute cap:
+20 `eshu_search_document` cycles, 89,501 written documents, 341.361s total
+cycle time, 278.674s in term insertion, avg 13.934s, max 21.044s, and
+0.003114s term-write time per written document. Compared with the post-#4544
+current-main sample (0.004145s/doc term-write and 0.004863s/doc total cycle
+time), this is about 24.9% lower term-write cost per document and about 21.6%
+lower total search-document cycle cost per document. Compared with the
+COPY-only branch sample (0.003846s/doc term-write), generation clear plus
+dropping the document-keyed index improves the normalized term-write cost by
+about 19.0%. The branch was later rebased onto
+`5b400877ce9af5b425d2494c69b8ab1fdaa6edac`; that rebase picked up unrelated
+GCP collector and golden-corpus changes and did not change the search-document,
+reducer, or Postgres search-index diff.
+
+The same proof still observed primary-key extension pressure while COPY was
+running: monitor samples showed `Lock/extend` and `IO/DataFileExtend` on
+`eshu_search_index_terms_pkey` for `COPY "eshu_search_index_terms" (...) FROM
+STDIN BINARY`. This classifies the change as a measured handler win and a
+partial wall-clock win for the current search-document slice, not as the final
+end-to-end fix.
+
 The branch changes the reducer write lifecycle so search terms are cleared once
 per `(scope_id, generation_id)` before page inserts, then terms are inserted
 without the per-page document-keyed refresh delete and finalize no longer runs a
