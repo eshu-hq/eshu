@@ -106,6 +106,15 @@
    CryptoKey's own resource-name path since Cloud KMS reports no separate
    KeyRing field; never reads key material, key state history, or any
    data-plane content).
+30. `extractor_gke_cluster.go` - typed-depth extractor for
+   `container.googleapis.com/Cluster` (location, status, master/node version,
+   release channel, create time, private-cluster and master-authorized-networks
+   posture, workload identity pool, addon posture, and a per-node-pool summary
+   with machine type, fingerprinted node service-account email, OAuth scope
+   count, autoscaling posture, and initial node count); `gke_cluster_uses_network`
+   / `gke_cluster_uses_subnetwork` edges to the cluster's Network/Subnetwork;
+   master-authorized-network CIDR values, node-pool OAuth scope values, and the
+   GKE "default" service-account sentinel never reach the output.
 
 ## Invariants
 
