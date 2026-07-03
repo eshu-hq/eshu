@@ -137,11 +137,34 @@ Local proof for the batch selector:
   search-index-document source, and no `ORDER BY`, `OFFSET`, `fact_records`, or
   `fact.payload`.
 
-Remote proof remains required before PR creation: rerun the same 895-repository
-corpus/profile after the batch selector change and stop as soon as enough
-evidence shows whether the `query_load` tail moved materially. The comparison
-must capture search-vector sweeps, documents/vectors, `query_load`, embedding,
-write/upsert, queue terminal/stop counts, and failed/dead-letter/retrying rows.
+Remote batch-selector proof: `search-vector-batch-selector-cap15-20260703T140409Z`
+ran the same 895-repository corpus, same NornicDB image
+(`eshu-nornicdb-main:5646d7ee`), and same tuned worker/graph-permit profile
+after the batch selector change at commit
+`e7378d9cb09fb48a6efc1eefce3839e7dc64eaa2`. The run reached the 900s cap with
+`open=108 total=2340 succeeded=2232 failed=0 dead_letter=0 retrying=0`,
+`source_local=169 succeeded`, and `eshu_search_document=156 succeeded`.
+Search-vector sweeps processed 492,060 documents/vectors across 36 sweeps with
+zero disabled or failed vector documents. The vector phase spent 618.345s
+total: `scheduling=307.128s`, `query_load=147.689s`, `embed=5.780s`, and
+`write=156.328s`. The worst query-load sweep was 11.872s for 100 scopes and
+9,877 documents; the earlier pending-document reader proof had a 211.633s max
+query-load spike while processing fewer total vectors.
+
+Readout: the batch selector materially reduced the search-vector selector tail.
+Compared to `search-vector-pending-docs-cached-cap15-20260703T1105Z`, vector
+query/load dropped from 546.025s to 147.689s while processed vector rows rose
+from 201,224 to 492,060. Compared to the original current-main baseline,
+search-vector document/vector work is down from 1,225,794 to 492,060 rows and
+write/upsert is down from 380.182s to 156.328s. Correctness stayed clean in the
+capped window: failed, dead-letter, retrying, disabled vector, and failed vector
+counts were all zero.
+
+The next measured bottleneck is no longer search-vector pending-document
+selection. The same capped run spent 1,638.790s across 156 search-document
+projection cycles, with 1,281.019s in `index_term_upsert_seconds` and a 96.958s
+max term-upsert cycle. That follow-up belongs in the search-document term
+upsert path rather than in another search-vector selector rewrite.
 
 ## No-Observability-Change:
 
