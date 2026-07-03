@@ -1213,25 +1213,37 @@ identity.
 **Workflows Workflow** (`workflows.googleapis.com/Workflow`) captures
 deployment `state` (`STATE_UNSPECIFIED`/`ACTIVE`/`UNAVAILABLE`), revision id,
 `callLogLevel`, `executionHistoryLevel`, create/update/revision-create time,
-the CMEK key name, a `sourceContents` presence flag, and the fingerprinted
-runtime service-account email — verified against the live Workflows v1
-discovery document; emits the typed `workflow_encrypted_by_kms_key` edge to
-the CMEK `CryptoKey` when `cryptoKeyName` is set (normalized the same way the
-Dataflow Job and Memorystore Redis Instance CMEK edges handle an
-already-prefixed or bare key name) and surfaces the CMEK key resource name
-plus the service-account fingerprint as correlation anchors. The runtime
-service account is never emitted as an edge — the same treatment as the
-Dataflow Job, Dataproc Cluster, and GKE Cluster extractors' own service
-accounts — since an email is not an exactly resolvable CAI endpoint.
-`sourceContents` (the workflow's YAML/JSON definition body, capped at 128KB by
-the API) is decoded only far enough to set a boolean presence flag: no step,
-argument, header, or embedded credential value from that body is ever read, so
-a called service (Cloud Run, Cloud Functions, or an arbitrary HTTP endpoint)
-referenced only inside the workflow definition is out of reach of this
-safe-metadata extractor and is not modeled as a graph edge. `userEnvVars` and
-`tags` are not decoded in typed depth; workflow `labels` continue to flow
-through the collector's shared label/tag path, which already captures and
-fingerprints them.
+the normalized CMEK key relative name, a `sourceContents` presence flag, and
+the fingerprinted runtime service-account email — verified against the live
+Workflows v1 discovery document; emits the typed `workflow_encrypted_by_kms_key`
+edge to the CMEK `CryptoKey` when `cryptoKeyName` resolves to a valid CryptoKey
+full name (an already-prefixed or bare key name is normalized the same way the
+Dataflow Job and Memorystore Redis Instance CMEK edges handle it, and a
+leading `/` is trimmed, mirroring the Filestore Instance and Dataflow Job CMEK
+helpers) and surfaces the CMEK key resource name plus the service-account
+fingerprint as correlation anchors. The Workflows v1 API documents two
+project-inferred `cryptoKeyName` forms — a `"projects/-/..."` wildcard and a
+project-less `"locations/..."` form, both meaning "infer the project from the
+workflow's own project" — both are qualified against the workflow's own
+`ctx.ProjectID` rather than producing an edge rooted at the literal
+`projects/-` segment or silently dropping the relationship. The
+`crypto_key_name` attribute and the CMEK edge/anchor are set only together,
+from the same resolved full name, so an unnormalizable or unqualifiable
+`cryptoKeyName` (a malformed shape, a wrong-domain already-prefixed value, or
+a project-inferred form with no project to qualify against) is dropped
+entirely rather than surfaced unresolved. The runtime service account is never
+emitted as an edge — the same treatment as the Dataflow Job, Dataproc Cluster,
+and GKE Cluster extractors' own service accounts — since an email is not an
+exactly resolvable CAI endpoint. `sourceContents` (the workflow's YAML/JSON
+definition body, capped at 128KB by the API) is decoded only far enough to set
+a boolean presence flag, and the decoded copy is cleared immediately
+afterward: no step, argument, header, or embedded credential value from that
+body is ever read, so a called service (Cloud Run, Cloud Functions, or an
+arbitrary HTTP endpoint) referenced only inside the workflow definition is out
+of reach of this safe-metadata extractor and is not modeled as a graph edge.
+`userEnvVars` and `tags` are not decoded in typed depth; workflow `labels`
+continue to flow through the collector's shared label/tag path, which already
+captures and fingerprints them.
 
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
