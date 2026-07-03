@@ -333,6 +333,23 @@
    any step-graph content — only the object path after the staging bucket is
    dropped as a data-plane locator, mirroring the BigQuery Table extractor's
    external-source treatment.
+45. `extractor_filestore_instance.go` - typed-depth extractor for
+   `file.googleapis.com/Instance` (Filestore Instance: state, tier, creation
+   time, a bounded file-share count, the first `networks[]` entry's connect
+   mode, CMEK key name, a bounded label count); a `filestore_instance_in_network`
+   edge for every `networks[]` entry toward the attached Compute Network (a
+   bare short network name is promoted to the project-less global partial and
+   resolved the same way the GKE Cluster extractor resolves its own network
+   reference) and a `filestore_instance_encrypted_by_kms_key` edge to the CMEK
+   CryptoKey (an already CAI-prefixed `kmsKeyName` is kept as-is, mirroring the
+   Memorystore Redis Instance CMEK normalization); never reads
+   `networks[].reservedIpRange` or `networks[].modes` — the former is a CIDR
+   range and never decoded into Go memory at all. The typed-depth `attributes`
+   map carries only a bounded `file_share_count` and `label_count`, never
+   per-file-share name/capacity or label entries; the labels themselves are
+   still captured and value-fingerprinted per `redaction_policy_version` by the
+   collector's shared label path (the extractor just does not re-copy them into
+   typed depth).
 45. `extractor_spanner_instance.go` - typed-depth extractor for
    `spanner.googleapis.com/Instance` (instance config short name — the
    trailing `instanceConfigs/<id>` topology segment — display name, node
