@@ -156,6 +156,7 @@ nav:
     - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
     - Component Package Manager: reference/component-package-manager.md
     - Fact Envelope Reference: reference/fact-envelope-reference.md
+    - Reducer Guarantees: reference/reducer-guarantees.md
     - Search Document Projection: reference/search-document-projection.md
     - Search Benchmark Evidence: reference/search-benchmark-evidence.md
     - Proof-of-Value Harness: reference/proof-of-value-harness.md
