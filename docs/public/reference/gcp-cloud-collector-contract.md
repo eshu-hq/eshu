@@ -829,6 +829,19 @@ No-Observability-Change: extraction outcomes are covered by the existing
 `eshu_dp_gcp_cloud_attribute_extractions_total` and
 `eshu_dp_gcp_cloud_facts_emitted_total` counters; no new metric is needed.
 
+**KMS CryptoKey** (`cloudkms.googleapis.com/CryptoKey`) captures purpose
+(`ENCRYPT_DECRYPT`/`ASYMMETRIC_SIGN`/`ASYMMETRIC_DECRYPT`/`MAC`), the version
+template's protection level and algorithm, the rotation schedule
+(`rotation_period`/`next_rotation_time`, present only for keys that rotate),
+the primary version's lifecycle state, and creation time. Cloud KMS does not
+report the containing KeyRing as a separate field on the CryptoKey's
+`resource.data`, so the extractor derives it from the CryptoKey's own
+resource-name path and emits the typed `kms_crypto_key_in_key_ring` edge to
+the `cloudkms.googleapis.com/KeyRing` parent, surfacing the KeyRing full
+resource name as the correlation anchor. Cloud KMS never returns key
+material, key state history, or any data-plane content on this resource, and
+none is read here.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and

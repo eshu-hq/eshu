@@ -1,0 +1,49 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1",
+      "assetType": "cloudkms.googleapis.com/CryptoKey",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us",
+        "data": {
+          "name": "projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1",
+          "purpose": "ENCRYPT_DECRYPT",
+          "createTime": "2024-06-01T00:00:00Z",
+          "nextRotationTime": "2026-09-01T00:00:00Z",
+          "rotationPeriod": "7776000s",
+          "versionTemplate": {
+            "protectionLevel": "SOFTWARE",
+            "algorithm": "GOOGLE_SYMMETRIC_ENCRYPTION"
+          },
+          "primary": {
+            "name": "projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1/cryptoKeyVersions/1",
+            "state": "ENABLED",
+            "createTime": "2024-06-01T00:00:05Z"
+          },
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/sig-rk/cryptoKeys/sign-key",
+      "assetType": "cloudkms.googleapis.com/CryptoKey",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/keyRings/sig-rk/cryptoKeys/sign-key",
+          "purpose": "ASYMMETRIC_SIGN",
+          "createTime": "2025-01-15T09:30:00Z",
+          "versionTemplate": {
+            "protectionLevel": "HSM",
+            "algorithm": "RSA_SIGN_PSS_4096_SHA512"
+          }
+        }
+      }
+    }
+  ]
+}

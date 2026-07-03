@@ -98,6 +98,14 @@
    Cloud KMS CryptoKey and usage-logging export edge to the destination log
    bucket; the bucket ACL/IAM policy, object contents, and notification
    configuration are never decoded).
+29. `extractor_kms_crypto_key.go` - typed-depth extractor for
+   `cloudkms.googleapis.com/CryptoKey` (purpose, version-template protection
+   level and algorithm, rotation schedule present only for keys that rotate,
+   primary-version lifecycle state, creation time; `kms_crypto_key_in_key_ring`
+   edge to the parent `cloudkms.googleapis.com/KeyRing` derived from the
+   CryptoKey's own resource-name path since Cloud KMS reports no separate
+   KeyRing field; never reads key material, key state history, or any
+   data-plane content).
 
 ## Invariants
 
