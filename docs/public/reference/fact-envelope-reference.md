@@ -5,7 +5,10 @@ reducers share. Use it when adding a collector family, changing fact identity,
 or deciding whether a source observation is allowed to become graph truth.
 
 For schema-version compatibility rules, use
-[Fact Schema Versioning](fact-schema-versioning.md). For optional component
+[Fact Schema Versioning](fact-schema-versioning.md). For what the reducer
+promises about delivery, ordering, generation supersession, unknown fact
+kinds, and dead-letter visibility, use
+[Reducer Guarantees](reducer-guarantees.md). For optional component
 trust policy, use [Plugin Trust Model](plugin-trust-model.md) and
 [Component Package Manager](component-package-manager.md).
 
@@ -489,6 +492,7 @@ When adding or changing a fact family:
 ## Related
 
 - [Fact Schema Versioning](fact-schema-versioning.md)
+- [Reducer Guarantees](reducer-guarantees.md)
 - [Collector Authoring](../guides/collector-authoring.md)
 - [Collector And Reducer Readiness](collector-reducer-readiness.md)
 - [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md)

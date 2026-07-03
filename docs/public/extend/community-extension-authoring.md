@@ -172,6 +172,9 @@ Community components must be explicit enough for automated review.
 If a fact has no consumer, it can be stored as provenance, but it must not appear
 as active platform truth. See [Fact Schema Versioning](../reference/fact-schema-versioning.md)
 and [Fact Envelope Reference](../reference/fact-envelope-reference.md).
+For what the reducer promises about delivery, ordering, generation
+supersession, unconsumed fact kinds, and dead-letter visibility, see
+[Reducer Guarantees](../reference/reducer-guarantees.md).
 Trust policy and failure behavior live in
 [Plugin Trust Model](../reference/plugin-trust-model.md).
 
@@ -420,6 +423,7 @@ Use this checklist when triaging an extension PR.
 - [Plugin Trust Model](../reference/plugin-trust-model.md)
 - [Fact Schema Versioning](../reference/fact-schema-versioning.md)
 - [Fact Envelope Reference](../reference/fact-envelope-reference.md)
+- [Reducer Guarantees](../reference/reducer-guarantees.md)
 - [Collector Authoring](../guides/collector-authoring.md)
 - [Collector Extraction Policy](../reference/collector-extraction-policy.md)
 - [Language Support](../contributing-language-support.md)
