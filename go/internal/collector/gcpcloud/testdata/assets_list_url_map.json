@@ -1,0 +1,45 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/urlMaps/web-map",
+      "assetType": "compute.googleapis.com/UrlMap",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "web-map",
+          "defaultService": "https://www.googleapis.com/compute/v1/projects/demo-project/global/backendServices/default-backend",
+          "hostRules": [
+            {"hosts": ["example.com", "www.example.com"], "pathMatcher": "matcher-1"}
+          ],
+          "pathMatchers": [
+            {
+              "name": "matcher-1",
+              "defaultService": "projects/demo-project/global/backendServices/web-backend",
+              "pathRules": [
+                {"paths": ["/images/*"], "service": "projects/demo-project/global/backendServices/images-backend"}
+              ]
+            }
+          ],
+          "creationTimestamp": "2024-06-01T00:00:00.000-07:00",
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/urlMaps/cdn-map",
+      "assetType": "compute.googleapis.com/UrlMap",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "cdn-map",
+          "defaultService": "projects/demo-project/global/backendBuckets/static-assets"
+        }
+      }
+    }
+  ]
+}
