@@ -145,13 +145,15 @@
    Classic VPN tunnel's target gateway, `vpn_tunnel_peers_with_vpn_gateway`
    edge to either an HA peer-to-peer gateway or an external peer gateway, and
    `vpn_tunnel_uses_router` edge to the Cloud Router used for BGP dynamic
-   routing when configured; declares local `assetTypeComputeVPNGateway` and
-   `assetTypeComputeRouter` constants pending the sibling Cloud VPN Gateway
-   (#4302) and Cloud Router (#4301) extractors, which will own those
-   declarations once merged — a follow-up dedup pass must then remove the
-   local declarations here; never reads the tunnel's own `peerIp`,
-   `sharedSecret`, `sharedSecretHash`, or `detailedStatus` fields, and
-   traffic-selector CIDR values are reduced to counts, never persisted).
+   routing when configured; declares a local `assetTypeComputeVPNGateway`
+   constant pending the sibling Cloud VPN Gateway (#4302) extractor, which
+   will own that declaration once merged — a follow-up dedup pass must then
+   remove the local declaration here, matching the dedup already done for
+   `assetTypeComputeRouter`, which this file now reuses from the Cloud
+   Router extractor (#4301, `extractor_router.go`) below; never reads the
+   tunnel's own `peerIp`, `sharedSecret`, `sharedSecretHash`, or
+   `detailedStatus` fields, and traffic-selector CIDR values are reduced to
+   counts, never persisted).
 34. `extractor_backend_service.go` - typed-depth extractor for
    `compute.googleapis.com/BackendService` and
    `compute.googleapis.com/RegionBackendService` (protocol, load-balancing
