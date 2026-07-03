@@ -257,6 +257,33 @@
    Enterprise Key extractor's treatment of allowed-domain entries — every
    domain value is reduced to a bounded count only), and never reads the
    `selfManaged.certificate` or `selfManaged.privateKey` PEM material.
+41. `extractor_target_https_proxy.go` - typed-depth extractor for
+   `compute.googleapis.com/TargetHttpsProxy` (QUIC negotiation override
+   posture and creation time; `target_https_proxy_uses_url_map` edge to the
+   resolved UrlMap and `target_https_proxy_uses_ssl_policy` edge to the
+   resolved SslPolicy when present). Serving-certificate resolution honors the
+   Compute API's mutually-exclusive precedence: when `certificateMap` is set it
+   emits a `target_https_proxy_uses_certificate_map` edge to the Certificate
+   Manager CertificateMap and suppresses the classic `sslCertificates` list
+   (the API ignores `sslCertificates` when a map is set, so emitting those
+   edges would be stale); otherwise each `sslCertificates` entry is routed by
+   domain — a Compute self-link to a `target_https_proxy_uses_ssl_certificate`
+   edge, a Certificate Manager self-link to a
+   `target_https_proxy_uses_certificate_manager_certificate` edge. Declares
+   `assetTypeComputeSSLPolicy` and the two
+   `certificatemanager.googleapis.com/*` asset types (all-caps initialisms per
+   Effective Go), and reuses `assetTypeComputeSSLCertificate` from
+   `extractor_ssl_certificate.go` (never redeclaring it),
+   `assetTypeComputeTargetHTTPSProxy` from `extractor_forwarding_rule.go`, and
+   `assetTypeComputeUrlMap` from `extractor_url_map.go`; the reverse edge from
+   a ForwardingRule to this proxy is already emitted by
+   `extractor_forwarding_rule.go` (`forwarding_rule_targets_target_proxy`)
+   since CAI's TargetHttpsProxy resource.data carries no back-reference to the
+   forwarding rule that targets it — the reference is one-directional — so this
+   extractor emits no forwarding-rule edge of its own; no certificate key
+   material, private key, or response body is ever decoded, since
+   `sslCertificates`, `certificateMap`, and `sslPolicy` carry only resource
+   self-links.
 
 ## Invariants
 
