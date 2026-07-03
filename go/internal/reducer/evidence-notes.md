@@ -8,9 +8,8 @@ orientation README.
 ### Problem
 
 `eshu_search_index_terms` has PK `(scope_id, generation_id, term_key,
-document_id)` and secondary index `eshu_search_index_terms_lookup_idx
-(scope_id, generation_id, term_key)`. Two hot DELETEs filter by
-`(scope_id, generation_id, document_id)`:
+document_id)`, whose left prefix covers BM25 term lookup. Two hot DELETEs filter
+by `(scope_id, generation_id, document_id)`:
 
 - `eshuSearchIndexRefreshDocumentTermsQuery` — `document_id = ANY($3::text[])`
   — fired on **every per-page write** (hot path).
@@ -32,12 +31,12 @@ CREATE INDEX IF NOT EXISTS eshu_search_index_terms_doc_idx
 ```
 
 Migration: `go/internal/storage/postgres/migrations/003b_eshu_search_index.sql`
-(appended after `eshu_search_index_terms_lookup_idx`).
+(appended after the base search-index migration).
 
 ### Hermetic before/after EXPLAIN — `TestEshuSearchIndexTermsDocumentDeletePlanLive`
 
 The gate test creates a throwaway table with the identical schema as
-`eshu_search_index_terms` (same PK, same lookup index, no FK constraints),
+`eshu_search_index_terms` (same PK, no FK constraints),
 seeds 300 000 rows (20 background scopes × 100 docs × 100 terms, plus 1 proof
 scope × 500 docs × 200 terms), and runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`
 on the `= ANY` DELETE for 10 target documents inside a rolled-back transaction.
@@ -272,6 +271,53 @@ log key, queue domain, worker, lease, runtime knob, or graph write route was
 added. The `eshu_dp_search_index_mutations_total{kind="document",
 operation="upsert"}` value now reports the full batch count (N) in a single
 increment rather than N increments of 1, producing the same final counter value.
+
+## Search-Term Lookup Index Write Amplification (#4529 follow-up)
+
+Performance Evidence: post-#4536 current-main bounded proof still showed
+`eshu_search_document` term writes as the top measured reducer cost:
+`index_term_upsert_seconds=629.308s` across 24 cycles, avg `26.221s`, max
+`44.342s`, and `0.005964s` per written document. Schema inspection found
+`eshu_search_index_terms_lookup_idx(scope_id, generation_id, term_key)` was
+duplicating the left-prefix lookup already provided by the primary key
+`(scope_id, generation_id, term_key, document_id)`. The branch removes that
+extra B-tree maintenance from new schemas and adds a concurrent drop migration
+for existing schemas. Local proof is the red/green schema contract
+`TestBootstrapDefinitionsAvoidRedundantSearchTermLookupIndex` plus the
+skipped-by-default live Postgres plan proof
+`TestEshuSearchIndexTermsBM25LookupUsesPrimaryKeyPrefixLive`, which creates a
+throwaway table with only the primary key and verifies BM25 term lookup uses the
+primary-key prefix without a sequential scan. Live throwaway Postgres 16 proof
+reported the BM25 lookup plan using the table primary key with 42 shared buffer
+hits, no lookup index, and no sequential scan; the sibling document-delete plan
+proof still used `eshu_search_index_terms_doc_idx` and reduced shared blocks
+from 2,837 to 231 on the same bounded fixture.
+
+Remote bounded proof: run
+`4529-drop-term-lookup-current-main-20260702222508` tested Eshu commit
+`87d0a8c01946` against NornicDB `main` image `eshu-nornicdb-main:5646d7ee` with
+the same current corpus/backend profile as the post-#4536 current-main sample
+and stopped after 25 `eshu_search_document` cycles. It wrote 105,845 documents;
+`index_term_upsert_seconds` was 457.219s total, avg 18.289s, max 23.518s, and
+0.004320s per written document. Compared with the post-#4536 current-main proof
+(avg 26.221s, max 44.342s, 0.005964s/doc), this is about 30% lower average
+term-write time, 47% lower max term-write time, and 28% lower term-write cost
+per document. The run was bounded and cleaned up its Compose project and
+volumes immediately after evidence collection.
+
+No-Regression Evidence: the migration changes only index maintenance for
+`eshu_search_index_terms`. Table columns, primary key, document-keyed delete
+index, active-generation reads, BM25 term equality, reducer writer query shape,
+worker counts, queue semantics, vector writes, graph writes, and API/MCP
+response contracts are unchanged. The primary key continues to serve
+`(scope_id, generation_id, term_key)` BM25 joins; the document-keyed
+`eshu_search_index_terms_doc_idx` continues to serve refresh and retire deletes.
+
+No-Observability-Change: no metric, span, log key, queue domain, worker,
+runtime knob, route, or graph query changes. Operators still diagnose this path
+through `eshu_search_document` cycle logs,
+`eshu_dp_search_index_write_duration_seconds` operation labels, Postgres query
+duration instrumentation, and Postgres wait-event samples.
 
 ## Correlation/Identity Writer Bulk Batching (#3435)
 

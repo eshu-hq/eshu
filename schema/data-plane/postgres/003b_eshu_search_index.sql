@@ -45,8 +45,6 @@ WHERE stats.scope_id = stale.scope_id
 DELETE FROM eshu_search_index_terms
 WHERE term_key IS NULL OR term_key = '';
 
-DROP INDEX IF EXISTS eshu_search_index_terms_lookup_idx;
-
 ALTER TABLE eshu_search_index_terms
     ALTER COLUMN term_key SET NOT NULL;
 
@@ -59,6 +57,3 @@ ALTER TABLE eshu_search_index_terms
 
 CREATE INDEX IF NOT EXISTS eshu_search_index_documents_repo_idx
     ON eshu_search_index_documents (scope_id, generation_id, repo_id, source_kind);
-
-CREATE INDEX IF NOT EXISTS eshu_search_index_terms_lookup_idx
-    ON eshu_search_index_terms (scope_id, generation_id, term_key);
