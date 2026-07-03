@@ -260,7 +260,7 @@ func TestExtractBackendServiceEnableCDNFalseIsKept(t *testing.T) {
 	}
 }
 
-func TestExtractBackendServiceNeverPersistsRawSecurityPolicyOrBackendData(t *testing.T) {
+func TestExtractBackendServiceNeverLeaksIAPSecretOrRawBalancingMode(t *testing.T) {
 	const data = `{
 		"name": "leak-check-backend",
 		"backends": [
