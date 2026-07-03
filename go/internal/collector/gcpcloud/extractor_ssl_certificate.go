@@ -9,17 +9,28 @@ import (
 	"strings"
 )
 
-// assetTypeComputeSslCertificate is the Cloud Asset Inventory asset type for a
+// assetTypeComputeSSLCertificate is the Cloud Asset Inventory asset type for a
 // GCP Compute SSL Certificate. It is declared here, in the certificate's own
 // typed-depth extractor file, and reused by the target-proxy extractors
 // (Target HTTPS Proxy, Target SSL Proxy) that resolve a `sslCertificates[]`
 // reference into this asset type as their edge target — mirroring how
 // extractor_forwarding_rule.go declares assetTypeComputeBackendService for
 // extractor_backend_service.go to reuse.
-const assetTypeComputeSslCertificate = "compute.googleapis.com/SslCertificate"
+const assetTypeComputeSSLCertificate = "compute.googleapis.com/SslCertificate"
+
+// sslCertificateTypeSelfManaged is the certificate type the Compute
+// sslCertificates REST schema defines as the default when the optional `type`
+// field is omitted. A self-managed certificate created without an explicit
+// type reports no `type` in resource.data, so an absent value is derived to
+// this constant rather than dropped: dropping it would degrade Terraform
+// import/drift and monitoring truth for a legitimate API shape. Deriving the
+// type reads no key material — the raw certificate/private key under
+// selfManaged is still never decoded. See
+// https://cloud.google.com/compute/docs/reference/rest/v1/sslCertificates.
+const sslCertificateTypeSelfManaged = "SELF_MANAGED"
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeSslCertificate, extractSslCertificate)
+	RegisterAssetExtractor(assetTypeComputeSSLCertificate, extractSslCertificate)
 }
 
 // sslCertificateData is the bounded view of a CAI
@@ -53,7 +64,7 @@ type sslCertificateData struct {
 //
 // The certificate's graph edges are inbound: a Target HTTPS Proxy or Target
 // SSL Proxy references this certificate through its own `sslCertificates[]`
-// field and resolves the edge from that side (see assetTypeComputeSslCertificate's
+// field and resolves the edge from that side (see assetTypeComputeSSLCertificate's
 // doc comment), the same inbound-edge shape as extractor_iam_role.go's IAM
 // Role. This extractor therefore derives no outbound relationships or
 // anchors. The raw PEM certificate body, private key, and every domain-name
@@ -72,15 +83,21 @@ func extractSslCertificate(ctx ExtractContext) (AttributeExtraction, error) {
 
 // sslCertificateAttributes assembles the bounded attribute map. Empty or
 // absent fields are omitted rather than written as zero values so a partial
-// CAI page does not fabricate a posture. managed_status and domain_count are
-// populated only when the certificate carries a `managed` block (a
-// self-managed certificate has none); san_count is populated only when
-// subjectAlternativeNames is present (only a self-managed certificate reports
-// it, and only after issuance).
+// CAI page does not fabricate a posture, with one deliberate exception: an
+// absent `type` is derived to SELF_MANAGED, the value the Compute
+// sslCertificates schema defines for an omitted type, so a self-managed
+// certificate created without an explicit type still carries usable
+// Terraform/monitoring truth instead of silently dropping the field.
+// managed_status and domain_count are populated only when the certificate
+// carries a `managed` block (a self-managed certificate has none); san_count
+// is populated only when subjectAlternativeNames is present (only a
+// self-managed certificate reports it, and only after issuance).
 func sslCertificateAttributes(data sslCertificateData) map[string]any {
 	attrs := map[string]any{}
 	if v := strings.TrimSpace(data.Type); v != "" {
 		attrs["type"] = v
+	} else {
+		attrs["type"] = sslCertificateTypeSelfManaged
 	}
 	if data.Managed != nil {
 		if v := strings.TrimSpace(data.Managed.Status); v != "" {

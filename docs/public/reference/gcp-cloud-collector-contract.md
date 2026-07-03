@@ -411,7 +411,10 @@ certificate type (`MANAGED`/`SELF_MANAGED`), the managed-certificate
 provisioning status, a bounded managed-domain count, a bounded
 subject-alternative-name count (present only for a self-managed certificate,
 and only after issuance), expiry time, and creation time; emits no outbound
-edges. The certificate's graph value is inbound: a Target HTTPS Proxy or
+edges. An omitted `type` is derived to `SELF_MANAGED` — the value the Compute
+sslCertificates schema defines for an absent type — rather than dropped, so a
+self-managed certificate created without an explicit type still carries usable
+Terraform/monitoring truth; deriving the type reads no key material. The certificate's graph value is inbound: a Target HTTPS Proxy or
 Target SSL Proxy references it through its own `sslCertificates[]` field and
 resolves the edge from that side, the same inbound-only edge shape as the
 Custom IAM Role extractor. `managed.domains[]` and `subjectAlternativeNames`

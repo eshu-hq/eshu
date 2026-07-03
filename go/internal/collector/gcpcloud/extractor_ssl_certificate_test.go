@@ -14,15 +14,15 @@ const sslCertificateFullName = "//compute.googleapis.com/projects/demo-project/g
 func sslCertificateContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: sslCertificateFullName,
-		AssetType:        assetTypeComputeSslCertificate,
+		AssetType:        assetTypeComputeSSLCertificate,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestSslCertificateExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeSslCertificate); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeSslCertificate)
+	if _, ok := lookupAssetExtractor(assetTypeComputeSSLCertificate); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeSSLCertificate)
 	}
 }
 
@@ -111,14 +111,49 @@ func TestExtractSslCertificatePartialDataOmitsZeroValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(got.Attributes) != 0 {
-		t.Errorf("expected no attributes for empty data, got %#v", got.Attributes)
+	// An empty blob still carries a certificate: the Compute sslCertificates
+	// schema defines an omitted `type` as SELF_MANAGED, so type is derived
+	// rather than dropped. Every other field remains omitted because there is
+	// no data to fabricate a posture from.
+	wantAttrs := map[string]any{"type": "SELF_MANAGED"}
+	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
+		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
 	}
 	if len(got.Relationships) != 0 {
 		t.Errorf("expected no relationships for empty data, got %#v", got.Relationships)
 	}
 	if len(got.CorrelationAnchors) != 0 {
 		t.Errorf("expected no anchors for empty data, got %#v", got.CorrelationAnchors)
+	}
+}
+
+func TestExtractSslCertificateOmittedTypeDerivesSelfManaged(t *testing.T) {
+	// A self-managed certificate created without the optional `type` field
+	// reports no `type` in resource.data. The Compute sslCertificates REST
+	// schema defines that omission as SELF_MANAGED, so the extractor derives
+	// the type rather than dropping it — dropping it would degrade Terraform
+	// import/drift and monitoring truth for a legitimate API shape.
+	const data = `{
+		"name": "implicit-self-managed-cert",
+		"subjectAlternativeNames": ["a.example.com"],
+		"creationTimestamp": "2024-03-01T00:00:00.000-07:00"
+	}`
+
+	got, err := extractSslCertificate(sslCertificateContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantAttrs := map[string]any{
+		"type":          "SELF_MANAGED",
+		"san_count":     1,
+		"creation_time": "2024-03-01T07:00:00Z",
+	}
+	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
+		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
+	}
+	if _, ok := got.Attributes["managed_status"]; ok {
+		t.Errorf("managed_status should be omitted for a derived self-managed certificate, got %#v", got.Attributes)
 	}
 }
 

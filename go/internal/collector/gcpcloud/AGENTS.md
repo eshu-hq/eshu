@@ -244,8 +244,10 @@
    `compute.googleapis.com/SslCertificate` (certificate type MANAGED/SELF_MANAGED,
    managed-certificate provisioning status, a bounded managed-domain count, a
    bounded subject-alternative-name count present only for a self-managed
-   certificate after issuance, expiry time, creation time); declares
-   `assetTypeComputeSslCertificate` for the Target HTTPS Proxy / Target SSL
+   certificate after issuance, expiry time, creation time; an omitted `type`
+   is derived to SELF_MANAGED per the Compute sslCertificates schema, not
+   dropped, and deriving it reads no key material); declares
+   `assetTypeComputeSSLCertificate` for the Target HTTPS Proxy / Target SSL
    Proxy extractors to reuse as their `sslCertificates[]` edge target; emits no
    outbound edges itself, since the certificate's graph value is inbound —
    mirroring the Custom IAM Role extractor's inbound-only edge shape; never
