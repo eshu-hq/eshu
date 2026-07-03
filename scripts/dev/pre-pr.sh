@@ -18,6 +18,13 @@
 #     docs/public/reference/local-testing.md.
 #   - 500-line file cap + package docs: the cheap structural gates.
 #
+# The whole-module gates keep their full scope while reducing stacked wall
+# time: go build and go vet run alongside the precommit helper lane, and that
+# lane runs gofumpt before golangci-lint. fmt/lint stay serialized because both
+# call scripts/dev/precommit-go.sh, whose shared tool/config cache is not a
+# concurrency boundary. On an 18-core/128GB dev box this keeps most of the
+# speedup while avoiding first-run cache races.
+#
 # Every step runs even if an earlier one fails (accumulate), so you see all
 # problems at once. Exit status is non-zero if any step failed.
 set -uo pipefail
@@ -92,6 +99,71 @@ step_fmt() { "${precommit}" fmt-all; }
 step_lint() { "${precommit}" lint-all; }
 step_build() { ( cd "${go_dir}" && go build ./... ); }
 step_vet() { ( cd "${go_dir}" && go vet ./... ); }
+
+# capture_whole_module_gate runs one whole-module gate, captures its output,
+# and records duration at the point the gate exits. The parent prints results
+# in a stable order after all lanes finish.
+capture_whole_module_gate() {
+	local tmpdir="$1" n="$2" label="$3"
+	shift 3
+	local start=${SECONDS} status=0
+	{
+		printf '\n\033[1m==> %s\033[0m\n' "${label}"
+		if "$@"; then
+			status=0
+		else
+			status=$?
+		fi
+	} >"${tmpdir}/${n}.log" 2>&1
+	printf '%s\n' "${status}" >"${tmpdir}/${n}.status"
+	printf '%s\n' "$((SECONDS - start))" >"${tmpdir}/${n}.duration"
+	return 0
+}
+
+# run_precommit_gates_serial keeps the shared precommit-go cache single-writer.
+# Build and vet still overlap with this lane, but fmt and lint do not overlap
+# with each other.
+run_precommit_gates_serial() {
+	local tmpdir="$1"
+	capture_whole_module_gate "${tmpdir}" fmt "gofumpt (whole module)" step_fmt
+	capture_whole_module_gate "${tmpdir}" lint "golangci-lint (whole module)" step_lint
+}
+
+# run_whole_module_gates_parallel runs the race-free lanes concurrently:
+# precommit helper checks (fmt then lint), go build, and go vet. Output remains
+# per-step and printed in a fixed order, so a failure is never lost to
+# interleaving.
+run_whole_module_gates_parallel() {
+	local names=(fmt lint build vet)
+	local labels=("gofumpt (whole module)" "golangci-lint (whole module)" "go build ./..." "go vet ./...")
+	local tmpdir pids=() i n status duration
+	tmpdir="$(mktemp -d)"
+	run_precommit_gates_serial "${tmpdir}" &
+	pids+=($!)
+	capture_whole_module_gate "${tmpdir}" build "go build ./..." step_build &
+	pids+=($!)
+	capture_whole_module_gate "${tmpdir}" vet "go vet ./..." step_vet &
+	pids+=($!)
+
+	for i in "${!pids[@]}"; do
+		wait "${pids[$i]}" || true
+	done
+	for i in "${!names[@]}"; do
+		n="${names[$i]}"
+		status="$(cat "${tmpdir}/${n}.status" 2>/dev/null || printf "1")"
+		duration="$(cat "${tmpdir}/${n}.duration" 2>/dev/null || printf "0")"
+		if [[ "${status}" == "0" ]]; then
+			results+=("PASS  ${labels[$i]} (${duration}s)")
+		else
+			results+=("FAIL  ${labels[$i]} (${duration}s)")
+			overall=1
+		fi
+	done
+	for i in "${!names[@]}"; do
+		cat "${tmpdir}/${names[$i]}.log"
+	done
+	rm -rf "${tmpdir}"
+}
 
 step_test() {
 	local dirs=() d
@@ -189,10 +261,7 @@ step_race() {
 	return ${rc}
 }
 
-run_step "gofumpt (whole module)" step_fmt
-run_step "golangci-lint (whole module)" step_lint
-run_step "go build ./..." step_build
-run_step "go vet ./..." step_vet
+run_whole_module_gates_parallel
 run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
