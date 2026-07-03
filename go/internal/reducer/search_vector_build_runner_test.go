@@ -62,6 +62,7 @@ func TestSearchVectorBuildRunnerBuildsPendingScopes(t *testing.T) {
 	}, pending.requests[0])
 	require.Equal(t, SearchVectorBuildRequest{
 		ScopeID:            "scope-a",
+		GenerationID:       "gen-a",
 		RepoID:             "repo-a",
 		ProviderProfileID:  "local",
 		SourceClass:        "search_documents",

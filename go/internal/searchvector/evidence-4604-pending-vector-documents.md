@@ -104,13 +104,54 @@ rows: the same scope returned 500 rows in 82.789ms quiesced execution. A bounded
 remote corpus rerun is still required before claiming wall-clock improvement
 for the orderless selector rewrite.
 
+Current local follow-up: the reducer runner now prefers a batch-capable vector
+builder when the production wiring exposes one. Instead of issuing one
+`ListPendingVectorDocuments` query per selected scope, the production
+`searchvector.Builder` calls `ListPendingVectorDocumentsForScopes` once with the
+selected active scopes. The Postgres query keeps the same active-generation,
+provider profile, source class, model id, vector-index version, content-hash,
+ready-value, and disabled-row semantics, but reads from a `VALUES`-backed
+selected-scope CTE and one `JOIN LATERAL` pending-document probe per selected
+scope. Each lateral probe remains capped by the configured per-scope document
+limit, uses `eshu_search_index_documents`, has no `ORDER BY` or `OFFSET`, and
+does not scan `fact_records` JSON payloads. This preserves the old per-scope
+builder path as a fallback for stores without the batched interface.
+
+Local proof for the batch selector:
+
+- `TestSearchVectorBuildRunnerUsesBatchBuilderForPendingScopes` failed before
+  the runner preferred the batch builder, then passed after it issued one
+  batch build request for all selected scopes and zero serial per-scope build
+  calls.
+- `TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable` failed
+  before `Builder.BuildBatch` used the batch pending-document store, then
+  passed after the builder issued one multi-scope pending read, no per-scope
+  pending reads, and no active-document fallback reads. The same coverage keeps
+  equal document IDs from different scopes distinct in vector upserts.
+- `TestBuilderBatchRejectsMixedSourceKinds` rejects batch requests that do not
+  share the same source-kind filter, preventing a mixed request from silently
+  using the first scope's filter for the whole batch.
+- `TestEshuSearchDocumentStoreListsPendingVectorDocumentsForScopes` proves the
+  selected-scope SQL shape: `VALUES` CTE, `JOIN LATERAL`, active-generation
+  join, selected scope/generation/repo predicates, per-scope `LIMIT`, persisted
+  search-index-document source, and no `ORDER BY`, `OFFSET`, `fact_records`, or
+  `fact.payload`.
+
+Remote proof remains required before PR creation: rerun the same 895-repository
+corpus/profile after the batch selector change and stop as soon as enough
+evidence shows whether the `query_load` tail moved materially. The comparison
+must capture search-vector sweeps, documents/vectors, `query_load`, embedding,
+write/upsert, queue terminal/stop counts, and failed/dead-letter/retrying rows.
+
 ## No-Observability-Change:
 
 The change adds no route, graph query, queue table, worker, lease, runtime
 knob, metric instrument, or metric label. The follow-up selector change adds
-one search-index document column but no new runtime signal shape. Operators
-continue to diagnose the path through existing search-vector sweep logs and
-`eshu_dp_search_vector_build_phase_seconds` split timing for scheduling,
-query/load, embed/build, and write/upsert. The existing fields should show
-lower `document_count`, `vector_count`, `query_load_seconds`, and
-`write_upsert_seconds` when scopes have mostly ready vectors.
+one search-index document column but no new runtime signal shape, and the batch
+selector only changes how selected pending scopes are loaded into the existing
+builder. Operators continue to diagnose the path through existing search-vector
+sweep logs and `eshu_dp_search_vector_build_phase_seconds` split timing for
+scheduling, query/load, embed/build, and write/upsert. The existing fields
+should show lower `document_count`, `vector_count`, `query_load_seconds`, and
+`write_upsert_seconds` when scopes have mostly ready vectors, and the batch
+selector proof should specifically lower the serial per-scope query-load tail.

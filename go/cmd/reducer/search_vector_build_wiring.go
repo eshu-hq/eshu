@@ -71,6 +71,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 ) (reducer.SearchVectorBuildResult, error) {
 	result, err := a.builder.Build(ctx, searchvector.BuildRequest{
 		ScopeID:            req.ScopeID,
+		GenerationID:       req.GenerationID,
 		RepoID:             req.RepoID,
 		ProviderProfileID:  req.ProviderProfileID,
 		SourceClass:        req.SourceClass,
@@ -78,6 +79,35 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 		VectorIndexVersion: req.VectorIndexVersion,
 		Limit:              req.Limit,
 	})
+	return reducer.SearchVectorBuildResult{
+		DocumentCount:       result.DocumentCount,
+		VectorCount:         result.VectorCount,
+		DisabledCount:       result.DisabledCount,
+		FailedCount:         result.FailedCount,
+		QueryLoadDuration:   result.QueryLoadDuration,
+		EmbedBuildDuration:  result.EmbedBuildDuration,
+		WriteUpsertDuration: result.WriteUpsertDuration,
+	}, err
+}
+
+func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
+	ctx context.Context,
+	reqs []reducer.SearchVectorBuildRequest,
+) (reducer.SearchVectorBuildResult, error) {
+	buildReqs := make([]searchvector.BuildRequest, 0, len(reqs))
+	for _, req := range reqs {
+		buildReqs = append(buildReqs, searchvector.BuildRequest{
+			ScopeID:            req.ScopeID,
+			GenerationID:       req.GenerationID,
+			RepoID:             req.RepoID,
+			ProviderProfileID:  req.ProviderProfileID,
+			SourceClass:        req.SourceClass,
+			EmbeddingModelID:   req.EmbeddingModelID,
+			VectorIndexVersion: req.VectorIndexVersion,
+			Limit:              req.Limit,
+		})
+	}
+	result, err := a.builder.BuildBatch(ctx, buildReqs)
 	return reducer.SearchVectorBuildResult{
 		DocumentCount:       result.DocumentCount,
 		VectorCount:         result.VectorCount,
