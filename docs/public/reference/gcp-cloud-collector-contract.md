@@ -370,6 +370,27 @@ material are never decoded, and per-backend balancing-mode, capacity-scaler,
 and max-utilization tuning fields are dropped by omission — only the `group`
 reference is read from each backend entry.
 
+**URL Map** (`compute.googleapis.com/UrlMap`) captures a bounded host-rule
+count, a bounded path-matcher count, the total path-rule count summed across
+every path matcher, the total route-rule count summed across every path
+matcher, and creation time; emits a `url_map_default_service` edge from the
+map's own `defaultService`, a `url_map_path_matcher_default_service` edge
+from each pathMatcher's `defaultService`, a `url_map_path_rule_service` edge
+from each pathMatcher's `pathRules[].service`, a `url_map_route_rule_service`
+edge from each pathMatcher's `routeRules[].service` (the advanced-routing
+alternative/complement to `pathRules`), and a
+`url_map_route_rule_weighted_service` edge from each entry of
+`routeRules[].routeAction.weightedBackendServices[].backendService` (one route
+rule can weight traffic across multiple backends, e.g. canary rollouts) —
+each edge resolves to either `compute.googleapis.com/BackendService` or
+`compute.googleapis.com/BackendBucket` depending on the referenced resource
+segment; and surfaces every resolved backend reference as a correlation
+anchor. `hostRules[].hosts`, `pathMatchers[].pathRules[].paths`, and
+`pathMatchers[].routeRules[].matchRules` (plus routeAction's non-backend
+traffic-shaping controls, such as `weight`) are data-plane routing patterns
+and are never decoded — only the bounded counts and the resolvable
+backend-service/backend-bucket references leave the parser.
+
 **IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
 fingerprinted email, display name, OAuth2 client id, disabled posture, and a
 bounded key count when the blob carries one (key material is never read). It

@@ -176,6 +176,23 @@
    client id/secret and CDN cache-key/signed-URL key material are never
    decoded, and per-backend balancing-mode/capacity/utilization tuning fields
    are dropped by omission.
+35. `extractor_url_map.go` - typed-depth extractor for
+   `compute.googleapis.com/UrlMap` (bounded host-rule, path-matcher,
+   path-rule, and route-rule counts, creation time); `url_map_default_service`
+   edge from the map's own `defaultService`, `url_map_path_matcher_default_service`
+   edge from each pathMatcher's `defaultService`, `url_map_path_rule_service`
+   edge from each pathMatcher's `pathRules[].service`,
+   `url_map_route_rule_service` edge from each pathMatcher's
+   `routeRules[].service` (the advanced-routing alternative/complement to
+   `pathRules`), and `url_map_route_rule_weighted_service` edge from each
+   entry of `routeRules[].routeAction.weightedBackendServices[].backendService`
+   — each resolved to either `compute.googleapis.com/BackendService` or
+   `compute.googleapis.com/BackendBucket` by the referenced resource segment;
+   never decodes `hostRules[].hosts`, `pathMatchers[].pathRules[].paths`, or
+   `pathMatchers[].routeRules[].matchRules` (nor routeAction's non-backend
+   traffic-shaping controls, such as `weight`) — raw host/path routing
+   patterns and traffic-shaping controls are dropped, only bounded counts and
+   the resolvable backend references leave the parser.
 
 ## Invariants
 
