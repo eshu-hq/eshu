@@ -60,8 +60,8 @@ type gkeClusterData struct {
 		EnablePrivateEndpoint *bool `json:"enablePrivateEndpoint"`
 	} `json:"privateClusterConfig"`
 	MasterAuthorizedNetworksConfig *struct {
-		Enabled    *bool             `json:"enabled"`
-		CidrBlocks []json.RawMessage `json:"cidrBlocks"`
+		Enabled    *bool                          `json:"enabled"`
+		CidrBlocks []gkeMasterAuthorizedCIDRBlock `json:"cidrBlocks"`
 	} `json:"masterAuthorizedNetworksConfig"`
 	WorkloadIdentityConfig *struct {
 		WorkloadPool string `json:"workloadPool"`
@@ -91,11 +91,18 @@ type gkeNodePoolData struct {
 	} `json:"config"`
 	Autoscaling *struct {
 		Enabled      *bool `json:"enabled"`
-		MinNodeCount int   `json:"minNodeCount"`
-		MaxNodeCount int   `json:"maxNodeCount"`
+		MinNodeCount *int  `json:"minNodeCount"`
+		MaxNodeCount *int  `json:"maxNodeCount"`
 	} `json:"autoscaling"`
 	InitialNodeCount int `json:"initialNodeCount"`
 }
+
+// gkeMasterAuthorizedCIDRBlock is intentionally empty: only the length of the
+// decoded cidrBlocks slice is ever used, so no field is declared here. This
+// keeps the raw CIDR value and display name for each entry out of memory
+// entirely, rather than merely unused after decode (mirrors the "never decode
+// CIDR values" redaction principle for this extractor).
+type gkeMasterAuthorizedCIDRBlock struct{}
 
 // extractGKECluster extracts bounded, redaction-safe typed depth for one GKE
 // Cluster CAI asset. It returns the Terraform/drift/monitoring attribute set
@@ -157,7 +164,7 @@ func gkeClusterAttributes(data gkeClusterData) map[string]any {
 		attrs["current_node_version"] = v
 	}
 	if v, ok := normalizeRFC3339(data.CreateTime); ok {
-		attrs["create_time"] = v
+		attrs["creation_time"] = v
 	}
 	if data.ReleaseChannel != nil {
 		if v := strings.TrimSpace(data.ReleaseChannel.Channel); v != "" {
@@ -220,8 +227,6 @@ func gkeNodePoolsAttribute(pools []gkeNodePoolData) ([]map[string]any, []string)
 		if pool.Config != nil {
 			if v := computeMachineTypeName(pool.Config.MachineType); v != "" {
 				summary["machine_type"] = v
-			} else if v := strings.TrimSpace(pool.Config.MachineType); v != "" {
-				summary["machine_type"] = v
 			}
 			if sa := strings.TrimSpace(pool.Config.ServiceAccount); sa != "" && !strings.EqualFold(sa, defaultServiceAccountSentinel) {
 				if fp := secretsiam.GCPServiceAccountEmailDigest(sa); fp != "" {
@@ -237,11 +242,11 @@ func gkeNodePoolsAttribute(pools []gkeNodePoolData) ([]map[string]any, []string)
 			if pool.Autoscaling.Enabled != nil {
 				summary["autoscaling_enabled"] = *pool.Autoscaling.Enabled
 			}
-			if pool.Autoscaling.MinNodeCount > 0 {
-				summary["autoscaling_min_node_count"] = pool.Autoscaling.MinNodeCount
+			if pool.Autoscaling.MinNodeCount != nil {
+				summary["autoscaling_min_node_count"] = *pool.Autoscaling.MinNodeCount
 			}
-			if pool.Autoscaling.MaxNodeCount > 0 {
-				summary["autoscaling_max_node_count"] = pool.Autoscaling.MaxNodeCount
+			if pool.Autoscaling.MaxNodeCount != nil {
+				summary["autoscaling_max_node_count"] = *pool.Autoscaling.MaxNodeCount
 			}
 		}
 		if pool.InitialNodeCount > 0 {
@@ -273,20 +278,44 @@ func gkeNetworkFullName(ref, projectID string) string {
 // CAI full resource name. A bare subnetwork short name is regional, so it is
 // promoted to the project-less regional partial using the cluster's own
 // location; a bare name with no known location cannot be resolved and yields ""
-// so no edge is fabricated.
+// so no edge is fabricated. GKE's location can be either a region (regional
+// cluster) or a zone (zonal cluster); a zonal location is normalized to its
+// region via gkeRegionFromLocation before building the regional subnetwork
+// path, since zones are never a valid Compute "regions/{...}" segment.
 func gkeSubnetworkFullName(ref, projectID, location string) string {
 	trimmed := strings.TrimSpace(ref)
 	if trimmed == "" {
 		return ""
 	}
 	if !strings.Contains(trimmed, "/") {
-		region := strings.TrimSpace(location)
+		region := gkeRegionFromLocation(location)
 		if region == "" {
 			return ""
 		}
 		trimmed = "regions/" + region + "/subnetworks/" + trimmed
 	}
 	return computeFullResourceNameFromSelfLink(trimmed, projectID)
+}
+
+// gkeRegionFromLocation derives the Compute region for a GKE cluster's
+// location, which the GKE API reports as either a region (e.g.
+// "us-central1") for a regional cluster or a zone (e.g. "us-central1-a") for
+// a zonal cluster. A zone is always a region name plus a single trailing
+// "-<letter>" suffix, so the region is recovered by trimming that suffix;
+// a location that is already a bare region (no trailing "-<letter>" zone
+// suffix) is returned unchanged. Returns "" for an empty location.
+func gkeRegionFromLocation(location string) string {
+	trimmed := strings.TrimSpace(location)
+	if trimmed == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(trimmed, "-"); idx > 0 {
+		suffix := trimmed[idx+1:]
+		if len(suffix) == 1 && suffix[0] >= 'a' && suffix[0] <= 'z' {
+			return trimmed[:idx]
+		}
+	}
+	return trimmed
 }
 
 // gkeClusterEdge builds one typed provider relationship observation anchored
