@@ -11,6 +11,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 // ExecQueryer combines read and write access for storage adapters.
@@ -47,6 +50,86 @@ func (db SQLDB) QueryContext(ctx context.Context, query string, args ...any) (Ro
 // ExecContext implements Executor against a sql.DB.
 func (db SQLDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	return db.DB.ExecContext(ctx, query, args...)
+}
+
+// CopySearchIndexTerms bulk-loads refreshed Eshu search term rows through the
+// PostgreSQL COPY protocol. Callers must pass aligned, already ordered slices.
+func (db SQLDB) CopySearchIndexTerms(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) (int64, error) {
+	return db.copySearchIndexTermsToTable(
+		ctx,
+		"eshu_search_index_terms",
+		scopeID,
+		generationID,
+		documentIDs,
+		terms,
+		termKeys,
+		frequencies,
+	)
+}
+
+func (db SQLDB) copySearchIndexTermsToTable(
+	ctx context.Context,
+	tableName string,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) (int64, error) {
+	if db.DB == nil {
+		return 0, fmt.Errorf("postgres SQLDB requires a database handle")
+	}
+	if len(documentIDs) != len(terms) || len(termKeys) != len(terms) || len(frequencies) != len(terms) {
+		return 0, fmt.Errorf(
+			"copy eshu search index terms requires aligned slices: docs=%d terms=%d keys=%d freqs=%d",
+			len(documentIDs),
+			len(terms),
+			len(termKeys),
+			len(frequencies),
+		)
+	}
+	conn, err := db.DB.Conn(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("acquire search-index term copy connection: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	var copied int64
+	if err := conn.Raw(func(driverConn any) error {
+		stdlibConn, ok := driverConn.(*stdlib.Conn)
+		if !ok {
+			return fmt.Errorf("search-index term copy requires pgx stdlib connection, got %T", driverConn)
+		}
+		var copyErr error
+		copied, copyErr = stdlibConn.Conn().CopyFrom(
+			ctx,
+			pgx.Identifier{tableName},
+			[]string{"scope_id", "generation_id", "document_id", "term_key", "term", "term_frequency"},
+			pgx.CopyFromSlice(len(terms), func(i int) ([]any, error) {
+				return []any{
+					scopeID,
+					generationID,
+					documentIDs[i],
+					termKeys[i],
+					terms[i],
+					frequencies[i],
+				}, nil
+			}),
+		)
+		return copyErr
+	}); err != nil {
+		return copied, fmt.Errorf("copy eshu search index terms: %w", err)
+	}
+	return copied, nil
 }
 
 func (db SQLDB) execContextWithLockTimeout(

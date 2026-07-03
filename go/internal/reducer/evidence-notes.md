@@ -319,6 +319,42 @@ through `eshu_search_document` cycle logs,
 `eshu_dp_search_index_write_duration_seconds` operation labels, Postgres query
 duration instrumentation, and Postgres wait-event samples.
 
+## Search-Term COPY Fast Path (#4529 follow-up)
+
+Performance Evidence: post-#4544 current-main bounded proof still showed
+`index_term_upsert` as the remaining `eshu_search_document` long pole:
+385.248s of 451.919s total cycle time across 21 cycles, avg 18.345s, max
+27.962s, and 0.004145s per written document. Local Postgres 16 throwaway proof
+(`ESHU_SEARCH_INDEX_TERM_COPY_LIVE=1`) compared the current unnest INSERT shape
+against pgx `CopyFrom` on the same `eshu_search_index_terms` table shape:
+300,000 rows, primary key `(scope_id, generation_id, term_key, document_id)`,
+and document index `(scope_id, generation_id, document_id)`. The production
+SQLDB copy helper wrote the same rows to a throwaway table in 2.062689875s
+versus 2.842917542s for the unnest INSERT, about 27% lower local write time. A
+separate local order proof rejected changing the sort key: `ORDER BY term_key,
+document_id` remained fastest at ~953 ms average for 300,000 rows versus
+~1,264 ms for `document_id, term_key`, so the COPY fast path preserves the
+primary-key locality order instead of moving the bottleneck to the PK index.
+
+No-Regression Evidence: `TestWriteEshuSearchDocumentsUsesTermCopierWhenAvailable`
+was written first and failed before the writer exposed the copier path, then
+passed after the writer sorted term rows by `(term_key, document_id)` and used
+`CopySearchIndexTerms` when available. Existing term-key and idempotency guards
+still pass: `TestWriteEshuSearchDocumentsUsesBoundedSearchTermKeys`,
+`TestWriteEshuSearchDocumentsTermInsertAvoidsConflictUpdate`, and
+`TestWriteEshuSearchDocumentsBatchedWritesBoundedExecCount`. The live proof
+`TestEshuSearchIndexTermCopyFromLive` creates throwaway tables and verifies both
+paths write the same row count before comparing timings.
+
+Observability Evidence: the reducer still records
+`eshu_dp_search_index_write_duration_seconds{operation="term_upsert"}` and the
+`eshu_search_document` completion log still emits `index_term_upsert_seconds`.
+The `InstrumentedDB.CopySearchIndexTerms` wrapper records the same
+`eshu_dp_postgres_query_duration_seconds{operation="write",store="reducer"}`
+metric shape used by normal Postgres writes and wraps COPY in a
+`postgres.copy_from` span. No queue domain, worker count, lease behavior,
+runtime knob, table schema, graph write, route, or API/MCP contract changes.
+
 ## Correlation/Identity Writer Bulk Batching (#3435)
 
 Follow-up to the #3430/#3434 search-document batching above. The audit in #3435

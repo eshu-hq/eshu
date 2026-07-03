@@ -22,6 +22,18 @@ type eshuSearchDocumentExecer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
+type eshuSearchIndexTermCopier interface {
+	CopySearchIndexTerms(
+		context.Context,
+		string,
+		string,
+		[]string,
+		[]string,
+		[]string,
+		[]int,
+	) (int64, error)
+}
+
 // EshuSearchDocumentWrite is the complete curated document set for one scope and
 // generation. The writer treats it as authoritative: documents are upserted and
 // any prior document for the generation that is absent is retired. It is the
@@ -55,10 +67,11 @@ type EshuSearchDocumentWriteResult struct {
 // PostgresEshuSearchDocumentWriter persists curated search documents into the
 // shared fact store as derived, generation-scoped records.
 type PostgresEshuSearchDocumentWriter struct {
-	DB          eshuSearchDocumentExecer
-	Now         func() time.Time
-	Instruments *telemetry.Instruments
-	Tracer      trace.Tracer
+	DB               eshuSearchDocumentExecer
+	SearchTermCopier eshuSearchIndexTermCopier
+	Now              func() time.Time
+	Instruments      *telemetry.Instruments
+	Tracer           trace.Tracer
 }
 
 // WriteEshuSearchDocuments upserts each curated document as a derived fact and

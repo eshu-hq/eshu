@@ -177,16 +177,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 
 	if len(termValues) > 0 {
 		operationStarted = time.Now()
-		if _, err := w.DB.ExecContext(
-			ctx,
-			eshuSearchIndexBatchTermUpsertQuery,
-			scopeID,
-			generationID,
-			termDocumentIDs,
-			termValues,
-			termKeys,
-			termFrequencies,
-		); err != nil {
+		if err := w.writeSearchIndexTerms(ctx, scopeID, generationID, termDocumentIDs, termValues, termKeys, termFrequencies); err != nil {
 			timings.IndexTermUpsertDuration += time.Since(operationStarted)
 			w.recordSearchIndexWriteDuration(ctx, "term_upsert", timings.IndexTermUpsertDuration, "error")
 			return finish(fmt.Errorf("write eshu search index terms: %w", err), "term_upsert")
@@ -196,6 +187,72 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 		w.recordSearchIndexMutation(ctx, "term", "upsert", int64(len(termValues)))
 	}
 	return finish(nil, "")
+}
+
+func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTerms(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) error {
+	if len(documentIDs) != len(terms) || len(termKeys) != len(terms) || len(frequencies) != len(terms) {
+		return fmt.Errorf(
+			"write eshu search index terms requires aligned slices: docs=%d terms=%d keys=%d freqs=%d",
+			len(documentIDs),
+			len(terms),
+			len(termKeys),
+			len(frequencies),
+		)
+	}
+	if copier := w.searchIndexTermCopier(); copier != nil {
+		sortedDocumentIDs, sortedTerms, sortedTermKeys, sortedFrequencies := sortedSearchIndexTermColumns(
+			documentIDs,
+			terms,
+			termKeys,
+			frequencies,
+		)
+		copied, err := copier.CopySearchIndexTerms(
+			ctx,
+			scopeID,
+			generationID,
+			sortedDocumentIDs,
+			sortedTerms,
+			sortedTermKeys,
+			sortedFrequencies,
+		)
+		if err != nil {
+			return err
+		}
+		if copied != int64(len(terms)) {
+			return fmt.Errorf("copied %d eshu search index terms, want %d", copied, len(terms))
+		}
+		return nil
+	}
+	_, err := w.DB.ExecContext(
+		ctx,
+		eshuSearchIndexBatchTermUpsertQuery,
+		scopeID,
+		generationID,
+		documentIDs,
+		terms,
+		termKeys,
+		frequencies,
+	)
+	return err
+}
+
+func (w PostgresEshuSearchDocumentWriter) searchIndexTermCopier() eshuSearchIndexTermCopier {
+	if w.SearchTermCopier != nil {
+		return w.SearchTermCopier
+	}
+	copier, ok := w.DB.(eshuSearchIndexTermCopier)
+	if !ok {
+		return nil
+	}
+	return copier
 }
 
 // finalizeSearchIndex runs the single authoritative search-index retire (stale
@@ -284,4 +341,34 @@ func sortedSearchIndexTerms(terms map[string]int) ([]string, []string, []int) {
 		frequencies = append(frequencies, terms[term])
 	}
 	return keys, termKeys, frequencies
+}
+
+func sortedSearchIndexTermColumns(
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) ([]string, []string, []string, []int) {
+	order := make([]int, len(terms))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(i int, j int) bool {
+		left, right := order[i], order[j]
+		if termKeys[left] != termKeys[right] {
+			return termKeys[left] < termKeys[right]
+		}
+		return documentIDs[left] < documentIDs[right]
+	})
+	sortedDocumentIDs := make([]string, len(documentIDs))
+	sortedTerms := make([]string, len(terms))
+	sortedTermKeys := make([]string, len(termKeys))
+	sortedFrequencies := make([]int, len(frequencies))
+	for out, in := range order {
+		sortedDocumentIDs[out] = documentIDs[in]
+		sortedTerms[out] = terms[in]
+		sortedTermKeys[out] = termKeys[in]
+		sortedFrequencies[out] = frequencies[in]
+	}
+	return sortedDocumentIDs, sortedTerms, sortedTermKeys, sortedFrequencies
 }

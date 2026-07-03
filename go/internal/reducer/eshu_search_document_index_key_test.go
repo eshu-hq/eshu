@@ -100,3 +100,85 @@ func TestWriteEshuSearchDocumentsUsesBoundedSearchTermKeys(t *testing.T) {
 	}
 	t.Fatalf("long term missing from persisted terms: %v", terms)
 }
+
+func TestWriteEshuSearchDocumentsUsesTermCopierWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	copier := &fakeSearchIndexTermCopier{}
+	writer := PostgresEshuSearchDocumentWriter{
+		DB:               db,
+		SearchTermCopier: copier,
+	}
+
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			{
+				ID:          "searchdoc:content_entity:e-1",
+				RepoID:      "repo-1",
+				SourceKind:  searchdocs.SourceKindCodeEntity,
+				ContextText: "zeta alpha",
+				TruthScope:  searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived, Basis: searchdocs.TruthBasisContentIndex},
+				Freshness:   searchdocs.Freshness{State: searchdocs.FreshnessFresh},
+			},
+			{
+				ID:          "searchdoc:content_entity:e-2",
+				RepoID:      "repo-1",
+				SourceKind:  searchdocs.SourceKindCodeEntity,
+				ContextText: "alpha beta",
+				TruthScope:  searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived, Basis: searchdocs.TruthBasisContentIndex},
+				Freshness:   searchdocs.Freshness{State: searchdocs.FreshnessFresh},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+	if got := len(copier.calls); got != 1 {
+		t.Fatalf("copy calls = %d, want 1", got)
+	}
+	call := copier.calls[0]
+	if call.scopeID != "scope-1" || call.generationID != "gen-1" {
+		t.Fatalf("copy scope/generation = %q/%q, want scope-1/gen-1", call.scopeID, call.generationID)
+	}
+	if len(call.terms) == 0 || len(call.terms) != len(call.termKeys) || len(call.terms) != len(call.documentIDs) {
+		t.Fatalf("copy arrays misaligned: docs=%d terms=%d keys=%d", len(call.documentIDs), len(call.terms), len(call.termKeys))
+	}
+	for i := 1; i < len(call.terms); i++ {
+		prevKey, key := call.termKeys[i-1], call.termKeys[i]
+		prevDoc, doc := call.documentIDs[i-1], call.documentIDs[i]
+		if prevKey > key || (prevKey == key && prevDoc > doc) {
+			t.Fatalf("copy rows not sorted by term_key, document_id at %d: (%q,%q) before (%q,%q)",
+				i, prevKey, prevDoc, key, doc)
+		}
+	}
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms") {
+			t.Fatalf("term insert ExecContext ran despite copy fast path:\n%s", exec.query)
+		}
+	}
+}
+
+func TestWriteSearchIndexTermsRejectsMisalignedColumns(t *testing.T) {
+	t.Parallel()
+
+	writer := PostgresEshuSearchDocumentWriter{DB: &fakeSearchDocExecer{}}
+	err := writer.writeSearchIndexTerms(
+		context.Background(),
+		"scope-1",
+		"gen-1",
+		[]string{"doc-1"},
+		[]string{"alpha", "beta"},
+		[]string{"alpha", "beta"},
+		[]int{1, 1},
+	)
+	if err == nil {
+		t.Fatal("writeSearchIndexTerms error = nil, want misaligned slice error")
+	}
+	if !strings.Contains(err.Error(), "requires aligned slices") {
+		t.Fatalf("writeSearchIndexTerms error = %v, want aligned-slices message", err)
+	}
+}
