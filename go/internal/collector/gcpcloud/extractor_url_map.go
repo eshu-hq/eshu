@@ -25,6 +25,15 @@ const (
 	relationshipTypeURLMapDefaultService     = "url_map_default_service"
 	relationshipTypeURLMapPathMatcherService = "url_map_path_matcher_default_service"
 	relationshipTypeURLMapPathRuleService    = "url_map_path_rule_service"
+	// relationshipTypeURLMapRouteRuleService covers routeRules[].service, the
+	// advanced-routing analogue of pathRules[].service: exactly one direct
+	// backend reference per route rule.
+	relationshipTypeURLMapRouteRuleService = "url_map_route_rule_service"
+	// relationshipTypeURLMapRouteRuleWeightedService covers each entry of
+	// routeRules[].routeAction.weightedBackendServices[].backendService, a
+	// distinct shape from a direct service reference because one route rule
+	// can weight traffic across multiple backends (e.g. canary rollouts).
+	relationshipTypeURLMapRouteRuleWeightedService = "url_map_route_rule_weighted_service"
 )
 
 func init() {
@@ -39,15 +48,44 @@ type urlMapPathRuleData struct {
 	Service string `json:"service"`
 }
 
+// urlMapWeightedBackendServiceData is the bounded view of one
+// routeRules[].routeAction.weightedBackendServices[] entry. Only the
+// `backendService` reference is decoded; `weight` and header/traffic-split
+// controls are routing logic that never leaves the parser.
+type urlMapWeightedBackendServiceData struct {
+	BackendService string `json:"backendService"`
+}
+
+// urlMapRouteActionData is the bounded view of one routeRules[].routeAction
+// entry. Only the weighted-backend-service references are decoded; every
+// other routeAction field (retry policy, URL rewrite, fault injection, etc.)
+// is routing/traffic-shaping logic the collector contract's Payload
+// Boundaries bar from a fact.
+type urlMapRouteActionData struct {
+	WeightedBackendServices []urlMapWeightedBackendServiceData `json:"weightedBackendServices"`
+}
+
+// urlMapRouteRuleData is the bounded view of one pathMatchers[].routeRules[]
+// entry (GCP's advanced-routing alternative/complement to pathRules). Only
+// the direct `service` reference and the weighted-backend-service references
+// under `routeAction` are decoded; `matchRules` (header/query/prefix match
+// conditions) are routing logic the collector contract's Payload Boundaries
+// bar from a fact, so only a bounded rule count is kept at the caller.
+type urlMapRouteRuleData struct {
+	Service     string                `json:"service"`
+	RouteAction urlMapRouteActionData `json:"routeAction"`
+}
+
 // urlMapPathMatcherData is the bounded view of one pathMatchers[] entry.
-// Only name, defaultService, and the pathRules service references are
-// decoded; routeRules carry header/query-based routing logic and are never
-// decoded beyond a bounded count.
+// Only name, defaultService, the pathRules service references, and the
+// routeRules backend references (direct service and weighted-backend-service)
+// are decoded; routeRules[].matchRules conditions are never decoded beyond a
+// bounded count.
 type urlMapPathMatcherData struct {
-	Name           string               `json:"name"`
-	DefaultService string               `json:"defaultService"`
-	PathRules      []urlMapPathRuleData `json:"pathRules"`
-	RouteRules     []json.RawMessage    `json:"routeRules"`
+	Name           string                `json:"name"`
+	DefaultService string                `json:"defaultService"`
+	PathRules      []urlMapPathRuleData  `json:"pathRules"`
+	RouteRules     []urlMapRouteRuleData `json:"routeRules"`
 }
 
 // urlMapHostRuleData is the bounded view of one hostRules[] entry. Only the
@@ -73,14 +111,16 @@ type urlMapData struct {
 
 // extractURLMap extracts bounded, redaction-safe typed depth for one compute
 // UrlMap CAI asset (the GCP HTTP(S) load-balancer URL map resource). It
-// returns the Terraform/drift/monitoring attribute set (bounded host-rule and
-// path-matcher counts, creation time), cross-source correlation anchors for
-// every resolvable backend-service/backend-bucket reference, and the typed
-// edges from the map's own defaultService plus each pathMatcher's
-// defaultService and pathRules[].service. Raw host patterns
-// (hostRules[].hosts) and raw path patterns (pathMatchers[].pathRules[].paths)
-// are never decoded — only resolvable backend references and bounded counts
-// leave the parser.
+// returns the Terraform/drift/monitoring attribute set (bounded host-rule,
+// path-matcher, path-rule, and route-rule counts, creation time), cross-source
+// correlation anchors for every resolvable backend-service/backend-bucket
+// reference, and the typed edges from the map's own defaultService plus each
+// pathMatcher's defaultService, pathRules[].service, routeRules[].service,
+// and routeRules[].routeAction.weightedBackendServices[].backendService. Raw
+// host patterns (hostRules[].hosts), raw path patterns
+// (pathMatchers[].pathRules[].paths), and raw route-match conditions
+// (pathMatchers[].routeRules[].matchRules) are never decoded — only
+// resolvable backend references and bounded counts leave the parser.
 func extractURLMap(ctx ExtractContext) (AttributeExtraction, error) {
 	var data urlMapData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -108,6 +148,18 @@ func extractURLMap(ctx ExtractContext) (AttributeExtraction, error) {
 				rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapPathRuleService, name, assetType))
 			}
 		}
+		for _, rr := range pm.RouteRules {
+			if name, assetType := urlMapBackendEdge(rr.Service, ctx.ProjectID); name != "" {
+				anchors = append(anchors, name)
+				rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapRouteRuleService, name, assetType))
+			}
+			for _, wbs := range rr.RouteAction.WeightedBackendServices {
+				if name, assetType := urlMapBackendEdge(wbs.BackendService, ctx.ProjectID); name != "" {
+					anchors = append(anchors, name)
+					rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapRouteRuleWeightedService, name, assetType))
+				}
+			}
+		}
 	}
 
 	return AttributeExtraction{
@@ -133,6 +185,9 @@ func urlMapAttributes(data urlMapData) map[string]any {
 	if n := urlMapPathRuleCount(data.PathMatchers); n > 0 {
 		attrs["path_rule_count"] = n
 	}
+	if n := urlMapRouteRuleCount(data.PathMatchers); n > 0 {
+		attrs["route_rule_count"] = n
+	}
 	if v, ok := normalizeRFC3339(data.CreationTimestamp); ok {
 		attrs["creation_time"] = v
 	}
@@ -146,6 +201,19 @@ func urlMapPathRuleCount(matchers []urlMapPathMatcherData) int {
 	total := 0
 	for _, pm := range matchers {
 		total += len(pm.PathRules)
+	}
+	return total
+}
+
+// urlMapRouteRuleCount sums routeRules[] entries across every pathMatcher, so
+// the attribute set carries the total bounded advanced-routing rule count
+// without decoding any individual matchRules condition. routeRules is GCP's
+// advanced-routing alternative/complement to pathRules and is counted
+// separately since the two lists are independent per pathMatcher.
+func urlMapRouteRuleCount(matchers []urlMapPathMatcherData) int {
+	total := 0
+	for _, pm := range matchers {
+		total += len(pm.RouteRules)
 	}
 	return total
 }

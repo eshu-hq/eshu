@@ -206,6 +206,107 @@ func TestExtractURLMapUnresolvableBackendReferenceEmitsNoEdge(t *testing.T) {
 	}
 }
 
+func TestExtractURLMapRouteRulesDirectAndWeightedServices(t *testing.T) {
+	const data = `{
+		"name": "web-map",
+		"pathMatchers": [
+			{
+				"name": "matcher-1",
+				"routeRules": [
+					{
+						"service": "projects/demo-project/global/backendServices/direct-backend",
+						"matchRules": [{"prefixMatch": "/secret/admin/*"}]
+					},
+					{
+						"routeAction": {
+							"weightedBackendServices": [
+								{"backendService": "projects/demo-project/global/backendServices/canary-backend", "weight": 10},
+								{"backendService": "projects/demo-project/global/backendServices/stable-backend", "weight": 90}
+							]
+						}
+					}
+				]
+			}
+		]
+	}`
+
+	got, err := extractURLMap(urlMapContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Attributes["route_rule_count"] != 2 {
+		t.Errorf("route_rule_count = %v, want 2", got.Attributes["route_rule_count"])
+	}
+	// pathRules/pathMatcher default service are absent here, so the only
+	// relationships are: 1 direct route-rule service + 2 weighted-backend
+	// services = 3.
+	if len(got.Relationships) != 3 {
+		t.Fatalf("expected 3 relationships, got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+
+	wantDirect := "//compute.googleapis.com/projects/demo-project/global/backendServices/direct-backend"
+	wantCanary := "//compute.googleapis.com/projects/demo-project/global/backendServices/canary-backend"
+	wantStable := "//compute.googleapis.com/projects/demo-project/global/backendServices/stable-backend"
+
+	assertRelationship(t, got.Relationships, relationshipTypeURLMapRouteRuleService, wantDirect, assetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, relationshipTypeURLMapRouteRuleWeightedService, wantCanary, assetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, relationshipTypeURLMapRouteRuleWeightedService, wantStable, assetTypeComputeBackendService)
+
+	for _, want := range []string{wantDirect, wantCanary, wantStable} {
+		if !containsStringSlice(got.CorrelationAnchors, want) {
+			t.Errorf("expected correlation anchor %q, got %#v", want, got.CorrelationAnchors)
+		}
+	}
+
+	// matchRules conditions and traffic-split weight are routing logic that
+	// must never leave the parser.
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal extraction: %v", err)
+	}
+	for _, token := range []string{"/secret/admin/*", "prefixMatch", "\"weight\"", ":10", ":90"} {
+		if containsString(string(blob), token) {
+			t.Fatalf("url map extraction leaked routing pattern %q: %s", token, blob)
+		}
+	}
+}
+
+func TestExtractURLMapRouteRuleUnresolvableBackendReferenceEmitsNoEdge(t *testing.T) {
+	const data = `{
+		"name": "web-map",
+		"pathMatchers": [
+			{
+				"name": "matcher-1",
+				"routeRules": [
+					{
+						"service": "projects/demo-project/global/somethingElse/x",
+						"routeAction": {
+							"weightedBackendServices": [
+								{"backendService": "projects/demo-project/global/somethingElse/y"}
+							]
+						}
+					}
+				]
+			}
+		]
+	}`
+
+	got, err := extractURLMap(urlMapContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["route_rule_count"] != 1 {
+		t.Errorf("route_rule_count = %v, want 1", got.Attributes["route_rule_count"])
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("expected no relationships for unresolvable route-rule backend references, got %#v", got.Relationships)
+	}
+	if len(got.CorrelationAnchors) != 0 {
+		t.Errorf("expected no anchors for unresolvable route-rule backend references, got %#v", got.CorrelationAnchors)
+	}
+}
+
 func TestURLMapBackendEdgeDispatch(t *testing.T) {
 	cases := []struct {
 		name          string
