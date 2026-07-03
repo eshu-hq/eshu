@@ -428,6 +428,18 @@
    safe-metadata extractor and is not modeled as an edge; `userEnvVars`,
    `tags`, and `labels` are not re-declared in typed depth since the
    collector's shared label/tag path already captures and fingerprints them.
+48. `extractor_kms_key_ring.go` - typed-depth extractor for
+   `cloudkms.googleapis.com/KeyRing` (Cloud KMS KeyRing: location derived from
+   the resource-name path and creation time — per the live Cloud KMS v1
+   `projects.locations.keyRings` REST reference, the KeyRing resource carries
+   only `name` and `createTime`, no encryption, label, or child-key field of
+   its own). Reuses `assetTypeKMSKeyRing` declared by the sibling CryptoKey
+   extractor (`extractor_kms_crypto_key.go`, #4296), never redeclaring it.
+   Emits no outbound edges or correlation anchors: every contained CryptoKey
+   already resolves the `kms_crypto_key_in_key_ring` edge toward this asset
+   type from the CryptoKey side, mirroring the Custom IAM Role and SSL
+   Certificate extractors' inbound-only edge shape; never reads key material,
+   IAM policy, or any data-plane content.
 
 ## Invariants
 
