@@ -713,7 +713,7 @@
         },
         {
           "fact_kind": "gcp_cloud_resource",
-          "stable_fact_key": "gcp:project:supply-chain-demo-project:artifactregistry.googleapis.com/DockerImage:supply-chain-demo-project:us:demo-repo/deployable-source",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:artifactregistry.googleapis.com/DockerImage:supply-chain-demo-project:us:demo-repo/deployable-source@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "schema_version": "1.1.0",
           "collector_kind": "gcp",
           "fencing_token": 1,
@@ -740,7 +740,7 @@
         },
         {
           "fact_kind": "gcp_cloud_relationship",
-          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:docker_image_in_repository:deployable-source->demo-repo",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:docker_image_in_repository:deployable-source@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef->demo-repo",
           "schema_version": "1.0.0",
           "collector_kind": "gcp",
           "fencing_token": 1,
