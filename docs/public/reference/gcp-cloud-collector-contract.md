@@ -890,6 +890,41 @@ IP address (`ipAddresses[].ipAddress`) or authorized-network CIDR or label
 decoded — only the boolean `ipv4Enabled` posture and the authorized-network
 entry count are kept, per the GCP collector contract Payload Boundaries.
 
+**Cloud VPN Tunnel** (`compute.googleapis.com/VpnTunnel`) captures region, IKE
+version, tunnel status, the HA/Classic gateway-interface indexes
+(`vpnGatewayInterface`/`peerExternalGatewayInterface`), and bounded
+local/remote traffic-selector counts; emits the typed
+`vpn_tunnel_uses_vpn_gateway` edge for an HA VPN tunnel's own `vpnGateway`,
+`vpn_tunnel_uses_target_vpn_gateway` for a Classic VPN tunnel's
+`targetVpnGateway`, `vpn_tunnel_peers_with_vpn_gateway` for either an HA
+peer-to-peer `peerGcpGateway` or an external `peerExternalGateway` (both peer
+forms share one relationship type; the target's own asset type — `VpnGateway`
+versus `ExternalVpnGateway` — distinguishes the topology), and
+`vpn_tunnel_uses_router` to the Cloud Router used for BGP dynamic routing when
+`router` is configured; and surfaces the resolved gateway, peer, and router
+resource names as correlation anchors. This extractor declares local
+`assetTypeComputeVPNGateway` and `assetTypeComputeRouter` constants because
+the sibling Cloud VPN Gateway (#4302) and Cloud Router (#4301) typed-depth
+extractors had not merged when this extractor was authored; once either
+sibling lands with its own declaration, a follow-up dedup pass must remove the
+duplicate declaration here and reuse the sibling's, exactly as this extractor
+already reuses `assetTypeComputeVpnTunnel` (declared by the Route extractor)
+and `assetTypeComputeTargetVPNGateway` (declared by the ForwardingRule
+extractor). The tunnel's own `peerIp`, `sharedSecret`, `sharedSecretHash`, and
+`detailedStatus` fields are never decoded — no public or private IP address,
+pre-shared-key material, or free-text status detail reaches a fact — and
+`localTrafficSelector`/`remoteTrafficSelector` are reduced to bounded counts,
+mirroring the Route extractor's destRange-to-prefix-length reduction; no CIDR
+value ever leaves the parser.
+
+Performance Evidence: this extractor adds no new hot path. It is a pure
+in-process function over one already-parsed, bounded CAI `resource.data` JSON
+blob (no loop over external data, no Cypher, no graph or Postgres write, no
+worker/lease/queue, no live provider call); cost is O(1) per VPN tunnel asset.
+No-Observability-Change: extraction outcomes are covered by the existing
+`eshu_dp_gcp_cloud_attribute_extractions_total` and
+`eshu_dp_gcp_cloud_facts_emitted_total` counters; no new metric is needed.
+
 The bounded `attributes` map surfaces through the cloud inventory readback
 (`GET /api/v0/cloud/inventory`, `list_cloud_resource_inventory`) with truth
 labels; `correlation_anchors` reach the canonical `CloudResource` graph node and
