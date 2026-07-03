@@ -154,6 +154,119 @@ func TestExtractWorkflowsWorkflowKMSKeyAlreadyPrefixedIsNotDoublePrefixed(t *tes
 	}
 }
 
+// TestExtractWorkflowsWorkflowKMSKeyProjectInferredForms exercises the two
+// project-inferred cryptoKeyName shapes the Workflows v1 API documents:
+// "projects/-/..." (a "-" wildcard) and a project-less "locations/..." form.
+// Both must resolve against the workflow's own ctx.ProjectID rather than
+// producing an edge/anchor rooted at the literal "projects/-" or dropping the
+// CMEK relationship entirely.
+func TestExtractWorkflowsWorkflowKMSKeyProjectInferredForms(t *testing.T) {
+	wantKMSName := "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key"
+
+	t.Run("wildcard project segment", func(t *testing.T) {
+		const data = `{
+			"state": "ACTIVE",
+			"cryptoKeyName": "projects/-/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key"
+		}`
+		got, err := extractWorkflowsWorkflow(workflowsWorkflowContext(data))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Attributes["crypto_key_name"] != "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key" {
+			t.Errorf("crypto_key_name = %v, want the project-qualified relative name", got.Attributes["crypto_key_name"])
+		}
+		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, assetTypeKMSCryptoKey)
+		if len(got.Relationships) != 1 {
+			t.Fatalf("expected exactly 1 relationship, got %d: %#v", len(got.Relationships), got.Relationships)
+		}
+	})
+
+	t.Run("project segment omitted entirely", func(t *testing.T) {
+		const data = `{
+			"state": "ACTIVE",
+			"cryptoKeyName": "locations/us-central1/keyRings/rk/cryptoKeys/workflow-key"
+		}`
+		got, err := extractWorkflowsWorkflow(workflowsWorkflowContext(data))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, assetTypeKMSCryptoKey)
+		if len(got.Relationships) != 1 {
+			t.Fatalf("expected exactly 1 relationship, got %d: %#v", len(got.Relationships), got.Relationships)
+		}
+	})
+
+	t.Run("leading slash relative name", func(t *testing.T) {
+		const data = `{
+			"state": "ACTIVE",
+			"cryptoKeyName": "/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key"
+		}`
+		got, err := extractWorkflowsWorkflow(workflowsWorkflowContext(data))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, assetTypeKMSCryptoKey)
+		if len(got.Relationships) != 1 {
+			t.Fatalf("expected exactly 1 relationship, got %d: %#v", len(got.Relationships), got.Relationships)
+		}
+	})
+}
+
+// TestExtractWorkflowsWorkflowUnnormalizableKMSKeyOmitted proves the
+// attribute/edge/anchor consistency Copilot flagged: when cryptoKeyName does
+// not resolve to a valid CryptoKey full name (malformed shape, or a
+// project-inferred form with no ctx.ProjectID to qualify against), the
+// extractor must omit crypto_key_name entirely rather than surface an
+// unnormalized or possibly-wrong value with no corresponding edge.
+func TestExtractWorkflowsWorkflowUnnormalizableKMSKeyOmitted(t *testing.T) {
+	t.Run("malformed shape", func(t *testing.T) {
+		const data = `{"state": "ACTIVE", "cryptoKeyName": "not-a-real-kms-reference"}`
+		got, err := extractWorkflowsWorkflow(workflowsWorkflowContext(data))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, ok := got.Attributes["crypto_key_name"]; ok {
+			t.Errorf("expected no crypto_key_name attribute for an unnormalizable value, got %v", got.Attributes["crypto_key_name"])
+		}
+		if len(got.Relationships) != 0 {
+			t.Errorf("expected no relationships for an unnormalizable KMS key, got %#v", got.Relationships)
+		}
+	})
+
+	t.Run("wrong-domain already-prefixed value", func(t *testing.T) {
+		const data = `{"state": "ACTIVE", "cryptoKeyName": "//storage.googleapis.com/projects/demo-project/buckets/not-a-key"}`
+		got, err := extractWorkflowsWorkflow(workflowsWorkflowContext(data))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, ok := got.Attributes["crypto_key_name"]; ok {
+			t.Errorf("expected no crypto_key_name attribute for a wrong-domain prefixed value, got %v", got.Attributes["crypto_key_name"])
+		}
+		if len(got.Relationships) != 0 {
+			t.Errorf("expected no relationships for a wrong-domain prefixed value, got %#v", got.Relationships)
+		}
+	})
+
+	t.Run("project-inferred form with no project to qualify against", func(t *testing.T) {
+		ctx := ExtractContext{
+			FullResourceName: workflowsWorkflowFullName,
+			AssetType:        assetTypeWorkflowsWorkflow,
+			ProjectID:        "",
+			Data:             json.RawMessage(`{"state": "ACTIVE", "cryptoKeyName": "projects/-/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key"}`),
+		}
+		got, err := extractWorkflowsWorkflow(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, ok := got.Attributes["crypto_key_name"]; ok {
+			t.Errorf("expected no crypto_key_name attribute with no project to qualify against, got %v", got.Attributes["crypto_key_name"])
+		}
+		if len(got.Relationships) != 0 {
+			t.Errorf("expected no relationships with no project to qualify against, got %#v", got.Relationships)
+		}
+	})
+}
+
 func TestExtractWorkflowsWorkflowMalformedDataErrors(t *testing.T) {
 	_, err := extractWorkflowsWorkflow(workflowsWorkflowContext(`{not json`))
 	if err == nil {
