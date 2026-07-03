@@ -13,10 +13,13 @@ import (
 // Test fakes and helpers for builder_test.go, split out for the 500-line cap.
 
 type recordingDocumentStore struct {
-	filter  postgres.EshuSearchDocumentFilter
-	filters []postgres.EshuSearchDocumentFilter
-	rows    []postgres.EshuSearchDocumentRow
-	pages   [][]postgres.EshuSearchDocumentRow
+	filter         postgres.EshuSearchDocumentFilter
+	filters        []postgres.EshuSearchDocumentFilter
+	pendingFilter  postgres.EshuSearchVectorDocumentFilter
+	pendingFilters []postgres.EshuSearchVectorDocumentFilter
+	rows           []postgres.EshuSearchDocumentRow
+	pendingRows    []postgres.EshuSearchDocumentRow
+	pages          [][]postgres.EshuSearchDocumentRow
 }
 
 func (s *recordingDocumentStore) ListActiveDocuments(
@@ -30,7 +33,20 @@ func (s *recordingDocumentStore) ListActiveDocuments(
 		s.pages = s.pages[1:]
 		return append([]postgres.EshuSearchDocumentRow(nil), page...), nil
 	}
-	return append([]postgres.EshuSearchDocumentRow(nil), s.rows...), nil
+	return pageSearchDocumentRows(s.rows, filter.Offset, filter.Limit), nil
+}
+
+type recordingPendingDocumentStore struct {
+	recordingDocumentStore
+}
+
+func (s *recordingPendingDocumentStore) ListPendingVectorDocuments(
+	_ context.Context,
+	filter postgres.EshuSearchVectorDocumentFilter,
+) ([]postgres.EshuSearchDocumentRow, error) {
+	s.pendingFilter = filter
+	s.pendingFilters = append(s.pendingFilters, filter)
+	return pageSearchDocumentRows(s.pendingRows, 0, filter.Limit), nil
 }
 
 type generationSwitchingDocumentStore struct {

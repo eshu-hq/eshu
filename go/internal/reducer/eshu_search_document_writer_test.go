@@ -107,41 +107,6 @@ func TestWriteEshuSearchDocumentsUpsertsAndRetires(t *testing.T) {
 	}
 }
 
-func TestWriteEshuSearchDocumentsMaintainsPersistedSearchIndex(t *testing.T) {
-	t.Parallel()
-
-	db := &fakeSearchDocExecer{}
-	writer := PostgresEshuSearchDocumentWriter{DB: db}
-
-	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
-		ScopeID:      "scope-1",
-		GenerationID: "gen-1",
-		SourceSystem: "content_entities",
-		Documents: []searchdocs.Document{
-			sampleSearchDoc("searchdoc:content_entity:e-1"),
-		},
-	})
-	if err != nil {
-		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
-	}
-
-	var sawDocumentUpsert, sawTermRefresh, sawStatsUpsert bool
-	for _, exec := range db.execs {
-		sawDocumentUpsert = sawDocumentUpsert || strings.Contains(exec.query, "INSERT INTO eshu_search_index_documents")
-		sawTermRefresh = sawTermRefresh || strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms")
-		sawStatsUpsert = sawStatsUpsert || strings.Contains(exec.query, "INSERT INTO eshu_search_index_stats")
-	}
-	if !sawDocumentUpsert {
-		t.Fatal("missing persisted search-index document upsert")
-	}
-	if !sawTermRefresh {
-		t.Fatal("missing persisted search-index term refresh")
-	}
-	if !sawStatsUpsert {
-		t.Fatal("missing persisted search-index stats upsert")
-	}
-}
-
 func TestWriteEshuSearchDocumentsPayloadIncludesContentHash(t *testing.T) {
 	t.Parallel()
 

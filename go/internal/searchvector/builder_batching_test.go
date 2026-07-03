@@ -77,6 +77,72 @@ func TestBuilderBatchesUpsertsPerPageInsteadOfPerDocument(t *testing.T) {
 	}
 }
 
+// TestBuilderUsesPendingVectorDocumentsWhenAvailable guards the reducer-tail
+// budget: production Postgres can identify the exact active documents whose
+// vector rows are missing or stale, so the builder must not fall back to
+// rewriting every active document in a large scope.
+func TestBuilderUsesPendingVectorDocumentsWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
+	activeDocs := make([]postgres.EshuSearchDocumentRow, 0, 5)
+	pendingDocs := make([]postgres.EshuSearchDocumentRow, 0, 2)
+	vectors := map[string][]float64{}
+	for i := 0; i < 5; i++ {
+		doc := searchDocument(fmt.Sprintf("doc-%d", i), "repo-1", "Handler", fmt.Sprintf("handlers/%d.go", i))
+		row := postgres.EshuSearchDocumentRow{
+			ScopeID:      "repo-1",
+			GenerationID: "gen-active",
+			Document:     doc,
+		}
+		activeDocs = append(activeDocs, row)
+		if i >= 3 {
+			pendingDocs = append(pendingDocs, row)
+		}
+		vectors[searchhybrid.DocumentText(doc)] = []float64{float64(i), 0}
+	}
+	store := &recordingPendingDocumentStore{recordingDocumentStore: recordingDocumentStore{
+		rows:        activeDocs,
+		pendingRows: pendingDocs,
+	}}
+	values := &recordingVectorValueStore{}
+	metadata := &recordingVectorMetadataStore{}
+	embedder := &recordingEmbedder{dims: 2, vectors: vectors}
+
+	result, err := Builder{
+		Documents: store,
+		Metadata:  metadata,
+		Values:    values,
+		Embedder:  embedder,
+		Clock:     func() time.Time { return now },
+	}.Build(context.Background(), BuildRequest{
+		ScopeID:            "repo-1",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
+		EmbeddingModelID:   "local-hash-v1",
+		VectorIndexVersion: "vector-v1",
+		Limit:              2,
+	})
+	if err != nil {
+		t.Fatalf("Build error = %v", err)
+	}
+	if got, want := result.DocumentCount, 2; got != want {
+		t.Fatalf("result.DocumentCount = %d, want %d", got, want)
+	}
+	if got, want := len(store.pendingFilters), 1; got != want {
+		t.Fatalf("ListPendingVectorDocuments calls = %d, want %d", got, want)
+	}
+	if got, want := len(store.filters), 0; got != want {
+		t.Fatalf("ListActiveDocuments calls = %d, want %d", got, want)
+	}
+	if got, want := len(values.rows), 2; got != want {
+		t.Fatalf("vector rows = %d, want %d", got, want)
+	}
+	if got, want := values.rows[0].DocumentID, "doc-3"; got != want {
+		t.Fatalf("first vector document = %q, want %q", got, want)
+	}
+}
+
 // TestBuilderReportsSplitPhaseTimings is the regression test proving Build
 // tracks the query/load, embed/build, and write/upsert phases separately
 // (#4430) instead of one opaque duration, so the reducer-tail sweep's

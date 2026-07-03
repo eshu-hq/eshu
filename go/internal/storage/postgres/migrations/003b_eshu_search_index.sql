@@ -5,11 +5,22 @@ CREATE TABLE IF NOT EXISTS eshu_search_index_documents (
     fact_id TEXT NOT NULL,
     repo_id TEXT NOT NULL,
     source_kind TEXT NOT NULL,
+    content_hash TEXT NOT NULL DEFAULT '',
     document JSONB NOT NULL,
     document_length INTEGER NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (scope_id, generation_id, document_id)
 );
+
+ALTER TABLE eshu_search_index_documents
+    ADD COLUMN IF NOT EXISTS content_hash TEXT NOT NULL DEFAULT '';
+
+UPDATE eshu_search_index_documents doc
+SET content_hash = fact.payload->>'content_hash'
+FROM fact_records fact
+WHERE doc.content_hash = ''
+  AND fact.fact_id = doc.fact_id
+  AND fact.payload ? 'content_hash';
 
 CREATE TABLE IF NOT EXISTS eshu_search_index_terms (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,

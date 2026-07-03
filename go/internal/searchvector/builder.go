@@ -32,6 +32,18 @@ type DocumentStore interface {
 	ListActiveDocuments(context.Context, postgres.EshuSearchDocumentFilter) ([]postgres.EshuSearchDocumentRow, error)
 }
 
+// PendingDocumentStore narrows vector builds to active documents that do not
+// already have a ready/disabled vector row for the requested embedding tuple.
+type PendingDocumentStore interface {
+	ListPendingVectorDocuments(context.Context, postgres.EshuSearchVectorDocumentFilter) ([]postgres.EshuSearchDocumentRow, error)
+}
+
+// BatchPendingDocumentStore narrows vector builds across multiple selected
+// scopes with one bounded pending-document query.
+type BatchPendingDocumentStore interface {
+	ListPendingVectorDocumentsForScopes(context.Context, postgres.EshuSearchVectorDocumentBatchFilter) ([]postgres.EshuSearchDocumentRow, error)
+}
+
 // MetadataStore persists vector build metadata rows. UpsertBatch takes a
 // bounded slice per document page so the builder issues one multi-row
 // statement per page instead of one round trip per document (#4430).
@@ -62,6 +74,7 @@ type Builder struct {
 // to build.
 type BuildRequest struct {
 	ScopeID            string
+	GenerationID       string
 	RepoID             string
 	SourceKinds        []searchdocs.SourceKind
 	ProviderProfileID  string
@@ -100,6 +113,31 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 
 	var result BuildResult
 	var failures []error
+	if pending, ok := b.Documents.(PendingDocumentStore); ok {
+		loadStart := time.Now()
+		rows, err := pending.ListPendingVectorDocuments(ctx, postgres.EshuSearchVectorDocumentFilter{
+			EshuSearchDocumentFilter: postgres.EshuSearchDocumentFilter{
+				ScopeID:      req.ScopeID,
+				GenerationID: req.GenerationID,
+				RepoID:       req.RepoID,
+				SourceKinds:  req.SourceKinds,
+				Limit:        req.Limit,
+			},
+			ProviderProfileID:  req.ProviderProfileID,
+			SourceClass:        req.SourceClass,
+			EmbeddingModelID:   req.EmbeddingModelID,
+			VectorIndexVersion: req.VectorIndexVersion,
+		})
+		result.QueryLoadDuration += time.Since(loadStart)
+		if err != nil {
+			return result, fmt.Errorf("list pending search documents for vector build: %w", err)
+		}
+		if _, err := b.buildDocumentRows(ctx, req, now, rows, "", &result, &failures); err != nil {
+			return result, err
+		}
+		return result, errors.Join(failures...)
+	}
+
 	generationID := ""
 	for offset := 0; ; {
 		loadStart := time.Now()
@@ -118,62 +156,13 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 		if len(rows) == 0 {
 			break
 		}
+		nextGenerationID, err := b.buildDocumentRows(ctx, req, now, rows, generationID, &result, &failures)
+		if err != nil {
+			return result, err
+		}
 		if generationID == "" {
-			generationID = rows[0].GenerationID
+			generationID = nextGenerationID
 		}
-
-		metadataBatch := make([]postgres.EshuSearchVectorMetadata, 0, len(rows))
-		valueBatch := make([]postgres.EshuSearchVectorValue, 0, len(rows))
-		for _, row := range rows {
-			if row.GenerationID != generationID {
-				return result, fmt.Errorf("active search document generation changed from %q to %q", generationID, row.GenerationID)
-			}
-			result.DocumentCount++
-			if b.DocumentAllowed != nil && !b.DocumentAllowed(row) {
-				metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateDisabled, FailureClassPolicyDenied, nil))
-				result.DisabledCount++
-				continue
-			}
-			embedStart := time.Now()
-			vector, failureClass, err := b.embed(ctx, row.Document)
-			result.EmbedBuildDuration += time.Since(embedStart)
-			if err != nil {
-				metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateFailed, failureClass, nil))
-				result.FailedCount++
-				failures = append(failures, fmt.Errorf("%s: %w", failureClass, err))
-				continue
-			}
-
-			valueBatch = append(valueBatch, postgres.EshuSearchVectorValue{
-				ScopeID:              row.ScopeID,
-				GenerationID:         row.GenerationID,
-				DocumentID:           row.Document.ID,
-				ProviderProfileID:    req.ProviderProfileID,
-				SourceClass:          req.SourceClass,
-				EmbeddingModelID:     req.EmbeddingModelID,
-				EmbeddingDimensions:  b.Embedder.Dimensions(),
-				EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
-				VectorIndexVersion:   req.VectorIndexVersion,
-				VectorValues:         vector,
-				CreatedAt:            now,
-				UpdatedAt:            now,
-			})
-			metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateReady, "", &now))
-			result.VectorCount++
-		}
-
-		writeStart := time.Now()
-		if err := b.Values.UpsertBatch(ctx, dedupeValueBatch(valueBatch)); err != nil {
-			return result, fmt.Errorf(
-				"upsert vector value batch (scope=%s generation=%s offset=%d rows=%d): %w",
-				req.ScopeID, generationID, offset, len(valueBatch), err)
-		}
-		if err := b.Metadata.UpsertBatch(ctx, dedupeMetadataBatch(metadataBatch)); err != nil {
-			return result, fmt.Errorf(
-				"upsert vector metadata batch (scope=%s generation=%s offset=%d rows=%d): %w",
-				req.ScopeID, generationID, offset, len(metadataBatch), err)
-		}
-		result.WriteUpsertDuration += time.Since(writeStart)
 
 		offset += len(rows)
 		if len(rows) < req.Limit {
@@ -183,29 +172,96 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 	return result, errors.Join(failures...)
 }
 
-// dedupeValueBatch keeps the last row per document ID, matching the
+func (b Builder) buildDocumentRows(
+	ctx context.Context,
+	req BuildRequest,
+	now time.Time,
+	rows []postgres.EshuSearchDocumentRow,
+	generationID string,
+	result *BuildResult,
+	failures *[]error,
+) (string, error) {
+	if len(rows) == 0 {
+		return generationID, nil
+	}
+	if generationID == "" {
+		generationID = rows[0].GenerationID
+	}
+
+	metadataBatch := make([]postgres.EshuSearchVectorMetadata, 0, len(rows))
+	valueBatch := make([]postgres.EshuSearchVectorValue, 0, len(rows))
+	for _, row := range rows {
+		if row.GenerationID != generationID {
+			return generationID, fmt.Errorf("active search document generation changed from %q to %q", generationID, row.GenerationID)
+		}
+		result.DocumentCount++
+		if b.DocumentAllowed != nil && !b.DocumentAllowed(row) {
+			metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateDisabled, FailureClassPolicyDenied, nil))
+			result.DisabledCount++
+			continue
+		}
+		embedStart := time.Now()
+		vector, failureClass, err := b.embed(ctx, row.Document)
+		result.EmbedBuildDuration += time.Since(embedStart)
+		if err != nil {
+			metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateFailed, failureClass, nil))
+			result.FailedCount++
+			*failures = append(*failures, fmt.Errorf("%s: %w", failureClass, err))
+			continue
+		}
+
+		valueBatch = append(valueBatch, postgres.EshuSearchVectorValue{
+			ScopeID:              row.ScopeID,
+			GenerationID:         row.GenerationID,
+			DocumentID:           row.Document.ID,
+			ProviderProfileID:    req.ProviderProfileID,
+			SourceClass:          req.SourceClass,
+			EmbeddingModelID:     req.EmbeddingModelID,
+			EmbeddingDimensions:  b.Embedder.Dimensions(),
+			EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
+			VectorIndexVersion:   req.VectorIndexVersion,
+			VectorValues:         vector,
+			CreatedAt:            now,
+			UpdatedAt:            now,
+		})
+		metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateReady, "", &now))
+		result.VectorCount++
+	}
+
+	writeStart := time.Now()
+	if err := b.Values.UpsertBatch(ctx, dedupeValueBatch(valueBatch)); err != nil {
+		return generationID, fmt.Errorf(
+			"upsert vector value batch (scope=%s generation=%s rows=%d): %w",
+			req.ScopeID, generationID, len(valueBatch), err)
+	}
+	if err := b.Metadata.UpsertBatch(ctx, dedupeMetadataBatch(metadataBatch)); err != nil {
+		return generationID, fmt.Errorf(
+			"upsert vector metadata batch (scope=%s generation=%s rows=%d): %w",
+			req.ScopeID, generationID, len(metadataBatch), err)
+	}
+	result.WriteUpsertDuration += time.Since(writeStart)
+	return generationID, nil
+}
+
+// dedupeValueBatch keeps the last row per vector-table identity, matching the
 // last-write-wins outcome of the pre-#4430 sequential per-document Upsert
 // calls. A single multi-row INSERT ... ON CONFLICT DO UPDATE statement errors
-// ("ON CONFLICT DO UPDATE command cannot affect row a second time") if it
-// contains two rows with the same conflict key, which can happen because
-// ListActiveDocuments does not deduplicate by document ID: two fact_records
-// rows sharing one document.id within a scope/generation is an acknowledged
-// case in this codebase (see the pending-scope query's "two facts share the
-// same document_id" case). Deduping here keeps that pre-existing data shape
-// safe under batching instead of turning a harmless duplicate into a sweep
-// failure that repeats every poll interval.
+// if it contains two rows with the same conflict key. Deduping by the full
+// conflict key keeps same-document duplicates within one scope safe without
+// collapsing equal document IDs from different scopes in a batched sweep.
 func dedupeValueBatch(rows []postgres.EshuSearchVectorValue) []postgres.EshuSearchVectorValue {
 	if len(rows) < 2 {
 		return rows
 	}
-	byDocumentID := make(map[string]int, len(rows))
+	byIdentity := make(map[string]int, len(rows))
 	deduped := make([]postgres.EshuSearchVectorValue, 0, len(rows))
 	for _, row := range rows {
-		if idx, ok := byDocumentID[row.DocumentID]; ok {
+		key := vectorValueIdentity(row)
+		if idx, ok := byIdentity[key]; ok {
 			deduped[idx] = row
 			continue
 		}
-		byDocumentID[row.DocumentID] = len(deduped)
+		byIdentity[key] = len(deduped)
 		deduped = append(deduped, row)
 	}
 	return deduped
@@ -217,17 +273,42 @@ func dedupeMetadataBatch(rows []postgres.EshuSearchVectorMetadata) []postgres.Es
 	if len(rows) < 2 {
 		return rows
 	}
-	byDocumentID := make(map[string]int, len(rows))
+	byIdentity := make(map[string]int, len(rows))
 	deduped := make([]postgres.EshuSearchVectorMetadata, 0, len(rows))
 	for _, row := range rows {
-		if idx, ok := byDocumentID[row.DocumentID]; ok {
+		key := vectorMetadataIdentity(row)
+		if idx, ok := byIdentity[key]; ok {
 			deduped[idx] = row
 			continue
 		}
-		byDocumentID[row.DocumentID] = len(deduped)
+		byIdentity[key] = len(deduped)
 		deduped = append(deduped, row)
 	}
 	return deduped
+}
+
+func vectorValueIdentity(row postgres.EshuSearchVectorValue) string {
+	return strings.Join([]string{
+		row.ScopeID,
+		row.GenerationID,
+		row.DocumentID,
+		row.ProviderProfileID,
+		row.SourceClass,
+		row.EmbeddingModelID,
+		row.VectorIndexVersion,
+	}, "\x00")
+}
+
+func vectorMetadataIdentity(row postgres.EshuSearchVectorMetadata) string {
+	return strings.Join([]string{
+		row.ScopeID,
+		row.GenerationID,
+		row.DocumentID,
+		row.ProviderProfileID,
+		row.SourceClass,
+		row.EmbeddingModelID,
+		row.VectorIndexVersion,
+	}, "\x00")
 }
 
 func (b Builder) embed(ctx context.Context, doc searchdocs.Document) ([]float64, string, error) {
@@ -313,6 +394,7 @@ func (b Builder) now() time.Time {
 
 func normalizeBuildRequest(req BuildRequest) BuildRequest {
 	req.ScopeID = strings.TrimSpace(req.ScopeID)
+	req.GenerationID = strings.TrimSpace(req.GenerationID)
 	req.RepoID = strings.TrimSpace(req.RepoID)
 	req.ProviderProfileID = strings.TrimSpace(req.ProviderProfileID)
 	req.SourceClass = strings.TrimSpace(req.SourceClass)

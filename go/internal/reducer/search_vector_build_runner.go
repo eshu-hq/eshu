@@ -66,6 +66,7 @@ type SearchVectorBuildPendingLister interface {
 // builder to keep reducer free of storage package dependencies.
 type SearchVectorBuildRequest struct {
 	ScopeID            string
+	GenerationID       string
 	RepoID             string
 	ProviderProfileID  string
 	SourceClass        string
@@ -91,6 +92,13 @@ type SearchVectorBuildResult struct {
 // SearchVectorBuilder runs one bounded vector build for a scope.
 type SearchVectorBuilder interface {
 	BuildSearchVectors(context.Context, SearchVectorBuildRequest) (SearchVectorBuildResult, error)
+}
+
+// SearchVectorBatchBuilder builds vector rows for several scopes with one
+// batched document-selection path. Implementations must preserve the same
+// per-scope idempotency and active-generation semantics as SearchVectorBuilder.
+type SearchVectorBatchBuilder interface {
+	BuildSearchVectorsBatch(context.Context, []SearchVectorBuildRequest) (SearchVectorBuildResult, error)
 }
 
 // SearchVectorBuildRunnerConfig configures the reducer sidecar that builds
@@ -208,10 +216,30 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		return SearchVectorBuildRunnerResult{}, fmt.Errorf("list pending search vector scopes: %w", err)
 	}
 	result := SearchVectorBuildRunnerResult{PendingScopes: len(scopes), SchedulingWaitDuration: schedulingWait}
+	if len(scopes) > 0 {
+		if batchBuilder, ok := r.Builder.(SearchVectorBatchBuilder); ok {
+			build, err := batchBuilder.BuildSearchVectorsBatch(ctx, r.buildRequests(scopes))
+			result.BuiltScopes = len(scopes)
+			result.DocumentCount += build.DocumentCount
+			result.VectorCount += build.VectorCount
+			result.DisabledCount += build.DisabledCount
+			result.FailedCount += build.FailedCount
+			result.QueryLoadDuration += build.QueryLoadDuration
+			result.EmbedBuildDuration += build.EmbedBuildDuration
+			result.WriteUpsertDuration += build.WriteUpsertDuration
+			r.logResult(ctx, result, started)
+			r.recordPhaseMetrics(ctx, result)
+			if err != nil {
+				return result, fmt.Errorf("build search vectors for %d scopes: %w", len(scopes), err)
+			}
+			return result, nil
+		}
+	}
 	var failures []error
 	for _, pending := range scopes {
 		build, err := r.Builder.BuildSearchVectors(ctx, SearchVectorBuildRequest{
 			ScopeID:            pending.ScopeID,
+			GenerationID:       pending.GenerationID,
 			RepoID:             pending.RepoID,
 			ProviderProfileID:  r.Config.ProviderProfileID,
 			SourceClass:        r.Config.SourceClass,
@@ -234,6 +262,23 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 	r.logResult(ctx, result, started)
 	r.recordPhaseMetrics(ctx, result)
 	return result, errors.Join(failures...)
+}
+
+func (r *SearchVectorBuildRunner) buildRequests(scopes []SearchVectorBuildPendingScope) []SearchVectorBuildRequest {
+	reqs := make([]SearchVectorBuildRequest, 0, len(scopes))
+	for _, pending := range scopes {
+		reqs = append(reqs, SearchVectorBuildRequest{
+			ScopeID:            pending.ScopeID,
+			GenerationID:       pending.GenerationID,
+			RepoID:             pending.RepoID,
+			ProviderProfileID:  r.Config.ProviderProfileID,
+			SourceClass:        r.Config.SourceClass,
+			EmbeddingModelID:   r.Config.EmbeddingModelID,
+			VectorIndexVersion: r.Config.VectorIndexVersion,
+			Limit:              r.Config.documentLimit(),
+		})
+	}
+	return reqs
 }
 
 func (r *SearchVectorBuildRunner) validate() error {

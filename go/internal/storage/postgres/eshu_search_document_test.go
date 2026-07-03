@@ -109,6 +109,90 @@ func TestEshuSearchDocumentStoreAnchorsExplicitGeneration(t *testing.T) {
 	}
 }
 
+func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.July, 3, 10, 30, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{
+				"reducer_eshu_search_document:pending",
+				"scope-1",
+				"gen-1",
+				"content_entities",
+				observedAt,
+				[]byte(`{
+					"document":{
+						"ID":"searchdoc:content_entity:e-pending",
+						"RepoID":"repo-1",
+						"SourceKind":"code_entity",
+						"Title":"Pending Function",
+						"TruthScope":{"Level":"derived"},
+						"Freshness":{"State":"fresh"}
+					}
+				}`),
+			}}},
+		},
+	}
+	store := NewEshuSearchDocumentStore(db)
+
+	rows, err := store.ListPendingVectorDocuments(context.Background(), EshuSearchVectorDocumentFilter{
+		EshuSearchDocumentFilter: EshuSearchDocumentFilter{
+			ScopeID:     "scope-1",
+			RepoID:      "repo-1",
+			SourceKinds: []searchdocs.SourceKind{searchdocs.SourceKindCodeEntity},
+			Limit:       25,
+		},
+		ProviderProfileID:  "semantic-search-default",
+		SourceClass:        "search_documents",
+		EmbeddingModelID:   "local-hash-v1",
+		VectorIndexVersion: "vector-v1",
+	})
+	if err != nil {
+		t.Fatalf("ListPendingVectorDocuments error = %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if got, want := rows[0].Document.ID, "searchdoc:content_entity:e-pending"; got != want {
+		t.Fatalf("document id = %q, want %q", got, want)
+	}
+	if len(db.queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(db.queries))
+	}
+	q := db.queries[0].query
+	for _, fragment := range []string{
+		"FROM eshu_search_index_documents AS doc",
+		"scope.active_generation_id = doc.generation_id",
+		"scope.scope_kind = 'repository'",
+		"WHERE meta.scope_id = doc.scope_id",
+		"meta.document_id = doc.document_id",
+		"meta.provider_profile_id =",
+		"meta.source_class =",
+		"meta.embedding_model_id =",
+		"meta.vector_index_version =",
+		"meta.embedding_content_hash = doc.content_hash",
+		"LEFT JOIN eshu_search_vector_values value",
+		"meta.build_state = 'disabled'",
+		"meta.build_state = 'ready'",
+		"value.document_id IS NOT NULL",
+		"LIMIT",
+	} {
+		if !strings.Contains(q, fragment) {
+			t.Errorf("query missing %q:\n%s", fragment, q)
+		}
+	}
+	if strings.Contains(q, "OFFSET") {
+		t.Fatalf("pending vector document query must not OFFSET a shrinking pending set:\n%s", q)
+	}
+	if strings.Contains(q, "ORDER BY") {
+		t.Fatalf("pending vector document query should stay limit-driven instead of sorting full scopes:\n%s", q)
+	}
+	if strings.Contains(q, "fact_records") || strings.Contains(q, "fact.payload") {
+		t.Fatalf("pending vector document query should use the persisted search index, not fact_records payload scans:\n%s", q)
+	}
+}
+
 func TestEshuSearchDocumentStoreRequiresScope(t *testing.T) {
 	t.Parallel()
 
