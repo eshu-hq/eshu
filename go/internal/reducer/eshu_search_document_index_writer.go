@@ -143,24 +143,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 	w.recordSearchIndexWriteDuration(ctx, "document_upsert", timings.IndexDocumentUpsertDuration, "success")
 	w.recordSearchIndexMutation(ctx, "document", "upsert", int64(len(documents)))
 
-	var (
-		termDocumentIDs []string
-		termValues      []string
-		termKeys        []string
-		termFrequencies []int
-	)
-	for _, doc := range documents {
-		if len(doc.Terms) == 0 {
-			continue
-		}
-		sortedTerms, sortedTermKeys, sortedFrequencies := sortedSearchIndexTerms(doc.Terms)
-		for j, term := range sortedTerms {
-			termDocumentIDs = append(termDocumentIDs, doc.DocumentID)
-			termValues = append(termValues, term)
-			termKeys = append(termKeys, sortedTermKeys[j])
-			termFrequencies = append(termFrequencies, sortedFrequencies[j])
-		}
-	}
+	termDocumentIDs, termValues, termKeys, termFrequencies := buildSearchIndexTermColumns(documents)
 
 	if len(termValues) > 0 {
 		operationStarted = time.Now()
@@ -195,20 +178,14 @@ func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTerms(
 		)
 	}
 	if copier := w.searchIndexTermCopier(); copier != nil {
-		sortedDocumentIDs, sortedTerms, sortedTermKeys, sortedFrequencies := sortedSearchIndexTermColumns(
-			documentIDs,
-			terms,
-			termKeys,
-			frequencies,
-		)
 		copied, err := copier.CopySearchIndexTerms(
 			ctx,
 			scopeID,
 			generationID,
-			sortedDocumentIDs,
-			sortedTerms,
-			sortedTermKeys,
-			sortedFrequencies,
+			documentIDs,
+			terms,
+			termKeys,
+			frequencies,
 		)
 		if err != nil {
 			if isSearchIndexTermCopyUnsupported(err) {
@@ -340,32 +317,62 @@ func sortedSearchIndexTerms(terms map[string]int) ([]string, []string, []int) {
 	return keys, termKeys, frequencies
 }
 
-func sortedSearchIndexTermColumns(
-	documentIDs []string,
-	terms []string,
-	termKeys []string,
-	frequencies []int,
-) ([]string, []string, []string, []int) {
-	order := make([]int, len(terms))
-	for i := range order {
-		order[i] = i
+type searchIndexTermColumn struct {
+	documentID string
+	term       string
+	frequency  int
+}
+
+func buildSearchIndexTermColumns(documents []eshuSearchIndexDocumentWrite) ([]string, []string, []string, []int) {
+	if len(documents) == 0 {
+		return nil, nil, nil, nil
 	}
-	sort.Slice(order, func(i int, j int) bool {
-		left, right := order[i], order[j]
-		if termKeys[left] != termKeys[right] {
-			return termKeys[left] < termKeys[right]
+	docOrder := make([]int, 0, len(documents))
+	totalTerms := 0
+	for i, doc := range documents {
+		if len(doc.Terms) == 0 {
+			continue
 		}
-		return documentIDs[left] < documentIDs[right]
-	})
-	sortedDocumentIDs := make([]string, len(documentIDs))
-	sortedTerms := make([]string, len(terms))
-	sortedTermKeys := make([]string, len(termKeys))
-	sortedFrequencies := make([]int, len(frequencies))
-	for out, in := range order {
-		sortedDocumentIDs[out] = documentIDs[in]
-		sortedTerms[out] = terms[in]
-		sortedTermKeys[out] = termKeys[in]
-		sortedFrequencies[out] = frequencies[in]
+		docOrder = append(docOrder, i)
+		totalTerms += len(doc.Terms)
 	}
-	return sortedDocumentIDs, sortedTerms, sortedTermKeys, sortedFrequencies
+	if totalTerms == 0 {
+		return nil, nil, nil, nil
+	}
+	sort.Slice(docOrder, func(i int, j int) bool {
+		return documents[docOrder[i]].DocumentID < documents[docOrder[j]].DocumentID
+	})
+
+	buckets := make(map[string][]searchIndexTermColumn)
+	for _, idx := range docOrder {
+		doc := documents[idx]
+		for term, frequency := range doc.Terms {
+			termKey := searchhybrid.TermKey(term)
+			buckets[termKey] = append(buckets[termKey], searchIndexTermColumn{
+				documentID: doc.DocumentID,
+				term:       term,
+				frequency:  frequency,
+			})
+		}
+	}
+
+	sortedTermKeys := make([]string, 0, len(buckets))
+	for termKey := range buckets {
+		sortedTermKeys = append(sortedTermKeys, termKey)
+	}
+	sort.Strings(sortedTermKeys)
+
+	documentIDs := make([]string, 0, totalTerms)
+	terms := make([]string, 0, totalTerms)
+	termKeys := make([]string, 0, totalTerms)
+	frequencies := make([]int, 0, totalTerms)
+	for _, termKey := range sortedTermKeys {
+		for _, row := range buckets[termKey] {
+			documentIDs = append(documentIDs, row.documentID)
+			terms = append(terms, row.term)
+			termKeys = append(termKeys, termKey)
+			frequencies = append(frequencies, row.frequency)
+		}
+	}
+	return documentIDs, terms, termKeys, frequencies
 }
