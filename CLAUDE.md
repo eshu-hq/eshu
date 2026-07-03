@@ -207,6 +207,10 @@ skills are active.
   Release work.
 - MUST add `eshu-folder-doc-keeper` for package `README.md`, `doc.go`, or
   scoped `AGENTS.md` changes.
+- MUST add `eshu-contract-rigor` for a fact-kind add/change, a payload-shape
+  change, edits to `sdk/go/factschema` or `sdk/go/collector`, edits to
+  `specs/fact-kind-registry.v1.yaml`, fixture packs, or an Odù overlapping a
+  cassette or the B-12 snapshot.
 
 ## Golden Rules
 
