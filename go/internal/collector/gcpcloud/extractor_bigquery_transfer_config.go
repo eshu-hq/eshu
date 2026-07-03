@@ -135,12 +135,19 @@ func transferConfigOwnerEmail(data bigQueryTransferConfigData) string {
 
 // bigQueryTransferConfigDatasetFullName builds the destination dataset CAI full
 // resource name from destinationDatasetId, resolved against the transfer
-// config's project. It returns "" when no destination dataset is set.
+// config's own project. It returns "" when no destination dataset is set.
 //
-// TODO(#4469): destinationDatasetId is an unqualified id, so a cross-project
-// destination (BigQuery Data Transfer / Scheduled Queries allow one) resolves
-// to the config's project here. Prefer a project-qualified form if CAI surfaces
-// one; tracked in #4469.
+// destinationDatasetId is a bare dataset id with no project qualifier, and the
+// BigQuery Data Transfer resource exposes no separate destination-project field:
+// verified against the live datatransfer v1 discovery document
+// (destinationDatasetId is documented only as "The BigQuery target dataset id.")
+// and the googleapis transfer.proto. A cross-project transfer config is created
+// inside its destination project — its own resource name embeds that project —
+// so the config's own project (ctx.ProjectID) is the destination project by
+// GCP's resource model, for both same-project and cross-region/cross-project
+// copy configs. params carries only source-side ids for a copy job and is never
+// decoded. Resolving against ctx.ProjectID is therefore correct, not a fallback;
+// #4469 confirmed CAI surfaces no cross-project destination signal to prefer.
 func bigQueryTransferConfigDatasetFullName(ctx ExtractContext, data bigQueryTransferConfigData) string {
 	dataset := strings.TrimSpace(data.DestinationDatasetID)
 	project := strings.TrimSpace(ctx.ProjectID)

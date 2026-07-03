@@ -377,6 +377,25 @@
    base observation path's job in `parse.go`, not this extractor's), and never
    declares a struct field for the data-plane `endpointUris` connection
    endpoints at all.
+46. `extractor_bigquery_transfer_config.go` - typed-depth extractor for
+   `bigquerydatatransfer.googleapis.com/TransferConfig` (BigQuery Data Transfer /
+   Scheduled Query config: data source id, schedule, lifecycle state, disabled
+   posture, CMEK posture, and a fingerprinted owner email — `ownerInfo.email`, the
+   identity the transfer runs as, never emitted raw). Emits a
+   `transfer_config_writes_to_dataset` edge to the destination BigQuery Dataset, a
+   `transfer_config_encrypted_by_kms_key` edge to the CMEK CryptoKey, and a
+   `transfer_config_notifies_topic` edge to the `notificationPubsubTopic` Pub/Sub
+   Topic. `destinationDatasetId` is a bare dataset id with no project qualifier,
+   and the BigQuery Data Transfer resource exposes no separate destination-project
+   field anywhere in the schema — verified against the live datatransfer v1
+   discovery document and the googleapis `transfer.proto` (#4469). A cross-project
+   transfer config is created inside its destination project (its own resource
+   name embeds that project), so the destination dataset resolves against the
+   config's own project (`ctx.ProjectID`), which IS the destination project by
+   GCP's resource model, for both same-project and cross-region/cross-project copy
+   configs; there is no cross-project destination signal in CAI to prefer. The
+   `params` map (user query text, source object paths, and the source-side
+   project/dataset ids of a copy job) is never decoded and never leaves the parser.
 
 ## Invariants
 

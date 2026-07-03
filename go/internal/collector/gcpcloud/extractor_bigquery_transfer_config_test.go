@@ -107,6 +107,74 @@ func TestExtractBigQueryTransferConfigDisabledScheduledQuery(t *testing.T) {
 	}
 }
 
+// TestBigQueryTransferConfigDestinationDatasetProjectBound locks the verified
+// cross-project resolution bound for #4469. BigQuery Data Transfer's CAI/DTS
+// resource exposes destinationDatasetId only as a bare dataset id — no
+// project-qualified destination field exists anywhere in the TransferConfig
+// schema (verified against the live datatransfer v1 discovery document and the
+// googleapis transfer.proto). A cross-project transfer config is created inside
+// its destination project (its own name/project IS the destination project by
+// GCP's resource model), so resolving the destination dataset against the
+// config's own project (ctx.ProjectID) is correct for both same-project and
+// "cross-project-looking" configs. This test guards that bound so a future
+// change cannot silently re-point the edge at a fabricated project.
+func TestBigQueryTransferConfigDestinationDatasetProjectBound(t *testing.T) {
+	tests := []struct {
+		name         string
+		dataSourceID string
+		params       string
+		destination  string
+		wantDataset  string
+	}{
+		{
+			// A plain (non-copy) scheduled query writing into a dataset in the
+			// config's own project: the common same-project shape.
+			name:         "same project destination",
+			dataSourceID: "scheduled_query",
+			params:       `{"query": "SELECT 1"}`,
+			destination:  "analytics",
+			wantDataset:  "//bigquery.googleapis.com/projects/demo-project/datasets/analytics",
+		},
+		{
+			// A cross-region/cross-project copy config still surfaces only a
+			// bare destinationDatasetId; the destination project is the config's
+			// own project, never the source project parsed out of params.
+			name:         "cross-project copy resolves to config's own project",
+			dataSourceID: "cross_region_copy",
+			params:       `{"source_project_id": "other-source-project", "source_dataset_id": "warehouse"}`,
+			destination:  "warehouse",
+			wantDataset:  "//bigquery.googleapis.com/projects/demo-project/datasets/warehouse",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data := `{
+				"dataSourceId": "` + tc.dataSourceID + `",
+				"destinationDatasetId": "` + tc.destination + `",
+				"params": ` + tc.params + `
+			}`
+			got, err := extractBigQueryTransferConfig(bigQueryTransferConfigContext(data))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertRelationship(t, got.Relationships, relationshipTypeTransferConfigWritesToDataset,
+				tc.wantDataset, assetTypeBigQueryDataset)
+			if len(got.Relationships) != 1 {
+				t.Fatalf("expected only the dataset edge, got %#v", got.Relationships)
+			}
+			// A copy config's source project is a params value and must never
+			// leak into a fact or become the destination project.
+			blob, err := json.Marshal(got)
+			if err != nil {
+				t.Fatalf("marshal extraction: %v", err)
+			}
+			if containsString(string(blob), "other-source-project") {
+				t.Fatalf("params source project leaked into extraction: %s", blob)
+			}
+		})
+	}
+}
+
 func TestExtractBigQueryTransferConfigEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractBigQueryTransferConfig(bigQueryTransferConfigContext(`{}`))
 	if err != nil {
