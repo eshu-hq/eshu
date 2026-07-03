@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -69,9 +70,12 @@ func TestBuildSecretsIAMTrustChainReadModelsResolvesIAMRoleCloudResourceUID(t *t
 	roleARN := "arn:aws:iam::123456789012:role/payments-api"
 	accountID := "123456789012"
 	region := "aws-global"
-	models := BuildSecretsIAMTrustChainReadModels(
+	models, err := BuildSecretsIAMTrustChainReadModels(
 		iamRoleUIDChainEnvelopes("sha256:sa-checkout-payments", "sha256:web-identity-subject", roleARN, accountID, region),
 	)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	if got, want := len(models.IdentityTrustChains), 1; got != want {
 		t.Fatalf("IdentityTrustChains len = %d, want %d", got, want)
@@ -134,7 +138,10 @@ func TestBuildSecretsIAMTrustChainReadModelsResolvesPodIdentityAssumeMode(t *tes
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	if got, want := len(models.IdentityTrustChains), 1; got != want {
 		t.Fatalf("IdentityTrustChains len = %d, want %d", got, want)
 	}
@@ -147,21 +154,69 @@ func TestBuildSecretsIAMTrustChainReadModelsResolvesPodIdentityAssumeMode(t *tes
 	}
 }
 
-func TestBuildSecretsIAMTrustChainReadModelsLeavesIAMRoleUIDBlankWithoutAccountRegion(t *testing.T) {
+// TestBuildSecretsIAMTrustChainReadModelsDeadLettersPrincipalMissingAccountID is
+// the aws_iam_principal regression test mirroring the flagship: a principal fact
+// whose required account_id key is ABSENT dead-letters as input_invalid rather
+// than silently leaving the IAM-role uid blank. Before the typed-decode
+// migration this returned a blank uid (a silent skip); now the malformed fact is
+// a classified, non-retryable failure the secrets/IAM trust-chain work item
+// surfaces.
+//
+// The iamRoleUIDChainEnvelopes helper omits account_id/region entirely when
+// passed "" (absent, not empty-string present), which is the exact malformed
+// shape the decode seam rejects.
+func TestBuildSecretsIAMTrustChainReadModelsDeadLettersPrincipalMissingAccountID(t *testing.T) {
 	t.Parallel()
 
-	// Without the IAM principal fact's account_id/region the build cannot resolve
-	// a CloudResource-joinable uid, so the field stays blank and the graph edge
-	// remains skipped+counted downstream (no fabricated join).
 	roleARN := "arn:aws:iam::123456789012:role/payments-api"
-	models := BuildSecretsIAMTrustChainReadModels(
+	_, err := BuildSecretsIAMTrustChainReadModels(
 		iamRoleUIDChainEnvelopes("sha256:sa-checkout-payments", "sha256:web-identity-subject", roleARN, "", ""),
 	)
+	if err == nil {
+		t.Fatal("BuildSecretsIAMTrustChainReadModels() error = nil, want a dead-letter for an aws_iam_principal fact missing required account_id")
+	}
 
+	// The surfaced error must self-classify as input_invalid so the work item
+	// dead-letters (non-retryable) rather than looping.
+	var classified classifiedReducerFailure
+	if !errors.As(err, &classified) {
+		t.Fatalf("error %v (%T) does not implement FailureClass(); a decode failure must surface as a self-classifying reducer error", err, err)
+	}
+	if got := classified.FailureClass(); got != "input_invalid" {
+		t.Fatalf("FailureClass() = %q, want %q", got, "input_invalid")
+	}
+	if IsRetryable(err) {
+		t.Fatal("IsRetryable(err) = true for a missing-required-field decode failure; input_invalid is terminal")
+	}
+}
+
+// TestBuildSecretsIAMTrustChainReadModelsLeavesIAMRoleUIDBlankWithEmptyAccountRegion
+// proves the present-but-empty distinction: a principal fact whose account_id and
+// region keys are PRESENT with empty-string values is a valid (if unusual)
+// decode, and the build leaves the IAM-role uid blank exactly as before — only an
+// absent key dead-letters, never an empty one.
+func TestBuildSecretsIAMTrustChainReadModelsLeavesIAMRoleUIDBlankWithEmptyAccountRegion(t *testing.T) {
+	t.Parallel()
+
+	roleARN := "arn:aws:iam::123456789012:role/payments-api"
+	envelopes := iamRoleUIDChainEnvelopes("sha256:sa-checkout-payments", "sha256:web-identity-subject", roleARN, "", "")
+	// Force the principal fact to carry account_id/region as present-but-empty
+	// rather than absent, so decode succeeds and the blank-uid path is exercised.
+	for i := range envelopes {
+		if envelopes[i].FactKind == facts.AWSIAMPrincipalFactKind {
+			envelopes[i].Payload["account_id"] = ""
+			envelopes[i].Payload["region"] = ""
+		}
+	}
+
+	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil for present-but-empty account/region", err)
+	}
 	if got, want := len(models.IdentityTrustChains), 1; got != want {
 		t.Fatalf("IdentityTrustChains len = %d, want %d", got, want)
 	}
 	if got := models.IdentityTrustChains[0].IAMRoleCloudResourceUID; got != "" {
-		t.Fatalf("IAMRoleCloudResourceUID = %q, want blank without account/region", got)
+		t.Fatalf("IAMRoleCloudResourceUID = %q, want blank with empty account/region", got)
 	}
 }

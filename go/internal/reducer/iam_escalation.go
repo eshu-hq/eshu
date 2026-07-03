@@ -67,11 +67,13 @@ type IAMEscalationResult struct {
 	Tally iamEscalationTally
 }
 
-// iamPrincipalStatements groups one principal's permission statements with its
-// resolved CloudResource node uid so primitive evaluation runs per principal.
+// iamPrincipalStatements groups one principal's decoded permission statements
+// with its resolved CloudResource node uid so primitive evaluation runs per
+// principal. Each statement carries its FactID for the grant's dedup path; the
+// grant builders read only the decoded permission's typed fields.
 type iamPrincipalStatements struct {
 	principalUID string
-	envelopes    []facts.Envelope
+	permissions  []iamPermissionStatement
 }
 
 // ExtractIAMEscalationEdges resolves each IAM principal's privilege-escalation
@@ -100,14 +102,17 @@ func ExtractIAMEscalationEdges(
 	if err != nil {
 		return IAMEscalationResult{}, err
 	}
-	principals := groupIAMPermissionsByPrincipal(index, permissionEnvelopes, &result.Tally)
+	principals, err := groupIAMPermissionsByPrincipal(index, permissionEnvelopes, &result.Tally)
+	if err != nil {
+		return IAMEscalationResult{}, err
+	}
 
 	// edge identity -> merged primitive token set, so two primitives reaching the
 	// same target converge on one idempotent edge with a sorted primitives list.
 	primitivesByEdge := make(map[edgeKey]map[string]struct{})
 
 	for _, principal := range principals {
-		grant := buildIAMPrincipalGrant(principal.envelopes, &result.Tally)
+		grant := buildIAMPrincipalGrant(principal.permissions, &result.Tally)
 
 		for _, primitive := range iamEscalationCatalog {
 			switch grant.armStatus(primitive) {
@@ -152,21 +157,24 @@ func groupIAMPermissionsByPrincipal(
 	index cloudResourceJoinIndex,
 	permissionEnvelopes []facts.Envelope,
 	tally *iamEscalationTally,
-) []iamPrincipalStatements {
-	byPrincipalARN := make(map[string][]facts.Envelope)
+) ([]iamPrincipalStatements, error) {
+	byPrincipalARN := make(map[string][]iamPermissionStatement)
 	order := make([]string, 0)
 	for _, env := range permissionEnvelopes {
 		if env.FactKind != facts.AWSIAMPermissionFactKind || env.IsTombstone {
 			continue
 		}
-		principalARN := payloadString(env.Payload, "principal_arn")
-		if principalARN == "" {
+		permission, err := decodeAWSIAMPermission(env)
+		if err != nil {
+			return nil, err
+		}
+		if permission.PrincipalARN == "" {
 			continue
 		}
-		if _, seen := byPrincipalARN[principalARN]; !seen {
-			order = append(order, principalARN)
+		if _, seen := byPrincipalARN[permission.PrincipalARN]; !seen {
+			order = append(order, permission.PrincipalARN)
 		}
-		byPrincipalARN[principalARN] = append(byPrincipalARN[principalARN], env)
+		byPrincipalARN[permission.PrincipalARN] = append(byPrincipalARN[permission.PrincipalARN], iamPermissionStatement{factID: env.FactID, permission: permission})
 	}
 
 	principals := make([]iamPrincipalStatements, 0, len(order))
@@ -178,12 +186,12 @@ func groupIAMPermissionsByPrincipal(
 			tally.skippedUnresolved++
 			continue
 		}
-		principals = append(principals, iamPrincipalStatements{principalUID: uid, envelopes: byPrincipalARN[principalARN]})
+		principals = append(principals, iamPrincipalStatements{principalUID: uid, permissions: byPrincipalARN[principalARN]})
 	}
 	sort.Slice(principals, func(a, b int) bool {
 		return principals[a].principalUID < principals[b].principalUID
 	})
-	return principals
+	return principals, nil
 }
 
 // buildIAMEscalationEdgeRows turns the merged per-edge primitive sets into sorted,

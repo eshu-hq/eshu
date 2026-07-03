@@ -29,9 +29,9 @@ type ec2InstanceSkipTally map[string]int
 // cloud_resource_uid. It is the public extractor used by tests and callers that
 // do not need the skip tally; see ExtractEC2InstanceNodeRowsWithSkips for the
 // telemetry-bearing variant.
-func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) []map[string]any {
-	rows, _ := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
-	return rows
+func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) ([]map[string]any, error) {
+	rows, _, err := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
+	return rows, err
 }
 
 // ExtractEC2InstanceNodeRowsWithSkips projects ec2_instance_posture fact envelopes
@@ -41,10 +41,10 @@ func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) []map[string]any {
 // and facts that carry neither an instance id nor an arn are skipped rather than
 // fabricating a phantom node. The returned rows are sorted by uid for a
 // byte-stable batch independent of input ordering.
-func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[string]any, ec2InstanceSkipTally) {
+func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[string]any, ec2InstanceSkipTally, error) {
 	skipped := ec2InstanceSkipTally{}
 	if len(envelopes) == 0 {
-		return nil, skipped
+		return nil, skipped, nil
 	}
 
 	byUID := make(map[string]map[string]any, len(envelopes))
@@ -59,7 +59,10 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 			skipped[ec2InstanceSkipTombstone]++
 			continue
 		}
-		row, uid, ok := ec2InstanceNodeRow(env)
+		row, uid, ok, err := ec2InstanceNodeRow(env)
+		if err != nil {
+			return nil, skipped, err
+		}
 		if !ok {
 			skipped[ec2InstanceSkipMissingIdentity]++
 			continue
@@ -70,7 +73,7 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 	}
 
 	if len(byUID) == 0 {
-		return nil, skipped
+		return nil, skipped, nil
 	}
 
 	uids := make([]string, 0, len(byUID))
@@ -83,7 +86,7 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows, skipped
+	return rows, skipped, nil
 }
 
 // ec2InstanceNodeRow builds one EC2 instance CloudResource node row from a posture
@@ -99,26 +102,28 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 // user_data_present boolean), the raw public IP, per-volume block devices, or any
 // topology field the posture fact does not carry — materializing absent data would
 // be fabrication.
-func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	instanceID := payloadString(env.Payload, "instance_id")
-	arn := payloadString(env.Payload, "arn")
+func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
+	posture, err := decodeEC2InstancePosture(env)
+	if err != nil {
+		return nil, "", false, err
+	}
+	instanceID := derefString(posture.InstanceID)
+	arn := derefString(posture.ARN)
 
 	resourceID := instanceID
 	if resourceID == "" {
 		resourceID = arn
 	}
 	if resourceID == "" {
-		return nil, "", false
+		return nil, "", false, nil
 	}
 
-	resourceType := payloadString(env.Payload, "resource_type")
+	resourceType := derefString(posture.ResourceType)
 	if resourceType == "" {
 		resourceType = "aws_ec2_instance"
 	}
 
-	uid := cloudResourceUID(accountID, region, resourceType, resourceID)
+	uid := cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID)
 	row := map[string]any{
 		"uid":           uid,
 		"arn":           arn,
@@ -127,26 +132,26 @@ func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
 		// The posture fact carries no Name tag; the instance id is the stable name
 		// and no tag value (which could carry secrets) is ever read.
 		"name":                resourceID,
-		"state":               payloadString(env.Payload, "state"),
-		"account_id":          accountID,
-		"region":              region,
-		"service_kind":        payloadString(env.Payload, "service_kind"),
-		"correlation_anchors": payloadStrings(env.Payload, "", "correlation_anchors"),
+		"state":               derefString(posture.State),
+		"account_id":          posture.AccountID,
+		"region":              posture.Region,
+		"service_kind":        derefString(posture.ServiceKind),
+		"correlation_anchors": posture.CorrelationAnchors,
 
 		// Derived posture (nullable scalars/booleans preserved as nil when absent
 		// so an unreported field stays distinct from an observed false/zero). Each
 		// boolean is a plain scalar bool or nil — never a *bool pointer — so the
 		// graph backend stores a clean scalar property.
-		"imds_v2_required":            payloadBoolOrNil(env.Payload, "imds_v2_required"),
-		"imds_http_endpoint":          payloadString(env.Payload, "imds_http_endpoint"),
-		"imds_http_put_hop_limit":     payloadNumberOrNil(env.Payload, "imds_http_put_hop_limit"),
-		"user_data_present":           payloadBoolOrNil(env.Payload, "user_data_present"),
-		"detailed_monitoring_enabled": payloadBoolOrNil(env.Payload, "detailed_monitoring_enabled"),
-		"ebs_optimized":               payloadBoolOrNil(env.Payload, "ebs_optimized"),
-		"public_ip_associated":        payloadBoolOrNil(env.Payload, "public_ip_associated"),
-		"instance_profile_arn":        payloadString(env.Payload, "instance_profile_arn"),
-		"tenancy":                     payloadString(env.Payload, "tenancy"),
-		"nitro_enclave_enabled":       payloadBoolOrNil(env.Payload, "nitro_enclave_enabled"),
+		"imds_v2_required":            boolPtrToAny(posture.IMDSv2Required),
+		"imds_http_endpoint":          derefString(posture.IMDSHTTPEndpoint),
+		"imds_http_put_hop_limit":     int32PtrToInt64Any(posture.IMDSHTTPPutHopLimit),
+		"user_data_present":           boolPtrToAny(posture.UserDataPresent),
+		"detailed_monitoring_enabled": boolPtrToAny(posture.DetailedMonitoringEnabled),
+		"ebs_optimized":               boolPtrToAny(posture.EBSOptimized),
+		"public_ip_associated":        boolPtrToAny(posture.PublicIPAssociated),
+		"instance_profile_arn":        derefString(posture.InstanceProfileARN),
+		"tenancy":                     derefString(posture.Tenancy),
+		"nitro_enclave_enabled":       boolPtrToAny(posture.NitroEnclaveEnabled),
 
 		"source_fact_id":    env.FactID,
 		"stable_fact_key":   env.StableFactKey,
@@ -155,42 +160,29 @@ func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
 		"source_confidence": string(env.SourceConfidence),
 		"collector_kind":    env.CollectorKind,
 	}
-	return row, uid, true
+	return row, uid, true, nil
 }
 
-// payloadBoolOrNil reads a boolean payload value as a plain scalar bool, returning
-// nil when the key is absent (or carries a blank/unparseable value). It returns a
-// plain bool rather than a *bool so the value is a clean graph scalar property;
-// preserving nil keeps an unreported field distinct from an observed false, so the
-// node never fabricates absent posture data.
-func payloadBoolOrNil(payload map[string]any, key string) any {
-	value, ok := payloadBoolPointerValue(payload, key)
-	if !ok {
+// boolPtrToAny converts an optional *bool posture field to the any shape the node
+// row stores: nil for an unreported field (distinct from an observed false) or
+// the plain scalar bool value, matching the pre-typing payloadBoolOrNil result
+// so the graph backend stores a clean scalar property.
+func boolPtrToAny(value *bool) any {
+	if value == nil {
 		return nil
 	}
-	return value
+	return *value
 }
 
-// payloadNumberOrNil reads a numeric payload value into a clean int64 regardless
-// of whether it arrived as an in-memory int/int32/int64 or a JSON-deserialized
-// float64, and returns nil when the key is absent. Preserving nil keeps an
-// unreported field (e.g. an IMDS hop limit DescribeInstances did not return)
-// distinct from an observed zero, so the node never fabricates absent data.
-func payloadNumberOrNil(payload map[string]any, key string) any {
-	switch value := payload[key].(type) {
-	case nil:
-		return nil
-	case int:
-		return int64(value)
-	case int32:
-		return int64(value)
-	case int64:
-		return value
-	case float64:
-		return int64(value)
-	default:
+// int32PtrToInt64Any converts an optional *int32 posture field to the any shape
+// the node row stores: nil for an unreported field or the value widened to int64,
+// matching the pre-typing payloadNumberOrNil result (which normalized every
+// integral representation to int64).
+func int32PtrToInt64Any(value *int32) any {
+	if value == nil {
 		return nil
 	}
+	return int64(*value)
 }
 
 // ec2InstanceNodeMaterializationTiming groups stage durations so the completion

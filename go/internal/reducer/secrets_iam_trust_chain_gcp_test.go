@@ -48,10 +48,13 @@ func TestGCPSecretAccessGrantProducesPostureObservation(t *testing.T) {
 	t.Parallel()
 
 	const fp = "sha256:svc-a"
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPrincipalFact(fp),
 		gcpPermissionFact("perm-1", fp, "roles/secretmanager.secretAccessor", true, false),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	obs, ok := findGCPObservation(models, gcpRiskSecretAccessGrant)
 	if !ok {
@@ -72,10 +75,13 @@ func TestGCPBroadRoleGrantProducesPostureObservation(t *testing.T) {
 	t.Parallel()
 
 	const fp = "sha256:svc-b"
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPrincipalFact(fp),
 		gcpPermissionFact("perm-2", fp, "roles/owner", false, true),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	if _, ok := findGCPObservation(models, gcpRiskBroadRoleGrant); !ok {
 		t.Fatalf("expected a %s posture observation, got %+v", gcpRiskBroadRoleGrant, models.PrivilegePostureObservations)
@@ -86,10 +92,13 @@ func TestGCPNarrowNonSecretGrantProducesNoObservation(t *testing.T) {
 	t.Parallel()
 
 	const fp = "sha256:svc-c"
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPrincipalFact(fp),
 		gcpPermissionFact("perm-3", fp, "roles/storage.objectViewer", false, false),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	if len(models.PrivilegePostureObservations) != 0 {
 		t.Fatalf("narrow non-secret grant must not produce posture, got %+v", models.PrivilegePostureObservations)
@@ -104,7 +113,7 @@ func TestGCPWorkloadIdentityTrustAdmitsExactWorkloadToSecretAccessPath(t *testin
 	targetEmailDigest := "sha256:gcp-service-account-email"
 	subjectFingerprint := "sha256:gke-subject"
 	secretResource := "//secretmanager.googleapis.com/projects/demo-proj/secrets/db"
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
@@ -140,6 +149,9 @@ func TestGCPWorkloadIdentityTrustAdmitsExactWorkloadToSecretAccessPath(t *testin
 			"resource_is_secret":          true,
 		}),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	if got, want := len(models.IdentityTrustChains), 1; got != want {
 		t.Fatalf("IdentityTrustChains len = %d, want %d: %#v", got, want, models.IdentityTrustChains)
@@ -188,7 +200,7 @@ func TestGCPWorkloadIdentityTrustDoesNotAdmitMetadataOnlySecretRole(t *testing.T
 	targetFingerprint := "sha256:gcp-service-account"
 	targetEmailDigest := "sha256:gcp-service-account-email"
 	subjectFingerprint := "sha256:gke-subject"
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
@@ -223,6 +235,9 @@ func TestGCPWorkloadIdentityTrustDoesNotAdmitMetadataOnlySecretRole(t *testing.T
 			"resource_is_secret":          true,
 		}),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	if got, want := len(models.IdentityTrustChains), 1; got != want {
 		t.Fatalf("IdentityTrustChains len = %d, want %d: %#v", got, want, models.IdentityTrustChains)
@@ -236,7 +251,7 @@ func TestGCPWorkloadIdentityBindingMissingTrustDoesNotEmitGenericGap(t *testing.
 	t.Parallel()
 
 	serviceAccountKey := "sha256:k8s-service-account"
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
@@ -254,6 +269,9 @@ func TestGCPWorkloadIdentityBindingMissingTrustDoesNotEmitGenericGap(t *testing.
 			"gcp_workload_identity_subject_fingerprint": "sha256:gke-subject",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	seenGCPGap := false
 	for _, gap := range models.PostureGaps {
@@ -274,9 +292,12 @@ func TestGCPGrantWithoutPrincipalIsNotFabricated(t *testing.T) {
 
 	// A permission fact with no matching principal fact must not fabricate an
 	// identity-grant observation.
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPermissionFact("perm-4", "sha256:orphan", "roles/secretmanager.secretAccessor", true, false),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 
 	if len(models.PrivilegePostureObservations) != 0 {
 		t.Fatalf("orphan grant must not produce posture, got %+v", models.PrivilegePostureObservations)

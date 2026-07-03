@@ -225,13 +225,18 @@ func ExtractS3LogsToEdgeRows(
 			continue
 		}
 
-		target := strings.TrimSpace(payloadString(env.Payload, "logging_target_bucket"))
+		posture, err := decodeS3BucketPosture(env)
+		if err != nil {
+			return nil, tally, err
+		}
+
+		target := strings.TrimSpace(derefString(posture.LoggingTargetBucket))
 		if target == "" {
 			// Logging disabled — the normal no-edge state, not a skip-error.
 			continue
 		}
 
-		sourceName := s3PostureBucketName(env)
+		sourceName := s3PostureBucketName(posture)
 		sourceUID, sourceOK := index.resolve(sourceName)
 		if !sourceOK {
 			// The bucket emitting the posture fact did not scan as a node, so the
@@ -275,13 +280,14 @@ func ExtractS3LogsToEdgeRows(
 	return rows, tally, nil
 }
 
-// s3PostureBucketName derives the source bucket name from an s3_bucket_posture
-// fact: the bucket_name field first, then the tail of its bucket_arn. The
-// posture fact always carries at least one of these by construction
-// (NewS3BucketPostureEnvelope requires bucket_arn or bucket_name).
-func s3PostureBucketName(env facts.Envelope) string {
-	if name := strings.TrimSpace(payloadString(env.Payload, "bucket_name")); name != "" {
+// s3PostureBucketName derives the source bucket name from a decoded
+// s3_bucket_posture struct: the BucketName field first, then the tail of its
+// BucketArn. The posture fact always carries at least one of these by
+// construction (NewS3BucketPostureEnvelope requires bucket_arn or bucket_name),
+// which is why both are optional either-or fields on the struct.
+func s3PostureBucketName(posture awsv1.S3BucketPosture) string {
+	if name := strings.TrimSpace(derefString(posture.BucketName)); name != "" {
 		return name
 	}
-	return s3BucketNameFromARN(payloadString(env.Payload, "bucket_arn"))
+	return s3BucketNameFromARN(derefString(posture.BucketARN))
 }

@@ -230,16 +230,19 @@ func ExtractIAMCanAssumeEdgeRows(
 		if env.FactKind != facts.AWSIAMPermissionFactKind {
 			continue
 		}
-		if payloadString(env.Payload, "policy_source") != iamPermissionPolicySourceTrust {
+		permission, err := decodeAWSIAMPermission(env)
+		if err != nil {
+			return nil, tally, err
+		}
+		if permission.PolicySource != iamPermissionPolicySourceTrust {
 			continue
 		}
-		if payloadString(env.Payload, "effect") != iamPermissionEffectAllow {
+		if permission.Effect != iamPermissionEffectAllow {
 			tally.skipped[iamCanAssumeSkipDeny]++
 			continue
 		}
 
-		roleARN := payloadString(env.Payload, "principal_arn")
-		roleNode, roleOK := index.resolve(roleARN)
+		roleNode, roleOK := index.resolve(permission.PrincipalARN)
 		if !roleOK {
 			// The role-with-trust-policy was not scanned as a node, so the whole
 			// statement cannot anchor an edge. Count it once.
@@ -247,7 +250,7 @@ func ExtractIAMCanAssumeEdgeRows(
 			continue
 		}
 
-		for _, principal := range payloadStrings(env.Payload, "", "assume_principals") {
+		for _, principal := range permission.AssumePrincipals {
 			reason, principalNode, ok := classifyAssumePrincipal(index, principal)
 			if !ok {
 				tally.skipped[reason]++

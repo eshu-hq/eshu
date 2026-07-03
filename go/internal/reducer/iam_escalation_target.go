@@ -6,8 +6,6 @@ package reducer
 import (
 	"sort"
 	"strings"
-
-	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // iamTargetStatus is the resolution outcome for an armed primitive's target.
@@ -87,12 +85,13 @@ func resolveIAMEscalationTarget(
 }
 
 // collectTrustedResources unions the resources of the statements that carried a
-// primitive's action, preserving the verbatim case-sensitive ARN patterns.
-func collectTrustedResources(envelopes []facts.Envelope) []string {
+// primitive's action, preserving the verbatim case-sensitive ARN patterns. It
+// reads Resources from the decoded permission statements.
+func collectTrustedResources(statements []iamPermissionStatement) []string {
 	seen := make(map[string]struct{})
 	out := make([]string, 0)
-	for _, env := range envelopes {
-		for _, resource := range payloadStringSlice(env.Payload, "resources") {
+	for _, statement := range statements {
+		for _, resource := range statement.permission.Resources {
 			if _, ok := seen[resource]; ok {
 				continue
 			}

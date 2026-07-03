@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 // factDecodeError wraps a classified *factschema.DecodeError so the reducer's
@@ -108,6 +109,84 @@ func decodeAWSRelationship(env facts.Envelope) (awsv1.Relationship, error) {
 		return awsv1.Relationship{}, newFactDecodeError(factschema.FactKindAWSRelationship, err)
 	}
 	return relationship, nil
+}
+
+// decodeAWSSecurityGroupRule decodes one aws_security_group_rule envelope into
+// the typed awsv1.SecurityGroupRule struct through the contracts seam, returning
+// a self-classifying *factDecodeError when the payload is missing a required
+// field (account_id, region, group_id, direction, ip_protocol, source_kind,
+// source_value). It is the single decode site for this kind on the reducer side.
+func decodeAWSSecurityGroupRule(env facts.Envelope) (awsv1.SecurityGroupRule, error) {
+	rule, err := factschema.DecodeAWSSecurityGroupRule(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.SecurityGroupRule{}, newFactDecodeError(factschema.FactKindAWSSecurityGroupRule, err)
+	}
+	return rule, nil
+}
+
+// decodeEC2InstancePosture decodes one ec2_instance_posture envelope into the
+// typed awsv1.EC2InstancePosture struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required field
+// (account_id, region). It is the single decode site for this kind on the
+// reducer side.
+func decodeEC2InstancePosture(env facts.Envelope) (awsv1.EC2InstancePosture, error) {
+	posture, err := factschema.DecodeEC2InstancePosture(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.EC2InstancePosture{}, newFactDecodeError(factschema.FactKindEC2InstancePosture, err)
+	}
+	return posture, nil
+}
+
+// decodeS3BucketPosture decodes one s3_bucket_posture envelope into the typed
+// awsv1.S3BucketPosture struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required field
+// (account_id, region). It is the single decode site for this kind on the
+// reducer side.
+func decodeS3BucketPosture(env facts.Envelope) (awsv1.S3BucketPosture, error) {
+	posture, err := factschema.DecodeS3BucketPosture(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.S3BucketPosture{}, newFactDecodeError(factschema.FactKindS3BucketPosture, err)
+	}
+	return posture, nil
+}
+
+// decodeAWSIAMPermission decodes one aws_iam_permission envelope into the typed
+// iamv1.Permission struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required field
+// (account_id, region, principal_arn, effect, policy_source). It is the single
+// decode site for this kind on the reducer side.
+func decodeAWSIAMPermission(env facts.Envelope) (iamv1.Permission, error) {
+	permission, err := factschema.DecodeAWSIAMPermission(factschemaEnvelope(env))
+	if err != nil {
+		return iamv1.Permission{}, newFactDecodeError(factschema.FactKindAWSIAMPermission, err)
+	}
+	return permission, nil
+}
+
+// decodeAWSResourcePolicyPermission decodes one aws_resource_policy_permission
+// envelope into the typed iamv1.ResourcePolicyPermission struct through the
+// contracts seam, returning a self-classifying *factDecodeError when the payload
+// is missing a required field (account_id, region, resource_arn, resource_type,
+// effect). It is the single decode site for this kind on the reducer side.
+func decodeAWSResourcePolicyPermission(env facts.Envelope) (iamv1.ResourcePolicyPermission, error) {
+	permission, err := factschema.DecodeAWSResourcePolicyPermission(factschemaEnvelope(env))
+	if err != nil {
+		return iamv1.ResourcePolicyPermission{}, newFactDecodeError(factschema.FactKindAWSResourcePolicyPermission, err)
+	}
+	return permission, nil
+}
+
+// decodeAWSIAMPrincipal decodes one aws_iam_principal envelope into the typed
+// iamv1.Principal struct through the contracts seam, returning a self-classifying
+// *factDecodeError when the payload is missing a required field (account_id,
+// region, principal_arn, principal_type). It is the single decode site for this
+// kind on the reducer side.
+func decodeAWSIAMPrincipal(env facts.Envelope) (iamv1.Principal, error) {
+	principal, err := factschema.DecodeAWSIAMPrincipal(factschemaEnvelope(env))
+	if err != nil {
+		return iamv1.Principal{}, newFactDecodeError(factschema.FactKindAWSIAMPrincipal, err)
+	}
+	return principal, nil
 }
 
 // factschemaEnvelope adapts a go/internal/facts.Envelope to the contracts-module

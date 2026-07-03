@@ -33,16 +33,29 @@ const iamRoleCloudResourceType = "aws_iam_role"
 // #1314 §5.1). It does not parse account/region out of the ARN string: the
 // canonical uid uses the collector boundary values, and a parsed region could
 // diverge from the boundary's region literal and fabricate a non-matching uid.
-func secretsIAMRoleCloudResourceUID(roleARN string, principals []facts.Envelope) string {
-	for _, principal := range principals {
-		accountID := payloadString(principal.Payload, "account_id")
-		region := payloadString(principal.Payload, "region")
-		if accountID == "" || region == "" {
+//
+// The aws_iam_principal facts are decoded through the factschema seam. A
+// malformed principal fact (a missing required identity field: account_id,
+// region, principal_arn, principal_type) is a classified input_invalid decode
+// failure this function returns so the whole secrets/IAM trust-chain work item
+// dead-letters, rather than silently resolving the uid from a zero-value
+// account/region. These facts are emitter-guaranteed to carry account_id and
+// region, so this fires only on a genuine collector defect (loud-on-real-bug).
+func secretsIAMRoleCloudResourceUID(roleARN string, principals []facts.Envelope) (string, error) {
+	for _, principalEnv := range principals {
+		if principalEnv.FactKind != facts.AWSIAMPrincipalFactKind {
 			continue
 		}
-		return cloudResourceUID(accountID, region, iamRoleCloudResourceType, roleARN)
+		principal, err := decodeAWSIAMPrincipal(principalEnv)
+		if err != nil {
+			return "", err
+		}
+		if principal.AccountID == "" || principal.Region == "" {
+			continue
+		}
+		return cloudResourceUID(principal.AccountID, principal.Region, iamRoleCloudResourceType, roleARN), nil
 	}
-	return ""
+	return "", nil
 }
 
 // secretsIAMRoleAssumeMode classifies the bounded assume-mode for the IAM-role

@@ -158,6 +158,7 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsDenyAndUnresolvedSource(t *testing.T) {
 	// Deny trust statement must not produce an edge.
 	denyFact := iamPermissionEnvelope(map[string]any{
 		"account_id":        acct,
+		"region":            "aws-global",
 		"principal_arn":     roleARN,
 		"policy_source":     "trust",
 		"effect":            "Deny",
@@ -168,6 +169,7 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsDenyAndUnresolvedSource(t *testing.T) {
 	// Non-trust source must be ignored entirely.
 	inlineFact := iamPermissionEnvelope(map[string]any{
 		"account_id":    acct,
+		"region":        "aws-global",
 		"principal_arn": roleARN,
 		"policy_source": "inline",
 		"effect":        "Allow",

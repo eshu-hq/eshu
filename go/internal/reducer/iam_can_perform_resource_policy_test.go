@@ -379,7 +379,7 @@ func TestIAMCanPerformResourcePolicyUsesProvidedCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildCloudResourceJoinIndex() error = %v, want nil", err)
 	}
-	addIAMCanPerformResourcePolicyEdges(
+	if err := addIAMCanPerformResourcePolicyEdges(
 		index,
 		[]facts.Envelope{
 			canPerformResourcePolicyEnvelope(
@@ -393,7 +393,9 @@ func TestIAMCanPerformResourcePolicyUsesProvidedCatalog(t *testing.T) {
 		catalog,
 		edges,
 		&tally,
-	)
+	); err != nil {
+		t.Fatalf("addIAMCanPerformResourcePolicyEdges() error = %v, want nil", err)
+	}
 	rows := buildIAMCanPerformEdgeRows(edges, make(map[string]int))
 
 	edge := canPerformEdgeFor(rows, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))

@@ -190,7 +190,20 @@ func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent Intent) 
 	if err != nil {
 		return Result{}, fmt.Errorf("load secrets/IAM trust-chain evidence: %w", err)
 	}
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	// BuildSecretsIAMTrustChainReadModels decodes the aws_iam_principal facts it
+	// uses to resolve assumed-role CloudResource uids through the factschema seam.
+	// A malformed aws_iam_principal fact (a missing required identity field)
+	// dead-letters the ENTIRE secrets/IAM trust-chain work item for this scope as
+	// input_invalid, not just its own chain, because the read-model build is a
+	// single pass over the scope's facts. That is the intended, visible,
+	// replayable outcome: these facts are emitter-guaranteed to carry account_id
+	// and region, so a decode failure signals a genuine collector defect rather
+	// than a routine absence. The other providers' chains (K8s/GCP/Vault) still
+	// read raw and are unaffected unless an aws_iam_principal fact is malformed.
+	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		return Result{}, err
+	}
 	writeResult, err := h.Writer.WriteSecretsIAMTrustChainReadModels(ctx, SecretsIAMTrustChainWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,

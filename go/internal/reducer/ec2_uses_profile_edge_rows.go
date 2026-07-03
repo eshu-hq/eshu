@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // ec2UsesProfileResourceTypeInstanceProfile is the aws_resource resource_type the
@@ -197,14 +198,19 @@ func ExtractEC2UsesProfileEdgeRows(
 			continue
 		}
 
-		profileARN := strings.TrimSpace(payloadString(env.Payload, "instance_profile_arn"))
+		posture, err := decodeEC2InstancePosture(env)
+		if err != nil {
+			return nil, tally, err
+		}
+
+		profileARN := strings.TrimSpace(derefString(posture.InstanceProfileARN))
 		if profileARN == "" {
 			// The instance has no attached profile — the normal no-edge state, not
 			// a skip-error.
 			continue
 		}
 
-		sourceUID, sourceOK := ec2UsesProfileSourceUID(env)
+		sourceUID, sourceOK := ec2UsesProfileSourceUID(posture)
 		if !sourceOK {
 			// The posture fact carried neither an instance id nor an arn, so it
 			// cannot form the source uid. Count it once.
@@ -254,11 +260,9 @@ func ExtractEC2UsesProfileEdgeRows(
 // canonical cloudResourceUID(account, region, "aws_ec2_instance", resource_id)
 // scheme — so the edge's source endpoint resolves to the node PR-A materialized
 // rather than a fabricated uid.
-func ec2UsesProfileSourceUID(env facts.Envelope) (string, bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	instanceID := payloadString(env.Payload, "instance_id")
-	arn := payloadString(env.Payload, "arn")
+func ec2UsesProfileSourceUID(posture awsv1.EC2InstancePosture) (string, bool) {
+	instanceID := derefString(posture.InstanceID)
+	arn := derefString(posture.ARN)
 
 	resourceID := instanceID
 	if resourceID == "" {
@@ -268,9 +272,9 @@ func ec2UsesProfileSourceUID(env facts.Envelope) (string, bool) {
 		return "", false
 	}
 
-	resourceType := payloadString(env.Payload, "resource_type")
+	resourceType := derefString(posture.ResourceType)
 	if resourceType == "" {
 		resourceType = ec2UsesProfileResourceTypeInstance
 	}
-	return cloudResourceUID(accountID, region, resourceType, resourceID), true
+	return cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), true
 }

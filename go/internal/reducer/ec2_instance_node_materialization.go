@@ -118,7 +118,13 @@ func (h EC2InstanceNodeMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows, skipped := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
+	rows, skipped, err := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
+	if err != nil {
+		// A malformed ec2_instance_posture payload (a missing required identity
+		// field) is a classified input_invalid decode failure; dead-letter the
+		// intent instead of materializing a node with an empty-string uid.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration

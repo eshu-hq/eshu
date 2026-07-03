@@ -119,8 +119,14 @@ func ExtractIAMCanPerformEdges(
 	if err != nil {
 		return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
 	}
-	principals := groupIAMCanPerformByPrincipal(index, permissionEnvelopes, &result.Tally)
-	boundariesByPrincipal := groupIAMCanPerformBoundaryEvidence(index, permissionEnvelopes)
+	principals, err := groupIAMCanPerformByPrincipal(index, permissionEnvelopes, &result.Tally)
+	if err != nil {
+		return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
+	}
+	boundariesByPrincipal, err := groupIAMCanPerformBoundaryEvidence(index, permissionEnvelopes)
+	if err != nil {
+		return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
+	}
 	catalog := iamCanPerformCatalogByAction()
 
 	// edge identity -> merged granted action set + strongest resolution mode, so
@@ -128,7 +134,7 @@ func ExtractIAMCanPerformEdges(
 	edges := make(map[edgeKey]*iamCanPerformEdgeAccumulator)
 
 	for _, principal := range principals {
-		grant := buildIAMCanPerformGrant(principal.envelopes, &result.Tally)
+		grant := buildIAMCanPerformGrant(principal.permissions, &result.Tally)
 
 		for _, entry := range catalog {
 			switch {
@@ -184,7 +190,9 @@ func ExtractIAMCanPerformEdges(
 		}
 	}
 
-	addIAMCanPerformResourcePolicyEdges(index, resourcePolicyEnvelopes, catalog, edges, &result.Tally)
+	if err := addIAMCanPerformResourcePolicyEdges(index, resourcePolicyEnvelopes, catalog, edges, &result.Tally); err != nil {
+		return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
+	}
 	result.Edges = buildIAMCanPerformEdgeRows(edges, result.EdgesByMode)
 	return result, nil
 }
@@ -222,24 +230,27 @@ func groupIAMCanPerformByPrincipal(
 	index cloudResourceJoinIndex,
 	permissionEnvelopes []facts.Envelope,
 	tally *iamCanPerformTally,
-) []iamPrincipalStatements {
-	byPrincipalARN := make(map[string][]facts.Envelope)
+) ([]iamPrincipalStatements, error) {
+	byPrincipalARN := make(map[string][]iamPermissionStatement)
 	order := make([]string, 0)
 	for _, env := range permissionEnvelopes {
 		if env.FactKind != facts.AWSIAMPermissionFactKind || env.IsTombstone {
 			continue
 		}
-		principalARN := payloadString(env.Payload, "principal_arn")
-		if !iamCanPerformIdentityPolicySource(payloadString(env.Payload, "policy_source")) {
+		permission, err := decodeAWSIAMPermission(env)
+		if err != nil {
+			return nil, err
+		}
+		if !iamCanPerformIdentityPolicySource(permission.PolicySource) {
 			continue
 		}
-		if principalARN == "" {
+		if permission.PrincipalARN == "" {
 			continue
 		}
-		if _, seen := byPrincipalARN[principalARN]; !seen {
-			order = append(order, principalARN)
+		if _, seen := byPrincipalARN[permission.PrincipalARN]; !seen {
+			order = append(order, permission.PrincipalARN)
 		}
-		byPrincipalARN[principalARN] = append(byPrincipalARN[principalARN], env)
+		byPrincipalARN[permission.PrincipalARN] = append(byPrincipalARN[permission.PrincipalARN], iamPermissionStatement{factID: env.FactID, permission: permission})
 	}
 
 	principals := make([]iamPrincipalStatements, 0, len(order))
@@ -251,12 +262,12 @@ func groupIAMCanPerformByPrincipal(
 			tally.skippedUnresolved++
 			continue
 		}
-		principals = append(principals, iamPrincipalStatements{principalUID: uid, envelopes: byPrincipalARN[principalARN]})
+		principals = append(principals, iamPrincipalStatements{principalUID: uid, permissions: byPrincipalARN[principalARN]})
 	}
 	sort.Slice(principals, func(a, b int) bool {
 		return principals[a].principalUID < principals[b].principalUID
 	})
-	return principals
+	return principals, nil
 }
 
 func addIAMCanPerformEdge(

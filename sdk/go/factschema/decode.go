@@ -127,10 +127,16 @@ func major(schemaVersion string) string {
 // deriving it via reflection keeps the missing-field check independent of any
 // future encoding/json behavior change.
 //
-// Two families of tests keep this map from drifting out of that agreement:
-// TestRequiredFieldsMatchStructShape (decode_test.go) recomputes the required
-// set from each typed struct by reflection and asserts it equals this map's
-// entry, so adding a required struct field without updating this map is a test
+// The map is populated per family, not as one central literal: each
+// decode_<family>.go registers its own kinds through registerRequiredFields in
+// an init function. This keeps a new fact kind's registration local to its
+// family file, so the parallel family wave that copies this template adds kinds
+// without editing a shared central map (no merge conflicts on one hot literal).
+//
+// Two families of tests keep this map from drifting out of agreement with the
+// structs: TestRequiredFieldsMatchStructShape (decode_test.go) recomputes the
+// required set from each typed struct by reflection and asserts it equals this
+// map's entry, so adding a required struct field without registering it is a test
 // failure rather than a silently unvalidated field; and the schema drift tests
 // (schema_gen_test.go) keep the generated schemas in lockstep with the structs.
 // Struct → this map, and struct → schema, are each independently test-locked.
@@ -141,15 +147,18 @@ func major(schemaVersion string) string {
 // validates non-empty is required, and an either-or identity (instance_id OR
 // arn; bucket_arn OR bucket_name) leaves BOTH sides optional so a fact
 // identified by only one side is not dead-lettered.
-var requiredFields = map[string][]string{
-	FactKindAWSResource:                 {"account_id", "resource_id", "region", "resource_type"},
-	FactKindAWSRelationship:             {"account_id", "region", "relationship_type", "source_resource_id", "target_resource_id"},
-	FactKindAWSSecurityGroupRule:        {"account_id", "region", "group_id", "direction", "ip_protocol", "source_kind", "source_value"},
-	FactKindEC2InstancePosture:          {"account_id", "region"},
-	FactKindS3BucketPosture:             {"account_id", "region"},
-	FactKindAWSIAMPermission:            {"account_id", "region", "principal_arn", "effect", "policy_source"},
-	FactKindAWSResourcePolicyPermission: {"account_id", "region", "resource_arn", "resource_type", "effect"},
-	FactKindAWSIAMPrincipal:             {"account_id", "region", "principal_arn", "principal_type"},
+var requiredFields = map[string][]string{}
+
+// registerRequiredFields records the required payload keys for one fact kind. It
+// is called from each decode_<family>.go's init function so a family owns its
+// own registration. It panics on a duplicate registration for the same fact kind
+// because that is a programming error (two files claiming one kind) that must
+// surface at package load, not silently let one registration win.
+func registerRequiredFields(factKind string, fields ...string) {
+	if _, exists := requiredFields[factKind]; exists {
+		panic("factschema: duplicate required-fields registration for fact kind " + strconv.Quote(factKind))
+	}
+	requiredFields[factKind] = fields
 }
 
 // decodeAndValidate unmarshals payload into a new T, first checking that

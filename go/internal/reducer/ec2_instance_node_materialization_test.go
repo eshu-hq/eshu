@@ -76,7 +76,10 @@ func TestEC2InstanceNodeMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if rows := ExtractEC2InstanceNodeRows(nil); rows != nil {
+	if rows, err := ExtractEC2InstanceNodeRows(nil); rows != nil {
+		if err != nil {
+			t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+		}
 		t.Fatalf("rows = %v, want nil", rows)
 	}
 }
@@ -93,7 +96,10 @@ func TestExtractEC2InstanceNodeRowsBuildsCanonicalUID(t *testing.T) {
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload(instanceID)),
 	}
 
-	rows := ExtractEC2InstanceNodeRows(envelopes)
+	rows, err := ExtractEC2InstanceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -121,9 +127,12 @@ func TestExtractEC2InstanceNodeRowsBuildsCanonicalUID(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsCarriesSafePostureOnly(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-0abc123")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	row := rows[0]
 
 	// Present, safe posture fields.
@@ -155,7 +164,7 @@ func TestExtractEC2InstanceNodeRowsCarriesSafePostureOnly(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsMissingOptionalFields(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -164,6 +173,9 @@ func TestExtractEC2InstanceNodeRowsMissingOptionalFields(t *testing.T) {
 			"state":         "running",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (sparse fact still materializes)", len(rows))
 	}
@@ -184,7 +196,7 @@ func TestExtractEC2InstanceNodeRowsFallsBackToARNIdentity(t *testing.T) {
 	t.Parallel()
 
 	const arn = "arn:aws:ec2:us-east-1:111122223333:instance/i-fromarn"
-	rows := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -194,6 +206,9 @@ func TestExtractEC2InstanceNodeRowsFallsBackToARNIdentity(t *testing.T) {
 			// mirroring the posture envelope's own identity derivation.
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -206,7 +221,7 @@ func TestExtractEC2InstanceNodeRowsFallsBackToARNIdentity(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsRequiresIdentity(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -214,6 +229,9 @@ func TestExtractEC2InstanceNodeRowsRequiresIdentity(t *testing.T) {
 			// no instance_id, no arn -> cannot form a uid.
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 (no identity must not fabricate a node)", len(rows))
 	}
@@ -222,10 +240,13 @@ func TestExtractEC2InstanceNodeRowsRequiresIdentity(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsSkipsNonPostureFacts(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{"resource_id": "ignored"}},
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-0abc123")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (non-posture facts must be skipped)", len(rows))
 	}
@@ -236,10 +257,13 @@ func TestExtractEC2InstanceNodeRowsSkipsTombstone(t *testing.T) {
 
 	tombstone := ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-terminated"))
 	tombstone.IsTombstone = true
-	rows := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		tombstone,
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-0abc123")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (a terminated instance must not materialize)", len(rows))
 	}
@@ -253,10 +277,13 @@ func TestExtractEC2InstanceNodeRowsDeduplicatesByUID(t *testing.T) {
 	t.Parallel()
 
 	payload := sampleEC2PosturePayload("i-0abc123")
-	rows := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(payload),
 		ec2InstancePostureEnvelope(payload),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (duplicate facts converge on one node)", len(rows))
 	}
@@ -265,16 +292,22 @@ func TestExtractEC2InstanceNodeRowsDeduplicatesByUID(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput(t *testing.T) {
 	t.Parallel()
 
-	forward := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	forward, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-aaa")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-bbb")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-ccc")),
 	})
-	reverse := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
+	reverse, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-ccc")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-bbb")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-aaa")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
+	}
 	if len(forward) != 3 || len(reverse) != 3 {
 		t.Fatalf("len(forward)=%d len(reverse)=%d, want 3 each", len(forward), len(reverse))
 	}

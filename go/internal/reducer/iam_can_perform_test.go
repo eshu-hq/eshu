@@ -9,6 +9,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// iamPermissionStatementsForTest decodes aws_iam_permission envelopes into the
+// iamPermissionStatement values the grant builders now accept, exercising the
+// real decode seam so a test fixture that omits a required field fails loudly
+// rather than silently building a zero-value statement.
+func iamPermissionStatementsForTest(t *testing.T, envelopes ...facts.Envelope) []iamPermissionStatement {
+	t.Helper()
+	statements := make([]iamPermissionStatement, 0, len(envelopes))
+	for _, env := range envelopes {
+		permission, err := decodeAWSIAMPermission(env)
+		if err != nil {
+			t.Fatalf("decodeAWSIAMPermission() error = %v, want nil", err)
+		}
+		statements = append(statements, iamPermissionStatement{factID: env.FactID, permission: permission})
+	}
+	return statements
+}
+
 // CAN_PERFORM fixtures share the escalation slice's account/region so the
 // in-memory join index resolves principal and resource under the trust boundary.
 // Resource ARNs use the real per-service ARN shapes so the ARN classifier keys
@@ -209,9 +226,9 @@ func TestBuildIAMCanPerformGrantCountsUncataloguedActions(t *testing.T) {
 
 	var tally iamCanPerformTally
 	grant := buildIAMCanPerformGrant(
-		[]facts.Envelope{
+		iamPermissionStatementsForTest(t,
 			escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"cloudwatch:getmetricdata"}, []string{canPerformBucketARN}),
-		},
+		),
 		&tally,
 	)
 

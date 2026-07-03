@@ -117,7 +117,14 @@ func (h EC2InternetExposureMaterializationHandler) Handle(
 
 	postureEnvelopes, relationshipEnvelopes, ruleEnvelopes := splitEC2InternetExposureEnvelopes(envelopes)
 	extractStart := time.Now()
-	rows, tally := ExtractEC2InternetExposureRows(postureEnvelopes, relationshipEnvelopes, ruleEnvelopes)
+	rows, tally, err := ExtractEC2InternetExposureRows(postureEnvelopes, relationshipEnvelopes, ruleEnvelopes)
+	if err != nil {
+		// A malformed aws_security_group_rule/aws_relationship/ec2_instance_posture
+		// payload (a missing required identity field) is a classified input_invalid
+		// decode failure; dead-letter the intent instead of deriving exposure
+		// against an empty-string node identity.
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)

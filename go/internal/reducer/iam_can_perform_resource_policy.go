@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 type iamCanPerformResourcePolicyDenyKey struct {
@@ -47,9 +48,9 @@ func addIAMCanPerformResourcePolicyEdges(
 	catalog map[string]iamCanPerformAction,
 	edges map[edgeKey]*iamCanPerformEdgeAccumulator,
 	tally *iamCanPerformTally,
-) {
+) error {
 	if len(envelopes) == 0 {
-		return
+		return nil
 	}
 	catalogActions := iamCanPerformCatalogActionsFromCatalog(catalog)
 	denied := make(map[iamCanPerformResourcePolicyDenyKey]struct{})
@@ -59,8 +60,12 @@ func addIAMCanPerformResourcePolicyEdges(
 		if env.FactKind != facts.AWSResourcePolicyPermissionFactKind || env.IsTombstone {
 			continue
 		}
-		effect := payloadString(env.Payload, "effect")
-		actions := payloadStringSlice(env.Payload, "actions")
+		permission, err := decodeAWSResourcePolicyPermission(env)
+		if err != nil {
+			return err
+		}
+		effect := permission.Effect
+		actions := permission.Actions
 		if effect != "Allow" && effect != "Deny" {
 			continue
 		}
@@ -70,9 +75,9 @@ func addIAMCanPerformResourcePolicyEdges(
 			}
 			continue
 		}
-		hasConditions := payloadBool(env.Payload, "has_conditions")
-		hasNotActions := len(payloadStringSlice(env.Payload, "not_actions")) > 0
-		hasNotResources := len(payloadStringSlice(env.Payload, "not_resources")) > 0
+		hasConditions := boolPtrValue(permission.HasConditions)
+		hasNotActions := len(permission.NotActions) > 0
+		hasNotResources := len(permission.NotResources) > 0
 		if hasConditions || hasNotActions || hasNotResources {
 			if hasConditions {
 				tally.recordSkip(iamCanPerformSkipConditioned)
@@ -85,11 +90,11 @@ func addIAMCanPerformResourcePolicyEdges(
 			countIAMCanPerformUncatalogued(actions, catalogActions, tally)
 		}
 
-		principalUIDs := resolveIAMCanPerformResourcePolicyPrincipals(index, env, tally)
+		principalUIDs := resolveIAMCanPerformResourcePolicyPrincipals(index, permission, tally)
 		if len(principalUIDs) == 0 {
 			continue
 		}
-		resourceType := payloadString(env.Payload, "resource_type")
+		resourceType := permission.ResourceType
 		for _, entry := range catalog {
 			if resourceType != entry.ExpectedResourceType {
 				continue
@@ -97,7 +102,7 @@ func addIAMCanPerformResourcePolicyEdges(
 			if !allowStatementTouches(actions, entry.Action) {
 				continue
 			}
-			resourceUID, mode, status := resolveIAMCanPerformResourcePolicyTarget(index, env, entry)
+			resourceUID, mode, status := resolveIAMCanPerformResourcePolicyTarget(index, permission, entry)
 			switch status {
 			case iamTargetResolved:
 				for _, principalUID := range principalUIDs {
@@ -149,6 +154,7 @@ func addIAMCanPerformResourcePolicyEdges(
 			false,
 		)
 	}
+	return nil
 }
 
 func countIAMCanPerformUncatalogued(actions []string, catalogActions map[string]struct{}, tally *iamCanPerformTally) {
@@ -161,14 +167,14 @@ func countIAMCanPerformUncatalogued(actions []string, catalogActions map[string]
 
 func resolveIAMCanPerformResourcePolicyPrincipals(
 	index cloudResourceJoinIndex,
-	env facts.Envelope,
+	permission iamv1.ResourcePolicyPermission,
 	tally *iamCanPerformTally,
 ) []string {
-	if payloadBool(env.Payload, "is_public") {
+	if boolPtrValue(permission.IsPublic) {
 		tally.skippedAmbiguous++
 		return nil
 	}
-	principalARNs := payloadStringSlice(env.Payload, "principal_arns")
+	principalARNs := permission.PrincipalARNs
 	if len(principalARNs) == 0 {
 		tally.skippedUnresolved++
 		return nil
@@ -199,20 +205,20 @@ func resolveIAMCanPerformResourcePolicyPrincipals(
 
 func resolveIAMCanPerformResourcePolicyTarget(
 	index cloudResourceJoinIndex,
-	env facts.Envelope,
+	permission iamv1.ResourcePolicyPermission,
 	entry iamCanPerformAction,
 ) (string, string, iamTargetStatus) {
-	resourceARN := payloadString(env.Payload, "resource_arn")
+	resourceARN := permission.ResourceARN
 	if resourceARN == "" {
 		return "", "", iamTargetUnresolved
 	}
-	if payloadString(env.Payload, "resource_type") != entry.ExpectedResourceType {
+	if permission.ResourceType != entry.ExpectedResourceType {
 		return "", "", iamTargetUnresolved
 	}
 	if iamCanPerformResourceTypeOfARN(resourceARN) != entry.ExpectedResourceType {
 		return "", "", iamTargetUnresolved
 	}
-	if !iamCanPerformResourcePolicyAppliesToAttachedResource(env, resourceARN, entry.ExpectedResourceType) {
+	if !iamCanPerformResourcePolicyAppliesToAttachedResource(permission, resourceARN, entry.ExpectedResourceType) {
 		return "", "", iamTargetUnresolved
 	}
 	uid, ok := index.byARN[resourceARN]
@@ -223,11 +229,11 @@ func resolveIAMCanPerformResourcePolicyTarget(
 }
 
 func iamCanPerformResourcePolicyAppliesToAttachedResource(
-	env facts.Envelope,
+	permission iamv1.ResourcePolicyPermission,
 	resourceARN string,
 	resourceType string,
 ) bool {
-	patterns := payloadStringSlice(env.Payload, "resources")
+	patterns := permission.Resources
 	if len(patterns) == 0 {
 		return false
 	}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 const (
@@ -98,19 +99,22 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 	if err != nil {
 		return nil, tally, err
 	}
-	postures := sortedEC2BlockDeviceKMSPostures(postureEnvelopes)
+	postures, err := sortedEC2BlockDeviceKMSPostures(postureEnvelopes)
+	if err != nil {
+		return nil, tally, err
+	}
 	byUID := make(map[string]map[string]any, len(postures))
-	for _, env := range postures {
-		if env.IsTombstone {
+	for _, item := range postures {
+		if item.env.IsTombstone {
 			tally.skipped[ec2BlockDeviceKMSSkipTombstone]++
 			continue
 		}
-		uid, ok := ec2BlockDeviceKMSSourceUID(env)
+		uid, ok := ec2BlockDeviceKMSSourceUID(item.posture)
 		if !ok {
 			tally.skipped[ec2BlockDeviceKMSSkipSourceUnresolved]++
 			continue
 		}
-		decision := deriveEC2BlockDeviceKMSDecision(env, index)
+		decision := deriveEC2BlockDeviceKMSDecision(item.posture, index)
 		byUID[uid] = map[string]any{
 			"uid":                      uid,
 			"state":                    decision.state,
@@ -122,7 +126,7 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 			"kms_key_count":            decision.kmsKeyCount,
 			"volume_ids":               decision.volumeIDs,
 			"kms_key_ids":              decision.kmsKeyIDs,
-			"source_fact_id":           env.FactID,
+			"source_fact_id":           item.env.FactID,
 		}
 	}
 
@@ -148,10 +152,10 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 }
 
 func deriveEC2BlockDeviceKMSDecision(
-	env facts.Envelope,
+	posture awsv1.EC2InstancePosture,
 	index ec2BlockDeviceKMSIndex,
 ) ec2BlockDeviceKMSDecision {
-	volumeIDs := ec2BlockDeviceKMSVolumeIDs(env.Payload)
+	volumeIDs := ec2BlockDeviceKMSVolumeIDs(posture)
 	decision := ec2BlockDeviceKMSDecision{volumeIDs: volumeIDs}
 	if len(volumeIDs) == 0 {
 		decision.state = ec2BlockDeviceKMSStateUnknown
@@ -173,7 +177,7 @@ func deriveEC2BlockDeviceKMSDecision(
 			reason = firstTrimmed(reason, ec2BlockDeviceKMSReasonMissingVolumeFact)
 			continue
 		}
-		if attachmentReason := ec2BlockDeviceKMSAttachmentReason(env, volume); attachmentReason != "" {
+		if attachmentReason := ec2BlockDeviceKMSAttachmentReason(posture, volume); attachmentReason != "" {
 			decision.unresolvedVolumeCount++
 			reason = firstTrimmed(reason, attachmentReason)
 			continue
@@ -229,11 +233,11 @@ func ec2BlockDeviceKMSAggregate(decision ec2BlockDeviceKMSDecision, unknownReaso
 	return ec2BlockDeviceKMSStateUnknown, ec2BlockDeviceKMSReasonNoBlockDevices
 }
 
-func ec2BlockDeviceKMSAttachmentReason(env facts.Envelope, volume ec2BlockDeviceKMSVolume) string {
+func ec2BlockDeviceKMSAttachmentReason(posture awsv1.EC2InstancePosture, volume ec2BlockDeviceKMSVolume) string {
 	if len(volume.attachments) == 0 {
 		return ec2BlockDeviceKMSReasonVolumeDetached
 	}
-	instanceID := payloadString(env.Payload, "instance_id")
+	instanceID := derefString(posture.InstanceID)
 	for _, attachment := range volume.attachments {
 		if attachment.instanceID != instanceID {
 			continue
@@ -246,56 +250,60 @@ func ec2BlockDeviceKMSAttachmentReason(env facts.Envelope, volume ec2BlockDevice
 	return ec2BlockDeviceKMSReasonAttachmentMismatch
 }
 
-func ec2BlockDeviceKMSVolumeIDs(payload map[string]any) []string {
-	raw, ok := payload["block_devices"]
-	if !ok || raw == nil {
+// ec2BlockDeviceKMSVolumeIDs returns the sorted, deduplicated volume ids from a
+// decoded ec2_instance_posture struct's typed BlockDevices, replacing the raw
+// payload["block_devices"] []any/[]map traversal with the typed slice.
+func ec2BlockDeviceKMSVolumeIDs(posture awsv1.EC2InstancePosture) []string {
+	if len(posture.BlockDevices) == 0 {
 		return nil
 	}
-	values := make([]string, 0)
-	switch typed := raw.(type) {
-	case []map[string]any:
-		for _, device := range typed {
-			values = append(values, payloadString(device, "volume_id"))
-		}
-	case []any:
-		for _, device := range typed {
-			if deviceMap, ok := device.(map[string]any); ok {
-				values = append(values, payloadString(deviceMap, "volume_id"))
-			}
-		}
+	values := make([]string, 0, len(posture.BlockDevices))
+	for _, device := range posture.BlockDevices {
+		values = append(values, derefString(device.VolumeID))
 	}
 	return uniqueSortedStrings(values)
 }
 
-func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) []facts.Envelope {
-	postures := make([]facts.Envelope, 0, len(envelopes))
+// ec2BlockDeviceKMSPostureItem pairs a decoded ec2_instance_posture struct with
+// its envelope so the extractor keeps the provenance scalars while reading
+// posture fields from the typed struct.
+type ec2BlockDeviceKMSPostureItem struct {
+	env     facts.Envelope
+	posture awsv1.EC2InstancePosture
+}
+
+func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDeviceKMSPostureItem, error) {
+	postures := make([]ec2BlockDeviceKMSPostureItem, 0, len(envelopes))
 	for _, env := range envelopes {
-		if env.FactKind == facts.EC2InstancePostureFactKind {
-			postures = append(postures, env)
+		if env.FactKind != facts.EC2InstancePostureFactKind {
+			continue
 		}
+		posture, err := decodeEC2InstancePosture(env)
+		if err != nil {
+			return nil, err
+		}
+		postures = append(postures, ec2BlockDeviceKMSPostureItem{env: env, posture: posture})
 	}
 	sort.SliceStable(postures, func(i, j int) bool {
-		leftUID, _ := ec2BlockDeviceKMSSourceUID(postures[i])
-		rightUID, _ := ec2BlockDeviceKMSSourceUID(postures[j])
+		leftUID, _ := ec2BlockDeviceKMSSourceUID(postures[i].posture)
+		rightUID, _ := ec2BlockDeviceKMSSourceUID(postures[j].posture)
 		if leftUID != rightUID {
 			return leftUID < rightUID
 		}
-		return postures[i].FactID < postures[j].FactID
+		return postures[i].env.FactID < postures[j].env.FactID
 	})
-	return postures
+	return postures, nil
 }
 
-func ec2BlockDeviceKMSSourceUID(env facts.Envelope) (string, bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	instanceID := payloadString(env.Payload, "instance_id")
-	arn := payloadString(env.Payload, "arn")
+func ec2BlockDeviceKMSSourceUID(posture awsv1.EC2InstancePosture) (string, bool) {
+	instanceID := derefString(posture.InstanceID)
+	arn := derefString(posture.ARN)
 	resourceID := firstTrimmed(instanceID, arn)
 	if resourceID == "" {
 		return "", false
 	}
-	resourceType := firstTrimmed(payloadString(env.Payload, "resource_type"), ec2BlockDeviceKMSResourceTypeInstance)
-	return cloudResourceUID(accountID, region, resourceType, resourceID), true
+	resourceType := firstTrimmed(derefString(posture.ResourceType), ec2BlockDeviceKMSResourceTypeInstance)
+	return cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), true
 }
 
 func payloadAttributes(payload map[string]any) map[string]any {
