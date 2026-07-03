@@ -1,0 +1,51 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//storage.googleapis.com/projects/_/buckets/demo-bucket",
+      "assetType": "storage.googleapis.com/Bucket",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "US-CENTRAL1",
+        "data": {
+          "id": "demo-bucket",
+          "name": "demo-bucket",
+          "location": "US-CENTRAL1",
+          "locationType": "region",
+          "storageClass": "STANDARD",
+          "timeCreated": "2024-06-01T00:00:00.000Z",
+          "updated": "2026-06-24T12:00:00.000Z",
+          "iamConfiguration": {
+            "uniformBucketLevelAccess": {"enabled": true},
+            "publicAccessPrevention": "enforced"
+          },
+          "encryption": {"defaultKmsKeyName": "projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1"},
+          "versioning": {"enabled": true},
+          "lifecycle": {"rule": [
+            {"action": {"type": "Delete"}, "condition": {"age": 30}}
+          ]},
+          "logging": {"logBucket": "audit-logs", "logObjectPrefix": "demo-bucket"},
+          "retentionPolicy": {"retentionPeriod": "2592000", "isLocked": true},
+          "labels": {"team": "data"}
+        }
+      }
+    },
+    {
+      "name": "//storage.googleapis.com/projects/_/buckets/raw-bucket",
+      "assetType": "storage.googleapis.com/Bucket",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "US",
+        "data": {
+          "id": "raw-bucket",
+          "name": "raw-bucket",
+          "location": "US",
+          "storageClass": "STANDARD",
+          "timeCreated": "2024-06-01T00:00:00.000Z"
+        }
+      }
+    }
+  ]
+}
