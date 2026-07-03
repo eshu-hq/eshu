@@ -31,8 +31,13 @@
             "display_name": "analytics",
             "state": "",
             "asset_type_family": "bigquery",
-            "correlation_anchors": [],
-            "attributes": {}
+            "correlation_anchors": [
+              "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key"
+            ],
+            "attributes": {
+              "location": "US",
+              "kms_key_name": "projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key"
+            }
           }
         },
         {
@@ -557,6 +562,279 @@
               "deleted": false,
               "etag_fingerprint": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:cloudkms.googleapis.com/CryptoKey:supply-chain-demo-project:us:demo-ring:demo-key",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+            "asset_type": "cloudkms.googleapis.com/CryptoKey",
+            "project_id": "supply-chain-demo-project",
+            "location": "us",
+            "display_name": "demo-key",
+            "state": "",
+            "asset_type_family": "cloudkms",
+            "correlation_anchors": [],
+            "attributes": {
+              "purpose": "ENCRYPT_DECRYPT"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:bigquery_dataset_encrypted_by_kms_key:analytics->demo-key",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics",
+            "source_asset_type": "bigquery.googleapis.com/Dataset",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "bigquery_dataset_encrypted_by_kms_key",
+            "target_full_resource_name": "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+            "target_asset_type": "cloudkms.googleapis.com/CryptoKey",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:compute.googleapis.com/Network:supply-chain-demo-project:global:demo-vpc",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+            "asset_type": "compute.googleapis.com/Network",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-vpc",
+            "state": "",
+            "asset_type_family": "compute",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet"
+            ],
+            "attributes": {
+              "auto_create_subnetworks": false,
+              "routing_mode": "REGIONAL",
+              "subnetwork_count": 1
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:compute.googleapis.com/Subnetwork:supply-chain-demo-project:us-central1:demo-subnet",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet",
+            "asset_type": "compute.googleapis.com/Subnetwork",
+            "project_id": "supply-chain-demo-project",
+            "location": "us-central1",
+            "display_name": "demo-subnet",
+            "state": "",
+            "asset_type_family": "compute",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc"
+            ],
+            "attributes": {
+              "region": "us-central1",
+              "purpose": "PRIVATE",
+              "private_ip_google_access": true,
+              "ip_cidr_prefix_length": 24
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subnetwork_in_network:demo-subnet->demo-vpc",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet",
+            "source_asset_type": "compute.googleapis.com/Subnetwork",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subnetwork_in_network",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+            "target_asset_type": "compute.googleapis.com/Network",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:vpc_network_contains_subnetwork:demo-vpc->demo-subnet",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+            "source_asset_type": "compute.googleapis.com/Network",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "vpc_network_contains_subnetwork",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet",
+            "target_asset_type": "compute.googleapis.com/Subnetwork",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:artifactregistry.googleapis.com/Repository:supply-chain-demo-project:us:demo-repo",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//artifactregistry.googleapis.com/projects/supply-chain-demo-project/locations/us/repositories/demo-repo",
+            "asset_type": "artifactregistry.googleapis.com/Repository",
+            "project_id": "supply-chain-demo-project",
+            "location": "us",
+            "display_name": "demo-repo",
+            "state": "",
+            "asset_type_family": "artifactregistry",
+            "correlation_anchors": [],
+            "attributes": {
+              "format": "DOCKER"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:artifactregistry.googleapis.com/DockerImage:supply-chain-demo-project:us:demo-repo/deployable-source",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//artifactregistry.googleapis.com/projects/supply-chain-demo-project/locations/us/repositories/demo-repo/dockerImages/deployable-source@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "asset_type": "artifactregistry.googleapis.com/DockerImage",
+            "project_id": "supply-chain-demo-project",
+            "location": "us",
+            "display_name": "deployable-source",
+            "state": "",
+            "asset_type_family": "artifactregistry",
+            "correlation_anchors": [
+              "//artifactregistry.googleapis.com/projects/supply-chain-demo-project/locations/us/repositories/demo-repo",
+              "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            ],
+            "attributes": {
+              "image_digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+              "tags": ["latest"],
+              "tag_count": 1,
+              "media_type": "application/vnd.docker.distribution.manifest.v2+json"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:docker_image_in_repository:deployable-source->demo-repo",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//artifactregistry.googleapis.com/projects/supply-chain-demo-project/locations/us/repositories/demo-repo/dockerImages/deployable-source@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "source_asset_type": "artifactregistry.googleapis.com/DockerImage",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "docker_image_in_repository",
+            "target_full_resource_name": "//artifactregistry.googleapis.com/projects/supply-chain-demo-project/locations/us/repositories/demo-repo",
+            "target_asset_type": "artifactregistry.googleapis.com/Repository",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Topic:supply-chain-demo-project:global:demo-rotation-topic",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+            "asset_type": "pubsub.googleapis.com/Topic",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-rotation-topic",
+            "state": "",
+            "asset_type_family": "pubsub",
+            "correlation_anchors": [],
+            "attributes": {}
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:secretmanager.googleapis.com/Secret:supply-chain-demo-project:global:demo-secret",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//secretmanager.googleapis.com/projects/supply-chain-demo-project/secrets/demo-secret",
+            "asset_type": "secretmanager.googleapis.com/Secret",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-secret",
+            "state": "",
+            "asset_type_family": "secretmanager",
+            "correlation_anchors": [
+              "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+              "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic"
+            ],
+            "attributes": {
+              "replication_type": "automatic",
+              "customer_managed_encryption": true,
+              "topic_count": 1
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:secret_encrypted_by_kms_key:demo-secret->demo-key",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//secretmanager.googleapis.com/projects/supply-chain-demo-project/secrets/demo-secret",
+            "source_asset_type": "secretmanager.googleapis.com/Secret",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "secret_encrypted_by_kms_key",
+            "target_full_resource_name": "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+            "target_asset_type": "cloudkms.googleapis.com/CryptoKey",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:secret_notifies_topic:demo-secret->demo-rotation-topic",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//secretmanager.googleapis.com/projects/supply-chain-demo-project/secrets/demo-secret",
+            "source_asset_type": "secretmanager.googleapis.com/Secret",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "secret_notifies_topic",
+            "target_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+            "target_asset_type": "pubsub.googleapis.com/Topic",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
           }
         }
       ]
