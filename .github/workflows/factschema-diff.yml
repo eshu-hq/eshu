@@ -1,0 +1,142 @@
+# Fact schema diff breaking-change gate. Contract System v1 §6 enforcement
+# gate 1 — the "buf breaking equivalent for this stack"
+# (docs/internal/design/contract-system-v1.md#6-enforcement-gates).
+#
+# Diffs every generated JSON Schema under sdk/go/factschema/schema/ against a
+# baseline git ref (default: the merge-base of HEAD against origin/main,
+# since no factschema-* release tag exists yet — see
+# go/cmd/factschema-diff/README.md), comparing the UNION of baseline and
+# current schema files, and fails when a schema removed, renamed, or narrowed
+# a field, added a required field, or was deleted outright, without a
+# corresponding major version bump in the schema's title marker. An additive
+# OPTIONAL field, or a schema with no baseline counterpart (a brand-new fact
+# kind), is not a break.
+#
+# What this gate catches (Contract System v1 §5/§6.1 — "remove/rename key",
+# "removed, renamed, or narrowed field"; the schemas set
+# additionalProperties:false, so removing ANY field is a real break):
+#   1. A required field removed from a schema's properties
+#      (removed_required_field).
+#   2. An optional field removed from a fail-closed schema
+#      (removed_field — a collector still emitting it now produces a
+#      schema-invalid payload / input_invalid dead letter).
+#   3. A field renamed (surfaces as a removal on the old name, required or
+#      optional).
+#   4. A field's type or value space narrowed, e.g. string -> enum subset, or
+#      a nested map-value / array-item type change like tags map[string]string
+#      -> map[string]int (narrowed_type).
+#   5. A field promoted from optional to required (widened_required).
+#   6. A brand-new required field absent from the baseline properties
+#      (added_required_field — breaks any collector that never emitted it).
+#   7. An entire schema file deleted (removed_schema — enumerated via the
+#      union of baseline and current schema files, so a whole-contract
+#      deletion cannot pass by emptying the current set).
+#   All without a corresponding major version bump in the schema's title.
+#
+# What is NOT drift (not caught, by design):
+#   - An additive OPTIONAL field.
+#   - An optional field removed from an OPEN schema (additionalProperties not
+#     false), which still accepts the field.
+#   - A brand-new schema file with no baseline counterpart.
+#   - Any change accompanied by a major version bump in the title marker.
+#
+# When this gate fails on a PR:
+#   1. Run: bash scripts/verify-factschema-diff.sh
+#   2. Read the reported field name and violation type (removed_required_field
+#      / removed_field / narrowed_type / widened_required /
+#      added_required_field / removed_schema).
+#   3. Either revert the breaking change, or bump the schema's title version
+#      marker to the next major and add a decode shim per Contract System v1
+#      §3.2 before merging.
+name: Fact Schema Diff
+
+on:
+  pull_request:
+    paths:
+      - "sdk/go/factschema/schema/**"
+      - "sdk/go/factschema/aws/v1/**"
+      - "sdk/go/factschema/internal/schemagen/**"
+      - "go/cmd/factschema-diff/**"
+      - "scripts/*verify-factschema-diff*.sh"
+      - ".github/workflows/factschema-diff.yml"
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-mirror:
+    name: Verify factschema-diff test mirror
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Run Go unit tests
+        working-directory: go
+        run: go test ./cmd/factschema-diff/... -count=1
+
+      - name: Run shell test mirror
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/test-verify-factschema-diff.sh 2>&1 | tee /tmp/factschema-diff-test.log
+
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factschema-diff-test-log
+          path: /tmp/factschema-diff-test.log
+          if-no-files-found: warn
+
+  gate:
+    name: Verify factschema-diff gate
+    needs: test-mirror
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Full history + origin/main ref so the default -base-ref
+          # (merge-base of HEAD against origin/main) resolves.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run factschema-diff
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/verify-factschema-diff.sh 2>&1 | tee /tmp/factschema-diff-gate.log
+
+      - name: Upload drift report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factschema-diff-report
+          path: /tmp/factschema-diff-gate.log
+          if-no-files-found: warn

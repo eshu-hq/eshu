@@ -2213,6 +2213,11 @@
     },
     {
       "category": "command",
+      "name": "factschema-diff",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "golden-corpus-gate",
       "readiness": "implemented"
     },
