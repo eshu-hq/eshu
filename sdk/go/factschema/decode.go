@@ -20,9 +20,14 @@ import (
 // shape changes between majors, handled by the switch inside each
 // kind-specific Decode function (Contract System v1 §3.2).
 const (
-	// FactKindAWSResource is the sample fact kind this scaffold decodes end
-	// to end.
-	FactKindAWSResource = "aws.resource"
+	// FactKindAWSResource is the fact kind identifier for an AWS resource
+	// observation. Its value is the exact wire fact-kind string the collector
+	// emits and the reducer loads (go/internal/facts.AWSResourceFactKind ==
+	// "aws_resource"). The contracts module cannot import go/internal/facts, so
+	// the value is duplicated here; the reducer-side drift lock
+	// TestFactSchemaKindsMatchWireFactKinds asserts the two stay byte-equal so
+	// this constant can never silently diverge from the wire kind again.
+	FactKindAWSResource = "aws_resource"
 )
 
 // Classification values a DecodeError carries. These are this module's own
@@ -185,7 +190,7 @@ func encodeToPayload[T any](value T) (map[string]any, error) {
 }
 
 // DecodeAWSResource decodes env.Payload into the latest awsv1.Resource
-// struct for the "aws.resource" fact kind, dispatching on env.SchemaVersion
+// struct for the "aws_resource" fact kind, dispatching on env.SchemaVersion
 // major per Contract System v1 §3.2. Callers (reducer handlers) receive
 // either the decoded struct or a classified *DecodeError; they must never
 // substitute a zero-value struct on error.

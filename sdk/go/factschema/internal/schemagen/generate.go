@@ -13,7 +13,7 @@ import (
 )
 
 // AWSResourceSchemaID is the checked-in JSON Schema $id for the
-// schema-version-1 "aws.resource" payload.
+// schema-version-1 "aws_resource" payload.
 const AWSResourceSchemaID = "https://eshu.dev/schemas/factschema/aws/v1/resource.schema.json"
 
 // AWSResourceSchema returns the canonical, deterministically ordered JSON
@@ -36,11 +36,11 @@ func AWSResourceSchema() ([]byte, error) {
 
 	schema := reflector.Reflect(&awsv1.Resource{})
 	schema.ID = jsonschema.ID(AWSResourceSchemaID)
-	schema.Title = "Eshu aws.resource Payload (schema version 1)"
+	schema.Title = "Eshu aws_resource Payload (schema version 1)"
 
 	raw, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("schemagen: marshal aws.resource schema: %w", err)
+		return nil, fmt.Errorf("schemagen: marshal aws_resource schema: %w", err)
 	}
 
 	return append(raw, '\n'), nil

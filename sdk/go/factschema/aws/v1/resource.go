@@ -3,9 +3,8 @@
 
 package v1
 
-// Resource is the schema-version-1 typed payload for the "aws.resource" fact
-// kind, the sample family the factschema scaffold demonstrates end to end
-// (Contract System v1 §3.1,
+// Resource is the schema-version-1 typed payload for the "aws_resource" fact
+// kind (Contract System v1 §3.1,
 // docs/internal/design/contract-system-v1.md).
 //
 // Field mutability encodes the required/optional contract the schema

@@ -32,5 +32,5 @@
     "region",
     "resource_type"
   ],
-  "title": "Eshu aws.resource Payload (schema version 1)"
+  "title": "Eshu aws_resource Payload (schema version 1)"
 }

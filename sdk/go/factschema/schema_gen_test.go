@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/sdk/go/factschema/internal/schemagen"
 )
 
-// TestAWSResourceSchemaHasNoDrift regenerates the aws.resource JSON Schema
+// TestAWSResourceSchemaHasNoDrift regenerates the aws_resource JSON Schema
 // in memory and asserts it is byte-identical to the checked-in artifact at
 // schema/aws_resource.v1.schema.json. This makes schema drift a `go test`
 // failure rather than something only the schema-diff CI gate (out of scope
@@ -33,6 +33,6 @@ func TestAWSResourceSchemaHasNoDrift(t *testing.T) {
 	}
 
 	if !bytes.Equal(got, want) {
-		t.Fatalf("generated aws.resource schema drifted from committed artifact; run `go generate ./...` in sdk/go/factschema and commit the result\n\ngenerated:\n%s\n\ncommitted:\n%s", got, want)
+		t.Fatalf("generated aws_resource schema drifted from committed artifact; run `go generate ./...` in sdk/go/factschema and commit the result\n\ngenerated:\n%s\n\ncommitted:\n%s", got, want)
 	}
 }
