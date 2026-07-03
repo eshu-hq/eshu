@@ -657,7 +657,7 @@
       },
       {
         "id": "rc-42",
-        "description": "A compute Engine Instance CloudResource is connected to an attached Disk CloudResource via a GCP_instance_uses_disk edge; the gcpcloud cassette's demo-instance Instance fact carries a gcp_cloud_relationship fact with relationship_type instance_uses_disk targeting the demo-disk Disk, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Disk relationship fact, so this locks in the Compute Engine Instance typed-depth extractor's golden-corpus follow-up (#4404).",
+        "description": "A Compute Engine Instance CloudResource is connected to an attached Disk CloudResource via a GCP_instance_uses_disk edge; the gcpcloud cassette's demo-instance Instance fact carries a gcp_cloud_relationship fact with relationship_type instance_uses_disk targeting the demo-disk Disk, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Disk relationship fact, so this locks in the Compute Engine Instance typed-depth extractor's golden-corpus follow-up (#4404).",
         "relationship": "GCP_instance_uses_disk",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -665,7 +665,7 @@
       },
       {
         "id": "rc-43",
-        "description": "A compute Engine Instance CloudResource is connected to its interface Network CloudResource via a GCP_instance_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-vpc-b Network (asset_type compute.googleapis.com/Network) and a gcp_cloud_relationship fact with relationship_type instance_in_network, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Network relationship fact, so this locks in the Compute Engine Instance golden-corpus follow-up (#4404).",
+        "description": "A Compute Engine Instance CloudResource is connected to its interface Network CloudResource via a GCP_instance_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-vpc-b Network (asset_type compute.googleapis.com/Network) and a gcp_cloud_relationship fact with relationship_type instance_in_network, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Network relationship fact, so this locks in the Compute Engine Instance golden-corpus follow-up (#4404).",
         "relationship": "GCP_instance_in_network",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -673,7 +673,7 @@
       },
       {
         "id": "rc-44",
-        "description": "A compute Engine Instance CloudResource is connected to its interface Subnetwork CloudResource via a GCP_instance_in_subnetwork edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-subnet-b Subnetwork (asset_type compute.googleapis.com/Subnetwork) and a gcp_cloud_relationship fact with relationship_type instance_in_subnetwork, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Subnetwork relationship fact, so this locks in the Compute Engine Instance golden-corpus follow-up (#4404).",
+        "description": "A Compute Engine Instance CloudResource is connected to its interface Subnetwork CloudResource via a GCP_instance_in_subnetwork edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-subnet-b Subnetwork (asset_type compute.googleapis.com/Subnetwork) and a gcp_cloud_relationship fact with relationship_type instance_in_subnetwork, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Subnetwork relationship fact, so this locks in the Compute Engine Instance golden-corpus follow-up (#4404).",
         "relationship": "GCP_instance_in_subnetwork",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
