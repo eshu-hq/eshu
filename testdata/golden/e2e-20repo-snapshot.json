@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 50,
-        "max": 74,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 50: 2 AWS + 48 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "min": 67,
+        "max": 91,
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 67: 2 AWS + 65 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -1043,6 +1043,110 @@
         "id": "rc-90",
         "description": "A compute Static Address CloudResource is connected to the compute ForwardingRule CloudResource using it via a GCP_address_used_by_forwarding_rule edge; the gcpcloud cassette's demo-address Address fact (user_count 2) carries a gcp_cloud_relationship fact with relationship_type address_used_by_forwarding_rule targeting the shared demo-forwarding-rule ForwardingRule, matching the #4304 extractor's used-by-forwarding-rule edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Address->ForwardingRule relationship fact, so this locks in the Static Address used-by-forwarding-rule edge path alongside its used-by-instance edge (#4412).",
         "relationship": "GCP_address_used_by_forwarding_rule",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-91",
+        "description": "An App Engine Application CloudResource is connected to its default GCS staging Storage Bucket CloudResource via a GCP_application_uses_default_bucket edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the supply-chain-demo-project Application (asset_type appengine.googleapis.com/Application, with bounded location_id/serving_status/default_hostname/database_type attributes) and a gcp_cloud_relationship fact with relationship_type application_uses_default_bucket targeting the shared demo-bucket Bucket, matching the #4350 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Application cloud_resource + relationship facts, so this locks in the App Engine Application typed-depth extractor's golden-corpus follow-up (#4500).",
+        "relationship": "GCP_application_uses_default_bucket",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-92",
+        "description": "An App Engine Service CloudResource is connected to the App Engine Version CloudResource it splits traffic to via a GCP_service_splits_traffic_to_version edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the default Service (asset_type appengine.googleapis.com/Service, with bounded split_shard_by/version_count/traffic_allocations attributes) and a gcp_cloud_relationship fact with relationship_type service_splits_traffic_to_version targeting the synthetic default-v1 Version, matching the #4330 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Service cloud_resource + relationship facts, so this locks in the App Engine Service typed-depth extractor's golden-corpus follow-up (#4498).",
+        "relationship": "GCP_service_splits_traffic_to_version",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-93",
+        "description": "A Cloud Scheduler Job CloudResource is connected to its Pub/Sub target Topic CloudResource via a GCP_scheduler_job_targets_topic edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-nightly-job Job (asset_type cloudscheduler.googleapis.com/Job, with bounded schedule/time_zone/state/target_type attributes) and a gcp_cloud_relationship fact with relationship_type scheduler_job_targets_topic targeting the shared demo-topic-2 Topic, matching the #4486 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Job cloud_resource + relationship facts, so this locks in the Cloud Scheduler Job typed-depth extractor's golden-corpus follow-up (#4486).",
+        "relationship": "GCP_scheduler_job_targets_topic",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-94",
+        "description": "An Eventarc Trigger CloudResource is connected to its Cloud Run Service destination CloudResource via a GCP_trigger_targets_service edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-run-trigger Trigger (asset_type eventarc.googleapis.com/Trigger, with bounded event_type/destination_type=run/transport_type attributes) and a gcp_cloud_relationship fact with relationship_type trigger_targets_service targeting the shared demo-run-service Service, matching the #4484 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Trigger cloud_resource + relationship facts, so this locks in the Eventarc Trigger typed-depth extractor's golden-corpus follow-up (#4484).",
+        "relationship": "GCP_trigger_targets_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-95",
+        "description": "An Eventarc Trigger CloudResource is connected to its Pub/Sub transport Topic CloudResource via a GCP_trigger_transport_topic edge; the gcpcloud cassette's demo-run-trigger Trigger fact carries a gcp_cloud_relationship fact with relationship_type trigger_transport_topic targeting the shared demo-topic-2 Topic, matching the #4484 extractor's transport-topic edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Trigger->Topic relationship fact, so this locks in the Eventarc Trigger transport-topic edge path alongside its destination-service edge (#4484).",
+        "relationship": "GCP_trigger_transport_topic",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-96",
+        "description": "An Eventarc Trigger CloudResource is connected to its Channel CloudResource via a GCP_trigger_uses_channel edge; the gcpcloud cassette's demo-run-trigger Trigger fact carries a gcp_cloud_relationship fact with relationship_type trigger_uses_channel targeting the synthetic demo-channel Channel, matching the #4484 extractor's channel edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Trigger->Channel relationship fact, so this locks in the Eventarc Trigger channel edge path alongside its destination and transport edges (#4484).",
+        "relationship": "GCP_trigger_uses_channel",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-97",
+        "description": "An Eventarc Trigger CloudResource is connected to its Cloud Functions Function destination CloudResource via a GCP_trigger_targets_function edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-fn-trigger Trigger (asset_type eventarc.googleapis.com/Trigger, with bounded event_type/destination_type=function attributes) and a gcp_cloud_relationship fact with relationship_type trigger_targets_function targeting the synthetic demo-fn Function, matching the #4484 extractor's destination-mutual-exclusion contract (a second trigger instance is required since destination_type is exactly one of service/function/workflow per trigger). GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the second Trigger cloud_resource + relationship facts, so this locks in the Eventarc Trigger function-destination edge path (#4484).",
+        "relationship": "GCP_trigger_targets_function",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-98",
+        "description": "An Eventarc Trigger CloudResource is connected to its Workflows Workflow destination CloudResource via a GCP_trigger_targets_workflow edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-workflow-trigger Trigger (asset_type eventarc.googleapis.com/Trigger, with bounded event_type/destination_type=workflow attributes) and a gcp_cloud_relationship fact with relationship_type trigger_targets_workflow targeting the synthetic demo-workflow Workflow, matching the #4484 extractor's third mutually-exclusive destination kind (a third trigger instance is required since destination_type is exactly one of service/function/workflow per trigger). GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the third Trigger cloud_resource + relationship facts, so this locks in the Eventarc Trigger workflow-destination edge path and completes full destination-kind coverage (#4484).",
+        "relationship": "GCP_trigger_targets_workflow",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-99",
+        "description": "An Artifact Registry Repository CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_artifact_registry_repository_encrypted_by_kms_key edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-cmek-repo Repository (asset_type artifactregistry.googleapis.com/Repository, with bounded format/mode/customer_managed_encryption attributes) and a gcp_cloud_relationship fact with relationship_type artifact_registry_repository_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4480 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Repository cloud_resource + relationship facts, so this locks in the Artifact Registry Repository typed-depth extractor's golden-corpus follow-up (#4480).",
+        "relationship": "GCP_artifact_registry_repository_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-100",
+        "description": "A Logging Log Sink CloudResource is connected to its Storage Bucket export destination CloudResource via a GCP_log_sink_exports_to_bucket edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-sink-gcs LogSink (asset_type logging.googleapis.com/LogSink, with bounded destination_type=storage/filter_present/disabled attributes) and a gcp_cloud_relationship fact with relationship_type log_sink_exports_to_bucket targeting the shared demo-bucket Bucket, matching the #4490 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the LogSink cloud_resource + relationship facts, so this locks in the Logging Log Sink typed-depth extractor's golden-corpus follow-up (#4490).",
+        "relationship": "GCP_log_sink_exports_to_bucket",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-101",
+        "description": "A Logging Log Sink CloudResource is connected to its BigQuery Dataset export destination CloudResource via a GCP_log_sink_exports_to_dataset edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-sink-bq LogSink (asset_type logging.googleapis.com/LogSink, with bounded destination_type=bigquery/filter_present/disabled attributes) and a gcp_cloud_relationship fact with relationship_type log_sink_exports_to_dataset targeting the shared analytics Dataset, matching the #4490 extractor's dataset-export edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the second LogSink cloud_resource + relationship facts, so this locks in the Logging Log Sink dataset-export edge path alongside its bucket-export edge (#4490).",
+        "relationship": "GCP_log_sink_exports_to_dataset",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-102",
+        "description": "A Logging Log Sink CloudResource is connected to its Pub/Sub Topic export destination CloudResource via a GCP_log_sink_exports_to_topic edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-sink-pubsub LogSink (asset_type logging.googleapis.com/LogSink, with bounded destination_type=pubsub/filter_present/disabled attributes) and a gcp_cloud_relationship fact with relationship_type log_sink_exports_to_topic targeting the shared demo-topic-2 Topic, matching the #4490 extractor's topic-export edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the third LogSink cloud_resource + relationship facts, so this locks in the Logging Log Sink topic-export edge path alongside its bucket and dataset export edges (#4490).",
+        "relationship": "GCP_log_sink_exports_to_topic",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-103",
+        "description": "A Logging Log Sink CloudResource is connected to its Log Bucket export destination CloudResource via a GCP_log_sink_exports_to_log_bucket edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-sink-logbucket LogSink (asset_type logging.googleapis.com/LogSink, with bounded destination_type=logging/disabled attributes) and a gcp_cloud_relationship fact with relationship_type log_sink_exports_to_log_bucket targeting the synthetic demo-log-bucket LogBucket, matching the #4490 extractor's log-bucket-export edge \u2014 distinct from the Storage Bucket export edge since a logging.googleapis.com/LogBucket is a separate CAI asset type. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the fourth LogSink cloud_resource + relationship facts, so this locks in the Logging Log Sink log-bucket-export edge path and completes full destination-kind coverage (#4490).",
+        "relationship": "GCP_log_sink_exports_to_log_bucket",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
