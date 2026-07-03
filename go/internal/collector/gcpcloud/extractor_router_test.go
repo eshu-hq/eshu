@@ -211,6 +211,39 @@ func TestExtractRouterInterfaceEdgesToVpnTunnelAndInterconnectAttachment(t *test
 	}
 }
 
+func TestExtractRouterInterfaceRejectsWrongSegmentReference(t *testing.T) {
+	// A malformed or anomalous CAI page could put a subnetwork selfLink in
+	// linkedVpnTunnel (or any other field/segment mismatch). Segment
+	// validation must reject it rather than emit a
+	// router_interface_linked_vpn_tunnel edge with target_type recorded as
+	// VpnTunnel against a resource that is not actually a VPN tunnel.
+	const data = `{
+		"network": "projects/demo-project/global/networks/prod-vpc",
+		"interfaces": [
+			{
+				"name": "if-0",
+				"linkedVpnTunnel": "projects/demo-project/regions/us-central1/subnetworks/sub-1"
+			}
+		]
+	}`
+
+	got, err := extractRouter(routerContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeRouterInterfaceLinkedVpnTunnel {
+			t.Fatalf("expected no %s edge for a wrong-segment reference, got %#v", relationshipTypeRouterInterfaceLinkedVpnTunnel, rel)
+		}
+	}
+
+	const subnet = "//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub-1"
+	if containsStringSlice(got.CorrelationAnchors, subnet) {
+		t.Errorf("expected no correlation anchor for a wrong-segment reference, got %#v", got.CorrelationAnchors)
+	}
+}
+
 func TestExtractRouterEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractRouter(routerContext(`{}`))
 	if err != nil {

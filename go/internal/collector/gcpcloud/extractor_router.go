@@ -111,7 +111,15 @@ type routerInterfaceData struct {
 // creation time); the enclosing network as a correlation anchor and edge; and
 // typed interface edges to each interface's linked VPN tunnel, linked
 // Interconnect attachment, or subnetwork. No BGP peer or interface IP
-// address, and no NAT IP resource reference, ever reaches the output.
+// address, and no NAT IP resource reference, ever reaches the output. Each
+// interface target field is resolved with computeResourceFullNameFromSelfLink
+// against its expected path segment ("vpnTunnels", "interconnectAttachments",
+// "subnetworks") so a malformed or anomalous CAI page that puts a
+// wrong-kind selfLink in a field (for example a subnetwork selfLink in
+// linkedVpnTunnel) never emits an edge with a fabricated target_type; the
+// mismatched reference is dropped, matching the "ambiguous reference -> no
+// fabricated edge" convention used by the sibling Route and ForwardingRule
+// extractors.
 func extractRouter(ctx ExtractContext) (AttributeExtraction, error) {
 	var data routerData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -128,15 +136,15 @@ func extractRouter(ctx ExtractContext) (AttributeExtraction, error) {
 	}
 
 	for _, iface := range data.Interfaces {
-		if tunnelName := computeFullResourceNameFromSelfLink(iface.LinkedVpnTunnel, ctx.ProjectID); tunnelName != "" {
+		if tunnelName := computeResourceFullNameFromSelfLink(iface.LinkedVpnTunnel, "vpnTunnels", ctx.ProjectID); tunnelName != "" {
 			anchors = append(anchors, tunnelName)
 			rels = append(rels, routerEdge(ctx, relationshipTypeRouterInterfaceLinkedVpnTunnel, tunnelName, assetTypeComputeVpnTunnel))
 		}
-		if attachmentName := computeFullResourceNameFromSelfLink(iface.LinkedInterconnectAttachment, ctx.ProjectID); attachmentName != "" {
+		if attachmentName := computeResourceFullNameFromSelfLink(iface.LinkedInterconnectAttachment, "interconnectAttachments", ctx.ProjectID); attachmentName != "" {
 			anchors = append(anchors, attachmentName)
 			rels = append(rels, routerEdge(ctx, relationshipTypeRouterInterfaceLinkedInterconnectAttachment, attachmentName, assetTypeComputeInterconnectAttachment))
 		}
-		if subnetName := computeFullResourceNameFromSelfLink(iface.Subnetwork, ctx.ProjectID); subnetName != "" {
+		if subnetName := computeResourceFullNameFromSelfLink(iface.Subnetwork, "subnetworks", ctx.ProjectID); subnetName != "" {
 			anchors = append(anchors, subnetName)
 			rels = append(rels, routerEdge(ctx, relationshipTypeRouterInterfaceSubnetwork, subnetName, assetTypeComputeSubnetwork))
 		}
