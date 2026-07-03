@@ -80,14 +80,14 @@ exhausted its retry budget, and `projection_bug` for an unclassified terminal
 failure that needs manual review.
 
 A component author does not need direct Postgres or graph access to see these
-failures. They are surfaced through the component diagnostics surface
-(`eshu component diagnostics <component-id> --json`) and through the
-dead-letter and status admin HTTP surface described in
-[Status And Admin](http-api/status-admin.md), which reports dead-letter
-counts, failure class breakdowns by domain, and the newest failure per
-domain. Every terminal class also carries a replay disposition
-(`retryable`, `non_retryable`, or `manual_review`) so an operator or an
-automated replay tool knows whether blindly retrying an item is safe.
+failures. They are surfaced through the status and operator-control-plane
+admin HTTP surface described in [Status And Admin](http-api/status-admin.md):
+the `dead_letters` payload reports the total dead-letter count, a per-domain
+breakdown of dead-letter counts with each domain's oldest dead-letter age,
+and a single newest failure carrying its `failure_class` and domain. Every
+terminal class also carries a replay disposition (`retryable`,
+`non_retryable`, or `manual_review`) so an operator or an automated replay
+tool knows whether blindly retrying an item is safe.
 
 ## Related
 
