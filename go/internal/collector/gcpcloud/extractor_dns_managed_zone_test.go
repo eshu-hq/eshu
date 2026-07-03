@@ -161,16 +161,18 @@ func TestExtractDNSManagedZoneForwardingConfig(t *testing.T) {
 	if v, _ := got.Attributes["forwarding_enabled"].(bool); !v {
 		t.Errorf("expected forwarding_enabled=true, got %#v", got.Attributes)
 	}
-	// Forwarding target IPs must never be decoded into any attribute or anchor.
-	for k, v := range got.Attributes {
-		if s, ok := v.(string); ok && (containsString(s, "10.0.0.1") || containsString(s, "10.0.0.2")) {
-			t.Fatalf("attribute %q leaked a forwarding target IP: %v", k, v)
-		}
+	// Forwarding target IPs must never leak into any attribute, anchor, or
+	// relationship, regardless of the Go type they might arrive in. Marshal
+	// the entire extraction struct and scan the resulting JSON so a future
+	// regression that stores the IP as json.RawMessage, []byte, or any other
+	// non-string type is still caught (matches the full-struct-marshal leak
+	// pattern used by sibling extractors in this package).
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal extraction: %v", err)
 	}
-	for _, a := range got.CorrelationAnchors {
-		if containsString(a, "10.0.0.1") || containsString(a, "10.0.0.2") {
-			t.Fatalf("anchor leaked a forwarding target IP: %v", a)
-		}
+	if containsString(string(blob), "10.0.0.1") || containsString(string(blob), "10.0.0.2") {
+		t.Fatalf("extraction leaked a forwarding target IP: %s", blob)
 	}
 	if len(got.Relationships) != 0 {
 		t.Fatalf("forwarding target IPs are not resolvable CAI endpoints, expected no edges, got %#v", got.Relationships)
