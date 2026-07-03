@@ -192,7 +192,22 @@
    `pathMatchers[].routeRules[].matchRules` (nor routeAction's non-backend
    traffic-shaping controls, such as `weight`) — raw host/path routing
    patterns and traffic-shaping controls are dropped, only bounded counts and
-   the resolvable backend references leave the parser.
+   the resolvable backend references leave the parser; relationship
+   observations are deduped by (type, target) since the same backend can be
+   referenced from more than one place on a URL map.
+36. `extractor_router.go` - typed-depth extractor for
+   `compute.googleapis.com/Router` (region, BGP ASN and advertise mode, a
+   bounded per-peer summary of name/peer-ASN/interface-name, a bounded
+   per-NAT summary of name/IP-allocate-option/source-subnetwork-ranges,
+   encrypted-interconnect-router posture, creation time; `router_in_network`
+   edge to the enclosing Network plus a typed edge per interface to its
+   linked VPN tunnel, linked Interconnect attachment, or subnetwork; a BGP
+   peer's `interfaceName` never becomes an edge endpoint directly — only the
+   interface's own linked resource resolves — and no BGP peer/interface IP
+   address or NAT IP resource reference ever reaches the extraction output;
+   `routerBgpPeerData`, `routerNatData`, and `routerInterfaceData` never
+   declare struct fields for the CAI IP/CIDR fields at all, so those values
+   are never decoded into Go memory in the first place).
 
 ## Invariants
 
