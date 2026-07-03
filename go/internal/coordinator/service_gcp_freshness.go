@@ -83,73 +83,166 @@ func (s Service) scheduleGCPFreshnessWork(
 	if len(triggers) == 0 {
 		return nil
 	}
+
+	assignments, order := groupGCPFreshnessAssignments(triggers, instances)
 	for _, trigger := range triggers {
-		if err := s.handoffGCPFreshnessTrigger(ctx, observedAt.UTC(), trigger, instances); err != nil {
+		if _, matched := assignments.matched[trigger.TriggerID]; matched {
+			continue
+		}
+		s.markGCPFreshnessFailed(ctx, []freshness.StoredTrigger{trigger}, observedAt, "unauthorized_target", "no GCP collector instance scope matches the freshness target tuple")
+	}
+	for _, instanceID := range order {
+		if err := s.handoffGCPFreshnessAssignment(ctx, observedAt.UTC(), *assignments.byInstance[instanceID]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// handoffGCPFreshnessTrigger resolves one claimed trigger to the fan-out set
-// of matching scope ids across every enabled, claim-enabled GCP collector
-// instance, then plans one work item per resolved scope.
-func (s Service) handoffGCPFreshnessTrigger(
+// gcpFreshnessAssignment is every trigger and the deduped, fanned-out scope
+// id set that resolved to one GCP collector instance within a single
+// reconcile batch. Grouping here — rather than handing off one trigger at a
+// time — mirrors the AWS freshness assignment pattern
+// (handoffAWSFreshnessAssignment) and is required for correctness: the
+// coordinator plans and hands off exactly once per (instance, reconcile
+// interval), so multiple triggers resolving to the same instance in the same
+// batch must be merged into one PlanGCPWork/createWorkflowWorkIfNoOpenTargets
+// call. Planning them independently would compute the identical PlanKey (and
+// therefore RunID) for every trigger sharing that instance and interval,
+// and the second, independent createWorkflowWorkIfNoOpenTargets call would
+// either collide with or short-circuit on the first trigger's now-existing
+// run, silently dropping the second trigger's scope ids (#4577).
+type gcpFreshnessAssignment struct {
+	Instance workflow.CollectorInstance
+	ScopeIDs []string
+	Triggers []freshness.StoredTrigger
+}
+
+// gcpFreshnessAssignmentSet is the working state groupGCPFreshnessAssignments
+// builds while walking one claimed batch of triggers.
+type gcpFreshnessAssignmentSet struct {
+	byInstance map[string]*gcpFreshnessAssignment
+	matched    map[string]struct{}
+}
+
+// groupGCPFreshnessAssignments resolves every claimed trigger to the fan-out
+// set of matching scope ids across every matching enabled, claim-enabled GCP
+// collector instance — not only the first match — and groups the result by
+// instance so each instance is planned and handed off exactly once for this
+// batch. It returns the grouped assignments plus a deterministic instance
+// processing order (first-seen order across triggers).
+func groupGCPFreshnessAssignments(
+	triggers []freshness.StoredTrigger,
+	instances []workflow.CollectorInstance,
+) (gcpFreshnessAssignmentSet, []string) {
+	set := gcpFreshnessAssignmentSet{
+		byInstance: make(map[string]*gcpFreshnessAssignment),
+		matched:    make(map[string]struct{}),
+	}
+	var order []string
+	for _, trigger := range triggers {
+		matches := resolveGCPFreshnessScopeIDs(trigger, instances)
+		if len(matches) == 0 {
+			continue
+		}
+		set.matched[trigger.TriggerID] = struct{}{}
+		for _, match := range matches {
+			instanceID := strings.TrimSpace(match.Instance.InstanceID)
+			assignment, ok := set.byInstance[instanceID]
+			if !ok {
+				assignment = &gcpFreshnessAssignment{Instance: match.Instance}
+				set.byInstance[instanceID] = assignment
+				order = append(order, instanceID)
+			}
+			assignment.ScopeIDs = appendUniqueStrings(assignment.ScopeIDs, match.ScopeIDs)
+			assignment.Triggers = append(assignment.Triggers, trigger)
+		}
+	}
+	return set, order
+}
+
+// appendUniqueStrings appends every value from additions not already present
+// in existing, preserving existing's order and additions' relative order.
+func appendUniqueStrings(existing []string, additions []string) []string {
+	seen := make(map[string]struct{}, len(existing)+len(additions))
+	for _, v := range existing {
+		seen[v] = struct{}{}
+	}
+	for _, v := range additions {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		existing = append(existing, v)
+	}
+	return existing
+}
+
+// handoffGCPFreshnessAssignment plans and hands off one instance's fanned-out
+// scope ids for a batch, covering every trigger that resolved to this
+// instance.
+func (s Service) handoffGCPFreshnessAssignment(
 	ctx context.Context,
 	observedAt time.Time,
-	trigger freshness.StoredTrigger,
-	instances []workflow.CollectorInstance,
+	assignment gcpFreshnessAssignment,
 ) error {
-	instance, scopeIDs, err := resolveGCPFreshnessScopeIDs(trigger, instances)
-	if err != nil {
-		s.markGCPFreshnessFailed(ctx, []freshness.StoredTrigger{trigger}, observedAt, "plan_failed", err.Error())
-		return fmt.Errorf("resolve GCP freshness scopes for trigger %q: %w", trigger.TriggerID, err)
-	}
-	if len(scopeIDs) == 0 {
-		s.markGCPFreshnessFailed(ctx, []freshness.StoredTrigger{trigger}, observedAt, "unauthorized_target", "no GCP collector instance scope matches the freshness target tuple")
-		return nil
-	}
-	s.recordGCPFreshnessFanOut(ctx, len(scopeIDs))
+	s.recordGCPFreshnessFanOut(ctx, len(assignment.ScopeIDs))
 
 	run, items, err := s.GCPPlanner.PlanGCPWork(ctx, GCPPlanRequest{
-		Instance:   instance,
+		Instance:   assignment.Instance,
 		ObservedAt: observedAt,
 		PlanKey:    s.gcpFreshnessPlanKey(observedAt),
-		ScopeIDs:   scopeIDs,
+		ScopeIDs:   assignment.ScopeIDs,
 	})
 	if err != nil {
-		s.markGCPFreshnessFailed(ctx, []freshness.StoredTrigger{trigger}, observedAt, "plan_failed", err.Error())
-		return fmt.Errorf("plan GCP freshness work for %q: %w", instance.InstanceID, err)
+		s.markGCPFreshnessFailed(ctx, assignment.Triggers, observedAt, "plan_failed", err.Error())
+		return fmt.Errorf("plan GCP freshness work for %q: %w", assignment.Instance.InstanceID, err)
 	}
-	enqueued, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items)
+	enqueued, err := s.createWorkflowWorkIfNoOpenTargets(ctx, assignment.Instance, run, items)
 	if err != nil {
-		s.markGCPFreshnessFailed(ctx, []freshness.StoredTrigger{trigger}, observedAt, "workflow_handoff_failed", err.Error())
-		return fmt.Errorf("create GCP freshness workflow run for %q: %w", instance.InstanceID, err)
+		s.markGCPFreshnessFailed(ctx, assignment.Triggers, observedAt, "workflow_handoff_failed", err.Error())
+		return fmt.Errorf("create GCP freshness workflow run for %q: %w", assignment.Instance.InstanceID, err)
 	}
-	if err := s.GCPFreshnessTriggers.MarkTriggersHandedOff(ctx, []string{trigger.TriggerID}, observedAt); err != nil {
+	if err := s.GCPFreshnessTriggers.MarkTriggersHandedOff(ctx, gcpFreshnessTriggerIDs(assignment.Triggers), observedAt); err != nil {
 		return fmt.Errorf("mark GCP freshness trigger handed off: %w", err)
 	}
 	action := gcpFreshnessActionSkipped
 	if enqueued > 0 {
 		action = gcpFreshnessActionCreated
 	}
-	s.recordGCPFreshnessEvent(ctx, trigger.Kind, action)
+	for _, trigger := range assignment.Triggers {
+		s.recordGCPFreshnessEvent(ctx, trigger.Kind, action)
+	}
 	return nil
 }
 
-// resolveGCPFreshnessScopeIDs finds the first enabled, claim-enabled GCP
-// collector instance that authorizes the trigger's target and returns every
-// configured scope id sharing the trigger's (parent_scope_kind,
-// parent_scope_id, asset_type_family, location_bucket) tuple, regardless of
-// content_family. Returns a zero-value instance and an empty slice when no
-// instance authorizes the target.
+// gcpFreshnessInstanceMatch is one GCP collector instance that authorizes a
+// trigger's target, paired with the scope ids on that instance the trigger
+// fans out to.
+type gcpFreshnessInstanceMatch struct {
+	Instance workflow.CollectorInstance
+	ScopeIDs []string
+}
+
+// resolveGCPFreshnessScopeIDs returns every enabled, claim-enabled GCP
+// collector instance that authorizes the trigger's target — not only the
+// first match — each paired with every configured scope id on that instance
+// sharing the trigger's (parent_scope_kind, parent_scope_id,
+// asset_type_family, location_bucket) tuple, regardless of content_family.
+// More than one instance can legitimately authorize the same target tuple
+// (for example two GCP collector instances each scoped to a disjoint set of
+// content families over the same project/location), and every one of them
+// must be scheduled or the content families only that instance covers are
+// silently under-scanned (#4577). Returns nil when no instance authorizes
+// the target.
 func resolveGCPFreshnessScopeIDs(
 	trigger freshness.StoredTrigger,
 	instances []workflow.CollectorInstance,
-) (workflow.CollectorInstance, []string, error) {
+) []gcpFreshnessInstanceMatch {
 	target := trigger.Target()
 	assetFamily := gcpcloud.AssetTypeFamily(target.AssetType)
 	locationBucket := gcpcloud.LocationBucket(target.Location)
+	var matches []gcpFreshnessInstanceMatch
 	for _, instance := range instances {
 		if !shouldScheduleGCPFreshness(instance) {
 			continue
@@ -164,10 +257,10 @@ func resolveGCPFreshnessScopeIDs(
 		}
 		scopeIDs := matchingGCPFreshnessScopeIDs(scopes, target.ParentScopeKind, target.ParentScopeID, assetFamily, locationBucket)
 		if len(scopeIDs) > 0 {
-			return instance, scopeIDs, nil
+			matches = append(matches, gcpFreshnessInstanceMatch{Instance: instance, ScopeIDs: scopeIDs})
 		}
 	}
-	return workflow.CollectorInstance{}, nil, nil
+	return matches
 }
 
 func shouldScheduleGCPFreshness(instance workflow.CollectorInstance) bool {

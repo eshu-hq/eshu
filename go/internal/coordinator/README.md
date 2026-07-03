@@ -482,29 +482,47 @@ append duplicate or newly discovered target work after the run is terminal.
 
 ### GCP freshness handoff fan-out (#4338)
 
-`scheduleGCPFreshnessWork`/`handoffGCPFreshnessTrigger` mirror the AWS
-freshness handoff shape above (claim via `GCPFreshnessTriggerStore`, plan via
-`GCPPlanner.PlanGCPWork`, hand off through the same
-`createWorkflowWorkIfNoOpenTargets` admission guard), wired into both the
-reconcile tick and active-maintenance tick exactly like AWS freshness. The one
-GCP-specific difference: a CAI asset-change trigger carries no
-`content_family` signal, so `resolveGCPFreshnessScopeIDs` resolves to every
-configured scope sharing `(parent_scope_kind, parent_scope_id,
-asset_type_family, location_bucket)` — a fan-out, not a single-scope pick —
-recorded via the `GCPFreshnessFanOut` histogram.
+`scheduleGCPFreshnessWork`/`groupGCPFreshnessAssignments`/
+`handoffGCPFreshnessAssignment` mirror the AWS freshness handoff shape above
+(claim via `GCPFreshnessTriggerStore`, plan via `GCPPlanner.PlanGCPWork`, hand
+off through the same `createWorkflowWorkIfNoOpenTargets` admission guard),
+wired into both the reconcile tick and active-maintenance tick exactly like
+AWS freshness. Two GCP-specific differences from AWS:
+
+1. A CAI asset-change trigger carries no `content_family` signal, so
+   `resolveGCPFreshnessScopeIDs` resolves to every configured scope sharing
+   `(parent_scope_kind, parent_scope_id, asset_type_family,
+   location_bucket)` — a fan-out, not a single-scope pick — recorded via the
+   `GCPFreshnessFanOut` histogram.
+2. The same target tuple can legitimately be authorized by more than one GCP
+   collector instance (for example two instances each scoped to a disjoint
+   `content_family`), so `resolveGCPFreshnessScopeIDs` returns every matching
+   instance, not only the first. `groupGCPFreshnessAssignments` then groups
+   every claimed trigger in the batch by resolved instance, deduping scope
+   ids across triggers sharing an instance, so `handoffGCPFreshnessAssignment`
+   plans and hands off exactly once per (instance, reconcile interval) —
+   mirroring the AWS `awsFreshnessAssignment` grouping. Planning per-trigger
+   instead (the original #4338 shape) would let two triggers resolving to the
+   same instance in one batch compute the identical `PlanKey`/`RunID` and
+   race each other through `workflowRunIsTerminal`/
+   `workItemsWithoutOpenTargets`, silently dropping one trigger's scope ids.
 
 Performance Evidence: this adds no new hot path shape. `ClaimQueuedTriggers`
 reuses the exact `FOR UPDATE SKIP LOCKED` claim pattern already proven by AWS
 freshness at the same default 100-row claim limit; the fan-out join
-(`matchingGCPFreshnessScopeIDs`) is an in-memory linear scan over one
-collector instance's already-loaded scope list (typically single digits to
-low hundreds of scopes), not a new query or graph write.
+(`matchingGCPFreshnessScopeIDs`) and the per-batch instance grouping
+(`groupGCPFreshnessAssignments`) are in-memory linear scans over one claimed
+batch (default 100 triggers) and one collector instance's already-loaded
+scope list (typically single digits to low hundreds of scopes), not a new
+query or graph write.
 
 No-Regression Evidence: `go test ./internal/coordinator -run 'GCPFreshness' -race -count=1`
-covers claim-and-handoff, the fan-out-to-multiple-content-families case,
-idempotent-skip on an already-open target, unauthorized-target handling, and
-best-effort failure-marking. Full package run: `go test -race -count=1
-./internal/coordinator ./internal/telemetry ./cmd/workflow-coordinator`.
+covers claim-and-handoff, the fan-out-to-multiple-content-families case, the
+fan-out-across-multiple-instances case, the same-batch-same-instance
+coalescing case, idempotent-skip on an already-open target,
+unauthorized-target handling, and best-effort failure-marking. Full package
+run: `go test -race -count=1 ./internal/coordinator ./internal/telemetry
+./cmd/workflow-coordinator`.
 
 Observability Evidence: `eshu_dp_gcp_freshness_events_total` (kind/action,
 mirrors `AWSFreshnessEvents`) and the new `eshu_dp_gcp_freshness_fanout_scope_count`
