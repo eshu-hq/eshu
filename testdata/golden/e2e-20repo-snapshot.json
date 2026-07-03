@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 29,
+        "min": 37,
         "max": 60,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 29: 2 AWS + 27 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage, Pub/Sub Topic, Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 37: 2 AWS + 35 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage, Pub/Sub Topic, Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey, Forwarding Rule, Memorystore Redis Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -795,6 +795,94 @@
         "id": "rc-59",
         "description": "A compute UrlMap CloudResource is connected to its default BackendService CloudResource via a GCP_url_map_default_service edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-url-map UrlMap (asset_type compute.googleapis.com/UrlMap, with bounded host_rule_count/path_matcher_count/path_rule_count attributes) and a gcp_cloud_relationship fact with relationship_type url_map_default_service targeting the shared demo-backend-service BackendService, matching the #4306 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the UrlMap cloud_resource + relationship facts, so this locks in the URL Map typed-depth extractor's golden-corpus follow-up (#4557).",
         "relationship": "GCP_url_map_default_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-60",
+        "description": "A GKE Cluster CloudResource is connected to its VPC Network CloudResource via a GCP_gke_cluster_uses_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-gke-cluster Cluster (asset_type container.googleapis.com/Cluster, with bounded status/release_channel/private_nodes_enabled/node_pool_count attributes) and a gcp_cloud_relationship fact with relationship_type gke_cluster_uses_network targeting the shared demo-vpc Network, matching the #4282 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Cluster cloud_resource + relationship facts, so this locks in the GKE Cluster typed-depth extractor's golden-corpus follow-up (#4539).",
+        "relationship": "GCP_gke_cluster_uses_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-61",
+        "description": "A Cloud Storage Bucket CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_storage_bucket_encrypted_by_kms_key edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-bucket Bucket (asset_type storage.googleapis.com/Bucket, with bounded storage_class/uniform_bucket_level_access/public_access_prevention/versioning_enabled attributes) and a gcp_cloud_relationship fact with relationship_type storage_bucket_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4283 extractor's CMEK contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Bucket cloud_resource + CMEK relationship facts, so this locks in the Cloud Storage Bucket typed-depth extractor's golden-corpus follow-up (#4537).",
+        "relationship": "GCP_storage_bucket_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-62",
+        "description": "A Cloud SQL Instance CloudResource is connected to its private VPC Network CloudResource via a GCP_sql_instance_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-sql-instance Instance (asset_type sqladmin.googleapis.com/Instance, with bounded database_version/tier/availability_type/public_ip_enabled/ssl_mode attributes) and a gcp_cloud_relationship fact with relationship_type sql_instance_in_network targeting the shared demo-vpc Network, matching the #4284 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance cloud_resource + relationship facts, so this locks in the Cloud SQL Instance typed-depth extractor's golden-corpus follow-up (#4540).",
+        "relationship": "GCP_sql_instance_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-63",
+        "description": "A Cloud DNS Managed Zone CloudResource is connected to the VPC Network CloudResource it is privately visible from via a GCP_dns_managed_zone_visible_from_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-dns-zone ManagedZone (asset_type dns.googleapis.com/ManagedZone, with bounded visibility/dnssec_state/private_network_count attributes and no raw dnsName) and a gcp_cloud_relationship fact with relationship_type dns_managed_zone_visible_from_network targeting the shared demo-vpc Network, matching the #4295 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the ManagedZone cloud_resource + relationship facts, so this locks in the Cloud DNS Managed Zone typed-depth extractor's golden-corpus follow-up (#4538).",
+        "relationship": "GCP_dns_managed_zone_visible_from_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-64",
+        "description": "A Cloud KMS CryptoKey CloudResource is connected to its containing KeyRing CloudResource via a GCP_kms_crypto_key_in_key_ring edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-app-key CryptoKey (asset_type cloudkms.googleapis.com/CryptoKey, with bounded purpose/protection_level/algorithm/rotation_period/primary_state attributes) and a demo-app-ring KeyRing resource fact, plus a gcp_cloud_relationship fact with relationship_type kms_crypto_key_in_key_ring derived from the CryptoKey's own resource-name path, matching the #4296 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the CryptoKey + KeyRing cloud_resource + relationship facts, so this locks in the KMS CryptoKey typed-depth extractor's golden-corpus follow-up (#4541).",
+        "relationship": "GCP_kms_crypto_key_in_key_ring",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-65",
+        "description": "A compute ForwardingRule CloudResource is connected to the BackendService CloudResource it fronts via a GCP_forwarding_rule_targets_backend_service edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-forwarding-rule ForwardingRule (asset_type compute.googleapis.com/ForwardingRule, with bounded load_balancing_scheme/is_external/ip_protocol/port_range attributes and no decoded IPAddress) and a gcp_cloud_relationship fact with relationship_type forwarding_rule_targets_backend_service targeting the shared demo-backend-service BackendService, matching the #4297 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the ForwardingRule cloud_resource + relationship facts, so this locks in the Forwarding Rule typed-depth extractor's golden-corpus follow-up (#4542).",
+        "relationship": "GCP_forwarding_rule_targets_backend_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-66",
+        "description": "A Memorystore Redis Instance CloudResource is connected to its authorized VPC Network CloudResource via a GCP_redis_instance_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-redis Instance (asset_type redis.googleapis.com/Instance, with bounded redis_version/tier/connect_mode/transit_encryption_mode/auth_enabled attributes and no host/port/IP range) and a gcp_cloud_relationship fact with relationship_type redis_instance_in_network targeting the shared demo-vpc Network, matching the #4298 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance cloud_resource + relationship facts, so this locks in the Memorystore Redis Instance typed-depth extractor's golden-corpus follow-up (#4555).",
+        "relationship": "GCP_redis_instance_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-67",
+        "description": "A GKE Cluster CloudResource is connected to its VPC Subnetwork CloudResource via a GCP_gke_cluster_uses_subnetwork edge; the gcpcloud cassette's demo-gke-cluster Cluster fact carries a gcp_cloud_relationship fact with relationship_type gke_cluster_uses_subnetwork targeting the shared demo-subnet Subnetwork, matching the #4282 extractor's second network edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Cluster->Subnetwork relationship fact, so this locks in the GKE Cluster subnetwork edge path alongside its network edge (#4539).",
+        "relationship": "GCP_gke_cluster_uses_subnetwork",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-68",
+        "description": "A Cloud SQL Instance CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_sql_instance_encrypted_by_kms_key edge; the gcpcloud cassette's demo-sql-instance Instance fact carries a gcp_cloud_relationship fact with relationship_type sql_instance_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4284 extractor's CMEK edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance->CryptoKey relationship fact, so this locks in the Cloud SQL Instance CMEK edge path alongside its private-network edge (#4540).",
+        "relationship": "GCP_sql_instance_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-69",
+        "description": "A compute ForwardingRule CloudResource is connected to the VPC Network CloudResource it fronts via a GCP_forwarding_rule_in_network edge; the gcpcloud cassette's demo-forwarding-rule ForwardingRule fact carries a gcp_cloud_relationship fact with relationship_type forwarding_rule_in_network targeting the shared demo-vpc Network, matching the #4297 extractor's network edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the ForwardingRule->Network relationship fact, so this locks in the Forwarding Rule network edge path alongside its backend-service target edge (#4542).",
+        "relationship": "GCP_forwarding_rule_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-70",
+        "description": "A Memorystore Redis Instance CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_redis_instance_encrypted_by_kms_key edge; the gcpcloud cassette's demo-redis Instance fact carries a gcp_cloud_relationship fact with relationship_type redis_instance_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4298 extractor's CMEK edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance->CryptoKey relationship fact, so this locks in the Memorystore Redis Instance CMEK edge path alongside its authorized-network edge (#4555).",
+        "relationship": "GCP_redis_instance_encrypted_by_kms_key",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
