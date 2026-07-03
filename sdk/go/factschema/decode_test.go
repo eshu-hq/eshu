@@ -7,7 +7,6 @@ import (
 	"errors"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -415,23 +414,4 @@ func TestParseJSONTag(t *testing.T) {
 			}
 		})
 	}
-}
-
-// parseJSONTag splits a struct json tag into its field name and whether it
-// carries the omitempty option. The tag is a comma-separated list whose first
-// element is the field name and whose remaining elements are options in any
-// order (json.Marshal does not require omitempty to be last). The skip tag "-"
-// yields an empty name.
-func parseJSONTag(tag string) (name string, omitEmpty bool) {
-	parts := strings.Split(tag, ",")
-	name = parts[0]
-	if name == "-" {
-		name = ""
-	}
-	for _, option := range parts[1:] {
-		if option == "omitempty" {
-			omitEmpty = true
-		}
-	}
-	return name, omitEmpty
 }

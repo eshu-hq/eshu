@@ -4,6 +4,7 @@
 package factschema
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -93,5 +94,53 @@ func TestDecodeAWSResource_RoundTrip_Attributes(t *testing.T) {
 	}
 	if !reflect.DeepEqual(decoded, original) {
 		t.Fatalf("DecodeAWSResource() = %+v, want %+v", decoded, original)
+	}
+}
+
+// TestDecodeMapInto_MatchesCustomUnmarshalJSON locks the fast marshal-free
+// decode path (decodeMapInto, used by DecodeAWSResource) to the struct's custom
+// UnmarshalJSON (used by any external json.Unmarshal), so the two can never
+// drift: a payload decoded either way must produce a deep-equal struct,
+// including the Attributes pass-through split. This guards the perf optimization
+// — if decodeMapInto's field/Attributes handling ever diverges from the JSON
+// contract, this test fails.
+func TestDecodeMapInto_MatchesCustomUnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"account_id":          "111111111111",
+		"resource_id":         "db-1",
+		"region":              "us-east-1",
+		"resource_type":       "aws_rds_db_instance",
+		"arn":                 "arn:aws:rds:us-east-1:111111111111:db:db-1",
+		"name":                "prod-db",
+		"state":               "available",
+		"service_kind":        "rds",
+		"correlation_anchors": []any{"anchor-a", "anchor-b"},
+		"tags":                map[string]any{"env": "prod"},
+		// Service-specific pass-through keys.
+		"engine":                  "postgres",
+		"backup_retention_period": float64(7),
+		"multi_az":                true,
+	}
+
+	// Fast path: decodeMapInto via DecodeAWSResource.
+	fast, err := DecodeAWSResource(testEnvelope(payload))
+	if err != nil {
+		t.Fatalf("DecodeAWSResource() error = %v, want nil", err)
+	}
+
+	// JSON path: marshal the map and json.Unmarshal through the custom method.
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload error = %v", err)
+	}
+	var viaJSON awsv1.Resource
+	if err := json.Unmarshal(raw, &viaJSON); err != nil {
+		t.Fatalf("json.Unmarshal via custom UnmarshalJSON error = %v", err)
+	}
+
+	if !reflect.DeepEqual(fast, viaJSON) {
+		t.Fatalf("decodeMapInto and custom UnmarshalJSON diverged:\nfast = %+v\njson = %+v", fast, viaJSON)
 	}
 }

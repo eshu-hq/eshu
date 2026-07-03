@@ -161,6 +161,34 @@ before touching any file in this directory.
 
 ## Evidence notes
 
+No-Regression Evidence (#4568 typed-payload decode): the AWS/IAM/security-group
+reducer handlers now decode fact payloads through the `sdk/go/factschema` seam
+instead of raw `payloadString` map lookups. The seam originally serialized every
+fact twice (`json.Marshal(map)`+`json.Unmarshal(struct)`), which regressed the
+hot join-index/node-projection path 2.9-4.3x. That was replaced with a
+marshal-free reflection decoder (`decode_map.go`, cached per-type field plan), so
+the typed path is within ~10% of the pre-migration raw-map baseline with fewer
+allocations. Measured with the existing benchmarks (backend: in-memory extractor;
+input: the benchmark corpus each already builds; darwin/arm64, `-count=3`):
+`go test ./internal/reducer -run '^$' -bench 'BenchmarkExtractCloudResourceNodeRows|BenchmarkExtractAWSRelationshipEdgeRows|BenchmarkBuildCloudResourceJoinIndex' -benchmem`.
+BEFORE (raw map, commit 7d313deb6) -> AFTER (typed decode):
+BuildCloudResourceJoinIndex 22.4ms/330k allocs -> 24.5ms/310k allocs (+11% time,
+-6% allocs); ExtractCloudResourceNodeRows 15.3ms/240k -> 15.6ms/220k (+2% time,
+-8% allocs); ExtractAWSRelationshipEdgeRows 35.2ms/521k -> 38.5ms/497k (+10% time,
+-5% allocs). The residual handler-time cost buys the accuracy guarantee (a fact
+missing a required identity field dead-letters `input_invalid` instead of
+producing an empty-string graph uid) and is a bounded, measured cost within the
+diagnostic-rigor ~10% band, not an unmeasured regression. Result class:
+Correctness win with a bounded, measured handler cost.
+
+No-Observability-Change (#4568): the typed-decode migration adds no route, graph
+query shape, queue table, worker, lease, runtime knob, metric instrument, metric
+label, or log key. A malformed fact surfaces through the EXISTING dead-letter
+path — `WorkSink.Fail` -> `deadLetterTriageMetadata` -> the durable
+`fact_work_items.failure_class=input_invalid` row and the reducer execution
+counters/spans operators already use. The decode error self-classifies via the
+existing `FailureClass()`/`Retryable()` reducer error interface.
+
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertReconciliationFactIdentitySurvivesProviderOnlyToMatched|TestSecurityAlertReconciliationFactIdentitySurvivesMatchedToStale' -count=1` failed before reducer fact identity ignored mutable repository/source-fact fields, then passed. `go test ./internal/query -run 'TestPostgresSecurityAlertReconciliationQueryShape|TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows' -count=1` failed before default list/count/inventory reads ranked one current provider-alert row before status and state filters, then passed.
 
 No-Observability-Change: the change only adjusts reducer fact replacement identity and the existing Postgres read-model selection for security-alert reconciliations. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans, reducer execution counters, durable `reducer_security_alert_reconciliation` payloads, query handler spans, and Postgres query duration metrics.

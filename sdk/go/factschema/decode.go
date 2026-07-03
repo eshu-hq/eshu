@@ -186,21 +186,12 @@ func decodeAndValidate[T any](factKind string, payload map[string]any) (T, error
 		}
 	}
 
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return zero, &DecodeError{
-			FactKind:       factKind,
-			Classification: ClassificationInputInvalid,
-			Err:            fmt.Errorf("marshal payload: %w", err),
-		}
-	}
-
 	var decoded T
-	if err := json.Unmarshal(raw, &decoded); err != nil {
+	if err := decodeMapInto(payload, &decoded); err != nil {
 		return zero, &DecodeError{
 			FactKind:       factKind,
 			Classification: ClassificationInputInvalid,
-			Err:            fmt.Errorf("unmarshal payload: %w", err),
+			Err:            fmt.Errorf("decode payload: %w", err),
 		}
 	}
 
