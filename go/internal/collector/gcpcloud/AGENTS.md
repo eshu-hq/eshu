@@ -284,6 +284,28 @@
    material, private key, or response body is ever decoded, since
    `sslCertificates`, `certificateMap`, and `sslPolicy` carry only resource
    self-links.
+42. `extractor_bigtable_instance.go` - typed-depth extractor for
+   `bigtableadmin.googleapis.com/Instance` (display name, state, instance type
+   PRODUCTION/DEVELOPMENT, edition). The Bigtable Admin v2 Instance resource
+   carries only instance-level metadata — it has no clusters, encryption, or
+   `kmsKeyName` field — so this extractor emits no outbound edges or anchors;
+   clusters are a separate CAI asset type handled by
+   `extractor_bigtable_cluster.go`. Instance labels are already carried by the
+   shared envelope label path (see `envelope.go`) and are not re-declared as a
+   typed attribute.
+43. `extractor_bigtable_cluster.go` - typed-depth extractor for
+   `bigtableadmin.googleapis.com/Cluster` (location, state, serve nodes, node
+   scaling factor, default storage type, and the CMEK key name from
+   `encryptionConfig.kmsKeyName`). Emits `bigtable_cluster_in_instance` to the
+   parent Instance — derived from the cluster's own resource-name path, since a
+   Cluster resource name embeds its parent
+   (`.../instances/<i>/clusters/<c>`), mirroring the Secret Version extractor's
+   parent-derivation — and `bigtable_cluster_encrypted_by_kms_key` to the CMEK
+   CryptoKey (an already CAI-prefixed value is kept as-is, a bare value is
+   prefixed, mirroring the Memorystore Redis Instance CMEK normalization);
+   surfaces the parent Instance and CMEK key resource names as correlation
+   anchors; reuses `assetTypeBigtableInstance` from the sibling Instance
+   extractor (never redeclaring it); never reads table schema or row data.
 
 ## Invariants
 
