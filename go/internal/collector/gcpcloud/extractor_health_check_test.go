@@ -165,6 +165,47 @@ func TestExtractHealthCheckAbsentPortOmitted(t *testing.T) {
 	}
 }
 
+func TestExtractHealthCheckMissingTypeFallsBackToPopulatedSubObject(t *testing.T) {
+	// A missing/blank Type is not what GCP's REST API produces, but a partial
+	// or unexpected CAI page could omit it; healthCheckSelectedProtocol must
+	// still surface the one populated protocol sub-object rather than
+	// silently dropping the port.
+	const data = `{"tcpHealthCheck": {"port": 8080}}`
+	got, err := extractHealthCheck(healthCheckContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["port"] != int64(8080) {
+		t.Errorf("port = %v, want 8080 (fallback to the only populated sub-object)", got.Attributes["port"])
+	}
+	if _, ok := got.Attributes["type"]; ok {
+		t.Errorf("type must be omitted when absent from the source data: %#v", got.Attributes)
+	}
+}
+
+func TestExtractHealthCheckUnrecognizedTypeFallsBackDeterministically(t *testing.T) {
+	// An unrecognized Type string (not one of the six known protocols) takes
+	// the same fallback path. When more than one sub-object is populated, the
+	// fallback must pick deterministically (declaration order: HTTP, HTTPS,
+	// TCP, SSL, HTTP2, GRPC) rather than depend on map iteration or other
+	// nondeterministic selection.
+	const data = `{
+		"type": "UNKNOWN",
+		"sslHealthCheck": {"port": 8443},
+		"grpcHealthCheck": {"port": 50051}
+	}`
+	got, err := extractHealthCheck(healthCheckContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["port"] != int64(8443) {
+		t.Errorf("port = %v, want 8443 (first populated sub-object in declaration order)", got.Attributes["port"])
+	}
+	if got.Attributes["type"] != "UNKNOWN" {
+		t.Errorf("type = %v, want UNKNOWN (preserved verbatim even when unrecognized)", got.Attributes["type"])
+	}
+}
+
 func TestExtractHealthCheckEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractHealthCheck(healthCheckContext(`{}`))
 	if err != nil {
