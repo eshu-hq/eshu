@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 4,
+        "min": 16,
         "max": 60,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 4: 2 AWS + 2 GCP BigQuery); floor raised to 4 to catch GCP node projection regression, ceiling wide for richer cloud cassettes"
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 16: 2 AWS + 14 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role); floor raised from 4 to catch GCP node projection regression across the #4388/#4401/#4404/#4406/#4409 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -619,6 +619,86 @@
         "id": "rc-37",
         "description": "A BigQuery Table CloudResource is connected to its parent Dataset CloudResource via a GCP_bigquery_table_in_dataset edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the events Table (asset_type bigquery.googleapis.com/Table) and one for the analytics Dataset (asset_type bigquery.googleapis.com/Dataset), plus a gcp_cloud_relationship fact with relationship_type bigquery_table_in_dataset. The GCP relationship materializer resolves both endpoints by full_resource_name and writes the typed edge; GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_, so the materialized edge type is GCP_bigquery_table_in_dataset. The count is provably zero without the GCP cloud_resource + relationship facts in the cassette, so this locks in GCP node projection and the relationship edge path end-to-end.",
         "relationship": "GCP_bigquery_table_in_dataset",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-38",
+        "description": "A Persistent Disk CloudResource is connected to its attached Instance CloudResource via a GCP_disk_attached_to_instance edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-disk Disk (asset_type compute.googleapis.com/Disk) and one for the demo-instance Instance (asset_type compute.googleapis.com/Instance), plus a gcp_cloud_relationship fact with relationship_type disk_attached_to_instance, matching the #4294 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Disk cloud_resource + relationship facts, so this locks in the Persistent Disk typed-depth extractor's golden-corpus follow-up (#4388).",
+        "relationship": "GCP_disk_attached_to_instance",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-39",
+        "description": "A Persistent Disk CloudResource is connected to its source Image CloudResource via a GCP_disk_created_from_image edge; the gcpcloud cassette's demo-disk Disk fact carries a correlation anchor to the demo-image Image (asset_type compute.googleapis.com/Image) and a gcp_cloud_relationship fact with relationship_type disk_created_from_image, matching the #4294 extractor's provenance contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Disk-to-Image relationship fact, so this locks in the disk provenance edge path (#4388).",
+        "relationship": "GCP_disk_created_from_image",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-40",
+        "description": "A Persistent Disk CloudResource is connected to its source Snapshot CloudResource via a GCP_disk_created_from_snapshot edge; the gcpcloud cassette's demo-disk Disk fact carries a correlation anchor to the demo-snapshot Snapshot (asset_type compute.googleapis.com/Snapshot) and a gcp_cloud_relationship fact with relationship_type disk_created_from_snapshot, matching the #4294 extractor's provenance contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Disk-to-Snapshot relationship fact, so this locks in the disk provenance edge path (#4388).",
+        "relationship": "GCP_disk_created_from_snapshot",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-41",
+        "description": "A Persistent Disk CloudResource is connected to its Cloud KMS CryptoKey CloudResource via a GCP_disk_encrypted_by_key edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-disk-key CryptoKey (asset_type cloudkms.googleapis.com/CryptoKey) and a gcp_cloud_relationship fact with relationship_type disk_encrypted_by_key, matching the #4294 extractor's CMEK contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Disk CMEK relationship fact, so this locks in the disk encryption edge path (#4388).",
+        "relationship": "GCP_disk_encrypted_by_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-42",
+        "description": "A Compute Engine Instance CloudResource is connected to an attached Disk CloudResource via a GCP_instance_uses_disk edge; the gcpcloud cassette's demo-instance Instance fact carries a gcp_cloud_relationship fact with relationship_type instance_uses_disk targeting the demo-disk Disk, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Disk relationship fact, so this locks in the Compute Engine Instance typed-depth extractor's golden-corpus follow-up (#4404).",
+        "relationship": "GCP_instance_uses_disk",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-43",
+        "description": "A Compute Engine Instance CloudResource is connected to its interface Network CloudResource via a GCP_instance_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-vpc-b Network (asset_type compute.googleapis.com/Network) and a gcp_cloud_relationship fact with relationship_type instance_in_network, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Network relationship fact, so this locks in the Compute Engine Instance golden-corpus follow-up (#4404).",
+        "relationship": "GCP_instance_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-44",
+        "description": "A Compute Engine Instance CloudResource is connected to its interface Subnetwork CloudResource via a GCP_instance_in_subnetwork edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-subnet-b Subnetwork (asset_type compute.googleapis.com/Subnetwork) and a gcp_cloud_relationship fact with relationship_type instance_in_subnetwork, matching the #4281 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance-to-Subnetwork relationship fact, so this locks in the Compute Engine Instance golden-corpus follow-up (#4404).",
+        "relationship": "GCP_instance_in_subnetwork",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-45",
+        "description": "A VPC Firewall Rule CloudResource is connected to its enclosing Network CloudResource via a GCP_firewall_applies_to_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-firewall Firewall (asset_type compute.googleapis.com/Firewall) and a gcp_cloud_relationship fact with relationship_type firewall_applies_to_network targeting the shared demo-vpc-b Network, matching the #4287 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Firewall-to-Network relationship fact, so this locks in the Firewall Rule typed-depth extractor's golden-corpus follow-up (#4409).",
+        "relationship": "GCP_firewall_applies_to_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-46",
+        "description": "A Cloud Run Service CloudResource is connected to a Serverless VPC Access Connector CloudResource via a GCP_run_service_uses_vpc_connector edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-connector Connector (asset_type vpcaccess.googleapis.com/Connector) and a gcp_cloud_relationship fact with relationship_type run_service_uses_vpc_connector, matching the #4289 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Run Service-to-Connector relationship fact, so this locks in the Cloud Run Service typed-depth extractor's golden-corpus follow-up (#4406).",
+        "relationship": "GCP_run_service_uses_vpc_connector",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-47",
+        "description": "A Cloud Run Service CloudResource is connected to a mounted Secret Manager Secret CloudResource via a GCP_run_service_mounts_secret edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-run-secret Secret (asset_type secretmanager.googleapis.com/Secret) and a gcp_cloud_relationship fact with relationship_type run_service_mounts_secret, matching the #4289 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Run Service-to-Secret relationship fact, so this locks in the Cloud Run Service golden-corpus follow-up (#4406).",
+        "relationship": "GCP_run_service_mounts_secret",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
@@ -3402,12 +3482,15 @@
         ]
       },
       "GET /api/v0/cloud/inventory": {
-        "description": "Cloud resource inventory readback (AWS/Azure/GCP cassettes); confirms cloud facts project to the inventory read surface.",
+        "description": "Cloud resource inventory readback (AWS/Azure/GCP cassettes); confirms cloud facts project to the inventory read surface. required_json_values pins the custom IAM Role's stage attribute (#4401): the gcpcloud cassette's demoCustomRole gcp_cloud_resource fact carries attributes.stage=GA, which is not a Cypher graph-node property (the GCP CloudResource writer's SET clause is a fixed identity/provenance allowlist and never promotes payload.attributes onto the node) but IS surfaced on this Postgres-backed admission readback: cloudInventorySourceFactMappings marks GCPCloudResourceFactKind surfacesAttributes=true, and cloudInventoryResourceView/cloudInventoryAttributes project payload.attributes onto each response resource's attributes map. The assertion is provably zero without the IAM Role cassette fact, so it locks in the Custom IAM Role golden-corpus follow-up on the read surface where its attributes actually project.",
         "required_response_fields": [
           "resources",
           "count"
         ],
-        "minimum_results": 1
+        "minimum_results": 1,
+        "required_json_values": {
+          "resources[].attributes.stage": "GA"
+        }
       },
       "GET /api/v0/cloud/resources": {
         "description": "Cloud resources readback; confirms CloudResource projection is queryable.",
