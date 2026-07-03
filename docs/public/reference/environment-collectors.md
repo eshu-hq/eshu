@@ -69,6 +69,7 @@ reuses coordinator reconcile metrics, workflow rows, claim status, and
 | `ESHU_GCP_COLLECTOR_POLL_INTERVAL` | `1s` | collector-gcp-cloud | Delay between empty claim polls. |
 | `ESHU_GCP_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-gcp-cloud | Lease TTL used when claiming and refreshing work. |
 | `ESHU_GCP_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-gcp-cloud | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID` | unset | collector-gcp-cloud | Optional billing/quota project id sent as `x-goog-user-project` on Cloud Asset Inventory requests. Leave unset for service-account/Workload Identity Federation ADC. Set it when the resolved ADC is a user credential (e.g. local `gcloud auth application-default login`), which otherwise gets a 403 quota-project error. Name/id only, never credential material. |
 
 The GCP collector also requires `-mode claimed-live` and
 `-redaction-key-file` at process startup. Helm supplies the redaction key path

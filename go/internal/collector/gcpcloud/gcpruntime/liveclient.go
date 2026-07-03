@@ -66,6 +66,16 @@ type LiveClient struct {
 	// CredentialRef names the read-only credential resolved out of band. It is a
 	// name only and is never sent to Cloud Asset Inventory or telemetry.
 	CredentialRef string
+	// QuotaProjectID names the billing/quota project sent as the
+	// x-goog-user-project header on Cloud Asset Inventory requests. It is
+	// required when TokenSource resolves a user-credential ADC token (e.g.
+	// `gcloud auth application-default login`), which has no implicit quota
+	// project and otherwise gets a 403 quota-project error from Cloud Asset
+	// Inventory. Deployed service-account/Workload Identity Federation
+	// identities are their own quota consumer, so this stays empty (no
+	// header sent) for those paths. It is a project id/name only, never
+	// credential material, and is safe to log.
+	QuotaProjectID string
 	// TokenSource supplies OAuth tokens for assets.list. It must be set
 	// explicitly.
 	TokenSource oauth2.TokenSource
@@ -100,8 +110,13 @@ type LiveClient struct {
 }
 
 // NewADCLiveClient builds a LiveClient backed by Application Default
-// Credentials. It does not wire the client into any runtime by itself.
-func NewADCLiveClient(ctx context.Context, credentialRef string) (LiveClient, error) {
+// Credentials. quotaProjectID is an explicit opt-in: leave it empty for
+// service-account/Workload Identity Federation ADC (the identity is its own
+// quota consumer); set it to the billing/quota project when the resolved ADC
+// is a user credential, which otherwise gets a 403 quota-project error from
+// Cloud Asset Inventory. It does not wire the client into any runtime by
+// itself.
+func NewADCLiveClient(ctx context.Context, credentialRef string, quotaProjectID string) (LiveClient, error) {
 	if strings.TrimSpace(credentialRef) == "" {
 		return LiveClient{}, errors.New("gcp live credential_ref is required")
 	}
@@ -109,7 +124,11 @@ func NewADCLiveClient(ctx context.Context, credentialRef string) (LiveClient, er
 	if err != nil {
 		return LiveClient{}, errors.New("gcp application default token source unavailable")
 	}
-	return LiveClient{CredentialRef: strings.TrimSpace(credentialRef), TokenSource: ts}, nil
+	return LiveClient{
+		CredentialRef:  strings.TrimSpace(credentialRef),
+		QuotaProjectID: strings.TrimSpace(quotaProjectID),
+		TokenSource:    ts,
+	}, nil
 }
 
 // FetchPage fetches and parses one Cloud Asset Inventory assets.list page.
@@ -156,6 +175,9 @@ func (c LiveClient) fetchAttempt(
 		return gcpcloud.AssetsListPage{}, false, errors.New("build gcp live assets.list request")
 	}
 	token.SetAuthHeader(httpReq)
+	if quotaProject := strings.TrimSpace(c.QuotaProjectID); quotaProject != "" {
+		httpReq.Header.Set("x-goog-user-project", quotaProject)
+	}
 
 	resp, err := c.httpClient().Do(httpReq)
 	if err != nil {

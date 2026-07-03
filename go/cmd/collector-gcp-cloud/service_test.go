@@ -122,11 +122,14 @@ func TestBuildClaimedServiceWiresLiveClaimRuntime(t *testing.T) {
 		newGCPADCLiveClient = oldFactory
 	})
 	var gotCredentialRef string
-	newGCPADCLiveClient = func(_ context.Context, credentialRef string) (gcpruntime.LiveClient, error) {
+	var gotQuotaProjectID string
+	newGCPADCLiveClient = func(_ context.Context, credentialRef string, quotaProjectID string) (gcpruntime.LiveClient, error) {
 		gotCredentialRef = credentialRef
+		gotQuotaProjectID = quotaProjectID
 		return gcpruntime.LiveClient{
-			CredentialRef: credentialRef,
-			TokenSource:   oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test-token"}),
+			CredentialRef:  credentialRef,
+			QuotaProjectID: quotaProjectID,
+			TokenSource:    oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test-token"}),
 		}, nil
 	}
 
@@ -149,12 +152,58 @@ func TestBuildClaimedServiceWiresLiveClaimRuntime(t *testing.T) {
 	if got, want := gotCredentialRef, "readonly-ref"; got != want {
 		t.Fatalf("credential ref = %q, want %q", got, want)
 	}
+	if gotQuotaProjectID != "" {
+		t.Fatalf("quota project id = %q, want empty (SA/WIF path unaffected)", gotQuotaProjectID)
+	}
 	source, ok := service.Source.(*gcpruntime.Source)
 	if !ok {
 		t.Fatalf("Source type = %T, want *gcpruntime.Source", service.Source)
 	}
 	if _, ok := source.Provider.(gcpruntime.LiveClient); !ok {
 		t.Fatalf("Provider type = %T, want gcpruntime.LiveClient", source.Provider)
+	}
+}
+
+// TestBuildClaimedServiceWiresQuotaProjectIDWhenConfigured proves the
+// explicit opt-in env var reaches the LiveClient factory unchanged, so a
+// user-credential ADC deployment can set it to avoid the CAI quota-project
+// 403 while the SA/WIF default path (tested above) stays untouched.
+func TestBuildClaimedServiceWiresQuotaProjectIDWhenConfigured(t *testing.T) {
+	oldFactory := newGCPADCLiveClient
+	t.Cleanup(func() {
+		newGCPADCLiveClient = oldFactory
+	})
+	var gotQuotaProjectID string
+	newGCPADCLiveClient = func(_ context.Context, credentialRef string, quotaProjectID string) (gcpruntime.LiveClient, error) {
+		gotQuotaProjectID = quotaProjectID
+		return gcpruntime.LiveClient{
+			CredentialRef:  credentialRef,
+			QuotaProjectID: quotaProjectID,
+			TokenSource:    oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test-token"}),
+		}, nil
+	}
+
+	getenv := func(key string) string {
+		if key == envQuotaProjectID {
+			return "my-quota-project"
+		}
+		return claimedRuntimeEnv(key)
+	}
+
+	if _, err := buildClaimedService(
+		context.Background(),
+		postgres.SQLDB{},
+		smokeRedactionKey(t),
+		getenv,
+		noop.NewTracerProvider().Tracer("test"),
+		metricnoop.NewMeterProvider().Meter("test"),
+		nil,
+		slog.Default(),
+	); err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	if gotQuotaProjectID != "my-quota-project" {
+		t.Fatalf("quota project id = %q, want my-quota-project", gotQuotaProjectID)
 	}
 }
 
