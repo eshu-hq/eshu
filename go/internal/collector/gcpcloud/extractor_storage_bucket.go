@@ -44,7 +44,7 @@ type storageBucketData struct {
 	Updated      string `json:"updated"`
 	IAMConfig    *struct {
 		UniformBucketLevelAccess *struct {
-			Enabled bool `json:"enabled"`
+			Enabled *bool `json:"enabled"`
 		} `json:"uniformBucketLevelAccess"`
 		PublicAccessPrevention string `json:"publicAccessPrevention"`
 	} `json:"iamConfiguration"`
@@ -52,7 +52,7 @@ type storageBucketData struct {
 		DefaultKMSKeyName string `json:"defaultKmsKeyName"`
 	} `json:"encryption"`
 	Versioning *struct {
-		Enabled bool `json:"enabled"`
+		Enabled *bool `json:"enabled"`
 	} `json:"versioning"`
 	Lifecycle *struct {
 		Rule []json.RawMessage `json:"rule"`
@@ -62,7 +62,7 @@ type storageBucketData struct {
 	} `json:"logging"`
 	RetentionPolicy *struct {
 		RetentionPeriod string `json:"retentionPeriod"`
-		IsLocked        bool   `json:"isLocked"`
+		IsLocked        *bool  `json:"isLocked"`
 	} `json:"retentionPolicy"`
 }
 
@@ -128,15 +128,15 @@ func storageBucketAttributes(data storageBucketData) map[string]any {
 		attrs["updated"] = v
 	}
 	if data.IAMConfig != nil {
-		if data.IAMConfig.UniformBucketLevelAccess != nil {
-			attrs["uniform_bucket_level_access"] = data.IAMConfig.UniformBucketLevelAccess.Enabled
+		if data.IAMConfig.UniformBucketLevelAccess != nil && data.IAMConfig.UniformBucketLevelAccess.Enabled != nil {
+			attrs["uniform_bucket_level_access"] = *data.IAMConfig.UniformBucketLevelAccess.Enabled
 		}
 		if v := strings.TrimSpace(data.IAMConfig.PublicAccessPrevention); v != "" {
 			attrs["public_access_prevention"] = v
 		}
 	}
-	if data.Versioning != nil {
-		attrs["versioning_enabled"] = data.Versioning.Enabled
+	if data.Versioning != nil && data.Versioning.Enabled != nil {
+		attrs["versioning_enabled"] = *data.Versioning.Enabled
 	}
 	if data.Lifecycle != nil {
 		if n := len(data.Lifecycle.Rule); n > 0 {
@@ -147,7 +147,9 @@ func storageBucketAttributes(data storageBucketData) map[string]any {
 		if v, ok := parseInt64String(data.RetentionPolicy.RetentionPeriod); ok {
 			attrs["retention_period_seconds"] = v
 		}
-		attrs["retention_policy_locked"] = data.RetentionPolicy.IsLocked
+		if data.RetentionPolicy.IsLocked != nil {
+			attrs["retention_policy_locked"] = *data.RetentionPolicy.IsLocked
+		}
 	}
 	return attrs
 }

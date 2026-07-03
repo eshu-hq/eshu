@@ -29,9 +29,15 @@ const (
 	relationshipTypeBigQueryTableKMSKey         = "bigquery_table_encrypted_by_kms_key"
 	relationshipTypeBigQueryTableExternalSource = "bigquery_table_reads_external_source"
 	cloudKMSResourceNamePrefix                  = "//cloudkms.googleapis.com/"
-	storageBucketResourceNamePrefixFmt          = "//storage.googleapis.com/projects/_/buckets/"
 	bigQueryResourceNamePrefix                  = "//bigquery.googleapis.com/"
 )
+
+// storageBucketResourceNamePrefixFmt is a plain string prefix, not a
+// fmt.Sprintf format string, despite the "Fmt" suffix: it carries no `%` verb.
+// Every caller across this package builds a bucket full resource name by
+// concatenating the bucket name directly onto this prefix (e.g.
+// storageBucketResourceNamePrefixFmt+bucket), never via fmt.Sprintf.
+const storageBucketResourceNamePrefixFmt = "//storage.googleapis.com/projects/_/buckets/"
 
 func init() {
 	RegisterAssetExtractor(assetTypeBigQueryTable, extractBigQueryTable)

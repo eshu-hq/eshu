@@ -144,6 +144,58 @@ func TestExtractStorageBucketPublicAccessPosture(t *testing.T) {
 	}
 }
 
+// TestExtractStorageBucketOmittedBooleanFieldsNotFabricated proves that when a
+// partial/trimmed CAI page includes the parent block but omits the boolean
+// leaf key entirely (uniformBucketLevelAccess.enabled, versioning.enabled,
+// retentionPolicy.isLocked), the extractor omits the corresponding attribute
+// rather than fabricating a false posture that was never reported. This is
+// the storageBucketAttributes contract stated in its doc comment: "Empty or
+// absent fields are omitted rather than written as zero values."
+func TestExtractStorageBucketOmittedBooleanFieldsNotFabricated(t *testing.T) {
+	const data = `{
+		"id": "partial-bucket",
+		"name": "partial-bucket",
+		"location": "US",
+		"iamConfiguration": {"publicAccessPrevention": "inherited"},
+		"versioning": {},
+		"retentionPolicy": {"retentionPeriod": "2592000"}
+	}`
+	got, err := extractStorageBucket(storageBucketContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, key := range []string{"uniform_bucket_level_access", "versioning_enabled", "retention_policy_locked"} {
+		if v, ok := got.Attributes[key]; ok {
+			t.Errorf("attribute %q = %v, want omitted when the JSON key is absent from a partial page", key, v)
+		}
+	}
+	if got.Attributes["retention_period_seconds"] != int64(2592000) {
+		t.Errorf("retention_period_seconds = %v, want 2592000", got.Attributes["retention_period_seconds"])
+	}
+}
+
+// TestExtractStorageBucketExplicitBooleanFieldsStillEmit proves that explicit
+// true/false JSON values for the boolean postures still decode and emit
+// correctly after converting the fields to *bool, matching the pre-existing
+// TestExtractStorageBucketPublicAccessPosture false-value coverage but also
+// exercising versioning_enabled and retention_policy_locked explicitly.
+func TestExtractStorageBucketExplicitBooleanFieldsStillEmit(t *testing.T) {
+	const data = `{
+		"versioning": {"enabled": false},
+		"retentionPolicy": {"retentionPeriod": "2592000", "isLocked": false}
+	}`
+	got, err := extractStorageBucket(storageBucketContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v, ok := got.Attributes["versioning_enabled"]; !ok || v != false {
+		t.Errorf("versioning_enabled = %v (ok=%v), want explicit false", v, ok)
+	}
+	if v, ok := got.Attributes["retention_policy_locked"]; !ok || v != false {
+		t.Errorf("retention_policy_locked = %v (ok=%v), want explicit false", v, ok)
+	}
+}
+
 func TestExtractStorageBucketNoRawIAMPolicyOrObjectDataLeakage(t *testing.T) {
 	const data = `{
 		"id": "demo-bucket",
@@ -168,5 +220,36 @@ func TestExtractStorageBucketMalformedDataErrors(t *testing.T) {
 	_, err := extractStorageBucket(storageBucketContext(`{not json`))
 	if err == nil {
 		t.Fatalf("expected an error for malformed resource data")
+	}
+}
+
+// TestExtractStorageBucketLoggingDestinationResourceNameWellFormed proves the
+// bucket-to-bucket usage-logging edge target built from
+// storageBucketResourceNamePrefixFmt is a well-formed full resource name with
+// no stray "%s" or unresolved format verb. storageBucketResourceNamePrefixFmt
+// is a plain prefix constant despite its "Fmt" suffix, and this extractor
+// concatenates it directly; if it were ever a real format string this test
+// would catch the malformed "%s" leaking into the target name.
+func TestExtractStorageBucketLoggingDestinationResourceNameWellFormed(t *testing.T) {
+	const data = `{"logging": {"logBucket": "audit-logs"}}`
+	got, err := extractStorageBucket(storageBucketContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	const want = "//storage.googleapis.com/projects/_/buckets/audit-logs"
+	assertRelationship(t, got.Relationships, relationshipTypeStorageBucketLogsToBucket, want, assetTypeStorageBucket)
+	for _, anchor := range got.CorrelationAnchors {
+		if containsString(anchor, "%") {
+			t.Fatalf("correlation anchor %q contains an unresolved format verb", anchor)
+		}
+	}
+	found := false
+	for _, anchor := range got.CorrelationAnchors {
+		if anchor == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected correlation anchor %q, got %#v", want, got.CorrelationAnchors)
 	}
 }
