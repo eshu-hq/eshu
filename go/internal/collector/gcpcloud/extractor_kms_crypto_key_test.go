@@ -142,6 +142,88 @@ func TestExtractKMSCryptoKeyDerivesKeyRingFromOwnName(t *testing.T) {
 	assertRelationship(t, got.Relationships, relationshipTypeCryptoKeyInKeyRing, wantFullName, assetTypeKMSKeyRing)
 }
 
+func TestExtractKMSCryptoKeyDerivesKeyRingFromFullResourceNameFallback(t *testing.T) {
+	// A CAI resource.data blob can arrive with a blank or missing "name" field
+	// (sparse/stripped page). The KeyRing must still be derivable from the
+	// asset's own normalized identity (ctx.FullResourceName) so the key_ring
+	// attribute, correlation anchor, and kms_crypto_key_in_key_ring edge are not
+	// silently dropped.
+	const data = `{"purpose": "ENCRYPT_DECRYPT"}`
+	got, err := extractKMSCryptoKey(kmsCryptoKeyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantBare := "projects/demo-project/locations/us/keyRings/rk"
+	if got.Attributes["key_ring"] != wantBare {
+		t.Errorf("key_ring = %v, want %v (derived from ctx.FullResourceName fallback)", got.Attributes["key_ring"], wantBare)
+	}
+
+	wantFullName := "//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk"
+	wantAnchors := []string{wantFullName}
+	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
+		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeCryptoKeyInKeyRing, wantFullName, assetTypeKMSKeyRing)
+}
+
+func TestExtractKMSCryptoKeyPrefersDataNameOverFullResourceNameFallback(t *testing.T) {
+	// When resource.data.name does parse, it remains the source of truth; the
+	// ctx.FullResourceName fallback must not override a valid data.Name even if
+	// the two disagree (e.g. a stale ctx during a KeyRing move).
+	const data = `{"name": "projects/other-project/locations/eu/keyRings/other-ring/cryptoKeys/key1", "purpose": "ENCRYPT_DECRYPT"}`
+	got, err := extractKMSCryptoKey(kmsCryptoKeyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantBare := "projects/other-project/locations/eu/keyRings/other-ring"
+	if got.Attributes["key_ring"] != wantBare {
+		t.Errorf("key_ring = %v, want %v (data.Name must take precedence)", got.Attributes["key_ring"], wantBare)
+	}
+}
+
+func TestExtractKMSCryptoKeyRotationFieldsOmittedForNonEncryptDecryptPurpose(t *testing.T) {
+	// rotationPeriod/nextRotationTime only make sense for ENCRYPT_DECRYPT keys.
+	// Even if CAI's response includes stray rotation fields for a signing/MAC
+	// key, the extractor must not surface a fabricated rotation schedule.
+	const data = `{
+		"name": "projects/demo-project/locations/us/keyRings/rk/cryptoKeys/sign-key",
+		"purpose": "ASYMMETRIC_SIGN",
+		"rotationPeriod": "7776000s",
+		"nextRotationTime": "2026-09-01T00:00:00Z"
+	}`
+	got, err := extractKMSCryptoKey(kmsCryptoKeyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := got.Attributes["rotation_period"]; ok {
+		t.Errorf("ASYMMETRIC_SIGN key must not report rotation_period even if CAI includes it: %#v", got.Attributes)
+	}
+	if _, ok := got.Attributes["next_rotation_time"]; ok {
+		t.Errorf("ASYMMETRIC_SIGN key must not report next_rotation_time even if CAI includes it: %#v", got.Attributes)
+	}
+}
+
+func TestExtractKMSCryptoKeyRotationFieldsKeptForBlankPurpose(t *testing.T) {
+	// A blank/unset purpose is treated as ENCRYPT_DECRYPT-eligible (Cloud KMS's
+	// default), so rotation fields must still surface when purpose is absent.
+	const data = `{
+		"name": "projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1",
+		"rotationPeriod": "7776000s",
+		"nextRotationTime": "2026-09-01T00:00:00Z"
+	}`
+	got, err := extractKMSCryptoKey(kmsCryptoKeyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["rotation_period"] != "7776000s" {
+		t.Errorf("rotation_period = %v, want 7776000s for blank purpose", got.Attributes["rotation_period"])
+	}
+	if got.Attributes["next_rotation_time"] != "2026-09-01T00:00:00Z" {
+		t.Errorf("next_rotation_time = %v, want 2026-09-01T00:00:00Z for blank purpose", got.Attributes["next_rotation_time"])
+	}
+}
+
 func TestExtractKMSCryptoKeyNeverPersistsKeyMaterial(t *testing.T) {
 	// CAI never reports key material for a CryptoKey, but guard the boundary
 	// anyway: if a caller ever hands us a blob with a stray key-material-shaped
@@ -165,18 +247,47 @@ func TestExtractKMSCryptoKeyNeverPersistsKeyMaterial(t *testing.T) {
 }
 
 func TestExtractKMSCryptoKeyEmptyDataYieldsNothing(t *testing.T) {
-	got, err := extractKMSCryptoKey(kmsCryptoKeyContext(`{}`))
+	// With no derivable identity at all (blank resource.data.name AND a blank
+	// ctx.FullResourceName), the extractor must emit nothing rather than
+	// fabricate a KeyRing. kmsCryptoKeyContext always sets a real
+	// FullResourceName, so build a bare context here to isolate this case from
+	// the FullResourceName fallback covered by
+	// TestExtractKMSCryptoKeyDerivesKeyRingFromFullResourceNameFallback.
+	ctx := ExtractContext{
+		FullResourceName: "",
+		AssetType:        assetTypeKMSCryptoKey,
+		ProjectID:        "demo-project",
+		Data:             json.RawMessage(`{}`),
+	}
+	got, err := extractKMSCryptoKey(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(got.Attributes) != 0 {
-		t.Errorf("expected no attributes for empty data, got %#v", got.Attributes)
+		t.Errorf("expected no attributes for empty data and blank identity, got %#v", got.Attributes)
 	}
 	if len(got.Relationships) != 0 {
-		t.Errorf("expected no relationships for empty data, got %#v", got.Relationships)
+		t.Errorf("expected no relationships for empty data and blank identity, got %#v", got.Relationships)
 	}
 	if len(got.CorrelationAnchors) != 0 {
-		t.Errorf("expected no anchors for empty data, got %#v", got.CorrelationAnchors)
+		t.Errorf("expected no anchors for empty data and blank identity, got %#v", got.CorrelationAnchors)
+	}
+}
+
+func TestExtractKMSCryptoKeyEmptyDataWithFullResourceNameDerivesKeyRing(t *testing.T) {
+	// In production every CAI asset carries a FullResourceName, so an empty (or
+	// sparse) resource.data blob must still yield the KeyRing via the fallback,
+	// even though no other attribute is derivable.
+	got, err := extractKMSCryptoKey(kmsCryptoKeyContext(`{}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wantAttrs := map[string]any{"key_ring": "projects/demo-project/locations/us/keyRings/rk"}
+	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
+		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
+	}
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected 1 keyring edge derived from FullResourceName fallback, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
 }
 

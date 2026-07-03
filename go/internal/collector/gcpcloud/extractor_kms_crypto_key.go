@@ -21,6 +21,14 @@ const assetTypeKMSKeyRing = "cloudkms.googleapis.com/KeyRing"
 // is derived from the CryptoKey's own resource-name path.
 const relationshipTypeCryptoKeyInKeyRing = "kms_crypto_key_in_key_ring"
 
+// kmsCryptoKeyPurposeEncryptDecrypt is the Cloud KMS CryptoKey purpose value
+// for symmetric/asymmetric encrypt-decrypt keys, the only purpose that
+// supports an automatic rotation schedule. A signing or MAC key purpose (for
+// example ASYMMETRIC_SIGN or MAC) does not rotate, so rotationPeriod and
+// nextRotationTime are gated on this purpose to avoid fabricating a rotation
+// schedule for a purpose that does not have one.
+const kmsCryptoKeyPurposeEncryptDecrypt = "ENCRYPT_DECRYPT"
+
 func init() {
 	RegisterAssetExtractor(assetTypeKMSCryptoKey, extractKMSCryptoKey)
 }
@@ -50,10 +58,13 @@ type kmsCryptoKeyData struct {
 // KMS CryptoKey CAI asset. It surfaces purpose, protection level, algorithm,
 // rotation schedule, primary-version state, and creation time; derives the
 // containing KeyRing from the CryptoKey's own resource-name path (Cloud KMS
-// reports no separate KeyRing field); and emits the typed
-// kms_crypto_key_in_key_ring edge with the KeyRing full resource name as the
-// correlation anchor. Cloud KMS never returns key material or key state history
-// on this resource, and none is read here.
+// reports no separate KeyRing field), falling back to the asset's own
+// ctx.FullResourceName when resource.data.name is blank or fails to parse a
+// keyRings segment (a sparse or stripped CAI data blob must not silently drop
+// the KeyRing edge); and emits the typed kms_crypto_key_in_key_ring edge with
+// the KeyRing full resource name as the correlation anchor. Cloud KMS never
+// returns key material or key state history on this resource, and none is
+// read here.
 func extractKMSCryptoKey(ctx ExtractContext) (AttributeExtraction, error) {
 	var data kmsCryptoKeyData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -62,9 +73,17 @@ func extractKMSCryptoKey(ctx ExtractContext) (AttributeExtraction, error) {
 
 	attrs := kmsCryptoKeyAttributes(data)
 
+	keyRing := kmsKeyRingRelativeNameFromCryptoKeyName(data.Name)
+	if keyRing == "" {
+		// resource.data.name is sparse or stripped on some CAI pages; fall back
+		// to the asset's own normalized identity so a partial data blob does not
+		// silently drop the KeyRing attribute, anchor, and edge.
+		keyRing = kmsKeyRingRelativeNameFromCryptoKeyName(ctx.FullResourceName)
+	}
+
 	var anchors []string
 	var rels []RelationshipObservation
-	if keyRing := kmsKeyRingRelativeNameFromCryptoKeyName(data.Name); keyRing != "" {
+	if keyRing != "" {
 		attrs["key_ring"] = keyRing
 		keyRingFullName := cloudKMSResourceNamePrefix + keyRing
 		anchors = append(anchors, keyRingFullName)
@@ -104,14 +123,19 @@ func kmsCryptoKeyAttributes(data kmsCryptoKeyData) map[string]any {
 			attrs["algorithm"] = v
 		}
 	}
-	// rotationPeriod/nextRotationTime only apply to ENCRYPT_DECRYPT keys; a
-	// signing/MAC key that reports neither must not fabricate a rotation
-	// schedule.
-	if v := strings.TrimSpace(data.RotationPeriod); v != "" {
-		attrs["rotation_period"] = v
-	}
-	if v, ok := normalizeRFC3339(data.NextRotationTime); ok {
-		attrs["next_rotation_time"] = v
+	// rotationPeriod/nextRotationTime only apply to ENCRYPT_DECRYPT keys. Guard
+	// on purpose explicitly (blank/unset purpose is treated as eligible, since
+	// ENCRYPT_DECRYPT is Cloud KMS's default and CAI may omit the field) so a
+	// signing/MAC key can never surface a fabricated rotation schedule even if
+	// CAI's response includes stray rotation fields for that purpose.
+	purpose := strings.TrimSpace(data.Purpose)
+	if purpose == "" || purpose == kmsCryptoKeyPurposeEncryptDecrypt {
+		if v := strings.TrimSpace(data.RotationPeriod); v != "" {
+			attrs["rotation_period"] = v
+		}
+		if v, ok := normalizeRFC3339(data.NextRotationTime); ok {
+			attrs["next_rotation_time"] = v
+		}
 	}
 	if data.Primary != nil {
 		if v := strings.TrimSpace(data.Primary.State); v != "" {
