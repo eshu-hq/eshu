@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+// Command schemagen regenerates the checked-in JSON Schema artifacts under
+// sdk/go/factschema/schema/. Run it via `go generate ./...` from the
+// sdk/go/factschema module root (see the //go:generate directive in
+// decode.go), or directly with:
+//
+//	go run ./internal/schemagen/cmd
+//
+// The command is deterministic: running it twice in a row against an
+// unchanged struct produces byte-identical output, which is what
+// schema_gen_test.go's drift test relies on.
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/eshu-hq/eshu/sdk/go/factschema/internal/schemagen"
+)
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	moduleRoot, err := moduleRootDir()
+	if err != nil {
+		return err
+	}
+
+	targets := []struct {
+		name     string
+		generate func() ([]byte, error)
+	}{
+		{name: "aws_resource.v1.schema.json", generate: schemagen.AWSResourceSchema},
+	}
+
+	for _, target := range targets {
+		raw, err := target.generate()
+		if err != nil {
+			return fmt.Errorf("schemagen: generate %s: %w", target.name, err)
+		}
+
+		dest := filepath.Join(moduleRoot, "schema", target.name)
+		if err := os.WriteFile(dest, raw, 0o644); err != nil {
+			return fmt.Errorf("schemagen: write %s: %w", dest, err)
+		}
+	}
+
+	return nil
+}
+
+// modulePath is the module path declared in this module's go.mod. It anchors
+// the upward search in moduleRootDir so the command finds this module's root
+// rather than a parent module's go.mod higher up the tree.
+const modulePath = "module github.com/eshu-hq/eshu/sdk/go/factschema"
+
+// byteOrderMark is a UTF-8 BOM that a go.mod file may carry as its first
+// bytes; declaresModule trims it before comparing the module line.
+const byteOrderMark = "\ufeff"
+
+// moduleRootDir returns the directory holding this module's go.mod by walking
+// up from the working directory. It matches on the module path declared in
+// go.mod, not merely the presence of a go.mod, so it never mistakes a parent
+// module's root for this one. It fails fast with a clear error rather than
+// writing the schema files to a wrong path.
+func moduleRootDir() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("schemagen: getwd: %w", err)
+	}
+
+	for {
+		goMod := filepath.Join(dir, "go.mod")
+		if raw, readErr := os.ReadFile(goMod); readErr == nil {
+			if declaresModule(raw, modulePath) {
+				return dir, nil
+			}
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf(
+				"schemagen: could not locate the %q module root above the working directory; run via `go generate ./...` from the module root",
+				modulePath,
+			)
+		}
+		dir = parent
+	}
+}
+
+// declaresModule reports whether a go.mod file's contents declare
+// wantModuleLine as the module path, tolerating a leading UTF-8 byte-order
+// mark and surrounding whitespace on the module line.
+func declaresModule(goMod []byte, wantModuleLine string) bool {
+	for _, line := range strings.Split(string(goMod), "\n") {
+		if strings.TrimSpace(strings.TrimPrefix(line, byteOrderMark)) == wantModuleLine {
+			return true
+		}
+	}
+	return false
+}

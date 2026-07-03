@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/resource.schema.json",
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "resource_id": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "tags": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "account_id",
+    "resource_id",
+    "region",
+    "resource_type"
+  ],
+  "title": "Eshu aws.resource Payload (schema version 1)"
+}
