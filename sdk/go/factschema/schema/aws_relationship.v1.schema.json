@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/relationship.schema.json",
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "relationship_type": {
+      "type": "string"
+    },
+    "source_resource_id": {
+      "type": "string"
+    },
+    "target_resource_id": {
+      "type": "string"
+    },
+    "source_arn": {
+      "type": "string"
+    },
+    "target_arn": {
+      "type": "string"
+    },
+    "target_type": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "account_id",
+    "region",
+    "relationship_type",
+    "source_resource_id",
+    "target_resource_id"
+  ],
+  "title": "Eshu aws_relationship Payload (schema version 1)"
+}

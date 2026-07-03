@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshu.dev/schemas/factschema/iam/v1/permission.schema.json",
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "principal_arn": {
+      "type": "string"
+    },
+    "effect": {
+      "type": "string"
+    },
+    "policy_source": {
+      "type": "string"
+    },
+    "policy_arn": {
+      "type": "string"
+    },
+    "actions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "not_actions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "resources": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "not_resources": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "assume_principals": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "has_conditions": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "account_id",
+    "region",
+    "principal_arn",
+    "effect",
+    "policy_source"
+  ],
+  "title": "Eshu aws_iam_permission Payload (schema version 1)"
+}

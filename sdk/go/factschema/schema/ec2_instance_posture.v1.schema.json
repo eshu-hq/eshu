@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/ec2_instance_posture.schema.json",
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "instance_id": {
+      "type": "string"
+    },
+    "arn": {
+      "type": "string"
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "service_kind": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "imds_v2_required": {
+      "type": "boolean"
+    },
+    "imds_http_endpoint": {
+      "type": "string"
+    },
+    "imds_http_put_hop_limit": {
+      "type": "integer"
+    },
+    "user_data_present": {
+      "type": "boolean"
+    },
+    "detailed_monitoring_enabled": {
+      "type": "boolean"
+    },
+    "ebs_optimized": {
+      "type": "boolean"
+    },
+    "public_ip_associated": {
+      "type": "boolean"
+    },
+    "instance_profile_arn": {
+      "type": "string"
+    },
+    "tenancy": {
+      "type": "string"
+    },
+    "nitro_enclave_enabled": {
+      "type": "boolean"
+    },
+    "block_devices": {
+      "items": {
+        "properties": {
+          "device_name": {
+            "type": "string"
+          },
+          "volume_id": {
+            "type": "string"
+          },
+          "delete_on_termination": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "encrypted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "account_id",
+    "region"
+  ],
+  "title": "Eshu ec2_instance_posture Payload (schema version 1)"
+}

@@ -14,8 +14,17 @@
     "resource_type": {
       "type": "string"
     },
+    "arn": {
+      "type": "string"
+    },
     "name": {
       "type": "string"
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
     },
     "tags": {
       "additionalProperties": {

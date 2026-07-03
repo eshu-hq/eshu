@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/security_group_rule.schema.json",
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "group_id": {
+      "type": "string"
+    },
+    "direction": {
+      "type": "string"
+    },
+    "ip_protocol": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": "string"
+    },
+    "source_value": {
+      "type": "string"
+    },
+    "from_port": {
+      "type": "integer"
+    },
+    "to_port": {
+      "type": "integer"
+    },
+    "is_internet": {
+      "type": "boolean"
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "account_id",
+    "region",
+    "group_id",
+    "direction",
+    "ip_protocol",
+    "source_kind",
+    "source_value"
+  ],
+  "title": "Eshu aws_security_group_rule Payload (schema version 1)"
+}

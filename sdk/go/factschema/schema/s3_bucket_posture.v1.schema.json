@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/s3_bucket_posture.schema.json",
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "bucket_arn": {
+      "type": "string"
+    },
+    "bucket_name": {
+      "type": "string"
+    },
+    "logging_target_bucket": {
+      "type": "string"
+    },
+    "policy_present": {
+      "type": "boolean"
+    },
+    "policy_grants_public": {
+      "type": "boolean"
+    },
+    "block_public_access_all": {
+      "type": "boolean"
+    },
+    "ignore_public_acls": {
+      "type": "boolean"
+    },
+    "restrict_public_buckets": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "account_id",
+    "region"
+  ],
+  "title": "Eshu s3_bucket_posture Payload (schema version 1)"
+}
