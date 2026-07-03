@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -205,6 +206,9 @@ func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTerms(
 			sortedFrequencies,
 		)
 		if err != nil {
+			if isSearchIndexTermCopyUnsupported(err) {
+				return w.writeSearchIndexTermsWithInsert(ctx, scopeID, generationID, documentIDs, terms, termKeys, frequencies)
+			}
 			return err
 		}
 		if copied != int64(len(terms)) {
@@ -212,6 +216,18 @@ func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTerms(
 		}
 		return nil
 	}
+	return w.writeSearchIndexTermsWithInsert(ctx, scopeID, generationID, documentIDs, terms, termKeys, frequencies)
+}
+
+func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTermsWithInsert(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	documentIDs []string,
+	terms []string,
+	termKeys []string,
+	frequencies []int,
+) error {
 	_, err := w.DB.ExecContext(
 		ctx,
 		eshuSearchIndexBatchTermUpsertQuery,
@@ -223,6 +239,13 @@ func (w PostgresEshuSearchDocumentWriter) writeSearchIndexTerms(
 		frequencies,
 	)
 	return err
+}
+
+func isSearchIndexTermCopyUnsupported(err error) bool {
+	var unsupported interface {
+		UnsupportedSearchIndexTermCopy() bool
+	}
+	return errors.As(err, &unsupported) && unsupported.UnsupportedSearchIndexTermCopy()
 }
 
 func (w PostgresEshuSearchDocumentWriter) searchIndexTermCopier() eshuSearchIndexTermCopier {

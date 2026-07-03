@@ -95,6 +95,9 @@ func (w PostgresEshuSearchDocumentWriter) WriteEshuSearchDocuments(
 	}
 	if len(write.Documents) > 0 {
 		if err := session.InsertPage(ctx, write.Documents); err != nil {
+			if cancelErr := session.Cancel(ctx); cancelErr != nil {
+				return EshuSearchDocumentWriteResult{}, fmt.Errorf("insert eshu search documents page: %w; cancel partial write: %v", err, cancelErr)
+			}
 			return EshuSearchDocumentWriteResult{}, err
 		}
 	}
@@ -163,12 +166,12 @@ type eshuSearchDocumentWriteSession struct {
 	now          time.Time
 	started      time.Time
 
-	keepFactIDs  []string
-	keepDocIDs   []string
-	written      int
-	totalLength  int
-	timings      EshuSearchDocumentWriteTimings
-	termsCleared bool
+	keepFactIDs         []string
+	keepDocIDs          []string
+	written             int
+	totalLength         int
+	timings             EshuSearchDocumentWriteTimings
+	didInitialTermClear bool
 }
 
 // InsertPage upserts one page of curated documents and accumulates their keys.
@@ -176,7 +179,7 @@ func (s *eshuSearchDocumentWriteSession) InsertPage(ctx context.Context, documen
 	if len(documents) == 0 {
 		return nil
 	}
-	if err := s.clearSearchIndexTerms(ctx); err != nil {
+	if err := s.clearInitialSearchIndexTerms(ctx); err != nil {
 		return err
 	}
 	factStarted := time.Now()
@@ -204,7 +207,7 @@ func (s *eshuSearchDocumentWriteSession) InsertPage(ctx context.Context, documen
 // Finalize issues the single authoritative retire over the union keep-set and
 // upserts the search-index stats for the whole generation.
 func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSearchDocumentWriteResult, error) {
-	if err := s.clearSearchIndexTerms(ctx); err != nil {
+	if err := s.clearInitialSearchIndexTerms(ctx); err != nil {
 		return EshuSearchDocumentWriteResult{}, err
 	}
 	factRetireStarted := time.Now()
@@ -233,7 +236,7 @@ func (s *eshuSearchDocumentWriteSession) Cancel(ctx context.Context) error {
 		return fmt.Errorf("cancel eshu search document partial write: %w", err)
 	}
 	// Retire index rows with an empty keep-set (delete all for this generation).
-	if _, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexClearGenerationTermsQuery, s.scopeID, s.generationID); err != nil {
+	if err := s.clearSearchIndexTerms(ctx); err != nil {
 		return fmt.Errorf("cancel eshu search index terms: %w", err)
 	}
 	if _, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, s.scopeID, s.generationID, []string{}); err != nil {
@@ -242,10 +245,18 @@ func (s *eshuSearchDocumentWriteSession) Cancel(ctx context.Context) error {
 	return nil
 }
 
-func (s *eshuSearchDocumentWriteSession) clearSearchIndexTerms(ctx context.Context) error {
-	if s.termsCleared {
+func (s *eshuSearchDocumentWriteSession) clearInitialSearchIndexTerms(ctx context.Context) error {
+	if s.didInitialTermClear {
 		return nil
 	}
+	if err := s.clearSearchIndexTerms(ctx); err != nil {
+		return err
+	}
+	s.didInitialTermClear = true
+	return nil
+}
+
+func (s *eshuSearchDocumentWriteSession) clearSearchIndexTerms(ctx context.Context) error {
 	started := time.Now()
 	result, err := s.writer.DB.ExecContext(ctx, eshuSearchIndexClearGenerationTermsQuery, s.scopeID, s.generationID)
 	if err != nil {
@@ -258,7 +269,6 @@ func (s *eshuSearchDocumentWriteSession) clearSearchIndexTerms(ctx context.Conte
 	if affected := rowsAffected(result); affected > 0 {
 		s.writer.recordSearchIndexMutation(ctx, "term", "retire", affected)
 	}
-	s.termsCleared = true
 	return nil
 }
 

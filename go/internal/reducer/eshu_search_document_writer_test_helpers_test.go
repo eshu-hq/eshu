@@ -105,6 +105,16 @@ func (f *fakeSearchIndexTermCopier) CopySearchIndexTerms(
 	return int64(len(terms)), nil
 }
 
+type fakeSearchIndexTermCopyUnsupportedError struct{}
+
+func (fakeSearchIndexTermCopyUnsupportedError) Error() string {
+	return "search-index term copy unsupported"
+}
+
+func (fakeSearchIndexTermCopyUnsupportedError) UnsupportedSearchIndexTermCopy() bool {
+	return true
+}
+
 // sampleSearchDoc returns a minimal valid Document for use in writer tests.
 func sampleSearchDoc(id string) searchdocs.Document {
 	return searchdocs.Document{

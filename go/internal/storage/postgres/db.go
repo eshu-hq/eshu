@@ -42,6 +42,21 @@ type SQLDB struct {
 
 var concurrentIndexNamePattern = regexp.MustCompile(`(?is)\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:"(?:[^"]|"")+")|[A-Za-z_][A-Za-z0-9_$]*)`)
 
+type searchIndexTermCopyUnsupportedError struct {
+	driver string
+}
+
+func (e searchIndexTermCopyUnsupportedError) Error() string {
+	if strings.TrimSpace(e.driver) == "" {
+		return "search-index term copy is unsupported by this database"
+	}
+	return fmt.Sprintf("search-index term copy is unsupported by %s", e.driver)
+}
+
+func (e searchIndexTermCopyUnsupportedError) UnsupportedSearchIndexTermCopy() bool {
+	return true
+}
+
 // QueryContext implements Queryer against a sql.DB.
 func (db SQLDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
 	return db.DB.QueryContext(ctx, query, args...)
@@ -85,9 +100,6 @@ func (db SQLDB) copySearchIndexTermsToTable(
 	termKeys []string,
 	frequencies []int,
 ) (int64, error) {
-	if db.DB == nil {
-		return 0, fmt.Errorf("postgres SQLDB requires a database handle")
-	}
 	if len(documentIDs) != len(terms) || len(termKeys) != len(terms) || len(frequencies) != len(terms) {
 		return 0, fmt.Errorf(
 			"copy eshu search index terms requires aligned slices: docs=%d terms=%d keys=%d freqs=%d",
@@ -96,6 +108,12 @@ func (db SQLDB) copySearchIndexTermsToTable(
 			len(termKeys),
 			len(frequencies),
 		)
+	}
+	if len(terms) == 0 {
+		return 0, nil
+	}
+	if db.DB == nil {
+		return 0, fmt.Errorf("postgres SQLDB requires a database handle")
 	}
 	conn, err := db.DB.Conn(ctx)
 	if err != nil {
@@ -107,7 +125,7 @@ func (db SQLDB) copySearchIndexTermsToTable(
 	if err := conn.Raw(func(driverConn any) error {
 		stdlibConn, ok := driverConn.(*stdlib.Conn)
 		if !ok {
-			return fmt.Errorf("search-index term copy requires pgx stdlib connection, got %T", driverConn)
+			return searchIndexTermCopyUnsupportedError{driver: fmt.Sprintf("%T", driverConn)}
 		}
 		var copyErr error
 		copied, copyErr = stdlibConn.Conn().CopyFrom(

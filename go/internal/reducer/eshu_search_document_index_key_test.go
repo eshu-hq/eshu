@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -159,6 +160,76 @@ func TestWriteEshuSearchDocumentsUsesTermCopierWhenAvailable(t *testing.T) {
 		if strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms") {
 			t.Fatalf("term insert ExecContext ran despite copy fast path:\n%s", exec.query)
 		}
+	}
+}
+
+func TestWriteSearchIndexTermsFallsBackWhenCopyUnsupported(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	copier := &fakeSearchIndexTermCopier{err: fakeSearchIndexTermCopyUnsupportedError{}}
+	writer := PostgresEshuSearchDocumentWriter{
+		DB:               db,
+		SearchTermCopier: copier,
+	}
+
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			{
+				ID:          "searchdoc:content_entity:e-1",
+				RepoID:      "repo-1",
+				SourceKind:  searchdocs.SourceKindCodeEntity,
+				ContextText: "alpha beta",
+				TruthScope:  searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived, Basis: searchdocs.TruthBasisContentIndex},
+				Freshness:   searchdocs.Freshness{State: searchdocs.FreshnessFresh},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+	if got := len(copier.calls); got != 1 {
+		t.Fatalf("copy calls = %d, want 1", got)
+	}
+	var sawFallback bool
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms") {
+			sawFallback = true
+			break
+		}
+	}
+	if !sawFallback {
+		t.Fatalf("missing unnest fallback insert after unsupported copy: %#v", db.execs)
+	}
+}
+
+func TestWriteSearchIndexTermsReturnsCopyErrorWithoutFallback(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	copier := &fakeSearchIndexTermCopier{err: errors.New("copy failed")}
+	writer := PostgresEshuSearchDocumentWriter{
+		DB:               db,
+		SearchTermCopier: copier,
+	}
+
+	err := writer.writeSearchIndexTerms(
+		context.Background(),
+		"scope-1",
+		"gen-1",
+		[]string{"doc-1"},
+		[]string{"alpha"},
+		[]string{"alpha"},
+		[]int{1},
+	)
+	if err == nil {
+		t.Fatal("writeSearchIndexTerms error = nil, want copy failure")
+	}
+	if got := len(db.execs); got != 0 {
+		t.Fatalf("fallback execs = %d, want 0 for real copy failure", got)
 	}
 }
 

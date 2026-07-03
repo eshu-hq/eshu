@@ -436,6 +436,46 @@ mutation counters for rows removed by the generation clear, Postgres query
 duration spans, and wait-event samples. No new metric name, high-cardinality
 label, worker knob, runtime knob, queue domain, or graph signal is introduced.
 
+## Search-Term Writer Review Hardening (#4598 follow-up)
+
+Performance Evidence: this follow-up does not change the measured hot-path
+algorithm from the generation-clear/COPY proof above. The baseline and after
+measurement remain the bounded run
+`4529-generation-clear-term-next-20260703T0500Z`: 20
+`eshu_search_document` cycles, 89,501 written documents, 341.361s total cycle
+time, 278.674s term insertion, and 0.003114s term-write time per written
+document on the 895-repository NornicDB/Postgres corpus/profile recorded above.
+The review fixes keep COPY as the preferred path and use the existing ordered
+unnest INSERT only when the storage adapter returns the typed
+`UnsupportedSearchIndexTermCopy` signal. Real COPY errors still fail fast, so
+the branch does not hide backend pressure by silently downgrading a broken COPY
+path. Zero-row COPY calls now return before acquiring a Postgres connection;
+that removes unnecessary connection churn for empty term slices and cannot add
+work.
+
+No-Regression Evidence: `TestWriteEshuSearchDocumentsCancelsOnInsertPageError`
+proves the single-shot writer calls `Cancel` after an `InsertPage` failure and
+removes fact rows, index-document rows, and term rows for the generation.
+`TestWriteSearchIndexTermsFallsBackWhenCopyUnsupported` proves the typed
+unsupported signal falls back to the unnest INSERT path, while
+`TestWriteSearchIndexTermsReturnsCopyErrorWithoutFallback` proves ordinary COPY
+errors are returned without fallback. `TestCopySearchIndexTermsToTableSkipsEmptyRows`,
+`TestCopySearchIndexTermsToTableChecksAlignmentBeforeEmptySkip`, and
+`TestSearchIndexTermCopyUnsupportedErrorIsTyped` cover the Postgres adapter
+edge cases. Focused verification after rebasing onto current main:
+`go test ./internal/reducer -count=1`,
+`go test ./internal/storage/postgres -count=1`, and
+`go test ./internal/envregistry -count=1`.
+
+No-Observability-Change: the follow-up adds no metric name, label, span name,
+structured log field, status payload, queue domain, worker, lease, runtime
+knob, graph write, Cypher statement, API route, or MCP contract. Existing
+operator evidence remains the search-document completion log,
+`term_refresh`/`term_upsert` write-duration histograms, term mutation counters,
+Postgres write spans, and wait-event sampling. The migration comment only
+documents that the single-statement `DROP INDEX CONCURRENTLY` file is applied
+through the existing autocommit migration path.
+
 ## Correlation/Identity Writer Bulk Batching (#3435)
 
 Follow-up to the #3430/#3434 search-document batching above. The audit in #3435

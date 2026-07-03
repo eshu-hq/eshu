@@ -156,7 +156,7 @@ func (db *InstrumentedDB) CopySearchIndexTerms(
 		CopySearchIndexTerms(context.Context, string, string, []string, []string, []string, []int) (int64, error)
 	})
 	if !ok {
-		return 0, fmt.Errorf("inner database does not support search-index term copy")
+		return 0, searchIndexTermCopyUnsupportedError{driver: fmt.Sprintf("%T", db.Inner)}
 	}
 
 	start := time.Now()

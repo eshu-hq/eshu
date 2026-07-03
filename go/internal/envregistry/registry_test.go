@@ -4,6 +4,7 @@
 package envregistry
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -28,6 +29,18 @@ func TestDefaultRegistryIncludesScopedTokenRegistryFile(t *testing.T) {
 	}
 	if entry.Subsystem != "api" {
 		t.Fatalf("ESHU_SCOPED_TOKENS_FILE subsystem = %q, want api", entry.Subsystem)
+	}
+}
+
+func TestRenderMarkdownEndsWithSingleTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	doc := Default().RenderMarkdown()
+	if !strings.HasSuffix(doc, "\n") {
+		t.Fatal("RenderMarkdown() output must end with one trailing newline")
+	}
+	if strings.HasSuffix(doc, "\n\n") {
+		t.Fatal("RenderMarkdown() output must not end with a blank line")
 	}
 }
 

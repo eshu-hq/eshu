@@ -8,6 +8,9 @@
 -- BM25 lookup index and covers the generation-scoped clear prefix.
 --
 -- CONCURRENTLY keeps existing reducer writers from blocking while the index is
--- removed on populated deployments.
+-- removed on populated deployments. Bootstrap applies migration definitions
+-- through ApplyDefinitions, which executes each single-statement file through
+-- ExecContext/autocommit rather than wrapping files in an explicit transaction.
+-- DROP INDEX CONCURRENTLY requires that shape; keep this file single-statement.
 
 DROP INDEX CONCURRENTLY IF EXISTS eshu_search_index_terms_doc_idx;
