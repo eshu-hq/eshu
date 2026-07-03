@@ -68,28 +68,25 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocuments(
 }
 
 func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (string, []any) {
-	args := []any{EshuSearchDocumentFactKind}
-	conditions := []string{
-		"fact.fact_kind = $1",
-		"fact.is_tombstone = false",
-	}
+	args := []any{}
+	conditions := []string{}
 	addArg := func(value any) string {
 		args = append(args, value)
 		return fmt.Sprintf("$%d", len(args))
 	}
-	conditions = append(conditions, "fact.scope_id = "+addArg(filter.ScopeID))
+	conditions = append(conditions, "doc.scope_id = "+addArg(filter.ScopeID))
 	if filter.GenerationID != "" {
-		conditions = append(conditions, "fact.generation_id = "+addArg(filter.GenerationID))
+		conditions = append(conditions, "doc.generation_id = "+addArg(filter.GenerationID))
 	}
 	if filter.RepoID != "" {
-		conditions = append(conditions, "fact.payload->>'repo_id' = "+addArg(filter.RepoID))
+		conditions = append(conditions, "doc.repo_id = "+addArg(filter.RepoID))
 	}
 	if len(filter.SourceKinds) > 0 {
 		placeholders := make([]string, 0, len(filter.SourceKinds))
 		for _, kind := range filter.SourceKinds {
 			placeholders = append(placeholders, addArg(string(kind)))
 		}
-		conditions = append(conditions, "fact.payload->>'source_kind' IN ("+strings.Join(placeholders, ", ")+")")
+		conditions = append(conditions, "doc.source_kind IN ("+strings.Join(placeholders, ", ")+")")
 	}
 	if len(filter.Languages) > 0 {
 		langs := make([]string, 0, len(filter.Languages))
@@ -99,7 +96,7 @@ func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (
 			}
 		}
 		if len(langs) > 0 {
-			conditions = append(conditions, "EXISTS (SELECT 1 FROM jsonb_array_elements_text(fact.payload->'document'->'Labels') AS lbl WHERE lbl = ANY("+addArg(langs)+"::text[]))")
+			conditions = append(conditions, "EXISTS (SELECT 1 FROM jsonb_array_elements_text(doc.document->'Labels') AS lbl WHERE lbl = ANY("+addArg(langs)+"::text[]))")
 		}
 	}
 
@@ -109,12 +106,12 @@ func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (
 	versionArg := addArg(filter.VectorIndexVersion)
 
 	var builder strings.Builder
-	builder.WriteString("SELECT\n    fact.fact_id,\n    fact.scope_id,\n    fact.generation_id,\n    fact.source_system,\n    fact.observed_at,\n    fact.payload\n")
-	builder.WriteString("FROM fact_records AS fact\n")
+	builder.WriteString("SELECT\n    doc.fact_id,\n    doc.scope_id,\n    doc.generation_id,\n    scope.source_system,\n    doc.updated_at,\n    jsonb_build_object('document', doc.document)\n")
+	builder.WriteString("FROM eshu_search_index_documents AS doc\n")
 	builder.WriteString("JOIN ingestion_scopes AS scope\n")
-	builder.WriteString("  ON scope.scope_id = fact.scope_id\n")
+	builder.WriteString("  ON scope.scope_id = doc.scope_id\n")
 	if filter.GenerationID == "" {
-		builder.WriteString(" AND scope.active_generation_id = fact.generation_id\n")
+		builder.WriteString(" AND scope.active_generation_id = doc.generation_id\n")
 	}
 	builder.WriteString("WHERE ")
 	builder.WriteString(strings.Join(conditions, "\n  AND "))
@@ -128,18 +125,18 @@ func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (
 	builder.WriteString("     AND value.source_class = meta.source_class AND value.embedding_model_id = meta.embedding_model_id\n")
 	builder.WriteString("     AND value.vector_index_version = meta.vector_index_version\n")
 	builder.WriteString("     AND value.embedding_content_hash = meta.embedding_content_hash\n")
-	builder.WriteString("    WHERE meta.scope_id = fact.scope_id\n")
-	builder.WriteString("      AND meta.generation_id = fact.generation_id\n")
-	builder.WriteString("      AND meta.document_id = fact.payload->'document'->>'id'\n")
+	builder.WriteString("    WHERE meta.scope_id = doc.scope_id\n")
+	builder.WriteString("      AND meta.generation_id = doc.generation_id\n")
+	builder.WriteString("      AND meta.document_id = doc.document_id\n")
 	builder.WriteString("      AND meta.provider_profile_id = " + providerArg + "\n")
 	builder.WriteString("      AND meta.source_class = " + sourceClassArg + "\n")
 	builder.WriteString("      AND meta.embedding_model_id = " + modelArg + "\n")
 	builder.WriteString("      AND meta.vector_index_version = " + versionArg + "\n")
-	builder.WriteString("      AND meta.embedding_content_hash = fact.payload->>'content_hash'\n")
+	builder.WriteString("      AND meta.embedding_content_hash = doc.content_hash\n")
 	builder.WriteString("      AND (meta.build_state = 'disabled' OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))\n")
 	builder.WriteString("  )\n")
 	limit := addArg(filter.Limit)
-	builder.WriteString("ORDER BY fact.observed_at DESC, fact.fact_id ASC\n")
+	builder.WriteString("ORDER BY doc.updated_at DESC, doc.document_id ASC\n")
 	_, _ = fmt.Fprintf(&builder, "LIMIT %s\n", limit)
 	return builder.String(), args
 }

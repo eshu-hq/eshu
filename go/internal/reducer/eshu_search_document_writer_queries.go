@@ -125,12 +125,13 @@ INSERT INTO eshu_search_index_documents (
     fact_id,
     repo_id,
     source_kind,
+    content_hash,
     document,
     document_length,
     updated_at
 )
 SELECT scope_id, generation_id, document_id, fact_id, repo_id, source_kind,
-       document::jsonb, document_length, updated_at
+       content_hash, document::jsonb, document_length, updated_at
 FROM unnest(
     $1::text[],
     $2::text[],
@@ -139,14 +140,16 @@ FROM unnest(
     $5::text[],
     $6::text[],
     $7::text[],
-    $8::int[],
-    $9::timestamptz[]
+    $8::text[],
+    $9::int[],
+    $10::timestamptz[]
 ) AS t(scope_id, generation_id, document_id, fact_id, repo_id, source_kind,
-       document, document_length, updated_at)
+       content_hash, document, document_length, updated_at)
 ON CONFLICT (scope_id, generation_id, document_id) DO UPDATE SET
     fact_id         = EXCLUDED.fact_id,
     repo_id         = EXCLUDED.repo_id,
     source_kind     = EXCLUDED.source_kind,
+    content_hash    = EXCLUDED.content_hash,
     document        = EXCLUDED.document,
     document_length = EXCLUDED.document_length,
     updated_at      = EXCLUDED.updated_at

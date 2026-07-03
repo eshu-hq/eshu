@@ -162,15 +162,16 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
 	}
 	q := db.queries[0].query
 	for _, fragment := range []string{
-		"scope.active_generation_id = fact.generation_id",
+		"FROM eshu_search_index_documents AS doc",
+		"scope.active_generation_id = doc.generation_id",
 		"scope.scope_kind = 'repository'",
-		"WHERE meta.scope_id = fact.scope_id",
-		"meta.document_id = fact.payload->'document'->>'id'",
+		"WHERE meta.scope_id = doc.scope_id",
+		"meta.document_id = doc.document_id",
 		"meta.provider_profile_id =",
 		"meta.source_class =",
 		"meta.embedding_model_id =",
 		"meta.vector_index_version =",
-		"meta.embedding_content_hash = fact.payload->>'content_hash'",
+		"meta.embedding_content_hash = doc.content_hash",
 		"LEFT JOIN eshu_search_vector_values value",
 		"meta.build_state = 'disabled'",
 		"meta.build_state = 'ready'",
@@ -183,6 +184,9 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
 	}
 	if strings.Contains(q, "OFFSET") {
 		t.Fatalf("pending vector document query must not OFFSET a shrinking pending set:\n%s", q)
+	}
+	if strings.Contains(q, "fact_records") || strings.Contains(q, "fact.payload") {
+		t.Fatalf("pending vector document query should use the persisted search index, not fact_records payload scans:\n%s", q)
 	}
 }
 

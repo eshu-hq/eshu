@@ -69,11 +69,31 @@ vector-build document work. Search-vector write time fell to 55.414s, but
 query/load still consumed 546.025s; the next bottleneck is the pending-document
 selection query, not vector upsert volume.
 
+Follow-up selector-shape proof: the slow capped run included sweeps where
+query/load consumed 210-212s while embedding consumed about 0.5s and batched
+writes consumed 9-12s. The pending-document reader now scans
+`eshu_search_index_documents`, the reducer-maintained one-row-per-document
+BM25 read model, instead of scanning `fact_records` JSON payloads for the same
+curated documents. The search-index document row now stores the same
+`content_hash` used by vector metadata so stale-vector detection keeps the
+provider/model/version/content identity check. Existing rows are backfilled
+from the paired `fact_records` payload at schema bootstrap; new rows are written
+by the search-document reducer writer. Local proof:
+`go test -timeout 120s ./internal/storage/postgres ./internal/reducer
+./internal/searchvector ./cmd/reducer -run
+'Test(EshuSearchDocumentStoreListsPendingVectorDocuments|BootstrapDefinitionsIncludeEshuSearchIndex|BootstrapDefinitionsBoundEshuSearchIndexTermKeys|WriteEshuSearchDocumentsMaintainsPersistedSearchIndex|BuilderUsesPendingVectorDocumentsWhenAvailable|SearchVector|ProductionWiring)'
+-count=1` and `go test -timeout 240s ./internal/searchvector/...
+./internal/storage/postgres/... ./internal/reducer/... ./cmd/reducer -count=1`
+passed locally. A bounded remote corpus rerun is still required before claiming
+wall-clock improvement for this selector rewrite.
+
 ## No-Observability-Change:
 
 The change adds no route, graph query, queue table, worker, lease, runtime
-knob, metric instrument, or metric label. Operators continue to diagnose the
-path through existing search-vector sweep logs and
+knob, metric instrument, or metric label. The follow-up selector change adds
+one search-index document column and one read-path index but no new runtime
+signal shape. Operators continue to diagnose the path through existing
+search-vector sweep logs and
 `eshu_dp_search_vector_build_phase_seconds` split timing for scheduling,
 query/load, embed/build, and write/upsert. The existing fields should show
 lower `document_count`, `vector_count`, `query_load_seconds`, and

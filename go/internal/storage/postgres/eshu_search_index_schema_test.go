@@ -78,6 +78,15 @@ func TestDataPlaneSearchIndexSchemaAvoidsRedundantTermLookupIndex(t *testing.T) 
 	if strings.Contains(sql, "DROP INDEX IF EXISTS eshu_search_index_terms_lookup_idx") {
 		t.Fatalf("data-plane schema should not drop lookup index non-concurrently:\n%s", sql)
 	}
+	for _, want := range []string{
+		"content_hash TEXT NOT NULL DEFAULT ''",
+		"ADD COLUMN IF NOT EXISTS content_hash TEXT NOT NULL DEFAULT ''",
+		"eshu_search_index_documents_vector_pending_idx",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("data-plane search-index schema missing %q:\n%s", want, sql)
+		}
+	}
 }
 
 func TestBootstrapDefinitionsDropRedundantSearchTermLookupIndex(t *testing.T) {

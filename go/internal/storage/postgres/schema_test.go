@@ -102,9 +102,13 @@ func TestBootstrapDefinitionsIncludeEshuSearchIndex(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS eshu_search_index_documents",
 		"CREATE TABLE IF NOT EXISTS eshu_search_index_terms",
 		"CREATE TABLE IF NOT EXISTS eshu_search_index_stats",
+		"content_hash TEXT NOT NULL DEFAULT ''",
+		"ADD COLUMN IF NOT EXISTS content_hash TEXT NOT NULL DEFAULT ''",
+		"fact.payload->>'content_hash'",
 		"REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE",
 		"REFERENCES scope_generations(generation_id) ON DELETE CASCADE",
 		"CREATE INDEX IF NOT EXISTS eshu_search_index_documents_repo_idx",
+		"CREATE INDEX IF NOT EXISTS eshu_search_index_documents_vector_pending_idx",
 	} {
 		if !strings.Contains(marker.SQL, want) {
 			t.Fatalf("eshu_search_index SQL missing %q", want)

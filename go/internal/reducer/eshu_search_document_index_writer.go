@@ -18,13 +18,14 @@ import (
 )
 
 type eshuSearchIndexDocumentWrite struct {
-	DocumentID string
-	FactID     string
-	RepoID     string
-	SourceKind string
-	Document   searchdocs.Document
-	Terms      map[string]int
-	Length     int
+	DocumentID  string
+	FactID      string
+	RepoID      string
+	SourceKind  string
+	ContentHash string
+	Document    searchdocs.Document
+	Terms       map[string]int
+	Length      int
 }
 
 func newEshuSearchIndexDocumentWrite(
@@ -39,13 +40,14 @@ func newEshuSearchIndexDocumentWrite(
 		length += count
 	}
 	return eshuSearchIndexDocumentWrite{
-		DocumentID: strings.TrimSpace(doc.ID),
-		FactID:     factID,
-		RepoID:     strings.TrimSpace(doc.RepoID),
-		SourceKind: string(doc.SourceKind),
-		Document:   doc,
-		Terms:      terms,
-		Length:     length,
+		DocumentID:  strings.TrimSpace(doc.ID),
+		FactID:      factID,
+		RepoID:      strings.TrimSpace(doc.RepoID),
+		SourceKind:  string(doc.SourceKind),
+		ContentHash: searchhybrid.DocumentContentHash(doc),
+		Document:    doc,
+		Terms:       terms,
+		Length:      length,
 	}
 }
 
@@ -96,6 +98,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 	docFactIDs := make([]string, len(documents))
 	docRepoIDs := make([]string, len(documents))
 	docSourceKinds := make([]string, len(documents))
+	docContentHashes := make([]string, len(documents))
 	docPayloads := make([]string, len(documents))
 	docLengths := make([]int, len(documents))
 	docUpdatedAts := make([]time.Time, len(documents))
@@ -111,6 +114,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 		docFactIDs[i] = doc.FactID
 		docRepoIDs[i] = doc.RepoID
 		docSourceKinds[i] = doc.SourceKind
+		docContentHashes[i] = doc.ContentHash
 		docPayloads[i] = string(payload)
 		docLengths[i] = doc.Length
 		docUpdatedAts[i] = now
@@ -126,6 +130,7 @@ func (w PostgresEshuSearchDocumentWriter) insertSearchIndexPage(
 		docFactIDs,
 		docRepoIDs,
 		docSourceKinds,
+		docContentHashes,
 		docPayloads,
 		docLengths,
 		docUpdatedAts,
