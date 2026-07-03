@@ -1525,6 +1525,793 @@
             "target_project_id": "supply-chain-demo-project",
             "support_state": "supported"
           }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Schema:supply-chain-demo-project:global:demo-schema",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/schemas/demo-schema",
+            "asset_type": "pubsub.googleapis.com/Schema",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-schema",
+            "state": "",
+            "asset_type_family": "pubsub",
+            "correlation_anchors": [],
+            "attributes": {
+              "schema_type": "AVRO"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:bigtableadmin.googleapis.com/Table:supply-chain-demo-project:global:demo-bigtable-table",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//bigtableadmin.googleapis.com/projects/supply-chain-demo-project/instances/demo-bigtable/tables/demo-bigtable-table",
+            "asset_type": "bigtableadmin.googleapis.com/Table",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-bigtable-table",
+            "state": "",
+            "asset_type_family": "bigtableadmin",
+            "correlation_anchors": [],
+            "attributes": {}
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Topic:supply-chain-demo-project:global:demo-topic-2",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-topic-2",
+            "asset_type": "pubsub.googleapis.com/Topic",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-topic-2",
+            "state": "",
+            "asset_type_family": "pubsub",
+            "correlation_anchors": [
+              "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+              "//pubsub.googleapis.com/projects/supply-chain-demo-project/schemas/demo-schema"
+            ],
+            "attributes": {
+              "customer_managed_encryption": true,
+              "schema_encoding": "JSON"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:topic_encrypted_by_kms_key:demo-topic-2->demo-key",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-topic-2",
+            "source_asset_type": "pubsub.googleapis.com/Topic",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "topic_encrypted_by_kms_key",
+            "target_full_resource_name": "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+            "target_asset_type": "cloudkms.googleapis.com/CryptoKey",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:topic_uses_schema:demo-topic-2->demo-schema",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-topic-2",
+            "source_asset_type": "pubsub.googleapis.com/Topic",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "topic_uses_schema",
+            "target_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/schemas/demo-schema",
+            "target_asset_type": "pubsub.googleapis.com/Schema",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Subscription:supply-chain-demo-project:global:demo-subscription",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription",
+            "asset_type": "pubsub.googleapis.com/Subscription",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-subscription",
+            "state": "",
+            "asset_type_family": "pubsub",
+            "correlation_anchors": [
+              "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic"
+            ],
+            "attributes": {
+              "state": "ACTIVE",
+              "delivery_type": "pull",
+              "ack_deadline_seconds": 10,
+              "dead_letter_max_delivery_attempts": 5
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_subscribes_to_topic:demo-subscription->demo-rotation-topic",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_subscribes_to_topic",
+            "target_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+            "target_asset_type": "pubsub.googleapis.com/Topic",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_dead_letters_to_topic:demo-subscription->demo-rotation-topic",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_dead_letters_to_topic",
+            "target_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+            "target_asset_type": "pubsub.googleapis.com/Topic",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Subscription:supply-chain-demo-project:global:demo-subscription-bq",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-bq",
+            "asset_type": "pubsub.googleapis.com/Subscription",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-subscription-bq",
+            "state": "",
+            "asset_type_family": "pubsub",
+            "correlation_anchors": [
+              "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+              "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics/tables/events"
+            ],
+            "attributes": {
+              "state": "ACTIVE",
+              "delivery_type": "bigquery"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_subscribes_to_topic:demo-subscription-bq->demo-rotation-topic",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-bq",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_subscribes_to_topic",
+            "target_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+            "target_asset_type": "pubsub.googleapis.com/Topic",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_exports_to_bigquery_table:demo-subscription-bq->events",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-bq",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_exports_to_bigquery_table",
+            "target_full_resource_name": "//bigquery.googleapis.com/projects/supply-chain-demo-project/datasets/analytics/tables/events",
+            "target_asset_type": "bigquery.googleapis.com/Table",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Subscription:supply-chain-demo-project:global:demo-subscription-bt",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-bt",
+            "asset_type": "pubsub.googleapis.com/Subscription",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-subscription-bt",
+            "state": "",
+            "asset_type_family": "pubsub",
+            "correlation_anchors": [
+              "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+              "//bigtableadmin.googleapis.com/projects/supply-chain-demo-project/instances/demo-bigtable/tables/demo-bigtable-table"
+            ],
+            "attributes": {
+              "state": "ACTIVE",
+              "delivery_type": "bigtable"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_subscribes_to_topic:demo-subscription-bt->demo-rotation-topic",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-bt",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_subscribes_to_topic",
+            "target_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+            "target_asset_type": "pubsub.googleapis.com/Topic",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_exports_to_bigtable_table:demo-subscription-bt->demo-bigtable-table",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-bt",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_exports_to_bigtable_table",
+            "target_full_resource_name": "//bigtableadmin.googleapis.com/projects/supply-chain-demo-project/instances/demo-bigtable/tables/demo-bigtable-table",
+            "target_asset_type": "bigtableadmin.googleapis.com/Table",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Subscription:supply-chain-demo-project:global:demo-subscription-gcs",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-gcs",
+            "asset_type": "pubsub.googleapis.com/Subscription",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-subscription-gcs",
+            "state": "",
+            "asset_type_family": "pubsub",
+            "correlation_anchors": [
+              "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+              "//storage.googleapis.com/projects/_/buckets/demo-bucket"
+            ],
+            "attributes": {
+              "state": "ACTIVE",
+              "delivery_type": "cloud_storage"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_subscribes_to_topic:demo-subscription-gcs->demo-rotation-topic",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-gcs",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_subscribes_to_topic",
+            "target_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/topics/demo-rotation-topic",
+            "target_asset_type": "pubsub.googleapis.com/Topic",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:subscription_exports_to_storage_bucket:demo-subscription-gcs->demo-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//pubsub.googleapis.com/projects/supply-chain-demo-project/subscriptions/demo-subscription-gcs",
+            "source_asset_type": "pubsub.googleapis.com/Subscription",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "subscription_exports_to_storage_bucket",
+            "target_full_resource_name": "//storage.googleapis.com/projects/_/buckets/demo-bucket",
+            "target_asset_type": "storage.googleapis.com/Bucket",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:firestore.googleapis.com/Database:supply-chain-demo-project:nam5:demo-firestore-db",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//firestore.googleapis.com/projects/supply-chain-demo-project/databases/demo-firestore-db",
+            "asset_type": "firestore.googleapis.com/Database",
+            "project_id": "supply-chain-demo-project",
+            "location": "nam5",
+            "display_name": "demo-firestore-db",
+            "state": "",
+            "asset_type_family": "firestore",
+            "correlation_anchors": [
+              "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key"
+            ],
+            "attributes": {
+              "database_type": "FIRESTORE_NATIVE",
+              "location_id": "nam5",
+              "concurrency_mode": "OPTIMISTIC",
+              "point_in_time_recovery": "POINT_IN_TIME_RECOVERY_ENABLED",
+              "delete_protection": "DELETE_PROTECTION_ENABLED",
+              "customer_managed_encryption": true
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:firestore_database_encrypted_by_kms_key:demo-firestore-db->demo-key",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//firestore.googleapis.com/projects/supply-chain-demo-project/databases/demo-firestore-db",
+            "source_asset_type": "firestore.googleapis.com/Database",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "firestore_database_encrypted_by_kms_key",
+            "target_full_resource_name": "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+            "target_asset_type": "cloudkms.googleapis.com/CryptoKey",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:dataproc.googleapis.com/Cluster:supply-chain-demo-project:us-central1:demo-dataproc-cluster",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//dataproc.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/clusters/demo-dataproc-cluster",
+            "asset_type": "dataproc.googleapis.com/Cluster",
+            "project_id": "supply-chain-demo-project",
+            "location": "us-central1",
+            "display_name": "demo-dataproc-cluster",
+            "state": "",
+            "asset_type_family": "dataproc",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+              "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet",
+              "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+              "//storage.googleapis.com/projects/_/buckets/demo-bucket"
+            ],
+            "attributes": {
+              "status_state": "RUNNING",
+              "internal_ip_only": true,
+              "master_machine_type": "n1-standard-4",
+              "master_num_instances": 1,
+              "worker_machine_type": "n1-standard-4",
+              "worker_num_instances": 2,
+              "image_version": "2.1-debian11",
+              "customer_managed_encryption": true
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:dataproc_cluster_uses_network:demo-dataproc-cluster->demo-vpc",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//dataproc.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/clusters/demo-dataproc-cluster",
+            "source_asset_type": "dataproc.googleapis.com/Cluster",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "dataproc_cluster_uses_network",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+            "target_asset_type": "compute.googleapis.com/Network",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:dataproc_cluster_uses_subnetwork:demo-dataproc-cluster->demo-subnet",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//dataproc.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/clusters/demo-dataproc-cluster",
+            "source_asset_type": "dataproc.googleapis.com/Cluster",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "dataproc_cluster_uses_subnetwork",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet",
+            "target_asset_type": "compute.googleapis.com/Subnetwork",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:dataproc_cluster_encrypted_by_kms_key:demo-dataproc-cluster->demo-key",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//dataproc.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/clusters/demo-dataproc-cluster",
+            "source_asset_type": "dataproc.googleapis.com/Cluster",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "dataproc_cluster_encrypted_by_kms_key",
+            "target_full_resource_name": "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+            "target_asset_type": "cloudkms.googleapis.com/CryptoKey",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:dataproc_cluster_uses_staging_bucket:demo-dataproc-cluster->demo-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//dataproc.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/clusters/demo-dataproc-cluster",
+            "source_asset_type": "dataproc.googleapis.com/Cluster",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "dataproc_cluster_uses_staging_bucket",
+            "target_full_resource_name": "//storage.googleapis.com/projects/_/buckets/demo-bucket",
+            "target_asset_type": "storage.googleapis.com/Bucket",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:compute.googleapis.com/Route:supply-chain-demo-project:global:demo-route",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route",
+            "asset_type": "compute.googleapis.com/Route",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-route",
+            "state": "",
+            "asset_type_family": "compute",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc-b",
+              "//compute.googleapis.com/projects/supply-chain-demo-project/zones/us-central1-a/instances/demo-instance"
+            ],
+            "attributes": {
+              "dest_prefix_length": 24,
+              "priority": 1000,
+              "network_tags": [
+                "demo-route-tag"
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:route_in_network:demo-route->demo-vpc-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route",
+            "source_asset_type": "compute.googleapis.com/Route",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "route_in_network",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc-b",
+            "target_asset_type": "compute.googleapis.com/Network",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:route_next_hop_instance:demo-route->demo-instance",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route",
+            "source_asset_type": "compute.googleapis.com/Route",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "route_next_hop_instance",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/zones/us-central1-a/instances/demo-instance",
+            "target_asset_type": "compute.googleapis.com/Instance",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:compute.googleapis.com/Route:supply-chain-demo-project:global:demo-route-vpn",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route-vpn",
+            "asset_type": "compute.googleapis.com/Route",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-route-vpn",
+            "state": "",
+            "asset_type_family": "compute",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+              "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/vpnTunnels/demo-vpn-tunnel"
+            ],
+            "attributes": {
+              "dest_prefix_length": 16,
+              "priority": 900
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:route_in_network:demo-route-vpn->demo-vpc",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route-vpn",
+            "source_asset_type": "compute.googleapis.com/Route",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "route_in_network",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+            "target_asset_type": "compute.googleapis.com/Network",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:route_next_hop_vpn_tunnel:demo-route-vpn->demo-vpn-tunnel",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route-vpn",
+            "source_asset_type": "compute.googleapis.com/Route",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "route_next_hop_vpn_tunnel",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/vpnTunnels/demo-vpn-tunnel",
+            "target_asset_type": "compute.googleapis.com/VpnTunnel",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:compute.googleapis.com/Route:supply-chain-demo-project:global:demo-route-ilb",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route-ilb",
+            "asset_type": "compute.googleapis.com/Route",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-route-ilb",
+            "state": "",
+            "asset_type_family": "compute",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+              "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/forwardingRules/demo-forwarding-rule"
+            ],
+            "attributes": {
+              "dest_prefix_length": 0,
+              "dest_is_default": true,
+              "priority": 800
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:route_in_network:demo-route-ilb->demo-vpc",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route-ilb",
+            "source_asset_type": "compute.googleapis.com/Route",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "route_in_network",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+            "target_asset_type": "compute.googleapis.com/Network",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:route_next_hop_ilb:demo-route-ilb->demo-forwarding-rule",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/routes/demo-route-ilb",
+            "source_asset_type": "compute.googleapis.com/Route",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "route_next_hop_ilb",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/forwardingRules/demo-forwarding-rule",
+            "target_asset_type": "compute.googleapis.com/ForwardingRule",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:compute.googleapis.com/Address:supply-chain-demo-project:us-central1:demo-address",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/addresses/demo-address",
+            "asset_type": "compute.googleapis.com/Address",
+            "project_id": "supply-chain-demo-project",
+            "location": "us-central1",
+            "display_name": "demo-address",
+            "state": "",
+            "asset_type_family": "compute",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc-b",
+              "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet-b",
+              "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/forwardingRules/demo-forwarding-rule",
+              "//compute.googleapis.com/projects/supply-chain-demo-project/zones/us-central1-a/instances/demo-instance"
+            ],
+            "attributes": {
+              "region": "us-central1",
+              "address_type": "INTERNAL",
+              "is_external": false,
+              "status": "IN_USE",
+              "ip_version": "IPV4",
+              "user_count": 2
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:address_in_network:demo-address->demo-vpc-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/addresses/demo-address",
+            "source_asset_type": "compute.googleapis.com/Address",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "address_in_network",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc-b",
+            "target_asset_type": "compute.googleapis.com/Network",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:address_in_subnetwork:demo-address->demo-subnet-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/addresses/demo-address",
+            "source_asset_type": "compute.googleapis.com/Address",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "address_in_subnetwork",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/subnetworks/demo-subnet-b",
+            "target_asset_type": "compute.googleapis.com/Subnetwork",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:address_used_by_forwarding_rule:demo-address->demo-forwarding-rule",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/addresses/demo-address",
+            "source_asset_type": "compute.googleapis.com/Address",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "address_used_by_forwarding_rule",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/forwardingRules/demo-forwarding-rule",
+            "target_asset_type": "compute.googleapis.com/ForwardingRule",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:address_used_by_instance:demo-address->demo-instance",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/regions/us-central1/addresses/demo-address",
+            "source_asset_type": "compute.googleapis.com/Address",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "address_used_by_instance",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/zones/us-central1-a/instances/demo-instance",
+            "target_asset_type": "compute.googleapis.com/Instance",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
         }
       ]
     }
