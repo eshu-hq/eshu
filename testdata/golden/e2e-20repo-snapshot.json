@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 37,
-        "max": 60,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 37: 2 AWS + 35 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage, Pub/Sub Topic, Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey, Forwarding Rule, Memorystore Redis Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "min": 50,
+        "max": 74,
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 50: 2 AWS + 48 GCP -- BigQuery Dataset+Table, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret, Cloud Run Service, custom IAM Role, Artifact Registry Repository+DockerImage, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -883,6 +883,166 @@
         "id": "rc-70",
         "description": "A Memorystore Redis Instance CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_redis_instance_encrypted_by_kms_key edge; the gcpcloud cassette's demo-redis Instance fact carries a gcp_cloud_relationship fact with relationship_type redis_instance_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4298 extractor's CMEK edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance->CryptoKey relationship fact, so this locks in the Memorystore Redis Instance CMEK edge path alongside its authorized-network edge (#4555).",
         "relationship": "GCP_redis_instance_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-71",
+        "description": "A Pub/Sub Topic CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_topic_encrypted_by_kms_key edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-topic-2 Topic (asset_type pubsub.googleapis.com/Topic, with a bounded customer_managed_encryption posture) and a gcp_cloud_relationship fact with relationship_type topic_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4291 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Topic cloud_resource + relationship facts, so this locks in the Pub/Sub Topic typed-depth extractor's golden-corpus follow-up (#4411).",
+        "relationship": "GCP_topic_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-72",
+        "description": "A Pub/Sub Subscription CloudResource is connected to the Topic CloudResource it subscribes to via a GCP_subscription_subscribes_to_topic edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-subscription Subscription (asset_type pubsub.googleapis.com/Subscription, with bounded state/delivery_type/ack_deadline_seconds attributes) and a gcp_cloud_relationship fact with relationship_type subscription_subscribes_to_topic targeting the shared demo-rotation-topic Topic, matching the #4321 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Subscription cloud_resource + relationship facts, so this locks in the Pub/Sub Subscription typed-depth extractor's golden-corpus follow-up (#4418).",
+        "relationship": "GCP_subscription_subscribes_to_topic",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-73",
+        "description": "A Firestore Database CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_firestore_database_encrypted_by_kms_key edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-firestore-db Database (asset_type firestore.googleapis.com/Database, with bounded database_type/location_id/concurrency_mode/point_in_time_recovery/delete_protection attributes) and a gcp_cloud_relationship fact with relationship_type firestore_database_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4318 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Database cloud_resource + relationship facts, so this locks in the Firestore Database typed-depth extractor's golden-corpus follow-up (#4426).",
+        "relationship": "GCP_firestore_database_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-74",
+        "description": "A Dataproc Cluster CloudResource is connected to its VPC Network CloudResource via a GCP_dataproc_cluster_uses_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-dataproc-cluster Cluster (asset_type dataproc.googleapis.com/Cluster, with bounded status_state/internal_ip_only/master and worker machine-type and instance-count/image_version attributes) and a gcp_cloud_relationship fact with relationship_type dataproc_cluster_uses_network targeting the shared demo-vpc Network, matching the #4320 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Cluster cloud_resource + relationship facts, so this locks in the Dataproc Cluster typed-depth extractor's golden-corpus follow-up (#4437).",
+        "relationship": "GCP_dataproc_cluster_uses_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-75",
+        "description": "A Dataproc Cluster CloudResource is connected to its staging Storage Bucket CloudResource via a GCP_dataproc_cluster_uses_staging_bucket edge; the gcpcloud cassette's demo-dataproc-cluster Cluster fact carries a gcp_cloud_relationship fact with relationship_type dataproc_cluster_uses_staging_bucket targeting the shared demo-bucket Bucket, matching the #4320 extractor's staging-bucket edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Cluster->Bucket relationship fact, so this locks in the Dataproc Cluster staging-bucket edge path alongside its network edge (#4437).",
+        "relationship": "GCP_dataproc_cluster_uses_staging_bucket",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-76",
+        "description": "A compute Route CloudResource is connected to its containing VPC Network CloudResource via a GCP_route_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-route Route (asset_type compute.googleapis.com/Route, with bounded dest_prefix_length/priority/network_tags attributes and no decoded destRange address) and a gcp_cloud_relationship fact with relationship_type route_in_network targeting the shared demo-vpc-b Network, matching the #4313 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Route cloud_resource + relationship facts, so this locks in the Route typed-depth extractor's golden-corpus follow-up (#4420).",
+        "relationship": "GCP_route_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-77",
+        "description": "A compute Route CloudResource is connected to its resolvable next-hop compute Instance CloudResource via a GCP_route_next_hop_instance edge; the gcpcloud cassette's demo-route Route fact carries a gcp_cloud_relationship fact with relationship_type route_next_hop_instance targeting the shared demo-instance Instance, matching the #4313 extractor's next-hop-instance edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Route->Instance relationship fact, so this locks in the Route next-hop-instance edge path alongside its network edge (#4420).",
+        "relationship": "GCP_route_next_hop_instance",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-78",
+        "description": "A compute Static Address CloudResource is connected to its enclosing VPC Subnetwork CloudResource via a GCP_address_in_subnetwork edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-address Address (asset_type compute.googleapis.com/Address, with bounded region/address_type/is_external/status/ip_version/user_count attributes and no decoded reserved IP value) and a gcp_cloud_relationship fact with relationship_type address_in_subnetwork targeting the shared demo-subnet-b Subnetwork, matching the #4304 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Address cloud_resource + relationship facts, so this locks in the Static Address typed-depth extractor's golden-corpus follow-up (#4412).",
+        "relationship": "GCP_address_in_subnetwork",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-79",
+        "description": "A compute Static Address CloudResource is connected to the compute Instance CloudResource using it via a GCP_address_used_by_instance edge; the gcpcloud cassette's demo-address Address fact carries a gcp_cloud_relationship fact with relationship_type address_used_by_instance targeting the shared demo-instance Instance, matching the #4304 extractor's used-by-instance edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Address->Instance relationship fact, so this locks in the Static Address used-by-instance edge path alongside its subnetwork edge (#4412).",
+        "relationship": "GCP_address_used_by_instance",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-80",
+        "description": "A Pub/Sub Topic CloudResource is connected to the Pub/Sub Schema CloudResource validating its messages via a GCP_topic_uses_schema edge; the gcpcloud cassette's demo-topic-2 Topic fact carries a gcp_cloud_relationship fact with relationship_type topic_uses_schema targeting a demo-schema Pub/Sub Schema resource fact (asset_type pubsub.googleapis.com/Schema, projecting as a generic CloudResource node), matching the #4291 extractor's schema edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Schema resource + relationship facts, so this locks in the Pub/Sub Topic schema edge path alongside its CMEK edge (#4411).",
+        "relationship": "GCP_topic_uses_schema",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-81",
+        "description": "A Pub/Sub Subscription CloudResource is connected to its dead-letter Topic CloudResource via a GCP_subscription_dead_letters_to_topic edge; the gcpcloud cassette's demo-subscription Subscription fact carries a gcp_cloud_relationship fact with relationship_type subscription_dead_letters_to_topic targeting the shared demo-rotation-topic Topic, matching the #4321 extractor's dead-letter edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Subscription->Topic dead-letter relationship fact, so this locks in the Pub/Sub Subscription dead-letter edge path alongside its subscribes-to-topic edge (#4418).",
+        "relationship": "GCP_subscription_dead_letters_to_topic",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-82",
+        "description": "A Pub/Sub Subscription CloudResource is connected to the BigQuery Table CloudResource it exports to via a GCP_subscription_exports_to_bigquery_table edge; the gcpcloud cassette carries a demo-subscription-bq Subscription fact (delivery_type bigquery) with a gcp_cloud_relationship fact of relationship_type subscription_exports_to_bigquery_table targeting the shared analytics/events BigQuery Table, matching the #4321 extractor's BigQuery-export edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Subscription->Table relationship fact, so this locks in the Pub/Sub Subscription BigQuery-export edge path (#4418).",
+        "relationship": "GCP_subscription_exports_to_bigquery_table",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-83",
+        "description": "A Pub/Sub Subscription CloudResource is connected to the Cloud Bigtable Table CloudResource it exports to via a GCP_subscription_exports_to_bigtable_table edge; the gcpcloud cassette carries a demo-subscription-bt Subscription fact (delivery_type bigtable) with a gcp_cloud_relationship fact of relationship_type subscription_exports_to_bigtable_table targeting a demo-bigtable-table Bigtable Table resource fact (asset_type bigtableadmin.googleapis.com/Table, projecting as a generic CloudResource node), matching the #4321 extractor's Bigtable-export edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Bigtable Table resource + relationship facts, so this locks in the Pub/Sub Subscription Bigtable-export edge path (#4418).",
+        "relationship": "GCP_subscription_exports_to_bigtable_table",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-84",
+        "description": "A Pub/Sub Subscription CloudResource is connected to the Storage Bucket CloudResource it exports to via a GCP_subscription_exports_to_storage_bucket edge; the gcpcloud cassette carries a demo-subscription-gcs Subscription fact (delivery_type cloud_storage) with a gcp_cloud_relationship fact of relationship_type subscription_exports_to_storage_bucket targeting the shared demo-bucket Storage Bucket, matching the #4321 extractor's Cloud-Storage-export edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Subscription->Bucket relationship fact, so this locks in the Pub/Sub Subscription Cloud-Storage-export edge path (#4418).",
+        "relationship": "GCP_subscription_exports_to_storage_bucket",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-85",
+        "description": "A Dataproc Cluster CloudResource is connected to its VPC Subnetwork CloudResource via a GCP_dataproc_cluster_uses_subnetwork edge; the gcpcloud cassette's demo-dataproc-cluster Cluster fact carries a gcp_cloud_relationship fact with relationship_type dataproc_cluster_uses_subnetwork targeting the shared demo-subnet Subnetwork, matching the #4320 extractor's subnetwork edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Cluster->Subnetwork relationship fact, so this locks in the Dataproc Cluster subnetwork edge path alongside its network edge (#4437).",
+        "relationship": "GCP_dataproc_cluster_uses_subnetwork",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-86",
+        "description": "A Dataproc Cluster CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_dataproc_cluster_encrypted_by_kms_key edge; the gcpcloud cassette's demo-dataproc-cluster Cluster fact carries a gcp_cloud_relationship fact with relationship_type dataproc_cluster_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4320 extractor's CMEK edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Cluster->CryptoKey relationship fact, so this locks in the Dataproc Cluster CMEK edge path alongside its network and staging-bucket edges (#4437).",
+        "relationship": "GCP_dataproc_cluster_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-87",
+        "description": "A compute Route CloudResource is connected to its resolvable next-hop VPN Tunnel CloudResource via a GCP_route_next_hop_vpn_tunnel edge; the gcpcloud cassette carries a demo-route-vpn Route fact with a gcp_cloud_relationship fact of relationship_type route_next_hop_vpn_tunnel targeting the shared demo-vpn-tunnel VpnTunnel, matching the #4313 extractor's next-hop-VPN-tunnel edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Route->VpnTunnel relationship fact, so this locks in the Route next-hop-VPN-tunnel edge path (#4420).",
+        "relationship": "GCP_route_next_hop_vpn_tunnel",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-88",
+        "description": "A compute Route CloudResource is connected to its resolvable next-hop internal load balancer ForwardingRule CloudResource via a GCP_route_next_hop_ilb edge; the gcpcloud cassette carries a demo-route-ilb Route fact (default route) with a gcp_cloud_relationship fact of relationship_type route_next_hop_ilb targeting the shared demo-forwarding-rule ForwardingRule, matching the #4313 extractor's next-hop-ILB edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Route->ForwardingRule relationship fact, so this locks in the Route next-hop-ILB edge path (#4420).",
+        "relationship": "GCP_route_next_hop_ilb",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-89",
+        "description": "A compute Static Address CloudResource is connected to its enclosing VPC Network CloudResource via a GCP_address_in_network edge; the gcpcloud cassette's demo-address Address fact carries a gcp_cloud_relationship fact with relationship_type address_in_network targeting the shared demo-vpc-b Network, matching the #4304 extractor's network edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Address->Network relationship fact, so this locks in the Static Address network edge path alongside its subnetwork edge (#4412).",
+        "relationship": "GCP_address_in_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-90",
+        "description": "A compute Static Address CloudResource is connected to the compute ForwardingRule CloudResource using it via a GCP_address_used_by_forwarding_rule edge; the gcpcloud cassette's demo-address Address fact (user_count 2) carries a gcp_cloud_relationship fact with relationship_type address_used_by_forwarding_rule targeting the shared demo-forwarding-rule ForwardingRule, matching the #4304 extractor's used-by-forwarding-rule edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Address->ForwardingRule relationship fact, so this locks in the Static Address used-by-forwarding-rule edge path alongside its used-by-instance edge (#4412).",
+        "relationship": "GCP_address_used_by_forwarding_rule",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
