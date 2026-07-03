@@ -28,57 +28,65 @@
 15. `extractor_compute_network.go` - typed-depth extractor for
    `compute.googleapis.com/Network` (VPC) emitting contained-subnetwork and
    peering edges.
-16. `extractor_bigquery_dataset.go` - typed-depth extractor for
+16. `extractor_forwarding_rule.go` - typed-depth extractor for
+   `compute.googleapis.com/ForwardingRule` (load-balancer forwarding rule:
+   region, load-balancing scheme with a derived external posture flag, IP
+   protocol, port range/ports, IP version, all-ports and network-tier posture,
+   creation time; typed edges to the resolved target - backend service, target
+   pool, or a target-proxy kind - plus enclosing network and subnetwork; never
+   decodes the reserved `IPAddress` field, mirroring the Static Address
+   extractor's treatment of its own address value).
+17. `extractor_bigquery_dataset.go` - typed-depth extractor for
    `bigquery.googleapis.com/Dataset` (location, expiration policies, default KMS
    key, and a redaction-safe access-ACL summary; KMS-key edge plus
    authorizes-view/dataset/routine edges).
-17. `extractor_iam_role.go` - typed-depth extractor for
+18. `extractor_iam_role.go` - typed-depth extractor for
    `iam.googleapis.com/Role` (custom IAM Role: title, launch stage,
    included-permission count, sensitive-permission count with a
    `grants_privilege_escalation` flag, deleted posture, and a fingerprinted
    etag; no outbound edges, since role bindings are inbound and owned by the
    IAM/binding layer).
-18. `extractor_service_account_key.go` - typed-depth extractor for
+19. `extractor_service_account_key.go` - typed-depth extractor for
    `iam.googleapis.com/ServiceAccountKey` (key type, algorithm, origin,
    valid-after/before window, disabled posture, and the fingerprinted parent
    service-account email; `service_account_key_of` edge to the parent
    ServiceAccount; never reads private/public key material).
-19. `extractor_workload_identity_pool.go` - typed-depth extractor for
+20. `extractor_workload_identity_pool.go` - typed-depth extractor for
    `iam.googleapis.com/WorkloadIdentityPool` (lifecycle state and disabled
    posture; no outbound edges, since providers are inbound children).
-20. `extractor_workload_identity_pool_provider.go` - typed-depth extractor for
+21. `extractor_workload_identity_pool_provider.go` - typed-depth extractor for
    `iam.googleapis.com/WorkloadIdentityPoolProvider` (external trust type
    aws/oidc/saml, AWS account id or OIDC issuer URI anchor, attribute-mapping
    key count, attribute-condition presence, disabled posture;
    `workload_identity_provider_of_pool` edge to the parent pool; never reads
    OIDC JWKS/SAML metadata or attribute-mapping/condition expressions).
-21. `extractor_secret_version.go` - typed-depth extractor for
+22. `extractor_secret_version.go` - typed-depth extractor for
    `secretmanager.googleapis.com/SecretVersion` (state, create/destroy time,
    replication type, CMEK posture; `secret_version_of_secret` edge to the parent
    Secret and `secret_version_encrypted_by_kms_key_version` edge to each CMEK
    CryptoKeyVersion; never reads the secret payload).
-22. `extractor_api_key.go` - typed-depth extractor for
+23. `extractor_api_key.go` - typed-depth extractor for
    `apikeys.googleapis.com/Key` (display name, creation time, restriction type
    browser/server/android/ios, restricted API-target services; no outbound edges;
    never reads the secret keyString or any restriction value — IPs, referrers,
    app fingerprints, bundle ids are reduced to a presence-only restriction type).
-23. `extractor_recaptcha_key.go` - typed-depth extractor for
+24. `extractor_recaptcha_key.go` - typed-depth extractor for
    `recaptchaenterprise.googleapis.com/Key` (display name, creation time,
    platform type web/android/ios/express, web integration type, per-platform
    allow-all posture and allow-list counts, bounded WAF service/feature; no
    outbound edges; never surfaces the platform allow-list entries — domains,
    package names, bundle ids are only counted).
-24. `extractor_identity_platform_config.go` - typed-depth extractor for
+25. `extractor_identity_platform_config.go` - typed-depth extractor for
    `identitytoolkit.googleapis.com/Config` (enabled sign-in methods, MFA state,
    multi-tenant toggle, authorized-domain count; no outbound edges; never reads
    OAuth/IdP client secrets, API keys, blocking-function URIs, or the
    authorized-domain values).
-25. `extractor_log_bucket.go` - typed-depth extractor for
+26. `extractor_log_bucket.go` - typed-depth extractor for
    `logging.googleapis.com/LogBucket` (retention days, locked and
    analytics-enabled posture, creation time, CMEK posture;
    `log_bucket_encrypted_by_kms_key` edge to the CMEK CryptoKey; only the
    CryptoKey resource name leaves the parser, no key material).
-26. `extractor_log_sink.go` - typed-depth extractor for
+27. `extractor_log_sink.go` - typed-depth extractor for
    `logging.googleapis.com/LogSink` (destination type, filter presence, disabled
    posture, exclusion count, creation time, fingerprinted writer-identity email;
    export edge to the destination Storage Bucket / BigQuery Dataset / Pub/Sub

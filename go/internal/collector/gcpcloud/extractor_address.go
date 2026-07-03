@@ -14,9 +14,10 @@ import (
 // assetTypeComputeSubnetwork, and assetTypeComputeInstance are declared by the
 // sibling compute extractors in this package and reused here.
 const (
-	assetTypeComputeAddress        = "compute.googleapis.com/Address"
-	assetTypeComputeGlobalAddress  = "compute.googleapis.com/GlobalAddress"
-	assetTypeComputeForwardingRule = "compute.googleapis.com/ForwardingRule"
+	assetTypeComputeAddress              = "compute.googleapis.com/Address"
+	assetTypeComputeGlobalAddress        = "compute.googleapis.com/GlobalAddress"
+	assetTypeComputeForwardingRule       = "compute.googleapis.com/ForwardingRule"
+	assetTypeComputeGlobalForwardingRule = "compute.googleapis.com/GlobalForwardingRule"
 )
 
 // Bounded provider relationship types for the Static Address edges carried on
