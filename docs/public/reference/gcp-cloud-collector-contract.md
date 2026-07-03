@@ -340,26 +340,35 @@ Static Address extractor's treatment of its own reserved-address value — so no
 public or private IP address reaches a fact; the external-vs-internal exposure
 posture comes from `loadBalancingScheme`, never from the address.
 
-**Backend Service** (`compute.googleapis.com/BackendService`) captures protocol,
+**Backend Service** (`compute.googleapis.com/BackendService` and
+`compute.googleapis.com/RegionBackendService`) captures protocol,
 load-balancing scheme, port name, timeout, an explicit CDN-enabled tri-state
 (distinguishing an explicit `false` from an absent field), session affinity,
-region (omitted for a global backend service — Cloud Asset Inventory reports
-one `BackendService` asset type for both regional and global scope, unlike
-ForwardingRule/GlobalForwardingRule or Address/GlobalAddress), a backend-entry
-count, and creation time; emits a `backend_service_uses_security_policy` edge to
-the Cloud Armor SecurityPolicy, a `backend_service_uses_health_check` edge to
-each HealthCheck, and a shared `backend_service_has_backend` edge to each
-backend entry's InstanceGroup or NetworkEndpointGroup (one relationship type for
-both group kinds, distinguished by `target_asset_type`, mirroring the
-ForwardingRule extractor's shared target-proxy relationship type); and surfaces
-the security policy, each health check, and each resolved backend group as
-correlation anchors. This is the other side of the edge the ForwardingRule
-extractor already resolves toward `compute.googleapis.com/BackendService` (a
-ForwardingRule's `backendService` reference). IAP (Identity-Aware Proxy) OAuth
-client id/secret and CDN cache-key/signed-URL key material are never decoded,
-and per-backend balancing-mode, capacity-scaler, and max-utilization tuning
-fields are dropped by omission — only the `group` reference is read from each
-backend entry.
+region (omitted for a global backend service), a backend-entry count, and
+creation time; emits a `backend_service_uses_security_policy` edge to the
+Cloud Armor SecurityPolicy, a `backend_service_uses_edge_security_policy` edge
+to the separate Cloud Armor edge SecurityPolicy (Compute exposes
+`securityPolicy` and `edgeSecurityPolicy` as two distinct resource-URL
+fields, so a backend service protected only by an edge policy still gets an
+edge), a `backend_service_uses_health_check` edge to each HealthCheck, and a
+shared `backend_service_has_backend` edge to each backend entry's
+InstanceGroup or NetworkEndpointGroup (one relationship type for both group
+kinds, distinguished by `target_asset_type`, mirroring the ForwardingRule
+extractor's shared target-proxy relationship type); and surfaces the security
+policy, edge security policy, each health check, and each resolved backend
+group as correlation anchors. This is the other side of the edge the
+ForwardingRule extractor already resolves toward
+`compute.googleapis.com/BackendService` (a ForwardingRule's `backendService`
+reference). The CAI search/analysis APIs report both regional and global
+backend-service scope under the single `BackendService` asset type, but the
+list/export/monitor/query path this collector uses emits regional backend
+services under the distinct `RegionBackendService` asset type instead; both
+asset types register to the same extractor function, mirroring
+ForwardingRule/GlobalForwardingRule and Address/GlobalAddress. IAP
+(Identity-Aware Proxy) OAuth client id/secret and CDN cache-key/signed-URL key
+material are never decoded, and per-backend balancing-mode, capacity-scaler,
+and max-utilization tuning fields are dropped by omission — only the `group`
+reference is read from each backend entry.
 
 **IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
 fingerprinted email, display name, OAuth2 client id, disabled posture, and a

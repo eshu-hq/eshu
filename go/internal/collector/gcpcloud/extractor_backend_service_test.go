@@ -26,6 +26,25 @@ func TestBackendServiceExtractorIsRegistered(t *testing.T) {
 	}
 }
 
+func TestBackendServiceExtractorIsRegisteredForRegionAssetType(t *testing.T) {
+	// The CAI list/export/monitor/query path this collector uses emits
+	// regional backend services under the distinct RegionBackendService asset
+	// type; it must dispatch to the same extractor as the global/search-API
+	// BackendService asset type, mirroring the
+	// ForwardingRule/GlobalForwardingRule registration.
+	got, ok := lookupAssetExtractor(assetTypeComputeRegionBackendService)
+	if !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeRegionBackendService)
+	}
+	want, ok := lookupAssetExtractor(assetTypeComputeBackendService)
+	if !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeBackendService)
+	}
+	if reflect.ValueOf(got).Pointer() != reflect.ValueOf(want).Pointer() {
+		t.Fatalf("expected %q and %q to dispatch to the same extractor function", assetTypeComputeRegionBackendService, assetTypeComputeBackendService)
+	}
+}
+
 func TestExtractBackendServiceFullAttributes(t *testing.T) {
 	const data = `{
 		"name": "internal-backend",
@@ -103,6 +122,55 @@ func TestExtractBackendServiceGlobalOmitsRegion(t *testing.T) {
 	if len(got.Relationships) != 0 {
 		t.Errorf("expected no relationships, got %#v", got.Relationships)
 	}
+}
+
+func TestExtractBackendServiceEdgeSecurityPolicyOnlyEmitsEdge(t *testing.T) {
+	// A backend service protected only by an edge security policy (no regular
+	// securityPolicy) must still emit a security-policy anchor and edge —
+	// edgeSecurityPolicy is a distinct Compute field from securityPolicy.
+	const data = `{
+		"name": "edge-armor-backend",
+		"edgeSecurityPolicy": "https://www.googleapis.com/compute/v1/projects/demo-project/global/securityPolicies/edge-waf-policy"
+	}`
+
+	got, err := extractBackendService(backendServiceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantEdgePolicy := "//compute.googleapis.com/projects/demo-project/global/securityPolicies/edge-waf-policy"
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected 1 edge (edge security policy), got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesEdgeSecurityPolicy, wantEdgePolicy, assetTypeComputeSecurityPolicy)
+
+	wantAnchors := []string{wantEdgePolicy}
+	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
+		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
+	}
+}
+
+func TestExtractBackendServiceBothSecurityPoliciesEmitBothEdges(t *testing.T) {
+	// A backend service can carry both a regular and an edge security policy
+	// simultaneously; both must resolve to independent edges/anchors.
+	const data = `{
+		"name": "both-armor-backend",
+		"securityPolicy": "https://www.googleapis.com/compute/v1/projects/demo-project/global/securityPolicies/waf-policy",
+		"edgeSecurityPolicy": "https://www.googleapis.com/compute/v1/projects/demo-project/global/securityPolicies/edge-waf-policy"
+	}`
+
+	got, err := extractBackendService(backendServiceContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantPolicy := "//compute.googleapis.com/projects/demo-project/global/securityPolicies/waf-policy"
+	wantEdgePolicy := "//compute.googleapis.com/projects/demo-project/global/securityPolicies/edge-waf-policy"
+	if len(got.Relationships) != 2 {
+		t.Fatalf("expected 2 edges (security policy + edge security policy), got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesSecurityPolicy, wantPolicy, assetTypeComputeSecurityPolicy)
+	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesEdgeSecurityPolicy, wantEdgePolicy, assetTypeComputeSecurityPolicy)
 }
 
 func TestExtractBackendServiceMultipleHealthChecks(t *testing.T) {
