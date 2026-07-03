@@ -112,9 +112,12 @@ Rules:
 - JSON Schemas are generated from the structs (for example with
   `invopop/jsonschema`) and checked in, so non-Go collectors and the
   conformance validator have a language-neutral contract.
-- The `specs/fact-kind-registry.v1.yaml` registry gains a v2 field per kind:
-  `payload_schema:` referencing the schema artifact, plus `deprecated_in:` /
-  `removed_in:` markers per kind and per field.
+- The registry file remains `specs/fact-kind-registry.v1.yaml`. It gains new
+  fields per kind — `payload_schema:` referencing the schema artifact, plus
+  `deprecated_in:` / `removed_in:` markers per kind and per field — as an
+  additive, backward-compatible schema evolution within the existing v1
+  registry contract: a minor version bump of the registry's own `version:`
+  field, not a new registry file or a registry spec major.
 
 ### 3.2 The decode seam (version shims live in the contracts, not the reducer)
 
@@ -258,9 +261,9 @@ Three independently versioned surfaces:
 | Payload schema (per fact kind) | semver, already carried in the envelope | Reducer decodes major N and N-1 via contracts shims. `unsupported_minor` (collector ahead) stays quarantined-not-authoritative, as today. Major = remove/rename key, narrow a type, change stable-key derivation, change meaning. Minor = additive optional. Patch = docs. |
 | Core range | `spec.compatibleCore` in the component manifest | Excludes cores that dropped a protocol major; already enforced by conformance. |
 
-Deprecation mechanics: registry v2 `deprecated_in` / `removed_in` per kind and
-field; conformance warns on deprecated usage; the schema-diff gate (below)
-blocks silent breaks.
+Deprecation mechanics: registry v1.1 additive fields `deprecated_in` /
+`removed_in` per kind and field; conformance warns on deprecated usage; the
+schema-diff gate (below) blocks silent breaks.
 
 ## 6. Enforcement gates
 
@@ -295,7 +298,8 @@ Incremental, family by family, accuracy first:
    a missing required field now dead-letters as `input_invalid`.
 3. **Gates**: land the schema-diff gate with the first schemas; land the
    payload-usage manifest once two families are typed.
-4. **Registry v2** fields and the guarantees doc.
+4. **The registry's additive v1 evolution** (new fields, same file, minor
+   `version:` bump) and the guarantees doc.
 5. **Fixture packs** and conformance payload validation.
 6. **Remaining families** migrate opportunistically; a family must be typed
    before its collectors are eligible for extraction
@@ -327,7 +331,7 @@ changes, and `eshu-code-review` before every PR.
 | --- | --- |
 | `sdk/go/collector` (types, validator) | Kept; becomes the wire-protocol half of the contracts surface; validator extended with schema validation. |
 | `sdk/go/collector/conformance` | Kept; extended per 3.5. |
-| `specs/fact-kind-registry.v1.yaml` + generated Go | Kept; extended to v2 (`payload_schema`, deprecation markers). |
+| `specs/fact-kind-registry.v1.yaml` + generated Go | Kept; same file, additive v1 evolution (`payload_schema`, deprecation markers) via a minor `version:` bump. |
 | `facts.ClassifySchemaVersion` / projector admission | Kept unchanged; it is the envelope-level gate this design builds beneath. |
 | `proto/eshu/data_plane/*` | Demoted: future transport candidate generated from the Go schema package, or deleted. Not a source of truth. |
 | Duplicated payload-key string constants in reducer files | Deleted as each family migrates to typed structs. |
