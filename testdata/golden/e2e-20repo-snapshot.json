@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 92,
-        "max": 101,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 92: 2 AWS + 90 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "min": 111,
+        "max": 122,
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 111: 2 AWS + 109 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -1273,7 +1273,7 @@
       },
       {
         "id": "rc-119",
-        "description": "A Firebase Project CloudResource is connected to its backing GCP Project CloudResource via a GCP_firebase_project_backed_by_project edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-firebase-project FirebaseProject (asset_type firebase.googleapis.com/FirebaseProject, with bounded state/display_name/location_id/hosting_site_present/realtime_database_present/default_storage_bucket_present attributes) and a gcp_cloud_relationship fact with relationship_type firebase_project_backed_by_project targeting the synthetic project-number-keyed 123456789 CloudResourceManager Project (asset_type cloudresourcemanager.googleapis.com/Project, which has no typed extractor yet so it projects as a generic CloudResource), matching the #4495 extractor's supported backing-project edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the FirebaseProject cloud_resource + relationship facts, so this locks in the Firebase Project typed-depth extractor's golden-corpus follow-up (#4495). The FirebaseProject's OTHER relationship (firebase_project_default_bucket, to the default Storage bucket) is intentionally NOT asserted here: the extractor marks it support_state=partial because Firebase's deprecated DefaultResources block is unreliable, and the reducer's GCP relationship join (go/internal/reducer/gcp_relationship_join.go) treats a partial relationship's target as unresolved and never writes a graph edge for it — asserting a required_correlation for an edge the reducer contractually never materializes would be an unreachable, always-failing assertion. The cassette still carries that gcp_cloud_relationship fact (support_state=partial) for extractor-behavior fixture completeness.",
+        "description": "A Firebase Project CloudResource is connected to its backing GCP Project CloudResource via a GCP_firebase_project_backed_by_project edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-firebase-project FirebaseProject (asset_type firebase.googleapis.com/FirebaseProject, with bounded state/display_name/location_id/hosting_site_present/realtime_database_present/default_storage_bucket_present attributes) and a gcp_cloud_relationship fact with relationship_type firebase_project_backed_by_project targeting the synthetic project-number-keyed 123456789 CloudResourceManager Project (asset_type cloudresourcemanager.googleapis.com/Project, which has no typed extractor yet so it projects as a generic CloudResource), matching the #4495 extractor's supported backing-project edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the FirebaseProject cloud_resource + relationship facts, so this locks in the Firebase Project typed-depth extractor's golden-corpus follow-up (#4495). The FirebaseProject's OTHER relationship (firebase_project_default_bucket, to the default Storage bucket) is intentionally NOT asserted here: the extractor marks it support_state=partial because Firebase's deprecated DefaultResources block is unreliable, and the reducer's GCP relationship join (go/internal/reducer/gcp_relationship_join.go) treats a partial relationship's target as unresolved and never writes a graph edge for it \u2014 asserting a required_correlation for an edge the reducer contractually never materializes would be an unreachable, always-failing assertion. The cassette still carries that gcp_cloud_relationship fact (support_state=partial) for extractor-behavior fixture completeness.",
         "relationship": "GCP_firebase_project_backed_by_project",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -1339,6 +1339,182 @@
         "id": "rc-127",
         "description": "A Cloud Build Build CloudResource is connected to its Cloud Storage source Bucket CloudResource via a GCP_build_source_bucket edge; the gcpcloud cassette carries a second Build, demo-build-storage (source.storageSource, status QUEUED, source_type storage), with a gcp_cloud_relationship fact with relationship_type build_source_bucket targeting the shared demo-bucket Storage Bucket, matching the #4471 extractor contract (storageSource and repoSource are mutually exclusive on a single Build, hence the second Build resource). GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Build->Bucket relationship fact, so this locks in the Cloud Build Build typed-depth extractor's golden-corpus follow-up (#4470).",
         "relationship": "GCP_build_source_bucket",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-128",
+        "description": "Router interface -> Interconnect Attachment edge: demo-router -> demo-interconnect-attachment via GCP_router_interface_linked_interconnect_attachment, from a Router interface's linkedInterconnectAttachment field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_router_interface_linked_interconnect_attachment",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-129",
+        "description": "Router interface -> VPN Tunnel edge: demo-router -> demo-vpn-tunnel via GCP_router_interface_linked_vpn_tunnel, from a Router interface's linkedVpnTunnel field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_router_interface_linked_vpn_tunnel",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-130",
+        "description": "Router interface -> Subnetwork edge: demo-router -> demo-subnet via GCP_router_interface_subnetwork, from a Router interface's subnetwork field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_router_interface_subnetwork",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-131",
+        "description": "BackendService -> backend InstanceGroup edge: demo-backend-service -> demo-instance-group via GCP_backend_service_has_backend, from a backends[] entry's group field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_backend_service_has_backend",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-132",
+        "description": "BackendService -> Cloud Armor SecurityPolicy edge: demo-backend-service -> demo-security-policy via GCP_backend_service_uses_security_policy, from the securityPolicy field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_backend_service_uses_security_policy",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-133",
+        "description": "BackendService -> edge Cloud Armor SecurityPolicy edge: demo-backend-service -> demo-edge-security-policy via GCP_backend_service_uses_edge_security_policy, from the edgeSecurityPolicy field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_backend_service_uses_edge_security_policy",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-134",
+        "description": "VPN Tunnel -> peer External VPN Gateway edge: demo-vpn-tunnel -> demo-external-vpn-gateway via GCP_vpn_tunnel_peers_with_vpn_gateway, from the peerExternalGateway field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_vpn_tunnel_peers_with_vpn_gateway",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-135",
+        "description": "VPN Tunnel -> Classic Target VPN Gateway edge: demo-vpn-tunnel -> demo-target-vpn-gateway via GCP_vpn_tunnel_uses_target_vpn_gateway, from the targetVpnGateway field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_vpn_tunnel_uses_target_vpn_gateway",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-136",
+        "description": "URL Map -> BackendBucket edge: demo-url-map -> demo-backend-bucket via GCP_url_map_path_matcher_default_service, from pathMatcher defaultService and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_url_map_path_matcher_default_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-137",
+        "description": "URL Map -> BackendBucket edge: demo-url-map -> demo-backend-bucket via GCP_url_map_path_rule_service, from a pathRules[].service entry and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_url_map_path_rule_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-138",
+        "description": "URL Map -> BackendBucket edge: demo-url-map -> demo-backend-bucket via GCP_url_map_route_rule_service, from a routeRules[].service entry and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_url_map_route_rule_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-139",
+        "description": "URL Map -> BackendBucket edge: demo-url-map -> demo-backend-bucket via GCP_url_map_route_rule_weighted_service, from a routeRules[].routeAction.weightedBackendServices[].backendService entry and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_url_map_route_rule_weighted_service",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-140",
+        "description": "Storage Bucket -> usage-logging destination Bucket edge: demo-bucket -> demo-log-bucket via GCP_storage_bucket_logs_to_bucket, from the logging.logBucket field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_storage_bucket_logs_to_bucket",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-141",
+        "description": "Cloud SQL read-replica -> master edge: demo-sql-replica -> demo-sql-instance via GCP_sql_instance_replica_of, from the replica's masterInstanceName field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_sql_instance_replica_of",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-142",
+        "description": "Cloud SQL master -> read-replica edge: demo-sql-instance -> demo-sql-replica via GCP_sql_instance_has_replica, from the master's replicaNames field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_sql_instance_has_replica",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-143",
+        "description": "DNS peering zone -> peer VPC Network edge: demo-dns-peering-zone -> demo-vpc-b via GCP_dns_managed_zone_peers_with_network, from the peeringConfig.targetNetwork field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_dns_managed_zone_peers_with_network",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-144",
+        "description": "Forwarding Rule -> Subnetwork edge: demo-forwarding-rule -> demo-subnet via GCP_forwarding_rule_in_subnetwork, from the subnetwork field and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_forwarding_rule_in_subnetwork",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-145",
+        "description": "Forwarding Rule -> Target Pool edge: demo-forwarding-rule-pool -> demo-target-pool via GCP_forwarding_rule_targets_target_pool, from the target field (resolved to the target pool resource segment) and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_forwarding_rule_targets_target_pool",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-146",
+        "description": "Forwarding Rule -> Target HTTP Proxy edge: demo-forwarding-rule-proxy -> demo-target-http-proxy via GCP_forwarding_rule_targets_target_proxy, from the target field (resolved to the target http proxy resource segment) and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_forwarding_rule_targets_target_proxy",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-147",
+        "description": "Forwarding Rule -> Target Instance edge: demo-forwarding-rule-instance -> demo-target-instance via GCP_forwarding_rule_targets_target_instance, from the target field (resolved to the target instance resource segment) and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_forwarding_rule_targets_target_instance",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-148",
+        "description": "Forwarding Rule -> Target VPN Gateway edge: demo-forwarding-rule-vpngw -> demo-target-vpn-gateway via GCP_forwarding_rule_targets_target_vpn_gateway, from the target field (resolved to the target vpn gateway resource segment) and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_forwarding_rule_targets_target_vpn_gateway",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-149",
+        "description": "Forwarding Rule -> Service Attachment edge: demo-forwarding-rule-psc -> demo-service-attachment via GCP_forwarding_rule_targets_service_attachment, from the target field (resolved to the service attachment resource segment) and a matching relationship fact. Zero without that fact (#4618).",
+        "relationship": "GCP_forwarding_rule_targets_service_attachment",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
