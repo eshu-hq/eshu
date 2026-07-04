@@ -335,6 +335,71 @@ func TestAWSResourceMaterializationHandlePublishesCanonicalNodesCommittedPhase(t
 	}
 }
 
+// TestAWSResourceMaterializationPublishesPhaseOnPoisonedGeneration proves the
+// downstream-completion guarantee of per-fact isolation: a generation that
+// contains a malformed aws_resource fact still publishes the
+// CanonicalNodesCommitted readiness phase, so every downstream AWS edge domain
+// that gates on it (relationship/EC2/S3/IAM materialization) is unblocked. Under
+// the old batch-abort behavior the malformed fact would fail the handler, the
+// phase would never publish, and every downstream domain would block forever on
+// that generation. The valid fact in the batch still materializes its node.
+func TestAWSResourceMaterializationPublishesPhaseOnPoisonedGeneration(t *testing.T) {
+	t.Parallel()
+
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	writer := &recordingCloudResourceNodeWriter{}
+	loader := &stubFactLoader{envelopes: []facts.Envelope{
+		// Malformed: account_id absent → quarantined, produces no node.
+		awsResourceEnvelope(map[string]any{
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-poison",
+		}),
+		// Valid: must still materialize.
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-good",
+		}),
+	}}
+	handler := AWSResourceMaterializationHandler{
+		FactLoader:     loader,
+		NodeWriter:     writer,
+		PhasePublisher: publisher,
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-poison",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-poison",
+		Domain:       DomainAWSResourceMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Handle returned error %v; a poisoned generation must still Ack so downstream is unblocked", err)
+	}
+
+	// The readiness phase MUST publish despite the quarantined fact.
+	if len(publisher.calls) != 1 {
+		t.Fatalf("publisher.calls = %d, want 1; the readiness phase must publish on a poisoned generation to unblock downstream", len(publisher.calls))
+	}
+	if got := publisher.calls[0][0].Phase; got != GraphProjectionPhaseCanonicalNodesCommitted {
+		t.Fatalf("published phase = %q, want %q", got, GraphProjectionPhaseCanonicalNodesCommitted)
+	}
+
+	// The valid fact still materialized exactly one node; the malformed one did not.
+	if writer.calls != 1 || len(writer.rows) != 1 {
+		t.Fatalf("node writer calls=%d rows=%d, want 1 and 1 (only the valid fact materializes)", writer.calls, len(writer.rows))
+	}
+
+	// The quarantine is visible on the per-intent signal.
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 1", got)
+	}
+}
+
 func TestAWSResourceMaterializationHandlePublishesPhaseOnEmptyGeneration(t *testing.T) {
 	t.Parallel()
 

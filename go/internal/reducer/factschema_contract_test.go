@@ -4,6 +4,8 @@
 package reducer
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -50,4 +52,89 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPartitionDecodeFailures locks the single fault-isolation boundary every
+// batch extractor routes decode errors through. It is the linchpin of the
+// per-fact isolation design: get this classifier wrong and either a malformed
+// fact aborts the whole intent (regression) or a transient/graph/projection
+// error is silently swallowed as a quarantine (the "swallow failures" sin the
+// Life Motto forbids). The two branches must stay exactly as asserted here.
+func TestPartitionDecodeFailures(t *testing.T) {
+	t.Parallel()
+
+	env := facts.Envelope{FactID: "fact-123", FactKind: facts.AWSResourceFactKind}
+
+	t.Run("input_invalid decode error is quarantined", func(t *testing.T) {
+		t.Parallel()
+
+		// A *factDecodeError classified input_invalid (a missing required field)
+		// is the ONLY quarantinable error: the extractor skips the one fact and
+		// keeps projecting the rest.
+		decodeErr := newFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
+			FactKind:       factschema.FactKindAWSResource,
+			Classification: factschema.ClassificationInputInvalid,
+			Field:          "account_id",
+		})
+
+		q, ok, fatal := partitionDecodeFailures(env, decodeErr)
+		if !ok {
+			t.Fatal("ok = false; an input_invalid *factDecodeError must be quarantinable")
+		}
+		if fatal != nil {
+			t.Fatalf("fatal = %v, want nil for a quarantinable error", fatal)
+		}
+		if q.factID != "fact-123" || q.factKind != facts.AWSResourceFactKind {
+			t.Fatalf("quarantined fact identity = {%q,%q}, want {fact-123, %q}", q.factID, q.factKind, facts.AWSResourceFactKind)
+		}
+		if q.field != "account_id" {
+			t.Fatalf("quarantined field = %q, want account_id", q.field)
+		}
+		if q.classification != factschema.ClassificationInputInvalid {
+			t.Fatalf("quarantined classification = %q, want %q", q.classification, factschema.ClassificationInputInvalid)
+		}
+	})
+
+	t.Run("plain non-decode error stays fatal", func(t *testing.T) {
+		t.Parallel()
+
+		// A transient fact-load / graph-write / projection error is NOT a
+		// *factDecodeError: it must be returned unchanged so the handler fails the
+		// whole intent and the durable queue triages it (retry / dependency /
+		// projection bug), never silently dropped as a quarantine.
+		sentinel := errors.New("transient graph write failure")
+
+		q, ok, fatal := partitionDecodeFailures(env, sentinel)
+		if ok {
+			t.Fatal("ok = true; a non-decode error must NOT be quarantined")
+		}
+		if !errors.Is(fatal, sentinel) {
+			t.Fatalf("fatal = %v, want the original error returned unchanged", fatal)
+		}
+		if (q != quarantinedFact{}) {
+			t.Fatalf("quarantinedFact = %+v, want zero value for a fatal error", q)
+		}
+	})
+
+	t.Run("wrapped non-input_invalid decode error stays fatal", func(t *testing.T) {
+		t.Parallel()
+
+		// A *factDecodeError whose classification is NOT input_invalid (for
+		// example a future unsupported-major or schema-mismatch class) is terminal
+		// but not a per-fact quarantine: it must stay fatal so the operator sees
+		// the real classification rather than a mislabeled input_invalid skip.
+		decodeErr := newFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
+			FactKind:       factschema.FactKindAWSResource,
+			Classification: "schema_mismatch",
+			Err:            fmt.Errorf("unexpected shape"),
+		})
+
+		_, ok, fatal := partitionDecodeFailures(env, decodeErr)
+		if ok {
+			t.Fatal("ok = true; only ClassificationInputInvalid is quarantinable")
+		}
+		if fatal == nil {
+			t.Fatal("fatal = nil; a non-input_invalid decode error must stay fatal")
+		}
+	})
 }
