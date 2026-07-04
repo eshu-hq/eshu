@@ -36,6 +36,19 @@ reads through `shared.ReadSource` reuses that single physical read instead of
 issuing its own; a parser that bypasses it forces a redundant second read of the
 same file.
 
+Repository-wide config that many files share (a language's project manifest,
+not a single source file) should be memoized per resolved config path, not
+recomputed per file and not collapsed to one value per repository root. The
+JavaScript-family parser's `tsconfig.json`/`package.json` resolution
+(`go/internal/parser/javascript/config_scope_cache.go`) is the reference
+pattern: it caches parsed config content keyed by the resolved absolute config
+file path, invalidates the entry on `(mtime, size)` change so a re-scanned
+repository never serves a stale generation, and coalesces concurrent same-path
+callers onto one in-flight computation instead of racing duplicate reads.
+Keying by repo root instead of resolved config path is a correctness bug in a
+monorepo: nested packages can each own a distinct config file, and a repo-root
+key would leak one package's config into a sibling package's files.
+
 Parse-only behavior is not supported query behavior. A parser can recognize a
 syntax shape and still be unsupported for language-query, entity context,
 story, relationship, or dead-code answers until those read paths have focused
