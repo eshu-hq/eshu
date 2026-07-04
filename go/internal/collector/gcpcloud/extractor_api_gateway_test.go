@@ -229,6 +229,11 @@ func TestAPIGatewayAPIConfigFullNameFailsClosed(t *testing.T) {
 			want:  "",
 		},
 		{
+			name:  "lookalike domain with the real prefix as a substring fails closed",
+			input: "//apigateway.googleapis.com.evil.example/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg",
+			want:  "",
+		},
+		{
 			name:  "blank value fails closed",
 			input: "",
 			want:  "",
