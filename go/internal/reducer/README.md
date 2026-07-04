@@ -867,6 +867,45 @@ No-Regression Evidence: `go test ./internal/searchembedruntime
 ./cmd/reducer -count=1` covers per-document provider policy admission and
 disabled metadata convergence without reducing runner concurrency.
 
+### search_vector_ready completion signal (#4673)
+
+`RunOnce` optionally publishes a `search_vector_ready` completion signal
+through the `ReadyPublisher` port (`SearchVectorBuildReadyPublisher`) when a
+bounded sweep completes with zero pending scopes (`PendingScopes == 0`) and no
+build error occurred. It never publishes while pending scopes remain or after
+a failed sweep. The command layer wires `ReadyPublisher` to
+`postgres.EshuSearchVectorBuildReadyStore`, which upserts a singleton
+watermark row in `search_vector_build_materialization`
+(`go/internal/storage/postgres/migrations/040_search_vector_build_materialization.sql`),
+mirroring the existing `supply_chain_impact_winners_materialization` pattern
+so the signal survives across the reducer/query process boundary. A publish
+failure is logged (`failure_class=search_vector_ready_publish_error`) rather
+than returned, since the bounded sweep itself already succeeded.
+
+`go/internal/query`'s `SemanticSearchHandler` reads the watermark through
+`PostgresSearchVectorReadyStore.SearchVectorReadyWatermark` and downgrades the
+`POST /api/v0/search/semantic` truth envelope with the closed
+`pending_search_vector` `FreshnessCause`
+(`go/internal/query/freshness_causality.go`) when the watermark has never been
+published or is older than a 2-minute freshness window (matching the
+`SearchVectorBuildRunner` ~30s default poll cadence with headroom); the
+`applySearchVectorFreshness` mapping lives in
+`go/internal/query/semantic_search_freshness.go`.
+
+Observability Evidence: before this change an outstanding search-vector build
+had no attributable freshness cause on the search read path and no completion
+signal an operator could watch. `TestSearchVectorBuildRunnerPublishesReadyWhenNoPendingScopesRemain`,
+`TestSearchVectorBuildRunnerDoesNotPublishReadyWithPendingScopes`, and
+`TestSearchVectorBuildRunnerDoesNotPublishReadyOnBuildFailure`
+(`search_vector_build_ready_publisher_test.go`) prove the publish gating;
+`TestApplySearchVectorFreshness*` (`go/internal/query/semantic_search_freshness_test.go`)
+prove the watermark→envelope mapping including the probe-error-is-unavailable
+case. No-Regression Evidence: the publish call is a single idempotent upsert
+keyed on a `singleton` primary key, gated strictly after the existing
+`logResult`/`recordPhaseMetrics` calls with no change to build behavior,
+concurrency, or throughput; verified by `go test ./internal/reducer
+./internal/storage/postgres ./internal/query ./cmd/reducer -count=1`.
+
 ## Intent lifecycle
 
 `Intent` (declared in `intent.go:138`) carries the durable queue contract.

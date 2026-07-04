@@ -56,8 +56,9 @@ func searchVectorBuildRunnerFor(
 			EmbeddingModelID:   vectorConfig.EmbeddingModelID,
 			VectorIndexVersion: vectorConfig.VectorIndexVersion,
 		},
-		Logger:      logger,
-		Instruments: instruments,
+		Logger:         logger,
+		Instruments:    instruments,
+		ReadyPublisher: postgres.NewEshuSearchVectorBuildReadyStore(database),
 	}, nil
 }
 

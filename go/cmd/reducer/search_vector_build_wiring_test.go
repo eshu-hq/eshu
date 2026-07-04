@@ -44,6 +44,9 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalHashConfigured(
 	if got, want := runner.Config.EmbeddingModelID, searchembedruntime.LocalEmbeddingModelID; got != want {
 		t.Fatalf("EmbeddingModelID = %q, want %q", got, want)
 	}
+	if runner.ReadyPublisher == nil {
+		t.Fatal("buildReducerService() search vector build runner ReadyPublisher = nil, want the search_vector_ready watermark publisher (#4673)")
+	}
 }
 
 func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenProviderProfileConfigured(t *testing.T) {

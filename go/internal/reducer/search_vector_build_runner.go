@@ -134,6 +134,17 @@ func (c SearchVectorBuildRunnerConfig) documentLimit() int {
 	return c.DocumentLimit
 }
 
+// SearchVectorBuildReadyPublisher publishes the search_vector_ready
+// completion signal once a bounded sweep finds zero pending scopes, so a
+// downstream freshness evaluator (go/internal/query's
+// pending_search_vector FreshnessCause) can clear the cause. Implementations
+// persist a maintainer watermark (mirroring the
+// supply_chain_impact_winners_materialization pattern) so the signal survives
+// across the reducer and query/API process boundary.
+type SearchVectorBuildReadyPublisher interface {
+	PublishSearchVectorReady(ctx context.Context) error
+}
+
 // SearchVectorBuildRunner builds derived vector rows beside normal
 // reducer work. It writes no graph truth and relies on the vector stores'
 // deterministic upsert identity for duplicate/replayed work convergence.
@@ -144,6 +155,11 @@ type SearchVectorBuildRunner struct {
 	Wait        func(context.Context, time.Duration) error
 	Logger      *slog.Logger
 	Instruments *telemetry.Instruments
+	// ReadyPublisher optionally publishes search_vector_ready when a bounded
+	// sweep completes with zero pending scopes. Nil disables the signal
+	// (legacy/local wiring without the Postgres-backed watermark) without
+	// affecting build behavior.
+	ReadyPublisher SearchVectorBuildReadyPublisher
 }
 
 // SearchVectorBuildRunnerResult summarizes one bounded sweep.
@@ -261,7 +277,29 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 	}
 	r.logResult(ctx, result, started)
 	r.recordPhaseMetrics(ctx, result)
-	return result, errors.Join(failures...)
+	buildErr := errors.Join(failures...)
+	if buildErr == nil {
+		r.publishReadyIfCaughtUp(ctx, result)
+	}
+	return result, buildErr
+}
+
+// publishReadyIfCaughtUp publishes the search_vector_ready completion signal
+// when this bounded sweep found zero pending scopes at the start (search is
+// caught up) and a ReadyPublisher is configured. It never publishes while
+// PendingScopes > 0, and the caller only reaches this on the error-free path,
+// so a failed sweep never reports readiness. A publish failure is logged, not
+// returned, mirroring the maintainer-resweep pattern elsewhere (the sweep
+// itself succeeded; only the completion signal failed to persist) so a
+// transient watermark-write error does not turn a successful bounded sweep
+// into a reported failure.
+func (r *SearchVectorBuildRunner) publishReadyIfCaughtUp(ctx context.Context, result SearchVectorBuildRunnerResult) {
+	if r.ReadyPublisher == nil || result.PendingScopes > 0 {
+		return
+	}
+	if err := r.ReadyPublisher.PublishSearchVectorReady(ctx); err != nil {
+		r.logPublishFailure(ctx, err)
+	}
 }
 
 func (r *SearchVectorBuildRunner) buildRequests(scopes []SearchVectorBuildPendingScope) []SearchVectorBuildRequest {
@@ -370,6 +408,22 @@ func (r *SearchVectorBuildRunner) logFailure(ctx context.Context, err error) {
 		ctx, "search vector build sweep failed",
 		log.Err(err),
 		log.FailureClass("search_vector_build_error"),
+		slog.String("phase", "reduction"),
+	)
+}
+
+// logPublishFailure records a failed search_vector_ready publish attempt. The
+// bounded sweep itself already succeeded (zero pending scopes); only the
+// completion-signal write failed, so this is logged as a distinct failure
+// class rather than surfaced as a RunOnce error.
+func (r *SearchVectorBuildRunner) logPublishFailure(ctx context.Context, err error) {
+	if r.Logger == nil {
+		return
+	}
+	r.Logger.ErrorContext(
+		ctx, "search vector build ready signal publish failed",
+		log.Err(err),
+		log.FailureClass("search_vector_ready_publish_error"),
 		slog.String("phase", "reduction"),
 	)
 }
