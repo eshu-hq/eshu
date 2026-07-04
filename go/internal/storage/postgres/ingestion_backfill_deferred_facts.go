@@ -37,7 +37,7 @@ import (
 //
 //	$4 string — the generation_id partition this run is bounded to (issue #3710).
 //
-//	$5 *string (nullable) — a POSIX ARE (Postgres `~` operator) alternation of
+//	$5 sql.NullString (nullable text) — a POSIX ARE (Postgres `~` operator) alternation of
 //	   every $2 repo_id value EXCEPT the partition's $6 performance-hint own
 //	   repo_id, each value escaped so every ARE metacharacter is a literal
 //	   (buildDeferredRepoIDRegex). NULL when no such alternation is buildable
@@ -80,8 +80,8 @@ import (
 // facts are not in the corpus yet, so its repo_id cannot self-match.
 //
 // Payload hoist (issue #3624). The inner CTE computes lower(fact.payload::text)
-// ONCE per row as payload_lower, and lower(COALESCE(fact.payload->>'repo_id', ""))
-// (the empty string, not a stylistic quote) ONCE per row as own_repo_id. Before
+// ONCE per row as payload_lower, and the row's repo_id lowercased and coalesced
+// to the empty string when absent, ONCE per row as own_repo_id. Before
 // this change, lower(fact.payload::text) was evaluated once for the $1 LIKE ANY
 // test and AGAIN, once per unnest($2) catalog row, inside the EXISTS
 // self-exclusion arm — an O(facts × catalog × payload_size)

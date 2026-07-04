@@ -25,9 +25,11 @@ import (
 // treats as a zero-width match present in EVERY string (verified directly
 // against Postgres 18: `SELECT 'x' ~ '(?:)'` returns true). Building that regex
 // would turn the fast arm into "own_repo_id = $6 AND true", over-selecting every
-// row for that partition instead of skipping the fast arm. Callers MUST omit
-// the `~ $5` fast-arm clause entirely when ok is false and rely solely on the
-// EXISTS fallback arm.
+// row for that partition instead of skipping the fast arm. When ok is false the
+// caller passes $5 to the query as SQL NULL rather than building this regex; the
+// query keeps its `own_repo_id = $6 AND $5 IS NOT NULL AND payload_lower ~ $5`
+// clause, but the `$5 IS NOT NULL` guard is false, so the fast arm never fires
+// and every row for the partition falls through to the EXISTS fallback arm.
 func buildDeferredRepoIDRegex(repoIDValues []string, ownRepoID string) (string, bool) {
 	ownRepoID = strings.ToLower(strings.TrimSpace(ownRepoID))
 
