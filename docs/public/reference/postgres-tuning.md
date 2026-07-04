@@ -28,7 +28,12 @@ The main hot tables are:
 
 ## Pool Knobs
 
-Every Go runtime reads the same Postgres pool variables:
+Runtimes that open Postgres through `internal/runtime.OpenPostgres` read the
+same pool variables. That includes the write-heavy ingester, reducer,
+projector, bootstrap, workflow, webhook, scanner-worker, and collector
+processes. API and MCP currently open Postgres directly for read surfaces; Helm
+renders the same environment variables for those deployments, but the API/MCP
+binaries do not apply the pool or ping-timeout values yet.
 
 | Variable | Default | Tune when |
 | --- | --- | --- |
@@ -40,9 +45,9 @@ Every Go runtime reads the same Postgres pool variables:
 
 Kubernetes exposes the same knobs under each runtime's
 `connectionTuning.postgres` block. The Helm helper renders them into the
-`ESHU_POSTGRES_*` environment variables for API, MCP, ingester, reducer,
-workflow coordinator, scanner worker, webhook listener, and collector
-deployments.
+`ESHU_POSTGRES_*` environment variables across deployments; count only
+`OpenPostgres` callers when sizing effective pool caps until API/MCP adopt the
+shared runtime opener.
 
 Size each process against the server limit, not in isolation. PostgreSQL
 documents `max_connections` as the server-wide concurrent connection cap and
@@ -52,7 +57,7 @@ notes that raising it increases allocated resources, including shared memory:
 Use this sizing check before raising pools:
 
 ```text
-sum(runtime replicas * ESHU_POSTGRES_MAX_OPEN_CONNS)
+sum(OpenPostgres runtime replicas * ESHU_POSTGRES_MAX_OPEN_CONNS)
   + migration/bootstrap/admin headroom
   + operator emergency headroom
   <= Postgres max_connections

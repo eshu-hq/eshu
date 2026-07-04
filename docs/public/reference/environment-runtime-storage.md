@@ -108,11 +108,11 @@ For sizing and operator diagnostics, see
 | `ESHU_FACT_STORE_DSN` | unset | Go runtimes | Primary DSN for fact store and queues. |
 | `ESHU_CONTENT_STORE_DSN` | unset | API, MCP, ingester, reducer | DSN for content store and query surfaces. |
 | `ESHU_POSTGRES_DSN` | unset | Go runtimes, CLI doctor | Backward-compatible Postgres DSN fallback. Prefer explicit fact/content DSNs in split-service deployments. |
-| `ESHU_POSTGRES_MAX_OPEN_CONNS` | `30` | Go runtimes | Maximum open Postgres connections per process. |
-| `ESHU_POSTGRES_MAX_IDLE_CONNS` | `10` | Go runtimes | Maximum idle Postgres connections. |
-| `ESHU_POSTGRES_CONN_MAX_LIFETIME` | `30m` | Go runtimes | Maximum lifetime of one Postgres connection. |
-| `ESHU_POSTGRES_CONN_MAX_IDLE_TIME` | `10m` | Go runtimes | Maximum idle lifetime of one Postgres connection. |
-| `ESHU_POSTGRES_PING_TIMEOUT` | `10s` | Go runtimes | Startup ping timeout. |
+| `ESHU_POSTGRES_MAX_OPEN_CONNS` | `30` | Runtimes using `internal/runtime.OpenPostgres` | Maximum open Postgres connections per process. API/MCP currently open Postgres directly and do not apply this cap. |
+| `ESHU_POSTGRES_MAX_IDLE_CONNS` | `10` | Runtimes using `internal/runtime.OpenPostgres` | Maximum idle Postgres connections. API/MCP currently open Postgres directly and do not apply this cap. |
+| `ESHU_POSTGRES_CONN_MAX_LIFETIME` | `30m` | Runtimes using `internal/runtime.OpenPostgres` | Maximum lifetime of one Postgres connection. API/MCP currently open Postgres directly and do not apply this lifetime. |
+| `ESHU_POSTGRES_CONN_MAX_IDLE_TIME` | `10m` | Runtimes using `internal/runtime.OpenPostgres` | Maximum idle lifetime of one Postgres connection. API/MCP currently open Postgres directly and do not apply this idle timeout. |
+| `ESHU_POSTGRES_PING_TIMEOUT` | `10s` | Runtimes using `internal/runtime.OpenPostgres` | Startup ping timeout. API/MCP currently use the request context for the startup ping instead of this timeout. |
 | `ESHU_CONTENT_ENTITY_BATCH_SIZE` | `300` | bootstrap-index, ingester/projector, projector | Rows per `content_entities` upsert statement. Values must be `1..4000`. |
 | `ESHU_CONTENT_WRITER_BATCH_CONCURRENCY` | runtime default | Postgres content writer | Concurrent Postgres content-write batches. Keep within database connection headroom. |
 | `ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES` | unset / `false` | `eshu graph start` local service | Defers expensive content trigram search indexes during local-authoritative bulk load, then restores them after drain. |
