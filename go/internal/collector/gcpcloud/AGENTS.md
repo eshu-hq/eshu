@@ -36,8 +36,16 @@ modifying an extractor:
   `extractor_cloud_build_trigger.go`. Append a new extractor's entry at the end
   of part 2 and keep the numbering ascending.
 
-Both catalog files are one continuous ascending list numbered from 14, which
-preserves every existing "#N" and "#PR" cross-reference verbatim.
+Both catalog files are one continuous ascending list numbered from 14. This
+split also fixed a pre-existing duplicate `45.` (two entries shared it), which
+renumbered every item from `extractor_spanner_instance.go` (now #46) onward up
+by one — so `extractor_bigquery_transfer_config.go` moved from #46 to #47 and
+`extractor_cloud_build_trigger.go` from #59 to #60. An older issue or review
+note that cites one of those shifted numbers points one entry too low; resolve
+it by extractor filename, not by the stale number. The only in-catalog
+"#N above" back-references (`#28`, `#38`) sit below the shift and are unchanged,
+and "#PR" references are PR numbers rather than list positions, so both remain
+valid.
 
 ## Invariants
 
