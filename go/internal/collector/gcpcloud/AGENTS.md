@@ -396,6 +396,38 @@
    configs; there is no cross-project destination signal in CAI to prefer. The
    `params` map (user query text, source object paths, and the source-side
    project/dataset ids of a copy job) is never decoded and never leaves the parser.
+47. `extractor_workflows_workflow.go` - typed-depth extractor for
+   `workflows.googleapis.com/Workflow` (deployment state, revision id, call-log
+   level, execution-history level, create/update/revision-create time, a
+   source-contents presence flag, the normalized CMEK key relative name, and
+   the fingerprinted runtime service-account email — verified against the live
+   Workflows v1 discovery document); `workflow_encrypted_by_kms_key` edge to
+   the CMEK CryptoKey when `cryptoKeyName` resolves to a valid CryptoKey full
+   name (an already CAI-prefixed value is kept as-is, mirroring the Dataflow
+   Job and Memorystore Redis Instance CMEK normalization; a leading `/` is
+   trimmed, mirroring the Filestore Instance and Dataflow Job CMEK helpers).
+   The Workflows v1 API documents two project-inferred `cryptoKeyName` forms —
+   a `"projects/-/..."` wildcard and a project-less `"locations/..."` form,
+   both meaning "infer the project from the workflow's own project" — so both
+   are qualified against the workflow's own `ctx.ProjectID` rather than
+   producing an edge rooted at the literal `projects/-` segment or silently
+   dropping the relationship; the `crypto_key_name` attribute and the CMEK
+   edge/anchor are set only together, from the same resolved full name, so an
+   unnormalizable or unqualifiable `cryptoKeyName` value (malformed shape,
+   wrong-domain prefix, or a project-inferred form with no project to qualify
+   against) is dropped entirely rather than surfaced unresolved. The runtime
+   service account is carried as a fingerprinted attribute/anchor only, never
+   an edge, the same treatment as the Dataflow Job, Dataproc Cluster, and GKE
+   Cluster extractors' own service accounts, since an email is not an exactly
+   resolvable CAI endpoint; `sourceContents` (the workflow's YAML/JSON
+   definition body) is decoded only far enough to set a boolean presence flag,
+   and the decoded copy is cleared immediately afterward — no step, argument,
+   header, or embedded credential value from that body is ever read, so a
+   called service (Cloud Run, Cloud Functions, or an arbitrary HTTP endpoint)
+   referenced only inside the workflow definition is out of reach of this
+   safe-metadata extractor and is not modeled as an edge; `userEnvVars`,
+   `tags`, and `labels` are not re-declared in typed depth since the
+   collector's shared label/tag path already captures and fingerprints them.
 
 ## Invariants
 
