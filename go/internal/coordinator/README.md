@@ -530,10 +530,89 @@ histogram (bounded buckets 1/2/4/8/16/32/64) give an operator the per-trigger
 fan-out cardinality distribution — a trigger resolving to an unexpectedly wide
 scope set is visible without a DB query.
 
-Known gap tracked separately, not introduced by this change: neither
-`gcp_freshness_triggers` nor `aws_freshness_triggers` has a claim-expiry
-column, so a mid-batch handoff error strands the remaining claimed-but-unhandled
-triggers in that tick — see #4576.
+### AWS/GCP freshness claim lease + reclaim (#4576)
+
+`ClaimQueuedTriggers` on both `AWSFreshnessTriggerStore` and
+`GCPFreshnessTriggerStore` now stamps a `claim_expires_at` lease
+(`claimedAt + leaseDuration`, default 5 minutes via
+`ESHU_WORKFLOW_COORDINATOR_{AWS,GCP}_FRESHNESS_CLAIM_LEASE_DURATION`) on every
+claimed row, and `runActiveMaintenance` reaps expired claims
+(`runReapExpiredAWSFreshnessClaims`/`runReapExpiredGCPFreshnessClaims`, default
+100 rows per pass via `ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT`)
+back to `queued` before that tick's handoff runs, so a trigger reclaimed this
+tick is eligible for re-claim in the same tick. This closes the two ways a
+freshness trigger could be permanently stranded at `claimed`, which previously
+had no reclaim path:
+
+1. **Mid-batch handoff abort.** `scheduleAWSFreshnessWork`/
+   `scheduleGCPFreshnessWork` now continue past one assignment's plan/handoff
+   failure instead of returning on the first error — each failing assignment
+   already durably marks its own triggers `failed` inside
+   `handoffAWSFreshnessAssignment`/`handoffGCPFreshnessAssignment` before
+   returning, so a bad plan request for one collector instance no longer
+   abandons every other claimed batch-mate in the same tick. Errors are
+   aggregated with `errors.Join` and returned once every assignment has been
+   attempted.
+2. **Coordinator crash mid-batch.** The claim lease covers the case (1) does
+   not: a coordinator process that dies between claiming a batch and marking
+   it handed-off/failed leaves rows at `claimed` with no in-process code path
+   left to fix them. `ReapExpiredTriggerClaims` — one `UPDATE ... FROM (SELECT
+   ... FOR UPDATE SKIP LOCKED) candidate WHERE claim_expires_at < $asOf`
+   statement per store, mirroring the reducer's `workflow_claims`
+   expired-lease reclaim pattern (#4464) — reclaims those rows back to
+   `queued` on the next reap pass. The `claim_expires_at < $asOf` predicate
+   and `FOR UPDATE SKIP LOCKED` together guarantee a reap pass can never touch
+   (or race) a still-live claim-holder working within its lease window.
+
+Migration `040_aws_gcp_freshness_claim_lease.sql` adds the nullable
+`claim_expires_at TIMESTAMPTZ` column plus a partial index
+(`WHERE status = 'claimed'`) on each of `aws_freshness_triggers` and
+`gcp_freshness_triggers`.
+
+Performance Evidence: this adds one extra indexed column write to the existing
+`ClaimQueuedTriggers` UPDATE (no new query) and one new reap query per store
+per active-maintenance tick, gated by a partial index scoped to `status =
+'claimed'` rows only — the working set is bounded by in-flight claims (at most
+one claim-batch limit's worth outstanding at a time), not full table size.
+`ReapExpiredTriggerClaims`'s `LIMIT $2 FOR UPDATE SKIP LOCKED` bounds one pass
+to the configured reap limit (default 100 rows), matching the existing
+`ClaimQueuedTriggers` claim-limit shape, so the reap adds no unbounded scan.
+
+No-Regression Evidence: `go test ./internal/coordinator ./internal/storage/postgres -race -count=1`
+passes, covering (a) `TestScheduleAWSFreshnessWorkContinuesPastOneAssignmentFailure`/
+`TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure` proving a
+mid-batch assignment failure no longer strands its batch-mates (the other
+instance's trigger is still planned, enqueued, and handed off, while the
+failing instance's trigger is marked `failed` rather than left `claimed`),
+(b) `TestRunReapExpiredAWSFreshnessClaimsRecordsMetricsAndReclaims`/
+`TestRunReapExpiredGCPFreshnessClaimsRecordsMetricsAndReclaims` and
+`TestRunActiveMaintenanceReapsFreshnessClaimsBeforeHandoff` proving the reap
+runs before handoff each tick and records the reclaimed count as the
+stuck-claimed telemetry signal, and (c) `TestRunReapExpiredAWSFreshnessClaimsRecordsErrorOutcome`
+proving a reap failure is recorded with the error outcome rather than dropped.
+`go test ./internal/storage/postgres -run TestAWSFreshnessStoreReapExpiredTriggerClaims -race -count=1`
+against a real disposable Postgres 18 instance
+(`ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN`) additionally proves, against the
+database rather than SQL text alone: a claim with an already-expired lease is
+reclaimed to `queued` while a claim whose lease has not yet expired is left
+untouched (no race against a live claim-holder), reap is idempotent (a second
+immediate pass reclaims nothing further), and 5 concurrent reap passes racing
+20 expired claims each reclaim a disjoint set — every row is reclaimed by
+exactly one caller, proving `FOR UPDATE SKIP LOCKED` prevents double-reclaim
+under concurrency.
+
+Observability Evidence: `eshu_dp_workflow_coordinator_aws_freshness_reap_total`/
+`..._gcp_freshness_reap_total` (outcome-dimensioned counters),
+`..._aws_freshness_reap_duration_seconds`/`..._gcp_freshness_reap_duration_seconds`
+histograms, and the `..._aws_freshness_stuck_claimed`/`..._gcp_freshness_stuck_claimed`
+observable gauges (updated from the most recent successful reap pass's
+reclaimed count) give an operator the stuck-claimed rate directly — a healthy
+deployment reclaims ~0 triggers per pass because handoffs normally complete
+before the 5-minute lease expires, so a sustained non-zero gauge is the
+3-AM signal that something is crashing mid-batch or a plan/handoff step is
+running long. `awsFreshnessActionReclaimed`/`gcpFreshnessActionReclaimed`
+values on the existing `eshu_dp_{aws,gcp}_freshness_events_total` counters
+additionally break the reclaim volume out per trigger kind.
 
 Observability Evidence: AWS scheduled runs persist valid planned targets and
 skipped invalid configured tuples in `workflow_runs.requested_scope_set`; the
