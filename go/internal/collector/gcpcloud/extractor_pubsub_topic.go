@@ -73,6 +73,11 @@ func extractPubSubTopic(ctx ExtractContext) (AttributeExtraction, error) {
 	var anchors []string
 	var rels []RelationshipObservation
 	if kmsName := cmekKeyFullResourceName(data.KMSKeyName); kmsName != "" {
+		// Derive the CMEK posture from the normalized key so the attribute agrees
+		// with the edge: a wrong-domain kmsKeyName that the strict normalizer
+		// rejects must not report customer_managed_encryption=true while emitting
+		// no encryption edge.
+		attrs["customer_managed_encryption"] = true
 		anchors = append(anchors, kmsName)
 		rels = append(rels, pubSubTopicEdge(ctx, relationshipTypeTopicEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
@@ -99,9 +104,6 @@ func pubSubTopicAttributes(data pubSubTopicData) map[string]any {
 
 	if v := strings.TrimSpace(data.State); v != "" {
 		attrs["state"] = v
-	}
-	if strings.TrimSpace(data.KMSKeyName) != "" {
-		attrs["customer_managed_encryption"] = true
 	}
 	if p := data.MessageStoragePolicy; p != nil {
 		if regions := dedupeSortedNonEmpty(p.AllowedPersistenceRegions); len(regions) > 0 {

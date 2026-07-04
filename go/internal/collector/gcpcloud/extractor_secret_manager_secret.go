@@ -150,20 +150,12 @@ func secretManagerSecretAttributes(data secretManagerSecretData) map[string]any 
 }
 
 // secretHasCMEK reports whether the secret declares customer-managed encryption
-// on its automatic replication or any user-managed replica.
+// that resolves to at least one Cloud KMS CryptoKey. It is derived from the same
+// normalized key set that drives the encryption edges (secretManagerKMSKeyFullNames)
+// so the customer_managed_encryption attribute and the emitted edges always
+// agree: a wrong-domain kmsKeyName the strict normalizer rejects sets neither.
 func secretHasCMEK(data secretManagerSecretData) bool {
-	if a := data.Replication.Automatic; a != nil && a.CustomerManagedEncryption != nil &&
-		strings.TrimSpace(a.CustomerManagedEncryption.KMSKeyName) != "" {
-		return true
-	}
-	if u := data.Replication.UserManaged; u != nil {
-		for _, r := range u.Replicas {
-			if r.CustomerManagedEncryption != nil && strings.TrimSpace(r.CustomerManagedEncryption.KMSKeyName) != "" {
-				return true
-			}
-		}
-	}
-	return false
+	return len(secretManagerKMSKeyFullNames(data)) > 0
 }
 
 // secretManagerKMSKeyFullNames returns the deduplicated CMEK CryptoKey full

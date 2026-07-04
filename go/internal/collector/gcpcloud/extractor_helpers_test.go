@@ -62,7 +62,7 @@ func TestDedupeSortedNonEmpty(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := dedupeSortedNonEmpty(tc.in); !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("dedupeSortedNonEmpty(%q) = %q, want %q", tc.in, got, tc.want)
+				t.Errorf("dedupeSortedNonEmpty(%v) = %v, want %v", tc.in, got, tc.want)
 			}
 		})
 	}

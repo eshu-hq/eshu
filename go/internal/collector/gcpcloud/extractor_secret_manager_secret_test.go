@@ -230,6 +230,9 @@ func TestExtractSecretManagerWrongDomainKMSKeyEmitsNoEdgeOrAnchor(t *testing.T) 
 	if err != nil {
 		t.Fatalf("extractSecretManagerSecret returned error: %v", err)
 	}
+	if _, ok := got.Attributes["customer_managed_encryption"]; ok {
+		t.Errorf("wrong-domain kmsKeyName must not set customer_managed_encryption: %#v", got.Attributes)
+	}
 	for _, anchor := range got.CorrelationAnchors {
 		if anchor == "//pubsub.googleapis.com/projects/p/topics/t" {
 			t.Errorf("wrong-domain kmsKeyName leaked as anchor: %q", anchor)
