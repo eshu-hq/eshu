@@ -1030,6 +1030,16 @@ rows, all `git-repository-scope`), the `scope_id`-derived `$6` equals the row's
 actual `own_repo_id` for 314,799 rows (99.975%); the remaining 80 rows are handled
 correctly by the fallback arm exactly as designed above.
 
+Coordinator end-to-end (independent, live `eshufull` corpus; VPN down so run
+locally): the NEW shape run once across all 907 `(scope_id, generation_id)`
+partitions (314,879 rows, the real `$2` catalog and per-partition `$5`/`$6`)
+completed in 188,386ms, against a pre-hoist per-call baseline of 4,647s over 907
+`pg_stat_statements` calls from the real reducer run. The rigorous
+apples-to-apples number remains the per-scope 163x above; this aggregate also
+folds in the per-domain re-run that a separate candidate-extraction change
+(#3711) targets, so it is reported as a corroborating end-to-end figure, not the
+headline speedup.
+
 No-Observability-Change: the query rewrite changes only the SQL text and its bind
 parameters; `loadDeferredScopedRelationshipFactsForPartition` still returns the
 same `[]facts.Envelope` shape to the same caller
