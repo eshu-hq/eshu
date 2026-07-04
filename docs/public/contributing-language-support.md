@@ -45,6 +45,16 @@ pattern: it caches parsed config content keyed by the resolved absolute config
 file path, invalidates the entry on `(mtime, size)` change so a re-scanned
 repository never serves a stale generation, and coalesces concurrent same-path
 callers onto one in-flight computation instead of racing duplicate reads.
+Single-flight coalescing for a shared cache like this MUST key the in-flight
+computation by the full (path, generation-fingerprint) tuple, not by path
+alone: keying by path alone lets a second goroutine observing a changed
+generation for the same path overwrite the first goroutine's still-in-flight
+slot, so a waiter blocked on the wrong goroutine's completion signal can read
+back a value from the wrong generation. A process-global cache like this also
+MUST be bounded (an LRU cap, not an unbounded map), since a long-running
+ingester scans many repositories over its lifetime; evicting a config only
+means the next file under it recomputes, which never affects correctness.
+
 Keying by repo root instead of resolved config path is a correctness bug in a
 monorepo: nested packages can each own a distinct config file, and a repo-root
 key would leak one package's config into a sibling package's files.
