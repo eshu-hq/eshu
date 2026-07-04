@@ -21,17 +21,33 @@ func init() {
 }
 
 // securityPolicyRuleData is the bounded view of one CAI SecurityPolicy rule
-// entry (Compute API schema SecurityPolicyRule). Only Priority and Action are
-// decoded: Description is free-text operator commentary, Match/NetworkMatch
-// carry raw match expressions and CIDR/IP-range values, RateLimitOptions and
-// RedirectOptions carry threshold/target configuration, and Preview/HeaderAction
-// carry no Terraform/drift/monitoring value at this typed-depth boundary. None
-// of those fields declare a struct tag here, so encoding/json never decodes them
+// entry (Compute API schema SecurityPolicyRule). Only Priority, Action, and
+// Preview are decoded: Description is free-text operator commentary, and
+// Match/NetworkMatch carry raw match expressions and CIDR/IP-range values,
+// while RateLimitOptions/RedirectOptions/HeaderAction carry no
+// Terraform/drift/monitoring value at this typed-depth boundary. None of
+// those fields declare a struct tag here, so encoding/json never decodes them
 // into Go memory in the first place — mirroring the Router extractor's
 // omission of BGP peer/NAT IP fields.
+//
+// Priority is decoded as json.RawMessage, not int32/int64, because the
+// Compute SecurityPolicyRule schema defines priority as "a positive value
+// between 0 and 2147483647" where 0 is the highest-priority rule, not an
+// absent-field sentinel. Decoding straight into an int type would default a
+// missing or null priority to the Go zero value, which is indistinguishable
+// from an explicit priority-0 rule and would fabricate a false
+// highest-priority rule. parseFlexibleInt64 (shared with the Firewall/Route
+// extractors' priority handling) reports presence via its ok return so the
+// caller can omit the attribute instead of writing a fabricated 0.
+//
+// Preview is a pointer so a present false (an enforced rule) is
+// distinguishable from an absent field, mirroring the AdaptiveProtection
+// Enable pointer handling below and the Router extractor's
+// EncryptedInterconnectRouter pointer handling.
 type securityPolicyRuleData struct {
-	Priority int32  `json:"priority"`
-	Action   string `json:"action"`
+	Priority json.RawMessage `json:"priority"`
+	Action   string          `json:"action"`
+	Preview  *bool           `json:"preview"`
 }
 
 // securityPolicyLayer7DdosDefenseConfigData is the bounded view of the nested
@@ -71,9 +87,9 @@ type securityPolicyData struct {
 // CAI Cloud Armor SecurityPolicy asset. It surfaces the Terraform/drift/
 // monitoring attribute set: policy type (CLOUD_ARMOR, CLOUD_ARMOR_EDGE, or
 // CLOUD_ARMOR_NETWORK per the Compute SecurityPolicy schema), region (present
-// only for a regional policy), a bounded per-rule priority/action summary and
-// rule count, the Adaptive Protection (Cloud Armor layer-7 DDoS defense)
-// enabled posture, and creation time.
+// only for a regional policy), a bounded per-rule priority/action/preview
+// summary and rule count, the Adaptive Protection (Cloud Armor layer-7 DDoS
+// defense) enabled posture, and creation time.
 //
 // The policy's graph edge is inbound: a BackendService references it through
 // its own securityPolicy/edgeSecurityPolicy fields and resolves the edge from
@@ -84,8 +100,9 @@ type securityPolicyData struct {
 //
 // No rule match expression, network-match packet field, rate-limit threshold,
 // redirect target, description, or IP/CIDR value ever reaches the output —
-// only the rule's priority and action string, both small Google-controlled
-// vocabulary values, never user-supplied match data.
+// only the rule's priority, action string (a small Google-controlled
+// vocabulary value, never user-supplied match data), and preview
+// (non-enforced) posture.
 func extractSecurityPolicy(ctx ExtractContext) (AttributeExtraction, error) {
 	var data securityPolicyData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -123,9 +140,9 @@ func securityPolicyAttributes(data securityPolicyData) map[string]any {
 }
 
 // securityPolicyRuleSummaries builds the bounded per-rule summary list:
-// priority and action only. securityPolicyRuleData never decodes a rule's
-// match condition, description, or rate-limit/redirect configuration in the
-// first place, so none of those values ever reach the summary.
+// priority, action, and preview only. securityPolicyRuleData never decodes a
+// rule's match condition, description, or rate-limit/redirect configuration
+// in the first place, so none of those values ever reach the summary.
 func securityPolicyRuleSummaries(rules []securityPolicyRuleData) []map[string]any {
 	if len(rules) == 0 {
 		return nil
@@ -133,14 +150,21 @@ func securityPolicyRuleSummaries(rules []securityPolicyRuleData) []map[string]an
 	summaries := make([]map[string]any, 0, len(rules))
 	for _, rule := range rules {
 		summary := map[string]any{}
-		// Priority is always emitted, including the highest-priority value 0: the
-		// Compute SecurityPolicyRule schema defines priority as "a positive value
-		// between 0 and 2147483647" (0 is highest priority, not an absent-field
-		// sentinel), so gating on a non-zero value would silently drop the
-		// priority of the single most urgent rule in a policy.
-		summary["priority"] = rule.Priority
+		// Priority is parsed via parseFlexibleInt64 so an absent or null
+		// priority is omitted rather than fabricated as 0: the Compute
+		// SecurityPolicyRule schema defines priority as "a positive value
+		// between 0 and 2147483647" where 0 is the legitimate highest-priority
+		// rule, not an absent-field sentinel. A present priority of 0 is still
+		// kept — parseFlexibleInt64's ok return distinguishes "absent" from
+		// "present and zero".
+		if v, ok := parseFlexibleInt64(rule.Priority); ok {
+			summary["priority"] = v
+		}
 		if v := strings.TrimSpace(rule.Action); v != "" {
 			summary["action"] = v
+		}
+		if rule.Preview != nil {
+			summary["preview"] = *rule.Preview
 		}
 		summaries = append(summaries, summary)
 	}

@@ -67,8 +67,8 @@ func TestExtractSecurityPolicyFullResource(t *testing.T) {
 		"adaptive_protection_enabled": true,
 		"rule_count":                  2,
 		"rules": []map[string]any{
-			{"priority": int32(1000), "action": "deny(403)"},
-			{"priority": int32(2147483647), "action": "allow"},
+			{"priority": int64(1000), "action": "deny(403)", "preview": false},
+			{"priority": int64(2147483647), "action": "allow", "preview": false},
 		},
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
@@ -152,8 +152,123 @@ func TestExtractSecurityPolicyPriorityZeroRulePreservesPriority(t *testing.T) {
 	if !ok {
 		t.Fatalf("priority-0 rule must not omit its priority: %#v", rules[0])
 	}
-	if priority != int32(0) {
+	if priority != int64(0) {
 		t.Errorf("priority = %v, want 0", priority)
+	}
+}
+
+// TestExtractSecurityPolicyAbsentPriorityOmitsPriorityAttribute proves the
+// fabrication bug is fixed: a rule object with no "priority" key at all must
+// never surface priority=0, since 0 is a legitimate highest-priority value in
+// the Compute SecurityPolicyRule schema and cannot be reused as an
+// absent-field sentinel. Before the fix, decoding priority as int32 defaulted
+// a missing field to the Go zero value, indistinguishable from an explicit 0.
+func TestExtractSecurityPolicyAbsentPriorityOmitsPriorityAttribute(t *testing.T) {
+	const data = `{
+		"name": "p",
+		"type": "CLOUD_ARMOR",
+		"rules": [{"action": "deny(403)"}]
+	}`
+	got, err := extractSecurityPolicy(securityPolicyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rules, ok := got.Attributes["rules"].([]map[string]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("expected one rule summary, got %#v", got.Attributes["rules"])
+	}
+	if priority, ok := rules[0]["priority"]; ok {
+		t.Fatalf("absent priority must be omitted, not fabricated as 0: got priority=%v in %#v", priority, rules[0])
+	}
+}
+
+// TestExtractSecurityPolicyNullPriorityOmitsPriorityAttribute covers the CAI
+// explicit-null case (`"priority": null`), which must be treated the same as
+// an absent field, not as 0.
+func TestExtractSecurityPolicyNullPriorityOmitsPriorityAttribute(t *testing.T) {
+	const data = `{
+		"name": "p",
+		"type": "CLOUD_ARMOR",
+		"rules": [{"priority": null, "action": "deny(403)"}]
+	}`
+	got, err := extractSecurityPolicy(securityPolicyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rules, ok := got.Attributes["rules"].([]map[string]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("expected one rule summary, got %#v", got.Attributes["rules"])
+	}
+	if priority, ok := rules[0]["priority"]; ok {
+		t.Fatalf("null priority must be omitted, not fabricated as 0: got priority=%v in %#v", priority, rules[0])
+	}
+}
+
+// TestExtractSecurityPolicyPreviewTrueSurfacesPreviewFlag proves a preview
+// (non-enforced) rule is distinguishable from an enforced one: the Compute
+// SecurityPolicyRule schema's "preview" boolean means the rule's action is
+// not enforced, so dropping it would misclassify a dry-run rule as active.
+func TestExtractSecurityPolicyPreviewTrueSurfacesPreviewFlag(t *testing.T) {
+	const data = `{
+		"name": "p",
+		"type": "CLOUD_ARMOR",
+		"rules": [{"priority": 1000, "action": "deny(403)", "preview": true}]
+	}`
+	got, err := extractSecurityPolicy(securityPolicyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rules, ok := got.Attributes["rules"].([]map[string]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("expected one rule summary, got %#v", got.Attributes["rules"])
+	}
+	if rules[0]["preview"] != true {
+		t.Errorf("preview = %v, want true", rules[0]["preview"])
+	}
+}
+
+// TestExtractSecurityPolicyPreviewFalseSurfacesPreviewFlag proves an explicit
+// enforced (preview=false) rule is kept, not conflated with an absent field.
+func TestExtractSecurityPolicyPreviewFalseSurfacesPreviewFlag(t *testing.T) {
+	const data = `{
+		"name": "p",
+		"type": "CLOUD_ARMOR",
+		"rules": [{"priority": 1000, "action": "deny(403)", "preview": false}]
+	}`
+	got, err := extractSecurityPolicy(securityPolicyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rules, ok := got.Attributes["rules"].([]map[string]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("expected one rule summary, got %#v", got.Attributes["rules"])
+	}
+	if rules[0]["preview"] != false {
+		t.Errorf("preview = %v, want explicit false", rules[0]["preview"])
+	}
+}
+
+// TestExtractSecurityPolicyAbsentPreviewOmitsPreviewFlag proves an absent
+// preview field (most CAI rules, since preview defaults false server-side but
+// is frequently omitted from the CAI snapshot) is omitted rather than
+// fabricated, mirroring the priority-absence and adaptive-protection-absence
+// treatment elsewhere in this extractor.
+func TestExtractSecurityPolicyAbsentPreviewOmitsPreviewFlag(t *testing.T) {
+	const data = `{
+		"name": "p",
+		"type": "CLOUD_ARMOR",
+		"rules": [{"priority": 1000, "action": "deny(403)"}]
+	}`
+	got, err := extractSecurityPolicy(securityPolicyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rules, ok := got.Attributes["rules"].([]map[string]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("expected one rule summary, got %#v", got.Attributes["rules"])
+	}
+	if preview, ok := rules[0]["preview"]; ok {
+		t.Fatalf("absent preview must be omitted: got preview=%v in %#v", preview, rules[0])
 	}
 }
 

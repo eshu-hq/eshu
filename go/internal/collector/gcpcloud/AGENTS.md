@@ -524,18 +524,27 @@
 51. `extractor_security_policy.go` - typed-depth extractor for
    `compute.googleapis.com/SecurityPolicy` (Cloud Armor: policy type
    CLOUD_ARMOR/CLOUD_ARMOR_EDGE/CLOUD_ARMOR_NETWORK, region present only for a
-   regional policy, a bounded per-rule priority/action summary and rule count,
-   the Adaptive Protection layer-7 DDoS defense enabled posture, creation
-   time). Reuses `assetTypeComputeSecurityPolicy` from the sibling Backend
-   Service extractor (`extractor_backend_service.go`), never redeclaring it,
-   since that extractor's `backend_service_uses_security_policy` /
+   regional policy, a bounded per-rule priority/action/preview summary and
+   rule count, the Adaptive Protection layer-7 DDoS defense enabled posture,
+   creation time). Priority is decoded as `json.RawMessage` and parsed with
+   `parseFlexibleInt64` (shared with `extractor_firewall.go` /
+   `extractor_route.go`), never as a bare int type, because the Compute
+   SecurityPolicyRule schema defines priority as a positive value between 0
+   and 2147483647 where 0 is the legitimate highest-priority rule, not an
+   absent-field sentinel; an absent or null priority is omitted rather than
+   fabricated as 0, while a present priority of 0 is kept. Preview is a
+   `*bool` so a present `false` (an enforced rule) is distinguishable from an
+   absent field. Reuses `assetTypeComputeSecurityPolicy` from the sibling
+   Backend Service extractor (`extractor_backend_service.go`), never
+   redeclaring it, since that extractor's
+   `backend_service_uses_security_policy` /
    `backend_service_uses_edge_security_policy` edges already resolve toward
    this asset type as their target; emits no outbound edges or anchors of its
    own — the same inbound-only edge shape as the Custom IAM Role and SSL
    Certificate extractors. Never reads a rule's match condition,
    network-match packet fields, rate-limit/redirect configuration, or
-   description — only the rule's priority and action string, both small
-   Google-controlled vocabulary values, ever leave the parser.
+   description — only the rule's priority, action string, and preview
+   posture ever leave the parser.
 
 ## Invariants
 
