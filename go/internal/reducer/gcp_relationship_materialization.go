@@ -134,7 +134,18 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 	resourceEnvelopes, relationshipEnvelopes := splitGCPFactEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally := ExtractGCPRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	rows, tally, quarantined, err := ExtractGCPRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed gcp_cloud_resource or gcp_cloud_relationship
+	// fact (a missing required identity field) is quarantined as a visible
+	// input_invalid dead-letter — counter + structured error log — while every
+	// valid relationship still materializes its edge below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainGCPRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -186,12 +197,14 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		Domain:   DomainGCPRelationshipMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d gcp relationship edge(s) from %d relationship fact(s); %d skipped",
+			"materialized %d gcp relationship edge(s) from %d relationship fact(s); %d skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(relationshipEnvelopes),
 			tally.skippedCount(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

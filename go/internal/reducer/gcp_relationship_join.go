@@ -81,22 +81,44 @@ type gcpCloudResourceJoinIndex struct {
 // buildGCPCloudResourceJoinIndex builds the bounded in-memory join index from
 // the scope generation's gcp_cloud_resource fact envelopes, keyed by the
 // globally-unique full resource name and reusing the same uid the node
-// materialization committed.
-func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) gcpCloudResourceJoinIndex {
+// materialization committed. Each fact is decoded through the factschema seam
+// (via gcpCloudResourceNodeRow); a payload missing a required identity field
+// (full_resource_name, asset_type) is QUARANTINED per-fact via
+// partitionDecodeFailures — that one fact is skipped and returned in the
+// quarantined slice, while every valid resource is still indexed. A non-decode
+// error is returned fatally. Mirrors buildCloudResourceJoinIndex
+// (aws_relationship_join.go).
+func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) (gcpCloudResourceJoinIndex, []quarantinedFact, error) {
 	index := gcpCloudResourceJoinIndex{
 		byFullResourceName: make(map[string]string, len(envelopes)),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.GCPCloudResourceFactKind {
 			continue
 		}
-		_, uid, ok := gcpCloudResourceNodeRow(env)
-		if !ok {
-			// Mirrors node materialization: an incomplete identity is not a
-			// materializable node, so it is not a join target either.
+		row, uid, ok, err := gcpCloudResourceNodeRow(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return gcpCloudResourceJoinIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
 			continue
 		}
-		fullResourceName := payloadString(env.Payload, "full_resource_name")
+		if !ok {
+			// Mirrors node materialization: an incomplete identity is not a
+			// materializable node, so it is not a join target either. This is a
+			// present-but-empty value (a valid decode), distinct from an absent
+			// required key, which quarantines above.
+			continue
+		}
+		// row["resource_id"] is the decoded FullResourceName (gcpCloudResourceNodeRow
+		// sets it from the typed struct, never a raw payload re-read), so this join
+		// key is sourced from the same decode this loop already performed.
+		fullResourceName := anyToString(row["resource_id"])
 		if fullResourceName == "" {
 			continue
 		}
@@ -106,7 +128,7 @@ func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) gcpCloudResource
 			index.byFullResourceName[fullResourceName] = uid
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 func (i gcpCloudResourceJoinIndex) resolve(fullResourceName string) (string, bool) {
@@ -193,19 +215,32 @@ func gcpRelationshipTypeValid(value string) bool {
 // that is not a materialized CloudResource in this scope is counted in the tally
 // and produces no row (graceful degradation).
 //
+// Both the gcp_cloud_resource facts (via buildGCPCloudResourceJoinIndex) and
+// each gcp_cloud_relationship fact are decoded through the factschema seam, so
+// a payload missing a required field (source_full_resource_name,
+// target_full_resource_name, relationship_type) is QUARANTINED per-fact via
+// partitionDecodeFailures rather than resolving an edge against an
+// empty-string identity: that one fact is skipped and returned in the
+// quarantined slice, while every valid fact still projects. A non-decode error
+// is returned fatally. Mirrors ExtractAWSRelationshipEdgeRows
+// (aws_relationship_join.go).
+//
 // Returned rows are deduplicated by (source_uid, relationship_type, target_uid)
 // and sorted deterministically so the batched write is stable across retries and
 // reprojections.
 func ExtractGCPRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) ([]map[string]any, gcpRelationshipEdgeTally) {
+) ([]map[string]any, gcpRelationshipEdgeTally, []quarantinedFact, error) {
 	tally := newGCPRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	index := buildGCPCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildGCPCloudResourceJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
 
 	type edgeKey struct {
 		source           string
@@ -219,12 +254,24 @@ func ExtractGCPRelationshipEdgeRows(
 		if env.FactKind != facts.GCPCloudRelationshipFactKind {
 			continue
 		}
-		relationshipType := payloadString(env.Payload, "relationship_type")
+		relationship, err := decodeGCPCloudRelationship(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+
+		relationshipType := relationship.RelationshipType
 		if relationshipType == "" {
 			tally.record(gcpMetricRelationshipTypeEmpty, gcpJoinModeEmptyType)
 			continue
 		}
-		targetType := payloadString(env.Payload, "target_asset_type")
+		targetType := derefString(relationship.TargetAssetType)
 		if targetType == "" {
 			targetType = "unknown"
 		}
@@ -234,7 +281,7 @@ func ExtractGCPRelationshipEdgeRows(
 			continue
 		}
 
-		switch payloadString(env.Payload, "support_state") {
+		switch derefString(relationship.SupportState) {
 		case gcpRelationshipSupportUnsupported:
 			tally.record(relationshipType, gcpJoinModeUnsupported)
 			continue
@@ -250,13 +297,13 @@ func ExtractGCPRelationshipEdgeRows(
 			continue
 		}
 
-		sourceUID, sourceOK := index.resolve(payloadString(env.Payload, "source_full_resource_name"))
+		sourceUID, sourceOK := index.resolve(relationship.SourceFullResourceName)
 		if !sourceOK {
 			tally.unresolvedSource[targetType]++
 			tally.record(relationshipType, gcpJoinModeUnresolved)
 			continue
 		}
-		targetUID, targetOK := index.resolve(payloadString(env.Payload, "target_full_resource_name"))
+		targetUID, targetOK := index.resolve(relationship.TargetFullResourceName)
 		if !targetOK {
 			tally.unresolved[targetType]++
 			tally.record(relationshipType, gcpJoinModeUnresolved)
@@ -286,7 +333,7 @@ func ExtractGCPRelationshipEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -298,5 +345,5 @@ func ExtractGCPRelationshipEdgeRows(
 			anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
 }

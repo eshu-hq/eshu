@@ -36,7 +36,10 @@ func BenchmarkExtractGCPCloudResourceNodeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows := ExtractGCPCloudResourceNodeRows(envelopes)
+		rows, _, err := ExtractGCPCloudResourceNodeRows(envelopes)
+		if err != nil {
+			b.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil", err)
+		}
 		if len(rows) != resourceCount {
 			b.Fatalf("len(rows) = %d, want %d", len(rows), resourceCount)
 		}

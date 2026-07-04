@@ -11,7 +11,7 @@ import (
 // repoRoot finds the repository root from this test file's own location
 // (go/internal/payloadusage -> repo root is four levels up), so the
 // real-repo integration tests below run against the actual checked-in
-// go/internal/reducer, sdk/go/factschema/{aws,iam}/v1, and
+// go/internal/reducer, sdk/go/factschema/{aws,iam,gcp}/v1, and
 // sdk/go/factschema/schema directories without depending on the working
 // directory the test runner happens to invoke `go test` from.
 func repoRoot(t *testing.T) string {
@@ -42,8 +42,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if len(manifest.Kinds) != 12 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 12 (8 decode<Kind> in factschema_decode.go + 4 in factschema_decode_incident.go, discovered via the factschema_decode*.go glob); got %+v", len(manifest.Kinds), manifest.Kinds)
+	if len(manifest.Kinds) != 14 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 14 (8 aws/iam + 4 wired incident + 2 wired gcp kinds via the factschema_decode*.go glob); got %+v", len(manifest.Kinds), manifest.Kinds)
 	}
 
 	var awsResource *KindManifest
@@ -141,8 +141,8 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 	if len(violations) != 0 {
 		t.Fatalf("Gate() found %d violation(s) against the real repository state, want 0:\n%s", len(violations), violationsString(violations))
 	}
-	if len(manifest.Kinds) != 12 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 12", len(manifest.Kinds))
+	if len(manifest.Kinds) != 14 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 14", len(manifest.Kinds))
 	}
 }
 

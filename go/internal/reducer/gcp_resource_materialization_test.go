@@ -84,8 +84,15 @@ func TestGCPResourceMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractGCPCloudResourceNodeRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if rows := ExtractGCPCloudResourceNodeRows(nil); rows != nil {
+	rows, quarantined, err := ExtractGCPCloudResourceNodeRows(nil)
+	if err != nil {
+		t.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if rows != nil {
 		t.Fatalf("rows = %v, want nil", rows)
+	}
+	if quarantined != nil {
+		t.Fatalf("quarantined = %v, want nil", quarantined)
 	}
 }
 
@@ -105,7 +112,10 @@ func TestExtractGCPCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 		}),
 	}
 
-	rows := ExtractGCPCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractGCPCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -149,7 +159,10 @@ func TestExtractGCPCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 		}),
 	}
 
-	rows := ExtractGCPCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractGCPCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (relationship facts must be skipped)", len(rows))
 	}
@@ -158,24 +171,62 @@ func TestExtractGCPCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 	}
 }
 
+// TestExtractGCPCloudResourceNodeRowsRequiresIdentity proves an ABSENT required
+// identity field (full_resource_name or asset_type) is quarantined as an
+// input_invalid dead-letter rather than silently producing zero rows with no
+// operator signal — the accuracy guarantee the typed-decode migration adds.
 func TestExtractGCPCloudResourceNodeRowsRequiresIdentity(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		// Missing full_resource_name.
+		// Missing full_resource_name (absent, not empty).
 		gcpResourceEnvelope(map[string]any{
 			"asset_type": "compute.googleapis.com/Instance",
 			"project_id": "demo-proj",
 		}),
-		// Missing asset_type.
+		// Missing asset_type (absent, not empty).
 		gcpResourceEnvelope(map[string]any{
 			"full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/z/instances/i",
 			"project_id":         "demo-proj",
 		}),
 	}
 
-	if rows := ExtractGCPCloudResourceNodeRows(envelopes); len(rows) != 0 {
-		t.Fatalf("len(rows) = %d, want 0 for incomplete identity", len(rows))
+	rows, quarantined, err := ExtractGCPCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil (per-fact quarantine, not a fatal error)", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("len(rows) = %d, want 0 for two facts each missing a required identity field", len(rows))
+	}
+	if len(quarantined) != 2 {
+		t.Fatalf("len(quarantined) = %d, want 2 (both facts missing a required identity field must be quarantined)", len(quarantined))
+	}
+}
+
+// TestExtractGCPCloudResourceNodeRowsPresentButEmptyIdentityIsDropped proves a
+// PRESENT-but-empty identity field is a valid decode (not a quarantine) that is
+// still dropped as an incomplete, non-materializable node — mirroring the
+// AWS-side present-but-empty distinction.
+func TestExtractGCPCloudResourceNodeRowsPresentButEmptyIdentityIsDropped(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		gcpResourceEnvelope(map[string]any{
+			"full_resource_name": "",
+			"asset_type":         "compute.googleapis.com/Instance",
+			"project_id":         "demo-proj",
+		}),
+	}
+
+	rows, quarantined, err := ExtractGCPCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("len(rows) = %d, want 0 for a present-but-empty full_resource_name", len(rows))
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("len(quarantined) = %d, want 0; a present-but-empty required field is a valid decode, not a quarantine", len(quarantined))
 	}
 }
 
@@ -194,7 +245,10 @@ func TestExtractGCPCloudResourceNodeRowsDeduplicatesByUID(t *testing.T) {
 		gcpResourceEnvelope(payload),
 	}
 
-	rows := ExtractGCPCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractGCPCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (duplicate facts must converge on one node)", len(rows))
 	}

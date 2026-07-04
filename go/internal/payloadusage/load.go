@@ -59,6 +59,8 @@ type Paths struct {
 	IAMStructDir string
 	// IncidentStructDir is sdk/go/factschema/incident/v1.
 	IncidentStructDir string
+	// GCPStructDir is sdk/go/factschema/gcp/v1.
+	GCPStructDir string
 }
 
 // ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
@@ -91,6 +93,9 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.IncidentStructDir) == "" {
 		resolved.IncidentStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "incident", "v1")
+	}
+	if strings.TrimSpace(resolved.GCPStructDir) == "" {
+		resolved.GCPStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "gcp", "v1")
 	}
 	// DecodeFile / DecodeFiles are intentionally NOT defaulted here: the glob
 	// path can fail, and ResolvePaths returns no error. resolveDecodeFiles (from
@@ -164,9 +169,9 @@ func parseDecodeSeamsFiles(files []string) ([]DecodeSeam, error) {
 }
 
 // Load runs the full derivation pipeline against p (auto-resolving empty
-// fields via ResolvePaths): parse the decode seams, parse the aws/v1 and
-// iam/v1 typed struct shapes, scan the reducer directory's handler files for
-// field usage, and join the three into a Manifest.
+// fields via ResolvePaths): parse the decode seams, parse the aws/v1, iam/v1,
+// and gcp/v1 typed struct shapes, scan the reducer directory's handler files
+// for field usage, and join the three into a Manifest.
 //
 // It returns an error if any seam's fact kind has no schema-file mapping
 // (UnmappedSeamFactKinds) or if any seam's struct type was not found in the
@@ -206,7 +211,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes))
+	gcpShapes, err := ParseStructShapes(resolved.GCPStructDir, "gcpv1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
@@ -214,6 +223,9 @@ func Load(p Paths) (Manifest, error) {
 		shapes[k] = v
 	}
 	for k, v := range incidentShapes {
+		shapes[k] = v
+	}
+	for k, v := range gcpShapes {
 		shapes[k] = v
 	}
 

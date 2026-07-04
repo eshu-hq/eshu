@@ -40,6 +40,11 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 		{"aws_iam_permission", factschema.FactKindAWSIAMPermission, facts.AWSIAMPermissionFactKind},
 		{"aws_resource_policy_permission", factschema.FactKindAWSResourcePolicyPermission, facts.AWSResourcePolicyPermissionFactKind},
 		{"aws_iam_principal", factschema.FactKindAWSIAMPrincipal, facts.AWSIAMPrincipalFactKind},
+		{"gcp_cloud_resource", factschema.FactKindGCPCloudResource, facts.GCPCloudResourceFactKind},
+		{"gcp_cloud_relationship", factschema.FactKindGCPCloudRelationship, facts.GCPCloudRelationshipFactKind},
+		{"gcp_collection_warning", factschema.FactKindGCPCollectionWarning, facts.GCPCollectionWarningFactKind},
+		{"gcp_dns_record", factschema.FactKindGCPDNSRecord, facts.GCPDNSRecordFactKind},
+		{"gcp_iam_policy_observation", factschema.FactKindGCPIAMPolicyObservation, facts.GCPIAMPolicyObservationFactKind},
 	}
 
 	for _, tc := range cases {
