@@ -307,7 +307,7 @@ operator_dashboard_panels_1() {
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
-      "id": 14,
+      "id": 23,
       "type": "timeseries",
       "title": "Reducer input_invalid Facts (rate)",
       "description": "Rate of facts the reducer quarantined because their payload was missing a required identity field (input_invalid). Non-zero means the graph is under-projecting for that domain/fact_kind until the collector defect is fixed; a sustained spike is an accuracy alarm.",

@@ -113,6 +113,15 @@ else
   record_fail "dashboard size is out of range: ${size} bytes"
 fi
 
+# Case 8: every panel id is unique. Grafana requires unique panel ids; a
+# collision (two panels sharing an id) breaks panel linking and edit routing.
+dup_ids=$(jq -r '[.panels[].id] | group_by(.) | map(select(length > 1) | .[0]) | .[]' "${expected_path}" 2>/dev/null)
+if [ -z "${dup_ids}" ]; then
+  record_pass "every panel id is unique"
+else
+  record_fail "duplicate panel id(s): $(echo "${dup_ids}" | tr '\n' ' ')"
+fi
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'generate-operator-dashboard tests FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
   exit 1

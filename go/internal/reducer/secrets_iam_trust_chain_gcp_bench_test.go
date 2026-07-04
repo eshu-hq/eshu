@@ -26,7 +26,10 @@ func BenchmarkSecretsIAMGCPGrantObservations(b *testing.B) {
 			gcpPermissionFact(fmt.Sprintf("perm-owner-%d", i), fp, "roles/owner", false, true),
 		)
 	}
-	index, _ := buildSecretsIAMIndex(envelopes)
+	index, _, err := buildSecretsIAMIndex(envelopes)
+	if err != nil {
+		b.Fatalf("buildSecretsIAMIndex() error = %v, want nil", err)
+	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // iamRoleUIDChainEnvelopes builds an exact IRSA chain whose IAM principal fact
@@ -296,5 +297,41 @@ func TestBuildSecretsIAMTrustChainReadModelsLeavesIAMRoleUIDBlankWithEmptyAccoun
 	}
 	if got := models.IdentityTrustChains[0].IAMRoleCloudResourceUID; got != "" {
 		t.Fatalf("IAMRoleCloudResourceUID = %q, want blank with empty account/region", got)
+	}
+}
+
+// TestSecretsIAMPrincipalDecodeFatalStaysFatal locks the fatal-passthrough
+// contract the aws_iam_principal branch in buildSecretsIAMIndex relies on. The
+// secrets trust-chain build is the ONE decode call site whose extractor
+// (buildSecretsIAMIndex) could not originally propagate a decode error, so its
+// branch must return the fatal partitionDecodeFailures reports rather than
+// swallow it. Today every factschema decode error is classified input_invalid
+// (so the fatal branch is defensive/unreachable through the production seam),
+// but if the seam ever adds a non-input_invalid classification, the branch's
+// `return secretsIAMIndex{}, nil, fatal` must fire — this test proves the exact
+// mechanism it depends on: a *factDecodeError whose classification is NOT
+// input_invalid is returned FATAL by partitionDecodeFailures, not quarantined.
+// TestPartitionDecodeFailures covers the classifier generically; this co-located
+// test documents the contract for the 16 families that copy the secrets pattern.
+func TestSecretsIAMPrincipalDecodeFatalStaysFatal(t *testing.T) {
+	t.Parallel()
+
+	principalEnv := facts.Envelope{FactID: "principal-bad", FactKind: facts.AWSIAMPrincipalFactKind}
+	// A *factDecodeError classified as something OTHER than input_invalid — the
+	// class the secrets branch must treat as fatal, not quarantine.
+	fatalDecode := newFactDecodeError(factschema.FactKindAWSIAMPrincipal, &factschema.DecodeError{
+		FactKind:       factschema.FactKindAWSIAMPrincipal,
+		Classification: "schema_mismatch",
+	})
+
+	q, ok, fatal := partitionDecodeFailures(principalEnv, fatalDecode)
+	if ok {
+		t.Fatal("ok = true; a non-input_invalid principal decode error must NOT be quarantined by the secrets branch")
+	}
+	if fatal == nil {
+		t.Fatal("fatal = nil; a non-input_invalid principal decode error must stay fatal so the trust-chain work item fails")
+	}
+	if (q != quarantinedFact{}) {
+		t.Fatalf("quarantinedFact = %+v, want zero value for a fatal principal error", q)
 	}
 }

@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -116,15 +117,21 @@ func TestExtractCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		awsResourceEnvelope(map[string]any{
-			"account_id":          "111122223333",
-			"region":              "us-east-1",
-			"resource_type":       "aws_iam_role",
-			"resource_id":         "arn:aws:iam::111122223333:role/app",
-			"arn":                 "arn:aws:iam::111122223333:role/app",
-			"name":                "app",
-			"state":               "active",
-			"service_kind":        "iam",
-			"correlation_anchors": []any{"app", "arn:aws:iam::111122223333:role/app"},
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_iam_role",
+			"resource_id":   "arn:aws:iam::111122223333:role/app",
+			"arn":           "arn:aws:iam::111122223333:role/app",
+			"name":          "app",
+			"state":         "active",
+			"service_kind":  "iam",
+			// UNSORTED, DUPLICATE, whitespace-padded, multi-element anchors: the
+			// exact input that would produce a DIFFERENT projected value if the
+			// uniqueSortedStrings normalization were dropped. The pre-typing
+			// payloadStrings read trimmed, deduplicated, and sorted; the typed
+			// decode returns the raw []string, so the reducer must re-apply that
+			// normalization. This locks the byte-identity fix.
+			"correlation_anchors": []any{"s3://bravo", "s3://alpha", "s3://alpha", " s3://charlie "},
 		}),
 	}
 
@@ -150,8 +157,12 @@ func TestExtractCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 	if !ok {
 		t.Fatalf("correlation_anchors type = %T, want []string", rows[0]["correlation_anchors"])
 	}
-	if len(anchors) != 2 {
-		t.Fatalf("correlation_anchors = %v, want 2 entries", anchors)
+	// EXACT sorted-deduped-trimmed output: duplicate "s3://alpha" collapsed,
+	// " s3://charlie " trimmed, all three sorted. Fails if uniqueSortedStrings
+	// is removed from the projection site.
+	wantAnchors := []string{"s3://alpha", "s3://bravo", "s3://charlie"}
+	if !reflect.DeepEqual(anchors, wantAnchors) {
+		t.Fatalf("correlation_anchors = %#v, want %#v (sort/dedup/trim must be applied)", anchors, wantAnchors)
 	}
 }
 

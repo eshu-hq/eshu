@@ -44,17 +44,24 @@ type secretsIAMIndex struct {
 // models from redacted source facts. It is pure so exact, partial, stale, and
 // unsupported behavior can be proven without Postgres, graph, or provider calls.
 //
-// A malformed aws_iam_principal fact (a missing required identity field) is
-// quarantined per-fact and returned in the []quarantinedFact slice: it is
-// skipped so the valid trust chains (including the untouched K8s/GCP/Vault
-// chains, which never decode an aws_iam_principal) still project, matching the
-// per-fact isolation contract every other migrated reducer kind follows. It does
-// NOT abort the whole trust-chain work item. The malformed principal simply
-// never resolves an IAM-role CloudResource uid, exactly as a principal missing
-// its account_id/region would fall through, so no chain resolves against a
+// A malformed aws_iam_principal fact whose payload is missing a required
+// identity field (an input_invalid decode failure) is quarantined per-fact and
+// returned in the []quarantinedFact slice: it is skipped so the valid trust
+// chains (including the untouched K8s/GCP/Vault chains, which never decode an
+// aws_iam_principal) still project, matching the per-fact isolation contract
+// every other migrated reducer kind follows. The malformed principal simply
+// never resolves an IAM-role CloudResource uid, so no chain resolves against a
 // zero-value identity.
+//
+// Any OTHER decode error (a non-input_invalid classification the seam may add
+// later, or a non-*factDecodeError) is FATAL and returned as the error: it fails
+// the whole work item so the durable queue triages it, rather than being
+// swallowed as a silent success.
 func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) (SecretsIAMTrustChainReadModels, []quarantinedFact, error) {
-	index, quarantined := buildSecretsIAMIndex(envelopes)
+	index, quarantined, err := buildSecretsIAMIndex(envelopes)
+	if err != nil {
+		return SecretsIAMTrustChainReadModels{}, nil, err
+	}
 	models := SecretsIAMTrustChainReadModels{}
 	models.PostureGaps = append(models.PostureGaps, secretsIAMCoverageGaps(index.coverage)...)
 	models.PostureGaps = append(models.PostureGaps, secretsIAMStaleGenerationGaps(index)...)
@@ -82,7 +89,7 @@ func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) (SecretsIAM
 	return models, quarantined, nil
 }
 
-func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quarantinedFact) {
+func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quarantinedFact, error) {
 	index := secretsIAMIndex{
 		serviceAccounts: map[string][]facts.Envelope{},
 		workloads:       map[string][]facts.Envelope{},
@@ -122,11 +129,16 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quaran
 			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if fatal != nil {
-					// A non-decode error cannot occur here (decodeAWSIAMPrincipal
-					// only returns *factDecodeError), but if the contract ever
-					// changes, treat it as a fatal that partitionDecodeFailures did
-					// not quarantine by skipping the fact rather than panicking.
-					continue
+					// MANDATORY fatal passthrough: partitionDecodeFailures returns a
+					// non-nil fatal for any decode error it did NOT classify
+					// input_invalid (a future schema-mismatch/unsupported-major class,
+					// or a non-*factDecodeError). Such an error is terminal but is NOT
+					// a per-fact quarantine — it must fail the whole trust-chain work
+					// item so the durable queue triages it, exactly like the other 29
+					// decode call sites `return ..., fatal`. Swallowing it here (the
+					// old `continue`) would let a malformed principal Ack as success —
+					// the "swallow failures" hole the redesign exists to close.
+					return secretsIAMIndex{}, nil, fatal
 				}
 				if ok {
 					quarantined = append(quarantined, q)
@@ -156,7 +168,7 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quaran
 			index.coverage = append(index.coverage, envelope)
 		}
 	}
-	return index, quarantined
+	return index, quarantined, nil
 }
 
 func secretsIAMExactChains(index secretsIAMIndex) (
