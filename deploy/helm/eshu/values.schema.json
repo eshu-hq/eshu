@@ -347,6 +347,15 @@
             "tokenKey": { "type": "string" }
           }
         },
+        "gcpFreshness": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "tokenKey": { "type": "string" }
+          }
+        },
         "pagerDuty": {
           "type": "object",
           "properties": {

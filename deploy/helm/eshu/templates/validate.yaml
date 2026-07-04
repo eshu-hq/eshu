@@ -506,7 +506,7 @@
 {{- end -}}
 {{- end -}}
 {{- if .Values.webhookListener.enabled -}}
-{{- if and (not .Values.webhookListener.github.enabled) (not .Values.webhookListener.gitlab.enabled) (not .Values.webhookListener.bitbucket.enabled) (not .Values.webhookListener.awsFreshness.enabled) (not .Values.webhookListener.pagerDuty.enabled) (not .Values.webhookListener.jira.enabled) -}}
+{{- if and (not .Values.webhookListener.github.enabled) (not .Values.webhookListener.gitlab.enabled) (not .Values.webhookListener.bitbucket.enabled) (not .Values.webhookListener.awsFreshness.enabled) (not .Values.webhookListener.gcpFreshness.enabled) (not .Values.webhookListener.pagerDuty.enabled) (not .Values.webhookListener.jira.enabled) -}}
 {{- fail "webhookListener requires at least one enabled provider" -}}
 {{- end -}}
 {{- if and .Values.webhookListener.github.enabled (not .Values.webhookListener.github.secretName) -}}
@@ -520,6 +520,9 @@
 {{- end -}}
 {{- if and .Values.webhookListener.awsFreshness.enabled (not .Values.webhookListener.awsFreshness.secretName) -}}
 {{- fail "webhookListener.awsFreshness.secretName is required when webhookListener.awsFreshness.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.webhookListener.gcpFreshness.enabled (not .Values.webhookListener.gcpFreshness.secretName) -}}
+{{- fail "webhookListener.gcpFreshness.secretName is required when webhookListener.gcpFreshness.enabled=true" -}}
 {{- end -}}
 {{- if and .Values.webhookListener.pagerDuty.enabled (not .Values.webhookListener.pagerDuty.secretName) -}}
 {{- fail "webhookListener.pagerDuty.secretName is required when webhookListener.pagerDuty.enabled=true" -}}

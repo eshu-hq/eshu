@@ -289,6 +289,11 @@ webhookListener:
     path: /webhooks/aws/eventbridge
     secretName: ""
     tokenKey: token
+  gcpFreshness:
+    enabled: false
+    path: /webhook/gcp-freshness
+    secretName: ""
+    tokenKey: token
   pagerDuty:
     enabled: false
     path: /webhooks/pagerduty
