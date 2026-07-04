@@ -625,6 +625,31 @@
    never decoded into Go memory at all — `interconnectAttachmentData`
    declares no struct field for any of them, so encoding/json silently
    ignores those keys during Unmarshal.
+55. `extractor_composer_environment.go` - typed-depth extractor for
+   `composer.googleapis.com/Environment` (lifecycle state, creation time,
+   environment size, resilience mode, Airflow image version, CMEK posture,
+   private-environment and private-GKE-endpoint posture, networking connection
+   type, workloads-config presence flag, and the fingerprinted node-runtime
+   service-account email); `composer_environment_uses_gke_cluster` edge to the
+   environment's own GKE `Cluster` (`config.gkeCluster`, reusing
+   `assetTypeGKECluster` from the sibling GKE Cluster extractor),
+   `composer_environment_uses_network` / `composer_environment_uses_subnetwork`
+   edges to `config.nodeConfig.network` / `.subnetwork` (resolved the same way
+   the GKE Cluster and Dataproc Cluster extractors resolve their own
+   network/subnetwork references),
+   `composer_environment_encrypted_by_kms_key` edge to the CMEK `CryptoKey`
+   from `config.encryptionConfig.kmsKeyName` (normalized via the shared,
+   strict-domain `cmekKeyFullResourceName` helper, which fails closed on an
+   already-absolute, wrong-domain CAI full resource name rather than
+   accepting it unchanged), and `composer_environment_uses_dag_bucket` edge to
+   the DAG/data Cloud Storage bucket parsed from `config.dagGcsPrefix`
+   (`gs://{bucket}/dags`, via the shared `gcsBucketFromURI` scheme-guarded
+   helper — a non-`gs://` value is rejected rather than mis-parsed) with
+   `storageConfig.bucket` as a Composer-3-only fallback. The GKE "default"
+   service-account sentinel is never fingerprinted or anchored, mirroring the
+   GKE Cluster extractor's own sentinel handling; per-key Airflow config
+   override/env-variable values, maintenance-window recurrence, and any
+   private-cluster/IP-allocation CIDR value never leave the parser.
 
 ## Invariants
 
