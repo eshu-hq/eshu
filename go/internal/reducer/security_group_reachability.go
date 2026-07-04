@@ -6,9 +6,11 @@ package reducer
 import (
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // Closed relationship-type vocabulary for the SecurityGroup -> SecurityGroupRule
@@ -52,6 +54,10 @@ type SecurityGroupReachabilityResult struct {
 	SGRuleEdges       []map[string]any
 	RuleEndpointEdges []map[string]any
 	Tally             securityGroupReachabilityTally
+	// Quarantined carries the facts skipped as input_invalid during decode (a
+	// missing required identity field), so the handler emits a visible per-fact
+	// dead-letter while the valid facts still project.
+	Quarantined []quarantinedFact
 }
 
 // securityGroupReachabilityTally is the honest accounting surface for skipped
@@ -87,13 +93,16 @@ func (t securityGroupReachabilityTally) total() int {
 func ExtractSecurityGroupReachability(
 	resourceEnvelopes []facts.Envelope,
 	ruleEnvelopes []facts.Envelope,
-) SecurityGroupReachabilityResult {
+) (SecurityGroupReachabilityResult, error) {
 	result := SecurityGroupReachabilityResult{}
 	if len(ruleEnvelopes) == 0 {
-		return result
+		return result, nil
 	}
 
-	index := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return SecurityGroupReachabilityResult{}, err
+	}
 
 	ruleNodesByUID := make(map[string]map[string]any)
 	sgEdgesByKey := make(map[string]map[string]any)
@@ -109,8 +118,33 @@ func ExtractSecurityGroupReachability(
 			continue
 		}
 
-		sourceKind := payloadString(env.Payload, "source_kind")
-		if sourceKind == securityGroupRuleSourceUnknown {
+		rule, err := decodeAWSSecurityGroupRule(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return SecurityGroupReachabilityResult{}, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+
+		// Trim the string identity/classification fields the same way the
+		// pre-typing payloadString reads did. The typed decode returns the raw
+		// emitted values; the emitter already trims these, so this only matters
+		// for a non-standard fact, but preserving the trim keeps the switch,
+		// endpoint resolution, ruleUID, and written row byte-identical to the
+		// pre-migration behavior for every input.
+		rule.Direction = strings.TrimSpace(rule.Direction)
+		rule.IPProtocol = strings.TrimSpace(rule.IPProtocol)
+		rule.GroupID = strings.TrimSpace(rule.GroupID)
+		rule.SourceKind = strings.TrimSpace(rule.SourceKind)
+		rule.SourceValue = strings.TrimSpace(rule.SourceValue)
+		rule.AccountID = strings.TrimSpace(rule.AccountID)
+		rule.Region = strings.TrimSpace(rule.Region)
+
+		if rule.SourceKind == securityGroupRuleSourceUnknown {
 			// A rule that reported no CIDR, prefix list, or referenced group has no
 			// endpoint to point an edge at. It is preserved as a fact upstream; here
 			// it materializes nothing rather than fabricating a phantom endpoint.
@@ -118,27 +152,22 @@ func ExtractSecurityGroupReachability(
 			continue
 		}
 
-		accountID := payloadString(env.Payload, "account_id")
-		region := payloadString(env.Payload, "region")
-		groupID := payloadString(env.Payload, "group_id")
-
 		// Resolve the SG anchor to its committed CloudResource node. The anchor uid
 		// is recomputed the same way the AWS resource materializer keyed it, then
 		// confirmed present in the join index so an unscanned group never dangles.
-		sgUID, ok := resolveSecurityGroupNode(index, accountID, region, groupID)
+		sgUID, ok := resolveSecurityGroupNode(index, rule.AccountID, rule.Region, rule.GroupID)
 		if !ok {
 			result.Tally.skippedUnresolvedAnchor++
 			continue
 		}
 
-		endpointUID, endpointLabel, ok := resolveSecurityGroupRuleEndpoint(index, env.Payload, accountID, region, sourceKind)
+		endpointUID, endpointLabel, ok := resolveSecurityGroupRuleEndpoint(index, rule)
 		if !ok {
 			result.Tally.skippedUnresolvedEndpoint++
 			continue
 		}
 
-		direction := payloadString(env.Payload, "direction")
-		relType, ok := securityGroupRuleRelationshipType(direction)
+		relType, ok := securityGroupRuleRelationshipType(rule.Direction)
 		if !ok {
 			// A direction outside {ingress, egress} cannot pick a closed-vocabulary
 			// relationship type; treat it as an unknown source rather than guess.
@@ -146,21 +175,24 @@ func ExtractSecurityGroupReachability(
 			continue
 		}
 
-		ipProtocol := payloadString(env.Payload, "ip_protocol")
-		fromPort := normalizeSecurityGroupRulePort(env.Payload["from_port"])
-		toPort := normalizeSecurityGroupRulePort(env.Payload["to_port"])
-		ruleUID := securityGroupRuleUIDFromTokens(sgUID, direction, ipProtocol, fromPort, toPort, sourceKind, payloadString(env.Payload, "source_value"))
+		fromPort := normalizeSecurityGroupRulePort(int32PtrToAny(rule.FromPort))
+		toPort := normalizeSecurityGroupRulePort(int32PtrToAny(rule.ToPort))
+		isInternet := false
+		if rule.IsInternet != nil {
+			isInternet = *rule.IsInternet
+		}
+		ruleUID := securityGroupRuleUIDFromTokens(sgUID, rule.Direction, rule.IPProtocol, fromPort, toPort, rule.SourceKind, rule.SourceValue)
 
 		ruleNodesByUID[ruleUID] = map[string]any{
 			"uid":              ruleUID,
 			"sg_uid":           sgUID,
-			"name":             securityGroupRuleDisplayName(direction, ipProtocol, fromPort, toPort),
-			"direction":        direction,
-			"ip_protocol":      ipProtocol,
+			"name":             securityGroupRuleDisplayName(rule.Direction, rule.IPProtocol, fromPort, toPort),
+			"direction":        rule.Direction,
+			"ip_protocol":      rule.IPProtocol,
 			"from_port":        fromPort,
 			"to_port":          toPort,
-			"source_kind":      sourceKind,
-			"is_internet":      payloadBool(env.Payload, "is_internet"),
+			"source_kind":      rule.SourceKind,
+			"is_internet":      isInternet,
 			"source_fact_id":   env.FactID,
 			"stable_fact_key":  env.StableFactKey,
 			"source_system":    env.SourceRef.SourceSystem,
@@ -186,7 +218,8 @@ func ExtractSecurityGroupReachability(
 	result.RuleNodes = sortReachabilityRows(ruleNodesByUID, "uid")
 	result.SGRuleEdges = sortReachabilitySGEdges(sgEdgesByKey)
 	result.RuleEndpointEdges = sortReachabilityToEdges(toEdgesByKey)
-	return result
+	result.Quarantined = quarantined
+	return result, nil
 }
 
 // resolveSecurityGroupNode recomputes the CloudResource uid for a security group
@@ -216,29 +249,26 @@ func resolveSecurityGroupNode(index cloudResourceJoinIndex, accountID, region, g
 // gracefully rather than fabricating an endpoint.
 func resolveSecurityGroupRuleEndpoint(
 	index cloudResourceJoinIndex,
-	payload map[string]any,
-	accountID, region, sourceKind string,
+	rule awsv1.SecurityGroupRule,
 ) (string, string, bool) {
-	switch sourceKind {
+	switch rule.SourceKind {
 	case securityGroupRuleSourceCIDRIPv4, securityGroupRuleSourceCIDRIPv6:
-		canonical, ok := canonicalizeCIDR(payloadString(payload, "source_value"))
+		canonical, ok := canonicalizeCIDR(rule.SourceValue)
 		if !ok {
 			return "", "", false
 		}
 		family := cidrBlockAddressFamilyIPv4
-		if sourceKind == securityGroupRuleSourceCIDRIPv6 {
+		if rule.SourceKind == securityGroupRuleSourceCIDRIPv6 {
 			family = cidrBlockAddressFamilyIPv6
 		}
 		return cidrBlockUID(canonical, family), securityGroupEndpointLabelCidrBlock, true
 	case securityGroupRuleSourcePrefixList:
-		prefixListID := payloadString(payload, "source_value")
-		if prefixListID == "" {
+		if rule.SourceValue == "" {
 			return "", "", false
 		}
-		return prefixListUID(accountID, region, prefixListID), securityGroupEndpointLabelPrefixList, true
+		return prefixListUID(rule.AccountID, rule.Region, rule.SourceValue), securityGroupEndpointLabelPrefixList, true
 	case securityGroupRuleSourceSecurityGroup:
-		referencedGroupID := payloadString(payload, "source_value")
-		uid, ok := resolveSecurityGroupNode(index, accountID, region, referencedGroupID)
+		uid, ok := resolveSecurityGroupNode(index, rule.AccountID, rule.Region, rule.SourceValue)
 		if !ok {
 			return "", "", false
 		}
@@ -246,6 +276,18 @@ func resolveSecurityGroupRuleEndpoint(
 	default:
 		return "", "", false
 	}
+}
+
+// int32PtrToAny converts an optional *int32 payload field to the any shape
+// normalizeSecurityGroupRulePort expects: nil for an absent port (all-protocols
+// rules omit the range) or the int32 value, so the normalizer's nil/int32 cases
+// produce the same port token the raw env.Payload["from_port"] read did before
+// typing.
+func int32PtrToAny(value *int32) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 // securityGroupRuleSourceSecurityGroup mirrors the scanner's

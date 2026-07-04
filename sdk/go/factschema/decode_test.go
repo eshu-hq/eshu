@@ -7,11 +7,11 @@ import (
 	"errors"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 func testEnvelope(payload map[string]any) Envelope {
@@ -259,12 +259,16 @@ func TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty(t *te
 	t.Parallel()
 
 	wantRequired := map[string]bool{
-		"account_id":    true,
-		"resource_id":   true,
-		"region":        true,
-		"resource_type": true,
-		"name":          false,
-		"tags":          false,
+		"account_id":          true,
+		"resource_id":         true,
+		"region":              true,
+		"resource_type":       true,
+		"arn":                 false,
+		"name":                false,
+		"state":               false,
+		"service_kind":        false,
+		"tags":                false,
+		"correlation_anchors": false,
 	}
 
 	typ := reflect.TypeOf(awsv1.Resource{})
@@ -273,6 +277,12 @@ func TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty(t *te
 		field := typ.Field(i)
 		tag := field.Tag.Get("json")
 		jsonName, hasOmitEmpty := parseJSONTag(tag)
+		if jsonName == "" {
+			// The Attributes pass-through carries json:"-": it is not a wire
+			// field of its own (its keys flatten to top level via the custom
+			// MarshalJSON), so it is neither required nor an expected named key.
+			continue
+		}
 		seen[jsonName] = true
 
 		isPointerOrMap := field.Type.Kind() == reflect.Ptr || field.Type.Kind() == reflect.Map
@@ -294,39 +304,74 @@ func TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty(t *te
 }
 
 // TestRequiredFieldsMatchStructShape locks decode.go's requiredFields map to
-// awsv1.Resource's actual struct shape. requiredFields drives decodeAndValidate's
-// missing-field check; if it drifts from the struct — for example a new
-// required (non-pointer, non-omitempty) field is added to the struct but not
-// to requiredFields — decodeAndValidate silently skips validating that field
-// and decodes its absence to a zero value, the exact silent-zero-value
-// failure this module exists to prevent. This test computes the required set
-// by reflection over the struct and asserts it equals the map entry, so that
-// drift is a test failure rather than a latent accuracy hole.
+// each typed struct's actual shape. requiredFields drives decodeAndValidate's
+// missing-field check; if it drifts from a struct — for example a new required
+// (non-pointer, non-omitempty) field is added to the struct but not to
+// requiredFields — decodeAndValidate silently skips validating that field and
+// decodes its absence to a zero value, the exact silent-zero-value failure this
+// module exists to prevent. This test computes the required set by reflection
+// over each struct and asserts it equals the map entry, so that drift is a test
+// failure rather than a latent accuracy hole. Every new fact kind MUST add a
+// row here (and to requiredFields) so its struct stays locked to its map entry.
 func TestRequiredFieldsMatchStructShape(t *testing.T) {
 	t.Parallel()
 
-	want := map[string]bool{}
-	typ := reflect.TypeOf(awsv1.Resource{})
+	cases := []struct {
+		factKind string
+		typ      reflect.Type
+	}{
+		{FactKindAWSResource, reflect.TypeOf(awsv1.Resource{})},
+		{FactKindAWSRelationship, reflect.TypeOf(awsv1.Relationship{})},
+		{FactKindAWSSecurityGroupRule, reflect.TypeOf(awsv1.SecurityGroupRule{})},
+		{FactKindEC2InstancePosture, reflect.TypeOf(awsv1.EC2InstancePosture{})},
+		{FactKindS3BucketPosture, reflect.TypeOf(awsv1.S3BucketPosture{})},
+		{FactKindAWSIAMPermission, reflect.TypeOf(iamv1.Permission{})},
+		{FactKindAWSResourcePolicyPermission, reflect.TypeOf(iamv1.ResourcePolicyPermission{})},
+		{FactKindAWSIAMPrincipal, reflect.TypeOf(iamv1.Principal{})},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.factKind, func(t *testing.T) {
+			t.Parallel()
+
+			want := requiredSetFromStruct(tc.typ)
+
+			got := map[string]bool{}
+			for _, name := range requiredFields[tc.factKind] {
+				if got[name] {
+					t.Fatalf("requiredFields[%q] lists %q more than once", tc.factKind, name)
+				}
+				got[name] = true
+			}
+
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("requiredFields[%q] = %v, want %v (derived from struct shape); update decode.go's requiredFields to match the struct", tc.factKind, sortedKeys(got), sortedKeys(want))
+			}
+		})
+	}
+}
+
+// requiredSetFromStruct computes the required JSON field set for a typed payload
+// struct by the same rule the schema generator uses: a field is required exactly
+// when it is a non-pointer, non-slice, non-map type with no omitempty json tag.
+// Pointers, slices, and maps (and any omitempty field) are optional. Keeping the
+// rule here in agreement with schemagen.reflectSchema's derivation is what makes
+// struct → requiredFields and struct → schema independently test-locked.
+func requiredSetFromStruct(typ reflect.Type) map[string]bool {
+	required := map[string]bool{}
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		jsonName, hasOmitEmpty := parseJSONTag(field.Tag.Get("json"))
-		isPointerOrMap := field.Type.Kind() == reflect.Ptr || field.Type.Kind() == reflect.Map
-		if !isPointerOrMap && !hasOmitEmpty {
-			want[jsonName] = true
+		switch field.Type.Kind() {
+		case reflect.Ptr, reflect.Slice, reflect.Map:
+			continue
+		}
+		if !hasOmitEmpty {
+			required[jsonName] = true
 		}
 	}
-
-	got := map[string]bool{}
-	for _, name := range requiredFields[FactKindAWSResource] {
-		if got[name] {
-			t.Fatalf("requiredFields[%q] lists %q more than once", FactKindAWSResource, name)
-		}
-		got[name] = true
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("requiredFields[%q] = %v, want %v (derived from awsv1.Resource struct shape); update decode.go's requiredFields to match the struct", FactKindAWSResource, sortedKeys(got), sortedKeys(want))
-	}
+	return required
 }
 
 func sortedKeys(m map[string]bool) []string {
@@ -369,23 +414,4 @@ func TestParseJSONTag(t *testing.T) {
 			}
 		})
 	}
-}
-
-// parseJSONTag splits a struct json tag into its field name and whether it
-// carries the omitempty option. The tag is a comma-separated list whose first
-// element is the field name and whose remaining elements are options in any
-// order (json.Marshal does not require omitempty to be last). The skip tag "-"
-// yields an empty name.
-func parseJSONTag(tag string) (name string, omitEmpty bool) {
-	parts := strings.Split(tag, ",")
-	name = parts[0]
-	if name == "-" {
-		name = ""
-	}
-	for _, option := range parts[1:] {
-		if option == "omitempty" {
-			omitEmpty = true
-		}
-	}
-	return name, omitEmpty
 }

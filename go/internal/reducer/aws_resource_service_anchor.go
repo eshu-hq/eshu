@@ -23,8 +23,15 @@ type cloudResourceServiceAnchorDecision struct {
 // metadata for an aws_resource row. Only exact, single-target anchors are
 // promotable by the service story read model; ambiguous anchors remain visible
 // as drift candidates without becoming canonical dependencies.
-func cloudResourceServiceAnchorFields(payload map[string]any) map[string]any {
-	decision := cloudResourceServiceAnchorDecisionForPayload(payload)
+//
+// attributes is the decoded aws_resource struct's untyped Attributes
+// pass-through: the service-anchor keys (workload_id/workload_ids,
+// service_name/service_names) and any nested "attributes" object are
+// service-specific fields that live there, not in a named struct field.
+// resourceType is the typed resource_type, passed explicitly so the anchor
+// admission gate need not read it back out of the pass-through.
+func cloudResourceServiceAnchorFields(attributes map[string]any, resourceType string) map[string]any {
+	decision := cloudResourceServiceAnchorDecisionForPayload(attributes, resourceType)
 	if decision.Status == "" {
 		return nil
 	}
@@ -46,15 +53,15 @@ func cloudResourceServiceAnchorFields(payload map[string]any) map[string]any {
 	return fields
 }
 
-func cloudResourceServiceAnchorDecisionForPayload(payload map[string]any) cloudResourceServiceAnchorDecision {
-	workloadIDs := payloadStrings(payload, "workload_id", "workload_ids")
-	serviceNames := payloadStrings(payload, "service_name", "service_names")
+func cloudResourceServiceAnchorDecisionForPayload(attributes map[string]any, resourceType string) cloudResourceServiceAnchorDecision {
+	workloadIDs := payloadStrings(attributes, "workload_id", "workload_ids")
+	serviceNames := payloadStrings(attributes, "service_name", "service_names")
 	source := explicitServiceAnchorSource(workloadIDs, serviceNames, "payload")
 
 	if len(workloadIDs) == 0 && len(serviceNames) == 0 {
-		attributes := payloadMap(payload, "attributes")
-		if shouldAdmitAWSAttributeServiceAnchor(payloadString(payload, "resource_type")) {
-			serviceNames = payloadStrings(attributes, "service_name", "service_names")
+		nested := payloadMap(attributes, "attributes")
+		if shouldAdmitAWSAttributeServiceAnchor(resourceType) {
+			serviceNames = payloadStrings(nested, "service_name", "service_names")
 			source = explicitServiceAnchorSource(nil, serviceNames, "attributes")
 		}
 	}

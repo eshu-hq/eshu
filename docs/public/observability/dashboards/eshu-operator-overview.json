@@ -337,6 +337,27 @@
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Reducer input_invalid Facts (rate)",
+      "description": "Rate of facts the reducer quarantined because their payload was missing a required identity field (input_invalid). Non-zero means the graph is under-projecting for that domain/fact_kind until the collector defect is fixed; a sustained spike is an accuracy alarm.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 31},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(rate(eshu_dp_reducer_input_invalid_facts_total[5m])) by (domain, fact_kind)",
+          "legendFormat": "{{domain}} / {{fact_kind}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
       "id": 14,
       "type": "row",
       "title": "API Request Latency and Errors",

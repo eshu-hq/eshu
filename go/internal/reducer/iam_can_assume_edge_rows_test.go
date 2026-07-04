@@ -63,7 +63,10 @@ func TestExtractIAMCanAssumeEdgeRowsResolvesRoleAndUser(t *testing.T) {
 		trustPermissionFact(acct, roleARN, assumingRoleARN, assumingUserARN),
 	}
 
-	rows, tally := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 2 {
 		t.Fatalf("len(rows) = %d, want 2", len(rows))
 	}
@@ -120,7 +123,10 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsExternalServiceAndWildcard(t *testing.T
 		),
 	}
 
-	rows, tally := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 (all principals external/wildcard/unscanned)", len(rows))
 	}
@@ -152,6 +158,7 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsDenyAndUnresolvedSource(t *testing.T) {
 	// Deny trust statement must not produce an edge.
 	denyFact := iamPermissionEnvelope(map[string]any{
 		"account_id":        acct,
+		"region":            "aws-global",
 		"principal_arn":     roleARN,
 		"policy_source":     "trust",
 		"effect":            "Deny",
@@ -162,6 +169,7 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsDenyAndUnresolvedSource(t *testing.T) {
 	// Non-trust source must be ignored entirely.
 	inlineFact := iamPermissionEnvelope(map[string]any{
 		"account_id":    acct,
+		"region":        "aws-global",
 		"principal_arn": roleARN,
 		"policy_source": "inline",
 		"effect":        "Allow",
@@ -169,7 +177,10 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsDenyAndUnresolvedSource(t *testing.T) {
 		"resources":     []any{"*"},
 	})
 
-	rows, tally := ExtractIAMCanAssumeEdgeRows(resources, []facts.Envelope{denyFact, unscannedRoleFact, inlineFact})
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(resources, []facts.Envelope{denyFact, unscannedRoleFact, inlineFact})
+	if err != nil {
+		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0", len(rows))
 	}
@@ -199,7 +210,10 @@ func TestExtractIAMCanAssumeEdgeRowsSelfAssumeAndDuplicateDedupe(t *testing.T) {
 		trustPermissionFact(acct, roleARN, assumingARN),
 	}
 
-	rows, _ := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, _, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (self-assume skipped, duplicates deduped)", len(rows))
 	}
@@ -226,7 +240,10 @@ func TestExtractIAMCanAssumeEdgeRowsCrossAccountResolvesWhenScanned(t *testing.T
 	}
 	perms := []facts.Envelope{trustPermissionFact(homeAcct, roleARN, crossAccountRole)}
 
-	rows, _ := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, _, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 cross-account edge", len(rows))
 	}
@@ -239,7 +256,10 @@ func TestExtractIAMCanAssumeEdgeRowsCrossAccountResolvesWhenScanned(t *testing.T
 func TestExtractIAMCanAssumeEdgeRowsEmptyInput(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractIAMCanAssumeEdgeRows(nil, nil)
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(nil, nil)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
+	}
 	if rows != nil {
 		t.Fatalf("rows = %v, want nil", rows)
 	}

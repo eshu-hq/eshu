@@ -11,18 +11,37 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // Fact kind identifiers this module knows how to decode. A fact kind string
 // is namespaced and stable across schema-version majors; only the payload
 // shape changes between majors, handled by the switch inside each
 // kind-specific Decode function (Contract System v1 §3.2).
+//
+// Every value is the exact wire fact-kind string the collector emits and the
+// reducer loads (go/internal/facts.*FactKind). The contracts module cannot
+// import go/internal/facts, so the values are duplicated here; the reducer-side
+// drift lock TestFactSchemaKindsMatchWireFactKinds asserts each stays byte-equal
+// to its facts.*FactKind counterpart so a constant can never silently diverge
+// from its wire kind.
 const (
-	// FactKindAWSResource is the sample fact kind this scaffold decodes end
-	// to end.
-	FactKindAWSResource = "aws.resource"
+	// FactKindAWSResource is the "aws_resource" fact kind.
+	FactKindAWSResource = "aws_resource"
+	// FactKindAWSRelationship is the "aws_relationship" fact kind.
+	FactKindAWSRelationship = "aws_relationship"
+	// FactKindAWSSecurityGroupRule is the "aws_security_group_rule" fact kind.
+	FactKindAWSSecurityGroupRule = "aws_security_group_rule"
+	// FactKindEC2InstancePosture is the "ec2_instance_posture" fact kind.
+	FactKindEC2InstancePosture = "ec2_instance_posture"
+	// FactKindS3BucketPosture is the "s3_bucket_posture" fact kind.
+	FactKindS3BucketPosture = "s3_bucket_posture"
+	// FactKindAWSIAMPermission is the "aws_iam_permission" fact kind.
+	FactKindAWSIAMPermission = "aws_iam_permission"
+	// FactKindAWSResourcePolicyPermission is the
+	// "aws_resource_policy_permission" fact kind.
+	FactKindAWSResourcePolicyPermission = "aws_resource_policy_permission"
+	// FactKindAWSIAMPrincipal is the "aws_iam_principal" fact kind.
+	FactKindAWSIAMPrincipal = "aws_iam_principal"
 )
 
 // Classification values a DecodeError carries. These are this module's own
@@ -103,21 +122,43 @@ func major(schemaVersion string) string {
 
 // requiredFields lists, per fact kind, the JSON payload keys that
 // decodeAndValidate treats as required — the same set the schema generator
-// derives from the struct's pointer/omitempty shape (see aws/v1/resource.go
-// and internal/schemagen). Keeping this list beside decodeAndValidate rather
-// than deriving it via reflection keeps the missing-field check independent
-// of any future encoding/json behavior change.
+// derives from each struct's pointer/omitempty shape (see aws/v1, iam/v1, and
+// internal/schemagen). Keeping this list beside decodeAndValidate rather than
+// deriving it via reflection keeps the missing-field check independent of any
+// future encoding/json behavior change.
 //
-// Two tests keep this list from drifting out of that agreement:
-// TestRequiredFieldsMatchStructShape (decode_test.go) recomputes the required
-// set from the awsv1.Resource struct by reflection and asserts it equals this
-// map's entry, so adding a required struct field without updating this map is
-// a test failure rather than a silently unvalidated field; and
-// TestAWSResourceSchemaHasNoDrift (schema_gen_test.go) keeps the generated
-// schema in lockstep with the struct. Struct → this map, and struct → schema,
-// are each independently test-locked.
-var requiredFields = map[string][]string{
-	FactKindAWSResource: {"account_id", "resource_id", "region", "resource_type"},
+// The map is populated per family, not as one central literal: each
+// decode_<family>.go registers its own kinds through registerRequiredFields in
+// an init function. This keeps a new fact kind's registration local to its
+// family file, so the parallel family wave that copies this template adds kinds
+// without editing a shared central map (no merge conflicts on one hot literal).
+//
+// Two families of tests keep this map from drifting out of agreement with the
+// structs: TestRequiredFieldsMatchStructShape (decode_test.go) recomputes the
+// required set from each typed struct by reflection and asserts it equals this
+// map's entry, so adding a required struct field without registering it is a test
+// failure rather than a silently unvalidated field; and the schema drift tests
+// (schema_gen_test.go) keep the generated schemas in lockstep with the structs.
+// Struct → this map, and struct → schema, are each independently test-locked.
+//
+// The required set for every kind is grounded in its collector emitter's
+// non-empty validation (the awscloud / secretsiam New*Envelope builders), never
+// in a single reducer handler's defensive skip: a field the emitter always
+// validates non-empty is required, and an either-or identity (instance_id OR
+// arn; bucket_arn OR bucket_name) leaves BOTH sides optional so a fact
+// identified by only one side is not dead-lettered.
+var requiredFields = map[string][]string{}
+
+// registerRequiredFields records the required payload keys for one fact kind. It
+// is called from each decode_<family>.go's init function so a family owns its
+// own registration. It panics on a duplicate registration for the same fact kind
+// because that is a programming error (two files claiming one kind) that must
+// surface at package load, not silently let one registration win.
+func registerRequiredFields(factKind string, fields ...string) {
+	if _, exists := requiredFields[factKind]; exists {
+		panic("factschema: duplicate required-fields registration for fact kind " + strconv.Quote(factKind))
+	}
+	requiredFields[factKind] = fields
 }
 
 // decodeAndValidate unmarshals payload into a new T, first checking that
@@ -145,21 +186,12 @@ func decodeAndValidate[T any](factKind string, payload map[string]any) (T, error
 		}
 	}
 
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return zero, &DecodeError{
-			FactKind:       factKind,
-			Classification: ClassificationInputInvalid,
-			Err:            fmt.Errorf("marshal payload: %w", err),
-		}
-	}
-
 	var decoded T
-	if err := json.Unmarshal(raw, &decoded); err != nil {
+	if err := decodeMapInto(payload, &decoded); err != nil {
 		return zero, &DecodeError{
 			FactKind:       factKind,
 			Classification: ClassificationInputInvalid,
-			Err:            fmt.Errorf("unmarshal payload: %w", err),
+			Err:            fmt.Errorf("decode payload: %w", err),
 		}
 	}
 
@@ -184,28 +216,23 @@ func encodeToPayload[T any](value T) (map[string]any, error) {
 	return payload, nil
 }
 
-// DecodeAWSResource decodes env.Payload into the latest awsv1.Resource
-// struct for the "aws.resource" fact kind, dispatching on env.SchemaVersion
-// major per Contract System v1 §3.2. Callers (reducer handlers) receive
-// either the decoded struct or a classified *DecodeError; they must never
-// substitute a zero-value struct on error.
-func DecodeAWSResource(env Envelope) (awsv1.Resource, error) {
+// decodeLatestMajor is the shared dispatch body every kind-specific Decode
+// function delegates to: it validates the schema-version major is supported
+// (only major 1 today) and decodes through decodeAndValidate, returning a
+// classified *DecodeError for an unsupported major rather than a best-effort
+// decode. When a payload majors, this is where the version shim (design §3.2)
+// is added — the reducer keeps calling the same Decode* function and codes
+// against the latest struct only.
+func decodeLatestMajor[T any](factKind string, env Envelope) (T, error) {
+	var zero T
 	switch major(env.SchemaVersion) {
 	case "1":
-		return decodeAndValidate[awsv1.Resource](FactKindAWSResource, env.Payload)
+		return decodeAndValidate[T](factKind, env.Payload)
 	default:
-		return awsv1.Resource{}, &DecodeError{
-			FactKind:       FactKindAWSResource,
+		return zero, &DecodeError{
+			FactKind:       factKind,
 			Classification: ClassificationInputInvalid,
 			Err:            fmt.Errorf("%w: %q", ErrUnsupportedSchemaMajor, env.SchemaVersion),
 		}
 	}
-}
-
-// EncodeAWSResource marshals an awsv1.Resource into the map[string]any
-// payload shape an Envelope carries. It is the inverse of DecodeAWSResource
-// for schema-version-1 payloads, used by collectors emitting this fact kind
-// and by this module's round-trip tests.
-func EncodeAWSResource(resource awsv1.Resource) (map[string]any, error) {
-	return encodeToPayload(resource)
 }

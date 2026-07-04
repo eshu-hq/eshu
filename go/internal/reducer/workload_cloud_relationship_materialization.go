@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -50,6 +51,11 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 	EdgeWriter           WorkloadCloudRelationshipEdgeWriter
 	ReadinessLookup      GraphProjectionReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
+	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
+	// when an aws_resource fact is quarantined as input_invalid during workload
+	// anchor extraction. Optional: a nil pointer skips the counter (the
+	// structured per-fact error log still emits).
+	Instruments *telemetry.Instruments
 }
 
 func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
@@ -86,7 +92,18 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("load facts for workload cloud relationship materialization: %w", err)
 	}
 
-	rows, tally := ExtractWorkloadCloudRelationshipRows(envelopes)
+	rows, tally, quarantined, err := ExtractWorkloadCloudRelationshipRows(envelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource fact (a missing required
+	// identity field) is quarantined as a visible input_invalid dead-letter —
+	// counter + structured error log — while every valid workload anchor still
+	// projects its edge below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainWorkloadCloudRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
 		return Result{}, err
@@ -118,12 +135,14 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		Domain:   DomainWorkloadCloudRelationshipMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d workload cloud USES edge(s) from %d aws resource fact(s); %d candidate(s) skipped",
+			"materialized %d workload cloud USES edge(s) from %d aws resource fact(s); %d candidate(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -219,11 +238,15 @@ func (t workloadCloudRelationshipTally) totalSkipped() int {
 
 // ExtractWorkloadCloudRelationshipRows builds canonical USES edge rows only for
 // aws_resource facts with exactly one explicit workload anchor. Service-name-only
-// anchors stay candidate evidence and are not promoted to graph truth.
-func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[string]any, workloadCloudRelationshipTally) {
+// anchors stay candidate evidence and are not promoted to graph truth. Each
+// aws_resource fact is decoded through the factschema seam, so a payload missing
+// a required identity field dead-letters (input_invalid); the workload anchor and
+// environment (service-specific fields) are read from the decoded struct's
+// untyped Attributes pass-through.
+func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[string]any, workloadCloudRelationshipTally, []quarantinedFact, error) {
 	tally := newWorkloadCloudRelationshipTally()
 	if len(envelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
 	type edgeKey struct {
@@ -231,13 +254,25 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		environment string
 		cloud       string
 	}
+	var quarantined []quarantinedFact
 	seen := make(map[edgeKey]struct{}, len(envelopes))
 	rows := make([]map[string]any, 0, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
-		workloadIDs := uniqueSortedStrings(payloadStrings(env.Payload, "workload_id", "workload_ids"))
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		workloadIDs := uniqueSortedStrings(payloadStrings(resource.Attributes, "workload_id", "workload_ids"))
 		switch len(workloadIDs) {
 		case 0:
 			tally.skipped[workloadCloudRelationshipSkipMissingWorkloadAnchor]++
@@ -248,12 +283,16 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			continue
 		}
 
-		_, cloudUID, ok := cloudResourceNodeRow(env)
+		// Reuse the already-decoded resource to derive the uid rather than calling
+		// cloudResourceNodeRow(env), which would decode the same envelope a second
+		// time on this hot path. cloudResourceUIDForResource shares the exact
+		// identity rules cloudResourceNodeRow uses.
+		cloudUID, ok := cloudResourceUIDForResource(resource)
 		if !ok {
 			tally.skipped[workloadCloudRelationshipSkipMissingResource]++
 			continue
 		}
-		environment := payloadString(env.Payload, "environment")
+		environment := payloadString(resource.Attributes, "environment")
 		if environment == "" {
 			tally.skipped[workloadCloudRelationshipSkipMissingEnvironment]++
 			continue
@@ -263,7 +302,7 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			continue
 		}
 		seen[key] = struct{}{}
-		anchor := cloudResourceServiceAnchorDecisionForPayload(env.Payload)
+		anchor := cloudResourceServiceAnchorDecisionForPayload(resource.Attributes, resource.ResourceType)
 		rows = append(rows, map[string]any{
 			"workload_id":           workloadIDs[0],
 			"cloud_resource_uid":    cloudUID,
@@ -281,12 +320,12 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		})
 	}
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 	sort.Slice(rows, func(a, b int) bool {
 		left := anyToString(rows[a]["workload_id"]) + "@" + anyToString(rows[a]["environment"]) + "->" + anyToString(rows[a]["cloud_resource_uid"])
 		right := anyToString(rows[b]["workload_id"]) + "@" + anyToString(rows[b]["environment"]) + "->" + anyToString(rows[b]["cloud_resource_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
 }

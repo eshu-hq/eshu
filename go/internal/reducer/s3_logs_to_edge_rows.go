@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // s3LogsToResourceTypeBucket is the aws_resource resource_type the S3 scanner
@@ -100,30 +101,40 @@ type s3BucketJoinIndex struct {
 // buildS3BucketJoinIndex builds the bounded in-memory index from the scope
 // generation's aws_resource fact envelopes, keeping only aws_s3_bucket
 // resources and keying each by its bucket name.
-func buildS3BucketJoinIndex(envelopes []facts.Envelope) s3BucketJoinIndex {
+func buildS3BucketJoinIndex(envelopes []facts.Envelope) (s3BucketJoinIndex, []quarantinedFact, error) {
 	index := s3BucketJoinIndex{byName: make(map[string]string, len(envelopes))}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		if payloadString(env.Payload, "resource_type") != s3LogsToResourceTypeBucket {
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return s3BucketJoinIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
 			continue
 		}
-		accountID := payloadString(env.Payload, "account_id")
-		region := payloadString(env.Payload, "region")
-		resourceID := payloadString(env.Payload, "resource_id")
-		arn := payloadString(env.Payload, "arn")
+		if resource.ResourceType != s3LogsToResourceTypeBucket {
+			continue
+		}
+		arn := derefString(resource.ARN)
+		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
 		}
 		if resourceID == "" {
 			continue
 		}
-		name := s3BucketName(env)
+		name := s3BucketName(resource)
 		if name == "" {
 			continue
 		}
-		uid := cloudResourceUID(accountID, region, s3LogsToResourceTypeBucket, resourceID)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, s3LogsToResourceTypeBucket, resourceID)
 		// First writer wins on collision so a later duplicate cannot re-point a
 		// name to a different node. S3 names are globally unique, so a collision
 		// means duplicate facts for the same bucket.
@@ -131,7 +142,7 @@ func buildS3BucketJoinIndex(envelopes []facts.Envelope) s3BucketJoinIndex {
 			index.byName[name] = uid
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 // resolve looks up a bucket name and returns the scanned node uid on an exact
@@ -141,22 +152,26 @@ func (i s3BucketJoinIndex) resolve(name string) (string, bool) {
 	return uid, ok
 }
 
-// s3BucketName derives the bucket name from an aws_resource S3 bucket fact: the
-// node's name field first, then the tail of its arn:aws:s3:::<name> ARN, then
-// the s3:// correlation anchor. Returning the canonical name lets the by-name
-// index match a bare logging_target_bucket value.
-func s3BucketName(env facts.Envelope) string {
-	if name := strings.TrimSpace(payloadString(env.Payload, "name")); name != "" {
+// s3BucketName derives the bucket name from a decoded aws_resource S3 bucket
+// struct: the node's Name field first, then the tail of its arn:aws:s3:::<name>
+// ARN (or ResourceID), then the s3:// correlation anchor. Returning the
+// canonical name lets the by-name index match a bare logging_target_bucket
+// value. It reads only the typed struct, never the raw envelope payload.
+func s3BucketName(resource awsv1.Resource) string {
+	if name := strings.TrimSpace(derefString(resource.Name)); name != "" {
 		return name
 	}
-	if name := s3BucketNameFromARN(payloadString(env.Payload, "arn")); name != "" {
+	if name := s3BucketNameFromARN(derefString(resource.ARN)); name != "" {
 		return name
 	}
-	if name := s3BucketNameFromARN(payloadString(env.Payload, "resource_id")); name != "" {
+	if name := s3BucketNameFromARN(resource.ResourceID); name != "" {
 		return name
 	}
-	for _, anchor := range payloadStrings(env.Payload, "", "correlation_anchors") {
-		anchor = strings.TrimSpace(anchor)
+	// uniqueSortedStrings preserves the pre-typing byte-identical result: the old
+	// payloadStrings(env.Payload, "", "correlation_anchors") sorted the anchors,
+	// so when a bucket carries more than one s3:// anchor the first match is
+	// deterministic by sort order, not raw emit order.
+	for _, anchor := range uniqueSortedStrings(resource.CorrelationAnchors) {
 		if strings.HasPrefix(anchor, "s3://") {
 			if name := strings.TrimSpace(strings.TrimPrefix(anchor, "s3://")); name != "" {
 				return name
@@ -198,13 +213,16 @@ func s3BucketNameFromARN(arn string) string {
 func ExtractS3LogsToEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, s3LogsToEdgeTally) {
+) ([]map[string]any, s3LogsToEdgeTally, []quarantinedFact, error) {
 	tally := newS3LogsToEdgeTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	index := buildS3BucketJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
 
 	type edgeKey struct {
 		source string
@@ -218,13 +236,25 @@ func ExtractS3LogsToEdgeRows(
 			continue
 		}
 
-		target := strings.TrimSpace(payloadString(env.Payload, "logging_target_bucket"))
+		posture, err := decodeS3BucketPosture(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+
+		target := strings.TrimSpace(derefString(posture.LoggingTargetBucket))
 		if target == "" {
 			// Logging disabled — the normal no-edge state, not a skip-error.
 			continue
 		}
 
-		sourceName := s3PostureBucketName(env)
+		sourceName := s3PostureBucketName(posture)
 		sourceUID, sourceOK := index.resolve(sourceName)
 		if !sourceOK {
 			// The bucket emitting the posture fact did not scan as a node, so the
@@ -257,7 +287,7 @@ func ExtractS3LogsToEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -265,16 +295,17 @@ func ExtractS3LogsToEdgeRows(
 		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
 }
 
-// s3PostureBucketName derives the source bucket name from an s3_bucket_posture
-// fact: the bucket_name field first, then the tail of its bucket_arn. The
-// posture fact always carries at least one of these by construction
-// (NewS3BucketPostureEnvelope requires bucket_arn or bucket_name).
-func s3PostureBucketName(env facts.Envelope) string {
-	if name := strings.TrimSpace(payloadString(env.Payload, "bucket_name")); name != "" {
+// s3PostureBucketName derives the source bucket name from a decoded
+// s3_bucket_posture struct: the BucketName field first, then the tail of its
+// BucketArn. The posture fact always carries at least one of these by
+// construction (NewS3BucketPostureEnvelope requires bucket_arn or bucket_name),
+// which is why both are optional either-or fields on the struct.
+func s3PostureBucketName(posture awsv1.S3BucketPosture) string {
+	if name := strings.TrimSpace(derefString(posture.BucketName)); name != "" {
 		return name
 	}
-	return s3BucketNameFromARN(payloadString(env.Payload, "bucket_arn"))
+	return s3BucketNameFromARN(derefString(posture.BucketARN))
 }

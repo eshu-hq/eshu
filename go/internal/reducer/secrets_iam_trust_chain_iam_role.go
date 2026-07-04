@@ -33,14 +33,21 @@ const iamRoleCloudResourceType = "aws_iam_role"
 // #1314 §5.1). It does not parse account/region out of the ARN string: the
 // canonical uid uses the collector boundary values, and a parsed region could
 // diverge from the boundary's region literal and fabricate a non-matching uid.
-func secretsIAMRoleCloudResourceUID(roleARN string, principals []facts.Envelope) string {
+//
+// The aws_iam_principal facts were decoded through the factschema seam at index
+// build time (buildSecretsIAMIndex), where a malformed principal (a missing
+// required identity field: account_id, region, principal_arn, principal_type)
+// was quarantined as a per-fact input_invalid dead-letter and never entered the
+// index. So the principals this function sees are already valid: it reads the
+// pre-decoded typed payload and cannot fail. A principal that decoded but omits
+// account_id or region leaves the uid blank and the edge stays skipped+counted
+// (ADR #1314 §5.1) — the same fall-through the pre-typing code used.
+func secretsIAMRoleCloudResourceUID(roleARN string, principals []secretsIAMPrincipal) string {
 	for _, principal := range principals {
-		accountID := payloadString(principal.Payload, "account_id")
-		region := payloadString(principal.Payload, "region")
-		if accountID == "" || region == "" {
+		if principal.decoded.AccountID == "" || principal.decoded.Region == "" {
 			continue
 		}
-		return cloudResourceUID(accountID, region, iamRoleCloudResourceType, roleARN)
+		return cloudResourceUID(principal.decoded.AccountID, principal.decoded.Region, iamRoleCloudResourceType, roleARN)
 	}
 	return ""
 }

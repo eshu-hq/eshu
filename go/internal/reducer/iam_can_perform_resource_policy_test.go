@@ -81,7 +81,10 @@ func TestIAMCanPerformResourcePolicyExactPrincipalEmitsEdge(t *testing.T) {
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	edge := canPerformEdgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))
 	if edge == nil {
 		t.Fatalf("expected resource-policy CAN_PERFORM edge; rows=%v tally=%+v", result.Edges, result.Tally)
@@ -120,7 +123,10 @@ func TestIAMCanPerformPublicResourcePolicyPrincipalIsSkipped(t *testing.T) {
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("public resource-policy principal must not create CAN_PERFORM; got %v", result.Edges)
 	}
@@ -143,7 +149,10 @@ func TestIAMCanPerformResourcePolicyDenyBlocksAllow(t *testing.T) {
 		canPerformResourcePolicyEnvelope(canPerformBucketARN, iamCanPerformResourceTypeS3Bucket, "Deny", []string{"s3:getobject"}, []string{attackerUserARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("resource-policy Deny must block the grant; got %v", result.Edges)
 	}
@@ -172,7 +181,10 @@ func TestIAMCanPerformResourcePolicyConditionedStatementIsSkipped(t *testing.T) 
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("conditioned resource-policy grant must not become an edge; got %v", result.Edges)
 	}
@@ -201,7 +213,10 @@ func TestIAMCanPerformResourcePolicyNotResourceStatementIsSkipped(t *testing.T) 
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("NotResource resource-policy grant must not become an edge; got %v", result.Edges)
 	}
@@ -231,7 +246,10 @@ func TestIAMCanPerformResourcePolicyWrongResourcePatternIsUnresolved(t *testing.
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("resource policy naming a different resource must not create edge; got %v", result.Edges)
 	}
@@ -261,7 +279,10 @@ func TestIAMCanPerformResourcePolicyObjectPatternTargetsAttachedBucket(t *testin
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	edge := canPerformEdgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))
 	if edge == nil {
 		t.Fatalf("object-prefix bucket policy must resolve to the attached bucket; rows=%v tally=%+v", result.Edges, result.Tally)
@@ -292,7 +313,10 @@ func TestIAMCanPerformResourcePolicyKMSWildcardResourceTargetsAttachedKey(t *tes
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	edge := canPerformEdgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeKMSKey, canPerformKMSKeyARN))
 	if edge == nil {
 		t.Fatalf("KMS wildcard resource must resolve to the attached key; rows=%v tally=%+v", result.Edges, result.Tally)
@@ -322,7 +346,10 @@ func TestIAMCanPerformResourcePolicyServiceWildcardOnlyEvaluatesAttachedType(t *
 		),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, nil, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 1 {
 		t.Fatalf("s3:* resource policy should produce one bucket edge, got %v", result.Edges)
 	}
@@ -348,8 +375,12 @@ func TestIAMCanPerformResourcePolicyUsesProvidedCatalog(t *testing.T) {
 	edges := make(map[edgeKey]*iamCanPerformEdgeAccumulator)
 	var tally iamCanPerformTally
 
-	addIAMCanPerformResourcePolicyEdges(
-		buildCloudResourceJoinIndex(resources),
+	index, _, err := buildCloudResourceJoinIndex(resources)
+	if err != nil {
+		t.Fatalf("buildCloudResourceJoinIndex() error = %v, want nil", err)
+	}
+	if _, err := addIAMCanPerformResourcePolicyEdges(
+		index,
 		[]facts.Envelope{
 			canPerformResourcePolicyEnvelope(
 				canPerformBucketARN,
@@ -362,7 +393,9 @@ func TestIAMCanPerformResourcePolicyUsesProvidedCatalog(t *testing.T) {
 		catalog,
 		edges,
 		&tally,
-	)
+	); err != nil {
+		t.Fatalf("addIAMCanPerformResourcePolicyEdges() error = %v, want nil", err)
+	}
 	rows := buildIAMCanPerformEdgeRows(edges, make(map[string]int))
 
 	edge := canPerformEdgeFor(rows, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))
@@ -394,7 +427,10 @@ func TestIAMCanPerformIdentityAndResourcePolicySourcesMerge(t *testing.T) {
 		canPerformResourcePolicyEnvelope(canPerformBucketARN, iamCanPerformResourceTypeS3Bucket, "Allow", []string{"s3:getobject"}, []string{attackerUserARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms, resourcePolicies)
+	result, err := ExtractIAMCanPerformEdges(resources, perms, resourcePolicies)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	edge := canPerformEdgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))
 	if edge == nil {
 		t.Fatalf("expected merged identity/resource-policy edge; rows=%v tally=%+v", result.Edges, result.Tally)

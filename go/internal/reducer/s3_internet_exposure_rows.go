@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 const (
@@ -69,18 +70,27 @@ type s3InternetExposureDecision struct {
 func ExtractS3InternetExposureRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, s3InternetExposureTally) {
+) ([]map[string]any, s3InternetExposureTally, []quarantinedFact, error) {
 	tally := newS3InternetExposureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	index := buildS3BucketJoinIndex(resourceEnvelopes)
-	postures := sortedS3InternetExposurePostures(postureEnvelopes)
+	var quarantined []quarantinedFact
+	index, indexQuarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
+	quarantined = append(quarantined, indexQuarantined...)
+	postures, postureQuarantined, err := sortedS3InternetExposurePostures(postureEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
+	quarantined = append(quarantined, postureQuarantined...)
 	seen := make(map[string]struct{}, len(postures))
 	rows := make([]map[string]any, 0, len(postures))
-	for _, env := range postures {
-		sourceUID, ok := index.resolve(s3PostureBucketName(env))
+	for _, item := range postures {
+		sourceUID, ok := index.resolve(s3PostureBucketName(item.posture))
 		if !ok {
 			tally.skipped[s3InternetExposureSkipSourceUnresolved]++
 			continue
@@ -90,7 +100,7 @@ func ExtractS3InternetExposureRows(
 		}
 		seen[sourceUID] = struct{}{}
 
-		decision := deriveS3InternetExposureDecision(env.Payload)
+		decision := deriveS3InternetExposureDecision(item.posture)
 		tally.decisions[decision.state]++
 		tally.decisionReasons[s3InternetExposureDecisionKey{
 			outcome: decision.state,
@@ -102,53 +112,73 @@ func ExtractS3InternetExposureRows(
 			"state":            decision.state,
 			"internet_exposed": decision.internetExposed,
 			"reason":           decision.reason,
-			"source_fact_id":   env.FactID,
+			"source_fact_id":   item.env.FactID,
 		})
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		return anyToString(rows[i]["uid"]) < anyToString(rows[j]["uid"])
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
 }
 
-func sortedS3InternetExposurePostures(envelopes []facts.Envelope) []facts.Envelope {
-	postures := make([]facts.Envelope, 0, len(envelopes))
+// s3InternetExposurePosture pairs a decoded s3_bucket_posture struct with its
+// envelope so the extractor keeps the provenance scalars while reading posture
+// fields from the typed struct.
+type s3InternetExposurePosture struct {
+	env     facts.Envelope
+	posture awsv1.S3BucketPosture
+}
+
+func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetExposurePosture, []quarantinedFact, error) {
+	postures := make([]s3InternetExposurePosture, 0, len(envelopes))
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.S3BucketPostureFactKind {
 			continue
 		}
-		postures = append(postures, env)
+		posture, err := decodeS3BucketPosture(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		postures = append(postures, s3InternetExposurePosture{env: env, posture: posture})
 	}
 	sort.SliceStable(postures, func(i, j int) bool {
-		leftName := s3PostureBucketName(postures[i])
-		rightName := s3PostureBucketName(postures[j])
+		leftName := s3PostureBucketName(postures[i].posture)
+		rightName := s3PostureBucketName(postures[j].posture)
 		if leftName != rightName {
 			return leftName < rightName
 		}
-		return postures[i].FactID < postures[j].FactID
+		return postures[i].env.FactID < postures[j].env.FactID
 	})
-	return postures
+	return postures, quarantined, nil
 }
 
-func deriveS3InternetExposureDecision(payload map[string]any) s3InternetExposureDecision {
-	policyPublic := payloadBoolPointer(payload, "policy_grants_public")
+func deriveS3InternetExposureDecision(posture awsv1.S3BucketPosture) s3InternetExposureDecision {
+	policyPublic := posture.PolicyGrantsPublic
 	if policyPublic != nil && *policyPublic {
-		return deriveS3PublicPolicyDecision(payload)
+		return deriveS3PublicPolicyDecision(posture)
 	}
-	if policyPublic == nil && payloadBool(payload, "policy_present") {
+	if policyPublic == nil && boolPtrValue(posture.PolicyPresent) {
 		return s3InternetExposureDecision{
 			state:           s3InternetExposureStateUnknown,
 			internetExposed: nil,
 			reason:          s3InternetExposureReasonPolicyPublicGrantUnknown,
 		}
 	}
-	if aclPublicAccessBlocked(payload) {
+	if aclPublicAccessBlocked(posture) {
 		reason := s3InternetExposureReasonNoPublicPolicyGrant
-		if policyPresent := payloadBoolPointer(payload, "policy_present"); policyPresent != nil && !*policyPresent {
+		if policyPresent := posture.PolicyPresent; policyPresent != nil && !*policyPresent {
 			reason = s3InternetExposureReasonNoPolicyACLPublicAccessBlocked
 		}
 		return s3InternetExposureDecision{
@@ -164,15 +194,15 @@ func deriveS3InternetExposureDecision(payload map[string]any) s3InternetExposure
 	}
 }
 
-func deriveS3PublicPolicyDecision(payload map[string]any) s3InternetExposureDecision {
-	if allBPAEnabled(payload) {
+func deriveS3PublicPolicyDecision(posture awsv1.S3BucketPosture) s3InternetExposureDecision {
+	if allBPAEnabled(posture) {
 		return s3InternetExposureDecision{
 			state:           s3InternetExposureStateNotExposed,
 			internetExposed: false,
 			reason:          s3InternetExposureReasonPublicPolicyRestrictedByBPA,
 		}
 	}
-	restrictPublicBuckets := payloadBoolPointer(payload, "restrict_public_buckets")
+	restrictPublicBuckets := posture.RestrictPublicBuckets
 	if restrictPublicBuckets == nil {
 		return s3InternetExposureDecision{
 			state:           s3InternetExposureStateUnknown,
@@ -194,11 +224,18 @@ func deriveS3PublicPolicyDecision(payload map[string]any) s3InternetExposureDeci
 	}
 }
 
-func allBPAEnabled(payload map[string]any) bool {
-	return payloadBool(payload, "block_public_access_all")
+func allBPAEnabled(posture awsv1.S3BucketPosture) bool {
+	return boolPtrValue(posture.BlockPublicAccessAll)
 }
 
-func aclPublicAccessBlocked(payload map[string]any) bool {
-	return payloadBool(payload, "block_public_access_all") ||
-		payloadBool(payload, "ignore_public_acls")
+func aclPublicAccessBlocked(posture awsv1.S3BucketPosture) bool {
+	return boolPtrValue(posture.BlockPublicAccessAll) ||
+		boolPtrValue(posture.IgnorePublicACLs)
+}
+
+// boolPtrValue returns the pointed-to bool, or false when the pointer is nil,
+// matching the pre-typing payloadBool default so a posture flag that was absent
+// (nil) reads as false exactly as it did before typing.
+func boolPtrValue(value *bool) bool {
+	return value != nil && *value
 }

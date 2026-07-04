@@ -124,7 +124,18 @@ func (h EC2BlockDeviceKMSPostureMaterializationHandler) Handle(
 
 	resourceEnvelopes, relationshipEnvelopes, postureEnvelopes := splitEC2BlockDeviceKMSPostureEnvelopes(envelopes)
 	extractStart := time.Now()
-	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resourceEnvelopes, relationshipEnvelopes, postureEnvelopes)
+	rows, tally, quarantined, err := ExtractEC2BlockDeviceKMSPostureRows(resourceEnvelopes, relationshipEnvelopes, postureEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource/aws_relationship/
+	// ec2_instance_posture fact (a missing required identity field) is
+	// quarantined as a visible input_invalid dead-letter — counter + structured
+	// error log — while the batch's valid facts still project below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainEC2BlockDeviceKMSPostureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -183,12 +194,14 @@ func (h EC2BlockDeviceKMSPostureMaterializationHandler) Handle(
 		Domain:   DomainEC2BlockDeviceKMSPostureMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d EC2 block-device KMS posture row(s) from %d posture fact(s); %d posture fact(s) skipped",
+			"materialized %d EC2 block-device KMS posture row(s) from %d posture fact(s); %d posture fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(postureEnvelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

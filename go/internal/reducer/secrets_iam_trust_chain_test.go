@@ -41,6 +41,8 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *te
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
+			"account_id":     "123456789012",
+			"region":         "us-east-1",
 		}),
 		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":                          "aws_iam",
@@ -74,7 +76,10 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *te
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	if got, want := len(models.IdentityTrustChains), 1; got != want {
 		t.Fatalf("IdentityTrustChains len = %d, want %d: %#v", got, want, models.IdentityTrustChains)
 	}
@@ -119,7 +124,10 @@ func TestBuildSecretsIAMTrustChainReadModelsRejectsNameCoincidence(t *testing.T)
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	for _, chain := range models.IdentityTrustChains {
 		if chain.State == SecretsIAMTrustChainStateExact {
 			t.Fatalf("unexpected exact chain from unrelated service accounts: %#v", chain)
@@ -144,7 +152,10 @@ func TestBuildSecretsIAMTrustChainReadModelsKeepsWildcardTrustAsPostureEvidence(
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	if got := len(models.IdentityTrustChains); got != 0 {
 		t.Fatalf("IdentityTrustChains len = %d, want 0 for wildcard-only trust", got)
 	}
@@ -170,7 +181,10 @@ func TestBuildSecretsIAMTrustChainReadModelsIgnoresDenyWildcardTrustPosture(t *t
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	if got := len(models.PrivilegePostureObservations); got != 0 {
 		t.Fatalf("PrivilegePostureObservations len = %d, want 0 for Deny-only wildcard trust", got)
 	}
@@ -200,6 +214,8 @@ func TestBuildSecretsIAMTrustChainReadModelsRejectsWildcardVaultSelector(t *test
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
+			"account_id":     "123456789012",
+			"region":         "us-east-1",
 		}),
 		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":          "aws_iam",
@@ -217,7 +233,10 @@ func TestBuildSecretsIAMTrustChainReadModelsRejectsWildcardVaultSelector(t *test
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	if got := len(models.IdentityTrustChains); got != 0 {
 		t.Fatalf("IdentityTrustChains len = %d, want 0 for wildcard Vault selector", got)
 	}
@@ -252,6 +271,8 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactEKSPodIdentity(t *testing
 			"provider":       "aws_iam",
 			"principal_arn":  roleARN,
 			"principal_type": "aws_iam_role",
+			"account_id":     "123456789012",
+			"region":         "us-east-1",
 		}),
 		secretsIAMReducerFact("trust", facts.AWSIAMTrustPolicyFactKind, "aws-scope", "aws-gen", map[string]any{
 			"provider":          "aws_iam",
@@ -269,7 +290,10 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactEKSPodIdentity(t *testing
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	if got, want := len(models.IdentityTrustChains), 1; got != want {
 		t.Fatalf("IdentityTrustChains len = %d, want %d: %#v", got, want, models.IdentityTrustChains)
 	}
@@ -294,7 +318,10 @@ func TestBuildSecretsIAMTrustChainReadModelsEmitsStaleGenerationGap(t *testing.T
 		}),
 	}
 
-	models := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	gap := secretsIAMPostureGapByType(t, models, "stale_generation")
 	if got, want := gap.State, SecretsIAMTrustChainStateStale; got != want {
 		t.Fatalf("gap.State = %q, want %q", got, want)

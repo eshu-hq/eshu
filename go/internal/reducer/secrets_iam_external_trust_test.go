@@ -162,12 +162,15 @@ func TestExternalTrustMatchesAssumeRoleWildcardActions(t *testing.T) {
 func TestExternalTrustIntegratesIntoReadModels(t *testing.T) {
 	t.Parallel()
 
-	models := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		trustPolicyEnvelope("f-int", map[string]any{
 			"effect": "Allow", "actions": []string{"sts:AssumeRole"},
 			"assume_principals": []string{"*"}, "condition_keys": []string{},
 		}),
 	})
+	if err != nil {
+		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
+	}
 	var found bool
 	for _, obs := range models.PrivilegePostureObservations {
 		if obs.RiskType == secretsIAMExternalTrustRiskType {

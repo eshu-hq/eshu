@@ -106,7 +106,18 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 	resourceEnvelopes, ruleEnvelopes := splitSecurityGroupReachabilityEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	reach := ExtractSecurityGroupReachability(resourceEnvelopes, ruleEnvelopes)
+	reach, err := ExtractSecurityGroupReachability(resourceEnvelopes, ruleEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource/aws_security_group_rule fact
+	// (a missing required identity field) is quarantined as a visible
+	// input_invalid dead-letter — counter + structured error log — while the
+	// batch's valid facts still project below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityGroupRuleMaterialization, intent.ScopeID, intent.GenerationID, reach.Quarantined)
 	extractDuration := time.Since(extractStart)
 
 	writeStart := time.Now()
@@ -159,11 +170,13 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 		Domain:   DomainSecurityGroupRuleMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d security group rule node(s) from %d rule fact(s)",
+			"materialized %d security group rule node(s) from %d rule fact(s); %d input_invalid fact(s) quarantined",
 			len(reach.RuleNodes),
 			len(ruleEnvelopes),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(reach.RuleNodes),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

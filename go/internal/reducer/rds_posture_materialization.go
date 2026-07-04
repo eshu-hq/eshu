@@ -69,6 +69,11 @@ type RDSPostureMaterializationHandler struct {
 	// Nil keeps retract behavior conservative.
 	PriorGenerationCheck PriorGenerationCheck
 	Tracer               trace.Tracer
+	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
+	// when an aws_resource join fact is quarantined as input_invalid during the
+	// posture resource index build. Optional: a nil pointer skips the counter
+	// (the structured per-fact error log still emits).
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one RDS posture materialization intent.
@@ -125,7 +130,17 @@ func (h RDSPostureMaterializationHandler) Handle(
 	resourceEnvelopes, postureEnvelopes := splitRDSPostureEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally := ExtractRDSPostureRows(resourceEnvelopes, postureEnvelopes)
+	rows, tally, quarantined, err := ExtractRDSPostureRows(resourceEnvelopes, postureEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource join fact (a missing required
+	// identity field) is quarantined as a visible input_invalid dead-letter —
+	// counter + structured error log — while valid posture still materializes.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainRDSPostureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -180,12 +195,14 @@ func (h RDSPostureMaterializationHandler) Handle(
 		Domain:   DomainRDSPostureMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d rds posture node update(s) from %d posture fact(s); %d posture fact(s) skipped",
+			"materialized %d rds posture node update(s) from %d posture fact(s); %d posture fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(postureEnvelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

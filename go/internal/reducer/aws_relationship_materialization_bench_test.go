@@ -58,7 +58,10 @@ func BenchmarkExtractAWSRelationshipEdgeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows, _ := ExtractAWSRelationshipEdgeRows(resources, relationships)
+		rows, _, _, err := ExtractAWSRelationshipEdgeRows(resources, relationships)
+		if err != nil {
+			b.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+		}
 		if len(rows) != resourceCount {
 			b.Fatalf("len(rows) = %d, want %d", len(rows), resourceCount)
 		}
@@ -74,7 +77,10 @@ func BenchmarkBuildCloudResourceJoinIndex(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		index := buildCloudResourceJoinIndex(resources)
+		index, _, err := buildCloudResourceJoinIndex(resources)
+		if err != nil {
+			b.Fatalf("buildCloudResourceJoinIndex() error = %v, want nil", err)
+		}
 		if len(index.byARN) != resourceCount*2 {
 			b.Fatalf("len(byARN) = %d, want %d", len(index.byARN), resourceCount*2)
 		}

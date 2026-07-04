@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -103,7 +104,10 @@ func TestAWSResourceMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractCloudResourceNodeRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if rows := ExtractCloudResourceNodeRows(nil); rows != nil {
+	if rows, _, err := ExtractCloudResourceNodeRows(nil); rows != nil {
+		if err != nil {
+			t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+		}
 		t.Fatalf("rows = %v, want nil", rows)
 	}
 }
@@ -113,19 +117,28 @@ func TestExtractCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		awsResourceEnvelope(map[string]any{
-			"account_id":          "111122223333",
-			"region":              "us-east-1",
-			"resource_type":       "aws_iam_role",
-			"resource_id":         "arn:aws:iam::111122223333:role/app",
-			"arn":                 "arn:aws:iam::111122223333:role/app",
-			"name":                "app",
-			"state":               "active",
-			"service_kind":        "iam",
-			"correlation_anchors": []any{"app", "arn:aws:iam::111122223333:role/app"},
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_iam_role",
+			"resource_id":   "arn:aws:iam::111122223333:role/app",
+			"arn":           "arn:aws:iam::111122223333:role/app",
+			"name":          "app",
+			"state":         "active",
+			"service_kind":  "iam",
+			// UNSORTED, DUPLICATE, whitespace-padded, multi-element anchors: the
+			// exact input that would produce a DIFFERENT projected value if the
+			// uniqueSortedStrings normalization were dropped. The pre-typing
+			// payloadStrings read trimmed, deduplicated, and sorted; the typed
+			// decode returns the raw []string, so the reducer must re-apply that
+			// normalization. This locks the byte-identity fix.
+			"correlation_anchors": []any{"s3://bravo", "s3://alpha", "s3://alpha", " s3://charlie "},
 		}),
 	}
 
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -144,8 +157,12 @@ func TestExtractCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 	if !ok {
 		t.Fatalf("correlation_anchors type = %T, want []string", rows[0]["correlation_anchors"])
 	}
-	if len(anchors) != 2 {
-		t.Fatalf("correlation_anchors = %v, want 2 entries", anchors)
+	// EXACT sorted-deduped-trimmed output: duplicate "s3://alpha" collapsed,
+	// " s3://charlie " trimmed, all three sorted. Fails if uniqueSortedStrings
+	// is removed from the projection site.
+	wantAnchors := []string{"s3://alpha", "s3://bravo", "s3://charlie"}
+	if !reflect.DeepEqual(anchors, wantAnchors) {
+		t.Fatalf("correlation_anchors = %#v, want %#v (sort/dedup/trim must be applied)", anchors, wantAnchors)
 	}
 }
 
@@ -162,35 +179,15 @@ func TestExtractCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 		}),
 	}
 
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (relationship facts must be skipped)", len(rows))
 	}
 	if got := anyToString(rows[0]["resource_id"]); got != "vpc-123" {
 		t.Fatalf("resource_id = %q, want vpc-123", got)
-	}
-}
-
-func TestExtractCloudResourceNodeRowsRequiresIdentity(t *testing.T) {
-	t.Parallel()
-
-	envelopes := []facts.Envelope{
-		// Missing resource_id and arn.
-		awsResourceEnvelope(map[string]any{
-			"account_id":    "111122223333",
-			"region":        "us-east-1",
-			"resource_type": "aws_ec2_vpc",
-		}),
-		// Missing resource_type.
-		awsResourceEnvelope(map[string]any{
-			"account_id":  "111122223333",
-			"region":      "us-east-1",
-			"resource_id": "vpc-123",
-		}),
-	}
-
-	if rows := ExtractCloudResourceNodeRows(envelopes); len(rows) != 0 {
-		t.Fatalf("len(rows) = %d, want 0 for incomplete identity", len(rows))
 	}
 }
 
@@ -209,7 +206,10 @@ func TestExtractCloudResourceNodeRowsDeduplicatesByUID(t *testing.T) {
 		awsResourceEnvelope(payload),
 	}
 
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (duplicate facts must converge on one node)", len(rows))
 	}
@@ -343,6 +343,71 @@ func TestAWSResourceMaterializationHandlePublishesCanonicalNodesCommittedPhase(t
 	}
 	if got, want := rows[0].Key.GenerationID, "gen-1"; got != want {
 		t.Fatalf("generation = %q, want %q", got, want)
+	}
+}
+
+// TestAWSResourceMaterializationPublishesPhaseOnPoisonedGeneration proves the
+// downstream-completion guarantee of per-fact isolation: a generation that
+// contains a malformed aws_resource fact still publishes the
+// CanonicalNodesCommitted readiness phase, so every downstream AWS edge domain
+// that gates on it (relationship/EC2/S3/IAM materialization) is unblocked. Under
+// the old batch-abort behavior the malformed fact would fail the handler, the
+// phase would never publish, and every downstream domain would block forever on
+// that generation. The valid fact in the batch still materializes its node.
+func TestAWSResourceMaterializationPublishesPhaseOnPoisonedGeneration(t *testing.T) {
+	t.Parallel()
+
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	writer := &recordingCloudResourceNodeWriter{}
+	loader := &stubFactLoader{envelopes: []facts.Envelope{
+		// Malformed: account_id absent → quarantined, produces no node.
+		awsResourceEnvelope(map[string]any{
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-poison",
+		}),
+		// Valid: must still materialize.
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-good",
+		}),
+	}}
+	handler := AWSResourceMaterializationHandler{
+		FactLoader:     loader,
+		NodeWriter:     writer,
+		PhasePublisher: publisher,
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-poison",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-poison",
+		Domain:       DomainAWSResourceMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Handle returned error %v; a poisoned generation must still Ack so downstream is unblocked", err)
+	}
+
+	// The readiness phase MUST publish despite the quarantined fact.
+	if len(publisher.calls) != 1 {
+		t.Fatalf("publisher.calls = %d, want 1; the readiness phase must publish on a poisoned generation to unblock downstream", len(publisher.calls))
+	}
+	if got := publisher.calls[0][0].Phase; got != GraphProjectionPhaseCanonicalNodesCommitted {
+		t.Fatalf("published phase = %q, want %q", got, GraphProjectionPhaseCanonicalNodesCommitted)
+	}
+
+	// The valid fact still materialized exactly one node; the malformed one did not.
+	if writer.calls != 1 || len(writer.rows) != 1 {
+		t.Fatalf("node writer calls=%d rows=%d, want 1 and 1 (only the valid fact materializes)", writer.calls, len(writer.rows))
+	}
+
+	// The quarantine is visible on the per-intent signal.
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 1", got)
 	}
 }
 

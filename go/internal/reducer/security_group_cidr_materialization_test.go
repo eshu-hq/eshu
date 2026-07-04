@@ -135,7 +135,10 @@ func TestSecurityGroupCidrMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractSecurityGroupEndpointRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	cidr, prefix := ExtractSecurityGroupEndpointRows(nil)
+	cidr, prefix, _, err := ExtractSecurityGroupEndpointRows(nil)
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if cidr != nil || prefix != nil {
 		t.Fatalf("cidr=%v prefix=%v, want both nil", cidr, prefix)
 	}
@@ -148,7 +151,10 @@ func TestExtractSecurityGroupEndpointRowsBuildsIPv4CidrNode(t *testing.T) {
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "10.0.0.0/8")),
 	}
 
-	cidr, prefix := ExtractSecurityGroupEndpointRows(envelopes)
+	cidr, prefix, _, err := ExtractSecurityGroupEndpointRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(prefix) != 0 {
 		t.Fatalf("len(prefix) = %d, want 0", len(prefix))
 	}
@@ -179,7 +185,10 @@ func TestExtractSecurityGroupEndpointRowsCanonicalizesHostBits(t *testing.T) {
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "10.0.0.0/8")),
 	}
 
-	cidr, _ := ExtractSecurityGroupEndpointRows(envelopes)
+	cidr, _, _, err := ExtractSecurityGroupEndpointRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 1 {
 		t.Fatalf("len(cidr) = %d, want 1 (host bits must canonicalize to one node)", len(cidr))
 	}
@@ -197,7 +206,10 @@ func TestExtractSecurityGroupEndpointRowsCanonicalizesIPv6Casing(t *testing.T) {
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv6", "2001:db8:0:0::/32")),
 	}
 
-	cidr, _ := ExtractSecurityGroupEndpointRows(envelopes)
+	cidr, _, _, err := ExtractSecurityGroupEndpointRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 1 {
 		t.Fatalf("len(cidr) = %d, want 1 (IPv6 casing must canonicalize)", len(cidr))
 	}
@@ -212,9 +224,12 @@ func TestExtractSecurityGroupEndpointRowsCanonicalizesIPv6Casing(t *testing.T) {
 func TestExtractSecurityGroupEndpointRowsDerivesInternetIPv4(t *testing.T) {
 	t.Parallel()
 
-	cidr, _ := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, _, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "0.0.0.0/0")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 1 {
 		t.Fatalf("len(cidr) = %d, want 1", len(cidr))
 	}
@@ -226,9 +241,12 @@ func TestExtractSecurityGroupEndpointRowsDerivesInternetIPv4(t *testing.T) {
 func TestExtractSecurityGroupEndpointRowsDerivesInternetIPv6(t *testing.T) {
 	t.Parallel()
 
-	cidr, _ := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, _, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv6", "::/0")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 1 {
 		t.Fatalf("len(cidr) = %d, want 1", len(cidr))
 	}
@@ -240,9 +258,12 @@ func TestExtractSecurityGroupEndpointRowsDerivesInternetIPv6(t *testing.T) {
 func TestExtractSecurityGroupEndpointRowsBuildsPrefixListNode(t *testing.T) {
 	t.Parallel()
 
-	cidr, prefix := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, prefix, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		securityGroupRuleEnvelope(sgRulePayload("prefix_list", "pl-123")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 0 {
 		t.Fatalf("len(cidr) = %d, want 0", len(cidr))
 	}
@@ -268,10 +289,13 @@ func TestExtractSecurityGroupEndpointRowsSkipsReferencedGroupAndUnknown(t *testi
 
 	// A referenced security group already has a CloudResource node; this slice
 	// must not materialize it. An unknown source materializes no endpoint node.
-	cidr, prefix := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, prefix, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		securityGroupRuleEnvelope(sgRulePayload("referenced_security_group", "sg-9999")),
 		securityGroupRuleEnvelope(sgRulePayload("unknown", "")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 0 || len(prefix) != 0 {
 		t.Fatalf("cidr=%d prefix=%d, want 0/0 for referenced-group and unknown sources", len(cidr), len(prefix))
 	}
@@ -282,10 +306,13 @@ func TestExtractSecurityGroupEndpointRowsSkipsUnparseableCidr(t *testing.T) {
 
 	// A malformed CIDR cannot be canonicalized into a deterministic identity, so
 	// it materializes no node rather than fabricating one.
-	cidr, _ := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, _, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "10.0.0.0/33")),
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "not-a-cidr")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 0 {
 		t.Fatalf("len(cidr) = %d, want 0 for unparseable CIDRs", len(cidr))
 	}
@@ -294,10 +321,13 @@ func TestExtractSecurityGroupEndpointRowsSkipsUnparseableCidr(t *testing.T) {
 func TestExtractSecurityGroupEndpointRowsSkipsNonRuleFacts(t *testing.T) {
 	t.Parallel()
 
-	cidr, _ := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, _, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{"resource_id": "ignored"}},
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "10.0.0.0/8")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 1 {
 		t.Fatalf("len(cidr) = %d, want 1 (non-rule facts must be skipped)", len(cidr))
 	}
@@ -308,10 +338,13 @@ func TestExtractSecurityGroupEndpointRowsSkipsTombstone(t *testing.T) {
 
 	tombstone := securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "172.16.0.0/12"))
 	tombstone.IsTombstone = true
-	cidr, _ := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, _, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		tombstone,
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "10.0.0.0/8")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 1 {
 		t.Fatalf("len(cidr) = %d, want 1 (a tombstoned rule must not materialize its endpoint)", len(cidr))
 	}
@@ -323,12 +356,15 @@ func TestExtractSecurityGroupEndpointRowsSkipsTombstone(t *testing.T) {
 func TestExtractSecurityGroupEndpointRowsSortedByUID(t *testing.T) {
 	t.Parallel()
 
-	cidr, prefix := ExtractSecurityGroupEndpointRows([]facts.Envelope{
+	cidr, prefix, _, err := ExtractSecurityGroupEndpointRows([]facts.Envelope{
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "192.168.0.0/16")),
 		securityGroupRuleEnvelope(sgRulePayload("cidr_ipv4", "10.0.0.0/8")),
 		securityGroupRuleEnvelope(sgRulePayload("prefix_list", "pl-zzz")),
 		securityGroupRuleEnvelope(sgRulePayload("prefix_list", "pl-aaa")),
 	})
+	if err != nil {
+		t.Fatalf("ExtractSecurityGroupEndpointRows() error = %v, want nil", err)
+	}
 	if len(cidr) != 2 {
 		t.Fatalf("len(cidr) = %d, want 2", len(cidr))
 	}

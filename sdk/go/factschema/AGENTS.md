@@ -39,6 +39,24 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
   `go/internal/facts.Envelope` or `sdk/go/collector.Fact`) here — it is
   documented follow-up work in `README.md` and design §3.1/§7, out of scope
   for this scaffold.
-- One fact kind (`aws.resource`) is intentionally the only kind in this
-  scaffold. Adding a second kind or migrating a real fact family is
-  follow-on epic work, not a change to make in this directory casually.
+- This module now carries the whole AWS/IAM/security-group fact family
+  (`aws_resource`, `aws_relationship`, `aws_security_group_rule`,
+  `ec2_instance_posture`, `s3_bucket_posture`, `aws_iam_permission`,
+  `aws_resource_policy_permission`, `aws_iam_principal`), not a single sample
+  kind. When you add a new kind, add its typed struct under
+  `<family>/v1`, its `Decode<Kind>`/`Encode<Kind>` and `FactKind<Kind>` in the
+  family's `decode_<family>.go`, its `registerRequiredFields` call in that
+  file's `init` (never a central map literal), a schemagen entry, and a
+  `schema/<kind>.v1.schema.json` artifact. `TestRequiredFieldsMatchStructShape`,
+  `TestSchemasHaveNoDrift`, and the reducer-side
+  `TestFactSchemaKindsMatchWireFactKinds` drift lock all fail until the new kind
+  is wired consistently.
+- Fact-kind constant VALUES are the exact wire strings the collector emits and
+  the reducer loads (`go/internal/facts.*FactKind`, underscore-separated). The
+  reducer-side drift-lock test asserts each `FactKind<Kind>` equals its
+  `facts.*FactKind` counterpart, so never invent a namespaced or dotted value.
+- `aws_resource` and `aws_relationship` are polymorphic envelopes: they type
+  their identity + common fields and pass service/verb-specific fields through an
+  untyped `Attributes map[string]any` (custom Marshal/Unmarshal, open-object
+  schema). Fully typed kinds keep a closed schema. Per-resource_type /
+  per-relationship_type attribute typing is deferred follow-up work, not a gap.

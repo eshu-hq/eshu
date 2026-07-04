@@ -46,13 +46,16 @@ func (t rdsPostureTally) totalSkipped() int {
 func ExtractRDSPostureRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, rdsPostureTally) {
+) ([]map[string]any, rdsPostureTally, []quarantinedFact, error) {
 	tally := newRDSPostureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	index := buildRDSPostureResourceIndex(resourceEnvelopes)
+	index, quarantined, err := buildRDSPostureResourceIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
 	byUID := make(map[string]map[string]any, len(postureEnvelopes))
 	for _, env := range postureEnvelopes {
 		if env.FactKind != facts.RDSInstancePostureFactKind {
@@ -73,7 +76,7 @@ func ExtractRDSPostureRows(
 	}
 
 	if len(byUID) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 
 	uids := make([]string, 0, len(byUID))
@@ -87,36 +90,41 @@ func ExtractRDSPostureRows(
 		rows = append(rows, byUID[uid])
 	}
 	tally.updated = len(rows)
-	return rows, tally
+	return rows, tally, quarantined, nil
 }
 
-func buildRDSPostureResourceIndex(envelopes []facts.Envelope) map[string]struct{} {
+func buildRDSPostureResourceIndex(envelopes []facts.Envelope) (map[string]struct{}, []quarantinedFact, error) {
 	index := make(map[string]struct{}, len(envelopes))
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		resourceType := payloadString(env.Payload, "resource_type")
-		if !isRDSPostureResourceType(resourceType) {
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
 			continue
 		}
-		resourceID := payloadString(env.Payload, "resource_id")
-		arn := payloadString(env.Payload, "arn")
+		if !isRDSPostureResourceType(resource.ResourceType) {
+			continue
+		}
+		resourceID := resource.ResourceID
 		if resourceID == "" {
-			resourceID = arn
+			resourceID = derefString(resource.ARN)
 		}
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(
-			payloadString(env.Payload, "account_id"),
-			payloadString(env.Payload, "region"),
-			resourceType,
-			resourceID,
-		)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
 		index[uid] = struct{}{}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 func rdsPostureRow(env facts.Envelope) (map[string]any, string, bool) {

@@ -145,7 +145,19 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	resourceEnvelopes, relationshipEnvelopes := splitAWSFactEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally := ExtractAWSRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	rows, tally, quarantined, err := ExtractAWSRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource/aws_relationship fact (a
+	// missing required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while the batch's valid
+	// facts still materialize below and the readiness phase still publishes, so
+	// one bad fact never stalls the scope generation's graph.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAWSRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -197,12 +209,14 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 		Domain:   DomainAWSRelationshipMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d aws relationship edge(s) from %d relationship fact(s); %d target(s) unresolved",
+			"materialized %d aws relationship edge(s) from %d relationship fact(s); %d target(s) unresolved; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(relationshipEnvelopes),
 			tally.totalUnresolved(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

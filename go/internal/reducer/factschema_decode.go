@@ -1,0 +1,341 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package reducer
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
+)
+
+// factDecodeError wraps a classified *factschema.DecodeError so the reducer's
+// durable-queue failure path treats a malformed payload as a terminal,
+// operator-facing dead letter rather than a retry or a silent zero value.
+//
+// It self-classifies through the same interface the Postgres queue reads
+// (queueFailureMetadata via errors.As): FailureClass returns the DecodeError's
+// classification string — "input_invalid" for a missing/null required field —
+// which is byte-equal to projector.TriageClassInputInvalid and
+// factschema.ClassificationInputInvalid by the by-value contract Contract System
+// v1 mandates (the contracts module cannot import go/internal, so the reducer
+// maps the classification by value). Retryable returns false because a missing
+// required field can never succeed on replay unchanged; the intent must
+// dead-letter, not loop.
+type factDecodeError struct {
+	// factKind is the fact kind that failed to decode, for the error message.
+	factKind string
+	// err is the underlying classified *factschema.DecodeError.
+	err *factschema.DecodeError
+}
+
+// Error implements the error interface, naming the fact kind and the underlying
+// classified decode failure.
+func (e *factDecodeError) Error() string {
+	return fmt.Sprintf("decode %s payload: %s", e.factKind, e.err.Error())
+}
+
+// Unwrap exposes the underlying *factschema.DecodeError so errors.As can reach
+// it (and its ErrUnsupportedSchemaMajor sentinel).
+func (e *factDecodeError) Unwrap() error {
+	return e.err
+}
+
+// Retryable reports that a decode failure is terminal: replaying a fact with a
+// missing or malformed required field can never succeed, so it must not re-enter
+// the durable queue.
+func (e *factDecodeError) Retryable() bool {
+	return false
+}
+
+// FailureClass returns the durable failure_class the dead-letter row carries.
+// It is the DecodeError's own classification value ("input_invalid"), so the
+// reducer maps the contracts-module classification onto the queue's triage class
+// by value without importing go/internal/projector.
+func (e *factDecodeError) FailureClass() string {
+	return e.err.Classification
+}
+
+// newFactDecodeError wraps a decode error returned by a factschema Decode*
+// function into the reducer's self-classifying terminal failure. It expects a
+// *factschema.DecodeError (the only error the Decode* seam returns); if a caller
+// ever passes a different error it is wrapped with the input_invalid
+// classification so the fact still dead-letters rather than being mistaken for a
+// retryable projection bug.
+func newFactDecodeError(factKind string, err error) *factDecodeError {
+	var decodeErr *factschema.DecodeError
+	if errors.As(err, &decodeErr) {
+		return &factDecodeError{factKind: factKind, err: decodeErr}
+	}
+	return &factDecodeError{
+		factKind: factKind,
+		err: &factschema.DecodeError{
+			FactKind:       factKind,
+			Classification: factschema.ClassificationInputInvalid,
+			Err:            err,
+		},
+	}
+}
+
+// quarantinedFact records one fact a batch extractor could not decode because
+// its payload was missing a required field (an input_invalid decode failure).
+// The extractor skips it (still projecting every valid fact in the batch) and
+// returns it so the handler can emit a visible, per-fact dead-letter — a metric
+// increment plus a structured error log naming the fact and field — rather than
+// failing the whole intent or silently dropping the fact.
+type quarantinedFact struct {
+	// factID is the durable fact identifier of the malformed fact, so an
+	// operator can locate the exact fact in fact_records.
+	factID string
+	// factKind is the malformed fact's kind.
+	factKind string
+	// field is the required payload key that was absent or null.
+	field string
+	// classification is the decode classification (always input_invalid for a
+	// quarantined fact; a non-input_invalid error is never quarantined — it is
+	// returned fatally by partitionDecodeFailures).
+	classification string
+}
+
+// partitionDecodeFailures is the single classifier every batch extractor routes
+// a decode error through. It enforces the reducer fault-isolation contract:
+//
+//   - A *factDecodeError with ClassificationInputInvalid (a missing/null
+//     required field) is QUARANTINABLE: it returns a quarantinedFact and true,
+//     so the extractor skips that one fact and keeps projecting the rest. The
+//     fact is non-retryable — replaying it unchanged can never succeed — so
+//     dropping it from the batch and recording it as a visible dead-letter is
+//     correct, not a silent swallow.
+//   - ANY OTHER error (a transient fact-load EOF, a graph-write failure, an
+//     unsupported schema major, a projection bug) is FATAL: it returns
+//     (zero, false, err), so the extractor propagates it and the handler fails
+//     the whole intent through WorkSink.Fail, which triages it correctly
+//     (retry_exhausted / dependency_unavailable / projection_bug / …).
+//
+// Routing every decode error through this ONE helper is what stops a future
+// family-migration copy from inline `if err != nil { skip }` swallowing a
+// transient loader or graph error — the "swallow failures" sin the Life Motto
+// forbids. TestPartitionDecodeFailures locks the boundary.
+func partitionDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bool, error) {
+	var decodeErr *factDecodeError
+	// An unsupported schema major is version skew, not a malformed individual
+	// payload: the contracts module currently labels it input_invalid, but it
+	// must fail the whole work item for durable triage (it can succeed once the
+	// reducer supports the major), never be quarantined and skipped per-fact.
+	// Excluding the sentinel keeps this function matching its documented contract
+	// above, where an unsupported schema major is listed as fatal.
+	if errors.As(err, &decodeErr) &&
+		decodeErr.err.Classification == factschema.ClassificationInputInvalid &&
+		!errors.Is(err, factschema.ErrUnsupportedSchemaMajor) {
+		return quarantinedFact{
+			factID:         env.FactID,
+			factKind:       env.FactKind,
+			field:          decodeErr.err.Field,
+			classification: decodeErr.err.Classification,
+		}, true, nil
+	}
+	return quarantinedFact{}, false, err
+}
+
+// recordQuarantinedFacts emits the visible, operator-diagnosable dead-letter for
+// each fact a batch extractor quarantined during decode: it increments the
+// eshu_dp_reducer_input_invalid_facts_total counter (labeled by domain and
+// fact_kind) and logs one structured error per fact naming the fact id and the
+// missing required field, then returns the count for the handler to record in
+// Result.SubSignals["input_invalid_facts"]. This is the difference from the old
+// silent skip — a quarantined fact is a first-class, dashboard-visible,
+// log-searchable event, not an anonymous counter bump.
+//
+// It is safe to call with a nil instruments pointer (the counter is skipped, the
+// logs still emit) and with an empty slice (a no-op returning 0).
+func recordQuarantinedFacts(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	domain Domain,
+	scopeID, generationID string,
+	quarantined []quarantinedFact,
+) int {
+	for _, q := range quarantined {
+		if instruments != nil && instruments.ReducerInputInvalidFacts != nil {
+			instruments.ReducerInputInvalidFacts.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrDomain(string(domain)),
+				telemetry.AttrFactKind(q.factKind),
+			))
+		}
+		slog.ErrorContext(
+			ctx, "reducer input_invalid fact quarantined",
+			log.Domain(string(domain)),
+			log.ScopeID(scopeID),
+			log.GenerationID(generationID),
+			slog.String("fact_id", q.factID),
+			slog.String("fact_kind", q.factKind),
+			slog.String("missing_field", q.field),
+			slog.String("failure_class", q.classification),
+		)
+	}
+	return len(quarantined)
+}
+
+// inputInvalidSubSignals returns the Result.SubSignals map carrying the count of
+// facts quarantined as input_invalid during this intent, or nil when none were.
+// Returning nil for the zero case keeps the service log line from emitting a
+// noise "input_invalid_facts=0" signal on the overwhelming majority of intents
+// that decode cleanly; a non-zero count is the operator's per-intent flag that
+// this intent skipped malformed facts (each one also on the counter + error log).
+func inputInvalidSubSignals(count int) map[string]float64 {
+	if count == 0 {
+		return nil
+	}
+	return map[string]float64{"input_invalid_facts": float64(count)}
+}
+
+// decodeAWSResource decodes one aws_resource envelope into the typed
+// awsv1.Resource struct through the contracts seam, returning a self-classifying
+// *factDecodeError when the payload is missing a required field or otherwise
+// malformed. It is the single decode site for the aws_resource kind on the
+// reducer side: every handler and join-index builder that consumes aws_resource
+// facts decodes through here, and a missing required field is routed through
+// partitionDecodeFailures so it dead-letters as a per-fact input_invalid
+// quarantine rather than a silent empty-string graph identity or a whole-intent
+// abort.
+func decodeAWSResource(env facts.Envelope) (awsv1.Resource, error) {
+	resource, err := factschema.DecodeAWSResource(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.Resource{}, newFactDecodeError(factschema.FactKindAWSResource, err)
+	}
+	return resource, nil
+}
+
+// decodeAWSRelationship decodes one aws_relationship envelope into the typed
+// awsv1.Relationship struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required field
+// (account_id, region, relationship_type, source_resource_id,
+// target_resource_id) or is otherwise malformed. It is the single decode site
+// for the aws_relationship kind on the reducer side.
+func decodeAWSRelationship(env facts.Envelope) (awsv1.Relationship, error) {
+	relationship, err := factschema.DecodeAWSRelationship(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.Relationship{}, newFactDecodeError(factschema.FactKindAWSRelationship, err)
+	}
+	return relationship, nil
+}
+
+// decodeAWSSecurityGroupRule decodes one aws_security_group_rule envelope into
+// the typed awsv1.SecurityGroupRule struct through the contracts seam, returning
+// a self-classifying *factDecodeError when the payload is missing a required
+// field (account_id, region, group_id, direction, ip_protocol, source_kind,
+// source_value). It is the single decode site for this kind on the reducer side.
+func decodeAWSSecurityGroupRule(env facts.Envelope) (awsv1.SecurityGroupRule, error) {
+	rule, err := factschema.DecodeAWSSecurityGroupRule(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.SecurityGroupRule{}, newFactDecodeError(factschema.FactKindAWSSecurityGroupRule, err)
+	}
+	return rule, nil
+}
+
+// decodeEC2InstancePosture decodes one ec2_instance_posture envelope into the
+// typed awsv1.EC2InstancePosture struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required field
+// (account_id, region). It is the single decode site for this kind on the
+// reducer side.
+func decodeEC2InstancePosture(env facts.Envelope) (awsv1.EC2InstancePosture, error) {
+	posture, err := factschema.DecodeEC2InstancePosture(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.EC2InstancePosture{}, newFactDecodeError(factschema.FactKindEC2InstancePosture, err)
+	}
+	return posture, nil
+}
+
+// decodeS3BucketPosture decodes one s3_bucket_posture envelope into the typed
+// awsv1.S3BucketPosture struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required field
+// (account_id, region). It is the single decode site for this kind on the
+// reducer side.
+func decodeS3BucketPosture(env facts.Envelope) (awsv1.S3BucketPosture, error) {
+	posture, err := factschema.DecodeS3BucketPosture(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.S3BucketPosture{}, newFactDecodeError(factschema.FactKindS3BucketPosture, err)
+	}
+	return posture, nil
+}
+
+// decodeAWSIAMPermission decodes one aws_iam_permission envelope into the typed
+// iamv1.Permission struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required field
+// (account_id, region, principal_arn, effect, policy_source). It is the single
+// decode site for this kind on the reducer side.
+func decodeAWSIAMPermission(env facts.Envelope) (iamv1.Permission, error) {
+	permission, err := factschema.DecodeAWSIAMPermission(factschemaEnvelope(env))
+	if err != nil {
+		return iamv1.Permission{}, newFactDecodeError(factschema.FactKindAWSIAMPermission, err)
+	}
+	return permission, nil
+}
+
+// decodeAWSResourcePolicyPermission decodes one aws_resource_policy_permission
+// envelope into the typed iamv1.ResourcePolicyPermission struct through the
+// contracts seam, returning a self-classifying *factDecodeError when the payload
+// is missing a required field (account_id, region, resource_arn, resource_type,
+// effect). It is the single decode site for this kind on the reducer side.
+func decodeAWSResourcePolicyPermission(env facts.Envelope) (iamv1.ResourcePolicyPermission, error) {
+	permission, err := factschema.DecodeAWSResourcePolicyPermission(factschemaEnvelope(env))
+	if err != nil {
+		return iamv1.ResourcePolicyPermission{}, newFactDecodeError(factschema.FactKindAWSResourcePolicyPermission, err)
+	}
+	return permission, nil
+}
+
+// decodeAWSIAMPrincipal decodes one aws_iam_principal envelope into the typed
+// iamv1.Principal struct through the contracts seam, returning a self-classifying
+// *factDecodeError when the payload is missing a required field (account_id,
+// region, principal_arn, principal_type). It is the single decode site for this
+// kind on the reducer side.
+func decodeAWSIAMPrincipal(env facts.Envelope) (iamv1.Principal, error) {
+	principal, err := factschema.DecodeAWSIAMPrincipal(factschemaEnvelope(env))
+	if err != nil {
+		return iamv1.Principal{}, newFactDecodeError(factschema.FactKindAWSIAMPrincipal, err)
+	}
+	return principal, nil
+}
+
+// factschemaEnvelope adapts a go/internal/facts.Envelope to the contracts-module
+// factschema.Envelope the Decode* seam accepts. Only the fields the decode seam
+// reads (FactKind, SchemaVersion, Payload) are populated; envelope unification
+// is documented follow-up work (design §3.1), so the adapter stays explicit and
+// narrow rather than aliasing the two envelope types.
+//
+// An empty SchemaVersion is normalized to the current major-1 schema version.
+// Every AWS/IAM/security-group emitter stamps a concrete "1.0.0" version and the
+// projector's schema-version admission already gates on it upstream, so a
+// version-less fact does not occur on the production path; the normalization
+// exists only so the decode seam's major dispatch matches the pre-typing
+// behavior, where the reducer read the payload without inspecting the version.
+// A present but unsupported major (for example "2.0.0") is NOT normalized and
+// still dead-letters through the Decode* seam's default branch.
+func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
+	schemaVersion := env.SchemaVersion
+	if schemaVersion == "" {
+		schemaVersion = defaultSchemaMajorVersion
+	}
+	return factschema.Envelope{
+		FactKind:      env.FactKind,
+		SchemaVersion: schemaVersion,
+		Payload:       env.Payload,
+	}
+}
+
+// defaultSchemaMajorVersion is the schema version the reducer assumes when an
+// envelope carries none. It is a major-1 version because every migrated fact
+// kind is at schema major 1 today; the value's minor/patch are irrelevant since
+// the Decode seam dispatches on the major component only.
+const defaultSchemaMajorVersion = "1.0.0"

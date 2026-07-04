@@ -129,28 +129,37 @@ type iamPrincipalNode struct {
 // buildIAMRoleUserJoinIndex builds the bounded in-memory index from the scope
 // generation's aws_resource fact envelopes, keeping only IAM role and user
 // resources.
-func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) iamRoleUserJoinIndex {
+func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) (iamRoleUserJoinIndex, []quarantinedFact, error) {
 	index := iamRoleUserJoinIndex{byARN: make(map[string]iamPrincipalNode, len(envelopes))}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		resourceType := payloadString(env.Payload, "resource_type")
-		kind := iamPrincipalKindForResourceType(resourceType)
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return iamRoleUserJoinIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		kind := iamPrincipalKindForResourceType(resource.ResourceType)
 		if kind == "" {
 			continue
 		}
-		accountID := payloadString(env.Payload, "account_id")
-		region := payloadString(env.Payload, "region")
-		resourceID := payloadString(env.Payload, "resource_id")
-		arn := payloadString(env.Payload, "arn")
+		arn := derefString(resource.ARN)
+		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
 		}
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(accountID, region, resourceType, resourceID)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
 		node := iamPrincipalNode{uid: uid, kind: kind}
 		// First writer wins on collision so a later duplicate cannot re-point an
 		// ARN to a different node. The ARN is the precise identity here.
@@ -165,7 +174,7 @@ func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) iamRoleUserJoinIndex 
 			}
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 // resolve looks up an IAM principal ARN. It returns the resolved node and true
@@ -207,13 +216,16 @@ func iamPrincipalKindForResourceType(resourceType string) string {
 func ExtractIAMCanAssumeEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	permissionEnvelopes []facts.Envelope,
-) ([]map[string]any, iamCanAssumeEdgeTally) {
+) ([]map[string]any, iamCanAssumeEdgeTally, []quarantinedFact, error) {
 	tally := newIAMCanAssumeEdgeTally()
 	if len(permissionEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	index := buildIAMRoleUserJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildIAMRoleUserJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
 
 	type edgeKey struct {
 		principal string
@@ -226,16 +238,26 @@ func ExtractIAMCanAssumeEdgeRows(
 		if env.FactKind != facts.AWSIAMPermissionFactKind {
 			continue
 		}
-		if payloadString(env.Payload, "policy_source") != iamPermissionPolicySourceTrust {
+		permission, err := decodeAWSIAMPermission(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
 			continue
 		}
-		if payloadString(env.Payload, "effect") != iamPermissionEffectAllow {
+		if permission.PolicySource != iamPermissionPolicySourceTrust {
+			continue
+		}
+		if permission.Effect != iamPermissionEffectAllow {
 			tally.skipped[iamCanAssumeSkipDeny]++
 			continue
 		}
 
-		roleARN := payloadString(env.Payload, "principal_arn")
-		roleNode, roleOK := index.resolve(roleARN)
+		roleNode, roleOK := index.resolve(permission.PrincipalARN)
 		if !roleOK {
 			// The role-with-trust-policy was not scanned as a node, so the whole
 			// statement cannot anchor an edge. Count it once.
@@ -243,7 +265,7 @@ func ExtractIAMCanAssumeEdgeRows(
 			continue
 		}
 
-		for _, principal := range payloadStrings(env.Payload, "", "assume_principals") {
+		for _, principal := range permission.AssumePrincipals {
 			reason, principalNode, ok := classifyAssumePrincipal(index, principal)
 			if !ok {
 				tally.skipped[reason]++
@@ -272,7 +294,7 @@ func ExtractIAMCanAssumeEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -280,7 +302,7 @@ func ExtractIAMCanAssumeEdgeRows(
 		right := anyToString(rows[b]["principal_uid"]) + "->" + anyToString(rows[b]["role_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
 }
 
 // classifyAssumePrincipal screens one assume-principal identifier and resolves

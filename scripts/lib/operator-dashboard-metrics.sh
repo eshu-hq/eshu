@@ -23,6 +23,12 @@ SHARED_ACCEPTANCE_ROWS='eshu_dp_shared_acceptance_rows'
 GRAPH_ORPHAN_NODES='eshu_dp_graph_orphan_nodes'
 CROSS_REPO_FENCED='eshu_dp_cross_repo_activation_fenced_total'
 
+# Typed-payload decode accuracy. A non-zero rate means the reducer skipped
+# facts whose payload was missing a required identity field (input_invalid);
+# the graph is under-projecting for that domain/fact_kind until the collector
+# defect is fixed. A sustained spike is an accuracy alarm, not routine noise.
+REDUCER_INPUT_INVALID_FACTS='eshu_dp_reducer_input_invalid_facts_total'
+
 # Extraction-provenance drift.
 EDGES_BY_SOURCE_TOOL='eshu_dp_edges_by_source_tool'
 FILES_BY_LANGUAGE='eshu_dp_files_by_language'

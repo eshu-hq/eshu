@@ -80,6 +80,7 @@ or marker that already diagnoses it.
 | projection (IAM CAN_ASSUME) | go/internal/reducer/iam_can_assume_materialization.go | `eshu_dp_iam_can_assume_edges_total` | reducer IAM |
 | projection (IAM escalation) | go/internal/reducer/iam_escalation_materialization.go | `eshu_dp_iam_escalation_edges_total`, `eshu_dp_iam_escalation_skipped_total` | reducer IAM |
 | projection (IAM CAN_PERFORM) | go/internal/reducer/iam_can_perform_materialization.go | `eshu_dp_iam_can_perform_edges_total`, `eshu_dp_iam_can_perform_skipped_total`, `eshu_dp_iam_can_perform_conditioned_total` | reducer IAM |
+| projection (IAM CAN_PERFORM target resolution) | go/internal/reducer/iam_can_perform_target_resolution.go | No-Observability-Change: covered by `eshu_dp_iam_can_perform_edges_total` and `eshu_dp_iam_can_perform_skipped_total` (emitted by the CAN_PERFORM projection above); this file holds the pure ARN classification and target-resolution helpers extracted from iam_can_perform.go for the 500-line cap and emits no metric of its own | reducer IAM |
 | projection (IAM instance-profile HAS_ROLE) | go/internal/reducer/iam_instance_profile_role_materialization.go | `eshu_dp_iam_instance_profile_role_edges_total`, `eshu_dp_iam_instance_profile_role_skipped_total` | reducer IAM |
 | projection (EC2 USES_PROFILE) | go/internal/reducer/ec2_uses_profile_materialization.go | `eshu_dp_ec2_uses_profile_edges_total`, `eshu_dp_ec2_uses_profile_skipped_total` | reducer EC2 |
 | projection (EC2 instance node) | go/internal/reducer/ec2_instance_node_materialization.go:184 | `eshu_dp_ec2_instance_nodes_total`, `eshu_dp_ec2_instance_nodes_skipped_total` | reducer EC2 |
@@ -118,6 +119,8 @@ or marker that already diagnoses it.
 | extraction provenance — files by language | go/internal/telemetry/instruments.go (RegisterFilesByLanguageObservableGauge) | `eshu_dp_files_by_language` | reducer graph |
 | search decay scoring | go/internal/searchdecaytelemetry/observer.go:31 | `eshu_dp_search_decay_policy_applications_total` | reducer search |
 | shared acceptance read model | go/internal/storage/postgres/code_call_intent_writer.go:37 | `eshu_dp_shared_acceptance_rows`, `eshu_dp_shared_acceptance_upserts_total`, `eshu_dp_shared_acceptance_lookup_errors_total`, `eshu_dp_shared_acceptance_upsert_duration_seconds`, `eshu_dp_shared_acceptance_lookup_duration_seconds`, `eshu_dp_shared_acceptance_prefetch_size` | reducer shared acceptance |
+| typed-payload decode quarantine | go/internal/reducer/factschema_decode.go:162 | `eshu_dp_reducer_input_invalid_facts_total` | reducer typed decode |
+| secrets/IAM trust-chain observations builder | go/internal/reducer/secrets_iam_trust_chain_observations.go:76 | No-Observability-Change: covered by `eshu_dp_secrets_iam_reducer_trust_chains_total` and `eshu_dp_secrets_iam_posture_observations_total` (emitted by the secrets/IAM posture handler above); this file holds the read-model observation builders extracted from secrets_iam_trust_chain_build.go for the 500-line cap and emits no metric of its own | reducer secrets/IAM |
 
 <!-- eshu:metric:section=projector-stages -->
 ## Projector Stages

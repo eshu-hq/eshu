@@ -7,11 +7,17 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 type iamCanPerformBoundaryEvidence struct {
-	policyARNs            map[string]struct{}
-	statementsByPolicyARN map[string][]facts.Envelope
+	policyARNs map[string]struct{}
+	// statementsByPolicyARN maps a boundary policy ARN to the decoded
+	// aws_iam_permission statements that make it up. The boundary policy ARNs
+	// themselves come from the out-of-scope aws_iam_permission_boundary kind
+	// (still read raw); the statements are the in-scope aws_iam_permission kind,
+	// decoded through the seam.
+	statementsByPolicyARN map[string][]iamv1.Permission
 }
 
 type iamCanPerformBoundaryDecision struct {
@@ -22,14 +28,17 @@ type iamCanPerformBoundaryDecision struct {
 func groupIAMCanPerformBoundaryEvidence(
 	index cloudResourceJoinIndex,
 	envelopes []facts.Envelope,
-) map[string]iamCanPerformBoundaryEvidence {
+) (map[string]iamCanPerformBoundaryEvidence, []quarantinedFact, error) {
 	byPrincipalUID := make(map[string]iamCanPerformBoundaryEvidence)
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.IsTombstone {
 			continue
 		}
 		switch env.FactKind {
 		case facts.AWSIAMPermissionBoundaryFactKind:
+			// aws_iam_permission_boundary is a secrets/IAM-family kind outside this
+			// issue's scope; it is read raw for its principal/boundary-policy ARNs.
 			principalARN := payloadString(env.Payload, "principal_arn")
 			policyARN := payloadString(env.Payload, "boundary_policy_arn")
 			principalUID, ok := index.byARN[principalARN]
@@ -39,20 +48,30 @@ func groupIAMCanPerformBoundaryEvidence(
 			evidence := ensureIAMCanPerformBoundaryEvidence(byPrincipalUID, principalUID)
 			evidence.policyARNs[policyARN] = struct{}{}
 		case facts.AWSIAMPermissionFactKind:
-			if payloadString(env.Payload, "policy_source") != iamCanPerformPolicySourcePermissionBoundary {
+			permission, err := decodeAWSIAMPermission(env)
+			if err != nil {
+				q, ok, fatal := partitionDecodeFailures(env, err)
+				if fatal != nil {
+					return nil, nil, fatal
+				}
+				if ok {
+					quarantined = append(quarantined, q)
+				}
 				continue
 			}
-			principalARN := payloadString(env.Payload, "principal_arn")
-			policyARN := payloadString(env.Payload, "policy_arn")
-			principalUID, ok := index.byARN[principalARN]
+			if permission.PolicySource != iamCanPerformPolicySourcePermissionBoundary {
+				continue
+			}
+			policyARN := derefString(permission.PolicyARN)
+			principalUID, ok := index.byARN[permission.PrincipalARN]
 			if !ok || policyARN == "" {
 				continue
 			}
 			evidence := ensureIAMCanPerformBoundaryEvidence(byPrincipalUID, principalUID)
-			evidence.statementsByPolicyARN[policyARN] = append(evidence.statementsByPolicyARN[policyARN], env)
+			evidence.statementsByPolicyARN[policyARN] = append(evidence.statementsByPolicyARN[policyARN], permission)
 		}
 	}
-	return byPrincipalUID
+	return byPrincipalUID, quarantined, nil
 }
 
 func ensureIAMCanPerformBoundaryEvidence(
@@ -62,7 +81,7 @@ func ensureIAMCanPerformBoundaryEvidence(
 	evidence := byPrincipalUID[principalUID]
 	if evidence.policyARNs == nil {
 		evidence.policyARNs = make(map[string]struct{})
-		evidence.statementsByPolicyARN = make(map[string][]facts.Envelope)
+		evidence.statementsByPolicyARN = make(map[string][]iamv1.Permission)
 		byPrincipalUID[principalUID] = evidence
 	}
 	return evidence
@@ -91,7 +110,7 @@ func evaluateIAMCanPerformPermissionBoundary(
 }
 
 func evaluateIAMCanPerformBoundaryPolicy(
-	statements []facts.Envelope,
+	statements []iamv1.Permission,
 	action string,
 	resourceARN string,
 	resourceType string,
@@ -102,17 +121,14 @@ func evaluateIAMCanPerformBoundaryPolicy(
 	sawNotActionResourceDeny := false
 	sawNotActionResourceAllow := false
 
-	for _, env := range statements {
-		if env.FactKind != facts.AWSIAMPermissionFactKind || env.IsTombstone {
-			continue
-		}
-		effect := payloadString(env.Payload, "effect")
+	for _, permission := range statements {
+		effect := permission.Effect
 		if effect != "Allow" && effect != "Deny" {
 			continue
 		}
-		actions := payloadStringSlice(env.Payload, "actions")
-		hasNotActions := len(payloadStringSlice(env.Payload, "not_actions")) > 0
-		hasNotResources := len(payloadStringSlice(env.Payload, "not_resources")) > 0
+		actions := permission.Actions
+		hasNotActions := len(permission.NotActions) > 0
+		hasNotResources := len(permission.NotResources) > 0
 		actionTouched := allowStatementTouches(actions, action) || hasNotActions
 		if !actionTouched {
 			continue
@@ -125,10 +141,10 @@ func evaluateIAMCanPerformBoundaryPolicy(
 			}
 			continue
 		}
-		if !iamCanPerformBoundaryCoversResource(payloadStringSlice(env.Payload, "resources"), resourceARN, resourceType) {
+		if !iamCanPerformBoundaryCoversResource(permission.Resources, resourceARN, resourceType) {
 			continue
 		}
-		if payloadBool(env.Payload, "has_conditions") {
+		if boolPtrValue(permission.HasConditions) {
 			if effect == "Deny" {
 				sawConditionedDeny = true
 			} else {

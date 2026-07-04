@@ -113,7 +113,19 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 
 	resourceEnvelopes, postureEnvelopes := splitS3InternetExposureEnvelopes(envelopes)
 	extractStart := time.Now()
-	rows, tally := ExtractS3InternetExposureRows(resourceEnvelopes, postureEnvelopes)
+	rows, tally, quarantined, err := ExtractS3InternetExposureRows(resourceEnvelopes, postureEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource/s3_bucket_posture fact (a
+	// missing required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while the batch's valid
+	// facts still materialize below and the readiness phase still publishes, so
+	// one bad fact never stalls the scope generation's graph.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainS3InternetExposureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -171,12 +183,14 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 		Domain:   DomainS3InternetExposureMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d S3 internet exposure row(s) from %d posture fact(s); %d posture fact(s) skipped",
+			"materialized %d S3 internet exposure row(s) from %d posture fact(s); %d posture fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(postureEnvelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

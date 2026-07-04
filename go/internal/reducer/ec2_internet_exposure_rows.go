@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 const (
@@ -73,26 +74,40 @@ func ExtractEC2InternetExposureRows(
 	postureEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	ruleEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2InternetExposureTally) {
+) ([]map[string]any, ec2InternetExposureTally, []quarantinedFact, error) {
 	tally := newEC2InternetExposureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	relationships := buildEC2InternetExposureRelationshipIndex(relationshipEnvelopes)
-	rules := buildEC2InternetExposureRuleIndex(ruleEnvelopes)
+	var quarantined []quarantinedFact
+	relationships, relationshipQuarantined, err := buildEC2InternetExposureRelationshipIndex(relationshipEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
+	quarantined = append(quarantined, relationshipQuarantined...)
+	rules, ruleQuarantined, err := buildEC2InternetExposureRuleIndex(ruleEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
+	quarantined = append(quarantined, ruleQuarantined...)
+	postures, postureQuarantined, err := sortedEC2InternetExposurePostures(postureEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
+	quarantined = append(quarantined, postureQuarantined...)
 	byUID := make(map[string]map[string]any, len(postureEnvelopes))
-	for _, env := range sortedEC2InternetExposurePostures(postureEnvelopes) {
-		if env.IsTombstone {
+	for _, item := range postures {
+		if item.env.IsTombstone {
 			tally.skipped[ec2InternetExposureSkipTombstone]++
 			continue
 		}
-		uid, instanceID, ok := ec2InternetExposureIdentity(env)
+		uid, instanceID, ok := ec2InternetExposureIdentity(item.posture)
 		if !ok {
 			tally.skipped[ec2InternetExposureSkipMissingIdentity]++
 			continue
 		}
-		decision := deriveEC2InternetExposureDecision(env.Payload, instanceID, relationships, rules)
+		decision := deriveEC2InternetExposureDecision(item.posture, instanceID, relationships, rules)
 		tally.decisions[decision.state]++
 		tally.decisionReasons[ec2InternetExposureDecisionKey{
 			outcome: decision.state,
@@ -104,11 +119,11 @@ func ExtractEC2InternetExposureRows(
 			"state":            decision.state,
 			"internet_exposed": decision.internetExposed,
 			"reason":           decision.reason,
-			"source_fact_id":   env.FactID,
+			"source_fact_id":   item.env.FactID,
 		}
 	}
 	if len(byUID) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 	uids := make([]string, 0, len(byUID))
 	for uid := range byUID {
@@ -119,33 +134,51 @@ func ExtractEC2InternetExposureRows(
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows, tally
+	return rows, tally, quarantined, nil
 }
 
-func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) []facts.Envelope {
-	postures := make([]facts.Envelope, 0, len(envelopes))
+// ec2InternetExposurePosture pairs a decoded ec2_instance_posture struct with
+// its envelope so the extractor keeps the provenance scalars (FactID,
+// IsTombstone) while reading posture fields from the typed struct.
+type ec2InternetExposurePosture struct {
+	env     facts.Envelope
+	posture awsv1.EC2InstancePosture
+}
+
+func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2InternetExposurePosture, []quarantinedFact, error) {
+	postures := make([]ec2InternetExposurePosture, 0, len(envelopes))
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.EC2InstancePostureFactKind {
 			continue
 		}
-		postures = append(postures, env)
+		posture, err := decodeEC2InstancePosture(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		postures = append(postures, ec2InternetExposurePosture{env: env, posture: posture})
 	}
 	sort.SliceStable(postures, func(i, j int) bool {
-		left := payloadString(postures[i].Payload, "instance_id")
-		right := payloadString(postures[j].Payload, "instance_id")
+		left := derefString(postures[i].posture.InstanceID)
+		right := derefString(postures[j].posture.InstanceID)
 		if left != right {
 			return left < right
 		}
-		return postures[i].FactID < postures[j].FactID
+		return postures[i].env.FactID < postures[j].env.FactID
 	})
-	return postures
+	return postures, quarantined, nil
 }
 
-func ec2InternetExposureIdentity(env facts.Envelope) (uid, instanceID string, ok bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	instanceID = payloadString(env.Payload, "instance_id")
-	arn := payloadString(env.Payload, "arn")
+func ec2InternetExposureIdentity(posture awsv1.EC2InstancePosture) (uid, instanceID string, ok bool) {
+	instanceID = derefString(posture.InstanceID)
+	arn := derefString(posture.ARN)
 	resourceID := instanceID
 	if resourceID == "" {
 		resourceID = arn
@@ -153,20 +186,20 @@ func ec2InternetExposureIdentity(env facts.Envelope) (uid, instanceID string, ok
 	if resourceID == "" {
 		return "", "", false
 	}
-	resourceType := payloadString(env.Payload, "resource_type")
+	resourceType := derefString(posture.ResourceType)
 	if resourceType == "" {
 		resourceType = "aws_ec2_instance"
 	}
-	return cloudResourceUID(accountID, region, resourceType, resourceID), resourceID, true
+	return cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), resourceID, true
 }
 
 func deriveEC2InternetExposureDecision(
-	payload map[string]any,
+	posture awsv1.EC2InstancePosture,
 	instanceID string,
 	relationships ec2InternetExposureRelationshipIndex,
 	rules ec2InternetExposureRuleIndex,
 ) ec2InternetExposureDecision {
-	publicIP := payloadBoolPointer(payload, "public_ip_associated")
+	publicIP := posture.PublicIPAssociated
 	if publicIP == nil {
 		return ec2InternetExposureDecision{
 			state:           ec2InternetExposureStateUnknown,
@@ -236,23 +269,34 @@ type ec2InternetExposureRelationshipIndex struct {
 	sgsByENI       map[string]map[string]struct{}
 }
 
-func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) ec2InternetExposureRelationshipIndex {
+func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2InternetExposureRelationshipIndex, []quarantinedFact, error) {
 	index := ec2InternetExposureRelationshipIndex{
 		enisByInstance: make(map[string]map[string]struct{}),
 		sgsByENI:       make(map[string]map[string]struct{}),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSRelationshipFactKind || env.IsTombstone {
 			continue
 		}
-		relType := payloadString(env.Payload, "relationship_type")
-		sourceID := payloadString(env.Payload, "source_resource_id")
-		targetID := payloadString(env.Payload, "target_resource_id")
-		targetType := payloadString(env.Payload, "target_type")
+		relationship, err := decodeAWSRelationship(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return ec2InternetExposureRelationshipIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		sourceID := relationship.SourceResourceID
+		targetID := relationship.TargetResourceID
+		targetType := derefString(relationship.TargetType)
 		if sourceID == "" || targetID == "" {
 			continue
 		}
-		switch relType {
+		switch relationship.RelationshipType {
 		case ec2RelNetworkInterfaceAttachedToResource:
 			if targetType != "" && targetType != "aws_ec2_instance" {
 				continue
@@ -265,7 +309,7 @@ func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) ec2In
 			addToSet(index.sgsByENI, sourceID, targetID)
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 func (i ec2InternetExposureRelationshipIndex) hasAnySGForENIs(enis map[string]struct{}) bool {
@@ -282,35 +326,45 @@ type ec2InternetExposureRuleIndex struct {
 	observedIngressSGs map[string]bool
 }
 
-func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) ec2InternetExposureRuleIndex {
+func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) (ec2InternetExposureRuleIndex, []quarantinedFact, error) {
 	index := ec2InternetExposureRuleIndex{
 		internetIngressSGs: make(map[string]bool),
 		observedIngressSGs: make(map[string]bool),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSSecurityGroupRuleFactKind || env.IsTombstone {
 			continue
 		}
-		if strings.TrimSpace(payloadString(env.Payload, "direction")) != "ingress" {
+		rule, err := decodeAWSSecurityGroupRule(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return ec2InternetExposureRuleIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
 			continue
 		}
-		groupID := payloadString(env.Payload, "group_id")
-		if groupID == "" {
+		if strings.TrimSpace(rule.Direction) != "ingress" {
 			continue
 		}
-		index.observedIngressSGs[groupID] = true
-		if payloadBool(env.Payload, "is_internet") || ec2RuleSourceIsInternet(env.Payload) {
-			index.internetIngressSGs[groupID] = true
+		if rule.GroupID == "" {
+			continue
+		}
+		index.observedIngressSGs[rule.GroupID] = true
+		isInternet := rule.IsInternet != nil && *rule.IsInternet
+		if isInternet || ec2RuleSourceIsInternet(rule) {
+			index.internetIngressSGs[rule.GroupID] = true
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
-func ec2RuleSourceIsInternet(payload map[string]any) bool {
-	sourceKind := payloadString(payload, "source_kind")
-	sourceValue := payloadString(payload, "source_value")
-	return (sourceKind == "cidr_ipv4" && sourceValue == "0.0.0.0/0") ||
-		(sourceKind == "cidr_ipv6" && sourceValue == "::/0")
+func ec2RuleSourceIsInternet(rule awsv1.SecurityGroupRule) bool {
+	return (rule.SourceKind == "cidr_ipv4" && rule.SourceValue == "0.0.0.0/0") ||
+		(rule.SourceKind == "cidr_ipv6" && rule.SourceValue == "::/0")
 }
 
 func addToSet(index map[string]map[string]struct{}, key, value string) {

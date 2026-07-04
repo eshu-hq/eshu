@@ -40,6 +40,13 @@ func run() error {
 		generate func() ([]byte, error)
 	}{
 		{name: "aws_resource.v1.schema.json", generate: schemagen.AWSResourceSchema},
+		{name: "aws_relationship.v1.schema.json", generate: schemagen.AWSRelationshipSchema},
+		{name: "aws_security_group_rule.v1.schema.json", generate: schemagen.AWSSecurityGroupRuleSchema},
+		{name: "ec2_instance_posture.v1.schema.json", generate: schemagen.EC2InstancePostureSchema},
+		{name: "s3_bucket_posture.v1.schema.json", generate: schemagen.S3BucketPostureSchema},
+		{name: "aws_iam_permission.v1.schema.json", generate: schemagen.AWSIAMPermissionSchema},
+		{name: "aws_resource_policy_permission.v1.schema.json", generate: schemagen.AWSResourcePolicyPermissionSchema},
+		{name: "aws_iam_principal.v1.schema.json", generate: schemagen.AWSIAMPrincipalSchema},
 	}
 
 	for _, target := range targets {

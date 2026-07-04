@@ -20,7 +20,7 @@ import "time"
 // and design §3.1.
 type Envelope struct {
 	// FactKind is the namespaced fact kind identifier (for example
-	// "aws.resource"). It selects which decode function and JSON Schema
+	// "aws_resource"). It selects which decode function and JSON Schema
 	// apply to Payload.
 	FactKind string `json:"fact_kind"`
 

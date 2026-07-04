@@ -85,7 +85,10 @@ func TestIAMCanPerformPR4eActionsResolveExpectedResourceTypes(t *testing.T) {
 				escalationPermissionEnvelope(attackerUserARN, "Allow", []string{tc.action}, []string{tc.resourceARN}),
 			}
 
-			result := ExtractIAMCanPerformEdges(resources, perms)
+			result, err := ExtractIAMCanPerformEdges(resources, perms)
+			if err != nil {
+				t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+			}
 			edge := canPerformEdgeFor(
 				result.Edges,
 				uidOf(iamResourceTypeUser, attackerUserARN),
@@ -115,7 +118,10 @@ func TestIAMCanPerformPR4eActionRefusesWrongResourceType(t *testing.T) {
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"lambda:invokefunction"}, []string{canPerformBucketARN}),
 	}
 
-	result := ExtractIAMCanPerformEdges(resources, perms)
+	result, err := ExtractIAMCanPerformEdges(resources, perms)
+	if err != nil {
+		t.Fatalf("ExtractIAMCanPerformEdges() error = %v, want nil", err)
+	}
 	if len(result.Edges) != 0 {
 		t.Fatalf("lambda action must not resolve to an S3 bucket target; rows=%v", result.Edges)
 	}

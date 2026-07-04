@@ -49,39 +49,71 @@ type cloudResourceJoinIndex struct {
 }
 
 // buildCloudResourceJoinIndex builds the bounded in-memory join index from the
-// scope generation's aws_resource fact envelopes.
-func buildCloudResourceJoinIndex(envelopes []facts.Envelope) cloudResourceJoinIndex {
+// scope generation's aws_resource fact envelopes. It decodes each aws_resource
+// payload through the factschema seam (decodeAWSResource) — the single decode
+// site for this kind. A payload missing a required identity field (account_id,
+// region, resource_type, resource_id) is QUARANTINED per-fact via
+// partitionDecodeFailures: that one fact is skipped and returned in the
+// quarantined slice (so the handler dead-letters it visibly), while every valid
+// resource is still indexed. A non-decode error is returned fatally. This
+// per-fact isolation means one malformed resource fact never drops the whole
+// scope's join index (which would stall every edge domain gating on the
+// canonical-nodes-committed readiness phase).
+//
+// arn is optional (a resource may be identified only by a bare resource_id), so
+// resource_id falls back to the ARN the same way it did before typing; the
+// typed struct's ResourceID already carries the emitter's arn-or-resource_id
+// default, with ARN holding the raw value when present.
+func buildCloudResourceJoinIndex(envelopes []facts.Envelope) (cloudResourceJoinIndex, []quarantinedFact, error) {
 	index := cloudResourceJoinIndex{
 		byARN:        make(map[string]string, len(envelopes)),
 		byUID:        make(map[string]string, len(envelopes)),
 		byResourceID: make(map[string]string, len(envelopes)),
 		byAnchor:     make(map[string]string, len(envelopes)),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		accountID := payloadString(env.Payload, "account_id")
-		region := payloadString(env.Payload, "region")
-		resourceType := payloadString(env.Payload, "resource_type")
-		resourceID := payloadString(env.Payload, "resource_id")
-		arn := payloadString(env.Payload, "arn")
+		resource, err := decodeAWSResource(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return cloudResourceJoinIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		arn := ""
+		if resource.ARN != nil {
+			arn = *resource.ARN
+		}
+		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
 		}
-		if resourceType == "" || resourceID == "" {
+		if resource.ResourceType == "" || resourceID == "" {
 			// Mirrors cloudResourceNodeRow: an incomplete identity is not a
-			// materializable node, so it is not a join target either.
+			// materializable node, so it is not a join target either. This is a
+			// present-but-empty value (a valid decode), distinct from an absent
+			// required key, which quarantines above.
 			continue
 		}
 
-		uid := cloudResourceUID(accountID, region, resourceType, resourceID)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
 		if arn != "" {
 			index.byARN[arn] = uid
 			index.byUID[uid] = arn
 		}
 		index.byResourceID[resourceID] = uid
-		for _, anchor := range payloadStrings(env.Payload, "", "correlation_anchors") {
+		// uniqueSortedStrings preserves the pre-typing byte-identical resolution:
+		// the old payloadStrings(env.Payload, "", "correlation_anchors") trimmed
+		// and dropped empty anchors, so an untrimmed or empty anchor never became
+		// a lookup key. The typed decode returns the anchors raw.
+		for _, anchor := range uniqueSortedStrings(resource.CorrelationAnchors) {
 			// First writer wins for an anchor so a later collision cannot
 			// silently re-point a name to a different node. ARN and resource_id
 			// already cover the precise identities; anchors are the name-only
@@ -91,7 +123,7 @@ func buildCloudResourceJoinIndex(envelopes []facts.Envelope) cloudResourceJoinIn
 			}
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 func (i cloudResourceJoinIndex) arnForUID(uid string) (string, bool) {
@@ -206,19 +238,27 @@ func newAWSRelationshipEdgeTally() awsRelationshipEdgeTally {
 // node: an endpoint that is not a materialized CloudResource in this scope is
 // counted in the returned tally and produces no row (graceful degradation).
 //
+// Both the aws_resource facts (via buildCloudResourceJoinIndex) and each
+// aws_relationship fact are decoded through the factschema seam, so a payload
+// missing a required field returns a classified input_invalid error the caller
+// dead-letters instead of resolving an edge against an empty-string identity.
+//
 // Returned rows are deduplicated by (source_uid, relationship_type,
 // target_uid) and sorted deterministically so the batched write is stable
 // across retries and reprojections.
 func ExtractAWSRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) ([]map[string]any, awsRelationshipEdgeTally) {
+) ([]map[string]any, awsRelationshipEdgeTally, []quarantinedFact, error) {
 	tally := newAWSRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	index := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
 
 	type edgeKey struct {
 		source           string
@@ -232,12 +272,23 @@ func ExtractAWSRelationshipEdgeRows(
 		if env.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		relationshipType := payloadString(env.Payload, "relationship_type")
-		sourceARN := payloadString(env.Payload, "source_arn")
-		sourceResourceID := payloadString(env.Payload, "source_resource_id")
-		targetARN := payloadString(env.Payload, "target_arn")
-		targetResourceID := payloadString(env.Payload, "target_resource_id")
-		targetType := payloadString(env.Payload, "target_type")
+		relationship, err := decodeAWSRelationship(env)
+		if err != nil {
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		relationshipType := relationship.RelationshipType
+		sourceARN := derefString(relationship.SourceARN)
+		sourceResourceID := relationship.SourceResourceID
+		targetARN := derefString(relationship.TargetARN)
+		targetResourceID := relationship.TargetResourceID
+		targetType := derefString(relationship.TargetType)
 		if targetType == "" {
 			targetType = "unknown"
 		}
@@ -283,7 +334,7 @@ func ExtractAWSRelationshipEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -295,5 +346,16 @@ func ExtractAWSRelationshipEdgeRows(
 			anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
+}
+
+// derefString returns the pointed-to string, or the empty string when the
+// pointer is nil. Optional payload struct fields are pointers so a nil (absent)
+// value stays distinct from an observed empty string; callers that treated the
+// pre-typing empty-string default identically deref through here.
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

@@ -7,7 +7,17 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
+
+// secretsIAMPrincipal pairs an aws_iam_principal envelope with its decoded typed
+// payload so the trust-chain build decodes each principal exactly once, at index
+// build time, and quarantines a malformed one there rather than re-decoding (and
+// re-failing) per role in secretsIAMRoleCloudResourceUID.
+type secretsIAMPrincipal struct {
+	env     facts.Envelope
+	decoded iamv1.Principal
+}
 
 type secretsIAMIndex struct {
 	serviceAccounts map[string][]facts.Envelope
@@ -15,22 +25,43 @@ type secretsIAMIndex struct {
 	irsa            map[string][]facts.Envelope
 	vaultRoles      map[string][]facts.Envelope
 	vaultAuthRoles  []facts.Envelope
-	iamPrincipals   map[string][]facts.Envelope
-	iamTrusts       map[string][]facts.Envelope
-	vaultPolicies   map[string][]facts.Envelope
-	vaultKV         map[string][]facts.Envelope
-	gcpPrincipals   map[string][]facts.Envelope
-	gcpTrusts       map[string][]facts.Envelope
-	gcpK8sBindings  map[string][]facts.Envelope
-	gcpPermissions  map[string][]facts.Envelope
-	coverage        []facts.Envelope
+	// iamPrincipals holds only the aws_iam_principal facts that decoded cleanly,
+	// keyed by principal_arn. A malformed principal is quarantined during
+	// buildSecretsIAMIndex and never enters the index, so the trust-chain build
+	// reads only valid principals.
+	iamPrincipals  map[string][]secretsIAMPrincipal
+	iamTrusts      map[string][]facts.Envelope
+	vaultPolicies  map[string][]facts.Envelope
+	vaultKV        map[string][]facts.Envelope
+	gcpPrincipals  map[string][]facts.Envelope
+	gcpTrusts      map[string][]facts.Envelope
+	gcpK8sBindings map[string][]facts.Envelope
+	gcpPermissions map[string][]facts.Envelope
+	coverage       []facts.Envelope
 }
 
 // BuildSecretsIAMTrustChainReadModels builds reducer-owned secrets/IAM read
 // models from redacted source facts. It is pure so exact, partial, stale, and
 // unsupported behavior can be proven without Postgres, graph, or provider calls.
-func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) SecretsIAMTrustChainReadModels {
-	index := buildSecretsIAMIndex(envelopes)
+//
+// A malformed aws_iam_principal fact whose payload is missing a required
+// identity field (an input_invalid decode failure) is quarantined per-fact and
+// returned in the []quarantinedFact slice: it is skipped so the valid trust
+// chains (including the untouched K8s/GCP/Vault chains, which never decode an
+// aws_iam_principal) still project, matching the per-fact isolation contract
+// every other migrated reducer kind follows. The malformed principal simply
+// never resolves an IAM-role CloudResource uid, so no chain resolves against a
+// zero-value identity.
+//
+// Any OTHER decode error (a non-input_invalid classification the seam may add
+// later, or a non-*factDecodeError) is FATAL and returned as the error: it fails
+// the whole work item so the durable queue triages it, rather than being
+// swallowed as a silent success.
+func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) (SecretsIAMTrustChainReadModels, []quarantinedFact, error) {
+	index, quarantined, err := buildSecretsIAMIndex(envelopes)
+	if err != nil {
+		return SecretsIAMTrustChainReadModels{}, nil, err
+	}
 	models := SecretsIAMTrustChainReadModels{}
 	models.PostureGaps = append(models.PostureGaps, secretsIAMCoverageGaps(index.coverage)...)
 	models.PostureGaps = append(models.PostureGaps, secretsIAMStaleGenerationGaps(index)...)
@@ -55,16 +86,16 @@ func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) SecretsIAMT
 	models.SecretAccessPaths = append(models.SecretAccessPaths, paths...)
 	models.PostureGaps = append(models.PostureGaps, gaps...)
 	sortSecretsIAMReadModels(&models)
-	return models
+	return models, quarantined, nil
 }
 
-func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
+func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quarantinedFact, error) {
 	index := secretsIAMIndex{
 		serviceAccounts: map[string][]facts.Envelope{},
 		workloads:       map[string][]facts.Envelope{},
 		irsa:            map[string][]facts.Envelope{},
 		vaultRoles:      map[string][]facts.Envelope{},
-		iamPrincipals:   map[string][]facts.Envelope{},
+		iamPrincipals:   map[string][]secretsIAMPrincipal{},
 		iamTrusts:       map[string][]facts.Envelope{},
 		vaultPolicies:   map[string][]facts.Envelope{},
 		vaultKV:         map[string][]facts.Envelope{},
@@ -73,6 +104,7 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
 		gcpK8sBindings:  map[string][]facts.Envelope{},
 		gcpPermissions:  map[string][]facts.Envelope{},
 	}
+	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.IsTombstone {
 			continue
@@ -93,7 +125,31 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
 				addByKey(index.vaultRoles, key, envelope)
 			}
 		case facts.AWSIAMPrincipalFactKind:
-			addByKey(index.iamPrincipals, payloadString(envelope.Payload, "principal_arn"), envelope)
+			principal, err := decodeAWSIAMPrincipal(envelope)
+			if err != nil {
+				q, ok, fatal := partitionDecodeFailures(envelope, err)
+				if fatal != nil {
+					// MANDATORY fatal passthrough: partitionDecodeFailures returns a
+					// non-nil fatal for any decode error it did NOT classify
+					// input_invalid (a future schema-mismatch/unsupported-major class,
+					// or a non-*factDecodeError). Such an error is terminal but is NOT
+					// a per-fact quarantine — it must fail the whole trust-chain work
+					// item so the durable queue triages it, exactly like the other 29
+					// decode call sites `return ..., fatal`. Swallowing it here (the
+					// old `continue`) would let a malformed principal Ack as success —
+					// the "swallow failures" hole the redesign exists to close.
+					return secretsIAMIndex{}, nil, fatal
+				}
+				if ok {
+					quarantined = append(quarantined, q)
+				}
+				continue
+			}
+			key := strings.TrimSpace(payloadString(envelope.Payload, "principal_arn"))
+			if key == "" {
+				continue
+			}
+			index.iamPrincipals[key] = append(index.iamPrincipals[key], secretsIAMPrincipal{env: envelope, decoded: principal})
 		case facts.AWSIAMTrustPolicyFactKind:
 			addByKey(index.iamTrusts, payloadString(envelope.Payload, "role_arn"), envelope)
 		case facts.VaultACLPolicyFactKind:
@@ -112,7 +168,7 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
 			index.coverage = append(index.coverage, envelope)
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 func secretsIAMExactChains(index secretsIAMIndex) (
@@ -386,112 +442,4 @@ func secretsIAMStaleGenerationGaps(index secretsIAMIndex) []SecretsIAMPostureGap
 		}
 	}
 	return gaps
-}
-
-func secretsIAMWildcardTrustObservations(trusts map[string][]facts.Envelope) []SecretsIAMPrivilegePostureObservation {
-	var observations []SecretsIAMPrivilegePostureObservation
-	for roleARN, envelopes := range trusts {
-		for _, envelope := range envelopes {
-			if !payloadBool(envelope.Payload, "web_identity_subject_wildcard") {
-				continue
-			}
-			if payloadString(envelope.Payload, "effect") != "Allow" {
-				continue
-			}
-			if !secretsIAMContainsLower(payloadStrings(envelope.Payload, "", "actions"), "sts:assumerolewithwebidentity") {
-				continue
-			}
-			subject := secretsIAMFingerprint("iam_role", roleARN)
-			observations = append(observations, SecretsIAMPrivilegePostureObservation{
-				ObservationID:      secretsIAMID("privilege_posture_observation", "wildcard_web_identity_subject", subject, envelope.FactID),
-				RiskType:           "wildcard_web_identity_subject",
-				Severity:           "high",
-				State:              SecretsIAMTrustChainStatePartial,
-				Confidence:         "partial",
-				SubjectFingerprint: subject,
-				Reason:             "web identity trust contains a wildcard or broad subject selector",
-				EvidenceFactIDs:    []string{envelope.FactID},
-			})
-		}
-	}
-	return observations
-}
-
-func secretsIAMWildcardVaultAuthRoleObservations(envelopes []facts.Envelope) []SecretsIAMPrivilegePostureObservation {
-	var observations []SecretsIAMPrivilegePostureObservation
-	for _, envelope := range envelopes {
-		if !payloadBool(envelope.Payload, "bound_service_account_selector_wildcard") {
-			continue
-		}
-		subject := secretsIAMFingerprint("vault_auth_role", payloadString(envelope.Payload, "role_join_key"))
-		if subject == "" {
-			subject = secretsIAMFingerprint("vault_auth_role", envelope.FactID)
-		}
-		observations = append(observations, SecretsIAMPrivilegePostureObservation{
-			ObservationID:      secretsIAMID("privilege_posture_observation", "wildcard_vault_service_account_selector", subject, envelope.FactID),
-			RiskType:           "wildcard_vault_service_account_selector",
-			Severity:           "high",
-			State:              SecretsIAMTrustChainStatePartial,
-			Confidence:         "partial",
-			SubjectFingerprint: subject,
-			Reason:             "Vault Kubernetes auth role contains a wildcard service account selector",
-			EvidenceFactIDs:    []string{envelope.FactID},
-		})
-	}
-	return observations
-}
-
-func secretsIAMGap(
-	gapType string,
-	state SecretsIAMTrustChainState,
-	reason string,
-	serviceAccountKey string,
-	evidenceFactIDs []string,
-	missingEvidence []string,
-	unsupportedLayers []string,
-) SecretsIAMPostureGap {
-	return SecretsIAMPostureGap{
-		GapID:                 secretsIAMID("posture_gap", gapType, serviceAccountKey, strings.Join(evidenceFactIDs, "|")),
-		GapType:               gapType,
-		State:                 state,
-		Reason:                reason,
-		ServiceAccountJoinKey: serviceAccountKey,
-		EvidenceFactIDs:       uniqueSortedStrings(evidenceFactIDs),
-		MissingEvidence:       uniqueSortedStrings(missingEvidence),
-		UnsupportedLayers:     uniqueSortedStrings(unsupportedLayers),
-	}
-}
-
-type vaultPolicyRule struct {
-	pathFingerprint string
-	capabilities    []string
-}
-
-func vaultPolicyRules(policy facts.Envelope) []vaultPolicyRule {
-	raw, ok := policy.Payload["rules"]
-	if !ok {
-		return nil
-	}
-	var out []vaultPolicyRule
-	switch typed := raw.(type) {
-	case []map[string]any:
-		for _, rule := range typed {
-			out = append(out, vaultPolicyRule{
-				pathFingerprint: payloadString(rule, "path_fingerprint"),
-				capabilities:    payloadStrings(rule, "", "capabilities"),
-			})
-		}
-	case []any:
-		for _, item := range typed {
-			rule, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			out = append(out, vaultPolicyRule{
-				pathFingerprint: payloadString(rule, "path_fingerprint"),
-				capabilities:    payloadStrings(rule, "", "capabilities"),
-			})
-		}
-	}
-	return out
 }

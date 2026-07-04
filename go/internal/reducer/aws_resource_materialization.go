@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // awsResourceMaterializationDomainDefinition returns the additive definition
@@ -79,6 +81,11 @@ type AWSResourceMaterializationHandler struct {
 	// graph projection feature is enabled, so the default hot path carries no
 	// extra write.
 	PresenceWriter EndpointPresenceWriter
+	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
+	// when an aws_resource fact is quarantined as input_invalid during node
+	// extraction. Optional: a nil pointer skips the counter (the structured
+	// per-fact error log still emits).
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one AWS resource materialization intent.
@@ -114,7 +121,19 @@ func (h AWSResourceMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows := ExtractCloudResourceNodeRows(envelopes)
+	rows, quarantined, err := ExtractCloudResourceNodeRows(envelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource fact (a missing required
+	// identity field) is quarantined as a visible input_invalid dead-letter —
+	// counter + structured error log — while every valid fact still materializes
+	// its node below and the canonical-nodes-committed phase still publishes, so
+	// one bad fact never stalls the scope generation's node substrate.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAWSResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -170,31 +189,49 @@ func (h AWSResourceMaterializationHandler) Handle(
 		Domain:   DomainAWSResourceMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical cloud resource node(s) from %d aws resource fact(s)",
+			"materialized %d canonical cloud resource node(s) from %d aws resource fact(s); %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
 // ExtractCloudResourceNodeRows projects aws_resource fact envelopes into
-// deterministic CloudResource node rows keyed by a stable uid. Rows are
+// deterministic CloudResource node rows keyed by a stable uid. Each fact is
+// decoded through the factschema seam, so a payload missing a required identity
+// field is quarantined as a per-fact input_invalid dead-letter (returned in the
+// []quarantinedFact slice) rather than fabricating a node with an empty-string
+// uid OR aborting the whole batch: every valid fact still projects. Rows are
 // deduplicated by uid so duplicate facts (retries, overlapping scans) converge
-// on a single node, and incomplete identities (missing resource_type or both
-// resource_id and arn) are dropped rather than fabricating a node. The returned
-// rows are sorted by uid for deterministic batch output.
-func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
+// on a single node, and incomplete-but-valid identities (present-but-empty
+// resource_type, or both resource_id and arn empty) are dropped rather than
+// fabricating a node. The returned rows are sorted by uid for deterministic
+// batch output.
+func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
 	if len(envelopes) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
+	var quarantined []quarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		row, uid, ok := cloudResourceNodeRow(env)
+		row, uid, ok, err := cloudResourceNodeRow(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
 		if !ok {
 			continue
 		}
@@ -204,7 +241,7 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
 	}
 
 	if len(byUID) == 0 {
-		return nil
+		return nil, quarantined, nil
 	}
 
 	uids := make([]string, 0, len(byUID))
@@ -217,38 +254,47 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows
+	return rows, quarantined, nil
 }
 
 // cloudResourceNodeRow builds one CloudResource node row from an aws_resource
 // fact envelope, returning ok=false when the resource lacks the identity needed
-// to form a stable node uid.
-func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	resourceType := payloadString(env.Payload, "resource_type")
-	resourceID := payloadString(env.Payload, "resource_id")
-	arn := payloadString(env.Payload, "arn")
+// to form a stable node uid, or a classified decode error when a required
+// identity field is absent from the payload. Identity and common fields are read
+// from the decoded factschema struct; service-specific fields (the service-anchor
+// workload_id/service_name and any nested attributes) are read from the struct's
+// untyped Attributes pass-through, never from the raw envelope payload.
+func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
+	resource, err := decodeAWSResource(env)
+	if err != nil {
+		return nil, "", false, err
+	}
 
+	arn := derefString(resource.ARN)
+	uid, ok := cloudResourceUIDForResource(resource)
+	if !ok {
+		return nil, "", false, nil
+	}
+	resourceID := resource.ResourceID
 	if resourceID == "" {
 		resourceID = arn
 	}
-	if resourceType == "" || resourceID == "" {
-		return nil, "", false
-	}
-
-	uid := cloudResourceUID(accountID, region, resourceType, resourceID)
 	row := map[string]any{
-		"uid":                 uid,
-		"arn":                 arn,
-		"resource_id":         resourceID,
-		"resource_type":       resourceType,
-		"name":                payloadString(env.Payload, "name"),
-		"state":               payloadString(env.Payload, "state"),
-		"account_id":          accountID,
-		"region":              region,
-		"service_kind":        payloadString(env.Payload, "service_kind"),
-		"correlation_anchors": payloadStrings(env.Payload, "", "correlation_anchors"),
+		"uid":           uid,
+		"arn":           arn,
+		"resource_id":   resourceID,
+		"resource_type": resource.ResourceType,
+		"name":          derefString(resource.Name),
+		"state":         derefString(resource.State),
+		"account_id":    resource.AccountID,
+		"region":        resource.Region,
+		"service_kind":  derefString(resource.ServiceKind),
+		// uniqueSortedStrings preserves the pre-typing byte-identical output: the
+		// old payloadStrings(env.Payload, "", "correlation_anchors") trimmed,
+		// deduplicated, and sorted the anchors. The typed decode returns the raw
+		// []string as emitted, so the reducer must re-apply that normalization
+		// here (and at every other CorrelationAnchors projection site).
+		"correlation_anchors": uniqueSortedStrings(resource.CorrelationAnchors),
 		"source_fact_id":      env.FactID,
 		"stable_fact_key":     env.StableFactKey,
 		"source_system":       env.SourceRef.SourceSystem,
@@ -256,10 +302,28 @@ func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
 	}
-	for key, value := range cloudResourceServiceAnchorFields(env.Payload) {
+	for key, value := range cloudResourceServiceAnchorFields(resource.Attributes, resource.ResourceType) {
 		row[key] = value
 	}
-	return row, uid, true
+	return row, uid, true, nil
+}
+
+// cloudResourceUIDForResource derives the stable CloudResource node uid from an
+// already-decoded aws_resource struct, returning ok=false when the resource
+// lacks the identity needed to form a stable uid (empty resource_type, or both
+// resource_id and arn empty). It shares the exact resource_id fallback and
+// empty-identity rules cloudResourceNodeRow uses so a caller that already
+// decoded the fact (for example ExtractWorkloadCloudRelationshipRows) can obtain
+// the uid without decoding the same envelope a second time.
+func cloudResourceUIDForResource(resource awsv1.Resource) (string, bool) {
+	resourceID := resource.ResourceID
+	if resourceID == "" {
+		resourceID = derefString(resource.ARN)
+	}
+	if resource.ResourceType == "" || resourceID == "" {
+		return "", false
+	}
+	return cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID), true
 }
 
 // cloudResourceUID computes the stable CloudResource node identity. The identity

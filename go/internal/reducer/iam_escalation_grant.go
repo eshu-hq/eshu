@@ -6,7 +6,7 @@ package reducer
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 // iamPrincipalGrant is one principal's conservatively-trusted effective grant: the
@@ -18,10 +18,21 @@ import (
 type iamPrincipalGrant struct {
 	trustedActions map[string]struct{}
 	denyActions    map[string]struct{}
-	// statementsByAction maps a lowercase action to the trusted statements that
-	// granted it, so the target resolver can pull the resources of the exact
-	// statement carrying a primitive's action (e.g. the iam:passrole statement).
-	statementsByAction map[string][]facts.Envelope
+	// statementsByAction maps a lowercase action to the decoded trusted
+	// statements that granted it, so the target resolver can pull the resources
+	// of the exact statement carrying a primitive's action (e.g. the iam:passrole
+	// statement). Each statement carries its source FactID so statementsCovering
+	// can deduplicate a statement registered under several lookup keys, exactly as
+	// the pre-typing envelope-based path did.
+	statementsByAction map[string][]iamPermissionStatement
+}
+
+// iamPermissionStatement pairs a decoded aws_iam_permission statement with its
+// source FactID so the grant's statementsByAction map can deduplicate a
+// statement that matches more than one action-lookup key.
+type iamPermissionStatement struct {
+	factID     string
+	permission iamv1.Permission
 }
 
 // iamPrimitiveArmStatus is the outcome of evaluating whether a principal holds a
@@ -83,22 +94,22 @@ func (g iamPrincipalGrant) allows(action string) bool {
 // every statement that actually covers it, so the target resolver reads the right
 // resources for a wildcard-granted primitive. Duplicate statements are returned at
 // most once.
-func (g iamPrincipalGrant) statementsCovering(action string) []facts.Envelope {
+func (g iamPrincipalGrant) statementsCovering(action string) []iamPermissionStatement {
 	keys := []string{action, "*"}
 	if service, _, ok := strings.Cut(action, ":"); ok {
 		keys = append(keys, service+":*")
 	}
 	seen := make(map[string]struct{})
-	out := make([]facts.Envelope, 0)
+	out := make([]iamPermissionStatement, 0)
 	for _, key := range keys {
-		for _, env := range g.statementsByAction[key] {
-			if _, dup := seen[env.FactID]; dup && env.FactID != "" {
+		for _, statement := range g.statementsByAction[key] {
+			if _, dup := seen[statement.factID]; dup && statement.factID != "" {
 				continue
 			}
-			if env.FactID != "" {
-				seen[env.FactID] = struct{}{}
+			if statement.factID != "" {
+				seen[statement.factID] = struct{}{}
 			}
-			out = append(out, env)
+			out = append(out, statement)
 		}
 	}
 	return out
@@ -129,29 +140,28 @@ func (g iamPrincipalGrant) denied(action string) bool {
 // catalog-relevant action are counted as the matching skip reason so an operator
 // sees why a primitive that "looks" granted did not arm; sts:AssumeRole anywhere
 // is counted as deferred.
-func buildIAMPrincipalGrant(envelopes []facts.Envelope, tally *iamEscalationTally) iamPrincipalGrant {
+func buildIAMPrincipalGrant(statements []iamPermissionStatement, tally *iamEscalationTally) iamPrincipalGrant {
 	grant := iamPrincipalGrant{
 		trustedActions:     make(map[string]struct{}),
 		denyActions:        make(map[string]struct{}),
-		statementsByAction: make(map[string][]facts.Envelope),
+		statementsByAction: make(map[string][]iamPermissionStatement),
 	}
 	catalogActions := iamEscalationCatalogActions()
 	deferredCounted := false
 
-	for _, env := range envelopes {
-		effect := payloadString(env.Payload, "effect")
-		actions := payloadStringSlice(env.Payload, "actions")
-		hasConditions := payloadBool(env.Payload, "has_conditions")
-		hasNotActions := len(payloadStringSlice(env.Payload, "not_actions")) > 0
-		hasNotResources := len(payloadStringSlice(env.Payload, "not_resources")) > 0
+	for _, statement := range statements {
+		actions := statement.permission.Actions
+		hasConditions := boolPtrValue(statement.permission.HasConditions)
+		hasNotActions := len(statement.permission.NotActions) > 0
+		hasNotResources := len(statement.permission.NotResources) > 0
 
-		if effect == "Deny" {
+		if statement.permission.Effect == "Deny" {
 			for _, action := range actions {
 				grant.denyActions[action] = struct{}{}
 			}
 			continue
 		}
-		if effect != "Allow" {
+		if statement.permission.Effect != "Allow" {
 			continue
 		}
 
@@ -178,7 +188,7 @@ func buildIAMPrincipalGrant(envelopes []facts.Envelope, tally *iamEscalationTall
 
 		for _, action := range actions {
 			grant.trustedActions[action] = struct{}{}
-			grant.statementsByAction[action] = append(grant.statementsByAction[action], env)
+			grant.statementsByAction[action] = append(grant.statementsByAction[action], statement)
 		}
 	}
 	return grant

@@ -163,6 +163,53 @@ func TestIAMEscalationHandlerProjectsResolvedEdge(t *testing.T) {
 	}
 }
 
+// TestIAMEscalationHandlerQuarantinesMalformedFact proves the iam_escalation
+// handler records a per-fact input_invalid quarantine (the metric + structured
+// log via recordQuarantinedFacts, surfaced on Result.SubSignals) rather than
+// silently skipping it, while the batch's valid escalation edge still projects.
+// iam_escalation was the one migrated domain that collected result.Quarantined
+// but never recorded it — a silent skip the redesign forbids.
+func TestIAMEscalationHandlerQuarantinesMalformedFact(t *testing.T) {
+	t.Parallel()
+
+	// A malformed aws_resource fact (account_id absent) shares the batch with the
+	// complete, valid escalation fixture. The malformed fact is quarantined; the
+	// valid principal/policy/grant still resolves exactly one edge.
+	malformed := awsResourceEnvelope(map[string]any{
+		"region":        iamEscRegion,
+		"resource_type": iamResourceTypeUser,
+		"resource_id":   "arn:aws:iam::111122223333:user/poison",
+	})
+	envelopes := append([]facts.Envelope{malformed}, iamEscalationFacts()...)
+
+	writer := &recordingIAMEscalationWriter{}
+	handler := IAMEscalationMaterializationHandler{
+		FactLoader:           &stubFactLoader{envelopes: envelopes},
+		Writer:               writer,
+		ReadinessLookup:      allKeyspacesReady(),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+	}
+
+	result, err := handler.Handle(context.Background(), iamEscalationIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error %v; a malformed fact must be quarantined per-fact, not fail the intent", err)
+	}
+
+	// The malformed fact is recorded as one input_invalid quarantine on the
+	// per-intent signal (also on the counter + structured error log).
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 1; the malformed fact must be recorded, not silently skipped", got)
+	}
+
+	// The batch's valid escalation edge must still materialize.
+	if writer.edgeCalls != 1 || len(writer.edgeRows) != 1 {
+		t.Fatalf("escalation edge writes wrong: calls=%d rows=%d, want 1 and 1 (valid edge projects despite the quarantined fact)", writer.edgeCalls, len(writer.edgeRows))
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
+	}
+}
+
 // TestIAMEscalationHandlerIdempotentReprojection proves re-running the same
 // generation issues the same edge and retracts the prior generation first.
 func TestIAMEscalationHandlerIdempotentReprojection(t *testing.T) {

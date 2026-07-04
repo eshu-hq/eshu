@@ -146,7 +146,18 @@ func (h IAMEscalationMaterializationHandler) Handle(
 	resourceEnvelopes, permissionEnvelopes := splitIAMEscalationEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	result := ExtractIAMEscalationEdges(resourceEnvelopes, permissionEnvelopes)
+	result, err := ExtractIAMEscalationEdges(resourceEnvelopes, permissionEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load, unsupported schema major, or
+		// other fatal condition partitionDecodeFailures did NOT quarantine) fails
+		// the whole intent so the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_resource/aws_iam_permission fact (a
+	// missing required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while every valid fact still
+	// resolves its escalation edge below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainIAMEscalationMaterialization, intent.ScopeID, intent.GenerationID, result.Quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -195,12 +206,14 @@ func (h IAMEscalationMaterializationHandler) Handle(
 		Domain:   DomainIAMEscalationMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d CAN_ESCALATE_TO edge(s) from %d iam permission fact(s); %d skipped/deferred",
+			"materialized %d CAN_ESCALATE_TO edge(s) from %d iam permission fact(s); %d skipped/deferred; %d input_invalid fact(s) quarantined",
 			len(result.Edges),
 			len(permissionEnvelopes),
 			result.Tally.total(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(result.Edges),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

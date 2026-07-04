@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // Security-group rule source-kind discriminators the reducer keys on. They
@@ -154,7 +155,18 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	cidrRows, prefixRows := ExtractSecurityGroupEndpointRows(envelopes)
+	cidrRows, prefixRows, quarantined, err := ExtractSecurityGroupEndpointRows(envelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed aws_security_group_rule fact (a missing
+	// required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while the batch's valid
+	// rules still materialize below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityGroupCidrMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	writeStart := time.Now()
@@ -207,12 +219,14 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 		Domain:   DomainSecurityGroupCidrMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d cidr block + %d prefix list node(s) from %d security group rule fact(s)",
+			"materialized %d cidr block + %d prefix list node(s) from %d security group rule fact(s); %d input_invalid fact(s) quarantined",
 			len(cidrRows),
 			len(prefixRows),
 			len(envelopes),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(cidrRows) + len(prefixRows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -239,9 +253,9 @@ func (h SecurityGroupCidrMaterializationHandler) recordEndpointsMaterialized(ctx
 // scoped uid. Tombstoned rules, referenced-security-group and unknown sources,
 // and unparseable CIDRs are dropped rather than fabricating an endpoint node. The
 // returned rows are each sorted by uid for deterministic batch output.
-func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, prefixRows []map[string]any) {
+func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, prefixRows []map[string]any, quarantined []quarantinedFact, err error) {
 	if len(envelopes) == 0 {
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 
 	cidrByUID := make(map[string]map[string]any)
@@ -256,34 +270,45 @@ func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, pre
 		if env.IsTombstone {
 			continue
 		}
-		switch payloadString(env.Payload, "source_kind") {
+		rule, decodeErr := decodeAWSSecurityGroupRule(env)
+		if decodeErr != nil {
+			q, ok, fatal := partitionDecodeFailures(env, decodeErr)
+			if fatal != nil {
+				return nil, nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		switch rule.SourceKind {
 		case securityGroupRuleSourceCIDRIPv4, securityGroupRuleSourceCIDRIPv6:
-			if row, uid, ok := cidrBlockNodeRow(env); ok {
+			if row, uid, ok := cidrBlockNodeRow(env, rule); ok {
 				cidrByUID[uid] = row
 			}
 		case securityGroupRuleSourcePrefixList:
-			if row, uid, ok := prefixListNodeRow(env); ok {
+			if row, uid, ok := prefixListNodeRow(env, rule); ok {
 				prefixByUID[uid] = row
 			}
 		}
 	}
 
-	return sortRowsByUID(cidrByUID), sortRowsByUID(prefixByUID)
+	return sortRowsByUID(cidrByUID), sortRowsByUID(prefixByUID), quarantined, nil
 }
 
-// cidrBlockNodeRow builds one CidrBlock node row from a security-group rule fact
-// envelope, returning ok=false when the rule's CIDR cannot be canonicalized into
-// a deterministic identity. The uid is a stable hash of the canonical CIDR plus
+// cidrBlockNodeRow builds one CidrBlock node row from a decoded security-group
+// rule, returning ok=false when the rule's CIDR cannot be canonicalized into a
+// deterministic identity. The uid is a stable hash of the canonical CIDR plus
 // the address family so the same network always resolves to the same node, which
-// the later edge projection can recompute from a rule's resolved endpoint.
-func cidrBlockNodeRow(env facts.Envelope) (map[string]any, string, bool) {
-	sourceKind := payloadString(env.Payload, "source_kind")
-	canonical, ok := canonicalizeCIDR(payloadString(env.Payload, "source_value"))
+// the later edge projection can recompute from a rule's resolved endpoint. The
+// env supplies only the provenance scalars stamped onto the row.
+func cidrBlockNodeRow(env facts.Envelope, rule awsv1.SecurityGroupRule) (map[string]any, string, bool) {
+	canonical, ok := canonicalizeCIDR(rule.SourceValue)
 	if !ok {
 		return nil, "", false
 	}
 	family := cidrBlockAddressFamilyIPv4
-	if sourceKind == securityGroupRuleSourceCIDRIPv6 {
+	if rule.SourceKind == securityGroupRuleSourceCIDRIPv6 {
 		family = cidrBlockAddressFamilyIPv6
 	}
 	uid := cidrBlockUID(canonical, family)
@@ -301,17 +326,18 @@ func cidrBlockNodeRow(env facts.Envelope) (map[string]any, string, bool) {
 	return row, uid, true
 }
 
-// prefixListNodeRow builds one PrefixList node row from a security-group rule
-// fact envelope, returning ok=false when the rule lacks a prefix-list id. The uid
-// folds account_id and region into the identity because prefix-list ids are
-// unique only within an account/region visibility scope.
-func prefixListNodeRow(env facts.Envelope) (map[string]any, string, bool) {
-	prefixListID := strings.TrimSpace(payloadString(env.Payload, "source_value"))
+// prefixListNodeRow builds one PrefixList node row from a decoded security-group
+// rule, returning ok=false when the rule lacks a prefix-list id. The uid folds
+// account_id and region into the identity because prefix-list ids are unique
+// only within an account/region visibility scope. The env supplies only the
+// provenance scalars stamped onto the row.
+func prefixListNodeRow(env facts.Envelope, rule awsv1.SecurityGroupRule) (map[string]any, string, bool) {
+	prefixListID := strings.TrimSpace(rule.SourceValue)
 	if prefixListID == "" {
 		return nil, "", false
 	}
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
+	accountID := rule.AccountID
+	region := rule.Region
 	uid := prefixListUID(accountID, region, prefixListID)
 	row := map[string]any{
 		"uid":              uid,

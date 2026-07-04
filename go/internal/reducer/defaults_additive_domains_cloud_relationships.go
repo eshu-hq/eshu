@@ -32,6 +32,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			EdgeWriter:           handlers.WorkloadCloudRelationshipEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Instruments:          handlers.Instruments,
 		}
 		definitions = append(definitions, workloadCloud)
 	}
@@ -79,6 +80,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			ReadinessLookup:      handlers.ReadinessLookup,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
 			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
 		}
 		definitions = append(definitions, s3Grant)
 	}
@@ -90,6 +92,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			ReadinessLookup:      handlers.ReadinessLookup,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
 			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
 		}
 		definitions = append(definitions, rdsPosture)
 	}
