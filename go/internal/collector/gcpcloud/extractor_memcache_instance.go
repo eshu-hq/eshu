@@ -59,9 +59,11 @@ type memcacheInstanceData struct {
 }
 
 // memcacheNodeData is the bounded view of one CAI memcacheNodes[] entry. Only
-// nodeId, zone, and state fields exist on this struct's fields set that are
-// decoded into the node count; host and port are never declared as fields, so
-// they never reach Go memory and can never leak into a fact.
+// nodeId, zone, and state are declared as fields; host and port are never
+// declared, so json.Unmarshal never decodes them into a typed field or
+// variable this package can read, and they can never reach an attribute,
+// anchor, or edge. The raw resource.data blob itself is still in memory for
+// the duration of the decode, same as for any other field on this struct.
 type memcacheNodeData struct {
 	NodeID string `json:"nodeId"`
 	Zone   string `json:"zone"`

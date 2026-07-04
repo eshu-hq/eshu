@@ -1240,7 +1240,7 @@ an IP address, port, or CIDR range rather than a resource identity.
 
 **Memorystore Memcached Instance** (`memcache.googleapis.com/Instance`)
 captures display name, a bounded zone count, node count, per-node cpu count
-and memory size in MiB (from `nodeConfig`), the Memcached major version
+and memory size in MB (from `nodeConfig`), the Memcached major version
 (`memcacheVersion`) and full version string, creation time, state,
 maintenance version, effective maintenance version, and a bounded
 `memcacheNodes` count; emits the typed `memcache_instance_in_network` edge to
