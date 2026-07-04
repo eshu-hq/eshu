@@ -24,9 +24,16 @@
   the parent PHP parity tests pin that contract.
 - PreScan uses a declaration-only AST walk so parent pre-scan and full parse
   agree on declaration names without running full semantic extraction twice.
-- Phase 1 collects declarations, imports, type evidence, and dead-code facts;
-  phase 2 emits variables and calls so cross-statement inference sees the whole
-  file. Do not collapse the two passes.
+- Phase 1 collects declarations, imports, type evidence, dead-code facts, and
+  candidate route attributes; phase 2 emits variables and calls so
+  cross-statement inference sees the whole file. Do not collapse the two
+  passes: phase 2 depends on whole-file type evidence phase 1 only finishes
+  collecting after seeing the entire file.
+- Route-attribute resolution (`buildPHPFrameworkSemantics`,
+  `phpSymfonyRoutes`) consumes the candidate nodes phase 1 recorded while
+  visiting `attribute` nodes for `observePHPAttribute`; it does not walk the
+  tree itself. Do not reintroduce a dedicated route walk — extend the phase 1
+  `attribute` case and the post-walk resolution instead.
 
 ## Common changes and how to scope them
 

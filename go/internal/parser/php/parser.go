@@ -32,6 +32,7 @@ type phpParseState struct {
 	parents             *phpParentLookup
 	deadCodeFacts       phpDeadCodeFacts
 	deadCodeFunctions   []phpDeadCodeFunctionFact
+	routeAttributes     []*tree_sitter.Node
 }
 
 // Parse extracts PHP declarations, imports, variables, and calls from the
@@ -71,13 +72,17 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	root := tree.RootNode()
 	parents := buildPHPParentLookup(root)
 
-	// Phase 1: collect declarations, imports, type evidence, and dead-code
-	// facts so call and variable inference in phase 2 sees the whole file.
+	// Phase 1: collect declarations, imports, type evidence, dead-code facts,
+	// and candidate route attributes so call and variable inference in phase 2
+	// sees the whole file.
 	state.parents = parents
 	collectPHPDeclarations(state, root)
 
 	// Phase 2: emit variables and call rows that depend on the type evidence.
 	emitPHPVariablesAndCalls(state, root)
+
+	// Route attributes recorded during phase 1 resolve against the now-complete
+	// import set below (buildPHPFrameworkSemantics); no further tree walk.
 
 	// Assign dead-code root kinds now that every interface, trait, route, and
 	// hook fact has been observed.
@@ -99,7 +104,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	if namespace := phpNamespaceName(root, source); namespace != "" {
 		payload["namespace"] = namespace
 	}
-	if semantics := buildPHPFrameworkSemantics(root, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
+	if semantics := buildPHPFrameworkSemantics(state.routeAttributes, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
 		payload["framework_semantics"] = semantics
 	}
 
@@ -118,8 +123,15 @@ func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
 }
 
 // collectPHPDeclarations walks the AST once to populate declaration buckets,
-// import rows and aliases, property and return-type evidence, and dead-code
-// facts. Calls and free variables are emitted in a later pass.
+// import rows and aliases, property and return-type evidence, dead-code
+// facts, and candidate route attributes. Calls and free variables are emitted
+// in a later pass. Route attributes are recorded here rather than walked
+// again in a dedicated pass because this pass already visits every "attribute"
+// node for observePHPAttribute; resolving the recorded candidates against
+// exact Symfony Route import names happens after this walk completes (see
+// buildPHPFrameworkSemantics), once phase 1 has collected every import in the
+// file, so candidate order never depends on where in the file a "use"
+// statement appears relative to the attribute that references it.
 func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -137,6 +149,7 @@ func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
 			collectPHPFunction(state, node, "", "")
 		case "attribute":
 			observePHPAttribute(state, node)
+			state.routeAttributes = append(state.routeAttributes, shared.CloneNode(node))
 		case "function_call_expression":
 			observePHPWordPressHookCall(state, node)
 		case "array_creation_expression":
