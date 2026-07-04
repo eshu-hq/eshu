@@ -102,6 +102,113 @@ func TestExtractCertificateManagerCertificateManagedFullAttributes(t *testing.T)
 	}
 }
 
+func TestExtractCertificateManagerCertificateUsedByCertificateMapEntry(t *testing.T) {
+	const data = `{
+		"name": "projects/demo-project/locations/us-central1/certificates/map-served-cert",
+		"selfManaged": {},
+		"usedBy": [
+			{"name": "//certificatemanager.googleapis.com/projects/demo-project/locations/us-central1/certificateMaps/prod-map/certificateMapEntries/prod-entry"}
+		]
+	}`
+
+	got, err := extractCertificateManagerCertificate(certManagerCertificateContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantEntryName := "//certificatemanager.googleapis.com/projects/demo-project/locations/us-central1/certificateMaps/prod-map/certificateMapEntries/prod-entry"
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected 1 relationship, got %#v", got.Relationships)
+	}
+	rel := got.Relationships[0]
+	if rel.RelationshipType != relationshipTypeCertManagerCertificateUsedByCertificateMapEntry {
+		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, relationshipTypeCertManagerCertificateUsedByCertificateMapEntry)
+	}
+	if rel.TargetFullResourceName != wantEntryName {
+		t.Errorf("target = %q, want %q", rel.TargetFullResourceName, wantEntryName)
+	}
+	if rel.TargetAssetType != assetTypeCertificateManagerCertificateMapEntry {
+		t.Errorf("target type = %q, want %q", rel.TargetAssetType, assetTypeCertificateManagerCertificateMapEntry)
+	}
+	if rel.SourceFullResourceName != certManagerCertificateFullName {
+		t.Errorf("source = %q, want %q", rel.SourceFullResourceName, certManagerCertificateFullName)
+	}
+	if !containsStringSlice(got.CorrelationAnchors, wantEntryName) {
+		t.Errorf("expected anchor %q in %#v", wantEntryName, got.CorrelationAnchors)
+	}
+}
+
+func TestExtractCertificateManagerCertificateUsedByTargetHTTPSProxy(t *testing.T) {
+	const data = `{
+		"name": "projects/demo-project/locations/us-central1/certificates/classic-served-cert",
+		"selfManaged": {},
+		"usedBy": [
+			{"name": "//compute.googleapis.com/projects/demo-project/global/targetHttpsProxies/prod-proxy"}
+		]
+	}`
+
+	got, err := extractCertificateManagerCertificate(certManagerCertificateContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantProxyName := "//compute.googleapis.com/projects/demo-project/global/targetHttpsProxies/prod-proxy"
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected 1 relationship, got %#v", got.Relationships)
+	}
+	rel := got.Relationships[0]
+	if rel.RelationshipType != relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy {
+		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy)
+	}
+	if rel.TargetFullResourceName != wantProxyName {
+		t.Errorf("target = %q, want %q", rel.TargetFullResourceName, wantProxyName)
+	}
+	if rel.TargetAssetType != assetTypeComputeTargetHTTPSProxy {
+		t.Errorf("target type = %q, want %q", rel.TargetAssetType, assetTypeComputeTargetHTTPSProxy)
+	}
+}
+
+func TestExtractCertificateManagerCertificateUsedByMultipleEntriesDeduped(t *testing.T) {
+	const data = `{
+		"name": "projects/demo-project/locations/us-central1/certificates/multi-used-cert",
+		"usedBy": [
+			{"name": "//certificatemanager.googleapis.com/projects/demo-project/locations/us-central1/certificateMaps/prod-map/certificateMapEntries/prod-entry"},
+			{"name": "//certificatemanager.googleapis.com/projects/demo-project/locations/us-central1/certificateMaps/prod-map/certificateMapEntries/prod-entry"},
+			{"name": "//compute.googleapis.com/projects/demo-project/global/targetHttpsProxies/prod-proxy"}
+		]
+	}`
+
+	got, err := extractCertificateManagerCertificate(certManagerCertificateContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 2 {
+		t.Fatalf("expected 2 deduped relationships, got %#v", got.Relationships)
+	}
+}
+
+func TestExtractCertificateManagerCertificateUsedByUnresolvableNameEmitsNoEdge(t *testing.T) {
+	const data = `{
+		"name": "projects/demo-project/locations/us-central1/certificates/untrusted-cert",
+		"usedBy": [
+			{"name": "not-a-recognized-resource-name"},
+			{"name": "//storage.googleapis.com/projects/demo-project/buckets/some-bucket"},
+			{"name": ""}
+		]
+	}`
+
+	got, err := extractCertificateManagerCertificate(certManagerCertificateContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("expected no relationships for unresolvable/untrusted usedBy names, got %#v", got.Relationships)
+	}
+	if len(got.CorrelationAnchors) != 0 {
+		t.Errorf("expected no anchors for unresolvable/untrusted usedBy names, got %#v", got.CorrelationAnchors)
+	}
+}
+
 func TestExtractCertificateManagerCertificateSelfManagedOmitsManagedFields(t *testing.T) {
 	const data = `{
 		"name": "projects/demo-project/locations/us-central1/certificates/self-managed-cert",

@@ -469,21 +469,29 @@ each resolved `managed.dnsAuthorizations[]` entry toward the
 Neither target resource has its own typed-depth extractor yet, so this
 extractor declares both asset type constants for a future extractor to reuse,
 mirroring how the ForwardingRule extractor declares proxy-kind asset types for
-reuse by their own eventual typed-depth extractors. `managed.domains[]`,
-`sanDnsnames`, and the managed-identity `identity` SPIFFE ID are DNS-name- or
-workload-identity-shaped values; the typed-depth extractor seam carries no
-redaction key, so — mirroring the SSL Certificate extractor's treatment of its
-own `managed.domains[]` and `subjectAlternativeNames` — every domain value and
-the SPIFFE ID are reduced to bounded counts or presence only, never persisted
-raw. The top-level `pemCertificate` and `selfManaged.pemCertificate`/
-`selfManaged.pemPrivateKey` PEM certificate/key material, and
+reuse by their own eventual typed-depth extractors. It also resolves each
+`usedBy[].name` entry — the resource actually consuming this certificate —
+into a `certificate_manager_certificate_used_by_certificate_map_entry` edge
+toward `certificatemanager.googleapis.com/CertificateMapEntry` (the
+CertificateMap-served path; no other extractor emits an edge for this path,
+since Certificate Manager has no typed-depth extractor for CertificateMapEntry
+yet, so this extractor also declares that asset type constant) or a
+`certificate_manager_certificate_used_by_target_https_proxy` edge toward the
+directly-referencing `compute.googleapis.com/TargetHttpsProxy` (a duplicate of
+the forward edge that extractor already emits via its own
+`sslCertificates[]`/`certificateMap` resolution, since the reducer
+materializes edges idempotently on repeated observation of the same logical
+relationship); an unresolvable, blank, or wrong-domain `usedBy[].name` mints no
+edge or anchor. `managed.domains[]`, `sanDnsnames`, and the managed-identity
+`identity` SPIFFE ID are DNS-name- or workload-identity-shaped values; the
+typed-depth extractor seam carries no redaction key, so — mirroring the SSL
+Certificate extractor's treatment of its own `managed.domains[]` and
+`subjectAlternativeNames` — every domain value and the SPIFFE ID are reduced
+to bounded counts or presence only, never persisted raw. The top-level
+`pemCertificate` and `selfManaged.pemCertificate`/`selfManaged.pemPrivateKey`
+PEM certificate/key material, and
 `managed.provisioningIssue`/`managed.authorizationAttemptInfo` free-text
-failure detail, are never decoded. The certificate's other graph value — a
-Target HTTPS Proxy or Certificate Manager CertificateMap referencing this
-certificate — is an inbound edge already emitted from the referencing side
-(see the Target HTTPS Proxy entry above), the same inbound-edge shape as the
-classic SslCertificate extractor, so this extractor emits no edge for the
-resource's own `usedBy` field.
+failure detail, are never decoded.
 
 **Filestore Instance** (`file.googleapis.com/Instance`) captures state, tier
 (`BASIC_HDD`/`BASIC_SSD`/`ENTERPRISE`/`ZONAL`/`REGIONAL`/etc.), creation time,

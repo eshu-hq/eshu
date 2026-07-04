@@ -27,6 +27,15 @@ const (
 	assetTypeCertificateManagerCertificateIssuanceConfig = "certificatemanager.googleapis.com/CertificateIssuanceConfig"
 )
 
+// assetTypeCertificateManagerCertificateMapEntry is the CAI asset type for a
+// Certificate Manager CertificateMapEntry, one of the two resource kinds a
+// Certificate's own `usedBy[]` field can name (see certManagerCertificateData
+// and resolveCertManagerCertificateUsedBy). Like
+// assetTypeCertificateManagerDNSAuthorization above, no typed-depth extractor
+// for this asset type exists yet, so this constant is declared here for a
+// future CertificateMapEntry extractor to reuse.
+const assetTypeCertificateManagerCertificateMapEntry = "certificatemanager.googleapis.com/CertificateMapEntry"
+
 // Certificate Manager Certificate `type` classification values. Certificate
 // Manager's Certificate resource reports exactly one of `managed`,
 // `selfManaged`, or `managedIdentity` populated (never a `type` field the way
@@ -42,8 +51,10 @@ const (
 // edges. Each is a stable string carried on a gcp_cloud_relationship fact;
 // the reducer materializes an edge only when both endpoints resolve exactly.
 const (
-	relationshipTypeCertManagerCertificateUsesDNSAuthorization = "certificate_manager_certificate_uses_dns_authorization"
-	relationshipTypeCertManagerCertificateUsesIssuanceConfig   = "certificate_manager_certificate_uses_issuance_config"
+	relationshipTypeCertManagerCertificateUsesDNSAuthorization      = "certificate_manager_certificate_uses_dns_authorization"
+	relationshipTypeCertManagerCertificateUsesIssuanceConfig        = "certificate_manager_certificate_uses_issuance_config"
+	relationshipTypeCertManagerCertificateUsedByCertificateMapEntry = "certificate_manager_certificate_used_by_certificate_map_entry"
+	relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy    = "certificate_manager_certificate_used_by_target_https_proxy"
 )
 
 func init() {
@@ -65,7 +76,9 @@ func init() {
 // subjectAlternativeNames — they are never persisted raw and are reduced to
 // bounded counts or presence only. `managed.provisioningIssue` and
 // `managed.authorizationAttemptInfo` carry free-text failure detail and
-// domain names respectively and are never decoded.
+// domain names respectively and are never decoded. `usedBy[].name` is a
+// resource reference (never certificate content), decoded to resolve the
+// reverse-serving edge — see resolveCertManagerCertificateUsedBy.
 type certManagerCertificateData struct {
 	Scope   string `json:"scope"`
 	Managed *struct {
@@ -79,9 +92,12 @@ type certManagerCertificateData struct {
 	} `json:"managedIdentity"`
 	SANDNSNames []string          `json:"sanDnsnames"`
 	Labels      map[string]string `json:"labels"`
-	ExpireTime  string            `json:"expireTime"`
-	CreateTime  string            `json:"createTime"`
-	UpdateTime  string            `json:"updateTime"`
+	UsedBy      []struct {
+		Name string `json:"name"`
+	} `json:"usedBy"`
+	ExpireTime string `json:"expireTime"`
+	CreateTime string `json:"createTime"`
+	UpdateTime string `json:"updateTime"`
 }
 
 // extractCertificateManagerCertificate extracts bounded, redaction-safe typed
@@ -90,19 +106,26 @@ type certManagerCertificateData struct {
 // classification, scope, managed-provisioning state, a bounded managed-domain
 // count, a bounded DNS-authorization count, a bounded subject-alternative-name
 // count, a bounded label count, expiry/create/update time); the resolved
-// dnsAuthorizations and issuanceConfig references as correlation anchors; and
-// the typed certificate_manager_certificate_uses_dns_authorization /
-// certificate_manager_certificate_uses_issuance_config edges. The certificate
-// body, private key, every domain-name value, and the managed-identity SPIFFE
-// ID never reach the output — only bounded counts and resolvable resource
-// references do.
+// dnsAuthorizations, issuanceConfig, and usedBy references as correlation
+// anchors; and the typed certificate_manager_certificate_uses_dns_authorization
+// / certificate_manager_certificate_uses_issuance_config /
+// certificate_manager_certificate_used_by_certificate_map_entry /
+// certificate_manager_certificate_used_by_target_https_proxy edges. The
+// certificate body, private key, every domain-name value, and the
+// managed-identity SPIFFE ID never reach the output — only bounded counts and
+// resolvable resource references do.
 //
-// The certificate's other graph value — a Target HTTPS Proxy or a Certificate
-// Manager CertificateMap referencing this certificate — is an inbound edge
-// already emitted from the referencing side (see
-// extractor_target_https_proxy.go's certificateMap/sslCertificates
-// resolution), the same inbound-edge shape as the classic SslCertificate
-// extractor, so this extractor derives no edge for `usedBy`.
+// A Target HTTPS Proxy directly referencing this certificate through its own
+// `sslCertificates[]` field already has its forward edge emitted from that
+// side (see extractor_target_https_proxy.go's certificateMap/sslCertificates
+// resolution); this extractor's own `usedBy[]` field additionally names every
+// resource actually consuming this certificate — including the
+// CertificateMap-served path, where no other extractor emits any edge at all,
+// since Certificate Manager has no typed-depth extractor for
+// CertificateMapEntry yet. Each `usedBy[].name` is routed by domain/segment to
+// its resolved asset type (see resolveCertManagerCertificateUsedBy); an
+// unresolvable or wrong-domain reference mints no edge or anchor rather than
+// guessing.
 func extractCertificateManagerCertificate(ctx ExtractContext) (AttributeExtraction, error) {
 	var data certManagerCertificateData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -129,11 +152,41 @@ func extractCertificateManagerCertificate(ctx ExtractContext) (AttributeExtracti
 		}
 	}
 
+	for _, usedBy := range data.UsedBy {
+		relType, targetType, name := resolveCertManagerCertificateUsedBy(usedBy.Name, ctx.ProjectID)
+		if name == "" {
+			continue
+		}
+		anchors = append(anchors, name)
+		rels = append(rels, certManagerCertificateEdge(ctx, relType, name, targetType))
+	}
+
 	return AttributeExtraction{
 		Attributes:         attrs,
 		CorrelationAnchors: dedupeNonEmpty(anchors),
 		Relationships:      dedupeCertManagerCertificateRelationships(rels),
 	}, nil
+}
+
+// resolveCertManagerCertificateUsedBy routes a single Certificate `usedBy[].name`
+// reference to its resolved relationship type, CAI asset type, and full
+// resource name. Per the live Certificate Manager v1 discovery document, this
+// field carries exactly one of two full-resource-name shapes: a Certificate
+// Manager CertificateMapEntry
+// (`//certificatemanager.googleapis.com/.../certificateMaps/*/certificateMapEntries/*`)
+// when the certificate is served through a Certificate Map, or a Compute
+// TargetHttpsProxy (`//compute.googleapis.com/.../targetHttpsProxies/*`) when
+// referenced directly. It fails closed: a blank, wrong-domain, or
+// wrong-segment reference returns a blank name so the caller emits no edge or
+// anchor for an untrusted or unrecognized value.
+func resolveCertManagerCertificateUsedBy(ref, sourceProjectID string) (relationshipType, targetType, fullName string) {
+	if name := certificateManagerFullName(ref, "certificateMapEntries"); name != "" {
+		return relationshipTypeCertManagerCertificateUsedByCertificateMapEntry, assetTypeCertificateManagerCertificateMapEntry, name
+	}
+	if name := computeResourceFullNameFromSelfLink(ref, "targetHttpsProxies", sourceProjectID); name != "" {
+		return relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy, assetTypeComputeTargetHTTPSProxy, name
+	}
+	return "", "", ""
 }
 
 // certManagerCertificateAttributes assembles the bounded attribute map. Empty
