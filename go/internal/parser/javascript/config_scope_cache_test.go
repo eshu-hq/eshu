@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -197,28 +198,177 @@ func TestConfigScopeCacheConcurrentAccessIsRaceFree(t *testing.T) {
 	}
 }
 
+// TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange
+// reproduces the overwrite-while-in-flight defect directly against the
+// generic configScopeCache[V].get: an earlier design keyed the in-flight/
+// settled entry ONLY by path, so a second goroutine observing a NEWER
+// (mtime, size) generation for the same path installed a fresh in-flight
+// entry that overwrote the first goroutine's still-in-flight slot. Whichever
+// goroutine finished last then clobbered the map entry, so a waiter blocked
+// on the OTHER goroutine's WaitGroup could wake up and read back a value
+// that belonged to the wrong generation.
+//
+// This drives cache.get with fixed, distinguishable compute closures instead
+// of re-reading a real file, specifically to isolate the cache's key/slot
+// coalescing behavior from the unrelated fact that the real
+// tsConfigCompilerOptions/readPackageManifest helpers always re-read the
+// file's CURRENT on-disk content: a goroutine using those helpers observes
+// whatever content is on disk when its own compute() runs, regardless of
+// which stat triggered it, so a real-file version of this test cannot tell
+// "cache returned the wrong generation" apart from "the file legitimately
+// changed again before this goroutine's read." Fixed closures remove that
+// confound and test only the cache's own correctness.
+//
+// Forces goroutine A (older generation) to still be mid-compute when
+// goroutine B (a different generation, same path) starts, then asserts BOTH
+// observe correct values for their OWN generation, never each other's or
+// empty. Run with -race.
+func TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange(t *testing.T) {
+	cache := newConfigScopeCache[string]()
+	const path = "/repo/tsconfig.json"
+	statA := configScopeCacheStat{modTimeUnixNano: 1, size: 10}
+	statB := configScopeCacheStat{modTimeUnixNano: 2, size: 20}
+
+	// aStarted signals that goroutine A's compute has begun (so B can start
+	// its own, different-generation compute); aProceed holds A inside its
+	// compute until B's generation has been installed and settled, forcing
+	// the overlap the defect depends on. hookFired uses CompareAndSwap (not
+	// sync.Once) because sync.Once.Do blocks a SECOND concurrent caller until
+	// the FIRST caller's function returns -- which would deadlock this
+	// reproduction, since goroutine A's hook function does not return until
+	// goroutine B has already made its own (would-be second) hook call.
+	var hookFired atomic.Bool
+	aStarted := make(chan struct{})
+	aProceed := make(chan struct{})
+	restore := cache.setComputeHookForTest(func(string) {
+		if hookFired.CompareAndSwap(false, true) {
+			close(aStarted)
+			<-aProceed
+		}
+	})
+	defer restore()
+
+	var wg sync.WaitGroup
+	var aValue, bValue string
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		aValue = cache.get(path, statA, func() string { return "generation-A" })
+	}()
+
+	<-aStarted
+	bValue = cache.get(path, statB, func() string { return "generation-B" })
+	close(aProceed)
+	wg.Wait()
+
+	if aValue != "generation-A" {
+		t.Fatalf("goroutine A (older generation) value = %q, want %q -- overwrite-while-in-flight served the wrong/empty generation", aValue, "generation-A")
+	}
+	if bValue != "generation-B" {
+		t.Fatalf("goroutine B (newer generation) value = %q, want %q -- overwrite-while-in-flight served the wrong/empty generation", bValue, "generation-B")
+	}
+}
+
+// TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup mirrors
+// TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange for two
+// DIFFERENT paths (rather than two generations of one path) to prove
+// unrelated repositories parsing concurrently through the shared process-
+// global cache also never collide, coalesce, or block on each other. Run
+// with -race.
+func TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup(t *testing.T) {
+	cache := newConfigScopeCache[string]()
+	stat := configScopeCacheStat{modTimeUnixNano: 1, size: 10}
+
+	var hookFired atomic.Bool
+	aStarted := make(chan struct{})
+	aProceed := make(chan struct{})
+	restore := cache.setComputeHookForTest(func(string) {
+		if hookFired.CompareAndSwap(false, true) {
+			close(aStarted)
+			<-aProceed
+		}
+	})
+	defer restore()
+
+	var wg sync.WaitGroup
+	var aValue, bValue string
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		aValue = cache.get("/repo-a/tsconfig.json", stat, func() string { return "repo-a" })
+	}()
+
+	<-aStarted
+	bValue = cache.get("/repo-b/tsconfig.json", stat, func() string { return "repo-b" })
+	close(aProceed)
+	wg.Wait()
+
+	if aValue != "repo-a" {
+		t.Fatalf("goroutine A (repo-a) value = %q, want %q", aValue, "repo-a")
+	}
+	if bValue != "repo-b" {
+		t.Fatalf("goroutine B (repo-b) value = %q, want %q", bValue, "repo-b")
+	}
+}
+
+// TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity guards the bounded-
+// memory fix: a process-global cache used by a long-running ingester scanning
+// many repositories over time must not grow without bound. The cache MUST
+// stay at or under configScopeCacheCapacity entries, evicting the least-
+// recently-used key rather than accumulating forever. Eviction never affects
+// correctness -- an evicted key just recomputes on its next access.
+func TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity(t *testing.T) {
+	cache := newConfigScopeCache[int]()
+	stat := configScopeCacheStat{modTimeUnixNano: 1, size: 1}
+
+	for i := range configScopeCacheCapacity + 500 {
+		path := fmt.Sprintf("/repo-%d/tsconfig.json", i)
+		got := cache.get(path, stat, func() int { return i })
+		if got != i {
+			t.Fatalf("cache.get(%q) = %d, want %d", path, got, i)
+		}
+	}
+
+	cache.mu.Lock()
+	size := len(cache.entries)
+	cache.mu.Unlock()
+	if size > configScopeCacheCapacity {
+		t.Fatalf("cache size = %d after inserting %d entries, want <= %d (configScopeCacheCapacity)", size, configScopeCacheCapacity+500, configScopeCacheCapacity)
+	}
+
+	// The earliest keys (least recently used, and never touched again) must
+	// have been evicted; recomputing them must work and must not grow the
+	// cache past the cap.
+	evictedPath := "/repo-0/tsconfig.json"
+	computedAgain := false
+	got := cache.get(evictedPath, stat, func() int {
+		computedAgain = true
+		return -1
+	})
+	if !computedAgain || got != -1 {
+		t.Fatalf("cache.get(%q) after eviction = %d (computedAgain=%v), want a fresh recompute returning -1", evictedPath, got, computedAgain)
+	}
+
+	cache.mu.Lock()
+	sizeAfter := len(cache.entries)
+	cache.mu.Unlock()
+	if sizeAfter > configScopeCacheCapacity {
+		t.Fatalf("cache size = %d after post-eviction recompute, want <= %d", sizeAfter, configScopeCacheCapacity)
+	}
+}
+
 func setTSConfigComputeHookForTest(hook func(configPath string)) func() {
-	tsConfigComputeHookMu.Lock()
-	previous := tsConfigComputeHook
-	tsConfigComputeHook = hook
-	tsConfigComputeHookMu.Unlock()
+	restore := tsConfigCache.setComputeHookForTest(hook)
 	return func() {
-		tsConfigComputeHookMu.Lock()
-		tsConfigComputeHook = previous
-		tsConfigComputeHookMu.Unlock()
+		restore()
 		clearConfigScopeCachesForTest()
 	}
 }
 
 func setPackageManifestComputeHookForTest(hook func(manifestPath string)) func() {
-	packageManifestComputeHookMu.Lock()
-	previous := packageManifestComputeHook
-	packageManifestComputeHook = hook
-	packageManifestComputeHookMu.Unlock()
+	restore := packageManifestCache.setComputeHookForTest(hook)
 	return func() {
-		packageManifestComputeHookMu.Lock()
-		packageManifestComputeHook = previous
-		packageManifestComputeHookMu.Unlock()
+		restore()
 		clearConfigScopeCachesForTest()
 	}
 }

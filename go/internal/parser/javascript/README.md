@@ -182,18 +182,32 @@ package's config into a sibling package's files). A cache hit re-`os.Stat`s the
 config file and only reuses the parsed value when `(mtime, size)` still match
 what was cached, so a repository re-scanned after its config changed on disk
 recomputes rather than serving stale evidence across scan generations.
-Concurrent same-key callers (multiple parse workers on the same repository)
-are coalesced onto one in-flight computation via a per-key `sync.WaitGroup`
-under the cache mutex; distinct keys, including two different repositories
-parsing concurrently, never share that WaitGroup and proceed fully in
-parallel.
+
+The generic `configScopeCache[V]` type backs both memoizers. Single-flight
+coalescing keys the in-flight computation by the FULL `(path, stat)` tuple, not
+by path alone: an earlier revision keyed the map only by path, so a second
+goroutine observing a NEWER generation for the same path (the file changed
+mid-scan) installed a fresh in-flight entry that overwrote the first
+goroutine's still-in-flight slot, and whichever goroutine finished last
+clobbered the map entry — a waiter blocked on the OTHER goroutine's
+`WaitGroup` could wake up and read back the wrong generation's value (a GitHub
+Copilot PR review finding on #4669). Keying the entry by `(path, stat)` makes
+that impossible: a changed generation is a distinct key/slot, never an
+overwrite of an in-flight one. The cache is also a bounded LRU
+(`configScopeCacheCapacity` = 4096 keys): it is process-global and used by a
+long-running ingester scanning many repositories over its lifetime, so an
+unbounded map would grow without bound (a second #4669 review finding);
+evicting the least-recently-used key only means the next file under it
+recomputes, which never affects correctness.
 
 Performance Evidence: `go test ./internal/parser -run '^$' -bench
 BenchmarkParsePathTypeScriptRepoSharedConfig -benchmem -count=10` over a
 50-file TypeScript fixture sharing one tsconfig.json and one package.json
 (Apple M5 Max) moved from `202.06m` to `41.72m` sec/op (`benchstat`:
 `-79.35%`, `p=0.000, n=10`), `3.143Mi` to `2.935Mi` B/op (`-6.60%`), and
-`72.87k` to `70.81k` allocs/op (`-2.82%`). `TestNearestTSConfigOptionsComputedOnceForSharedConfig`,
+`72.87k` to `70.81k` allocs/op (`-2.82%`); a follow-up run after the
+single-flight/LRU rework measured `~30ms/op`, confirming the fix did not
+regress the win. `TestNearestTSConfigOptionsComputedOnceForSharedConfig`,
 `TestNearestPackageManifestComputedOnceForSharedManifest`, and the
 `internal/parser`-level `TestEngineParsePathComputesRepoConfigMetadataOnceForSharedManifests`
 assert the config read+parse happens exactly once across many files sharing
@@ -204,12 +218,21 @@ plus the `internal/parser`-level
 `TestEngineParsePathConcurrentJavaScriptFilesShareConfigComputationOnce` prove
 `-race`-clean concurrent access with single-flight coalescing (not just a
 racy double-compute that happens to be safe).
+`TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange` and
+`TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup` reproduce
+and guard the path-only-keying overwrite defect directly against
+`configScopeCache[V].get` (failed before the `(path, stat)` key existed:
+reverting the key to path-only reintroduces either the wrong-generation value
+or a cross-generation deadlock, both observed while diagnosing this fix).
+`TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity` guards the bounded-LRU
+fix, asserting cache size never exceeds `configScopeCacheCapacity` and that an
+evicted key correctly recomputes on its next access.
 
 No-Regression Evidence: this is a caching/memoization change only. No
 `Parse` signature changed and no payload field changed; every js/ts/tsx
 fixture and golden-corpus assertion in `go test ./internal/parser/...` stays
 byte-identical before and after (`go test ./internal/parser/... -race
--count=1`: 1496 passed, 41 packages).
+-count=1`: 1499 passed, 41 packages).
 
 No-Observability-Change: this adds no metric, span, structured log, status
 field, queue, graph write, worker, lease, batch, or runtime knob. Operators
