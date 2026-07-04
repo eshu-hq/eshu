@@ -65,6 +65,10 @@ func (t iamEscalationTally) total() int {
 type IAMEscalationResult struct {
 	Edges []map[string]any
 	Tally iamEscalationTally
+	// Quarantined carries the facts skipped as input_invalid during decode (a
+	// missing required identity field), so the handler emits a visible per-fact
+	// dead-letter while the valid facts still project.
+	Quarantined []quarantinedFact
 }
 
 // iamPrincipalStatements groups one principal's decoded permission statements
@@ -98,14 +102,16 @@ func ExtractIAMEscalationEdges(
 		return result, nil
 	}
 
-	index, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, resourceQuarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return IAMEscalationResult{}, err
 	}
-	principals, err := groupIAMPermissionsByPrincipal(index, permissionEnvelopes, &result.Tally)
+	result.Quarantined = append(result.Quarantined, resourceQuarantined...)
+	principals, permissionQuarantined, err := groupIAMPermissionsByPrincipal(index, permissionEnvelopes, &result.Tally)
 	if err != nil {
 		return IAMEscalationResult{}, err
 	}
+	result.Quarantined = append(result.Quarantined, permissionQuarantined...)
 
 	// edge identity -> merged primitive token set, so two primitives reaching the
 	// same target converge on one idempotent edge with a sorted primitives list.
@@ -157,16 +163,24 @@ func groupIAMPermissionsByPrincipal(
 	index cloudResourceJoinIndex,
 	permissionEnvelopes []facts.Envelope,
 	tally *iamEscalationTally,
-) ([]iamPrincipalStatements, error) {
+) ([]iamPrincipalStatements, []quarantinedFact, error) {
 	byPrincipalARN := make(map[string][]iamPermissionStatement)
 	order := make([]string, 0)
+	var quarantined []quarantinedFact
 	for _, env := range permissionEnvelopes {
 		if env.FactKind != facts.AWSIAMPermissionFactKind || env.IsTombstone {
 			continue
 		}
 		permission, err := decodeAWSIAMPermission(env)
 		if err != nil {
-			return nil, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if permission.PrincipalARN == "" {
 			continue
@@ -191,7 +205,7 @@ func groupIAMPermissionsByPrincipal(
 	sort.Slice(principals, func(a, b int) bool {
 		return principals[a].principalUID < principals[b].principalUID
 	})
-	return principals, nil
+	return principals, quarantined, nil
 }
 
 // buildIAMEscalationEdgeRows turns the merged per-edge primitive sets into sorted,

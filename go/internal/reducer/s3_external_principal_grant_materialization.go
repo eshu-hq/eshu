@@ -58,6 +58,11 @@ type S3ExternalPrincipalGrantMaterializationHandler struct {
 	ReadinessLookup      GraphProjectionReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
 	Tracer               trace.Tracer
+	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
+	// when an aws_resource join fact is quarantined as input_invalid during the
+	// bucket index build. Optional: a nil pointer skips the counter (the
+	// structured per-fact error log still emits).
+	Instruments *telemetry.Instruments
 }
 
 func s3ExternalPrincipalGrantFactKinds() []string {
@@ -108,13 +113,18 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 
 	resourceEnvelopes, grantEnvelopes := splitS3ExternalPrincipalGrantEnvelopes(envelopes)
 	extractStart := time.Now()
-	rows, tally, err := ExtractS3ExternalPrincipalGrantRows(resourceEnvelopes, grantEnvelopes)
+	rows, tally, quarantined, err := ExtractS3ExternalPrincipalGrantRows(resourceEnvelopes, grantEnvelopes)
 	if err != nil {
-		// A malformed aws_resource payload (a missing required identity field)
-		// is a classified input_invalid decode failure; dead-letter the intent
-		// instead of resolving a grant against an empty-string node identity.
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource join fact (a missing required
+	// identity field) is quarantined as a visible input_invalid dead-letter —
+	// counter + structured error log — while the batch's valid grants still
+	// materialize below and the readiness phase still publishes.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainS3ExternalPrincipalGrantMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -159,12 +169,14 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 		Domain:   DomainS3ExternalPrincipalGrantMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d S3 external-principal grant edge(s) from %d grant fact(s); %d grant fact(s) skipped",
+			"materialized %d S3 external-principal grant edge(s) from %d grant fact(s); %d grant fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(grantEnvelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

@@ -12,7 +12,7 @@ import (
 func TestExtractCloudResourceNodeRowsAdmitsStrongServiceAnchor(t *testing.T) {
 	t.Parallel()
 
-	rows, err := ExtractCloudResourceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractCloudResourceNodeRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "sample-account",
 			"region":        "us-east-1",
@@ -46,7 +46,7 @@ func TestExtractCloudResourceNodeRowsAdmitsStrongServiceAnchor(t *testing.T) {
 func TestExtractCloudResourceNodeRowsKeepsAmbiguousServiceAnchorsOutOfStrongFields(t *testing.T) {
 	t.Parallel()
 
-	rows, err := ExtractCloudResourceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractCloudResourceNodeRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "sample-account",
 			"region":        "us-east-1",
@@ -83,7 +83,7 @@ func TestExtractCloudResourceNodeRowsKeepsAmbiguousServiceAnchorsOutOfStrongFiel
 func TestExtractCloudResourceNodeRowsDoesNotPromoteGenericAWSServiceNameAttribute(t *testing.T) {
 	t.Parallel()
 
-	rows, err := ExtractCloudResourceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractCloudResourceNodeRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "sample-account",
 			"region":        "us-east-1",

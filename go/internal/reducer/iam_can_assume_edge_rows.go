@@ -129,15 +129,23 @@ type iamPrincipalNode struct {
 // buildIAMRoleUserJoinIndex builds the bounded in-memory index from the scope
 // generation's aws_resource fact envelopes, keeping only IAM role and user
 // resources.
-func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) (iamRoleUserJoinIndex, error) {
+func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) (iamRoleUserJoinIndex, []quarantinedFact, error) {
 	index := iamRoleUserJoinIndex{byARN: make(map[string]iamPrincipalNode, len(envelopes))}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
 		resource, err := decodeAWSResource(env)
 		if err != nil {
-			return iamRoleUserJoinIndex{}, err
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return iamRoleUserJoinIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		kind := iamPrincipalKindForResourceType(resource.ResourceType)
 		if kind == "" {
@@ -166,7 +174,7 @@ func buildIAMRoleUserJoinIndex(envelopes []facts.Envelope) (iamRoleUserJoinIndex
 			}
 		}
 	}
-	return index, nil
+	return index, quarantined, nil
 }
 
 // resolve looks up an IAM principal ARN. It returns the resolved node and true
@@ -208,15 +216,15 @@ func iamPrincipalKindForResourceType(resourceType string) string {
 func ExtractIAMCanAssumeEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	permissionEnvelopes []facts.Envelope,
-) ([]map[string]any, iamCanAssumeEdgeTally, error) {
+) ([]map[string]any, iamCanAssumeEdgeTally, []quarantinedFact, error) {
 	tally := newIAMCanAssumeEdgeTally()
 	if len(permissionEnvelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	index, err := buildIAMRoleUserJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildIAMRoleUserJoinIndex(resourceEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
 
 	type edgeKey struct {
@@ -232,7 +240,14 @@ func ExtractIAMCanAssumeEdgeRows(
 		}
 		permission, err := decodeAWSIAMPermission(env)
 		if err != nil {
-			return nil, tally, err
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if permission.PolicySource != iamPermissionPolicySourceTrust {
 			continue
@@ -279,7 +294,7 @@ func ExtractIAMCanAssumeEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -287,7 +302,7 @@ func ExtractIAMCanAssumeEdgeRows(
 		right := anyToString(rows[b]["principal_uid"]) + "->" + anyToString(rows[b]["role_uid"])
 		return left < right
 	})
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 // classifyAssumePrincipal screens one assume-principal identifier and resolves

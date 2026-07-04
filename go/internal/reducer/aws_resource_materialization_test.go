@@ -103,7 +103,7 @@ func TestAWSResourceMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractCloudResourceNodeRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if rows, err := ExtractCloudResourceNodeRows(nil); rows != nil {
+	if rows, _, err := ExtractCloudResourceNodeRows(nil); rows != nil {
 		if err != nil {
 			t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
 		}
@@ -128,7 +128,7 @@ func TestExtractCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 		}),
 	}
 
-	rows, err := ExtractCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractCloudResourceNodeRows(envelopes)
 	if err != nil {
 		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
 	}
@@ -168,7 +168,7 @@ func TestExtractCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 		}),
 	}
 
-	rows, err := ExtractCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractCloudResourceNodeRows(envelopes)
 	if err != nil {
 		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
 	}
@@ -177,32 +177,6 @@ func TestExtractCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 	}
 	if got := anyToString(rows[0]["resource_id"]); got != "vpc-123" {
 		t.Fatalf("resource_id = %q, want vpc-123", got)
-	}
-}
-
-func TestExtractCloudResourceNodeRowsRequiresIdentity(t *testing.T) {
-	t.Parallel()
-
-	envelopes := []facts.Envelope{
-		// Missing resource_id and arn.
-		awsResourceEnvelope(map[string]any{
-			"account_id":    "111122223333",
-			"region":        "us-east-1",
-			"resource_type": "aws_ec2_vpc",
-		}),
-		// Missing resource_type.
-		awsResourceEnvelope(map[string]any{
-			"account_id":  "111122223333",
-			"region":      "us-east-1",
-			"resource_id": "vpc-123",
-		}),
-	}
-
-	if rows, err := ExtractCloudResourceNodeRows(envelopes); len(rows) != 0 {
-		if err != nil {
-			t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
-		}
-		t.Fatalf("len(rows) = %d, want 0 for incomplete identity", len(rows))
 	}
 }
 
@@ -221,7 +195,7 @@ func TestExtractCloudResourceNodeRowsDeduplicatesByUID(t *testing.T) {
 		awsResourceEnvelope(payload),
 	}
 
-	rows, err := ExtractCloudResourceNodeRows(envelopes)
+	rows, _, err := ExtractCloudResourceNodeRows(envelopes)
 	if err != nil {
 		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
 	}

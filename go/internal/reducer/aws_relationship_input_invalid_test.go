@@ -5,65 +5,60 @@ package reducer
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// classifiedReducerFailure is the reducer-observable contract a self-classifying
-// terminal failure implements: FailureClass() returns the durable failure_class
-// string the Postgres dead-letter path writes verbatim (queueFailureMetadata
-// reads it via errors.As). The reducer package cannot import go/internal/projector
-// to reference its triage classes (that package imports reducer — an import
-// cycle), so the test asserts on this reducer-side interface and the literal
-// "input_invalid" value, which is byte-equal to projector.TriageClassInputInvalid
-// and factschema.ClassificationInputInvalid by the same by-value contract the
-// design mandates.
-type classifiedReducerFailure interface {
-	FailureClass() string
-}
-
-// TestAWSRelationshipMaterializationDeadLettersMissingAccountID is the flagship
+// TestAWSRelationshipMaterializationQuarantinesMissingAccountID is the flagship
 // regression test for issue #4568 (Contract System v1 §3.2). It proves the
-// accuracy guarantee the typed-decode migration exists to protect: an
-// aws_resource fact missing its required account_id key must dead-letter as
-// input_invalid, NEVER be silently indexed under a uid computed with an
-// empty-string account segment.
+// accuracy guarantee the typed-decode migration exists to protect AND the
+// per-fact isolation contract the migration ships (P1-A): an aws_resource fact
+// missing its required account_id key is QUARANTINED as a visible input_invalid
+// dead-letter — never silently indexed under a uid computed with an empty-string
+// account segment — while every VALID fact in the same batch still projects and
+// the handler Acks so one malformed fact never stalls the scope generation.
 //
-// Before the migration this test FAILS: buildCloudResourceJoinIndex reads
-// account_id with payloadString, which returns "" for the absent key, and
-// cloudResourceUID("", region, type, id) yields a wrong-but-plausible identity;
-// the relationship then resolves against that empty-account node and the handler
-// writes an edge and returns success. That is the silent wrong graph truth the
-// Life Motto ranks as the worst failure.
+// Before the migration this behavior was impossible: buildCloudResourceJoinIndex
+// read account_id with payloadString, which returns "" for the absent key, and
+// cloudResourceUID("", region, type, id) yielded a wrong-but-plausible identity;
+// the relationship then resolved against that empty-account node and the handler
+// wrote an edge to it — the silent wrong graph truth the Life Motto ranks as the
+// worst failure.
 //
-// After the migration the handler decodes the aws_resource fact through
-// factschema.DecodeAWSResource at the join-index boundary; the missing
-// account_id yields a *factschema.DecodeError the handler surfaces as a
-// non-retryable, input_invalid-classified reducer error, so Handle returns an
-// error that dead-letters (failure_class=input_invalid) and writes no edge.
-func TestAWSRelationshipMaterializationDeadLettersMissingAccountID(t *testing.T) {
+// After the migration the join index decodes each aws_resource fact through
+// factschema.DecodeAWSResource; the malformed fact yields a classified
+// *factschema.DecodeError that partitionDecodeFailures routes to a per-fact
+// quarantine. The handler records it (metric + structured log + the
+// input_invalid_facts SubSignal) and continues, so the batch's valid
+// source→target edge still materializes and no edge references an empty-account
+// uid.
+func TestAWSRelationshipMaterializationQuarantinesMissingAccountID(t *testing.T) {
 	t.Parallel()
 
 	// A source resource fact whose required account_id key is ABSENT (not merely
 	// empty): the exact malformed input the AC names. Everything else is present
-	// so the ONLY reason to reject the fact is the missing required field.
-	source := awsResourceEnvelope(map[string]any{
+	// so the ONLY reason to quarantine the fact is the missing required field.
+	malformedSource := awsResourceEnvelope(map[string]any{
 		// "account_id" intentionally absent.
 		"region":        "us-east-1",
 		"resource_type": "aws_lambda_function",
 		"resource_id":   "arn:aws:lambda:us-east-1:111122223333:function:fn",
 		"arn":           "arn:aws:lambda:us-east-1:111122223333:function:fn",
 	})
+	// A fully valid, independent source→target relationship that must still
+	// project despite the malformed fact sharing the batch. This is the isolation
+	// half of the contract: valid facts are unaffected by a poisoned sibling.
+	validSource := resourceEnvelope("111122223333", "us-east-1", "aws_lambda_function",
+		"arn:aws:lambda:us-east-1:111122223333:function:good", "arn:aws:lambda:us-east-1:111122223333:function:good")
 	target := resourceEnvelope("111122223333", "us-east-1", "aws_kms_key",
 		"arn:aws:kms:us-east-1:111122223333:key/abc", "arn:aws:kms:us-east-1:111122223333:key/abc")
 	rel := awsRelationshipEnvelope(map[string]any{
 		"account_id":         "111122223333",
 		"region":             "us-east-1",
 		"relationship_type":  "USES_KMS_KEY",
-		"source_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:fn",
-		"source_arn":         "arn:aws:lambda:us-east-1:111122223333:function:fn",
+		"source_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:good",
+		"source_arn":         "arn:aws:lambda:us-east-1:111122223333:function:good",
 		"target_resource_id": "arn:aws:kms:us-east-1:111122223333:key/abc",
 		"target_arn":         "arn:aws:kms:us-east-1:111122223333:key/abc",
 		"target_type":        "aws_kms_key",
@@ -71,35 +66,43 @@ func TestAWSRelationshipMaterializationDeadLettersMissingAccountID(t *testing.T)
 
 	writer := &recordingCloudResourceEdgeWriter{}
 	handler := AWSRelationshipMaterializationHandler{
-		FactLoader:           &stubFactLoader{envelopes: []facts.Envelope{source, target, rel}},
+		FactLoader:           &stubFactLoader{envelopes: []facts.Envelope{malformedSource, validSource, target, rel}},
 		EdgeWriter:           writer,
 		ReadinessLookup:      readyLookup(true, true),
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
 
-	_, err := handler.Handle(context.Background(), awsRelationshipIntent())
-	if err == nil {
-		t.Fatal("Handle returned nil error for an aws_resource fact missing required account_id; the missing required field must dead-letter, not silently produce an empty-account graph identity")
+	result, err := handler.Handle(context.Background(), awsRelationshipIntent())
+	// Per-fact isolation: the malformed fact does NOT fail the whole intent.
+	if err != nil {
+		t.Fatalf("Handle returned error %v; a single malformed aws_resource fact must be quarantined per-fact, not fail the whole intent", err)
 	}
 
-	// The surfaced error must self-classify as input_invalid so the durable
-	// dead-letter row carries failure_class=input_invalid — the non-retryable
-	// terminal bucket. Replaying the malformed fact unchanged can never succeed.
-	var classified classifiedReducerFailure
-	if !errors.As(err, &classified) {
-		t.Fatalf("error %v (%T) does not implement FailureClass(); a decode failure must surface as a self-classifying reducer error so the dead-letter row is labeled input_invalid", err, err)
-	}
-	if got := classified.FailureClass(); got != "input_invalid" {
-		t.Fatalf("FailureClass() = %q, want %q; the decode failure must map to the input_invalid triage class by value", got, "input_invalid")
+	// The malformed fact must be counted as an input_invalid quarantine in the
+	// Result SubSignals so the operator sees it on the per-intent signal (each
+	// quarantined fact is also on the eshu_dp_reducer_input_invalid_facts_total
+	// counter and a structured error log).
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 1; the missing-account_id fact must be recorded as one input_invalid quarantine", got)
 	}
 
-	// The error must NOT be retryable: a missing required field is terminal.
-	if IsRetryable(err) {
-		t.Fatal("IsRetryable(err) = true for a missing-required-field decode failure; input_invalid is terminal and must not retry")
+	// The batch's VALID relationship must still materialize its edge: isolation
+	// means a poisoned sibling never suppresses valid graph truth.
+	if writer.writeCalls != 1 {
+		t.Fatalf("writeCalls = %d, want 1; the valid source→target relationship must still project despite the quarantined fact", writer.writeCalls)
+	}
+	if len(writer.writtenRows) != 1 {
+		t.Fatalf("writtenRows = %d, want 1; exactly the one valid edge must be written", len(writer.writtenRows))
 	}
 
-	// No edge may be written against a zero-value/empty-account identity.
-	if writer.writeCalls != 0 {
-		t.Fatalf("writeCalls = %d, want 0; a malformed source fact must produce no edge, not an edge to an empty-account node", writer.writeCalls)
+	// No edge may reference a uid computed with an empty-string account segment —
+	// the accuracy guarantee. The malformed fact's empty-account uid must never
+	// appear as a source or target in any written edge.
+	emptyAccountUID := cloudResourceUID("", "us-east-1", "aws_lambda_function",
+		"arn:aws:lambda:us-east-1:111122223333:function:fn")
+	for _, row := range writer.writtenRows {
+		if row["source_uid"] == emptyAccountUID || row["target_uid"] == emptyAccountUID {
+			t.Fatalf("written edge references the empty-account uid %q; a quarantined fact must never produce graph identity", emptyAccountUID)
+		}
 	}
 }

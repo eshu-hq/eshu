@@ -65,15 +65,15 @@ func externalPrincipalUID(principalKind, principalValue string) string {
 func ExtractS3ExternalPrincipalGrantRows(
 	resourceEnvelopes []facts.Envelope,
 	grantEnvelopes []facts.Envelope,
-) ([]map[string]any, s3ExternalPrincipalGrantTally, error) {
+) ([]map[string]any, s3ExternalPrincipalGrantTally, []quarantinedFact, error) {
 	tally := newS3ExternalPrincipalGrantTally()
 	if len(grantEnvelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	index, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
 	type edgeKey struct {
 		source    string
@@ -131,14 +131,14 @@ func ExtractS3ExternalPrincipalGrantRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 	sort.Slice(rows, func(a, b int) bool {
 		left := anyToString(rows[a]["source_uid"]) + "->" + anyToString(rows[a]["principal_uid"])
 		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["principal_uid"])
 		return left < right
 	})
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 func s3ExternalPrincipalGrantKindIsGraphProjectable(kind string) bool {

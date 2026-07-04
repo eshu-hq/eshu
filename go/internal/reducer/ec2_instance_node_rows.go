@@ -29,9 +29,9 @@ type ec2InstanceSkipTally map[string]int
 // cloud_resource_uid. It is the public extractor used by tests and callers that
 // do not need the skip tally; see ExtractEC2InstanceNodeRowsWithSkips for the
 // telemetry-bearing variant.
-func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) ([]map[string]any, error) {
-	rows, _, err := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
-	return rows, err
+func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
+	rows, _, quarantined, err := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
+	return rows, quarantined, err
 }
 
 // ExtractEC2InstanceNodeRowsWithSkips projects ec2_instance_posture fact envelopes
@@ -41,13 +41,14 @@ func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) ([]map[string]any, e
 // and facts that carry neither an instance id nor an arn are skipped rather than
 // fabricating a phantom node. The returned rows are sorted by uid for a
 // byte-stable batch independent of input ordering.
-func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[string]any, ec2InstanceSkipTally, error) {
+func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[string]any, ec2InstanceSkipTally, []quarantinedFact, error) {
 	skipped := ec2InstanceSkipTally{}
 	if len(envelopes) == 0 {
-		return nil, skipped, nil
+		return nil, skipped, nil, nil
 	}
 
 	byUID := make(map[string]map[string]any, len(envelopes))
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.EC2InstancePostureFactKind {
 			continue
@@ -61,7 +62,14 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 		}
 		row, uid, ok, err := ec2InstanceNodeRow(env)
 		if err != nil {
-			return nil, skipped, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, skipped, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if !ok {
 			skipped[ec2InstanceSkipMissingIdentity]++
@@ -73,7 +81,7 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 	}
 
 	if len(byUID) == 0 {
-		return nil, skipped, nil
+		return nil, skipped, quarantined, nil
 	}
 
 	uids := make([]string, 0, len(byUID))
@@ -86,7 +94,7 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows, skipped, nil
+	return rows, skipped, quarantined, nil
 }
 
 // ec2InstanceNodeRow builds one EC2 instance CloudResource node row from a posture
@@ -131,12 +139,15 @@ func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool, error
 		"resource_type": resourceType,
 		// The posture fact carries no Name tag; the instance id is the stable name
 		// and no tag value (which could carry secrets) is ever read.
-		"name":                resourceID,
-		"state":               derefString(posture.State),
-		"account_id":          posture.AccountID,
-		"region":              posture.Region,
-		"service_kind":        derefString(posture.ServiceKind),
-		"correlation_anchors": posture.CorrelationAnchors,
+		"name":         resourceID,
+		"state":        derefString(posture.State),
+		"account_id":   posture.AccountID,
+		"region":       posture.Region,
+		"service_kind": derefString(posture.ServiceKind),
+		// uniqueSortedStrings preserves the pre-typing byte-identical output: the
+		// old payloadStrings(env.Payload, "", "correlation_anchors") trimmed,
+		// deduplicated, and sorted the anchors; the typed decode returns them raw.
+		"correlation_anchors": uniqueSortedStrings(posture.CorrelationAnchors),
 
 		// Derived posture (nullable scalars/booleans preserved as nil when absent
 		// so an unreported field stays distinct from an observed false/zero). Each

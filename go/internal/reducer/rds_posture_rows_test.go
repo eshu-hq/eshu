@@ -82,7 +82,7 @@ func TestExtractRDSPostureRowsProjectsInstanceAndCluster(t *testing.T) {
 		rdsPostureEnvelope(testRDSCluster, clusterARN, "orders", false),
 	}
 
-	rows, tally, err := ExtractRDSPostureRows(resources, postures)
+	rows, tally, _, err := ExtractRDSPostureRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractRDSPostureRows() error = %v, want nil", err)
 	}
@@ -142,7 +142,7 @@ func TestExtractRDSPostureRowsSkipsUnscannedResource(t *testing.T) {
 	t.Parallel()
 
 	instanceARN := "arn:aws:rds:us-east-1:111111111111:db:orders-writer"
-	rows, tally, err := ExtractRDSPostureRows(nil, []facts.Envelope{
+	rows, tally, _, err := ExtractRDSPostureRows(nil, []facts.Envelope{
 		rdsPostureEnvelope(testRDSInstance, instanceARN, "orders-writer", true),
 	})
 	if err != nil {
@@ -166,7 +166,7 @@ func TestExtractRDSPostureRowsDuplicateFactIsIdempotent(t *testing.T) {
 		rdsPostureEnvelope(testRDSInstance, instanceARN, "orders-writer", true),
 	}
 
-	rows, tally, err := ExtractRDSPostureRows(resources, postures)
+	rows, tally, _, err := ExtractRDSPostureRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractRDSPostureRows() error = %v, want nil", err)
 	}
@@ -181,7 +181,7 @@ func TestExtractRDSPostureRowsDuplicateFactIsIdempotent(t *testing.T) {
 func TestExtractRDSPostureRowsEmptyInputIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractRDSPostureRows(nil, nil)
+	rows, tally, _, err := ExtractRDSPostureRows(nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractRDSPostureRows() error = %v, want nil", err)
 	}

@@ -34,28 +34,22 @@ const iamRoleCloudResourceType = "aws_iam_role"
 // canonical uid uses the collector boundary values, and a parsed region could
 // diverge from the boundary's region literal and fabricate a non-matching uid.
 //
-// The aws_iam_principal facts are decoded through the factschema seam. A
-// malformed principal fact (a missing required identity field: account_id,
-// region, principal_arn, principal_type) is a classified input_invalid decode
-// failure this function returns so the whole secrets/IAM trust-chain work item
-// dead-letters, rather than silently resolving the uid from a zero-value
-// account/region. These facts are emitter-guaranteed to carry account_id and
-// region, so this fires only on a genuine collector defect (loud-on-real-bug).
-func secretsIAMRoleCloudResourceUID(roleARN string, principals []facts.Envelope) (string, error) {
-	for _, principalEnv := range principals {
-		if principalEnv.FactKind != facts.AWSIAMPrincipalFactKind {
+// The aws_iam_principal facts were decoded through the factschema seam at index
+// build time (buildSecretsIAMIndex), where a malformed principal (a missing
+// required identity field: account_id, region, principal_arn, principal_type)
+// was quarantined as a per-fact input_invalid dead-letter and never entered the
+// index. So the principals this function sees are already valid: it reads the
+// pre-decoded typed payload and cannot fail. A principal that decoded but omits
+// account_id or region leaves the uid blank and the edge stays skipped+counted
+// (ADR #1314 §5.1) — the same fall-through the pre-typing code used.
+func secretsIAMRoleCloudResourceUID(roleARN string, principals []secretsIAMPrincipal) string {
+	for _, principal := range principals {
+		if principal.decoded.AccountID == "" || principal.decoded.Region == "" {
 			continue
 		}
-		principal, err := decodeAWSIAMPrincipal(principalEnv)
-		if err != nil {
-			return "", err
-		}
-		if principal.AccountID == "" || principal.Region == "" {
-			continue
-		}
-		return cloudResourceUID(principal.AccountID, principal.Region, iamRoleCloudResourceType, roleARN), nil
+		return cloudResourceUID(principal.decoded.AccountID, principal.decoded.Region, iamRoleCloudResourceType, roleARN)
 	}
-	return "", nil
+	return ""
 }
 
 // secretsIAMRoleAssumeMode classifies the bounded assume-mode for the IAM-role

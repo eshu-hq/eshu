@@ -6,6 +6,7 @@ package reducer
 import (
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
@@ -53,6 +54,10 @@ type SecurityGroupReachabilityResult struct {
 	SGRuleEdges       []map[string]any
 	RuleEndpointEdges []map[string]any
 	Tally             securityGroupReachabilityTally
+	// Quarantined carries the facts skipped as input_invalid during decode (a
+	// missing required identity field), so the handler emits a visible per-fact
+	// dead-letter while the valid facts still project.
+	Quarantined []quarantinedFact
 }
 
 // securityGroupReachabilityTally is the honest accounting surface for skipped
@@ -94,7 +99,7 @@ func ExtractSecurityGroupReachability(
 		return result, nil
 	}
 
-	index, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return SecurityGroupReachabilityResult{}, err
 	}
@@ -115,8 +120,29 @@ func ExtractSecurityGroupReachability(
 
 		rule, err := decodeAWSSecurityGroupRule(env)
 		if err != nil {
-			return SecurityGroupReachabilityResult{}, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return SecurityGroupReachabilityResult{}, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
+
+		// Trim the string identity/classification fields the same way the
+		// pre-typing payloadString reads did. The typed decode returns the raw
+		// emitted values; the emitter already trims these, so this only matters
+		// for a non-standard fact, but preserving the trim keeps the switch,
+		// endpoint resolution, ruleUID, and written row byte-identical to the
+		// pre-migration behavior for every input.
+		rule.Direction = strings.TrimSpace(rule.Direction)
+		rule.IPProtocol = strings.TrimSpace(rule.IPProtocol)
+		rule.GroupID = strings.TrimSpace(rule.GroupID)
+		rule.SourceKind = strings.TrimSpace(rule.SourceKind)
+		rule.SourceValue = strings.TrimSpace(rule.SourceValue)
+		rule.AccountID = strings.TrimSpace(rule.AccountID)
+		rule.Region = strings.TrimSpace(rule.Region)
 
 		if rule.SourceKind == securityGroupRuleSourceUnknown {
 			// A rule that reported no CIDR, prefix list, or referenced group has no
@@ -192,6 +218,7 @@ func ExtractSecurityGroupReachability(
 	result.RuleNodes = sortReachabilityRows(ruleNodesByUID, "uid")
 	result.SGRuleEdges = sortReachabilitySGEdges(sgEdgesByKey)
 	result.RuleEndpointEdges = sortReachabilityToEdges(toEdgesByKey)
+	result.Quarantined = quarantined
 	return result, nil
 }
 

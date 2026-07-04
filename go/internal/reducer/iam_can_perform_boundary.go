@@ -28,8 +28,9 @@ type iamCanPerformBoundaryDecision struct {
 func groupIAMCanPerformBoundaryEvidence(
 	index cloudResourceJoinIndex,
 	envelopes []facts.Envelope,
-) (map[string]iamCanPerformBoundaryEvidence, error) {
+) (map[string]iamCanPerformBoundaryEvidence, []quarantinedFact, error) {
 	byPrincipalUID := make(map[string]iamCanPerformBoundaryEvidence)
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.IsTombstone {
 			continue
@@ -49,7 +50,14 @@ func groupIAMCanPerformBoundaryEvidence(
 		case facts.AWSIAMPermissionFactKind:
 			permission, err := decodeAWSIAMPermission(env)
 			if err != nil {
-				return nil, err
+				q, ok, fatal := partitionDecodeFailures(env, err)
+				if fatal != nil {
+					return nil, nil, fatal
+				}
+				if ok {
+					quarantined = append(quarantined, q)
+				}
+				continue
 			}
 			if permission.PolicySource != iamCanPerformPolicySourcePermissionBoundary {
 				continue
@@ -63,7 +71,7 @@ func groupIAMCanPerformBoundaryEvidence(
 			evidence.statementsByPolicyARN[policyARN] = append(evidence.statementsByPolicyARN[policyARN], permission)
 		}
 	}
-	return byPrincipalUID, nil
+	return byPrincipalUID, quarantined, nil
 }
 
 func ensureIAMCanPerformBoundaryEvidence(

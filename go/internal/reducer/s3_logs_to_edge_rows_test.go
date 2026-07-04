@@ -60,7 +60,7 @@ func TestExtractS3LogsToEdgeRowsResolvesScannedTarget(t *testing.T) {
 		s3PostureEnvelope("111111111111", "us-east-1", "orders", "orders-logs"),
 	}
 
-	rows, tally, err := ExtractS3LogsToEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractS3LogsToEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -95,7 +95,7 @@ func TestExtractS3LogsToEdgeRowsLoggingDisabledIsNoEdgeNoSkip(t *testing.T) {
 		s3PostureEnvelope("111111111111", "us-east-1", "orders", ""),
 	}
 
-	rows, tally, err := ExtractS3LogsToEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractS3LogsToEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -120,7 +120,7 @@ func TestExtractS3LogsToEdgeRowsUnresolvedTargetSkips(t *testing.T) {
 		s3PostureEnvelope("111111111111", "us-east-1", "orders", "central-logs"),
 	}
 
-	rows, tally, err := ExtractS3LogsToEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractS3LogsToEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -148,7 +148,7 @@ func TestExtractS3LogsToEdgeRowsUnresolvedSourceSkips(t *testing.T) {
 		s3PostureEnvelope("111111111111", "us-east-1", "orders", "orders-logs"),
 	}
 
-	rows, tally, err := ExtractS3LogsToEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractS3LogsToEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -173,7 +173,7 @@ func TestExtractS3LogsToEdgeRowsSelfTargetEmitsEdge(t *testing.T) {
 		s3PostureEnvelope("111111111111", "us-east-1", "orders", "orders"),
 	}
 
-	rows, tally, err := ExtractS3LogsToEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractS3LogsToEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -203,7 +203,7 @@ func TestExtractS3LogsToEdgeRowsTwoSourcesSameTargetAreDistinctEdges(t *testing.
 		s3PostureEnvelope("111111111111", "us-east-1", "payments", "central-logs"),
 	}
 
-	rows, _, err := ExtractS3LogsToEdgeRows(resources, postures)
+	rows, _, _, err := ExtractS3LogsToEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -236,7 +236,7 @@ func TestExtractS3LogsToEdgeRowsDuplicateFactIsIdempotent(t *testing.T) {
 		s3PostureEnvelope("111111111111", "us-east-1", "orders", "orders-logs"),
 	}
 
-	rows, _, err := ExtractS3LogsToEdgeRows(resources, postures)
+	rows, _, _, err := ExtractS3LogsToEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -262,11 +262,11 @@ func TestExtractS3LogsToEdgeRowsDeterministicOrdering(t *testing.T) {
 		s3PostureEnvelope("111111111111", "us-east-1", "alpha", "logs"),
 	}
 
-	rowsForward, _, err := ExtractS3LogsToEdgeRows(resources, forward)
+	rowsForward, _, _, err := ExtractS3LogsToEdgeRows(resources, forward)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
-	rowsReverse, _, err := ExtractS3LogsToEdgeRows(resources, reverse)
+	rowsReverse, _, _, err := ExtractS3LogsToEdgeRows(resources, reverse)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}
@@ -284,7 +284,7 @@ func TestExtractS3LogsToEdgeRowsDeterministicOrdering(t *testing.T) {
 func TestExtractS3LogsToEdgeRowsEmptyInputIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractS3LogsToEdgeRows(nil, nil)
+	rows, tally, _, err := ExtractS3LogsToEdgeRows(nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractS3LogsToEdgeRows() error = %v, want nil", err)
 	}

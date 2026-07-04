@@ -192,18 +192,21 @@ func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent Intent) 
 	}
 	// BuildSecretsIAMTrustChainReadModels decodes the aws_iam_principal facts it
 	// uses to resolve assumed-role CloudResource uids through the factschema seam.
-	// A malformed aws_iam_principal fact (a missing required identity field)
-	// dead-letters the ENTIRE secrets/IAM trust-chain work item for this scope as
-	// input_invalid, not just its own chain, because the read-model build is a
-	// single pass over the scope's facts. That is the intended, visible,
-	// replayable outcome: these facts are emitter-guaranteed to carry account_id
-	// and region, so a decode failure signals a genuine collector defect rather
-	// than a routine absence. The other providers' chains (K8s/GCP/Vault) still
-	// read raw and are unaffected unless an aws_iam_principal fact is malformed.
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	// A malformed aws_iam_principal fact (a missing required identity field) is
+	// quarantined per-fact — the same isolation contract every migrated reducer
+	// kind follows — so it is skipped while every VALID trust chain still projects,
+	// including the untouched K8s/GCP/Vault chains that never decode an
+	// aws_iam_principal. The malformed principal never resolves an IAM-role uid,
+	// so no chain resolves against a zero-value identity. It does NOT abort the
+	// whole work item. These facts are emitter-guaranteed to carry account_id and
+	// region, so a decode failure signals a genuine collector defect; recording it
+	// per-fact keeps that visible (counter + structured log + SubSignal) without
+	// stalling the scope's other providers.
+	models, quarantined, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		return Result{}, err
 	}
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecretsIAMTrustChain, intent.ScopeID, intent.GenerationID, quarantined)
 	writeResult, err := h.Writer.WriteSecretsIAMTrustChainReadModels(ctx, SecretsIAMTrustChainWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -223,6 +226,7 @@ func (h SecretsIAMTrustChainHandler) Handle(ctx context.Context, intent Intent) 
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: secretsIAMTrustChainSummary(models, stats, writeResult.FactsWritten),
 		CanonicalWrites: writeResult.FactsWritten,
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

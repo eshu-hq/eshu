@@ -63,7 +63,7 @@ func TestExtractIAMCanAssumeEdgeRowsResolvesRoleAndUser(t *testing.T) {
 		trustPermissionFact(acct, roleARN, assumingRoleARN, assumingUserARN),
 	}
 
-	rows, tally, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
 	if err != nil {
 		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
 	}
@@ -123,7 +123,7 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsExternalServiceAndWildcard(t *testing.T
 		),
 	}
 
-	rows, tally, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
 	if err != nil {
 		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
 	}
@@ -177,7 +177,7 @@ func TestExtractIAMCanAssumeEdgeRowsSkipsDenyAndUnresolvedSource(t *testing.T) {
 		"resources":     []any{"*"},
 	})
 
-	rows, tally, err := ExtractIAMCanAssumeEdgeRows(resources, []facts.Envelope{denyFact, unscannedRoleFact, inlineFact})
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(resources, []facts.Envelope{denyFact, unscannedRoleFact, inlineFact})
 	if err != nil {
 		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
 	}
@@ -210,7 +210,7 @@ func TestExtractIAMCanAssumeEdgeRowsSelfAssumeAndDuplicateDedupe(t *testing.T) {
 		trustPermissionFact(acct, roleARN, assumingARN),
 	}
 
-	rows, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, _, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
 	if err != nil {
 		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
 	}
@@ -240,7 +240,7 @@ func TestExtractIAMCanAssumeEdgeRowsCrossAccountResolvesWhenScanned(t *testing.T
 	}
 	perms := []facts.Envelope{trustPermissionFact(homeAcct, roleARN, crossAccountRole)}
 
-	rows, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
+	rows, _, _, err := ExtractIAMCanAssumeEdgeRows(resources, perms)
 	if err != nil {
 		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
 	}
@@ -256,7 +256,7 @@ func TestExtractIAMCanAssumeEdgeRowsCrossAccountResolvesWhenScanned(t *testing.T
 func TestExtractIAMCanAssumeEdgeRowsEmptyInput(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractIAMCanAssumeEdgeRows(nil, nil)
+	rows, tally, _, err := ExtractIAMCanAssumeEdgeRows(nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractIAMCanAssumeEdgeRows() error = %v, want nil", err)
 	}

@@ -155,13 +155,18 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	cidrRows, prefixRows, err := ExtractSecurityGroupEndpointRows(envelopes)
+	cidrRows, prefixRows, quarantined, err := ExtractSecurityGroupEndpointRows(envelopes)
 	if err != nil {
-		// A malformed aws_security_group_rule payload (a missing required identity
-		// field) is a classified input_invalid decode failure; dead-letter the
-		// intent instead of materializing an endpoint node from a malformed rule.
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_security_group_rule fact (a missing
+	// required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while the batch's valid
+	// rules still materialize below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityGroupCidrMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	writeStart := time.Now()
@@ -214,12 +219,14 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 		Domain:   DomainSecurityGroupCidrMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d cidr block + %d prefix list node(s) from %d security group rule fact(s)",
+			"materialized %d cidr block + %d prefix list node(s) from %d security group rule fact(s); %d input_invalid fact(s) quarantined",
 			len(cidrRows),
 			len(prefixRows),
 			len(envelopes),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(cidrRows) + len(prefixRows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -246,9 +253,9 @@ func (h SecurityGroupCidrMaterializationHandler) recordEndpointsMaterialized(ctx
 // scoped uid. Tombstoned rules, referenced-security-group and unknown sources,
 // and unparseable CIDRs are dropped rather than fabricating an endpoint node. The
 // returned rows are each sorted by uid for deterministic batch output.
-func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, prefixRows []map[string]any, err error) {
+func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, prefixRows []map[string]any, quarantined []quarantinedFact, err error) {
 	if len(envelopes) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	cidrByUID := make(map[string]map[string]any)
@@ -265,7 +272,14 @@ func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, pre
 		}
 		rule, decodeErr := decodeAWSSecurityGroupRule(env)
 		if decodeErr != nil {
-			return nil, nil, decodeErr
+			q, ok, fatal := partitionDecodeFailures(env, decodeErr)
+			if fatal != nil {
+				return nil, nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		switch rule.SourceKind {
 		case securityGroupRuleSourceCIDRIPv4, securityGroupRuleSourceCIDRIPv6:
@@ -279,7 +293,7 @@ func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, pre
 		}
 	}
 
-	return sortRowsByUID(cidrByUID), sortRowsByUID(prefixByUID), nil
+	return sortRowsByUID(cidrByUID), sortRowsByUID(prefixByUID), quarantined, nil
 }
 
 // cidrBlockNodeRow builds one CidrBlock node row from a decoded security-group

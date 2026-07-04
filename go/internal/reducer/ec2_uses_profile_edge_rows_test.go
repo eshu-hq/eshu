@@ -81,7 +81,7 @@ func TestExtractEC2UsesProfileEdgeRowsResolvesScannedProfile(t *testing.T) {
 			"arn:aws:iam::"+acct+":instance-profile/app"),
 	}
 
-	rows, tally, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
@@ -123,7 +123,7 @@ func TestExtractEC2UsesProfileEdgeRowsBlankProfileNoEdge(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-noprofile", ""),
 	}
 
-	rows, tally, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
@@ -147,7 +147,7 @@ func TestExtractEC2UsesProfileEdgeRowsUnscannedProfileSkipped(t *testing.T) {
 			"arn:aws:iam::999988887777:instance-profile/external"),
 	}
 
-	rows, tally, err := ExtractEC2UsesProfileEdgeRows(nil, postures)
+	rows, tally, _, err := ExtractEC2UsesProfileEdgeRows(nil, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
@@ -177,7 +177,7 @@ func TestExtractEC2UsesProfileEdgeRowsTwoInstancesSameProfile(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-bbb", profileARN),
 	}
 
-	rows, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, _, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
@@ -212,7 +212,7 @@ func TestExtractEC2UsesProfileEdgeRowsDuplicateInputOneEdge(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-aaa", profileARN), // duplicate fact
 	}
 
-	rows, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, _, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
@@ -224,7 +224,7 @@ func TestExtractEC2UsesProfileEdgeRowsDuplicateInputOneEdge(t *testing.T) {
 func TestExtractEC2UsesProfileEdgeRowsEmptyInputNoPanic(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractEC2UsesProfileEdgeRows(nil, nil)
+	rows, tally, _, err := ExtractEC2UsesProfileEdgeRows(nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
@@ -254,11 +254,11 @@ func TestExtractEC2UsesProfileEdgeRowsDeterministicOrder(t *testing.T) {
 		ec2UsesProfilePostureEnvelope(acct, region, "i-bbb", profileARN),
 	}
 
-	rowsForward, _, err := ExtractEC2UsesProfileEdgeRows(resources, forward)
+	rowsForward, _, _, err := ExtractEC2UsesProfileEdgeRows(resources, forward)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
-	rowsReverse, _, err := ExtractEC2UsesProfileEdgeRows(resources, reverse)
+	rowsReverse, _, _, err := ExtractEC2UsesProfileEdgeRows(resources, reverse)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}
@@ -285,7 +285,7 @@ func TestExtractEC2UsesProfileEdgeRowsTombstoneSkipped(t *testing.T) {
 	tomb.IsTombstone = true
 	postures := []facts.Envelope{tomb}
 
-	rows, tally, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
+	rows, tally, _, err := ExtractEC2UsesProfileEdgeRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2UsesProfileEdgeRows() error = %v, want nil", err)
 	}

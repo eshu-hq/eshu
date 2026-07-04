@@ -70,20 +70,23 @@ type s3InternetExposureDecision struct {
 func ExtractS3InternetExposureRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, s3InternetExposureTally, error) {
+) ([]map[string]any, s3InternetExposureTally, []quarantinedFact, error) {
 	tally := newS3InternetExposureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	index, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	var quarantined []quarantinedFact
+	index, indexQuarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
-	postures, err := sortedS3InternetExposurePostures(postureEnvelopes)
+	quarantined = append(quarantined, indexQuarantined...)
+	postures, postureQuarantined, err := sortedS3InternetExposurePostures(postureEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
+	quarantined = append(quarantined, postureQuarantined...)
 	seen := make(map[string]struct{}, len(postures))
 	rows := make([]map[string]any, 0, len(postures))
 	for _, item := range postures {
@@ -114,12 +117,12 @@ func ExtractS3InternetExposureRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		return anyToString(rows[i]["uid"]) < anyToString(rows[j]["uid"])
 	})
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 // s3InternetExposurePosture pairs a decoded s3_bucket_posture struct with its
@@ -130,15 +133,23 @@ type s3InternetExposurePosture struct {
 	posture awsv1.S3BucketPosture
 }
 
-func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetExposurePosture, error) {
+func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetExposurePosture, []quarantinedFact, error) {
 	postures := make([]s3InternetExposurePosture, 0, len(envelopes))
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.S3BucketPostureFactKind {
 			continue
 		}
 		posture, err := decodeS3BucketPosture(env)
 		if err != nil {
-			return nil, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		postures = append(postures, s3InternetExposurePosture{env: env, posture: posture})
 	}
@@ -150,7 +161,7 @@ func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetE
 		}
 		return postures[i].env.FactID < postures[j].env.FactID
 	})
-	return postures, nil
+	return postures, quarantined, nil
 }
 
 func deriveS3InternetExposureDecision(posture awsv1.S3BucketPosture) s3InternetExposureDecision {

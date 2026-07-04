@@ -74,24 +74,28 @@ func ExtractEC2InternetExposureRows(
 	postureEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	ruleEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2InternetExposureTally, error) {
+) ([]map[string]any, ec2InternetExposureTally, []quarantinedFact, error) {
 	tally := newEC2InternetExposureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	relationships, err := buildEC2InternetExposureRelationshipIndex(relationshipEnvelopes)
+	var quarantined []quarantinedFact
+	relationships, relationshipQuarantined, err := buildEC2InternetExposureRelationshipIndex(relationshipEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
-	rules, err := buildEC2InternetExposureRuleIndex(ruleEnvelopes)
+	quarantined = append(quarantined, relationshipQuarantined...)
+	rules, ruleQuarantined, err := buildEC2InternetExposureRuleIndex(ruleEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
-	postures, err := sortedEC2InternetExposurePostures(postureEnvelopes)
+	quarantined = append(quarantined, ruleQuarantined...)
+	postures, postureQuarantined, err := sortedEC2InternetExposurePostures(postureEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
+	quarantined = append(quarantined, postureQuarantined...)
 	byUID := make(map[string]map[string]any, len(postureEnvelopes))
 	for _, item := range postures {
 		if item.env.IsTombstone {
@@ -119,7 +123,7 @@ func ExtractEC2InternetExposureRows(
 		}
 	}
 	if len(byUID) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 	uids := make([]string, 0, len(byUID))
 	for uid := range byUID {
@@ -130,7 +134,7 @@ func ExtractEC2InternetExposureRows(
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 // ec2InternetExposurePosture pairs a decoded ec2_instance_posture struct with
@@ -141,15 +145,23 @@ type ec2InternetExposurePosture struct {
 	posture awsv1.EC2InstancePosture
 }
 
-func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2InternetExposurePosture, error) {
+func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2InternetExposurePosture, []quarantinedFact, error) {
 	postures := make([]ec2InternetExposurePosture, 0, len(envelopes))
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.EC2InstancePostureFactKind {
 			continue
 		}
 		posture, err := decodeEC2InstancePosture(env)
 		if err != nil {
-			return nil, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		postures = append(postures, ec2InternetExposurePosture{env: env, posture: posture})
 	}
@@ -161,7 +173,7 @@ func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2Interne
 		}
 		return postures[i].env.FactID < postures[j].env.FactID
 	})
-	return postures, nil
+	return postures, quarantined, nil
 }
 
 func ec2InternetExposureIdentity(posture awsv1.EC2InstancePosture) (uid, instanceID string, ok bool) {
@@ -257,18 +269,26 @@ type ec2InternetExposureRelationshipIndex struct {
 	sgsByENI       map[string]map[string]struct{}
 }
 
-func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2InternetExposureRelationshipIndex, error) {
+func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2InternetExposureRelationshipIndex, []quarantinedFact, error) {
 	index := ec2InternetExposureRelationshipIndex{
 		enisByInstance: make(map[string]map[string]struct{}),
 		sgsByENI:       make(map[string]map[string]struct{}),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSRelationshipFactKind || env.IsTombstone {
 			continue
 		}
 		relationship, err := decodeAWSRelationship(env)
 		if err != nil {
-			return ec2InternetExposureRelationshipIndex{}, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return ec2InternetExposureRelationshipIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		sourceID := relationship.SourceResourceID
 		targetID := relationship.TargetResourceID
@@ -289,7 +309,7 @@ func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2I
 			addToSet(index.sgsByENI, sourceID, targetID)
 		}
 	}
-	return index, nil
+	return index, quarantined, nil
 }
 
 func (i ec2InternetExposureRelationshipIndex) hasAnySGForENIs(enis map[string]struct{}) bool {
@@ -306,18 +326,26 @@ type ec2InternetExposureRuleIndex struct {
 	observedIngressSGs map[string]bool
 }
 
-func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) (ec2InternetExposureRuleIndex, error) {
+func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) (ec2InternetExposureRuleIndex, []quarantinedFact, error) {
 	index := ec2InternetExposureRuleIndex{
 		internetIngressSGs: make(map[string]bool),
 		observedIngressSGs: make(map[string]bool),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSSecurityGroupRuleFactKind || env.IsTombstone {
 			continue
 		}
 		rule, err := decodeAWSSecurityGroupRule(env)
 		if err != nil {
-			return ec2InternetExposureRuleIndex{}, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return ec2InternetExposureRuleIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if strings.TrimSpace(rule.Direction) != "ingress" {
 			continue
@@ -331,7 +359,7 @@ func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) (ec2InternetE
 			index.internetIngressSGs[rule.GroupID] = true
 		}
 	}
-	return index, nil
+	return index, quarantined, nil
 }
 
 func ec2RuleSourceIsInternet(rule awsv1.SecurityGroupRule) bool {

@@ -153,13 +153,18 @@ func (h IAMCanAssumeMaterializationHandler) Handle(
 	resourceEnvelopes, permissionEnvelopes := splitIAMCanAssumeEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally, err := ExtractIAMCanAssumeEdgeRows(resourceEnvelopes, permissionEnvelopes)
+	rows, tally, quarantined, err := ExtractIAMCanAssumeEdgeRows(resourceEnvelopes, permissionEnvelopes)
 	if err != nil {
-		// A malformed aws_resource payload (a missing required identity field)
-		// is a classified input_invalid decode failure; dead-letter the intent
-		// instead of resolving a trust edge against an empty-string node identity.
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource/aws_iam_permission fact (a
+	// missing required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while every valid trust
+	// statement still resolves its edge below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainIAMCanAssumeMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -216,12 +221,14 @@ func (h IAMCanAssumeMaterializationHandler) Handle(
 		Domain:   DomainIAMCanAssumeMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d CAN_ASSUME edge(s) from %d trust statement(s); %d assume-principal(s) skipped (external/service/wildcard/unscanned)",
+			"materialized %d CAN_ASSUME edge(s) from %d trust statement(s); %d assume-principal(s) skipped (external/service/wildcard/unscanned); %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(permissionEnvelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

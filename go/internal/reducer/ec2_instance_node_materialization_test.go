@@ -76,7 +76,7 @@ func TestEC2InstanceNodeMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if rows, err := ExtractEC2InstanceNodeRows(nil); rows != nil {
+	if rows, _, err := ExtractEC2InstanceNodeRows(nil); rows != nil {
 		if err != nil {
 			t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
 		}
@@ -96,7 +96,7 @@ func TestExtractEC2InstanceNodeRowsBuildsCanonicalUID(t *testing.T) {
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload(instanceID)),
 	}
 
-	rows, err := ExtractEC2InstanceNodeRows(envelopes)
+	rows, _, err := ExtractEC2InstanceNodeRows(envelopes)
 	if err != nil {
 		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
 	}
@@ -127,7 +127,7 @@ func TestExtractEC2InstanceNodeRowsBuildsCanonicalUID(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsCarriesSafePostureOnly(t *testing.T) {
 	t.Parallel()
 
-	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-0abc123")),
 	})
 	if err != nil {
@@ -164,7 +164,7 @@ func TestExtractEC2InstanceNodeRowsCarriesSafePostureOnly(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsMissingOptionalFields(t *testing.T) {
 	t.Parallel()
 
-	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -196,7 +196,7 @@ func TestExtractEC2InstanceNodeRowsFallsBackToARNIdentity(t *testing.T) {
 	t.Parallel()
 
 	const arn = "arn:aws:ec2:us-east-1:111122223333:instance/i-fromarn"
-	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -221,7 +221,7 @@ func TestExtractEC2InstanceNodeRowsFallsBackToARNIdentity(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsRequiresIdentity(t *testing.T) {
 	t.Parallel()
 
-	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -240,7 +240,7 @@ func TestExtractEC2InstanceNodeRowsRequiresIdentity(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsSkipsNonPostureFacts(t *testing.T) {
 	t.Parallel()
 
-	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		{FactKind: facts.AWSResourceFactKind, Payload: map[string]any{"resource_id": "ignored"}},
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-0abc123")),
 	})
@@ -257,7 +257,7 @@ func TestExtractEC2InstanceNodeRowsSkipsTombstone(t *testing.T) {
 
 	tombstone := ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-terminated"))
 	tombstone.IsTombstone = true
-	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		tombstone,
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-0abc123")),
 	})
@@ -277,7 +277,7 @@ func TestExtractEC2InstanceNodeRowsDeduplicatesByUID(t *testing.T) {
 	t.Parallel()
 
 	payload := sampleEC2PosturePayload("i-0abc123")
-	rows, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	rows, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(payload),
 		ec2InstancePostureEnvelope(payload),
 	})
@@ -292,7 +292,7 @@ func TestExtractEC2InstanceNodeRowsDeduplicatesByUID(t *testing.T) {
 func TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput(t *testing.T) {
 	t.Parallel()
 
-	forward, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	forward, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-aaa")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-bbb")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-ccc")),
@@ -300,7 +300,7 @@ func TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput(t *testin
 	if err != nil {
 		t.Fatalf("ExtractEC2InstanceNodeRows() error = %v, want nil", err)
 	}
-	reverse, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
+	reverse, _, err := ExtractEC2InstanceNodeRows([]facts.Envelope{
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-ccc")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-bbb")),
 		ec2InstancePostureEnvelope(sampleEC2PosturePayload("i-aaa")),

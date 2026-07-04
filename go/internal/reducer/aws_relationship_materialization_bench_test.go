@@ -58,7 +58,7 @@ func BenchmarkExtractAWSRelationshipEdgeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows, _, err := ExtractAWSRelationshipEdgeRows(resources, relationships)
+		rows, _, _, err := ExtractAWSRelationshipEdgeRows(resources, relationships)
 		if err != nil {
 			b.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
 		}
@@ -77,7 +77,7 @@ func BenchmarkBuildCloudResourceJoinIndex(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		index, err := buildCloudResourceJoinIndex(resources)
+		index, _, err := buildCloudResourceJoinIndex(resources)
 		if err != nil {
 			b.Fatalf("buildCloudResourceJoinIndex() error = %v, want nil", err)
 		}

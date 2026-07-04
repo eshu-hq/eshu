@@ -14,7 +14,7 @@ import (
 func TestBuildObservabilityCoverageDecisionsClassifiesGrafanaStackEvidence(t *testing.T) {
 	t.Parallel()
 
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		observabilityFact("declared-dashboard", facts.ObservabilityDeclaredDashboardFactKind, map[string]any{
 			"provider":        "grafana",
 			"source_class":    "declared",
@@ -152,7 +152,7 @@ func TestObservabilityCoverageCorrelationFactKindsIncludesGrafanaStackSources(t 
 func TestExtractObservabilityCoverageEdgeRowsDoesNotPromoteGrafanaStackOutcomes(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{
+	rows, tally, _, err := ExtractObservabilityCoverageEdgeRows([]facts.Envelope{
 		observabilityFact("observed-dashboard", facts.ObservabilityObservedDashboardFactKind, map[string]any{
 			"provider":            "grafana",
 			"source_class":        "observed",

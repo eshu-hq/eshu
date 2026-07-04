@@ -61,7 +61,7 @@ func TestExtractS3ExternalPrincipalGrantRowsProjectsExactPrincipals(t *testing.T
 		),
 	}
 
-	rows, tally, err := ExtractS3ExternalPrincipalGrantRows(resources, grants)
+	rows, tally, _, err := ExtractS3ExternalPrincipalGrantRows(resources, grants)
 	if err != nil {
 		t.Fatalf("ExtractS3ExternalPrincipalGrantRows() error = %v, want nil", err)
 	}
@@ -122,7 +122,7 @@ func TestExtractS3ExternalPrincipalGrantRowsSkipsUnsupportedAndUnresolvedSources
 		),
 	}
 
-	rows, tally, err := ExtractS3ExternalPrincipalGrantRows(resources, grants)
+	rows, tally, _, err := ExtractS3ExternalPrincipalGrantRows(resources, grants)
 	if err != nil {
 		t.Fatalf("ExtractS3ExternalPrincipalGrantRows() error = %v, want nil", err)
 	}
@@ -154,11 +154,11 @@ func TestExtractS3ExternalPrincipalGrantRowsDeduplicatesAndOrders(t *testing.T) 
 		s3ExternalPrincipalGrantEnvelope("111111111111", "us-east-1", "beta", "public", "*", "public"),
 	}
 
-	rowsForward, _, err := ExtractS3ExternalPrincipalGrantRows(resources, forward)
+	rowsForward, _, _, err := ExtractS3ExternalPrincipalGrantRows(resources, forward)
 	if err != nil {
 		t.Fatalf("ExtractS3ExternalPrincipalGrantRows() error = %v, want nil", err)
 	}
-	rowsReverse, _, err := ExtractS3ExternalPrincipalGrantRows(resources, reverse)
+	rowsReverse, _, _, err := ExtractS3ExternalPrincipalGrantRows(resources, reverse)
 	if err != nil {
 		t.Fatalf("ExtractS3ExternalPrincipalGrantRows() error = %v, want nil", err)
 	}

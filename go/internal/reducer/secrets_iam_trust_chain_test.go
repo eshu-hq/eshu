@@ -76,7 +76,7 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactWorkloadToVaultPath(t *te
 		}),
 	}
 
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
 	}
@@ -124,7 +124,7 @@ func TestBuildSecretsIAMTrustChainReadModelsRejectsNameCoincidence(t *testing.T)
 		}),
 	}
 
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
 	}
@@ -152,7 +152,7 @@ func TestBuildSecretsIAMTrustChainReadModelsKeepsWildcardTrustAsPostureEvidence(
 		}),
 	}
 
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
 	}
@@ -181,7 +181,7 @@ func TestBuildSecretsIAMTrustChainReadModelsIgnoresDenyWildcardTrustPosture(t *t
 		}),
 	}
 
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
 	}
@@ -233,7 +233,7 @@ func TestBuildSecretsIAMTrustChainReadModelsRejectsWildcardVaultSelector(t *test
 		}),
 	}
 
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
 	}
@@ -290,7 +290,7 @@ func TestBuildSecretsIAMTrustChainReadModelsAdmitsExactEKSPodIdentity(t *testing
 		}),
 	}
 
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
 	}
@@ -318,7 +318,7 @@ func TestBuildSecretsIAMTrustChainReadModelsEmitsStaleGenerationGap(t *testing.T
 		}),
 	}
 
-	models, err := BuildSecretsIAMTrustChainReadModels(envelopes)
+	models, _, err := BuildSecretsIAMTrustChainReadModels(envelopes)
 	if err != nil {
 		t.Fatalf("BuildSecretsIAMTrustChainReadModels() error = %v, want nil", err)
 	}

@@ -20,6 +20,7 @@ func appendCloudResourceNodeAdditiveDomains(definitions []DomainDefinition, hand
 			NodeWriter:     handlers.CloudResourceNodeWriter,
 			PhasePublisher: handlers.GraphProjectionPhasePublisher,
 			PresenceWriter: handlers.EndpointPresenceWriter,
+			Instruments:    handlers.Instruments,
 		}
 		definitions = append(definitions, awsResources)
 	}

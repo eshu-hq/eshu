@@ -52,7 +52,7 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByARN(t *testing.T) {
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally, err := ExtractAWSRelationshipEdgeRows(
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
 	)
@@ -100,7 +100,7 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByBareID(t *testing.T) {
 		"target_type":        "aws_ec2_vpc",
 	})
 
-	rows, tally, err := ExtractAWSRelationshipEdgeRows(
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
 	)
@@ -138,7 +138,7 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByCorrelationAnchor(t *testing.T)
 		"target_type":        "aws_sagemaker_endpoint_config",
 	})
 
-	rows, tally, err := ExtractAWSRelationshipEdgeRows(
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
 	)
@@ -175,7 +175,7 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedTargetCountedNotWritten(t *test
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally, err := ExtractAWSRelationshipEdgeRows(
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source},
 		[]facts.Envelope{rel},
 	)
@@ -215,7 +215,7 @@ func TestExtractAWSRelationshipEdgeRowsCrossAccountTargetStaysUnresolved(t *test
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally, err := ExtractAWSRelationshipEdgeRows(
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, otherAccountKey},
 		[]facts.Envelope{rel},
 	)
@@ -247,7 +247,7 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedSourceStaysUnresolved(t *testin
 		"target_type":        "aws_kms_key",
 	})
 
-	rows, tally, err := ExtractAWSRelationshipEdgeRows(
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{target},
 		[]facts.Envelope{rel},
 	)
@@ -282,7 +282,7 @@ func TestExtractAWSRelationshipEdgeRowsDeduplicatesAndSortsDeterministically(t *
 	})
 
 	// Same edge fact twice (duplicate / retry) must converge on one row.
-	rows, _, err := ExtractAWSRelationshipEdgeRows(
+	rows, _, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel, rel},
 	)
@@ -297,7 +297,7 @@ func TestExtractAWSRelationshipEdgeRowsDeduplicatesAndSortsDeterministically(t *
 func TestExtractAWSRelationshipEdgeRowsEmptyInputsAreNil(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractAWSRelationshipEdgeRows(nil, nil)
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
 	}
@@ -324,7 +324,7 @@ func TestExtractAWSRelationshipEdgeRowsSelfEdgeSkipped(t *testing.T) {
 		"target_type":        "aws_ec2_vpc",
 	})
 
-	rows, _, err := ExtractAWSRelationshipEdgeRows([]facts.Envelope{res}, []facts.Envelope{rel})
+	rows, _, _, err := ExtractAWSRelationshipEdgeRows([]facts.Envelope{res}, []facts.Envelope{rel})
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
 	}

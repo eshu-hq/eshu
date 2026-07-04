@@ -104,15 +104,23 @@ type ec2InstanceProfileJoinIndex struct {
 // instance-profile node uid the aws_resource materialization committed is keyed by
 // the profile ARN (resource_id == arn for instance profiles), so the index value
 // is exactly that node uid.
-func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstanceProfileJoinIndex, error) {
+func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstanceProfileJoinIndex, []quarantinedFact, error) {
 	index := ec2InstanceProfileJoinIndex{byARN: make(map[string]string, len(envelopes))}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
 		resource, err := decodeAWSResource(env)
 		if err != nil {
-			return ec2InstanceProfileJoinIndex{}, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return ec2InstanceProfileJoinIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if resource.ResourceType != ec2UsesProfileResourceTypeInstanceProfile {
 			continue
@@ -139,7 +147,7 @@ func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstancePr
 			}
 		}
 	}
-	return index, nil
+	return index, quarantined, nil
 }
 
 // resolve looks up an instance-profile ARN and returns the scanned node uid on an
@@ -170,15 +178,15 @@ func (i ec2InstanceProfileJoinIndex) resolve(arn string) (string, bool) {
 func ExtractEC2UsesProfileEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2UsesProfileEdgeTally, error) {
+) ([]map[string]any, ec2UsesProfileEdgeTally, []quarantinedFact, error) {
 	tally := newEC2UsesProfileEdgeTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	index, err := buildEC2InstanceProfileJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildEC2InstanceProfileJoinIndex(resourceEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
 
 	type edgeKey struct {
@@ -200,7 +208,14 @@ func ExtractEC2UsesProfileEdgeRows(
 
 		posture, err := decodeEC2InstancePosture(env)
 		if err != nil {
-			return nil, tally, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 
 		profileARN := strings.TrimSpace(derefString(posture.InstanceProfileARN))
@@ -242,7 +257,7 @@ func ExtractEC2UsesProfileEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -250,7 +265,7 @@ func ExtractEC2UsesProfileEdgeRows(
 		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 // ec2UsesProfileSourceUID derives the source EC2 instance CloudResource node uid

@@ -33,7 +33,7 @@ func BenchmarkExtractCloudResourceNodeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows, err := ExtractCloudResourceNodeRows(envelopes)
+		rows, _, err := ExtractCloudResourceNodeRows(envelopes)
 		if err != nil {
 			b.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
 		}

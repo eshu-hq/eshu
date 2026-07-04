@@ -139,14 +139,18 @@ func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, int
 		return Result{}, fmt.Errorf("load observability coverage correlation facts: %w", err)
 	}
 
-	decisions, err := BuildObservabilityCoverageDecisions(envelopes)
+	decisions, quarantined, err := BuildObservabilityCoverageDecisions(envelopes)
 	if err != nil {
-		// A malformed aws_resource/aws_relationship payload (a missing required
-		// identity field) is a classified input_invalid decode failure;
-		// dead-letter the intent instead of classifying coverage against an
-		// empty-string node identity.
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource/aws_relationship fact (a
+	// missing required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while coverage still
+	// classifies from every valid fact.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainObservabilityCoverageCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
 	counts := observabilityCoverageCounts(decisions)
 	writeResult, err := h.Writer.WriteObservabilityCoverageCorrelations(ctx, ObservabilityCoverageCorrelationWrite{
 		IntentID:     intent.IntentID,
@@ -167,6 +171,7 @@ func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, int
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: observabilityCoverageSummary(len(decisions), counts, writeResult.FactsWritten),
 		CanonicalWrites: writeResult.FactsWritten,
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -200,19 +205,20 @@ func (h ObservabilityCoverageCorrelationHandler) emitCounters(
 // BuildObservabilityCoverageDecisions classifies observability coverage without
 // fabricating a covered edge from name coincidence or a metric-name-only signal.
 // It is a pure function over fact envelopes (no I/O) so the outcome contract is
-// table-test friendly. It returns a classified error when an aws_resource or
-// aws_relationship fact is missing a required identity field, so the caller
-// dead-letters the intent (input_invalid) rather than classifying coverage
-// against an empty-string node identity.
-func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) ([]ObservabilityCoverageCorrelationDecision, error) {
-	index, err := buildObservabilityCoverageIndex(envelopes)
+// table-test friendly. An aws_resource or aws_relationship fact missing a
+// required identity field is skipped and returned in the []quarantinedFact slice
+// (a per-fact input_invalid dead-letter) so the caller records it visibly while
+// still classifying coverage from every valid fact, rather than aborting the
+// whole intent or classifying against an empty-string node identity.
+func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) ([]ObservabilityCoverageCorrelationDecision, []quarantinedFact, error) {
+	index, quarantined, err := buildObservabilityCoverageIndex(envelopes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	decisions := classifyObservabilityCoverage(index)
 	decisions = append(decisions, classifyObservabilityMetadataEvidence(envelopes)...)
 	sortObservabilityCoverageDecisions(decisions)
-	return decisions, nil
+	return decisions, quarantined, nil
 }
 
 func observabilityCoverageCorrelationFactKinds() []string {

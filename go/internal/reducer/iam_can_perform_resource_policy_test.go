@@ -375,11 +375,11 @@ func TestIAMCanPerformResourcePolicyUsesProvidedCatalog(t *testing.T) {
 	edges := make(map[edgeKey]*iamCanPerformEdgeAccumulator)
 	var tally iamCanPerformTally
 
-	index, err := buildCloudResourceJoinIndex(resources)
+	index, _, err := buildCloudResourceJoinIndex(resources)
 	if err != nil {
 		t.Fatalf("buildCloudResourceJoinIndex() error = %v, want nil", err)
 	}
-	if err := addIAMCanPerformResourcePolicyEdges(
+	if _, err := addIAMCanPerformResourcePolicyEdges(
 		index,
 		[]facts.Envelope{
 			canPerformResourcePolicyEnvelope(

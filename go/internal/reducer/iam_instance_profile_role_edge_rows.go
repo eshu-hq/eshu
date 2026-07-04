@@ -47,15 +47,23 @@ type iamRoleJoinIndex struct {
 	byARN map[string]string
 }
 
-func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, error) {
+func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []quarantinedFact, error) {
 	index := iamRoleJoinIndex{byARN: make(map[string]string, len(envelopes))}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
 		resource, err := decodeAWSResource(env)
 		if err != nil {
-			return iamRoleJoinIndex{}, err
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return iamRoleJoinIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if resource.ResourceType != iamResourceTypeRole {
 			continue
@@ -80,7 +88,7 @@ func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, error)
 			}
 		}
 	}
-	return index, nil
+	return index, quarantined, nil
 }
 
 func (i iamRoleJoinIndex) resolve(arn string) (string, bool) {
@@ -96,15 +104,15 @@ func (i iamRoleJoinIndex) resolve(arn string) (string, bool) {
 // fabricated.
 func ExtractIAMInstanceProfileRoleEdgeRows(
 	envelopes []facts.Envelope,
-) ([]map[string]any, iamInstanceProfileRoleEdgeTally, error) {
+) ([]map[string]any, iamInstanceProfileRoleEdgeTally, []quarantinedFact, error) {
 	tally := newIAMInstanceProfileRoleEdgeTally()
 	if len(envelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	index, err := buildIAMRoleJoinIndex(envelopes)
+	index, quarantined, err := buildIAMRoleJoinIndex(envelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
 
 	type edgeKey struct {
@@ -120,15 +128,33 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 		}
 		resource, err := decodeAWSResource(env)
 		if err != nil {
-			return nil, tally, err
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if resource.ResourceType != iamInstanceProfileRoleResourceTypeInstanceProfile {
 			continue
 		}
 
 		// role_arns is a service-specific field on the instance-profile
-		// aws_resource fact, carried in the decoded struct's Attributes
-		// pass-through rather than a named identity field.
+		// aws_resource fact. This reads it from the top level of the decoded
+		// struct's Attributes pass-through, which is byte-identical to the
+		// pre-typing payloadStrings(env.Payload, "", "role_arns").
+		//
+		// FIXME(#4633): the collector emitter nests role_arns one level deeper
+		// under Attributes["attributes"]["role_arns"] (awscloud IAM scanner), so
+		// this top-level read resolves nothing against a real emitted fact and
+		// drops every instance-profile HAS_ROLE edge in production. The reducer
+		// test fixture places role_arns at the top level, matching this read, so
+		// the gap is invisible to the current tests. Fixing it requires reading
+		// the nested attributes AND updating the fixture in the same change; it
+		// is out of scope for the byte-identical typed-decode migration (#4568)
+		// and tracked separately.
 		roleARNs := payloadStrings(resource.Attributes, "", "role_arns")
 		if len(roleARNs) == 0 {
 			continue
@@ -163,7 +189,7 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -171,7 +197,7 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 		right := anyToString(rows[b]["profile_uid"]) + "->" + anyToString(rows[b]["role_uid"])
 		return left < right
 	})
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 func iamInstanceProfileRoleProfileUID(resource awsv1.Resource) (string, bool) {

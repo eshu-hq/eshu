@@ -122,7 +122,7 @@ func TestExtractEC2BlockDeviceKMSPostureRowsDerivesEncryptedWithCustomerKMS(t *t
 	relationships := []facts.Envelope{ec2BlockKMSRelationship("vol-a", volumeARN, keyARN)}
 	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-i-aaa", account, region, "i-aaa", "vol-a")}
 
-	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, _, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
 	}
@@ -163,7 +163,7 @@ func TestExtractEC2BlockDeviceKMSPostureRowsDerivesUnencryptedAndMixed(t *testin
 		ec2BlockKMSPostureEnvelope("fact-mixed", account, region, "i-mixed", "vol-enc", "vol-unenc"),
 	}
 
-	rows, _, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, _, _, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
 	}
@@ -207,7 +207,7 @@ func TestExtractEC2BlockDeviceKMSPostureRowsKeepsUnknownForConservativeCases(t *
 		ec2BlockKMSPostureEnvelope("fact-detached", account, region, "i-detached", "vol-detached"),
 	}
 
-	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, _, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
 	}
@@ -244,7 +244,7 @@ func TestExtractEC2BlockDeviceKMSPostureRowsDuplicateReplayAndTombstone(t *testi
 	tombstone := ec2BlockKMSPostureEnvelope("fact-tombstone", account, region, "i-dead")
 	tombstone.IsTombstone = true
 
-	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(nil, nil, []facts.Envelope{posture, posture, tombstone})
+	rows, tally, _, err := ExtractEC2BlockDeviceKMSPostureRows(nil, nil, []facts.Envelope{posture, posture, tombstone})
 	if err != nil {
 		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
 	}
@@ -274,7 +274,7 @@ func TestExtractEC2BlockDeviceKMSPostureRowsConflictingVolumeFactsStayUnknown(t 
 	relationships := []facts.Envelope{ec2BlockKMSRelationship("vol-ambiguous", volumeARN, keyARN)}
 	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-ambiguous", account, region, "i-ambiguous", "vol-ambiguous")}
 
-	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, _, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
 	}
@@ -309,7 +309,7 @@ func TestExtractEC2BlockDeviceKMSPostureRowsConflictingKMSRelationshipsStayUnkno
 	}
 	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-conflict", account, region, "i-conflict", "vol-conflict")}
 
-	rows, tally, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	rows, tally, _, err := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
 	if err != nil {
 		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
 	}

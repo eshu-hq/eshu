@@ -101,15 +101,23 @@ type s3BucketJoinIndex struct {
 // buildS3BucketJoinIndex builds the bounded in-memory index from the scope
 // generation's aws_resource fact envelopes, keeping only aws_s3_bucket
 // resources and keying each by its bucket name.
-func buildS3BucketJoinIndex(envelopes []facts.Envelope) (s3BucketJoinIndex, error) {
+func buildS3BucketJoinIndex(envelopes []facts.Envelope) (s3BucketJoinIndex, []quarantinedFact, error) {
 	index := s3BucketJoinIndex{byName: make(map[string]string, len(envelopes))}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
 		resource, err := decodeAWSResource(env)
 		if err != nil {
-			return s3BucketJoinIndex{}, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return s3BucketJoinIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if resource.ResourceType != s3LogsToResourceTypeBucket {
 			continue
@@ -134,7 +142,7 @@ func buildS3BucketJoinIndex(envelopes []facts.Envelope) (s3BucketJoinIndex, erro
 			index.byName[name] = uid
 		}
 	}
-	return index, nil
+	return index, quarantined, nil
 }
 
 // resolve looks up a bucket name and returns the scanned node uid on an exact
@@ -159,8 +167,11 @@ func s3BucketName(resource awsv1.Resource) string {
 	if name := s3BucketNameFromARN(resource.ResourceID); name != "" {
 		return name
 	}
-	for _, anchor := range resource.CorrelationAnchors {
-		anchor = strings.TrimSpace(anchor)
+	// uniqueSortedStrings preserves the pre-typing byte-identical result: the old
+	// payloadStrings(env.Payload, "", "correlation_anchors") sorted the anchors,
+	// so when a bucket carries more than one s3:// anchor the first match is
+	// deterministic by sort order, not raw emit order.
+	for _, anchor := range uniqueSortedStrings(resource.CorrelationAnchors) {
 		if strings.HasPrefix(anchor, "s3://") {
 			if name := strings.TrimSpace(strings.TrimPrefix(anchor, "s3://")); name != "" {
 				return name
@@ -202,15 +213,15 @@ func s3BucketNameFromARN(arn string) string {
 func ExtractS3LogsToEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, s3LogsToEdgeTally, error) {
+) ([]map[string]any, s3LogsToEdgeTally, []quarantinedFact, error) {
 	tally := newS3LogsToEdgeTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	index, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
 
 	type edgeKey struct {
@@ -227,7 +238,14 @@ func ExtractS3LogsToEdgeRows(
 
 		posture, err := decodeS3BucketPosture(env)
 		if err != nil {
-			return nil, tally, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 
 		target := strings.TrimSpace(derefString(posture.LoggingTargetBucket))
@@ -269,7 +287,7 @@ func ExtractS3LogsToEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -277,7 +295,7 @@ func ExtractS3LogsToEdgeRows(
 		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 // s3PostureBucketName derives the source bucket name from a decoded

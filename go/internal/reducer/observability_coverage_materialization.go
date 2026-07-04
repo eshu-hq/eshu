@@ -147,14 +147,18 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows, tally, err := ExtractObservabilityCoverageEdgeRows(envelopes)
+	rows, tally, quarantined, err := ExtractObservabilityCoverageEdgeRows(envelopes)
 	if err != nil {
-		// A malformed aws_resource/aws_relationship payload (a missing required
-		// identity field) is a classified input_invalid decode failure;
-		// dead-letter the intent instead of writing a coverage edge against an
-		// empty-string node identity.
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource/aws_relationship fact (a
+	// missing required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while coverage still
+	// classifies from every valid fact.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainObservabilityCoverageMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -210,12 +214,14 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 		Domain:   DomainObservabilityCoverageMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d observability COVERS edge(s) from %d fact(s); %d derived coverage(s) had no target node",
+			"materialized %d observability COVERS edge(s) from %d fact(s); %d derived coverage(s) had no target node; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

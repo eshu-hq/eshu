@@ -89,20 +89,23 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2BlockDeviceKMSPostureTally, error) {
+) ([]map[string]any, ec2BlockDeviceKMSPostureTally, []quarantinedFact, error) {
 	tally := newEC2BlockDeviceKMSPostureTally()
 	if len(postureEnvelopes) == 0 {
-		return nil, tally, nil
+		return nil, tally, nil, nil
 	}
 
-	index, err := buildEC2BlockDeviceKMSIndex(resourceEnvelopes, relationshipEnvelopes)
+	var quarantined []quarantinedFact
+	index, indexQuarantined, err := buildEC2BlockDeviceKMSIndex(resourceEnvelopes, relationshipEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
-	postures, err := sortedEC2BlockDeviceKMSPostures(postureEnvelopes)
+	quarantined = append(quarantined, indexQuarantined...)
+	postures, postureQuarantined, err := sortedEC2BlockDeviceKMSPostures(postureEnvelopes)
 	if err != nil {
-		return nil, tally, err
+		return nil, tally, nil, err
 	}
+	quarantined = append(quarantined, postureQuarantined...)
 	byUID := make(map[string]map[string]any, len(postures))
 	for _, item := range postures {
 		if item.env.IsTombstone {
@@ -131,7 +134,7 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 	}
 
 	if len(byUID) == 0 {
-		return nil, tally, nil
+		return nil, tally, quarantined, nil
 	}
 	uids := make([]string, 0, len(byUID))
 	for uid := range byUID {
@@ -148,7 +151,7 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 		tally.decisionReasons[ec2BlockDeviceKMSDecisionKey{outcome: state, reason: reason}]++
 		rows = append(rows, row)
 	}
-	return rows, tally, nil
+	return rows, tally, quarantined, nil
 }
 
 func deriveEC2BlockDeviceKMSDecision(
@@ -272,15 +275,23 @@ type ec2BlockDeviceKMSPostureItem struct {
 	posture awsv1.EC2InstancePosture
 }
 
-func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDeviceKMSPostureItem, error) {
+func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDeviceKMSPostureItem, []quarantinedFact, error) {
 	postures := make([]ec2BlockDeviceKMSPostureItem, 0, len(envelopes))
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.EC2InstancePostureFactKind {
 			continue
 		}
 		posture, err := decodeEC2InstancePosture(env)
 		if err != nil {
-			return nil, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		postures = append(postures, ec2BlockDeviceKMSPostureItem{env: env, posture: posture})
 	}
@@ -292,7 +303,7 @@ func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDevi
 		}
 		return postures[i].env.FactID < postures[j].env.FactID
 	})
-	return postures, nil
+	return postures, quarantined, nil
 }
 
 func ec2BlockDeviceKMSSourceUID(posture awsv1.EC2InstancePosture) (string, bool) {

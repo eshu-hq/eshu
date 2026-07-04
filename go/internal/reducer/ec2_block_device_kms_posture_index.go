@@ -39,7 +39,7 @@ type ec2BlockDeviceKMSIndex struct {
 func buildEC2BlockDeviceKMSIndex(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) (ec2BlockDeviceKMSIndex, error) {
+) (ec2BlockDeviceKMSIndex, []quarantinedFact, error) {
 	index := ec2BlockDeviceKMSIndex{
 		volumesByID:          make(map[string]ec2BlockDeviceKMSVolume, len(resourceEnvelopes)),
 		ambiguousVolumesByID: make(map[string]struct{}),
@@ -47,13 +47,21 @@ func buildEC2BlockDeviceKMSIndex(
 		kmsByVolume:          make(map[string]string, len(relationshipEnvelopes)),
 		ambiguousKMSByVolume: make(map[string]struct{}),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range resourceEnvelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
 		resource, err := decodeAWSResource(env)
 		if err != nil {
-			return ec2BlockDeviceKMSIndex{}, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return ec2BlockDeviceKMSIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		switch resource.ResourceType {
 		case ec2BlockDeviceKMSResourceTypeVolume:
@@ -76,7 +84,14 @@ func buildEC2BlockDeviceKMSIndex(
 		}
 		relationship, err := decodeAWSRelationship(env)
 		if err != nil {
-			return ec2BlockDeviceKMSIndex{}, err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return ec2BlockDeviceKMSIndex{}, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		if relationship.RelationshipType != ec2BlockDeviceKMSRelationshipType {
 			continue
@@ -95,7 +110,7 @@ func buildEC2BlockDeviceKMSIndex(
 			index.indexKMSRelationship(sourceID, targetID)
 		}
 	}
-	return index, nil
+	return index, quarantined, nil
 }
 
 func (i *ec2BlockDeviceKMSIndex) indexVolume(volume ec2BlockDeviceKMSVolume) {

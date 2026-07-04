@@ -189,13 +189,18 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 	resourceEnvelopes, postureEnvelopes := splitEC2UsesProfileEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally, err := ExtractEC2UsesProfileEdgeRows(resourceEnvelopes, postureEnvelopes)
+	rows, tally, quarantined, err := ExtractEC2UsesProfileEdgeRows(resourceEnvelopes, postureEnvelopes)
 	if err != nil {
-		// A malformed aws_resource payload (a missing required identity field)
-		// is a classified input_invalid decode failure; dead-letter the intent
-		// instead of resolving an edge against an empty-string node identity.
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource/ec2_instance_posture fact (a
+	// missing required identity field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while the batch's valid
+	// facts still project below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainEC2UsesProfileMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -253,12 +258,14 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 		Domain:   DomainEC2UsesProfileMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d USES_PROFILE edge(s) from %d posture fact(s); %d profile(s) skipped (source/target unscanned)",
+			"materialized %d USES_PROFILE edge(s) from %d posture fact(s); %d profile(s) skipped (source/target unscanned); %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(postureEnvelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

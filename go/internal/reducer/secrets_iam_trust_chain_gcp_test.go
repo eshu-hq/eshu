@@ -48,7 +48,7 @@ func TestGCPSecretAccessGrantProducesPostureObservation(t *testing.T) {
 	t.Parallel()
 
 	const fp = "sha256:svc-a"
-	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPrincipalFact(fp),
 		gcpPermissionFact("perm-1", fp, "roles/secretmanager.secretAccessor", true, false),
 	})
@@ -75,7 +75,7 @@ func TestGCPBroadRoleGrantProducesPostureObservation(t *testing.T) {
 	t.Parallel()
 
 	const fp = "sha256:svc-b"
-	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPrincipalFact(fp),
 		gcpPermissionFact("perm-2", fp, "roles/owner", false, true),
 	})
@@ -92,7 +92,7 @@ func TestGCPNarrowNonSecretGrantProducesNoObservation(t *testing.T) {
 	t.Parallel()
 
 	const fp = "sha256:svc-c"
-	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPrincipalFact(fp),
 		gcpPermissionFact("perm-3", fp, "roles/storage.objectViewer", false, false),
 	})
@@ -113,7 +113,7 @@ func TestGCPWorkloadIdentityTrustAdmitsExactWorkloadToSecretAccessPath(t *testin
 	targetEmailDigest := "sha256:gcp-service-account-email"
 	subjectFingerprint := "sha256:gke-subject"
 	secretResource := "//secretmanager.googleapis.com/projects/demo-proj/secrets/db"
-	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
@@ -200,7 +200,7 @@ func TestGCPWorkloadIdentityTrustDoesNotAdmitMetadataOnlySecretRole(t *testing.T
 	targetFingerprint := "sha256:gcp-service-account"
 	targetEmailDigest := "sha256:gcp-service-account-email"
 	subjectFingerprint := "sha256:gke-subject"
-	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
@@ -251,7 +251,7 @@ func TestGCPWorkloadIdentityBindingMissingTrustDoesNotEmitGenericGap(t *testing.
 	t.Parallel()
 
 	serviceAccountKey := "sha256:k8s-service-account"
-	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		secretsIAMReducerFact("sa", facts.KubernetesServiceAccountFactKind, "k8s-scope", "k8s-gen", map[string]any{
 			"provider":                 "kubernetes",
 			"service_account_join_key": serviceAccountKey,
@@ -292,7 +292,7 @@ func TestGCPGrantWithoutPrincipalIsNotFabricated(t *testing.T) {
 
 	// A permission fact with no matching principal fact must not fabricate an
 	// identity-grant observation.
-	models, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
+	models, _, err := BuildSecretsIAMTrustChainReadModels([]facts.Envelope{
 		gcpPermissionFact("perm-4", "sha256:orphan", "roles/secretmanager.secretAccessor", true, false),
 	})
 	if err != nil {

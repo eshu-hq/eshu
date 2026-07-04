@@ -4,10 +4,16 @@
 package reducer
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
@@ -81,14 +87,119 @@ func newFactDecodeError(factKind string, err error) *factDecodeError {
 	}
 }
 
+// quarantinedFact records one fact a batch extractor could not decode because
+// its payload was missing a required field (an input_invalid decode failure).
+// The extractor skips it (still projecting every valid fact in the batch) and
+// returns it so the handler can emit a visible, per-fact dead-letter — a metric
+// increment plus a structured error log naming the fact and field — rather than
+// failing the whole intent or silently dropping the fact.
+type quarantinedFact struct {
+	// factID is the durable fact identifier of the malformed fact, so an
+	// operator can locate the exact fact in fact_records.
+	factID string
+	// factKind is the malformed fact's kind.
+	factKind string
+	// field is the required payload key that was absent or null.
+	field string
+	// classification is the decode classification (always input_invalid for a
+	// quarantined fact; a non-input_invalid error is never quarantined — it is
+	// returned fatally by partitionDecodeFailures).
+	classification string
+}
+
+// partitionDecodeFailures is the single classifier every batch extractor routes
+// a decode error through. It enforces the reducer fault-isolation contract:
+//
+//   - A *factDecodeError with ClassificationInputInvalid (a missing/null
+//     required field) is QUARANTINABLE: it returns a quarantinedFact and true,
+//     so the extractor skips that one fact and keeps projecting the rest. The
+//     fact is non-retryable — replaying it unchanged can never succeed — so
+//     dropping it from the batch and recording it as a visible dead-letter is
+//     correct, not a silent swallow.
+//   - ANY OTHER error (a transient fact-load EOF, a graph-write failure, an
+//     unsupported schema major, a projection bug) is FATAL: it returns
+//     (zero, false, err), so the extractor propagates it and the handler fails
+//     the whole intent through WorkSink.Fail, which triages it correctly
+//     (retry_exhausted / dependency_unavailable / projection_bug / …).
+//
+// Routing every decode error through this ONE helper is what stops a future
+// family-migration copy from inline `if err != nil { skip }` swallowing a
+// transient loader or graph error — the "swallow failures" sin the Life Motto
+// forbids. TestPartitionDecodeFailures locks the boundary.
+func partitionDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bool, error) {
+	var decodeErr *factDecodeError
+	if errors.As(err, &decodeErr) && decodeErr.err.Classification == factschema.ClassificationInputInvalid {
+		return quarantinedFact{
+			factID:         env.FactID,
+			factKind:       env.FactKind,
+			field:          decodeErr.err.Field,
+			classification: decodeErr.err.Classification,
+		}, true, nil
+	}
+	return quarantinedFact{}, false, err
+}
+
+// recordQuarantinedFacts emits the visible, operator-diagnosable dead-letter for
+// each fact a batch extractor quarantined during decode: it increments the
+// eshu_dp_reducer_input_invalid_facts_total counter (labeled by domain and
+// fact_kind) and logs one structured error per fact naming the fact id and the
+// missing required field, then returns the count for the handler to record in
+// Result.SubSignals["input_invalid_facts"]. This is the difference from the old
+// silent skip — a quarantined fact is a first-class, dashboard-visible,
+// log-searchable event, not an anonymous counter bump.
+//
+// It is safe to call with a nil instruments pointer (the counter is skipped, the
+// logs still emit) and with an empty slice (a no-op returning 0).
+func recordQuarantinedFacts(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	domain Domain,
+	scopeID, generationID string,
+	quarantined []quarantinedFact,
+) int {
+	for _, q := range quarantined {
+		if instruments != nil && instruments.ReducerInputInvalidFacts != nil {
+			instruments.ReducerInputInvalidFacts.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrDomain(string(domain)),
+				telemetry.AttrFactKind(q.factKind),
+			))
+		}
+		slog.ErrorContext(
+			ctx, "reducer input_invalid fact quarantined",
+			log.Domain(string(domain)),
+			log.ScopeID(scopeID),
+			log.GenerationID(generationID),
+			slog.String("fact_id", q.factID),
+			slog.String("fact_kind", q.factKind),
+			slog.String("missing_field", q.field),
+			slog.String("failure_class", q.classification),
+		)
+	}
+	return len(quarantined)
+}
+
+// inputInvalidSubSignals returns the Result.SubSignals map carrying the count of
+// facts quarantined as input_invalid during this intent, or nil when none were.
+// Returning nil for the zero case keeps the service log line from emitting a
+// noise "input_invalid_facts=0" signal on the overwhelming majority of intents
+// that decode cleanly; a non-zero count is the operator's per-intent flag that
+// this intent skipped malformed facts (each one also on the counter + error log).
+func inputInvalidSubSignals(count int) map[string]float64 {
+	if count == 0 {
+		return nil
+	}
+	return map[string]float64{"input_invalid_facts": float64(count)}
+}
+
 // decodeAWSResource decodes one aws_resource envelope into the typed
 // awsv1.Resource struct through the contracts seam, returning a self-classifying
 // *factDecodeError when the payload is missing a required field or otherwise
 // malformed. It is the single decode site for the aws_resource kind on the
 // reducer side: every handler and join-index builder that consumes aws_resource
-// facts decodes through here (or decodeAWSResourceEnvelopes), so a missing
-// required field dead-letters as input_invalid exactly once per fact rather than
-// silently becoming an empty-string graph identity.
+// facts decodes through here, and a missing required field is routed through
+// partitionDecodeFailures so it dead-letters as a per-fact input_invalid
+// quarantine rather than a silent empty-string graph identity or a whole-intent
+// abort.
 func decodeAWSResource(env facts.Envelope) (awsv1.Resource, error) {
 	resource, err := factschema.DecodeAWSResource(factschemaEnvelope(env))
 	if err != nil {

@@ -174,11 +174,16 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 	extractStart := time.Now()
 	reach, err := ExtractSecurityGroupReachability(resourceEnvelopes, ruleEnvelopes)
 	if err != nil {
-		// A malformed aws_resource payload (a missing required identity field)
-		// is a classified input_invalid decode failure; dead-letter the intent
-		// instead of resolving reachability against an empty-string node identity.
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource/aws_security_group_rule fact
+	// (a missing required identity field) is quarantined as a visible
+	// input_invalid dead-letter — counter + structured error log — while the
+	// batch's valid facts still project below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityGroupReachabilityMaterialization, intent.ScopeID, intent.GenerationID, reach.Quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -243,14 +248,16 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 		Domain:   DomainSecurityGroupReachabilityMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d security group rule node(s) + %d sg-rule edge(s) + %d rule-endpoint edge(s) from %d rule fact(s); %d skipped",
+			"materialized %d security group rule node(s) + %d sg-rule edge(s) + %d rule-endpoint edge(s) from %d rule fact(s); %d skipped, %d input_invalid fact(s) quarantined",
 			len(reach.RuleNodes),
 			len(reach.SGRuleEdges),
 			len(reach.RuleEndpointEdges),
 			len(ruleEnvelopes),
 			reach.Tally.total(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: canonicalWrites,
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

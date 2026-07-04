@@ -56,7 +56,7 @@ func TestExtractS3InternetExposureRowsDerivesExposedPublicPolicy(t *testing.T) {
 		},
 	)}
 
-	rows, tally, err := ExtractS3InternetExposureRows(resources, postures)
+	rows, tally, _, err := ExtractS3InternetExposureRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}
@@ -96,7 +96,7 @@ func TestExtractS3InternetExposureRowsDerivesNotExposedWhenPublicPolicyBlocked(t
 		},
 	)}
 
-	rows, tally, err := ExtractS3InternetExposureRows(resources, postures)
+	rows, tally, _, err := ExtractS3InternetExposureRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}
@@ -131,7 +131,7 @@ func TestExtractS3InternetExposureRowsKeepsUnknownWhenPolicyGrantUnknown(t *test
 		},
 	)}
 
-	rows, tally, err := ExtractS3InternetExposureRows(resources, postures)
+	rows, tally, _, err := ExtractS3InternetExposureRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}
@@ -167,7 +167,7 @@ func TestExtractS3InternetExposureRowsDerivesNotExposedForNoPolicyWithACLPublicA
 		},
 	)}
 
-	rows, _, err := ExtractS3InternetExposureRows(resources, postures)
+	rows, _, _, err := ExtractS3InternetExposureRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}
@@ -199,7 +199,7 @@ func TestExtractS3InternetExposureRowsKeepsUnknownForPartialPublicAccessBlock(t 
 		},
 	)}
 
-	rows, _, err := ExtractS3InternetExposureRows(resources, postures)
+	rows, _, _, err := ExtractS3InternetExposureRows(resources, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}
@@ -228,7 +228,7 @@ func TestExtractS3InternetExposureRowsSkipsUnresolvedSource(t *testing.T) {
 		map[string]any{"policy_present": false},
 	)}
 
-	rows, tally, err := ExtractS3InternetExposureRows(nil, postures)
+	rows, tally, _, err := ExtractS3InternetExposureRows(nil, postures)
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}
@@ -258,7 +258,7 @@ func TestExtractS3InternetExposureRowsDuplicateReplayIsIdempotent(t *testing.T) 
 		},
 	)
 
-	rows, _, err := ExtractS3InternetExposureRows(resources, []facts.Envelope{posture, posture})
+	rows, _, _, err := ExtractS3InternetExposureRows(resources, []facts.Envelope{posture, posture})
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}
@@ -292,7 +292,7 @@ func TestExtractS3InternetExposureRowsDuplicateBucketChoosesStableFact(t *testin
 		},
 	)
 
-	rows, _, err := ExtractS3InternetExposureRows(resources, []facts.Envelope{unknown, blocked})
+	rows, _, _, err := ExtractS3InternetExposureRows(resources, []facts.Envelope{unknown, blocked})
 	if err != nil {
 		t.Fatalf("ExtractS3InternetExposureRows() error = %v, want nil", err)
 	}

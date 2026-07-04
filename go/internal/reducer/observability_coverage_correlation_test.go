@@ -20,7 +20,7 @@ func TestBuildObservabilityCoverageDecisionsExactAlarmCoverage(t *testing.T) {
 
 	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:cpu-high"
 	const instanceID = "i-0abc123"
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "cpu-high", false),
 		awsResourceFact("ec2-res", "aws_ec2_instance", instanceID, "arn:aws:ec2:us-east-1:111122223333:instance/"+instanceID, "web-1", false),
 		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
@@ -55,7 +55,7 @@ func TestBuildObservabilityCoverageDecisionsResolutionModeARN(t *testing.T) {
 	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:by-arn"
 	const instanceID = "i-0byarn"
 	const instanceARN = "arn:aws:ec2:us-east-1:111122223333:instance/" + instanceID
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "by-arn", false),
 		awsResourceFact("ec2-res", "aws_ec2_instance", instanceID, instanceARN, "web-1", false),
 		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
@@ -85,7 +85,7 @@ func TestBuildObservabilityCoverageDecisionsResolutionModeCorrelationAnchor(t *t
 	const anchor = "logical://checkout/primary"
 	target := awsResourceFact("ec2-res", "aws_ec2_instance", instanceID, "arn:ec2-anchor", "web-1", false)
 	target.Payload["correlation_anchors"] = []string{anchor}
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "by-anchor", false),
 		target,
 		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
@@ -112,7 +112,7 @@ func TestBuildObservabilityCoverageDecisionsTombstonedObjectNeverCovers(t *testi
 
 	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:deleted"
 	const instanceID = "i-0live"
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "deleted", true),
 		awsResourceFact("ec2-res", "aws_ec2_instance", instanceID, "arn:ec2-live", "web-1", false),
 		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
@@ -143,7 +143,7 @@ func TestBuildObservabilityCoverageDecisionsGapForUncoveredResource(t *testing.T
 	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:cpu-high"
 	const coveredID = "i-0covered"
 	const uncoveredID = "i-0uncovered"
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "cpu-high", false),
 		awsResourceFact("ec2-covered", "aws_ec2_instance", coveredID, "arn:covered", "web-1", false),
 		awsResourceFact("ec2-uncovered", "aws_ec2_instance", uncoveredID, "arn:uncovered", "web-2", false),
@@ -184,7 +184,7 @@ func TestBuildObservabilityCoverageDecisionsAmbiguousWhenDimensionNonUnique(t *t
 
 	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:shared"
 	const sharedID = "shared-name"
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "shared", false),
 		awsResourceFact("rds-a", "aws_rds_db_instance", sharedID, "arn:rds-a", "db-a", false),
 		awsResourceFact("ecache-b", "aws_elasticache_cluster", sharedID, "arn:ecache-b", "cache-b", false),
@@ -224,7 +224,7 @@ func TestBuildObservabilityCoverageDecisionsStaleWhenTargetTombstoned(t *testing
 
 	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:lingering"
 	const instanceID = "i-0deleted"
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "lingering", false),
 		awsResourceFact("ec2-dead", "aws_ec2_instance", instanceID, "arn:dead", "gone", true),
 		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
@@ -257,7 +257,7 @@ func TestBuildObservabilityCoverageDecisionsRejectsMetricNameOnlyAlarm(t *testin
 	t.Parallel()
 
 	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:billing"
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "billing", false),
 		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/Billing/EstimatedCharges", nil),
 	})
@@ -287,7 +287,7 @@ func TestBuildObservabilityCoverageDecisionsDerivedXRayService(t *testing.T) {
 	t.Parallel()
 
 	const ruleARN = "arn:aws:xray:us-east-1:111122223333:sampling-rule/checkout"
-	decisions, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
 		awsResourceFact("rule-res", "aws_xray_sampling_rule", ruleARN, ruleARN, "checkout", false),
 		xraySamplingMatchesServiceFact("rule-rel", ruleARN, "checkout"),
 	})
@@ -318,7 +318,7 @@ func TestBuildObservabilityCoverageDecisionsDerivedXRayService(t *testing.T) {
 func TestBuildObservabilityCoverageDecisionsEmpty(t *testing.T) {
 	t.Parallel()
 
-	if decisions, err := BuildObservabilityCoverageDecisions(nil); len(decisions) != 0 {
+	if decisions, _, err := BuildObservabilityCoverageDecisions(nil); len(decisions) != 0 {
 		if err != nil {
 			t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 		}
@@ -338,11 +338,11 @@ func TestBuildObservabilityCoverageDecisionsDeterministicOrder(t *testing.T) {
 			{"name": "InstanceId", "value": "i-1"},
 		}),
 	}
-	first, err := BuildObservabilityCoverageDecisions(envelopes)
+	first, _, err := BuildObservabilityCoverageDecisions(envelopes)
 	if err != nil {
 		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 	}
-	second, err := BuildObservabilityCoverageDecisions(envelopes)
+	second, _, err := BuildObservabilityCoverageDecisions(envelopes)
 	if err != nil {
 		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
 	}

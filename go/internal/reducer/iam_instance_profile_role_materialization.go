@@ -122,13 +122,18 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	rows, tally, quarantined, err := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
 	if err != nil {
-		// A malformed aws_resource payload (a missing required identity field)
-		// is a classified input_invalid decode failure; dead-letter the intent
-		// instead of resolving a HAS_ROLE edge against an empty-string identity.
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource fact (a missing required
+	// identity field) is quarantined as a visible input_invalid dead-letter —
+	// counter + structured error log — while every valid instance-profile still
+	// resolves its HAS_ROLE edge below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainIAMInstanceProfileRoleMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -185,12 +190,14 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 		Domain:   DomainIAMInstanceProfileRoleMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d HAS_ROLE edge(s) from %d aws resource fact(s); %d profile role(s) skipped (missing profile identity or unscanned target role)",
+			"materialized %d HAS_ROLE edge(s) from %d aws resource fact(s); %d profile role(s) skipped (missing profile identity or unscanned target role); %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

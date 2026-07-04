@@ -104,7 +104,7 @@ func TestExtractEC2InternetExposureRowsDerivesExposedFromPublicIPAndInternetReac
 	}
 	rules := []facts.Envelope{ec2ExposureSecurityGroupRuleEnvelope("fact-sg-rule", "sg-1", "ingress", true)}
 
-	rows, tally, err := ExtractEC2InternetExposureRows(postures, relationships, rules)
+	rows, tally, _, err := ExtractEC2InternetExposureRows(postures, relationships, rules)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -133,7 +133,7 @@ func TestExtractEC2InternetExposureRowsDerivesNotExposedWithoutPublicIP(t *testi
 		"public_ip_associated": false,
 	})}
 
-	rows, _, err := ExtractEC2InternetExposureRows(postures, nil, nil)
+	rows, _, _, err := ExtractEC2InternetExposureRows(postures, nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -154,7 +154,7 @@ func TestExtractEC2InternetExposureRowsKeepsUnknownWhenPublicIPStateUnknown(t *t
 
 	postures := []facts.Envelope{ec2ExposurePostureEnvelope("fact-posture-1", "i-123", nil)}
 
-	rows, _, err := ExtractEC2InternetExposureRows(postures, nil, nil)
+	rows, _, _, err := ExtractEC2InternetExposureRows(postures, nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -177,7 +177,7 @@ func TestExtractEC2InternetExposureRowsKeepsUnknownForPublicIPWithoutENIAttachme
 		"public_ip_associated": true,
 	})}
 
-	rows, _, err := ExtractEC2InternetExposureRows(postures, nil, nil)
+	rows, _, _, err := ExtractEC2InternetExposureRows(postures, nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -200,7 +200,7 @@ func TestExtractEC2InternetExposureRowsKeepsUnknownForPublicIPWithoutSecurityGro
 		ec2ExposureRelationshipEnvelope("fact-eni-instance", "ec2_network_interface_attached_to_resource", "eni-1", "i-123", "aws_ec2_instance"),
 	}
 
-	rows, _, err := ExtractEC2InternetExposureRows(postures, relationships, nil)
+	rows, _, _, err := ExtractEC2InternetExposureRows(postures, relationships, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -224,7 +224,7 @@ func TestExtractEC2InternetExposureRowsKeepsUnknownForPublicIPWithoutObservedIng
 		ec2ExposureRelationshipEnvelope("fact-eni-sg", "ec2_network_interface_uses_security_group", "eni-1", "sg-1", "aws_ec2_security_group"),
 	}
 
-	rows, _, err := ExtractEC2InternetExposureRows(postures, relationships, nil)
+	rows, _, _, err := ExtractEC2InternetExposureRows(postures, relationships, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -249,7 +249,7 @@ func TestExtractEC2InternetExposureRowsDerivesNotExposedForPrivateOnlyIngress(t 
 	}
 	rules := []facts.Envelope{ec2ExposureSecurityGroupRuleEnvelope("fact-sg-rule", "sg-1", "ingress", false)}
 
-	rows, _, err := ExtractEC2InternetExposureRows(postures, relationships, rules)
+	rows, _, _, err := ExtractEC2InternetExposureRows(postures, relationships, rules)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -272,7 +272,7 @@ func TestExtractEC2InternetExposureRowsSkipsMissingIdentity(t *testing.T) {
 		"public_ip_associated": true,
 	})}
 
-	rows, tally, err := ExtractEC2InternetExposureRows(postures, nil, nil)
+	rows, tally, _, err := ExtractEC2InternetExposureRows(postures, nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}
@@ -292,7 +292,7 @@ func TestExtractEC2InternetExposureRowsSkipsTombstone(t *testing.T) {
 	})
 	tombstone.IsTombstone = true
 
-	rows, tally, err := ExtractEC2InternetExposureRows([]facts.Envelope{tombstone}, nil, nil)
+	rows, tally, _, err := ExtractEC2InternetExposureRows([]facts.Envelope{tombstone}, nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractEC2InternetExposureRows() error = %v, want nil", err)
 	}

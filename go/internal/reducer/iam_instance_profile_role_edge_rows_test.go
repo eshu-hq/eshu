@@ -52,7 +52,7 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
 		iamRoleEnvelope(acct, roleB),
 	}
 
-	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	rows, tally, _, err := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
 	if err != nil {
 		t.Fatalf("ExtractIAMInstanceProfileRoleEdgeRows() error = %v, want nil", err)
 	}
@@ -94,7 +94,7 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
 func TestExtractIAMInstanceProfileRoleEdgeRowsEmptyRolesNoEdge(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+	rows, tally, _, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
 		iamInstanceProfileResourceEnvelope("123456789012", "app-profile"),
 	})
 	if err != nil {
@@ -113,7 +113,7 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsUnscannedRoleSkipped(t *testing.T)
 
 	const acct = "123456789012"
 	unscanned := "arn:aws:iam::999988887777:role/external"
-	rows, tally, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+	rows, tally, _, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
 		iamInstanceProfileResourceEnvelope(acct, "app-profile", unscanned),
 	})
 	if err != nil {
@@ -135,7 +135,7 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsDuplicateInputOneEdge(t *testing.T
 
 	const acct = "123456789012"
 	roleARN := "arn:aws:iam::" + acct + ":role/app"
-	rows, _, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+	rows, _, _, err := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
 		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleARN, roleARN),
 		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleARN),
 		iamRoleEnvelope(acct, roleARN),

@@ -79,7 +79,7 @@ func workloadCloudAWSResourceEnvelope(factID string, payload map[string]any) fac
 func TestExtractWorkloadCloudRelationshipRowsPromotesExactWorkloadAnchor(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+	rows, tally, _, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
 		workloadCloudAWSResourceEnvelope("fact-aws-1", map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -135,7 +135,7 @@ func TestExtractWorkloadCloudRelationshipRowsPromotesExactWorkloadAnchor(t *test
 func TestExtractWorkloadCloudRelationshipRowsRejectsServiceOnlyAndAmbiguousAnchors(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+	rows, tally, _, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",
@@ -179,7 +179,7 @@ func TestExtractWorkloadCloudRelationshipRowsRejectsServiceOnlyAndAmbiguousAncho
 func TestExtractWorkloadCloudRelationshipRowsKeepsEnvironmentSpecificEdges(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+	rows, tally, _, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
 		awsResourceEnvelope(map[string]any{
 			"account_id":    "111122223333",
 			"region":        "us-east-1",

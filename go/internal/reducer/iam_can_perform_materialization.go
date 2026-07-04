@@ -164,11 +164,16 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 	extractStart := time.Now()
 	result, err := ExtractIAMCanPerformEdges(resourceEnvelopes, permissionInputs, resourcePolicyEnvelopes)
 	if err != nil {
-		// A malformed aws_resource payload (a missing required identity field)
-		// is a classified input_invalid decode failure; dead-letter the intent
-		// instead of resolving edges against an empty-string node identity.
+		// A non-decode error (transient fact-load, unsupported major, or other
+		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// whole intent so the durable queue triages it correctly.
 		return Result{}, err
 	}
+	// Per-fact isolation: a malformed aws_resource/aws_iam_permission/
+	// aws_resource_policy_permission fact (a missing required identity field) is
+	// quarantined as a visible input_invalid dead-letter — counter + structured
+	// error log — while the batch's valid facts still project below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainIAMCanPerformMaterialization, intent.ScopeID, intent.GenerationID, result.Quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -219,15 +224,17 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		Domain:   DomainIAMCanPerformMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s), %d permission boundary fact(s), and %d resource policy permission fact(s); %d skipped, %d conditioned provenance-only",
+			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s), %d permission boundary fact(s), and %d resource policy permission fact(s); %d skipped, %d conditioned provenance-only, %d input_invalid fact(s) quarantined",
 			len(result.Edges),
 			len(permissionEnvelopes),
 			len(permissionBoundaryEnvelopes),
 			len(resourcePolicyEnvelopes),
 			result.Tally.total(),
 			result.Tally.conditionedProvenanceOnly,
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(result.Edges),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

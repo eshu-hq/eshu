@@ -107,30 +107,45 @@ type observabilityCoverageIndex struct {
 // seam, so a payload missing a required identity field dead-letters
 // (input_invalid); verb-specific and service-specific fields are read from the
 // decoded struct's Attributes pass-through, never the raw envelope payload.
-func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityCoverageIndex, error) {
+func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityCoverageIndex, []quarantinedFact, error) {
 	index := observabilityCoverageIndex{
 		targets:      observabilityTargetIndex{byKey: make(map[string]map[string]targetResource)},
 		objectsByRef: make(map[string]observabilityObject),
 		relsBySource: make(map[string][]coverageRelationship),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resource, err := decodeAWSResource(env)
 			if err != nil {
-				return observabilityCoverageIndex{}, err
+				q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+				if fatal != nil {
+					return observabilityCoverageIndex{}, nil, fatal
+				}
+				if isQuarantine {
+					quarantined = append(quarantined, q)
+				}
+				continue
 			}
 			index.ingestResource(resource, env.FactID, env.IsTombstone)
 		case facts.AWSRelationshipFactKind:
 			relationship, err := decodeAWSRelationship(env)
 			if err != nil {
-				return observabilityCoverageIndex{}, err
+				q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+				if fatal != nil {
+					return observabilityCoverageIndex{}, nil, fatal
+				}
+				if isQuarantine {
+					quarantined = append(quarantined, q)
+				}
+				continue
 			}
 			index.ingestRelationship(relationship, env.FactID)
 		}
 	}
 	sort.Strings(index.objectOrder)
-	return index, nil
+	return index, quarantined, nil
 }
 
 func (index *observabilityCoverageIndex) ingestResource(resource awsv1.Resource, factID string, tombstone bool) {

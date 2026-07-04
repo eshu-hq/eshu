@@ -48,13 +48,14 @@ func addIAMCanPerformResourcePolicyEdges(
 	catalog map[string]iamCanPerformAction,
 	edges map[edgeKey]*iamCanPerformEdgeAccumulator,
 	tally *iamCanPerformTally,
-) error {
+) ([]quarantinedFact, error) {
 	if len(envelopes) == 0 {
-		return nil
+		return nil, nil
 	}
 	catalogActions := iamCanPerformCatalogActionsFromCatalog(catalog)
 	denied := make(map[iamCanPerformResourcePolicyDenyKey]struct{})
 	allows := make([]iamCanPerformResourcePolicyAllow, 0)
+	var quarantined []quarantinedFact
 
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourcePolicyPermissionFactKind || env.IsTombstone {
@@ -62,7 +63,14 @@ func addIAMCanPerformResourcePolicyEdges(
 		}
 		permission, err := decodeAWSResourcePolicyPermission(env)
 		if err != nil {
-			return err
+			q, ok, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
+			continue
 		}
 		effect := permission.Effect
 		actions := permission.Actions
@@ -154,7 +162,7 @@ func addIAMCanPerformResourcePolicyEdges(
 			false,
 		)
 	}
-	return nil
+	return quarantined, nil
 }
 
 func countIAMCanPerformUncatalogued(actions []string, catalogActions map[string]struct{}, tally *iamCanPerformTally) {
