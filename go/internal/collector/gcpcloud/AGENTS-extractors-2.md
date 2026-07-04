@@ -3,14 +3,14 @@
 Read this alongside [`AGENTS.md`](AGENTS.md), which holds the package
 invariants, common changes, and what-not-to-change-without-an-ADR rules. This
 file is part 2 of the per-asset-type extractor "Read First" catalog, covering
-items 47–60, continuing the ascending list from
+items 47–61, continuing the ascending list from
 [`AGENTS-extractors-1.md`](AGENTS-extractors-1.md) (items 14–46). A "#N above"
 cross-reference points to the lower-numbered entry, in part 1 when N ≤ 46.
 
 Append a new extractor's entry at the end of this file and keep the numbering
 ascending.
 
-## Read First — typed-depth extractors (47–60)
+## Read First — typed-depth extractors (47–61)
 
 47. `extractor_bigquery_transfer_config.go` - typed-depth extractor for
    `bigquerydatatransfer.googleapis.com/TransferConfig` (BigQuery Data Transfer /
@@ -415,3 +415,44 @@ ascending.
    signatures), GitHub/GitLab/Bitbucket push/pull-request branch/tag regex
    detail, `gitFileSource`, or `sourceToBuild.uri`/`githubEnterpriseConfig`/
    `bitbucketServerConfig`.
+61. `extractor_spanner_database.go` - typed-depth extractor for
+   `spanner.googleapis.com/Database` (#4622, follow-up to the Spanner Instance
+   extractor, #46 above / #4317): lifecycle state (including
+   `READY_OPTIMIZING`, a database still being optimized after a restore),
+   database dialect GOOGLE_STANDARD_SQL/POSTGRESQL, version-retention period,
+   earliest-version time, create time, default leader region, and
+   drop-protection posture as an explicit tri-state (`*bool`, mirroring the
+   Backend Service extractor's `EnableCDN` treatment — a present `false` is
+   kept). Emits `spanner_database_in_instance` to the parent
+   `spanner.googleapis.com/Instance`, derived from the database's own CAI full
+   resource name (`.../instances/<i>/databases/<d>`) since the Database
+   resource carries no separate parent-instance field of its own — mirroring
+   the Bigtable Cluster extractor's parent-Instance derivation. The derivation
+   matches the full string against an anchored `spannerDatabaseFullNamePattern`
+   regular expression rather than a loose
+   `Index("/databases/")`+`Contains("/instances/")` substring check: the loose
+   form would also accept an extra segment between the instance and the
+   databases marker (`.../instances/<i>/extra/databases/<d>`), silently
+   deriving a wrong parent, or a trailing segment after the database id, so
+   any full resource name that does not carry the exact documented shape fails
+   closed (no edge, no anchor). Emits `spanner_database_encrypted_by_kms_key`
+   to every CMEK `CryptoKey` resolved from `encryptionConfig` — both the
+   singular `kmsKeyName` and the plural `kmsKeyNames[]` are decoded (they are
+   independent fields per the discovery document, not a
+   deprecated/replacement pair: `kmsKeyNames[]` covers a multi-region instance
+   configuration that needs more than one regional key), each candidate
+   normalized through the shared `cmekKeyFullResourceName` helper (never a
+   bespoke copy) and deduplicated via `dedupeNonEmpty` so an overlap between
+   the singular and plural fields, or within `kmsKeyNames[]` itself, never
+   mints a duplicate edge; reuses `assetTypeKMSCryptoKey` from the sibling
+   BigQuery Table extractor, never redeclaring it. This completes the
+   ownership split the Instance extractor deliberately deferred: CMEK and
+   per-database detail live on the Database resource, not the Instance, the
+   same way the BigQuery Table extractor owns the Table→Dataset edge rather
+   than the Dataset enumerating its Tables. Never decodes `encryptionInfo`
+   (Cloud KMS key-version usage detail, not a key resource name — only
+   `encryptionConfig.kmsKeyName`/`kmsKeyNames[]` are the CMEK edge/anchor
+   source of truth) or `restoreInfo` (the backup/source-database reference for
+   a restored database) — neither is declared as a struct field at all, so
+   neither is ever decoded into Go memory — verified against the live Spanner
+   v1 discovery document's Database schema.

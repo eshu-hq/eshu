@@ -535,17 +535,40 @@ is emitted as the edge endpoint and correlation anchor (a bare config id on a
 sparse page is qualified against the instance's own project; an already
 CAI-prefixed reference is not double-prefixed). No CMEK edge is emitted: CMEK is
 a per-database property (`encryptionConfig.kmsKeyName`) carried by the child
-`spanner.googleapis.com/Database` asset type — a separate, not-yet-registered
-typed-depth extractor — not by the Instance resource, so fabricating a KMS edge
-here would assert a relationship the Instance does not carry (the child Database
-extractor, when added, will own the CMEK edge, the same way the child Table
-extractor owns the BigQuery Table→Dataset edge rather than the Dataset
+`spanner.googleapis.com/Database` asset type — a separate typed-depth extractor
+(`extractor_spanner_database.go`, #4622) — not by the Instance resource, so
+fabricating a KMS edge here would assert a relationship the Instance does not
+carry (the child Database extractor owns the CMEK edge, the same way the child
+Table extractor owns the BigQuery Table→Dataset edge rather than the Dataset
 enumerating its Tables). Raw label keys and values are never decoded by this
 extractor; only the bounded label count crosses the redaction boundary, since
 per-key/value fingerprinting is the base observation path's job (`parse.go`),
 not the typed-depth extractor's. The Spanner Admin API's data-plane connection
 endpoints (`endpointUris`) are intentionally not declared as a struct field at
 all, so they are never decoded into Go memory in the first place.
+
+**Spanner Database** (`spanner.googleapis.com/Database`) is the child asset
+type this ticket adds, completing the CMEK/edge ownership split #4317
+deliberately deferred. It captures lifecycle state (including
+`READY_OPTIMIZING`, a database still being optimized after a restore),
+`databaseDialect` (`GOOGLE_STANDARD_SQL`/`POSTGRESQL`), `versionRetentionPeriod`,
+`earliestVersionTime`, `createTime`, `defaultLeader` (the read-write region for
+a multi-region database), and `enableDropProtection` as an explicit tri-state
+(a present `false` is kept, mirroring the Backend Service extractor's
+`EnableCDN` treatment). It emits a `spanner_database_in_instance` edge to the
+parent `spanner.googleapis.com/Instance` — derived from the database's own CAI
+full resource name (`.../instances/<i>/databases/<d>`), since the Database
+resource carries no separate parent-instance field, mirroring the Bigtable
+Cluster extractor's own parent-Instance derivation and failing closed on any
+name that does not carry the exact documented shape — and a
+`spanner_database_encrypted_by_kms_key` edge to the CMEK `CryptoKey` from
+`encryptionConfig.kmsKeyName`, normalized through the shared, strict-domain
+`cmekKeyFullResourceName` helper. Both the parent Instance and the CMEK key are
+surfaced as correlation anchors. `encryptionInfo` (Cloud KMS key-version usage
+detail) and `restoreInfo` (the backup/source-database reference for a restored
+database) are intentionally not declared as struct fields at all, so neither
+is ever decoded into Go memory — verified against the live Spanner v1
+discovery document's Database schema.
 
 **IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
 fingerprinted email, display name, OAuth2 client id, disabled posture, and a
