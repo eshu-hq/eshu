@@ -72,7 +72,7 @@ func parseFlags(args []string) (options, error) {
 	fs.Float64Var(&o.budgetMultiplier, "budget-multiplier", 2.0, "allowed multiple of the baseline budget")
 	fs.Float64Var(&o.elapsedSeconds, "elapsed-seconds", 0, "observed pipeline wall time in seconds (from the orchestrator)")
 	fs.BoolVar(&o.graphRequiredOnly, "graph-required-only", true, "assert only corpus-size-independent correlations/nodes; when false (full 20-repo corpus) the node/edge count tolerances are asserted as required")
-	fs.StringVar(&o.requiredCorrelations, "required-correlations", "", "comma-separated correlation IDs that fail the gate; others are advisory (empty = all advisory until the corpus produces them)")
+	fs.StringVar(&o.requiredCorrelations, "required-correlations", "", "correlation IDs that fail the gate; others are advisory. \"all\" blocks every ID in the snapshot's own required_correlations (#4596, single-sourced); a comma-separated list blocks exactly those IDs; empty (default) blocks none")
 	fs.StringVar(&o.requiredNodeLabels, "required-node-labels", "Repository", "comma-separated node labels that must each have >=1 node (graph-populated smoke check)")
 	fs.StringVar(&o.drainAdvisoryDomains, "drain-advisory-domains", "", "comma-separated shared_projection_intents domains whose nonterminal rows are advisory, not blocking")
 	fs.StringVar(&o.requirePopulatedDomains, "require-populated-domains", "", "comma-separated shared_projection_intents domains the reducer must be observed to emit before a drain is accepted (guards against draining an unreduced pipeline)")

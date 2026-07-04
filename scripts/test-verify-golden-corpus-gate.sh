@@ -48,6 +48,13 @@ require "drains phase" "-phase=drains"
 require "graph+query+timing phase" "-phase=graph,query,timing"
 require "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
 require "timing budget" "-budget-multiplier"
+# #4596: the blocking-correlation set must be single-sourced from the
+# snapshot's own required_correlations ids via the "all" sentinel, not a
+# second, hand-maintained comma-separated id list duplicated here.
+require "single-sourced required-correlations" '-required-correlations="all"'
+if rg --pcre2 --quiet -- '-required-correlations="rc-[0-9]+,rc-' "${script}"; then
+	fail "-required-correlations reverted to a hand-maintained comma-separated id list (#4596 regression)"
+fi
 # B-11 (#3804) macro per-phase wall-clock: the orchestrator sources the timing
 # helper lib and invokes it; the emission + gate wiring live in that lib chunk
 # (extracted to keep this orchestrator under the 500-line cap).

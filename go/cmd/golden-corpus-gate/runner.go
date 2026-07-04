@@ -106,7 +106,7 @@ func runGraph(ctx context.Context, o options, getenv func(string) string, snap S
 	if err := checkRequiredNodes(ctx, counter, splitCSV(o.requiredNodeLabels), r); err != nil {
 		return err
 	}
-	return checkGraph(ctx, counter, snap, o.graphRequiredOnly, correlationSet(o.requiredCorrelations), r)
+	return checkGraph(ctx, counter, snap, o.graphRequiredOnly, resolveBlockingCorrelations(o.requiredCorrelations, snap.Graph.RequiredCorrelations), r)
 }
 
 // splitCSV splits a comma-separated flag into trimmed, non-empty values.
@@ -120,8 +120,32 @@ func splitCSV(raw string) []string {
 	return out
 }
 
-// correlationSet parses the comma-separated blocking-correlation flag into a set.
-func correlationSet(raw string) map[string]bool {
+// resolveBlockingCorrelations turns the -required-correlations flag into the
+// set of correlation IDs whose failure blocks the gate (the rest are
+// advisory). Three forms (#4596):
+//
+//   - "" (empty, the default): nothing blocks — all correlations are
+//     advisory until explicitly promoted. Preserves the pre-#4596 default.
+//   - "all": every ID in the snapshot's own required_correlations is
+//     blocking. This is the single-source form: promoting an rc-N to
+//     blocking becomes a one-file edit (the snapshot) instead of the
+//     historical two-file hand-edit (the snapshot plus a duplicated
+//     comma-separated mirror in scripts/verify-golden-corpus-gate.sh that had
+//     to be kept in lockstep by hand on every addition).
+//   - an explicit comma-separated id list: exactly those ids block,
+//     independent of snapshot content. Kept as an escape hatch for staging a
+//     newly-added rc as advisory-only before it is proven, or for blocking a
+//     strict subset.
+func resolveBlockingCorrelations(raw string, snapshotCorrelations []RequiredCorrelation) map[string]bool {
+	if strings.TrimSpace(raw) == "all" {
+		set := make(map[string]bool, len(snapshotCorrelations))
+		for _, rc := range snapshotCorrelations {
+			if id := strings.TrimSpace(rc.ID); id != "" {
+				set[id] = true
+			}
+		}
+		return set
+	}
 	set := map[string]bool{}
 	for _, id := range strings.Split(raw, ",") {
 		if id = strings.TrimSpace(id); id != "" {
