@@ -545,6 +545,27 @@
    network-match packet fields, rate-limit/redirect configuration, or
    description — only the rule's priority, action string, and preview
    posture ever leave the parser.
+52. `extractor_dns_policy.go` - typed-depth extractor for
+   `dns.googleapis.com/Policy` (inbound-forwarding posture and logging posture
+   as explicit tri-state booleans, mirroring the Backend Service extractor's
+   `EnableCDN` treatment — the Cloud DNS v1 discovery document defines both as
+   plain proto3 booleans that a real CAI page omits at their false default, so
+   a `*bool` keeps an explicit false distinct from an absent field; a bounded
+   resolvable bound-network count and alternative-name-server count). Emits a
+   `dns_policy_applies_to_network` edge to each resolvable
+   `networks[].networkUrl` VPC `Network`, reusing `assetTypeComputeNetwork`
+   from the sibling VPC Network extractor (`extractor_compute_network.go`),
+   never redeclaring it; distinct from `dns.googleapis.com/ManagedZone`
+   (`extractor_dns_managed_zone.go`, #28 above): a Policy binds
+   inbound-forwarding, logging, and alternative-name-server behavior to a set
+   of VPC networks, while a ManagedZone is a DNS namespace with its own
+   visibility and peering configuration. The policy's own `description` is
+   never decoded into an attribute — free-form operator text, not a bounded
+   control-plane field, mirroring the Managed Zone extractor's treatment of
+   its own `dnsName` — and alternative name server addresses
+   (`alternativeNameServerConfig.targetNameServers[].ipv4Address`/
+   `.ipv6Address`) are read only to produce a bounded count; no address value
+   ever leaves the parser.
 
 ## Invariants
 
