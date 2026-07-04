@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // ViolationKind classifies the specific way a payload schema broke
@@ -121,7 +122,7 @@ func (s jsonSchema) failClosed() bool {
 // top-level Type unchanged ("object"), so the nested AdditionalProperties
 // value type is what must be compared.
 type schemaProperty struct {
-	Type string        `json:"type"`
+	Type typeSet       `json:"type"`
 	Enum []interface{} `json:"enum"`
 	// AdditionalProperties is the value schema of a map-typed property
 	// (JSON Schema's object-form additionalProperties). It is nil when the
@@ -136,9 +137,77 @@ type schemaProperty struct {
 // UnmarshalJSON can decode them with encoding/json's default behavior while
 // handling additionalProperties' polymorphic (bool | object) shape by hand.
 type schemaPropertyAlias struct {
-	Type  string          `json:"type"`
+	Type  typeSet         `json:"type"`
 	Enum  []interface{}   `json:"enum"`
 	Items *schemaProperty `json:"items"`
+}
+
+// typeSet is a JSON Schema "type" value, which is either a single type token
+// ("string") or a union array of them (["string","null"]). The factschema
+// schemas use the union form so an optional field can accept its declared type
+// plus an explicit null (the collectors emit null for an absent optional). A
+// typeSet is stored as the sorted set of member type tokens so comparisons are
+// order-independent.
+type typeSet []string
+
+// UnmarshalJSON accepts both the scalar ("string") and array (["string","null"])
+// forms JSON Schema permits for "type", plus an absent type (nil).
+func (t *typeSet) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*t = nil
+		return nil
+	}
+	if trimmed[0] == '[' {
+		var arr []string
+		if err := json.Unmarshal(data, &arr); err != nil {
+			return err //nolint:wrapcheck // json errors are self-describing here.
+		}
+		sort.Strings(arr)
+		*t = arr
+		return nil
+	}
+	var single string
+	if err := json.Unmarshal(data, &single); err != nil {
+		return err //nolint:wrapcheck // json errors are self-describing here.
+	}
+	*t = typeSet{single}
+	return nil
+}
+
+// empty reports whether the type set carries no type tokens (an absent or empty
+// "type"), so a comparison can treat "unknown on one side" as no-op.
+func (t typeSet) empty() bool {
+	return len(t) == 0
+}
+
+// has reports whether the set contains a specific type token.
+func (t typeSet) has(token string) bool {
+	for _, member := range t {
+		if member == token {
+			return true
+		}
+	}
+	return false
+}
+
+// removedFrom returns the type tokens present in base but absent from t — the
+// tokens t dropped relative to base. A non-empty result is a NARROWING (t
+// accepts fewer types than base). Adding a token (widening, for example gaining
+// "null") yields an empty result and is non-breaking.
+func (t typeSet) removedFrom(base typeSet) []string {
+	var dropped []string
+	for _, member := range base {
+		if !t.has(member) {
+			dropped = append(dropped, member)
+		}
+	}
+	return dropped
+}
+
+// String renders the set for diagnostics.
+func (t typeSet) String() string {
+	return strings.Join(t, "|")
 }
 
 // UnmarshalJSON decodes a property while tolerating JSON Schema's two shapes
@@ -319,8 +388,14 @@ func isNarrowedType(base, cur schemaProperty) (bool, string) {
 	if len(base.Enum) > 0 && len(cur.Enum) > 0 && !enumSupersetOf(cur.Enum, base.Enum) {
 		return true, "enum constraint narrowed to a smaller value set"
 	}
-	if base.Type != "" && cur.Type != "" && base.Type != cur.Type {
-		return true, fmt.Sprintf("type changed from %q to %q", base.Type, cur.Type)
+	if !base.Type.empty() && !cur.Type.empty() {
+		// A type change is a NARROWING only if the current type set drops a type
+		// the baseline accepted (the payload space shrank). Adding a type — for
+		// example gaining "null" so an optional field accepts an explicit null —
+		// widens the accepted set and is non-breaking.
+		if dropped := cur.Type.removedFrom(base.Type); len(dropped) > 0 {
+			return true, fmt.Sprintf("type narrowed from %q to %q (dropped %v)", base.Type, cur.Type, dropped)
+		}
 	}
 	if base.AdditionalProperties != nil && cur.AdditionalProperties != nil {
 		if narrowed, reason := isNarrowedType(*base.AdditionalProperties, *cur.AdditionalProperties); narrowed {

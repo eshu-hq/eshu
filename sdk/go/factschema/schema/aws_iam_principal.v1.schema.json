@@ -1,11 +1,9 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://eshu.dev/schemas/factschema/iam/v1/principal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
   "properties": {
     "account_id": {
-      "type": "string"
-    },
-    "region": {
       "type": "string"
     },
     "principal_arn": {
@@ -13,15 +11,17 @@
     },
     "principal_type": {
       "type": "string"
+    },
+    "region": {
+      "type": "string"
     }
   },
-  "additionalProperties": false,
-  "type": "object",
   "required": [
     "account_id",
     "region",
     "principal_arn",
     "principal_type"
   ],
-  "title": "Eshu aws_iam_principal Payload (schema version 1)"
+  "title": "Eshu aws_iam_principal Payload (schema version 1)",
+  "type": "object"
 }

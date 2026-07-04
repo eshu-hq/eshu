@@ -1,94 +1,160 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://eshu.dev/schemas/factschema/aws/v1/ec2_instance_posture.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
   "properties": {
     "account_id": {
       "type": "string"
     },
-    "region": {
-      "type": "string"
-    },
-    "instance_id": {
-      "type": "string"
-    },
     "arn": {
-      "type": "string"
-    },
-    "resource_type": {
-      "type": "string"
-    },
-    "service_kind": {
-      "type": "string"
-    },
-    "state": {
-      "type": "string"
-    },
-    "imds_v2_required": {
-      "type": "boolean"
-    },
-    "imds_http_endpoint": {
-      "type": "string"
-    },
-    "imds_http_put_hop_limit": {
-      "type": "integer"
-    },
-    "user_data_present": {
-      "type": "boolean"
-    },
-    "detailed_monitoring_enabled": {
-      "type": "boolean"
-    },
-    "ebs_optimized": {
-      "type": "boolean"
-    },
-    "public_ip_associated": {
-      "type": "boolean"
-    },
-    "instance_profile_arn": {
-      "type": "string"
-    },
-    "tenancy": {
-      "type": "string"
-    },
-    "nitro_enclave_enabled": {
-      "type": "boolean"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "block_devices": {
       "items": {
+        "additionalProperties": true,
         "properties": {
-          "device_name": {
-            "type": "string"
-          },
-          "volume_id": {
-            "type": "string"
-          },
           "delete_on_termination": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
-          "status": {
-            "type": "string"
+          "device_name": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "encrypted": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "volume_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
-        "additionalProperties": false,
         "type": "object"
       },
-      "type": "array"
+      "type": [
+        "array",
+        "null"
+      ]
     },
     "correlation_anchors": {
       "items": {
         "type": "string"
       },
-      "type": "array"
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "detailed_monitoring_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "ebs_optimized": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "imds_http_endpoint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "imds_http_put_hop_limit": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "imds_v2_required": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "instance_profile_arn": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nitro_enclave_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "public_ip_associated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "region": {
+      "type": "string"
+    },
+    "resource_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tenancy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_data_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
-  "additionalProperties": false,
-  "type": "object",
   "required": [
     "account_id",
     "region"
   ],
-  "title": "Eshu ec2_instance_posture Payload (schema version 1)"
+  "title": "Eshu ec2_instance_posture Payload (schema version 1)",
+  "type": "object"
 }
