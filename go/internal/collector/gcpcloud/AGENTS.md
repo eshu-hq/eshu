@@ -700,6 +700,32 @@
    `selfManaged.pemCertificate`/`selfManaged.pemPrivateKey` PEM material, or
    `managed.provisioningIssue`/`managed.authorizationAttemptInfo` free-text
    failure detail.
+58. `extractor_alloydb_cluster.go` - typed-depth extractor for
+   `alloydb.googleapis.com/Cluster` (display name, uid, state, cluster type,
+   database version, subscription type, creation time, CMEK KMS key name,
+   encryption type posture, and automated/continuous backup posture — enabled
+   flags, location, backup window, time-based retention period or
+   quantity-based retention count, and continuous-backup recovery-window
+   days). Emits an `alloydb_cluster_in_network` edge to the private Compute
+   `Network` from `networkConfig.network` (falling back to the deprecated
+   top-level `network` field only when `networkConfig` carries none) and an
+   `alloydb_cluster_encrypted_by_kms_key` edge to the CMEK `CryptoKey`,
+   reusing `assetTypeComputeNetwork`, `assetTypeKMSCryptoKey`, and the shared
+   `cmekKeyFullResourceName` helper rather than redeclaring them. The network
+   reference resolves through its own `alloyDBClusterNetworkFullName` (a
+   deliberate divergence from the shared `computeFullResourceNameFromSelfLink`
+   for the project-qualified case): AlloyDB supports Shared VPC, so the
+   cluster's own project id cannot be assumed to be the network's project,
+   and a numeric project segment is passed through unresolved rather than
+   risking a fabricated edge. Never decodes `initialUser` (the input-only
+   database username/password pair) at all — no field of it reaches the
+   extractor's input struct — and never decodes
+   `encryptionInfo.kmsKeyVersions` (a data-plane key-version identifier list,
+   not a control-plane field). An AlloyDB Instance
+   (`alloydb.googleapis.com/Instance`) is a separate asset type not covered
+   here; its cluster edge will resolve from the Instance side once an
+   Instance extractor is added, the same inbound-edge pattern the Bigtable
+   Cluster/Instance pair already uses in this package.
 
 ## Invariants
 
