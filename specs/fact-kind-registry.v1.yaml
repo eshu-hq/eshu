@@ -53,6 +53,7 @@ families:
     read_surface: "GET /api/v0/cloud/inventory"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides: {azure_cloud_resource: "sdk/go/factschema/schema/azure_cloud_resource.v1.schema.json"}
     kinds: [azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation]
   ci_cd_run:
     lifecycle_owner: go/internal/facts

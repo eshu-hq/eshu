@@ -637,6 +637,71 @@ additive-only extension: two new `factKindSchemaFile` entries
 `GCPStructDir` (`sdk/go/factschema/gcp/v1`) parsed alongside the existing AWS/
 IAM struct dirs in `Load`; this only widens which decode seams the gate covers
 and adds no new gate mechanism.
+No-Regression Evidence (Wave 4a typed-payload decode, Contract System v1
+#4566): the AZURE cloud-inventory reducer handlers (`azure_resource_materialization.go`,
+`azure_relationship_materialization.go`, `azure_relationship_join.go`) now decode
+`azure_cloud_resource`/`azure_cloud_relationship` fact payloads through the
+`sdk/go/factschema` seam (`factschema.DecodeAzureCloudResource`/
+`DecodeAzureCloudRelationship`, wrapped by `decodeAzureCloudResource`/
+`decodeAzureCloudRelationship` in `factschema_decode_azure.go`) instead of raw
+`payloadString(env.Payload, "key")` map lookups, mirroring the #4568 AWS
+migration. `azureCloudResourceNodeRow` now returns its resolved join identity
+(`resourceID`) alongside the row and uid so `buildAzureCloudResourceJoinIndex`
+never re-decodes an already-decoded resource fact to recover its join key — a
+double-decode that a first benchmark pass caught as an avoidable regression
+before this fix landed. Measured with `go test ./internal/reducer -run '^$'
+-bench 'BenchmarkExtractAzureCloudResourceNodeRows|BenchmarkExtractAzureRelationshipEdgeRows'
+-benchmem -count=5` (darwin/arm64, Apple M1 Max; backend: in-memory extractor;
+input: 5,000 synthetic `azure_cloud_resource` facts / 2,500 resources +
+1,250 `azure_cloud_relationship` facts). BEFORE (raw map, commit 9c8d2b655)
+-> AFTER (typed decode): `ExtractAzureCloudResourceNodeRows` 15.5ms/225,058
+allocs -> 15.5ms/220,044 allocs (~0% time, -2.2% allocs);
+`ExtractAzureRelationshipEdgeRows` 9.97ms/144,866 allocs -> 10.2ms/141,103
+allocs (+2.3% time, -2.6% allocs). Both are within the diagnostic-rigor ~10%
+band and allocations went down, not up — the typed path buys the accuracy
+guarantee (a fact missing a required identity field — `arm_resource_id`,
+`resource_type`, `subscription_id`, `location` for `azure_cloud_resource`;
+`relationship_type`, `source_arm_resource_id`, `target_arm_resource_id` for
+`azure_cloud_relationship` — dead-letters `input_invalid` via
+`partitionDecodeFailures`/`recordQuarantinedFacts` instead of producing an
+empty-string graph uid) at effectively no measured handler cost. Result
+class: Correctness win with no measured handler regression.
+`TestAzureRelationshipMaterializationQuarantinesMissingResourceType` (new
+regression test mirroring `TestAWSRelationshipMaterializationQuarantines-
+MissingAccountID`) failed before `ExtractAzureCloudResourceNodeRows` routed a
+missing-`resource_type` fact through the decode seam (it decoded to a
+zero-value string and produced a materializable-looking row under an
+empty-type-segment uid), then passed after the fact quarantined per-fact
+while a valid sibling resource in the same batch still projected. Converting
+`azure_relationship_join.go`'s required-field set surfaced a pre-existing gap
+in `azure_relationship_materialization_test.go`'s skip-matrix fixtures
+(`cross_subscription_target`, `invalid_type`, `unsupported_type`,
+`self_loop`): those synthetic payloads set only `source_normalized_resource_id`/
+`target_normalized_resource_id` and omitted `source_arm_resource_id`/
+`target_arm_resource_id` entirely, which the pre-typing `payloadString` lookup
+silently tolerated (returns `""` for an absent key) but the collector emitter
+(`azurecloud.NewRelationshipEnvelope`, `go/internal/collector/azurecloud/
+relationship.go:69-75`) always validates both non-empty before emission — the
+fixtures were never realistic collector output. The four fixtures were
+corrected to also set the two ARM id fields the real collector always emits,
+preserving each subtest's intended skip-tally assertion
+(`unresolved`/`invalid_type`/`unsupported`/`self_loop`) rather than a
+now-incorrect `input_invalid` quarantine path.
+
+No-Observability-Change: the AZURE typed-decode migration adds no route,
+graph query shape, queue table, worker, lease, runtime knob, metric
+instrument, metric label, or log key. A malformed `azure_cloud_resource`/
+`azure_cloud_relationship` fact surfaces through the EXISTING dead-letter path
+— `partitionDecodeFailures` -> `recordQuarantinedFacts` ->
+`eshu_dp_reducer_input_invalid_facts_total` (labeled `domain`=
+`azure_resource_materialization`/`azure_relationship_materialization`,
+`fact_kind`) plus the existing structured `reducer input_invalid fact
+quarantined` error log and `Result.SubSignals["input_invalid_facts"]` — the
+same instruments and log key the #4568 AWS migration already wired; both
+`AzureResourceMaterializationHandler` and `AzureRelationshipMaterialization-
+Handler` gained an `Instruments *telemetry.Instruments` field wired from
+`DefaultHandlers.Instruments` in `defaults_additive_domains_azure.go`,
+mirroring the AWS handlers' existing field.
 
 ## Anti-patterns
 

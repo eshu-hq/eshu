@@ -20,6 +20,7 @@ func appendAzureResourceMaterializationDomain(
 		NodeWriter:     handlers.CloudResourceNodeWriter,
 		PhasePublisher: handlers.GraphProjectionPhasePublisher,
 		PresenceWriter: handlers.EndpointPresenceWriter,
+		Instruments:    handlers.Instruments,
 	}
 	return append(definitions, azureResources)
 }
@@ -42,6 +43,7 @@ func appendAzureRelationshipMaterializationDomain(
 		ReadinessLookup:      handlers.ReadinessLookup,
 		PriorGenerationCheck: handlers.PriorGenerationCheck,
 		Tracer:               handlers.Tracer,
+		Instruments:          handlers.Instruments,
 	}
 	return append(definitions, azureRelationships)
 }
