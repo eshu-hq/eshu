@@ -121,13 +121,18 @@ granted only `roles/cloudasset.viewer`, authenticated via keyless service
 account impersonation (no long-lived JSON key), scoped to an organization
 parent.
 
-Sanitized result: a bounded org-scope `assets.list` smoke drained 5000 facts in
-approximately 47 seconds — 2513 `gcp_cloud_resource`, 2484
-`gcp_cloud_relationship`, 3 `gcp_tag_observation`; 0 collection warnings this
-pass; `redaction_policy_version` present on 100% of `gcp_cloud_resource` facts.
-Transport was GET-only (read-only by construction). The evidence captured no
-tenant, account, resource identifier, hostname, IP address, or credential
-material.
+Sanitized result: a bounded org-scope `assets.list` smoke, page-capped at 5
+pages through a `PageProvider` wrapper (so the scan cost stays bounded
+regardless of org size), drained 782 facts in approximately 2.4 seconds — 500
+`gcp_cloud_resource`, 278 `gcp_cloud_relationship`, 4 `gcp_tag_observation`; 0
+collection warnings this pass; `redaction_policy_version` present on 100% of
+`gcp_cloud_resource` facts. Transport was GET-only (read-only by construction).
+The evidence captured no tenant, account, resource identifier, hostname, IP
+address, or credential material. The redaction key for this run was fresh
+random material generated with `crypto/rand`, written to a temporary
+read-only-mounted file, and loaded back through the same file-load path the
+collector command uses, so the run also exercises the redaction-key-file gate
+item.
 
 The smoke is reproducible via the gated Go test
 (`go/internal/collector/gcpcloud/gcpruntime/liveclient_smoke_test.go`), which
@@ -150,8 +155,9 @@ This run satisfies the section 6 reviewer-allowlist items for the GCP path:
 - Every emitted fact passed through the redacting envelope builders and
   stamped `redaction_policy_version` (verified at 100% coverage in the smoke
   run).
-- Bounded pagination, timeout, and retry behavior; the smoke run bounded total
-  facts at 5000 and completed within the per-call timeout budget.
+- Bounded pagination, timeout, and retry behavior; the smoke run bounded the
+  scan at 5 `assets.list` pages at the provider seam (not just a fact count
+  after an unbounded drain) and completed within the per-call timeout budget.
 - Warning facts and truth labels are produced rather than swallowed; this pass
   observed 0 warnings, which is a valid (not silent) outcome given the
   bounded run.
@@ -218,7 +224,7 @@ it does not flip any command, chart, or config default to live.
 - [x] (GCP) / [ ] (Azure) Partial/permission-hidden/throttle/unsupported
       outcomes emit warning facts and correct truth labels; no silent
       fallback to empty success.
-- [x] (GCP) / [ ] (Azure) No resource IDs, names, IDs, URLs, tag/label
+- [x] (GCP) / [ ] (Azure) No resource IDs, names, URLs, tag/label
       values, IAM/identity principals, query text, or credential names in
       metric labels, span attributes, log fields, or status keys.
 - [x] (GCP) / [ ] (Azure) Live smoke tests run in an isolated review

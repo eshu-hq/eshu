@@ -23,7 +23,16 @@
   Cloud Asset Inventory `assets.list`, but it is never wired as a default.
   Fixture mode still uses `FixturePageProvider`; claimed-live command mode may
   inject `LiveClient` only after explicit workflow config. Live-client tests
-  must use local HTTP servers, not live Google Cloud calls.
+  must use local HTTP servers, not live Google Cloud calls, with exactly one
+  documented exception below.
+- **Scoped exception:** `liveclient_smoke_test.go`
+  (`TestLiveSmokeCloudAssetInventory`) is a deliberate, env-gated live-smoke
+  test that is the proof artifact for the #1997/#2644 live-collector
+  enablement gate. It skips unless `ESHU_GCP_LIVE_SMOKE=1` is set, it never
+  runs in CI (the environment gate is absent there), and it bounds its scan at
+  the `PageProvider` seam so an operator run against a real org stays
+  cost-bounded. This is the only live-client test allowed in this package;
+  every other live-client test must stay `httptest`-based per the rule above.
 - CAI transport goes through `PageProvider.FetchPage`; direct/effective
   Resource Manager tag API transport goes through `TagProvider.FetchTagPage`.
   Do not import a Google Cloud SDK into `source.go`; transport belongs behind
