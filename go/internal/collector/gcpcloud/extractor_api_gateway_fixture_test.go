@@ -41,7 +41,7 @@ func TestAPIGatewayOfflineFixtureEndToEnd(t *testing.T) {
 		t.Fatalf("build generation: %v", err)
 	}
 
-	const prodGatewayFullName = "//apigateway.googleapis.com/projects/123456789/locations/us-central1/gateways/prod-gw"
+	const prodGatewayFullName = "//apigateway.googleapis.com/projects/demo-project/locations/us-central1/gateways/prod-gw"
 
 	resourceCount := 0
 	relationshipCount := 0

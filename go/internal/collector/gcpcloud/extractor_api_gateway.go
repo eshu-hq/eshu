@@ -26,6 +26,23 @@ const assetTypeAPIGatewayAPIConfig = "apigateway.googleapis.com/ApiConfig"
 // endpoints resolve exactly.
 const relationshipTypeAPIGatewayUsesAPIConfig = "api_gateway_uses_api_config"
 
+// apiGatewayAPIConfigFullResourceNamePrefix is the exact CAI full-resource-name
+// service prefix for an apigateway.googleapis.com/ApiConfig, verified against
+// the live Cloud Asset Inventory resource-name-format reference:
+// "//apigateway.googleapis.com/projects/{project}/locations/{location}/apis/{api}/configs/{apiConfig}".
+// An already-absolute apiConfig value must carry this exact prefix to be
+// trusted as-is; any other absolute value names a different, untrusted
+// service and must not mint an edge or anchor.
+const apiGatewayAPIConfigFullResourceNamePrefix = "//apigateway.googleapis.com/"
+
+// apiGatewayAPIConfigRelativeMarker is the fixed "/apis/" path segment in the
+// documented relative ApiConfig resource-name shape
+// ("projects/{project}/locations/global/apis/{api}/configs/{apiConfig}", per
+// the API Gateway v1 projects.locations.apis.configs REST reference). A
+// relative apiConfig value must contain this marker with a non-empty prefix
+// and suffix to be recognized as that documented shape.
+const apiGatewayAPIConfigRelativeMarker = "/apis/"
+
 func init() {
 	RegisterAssetExtractor(assetTypeAPIGatewayGateway, extractAPIGateway)
 }
@@ -53,10 +70,12 @@ type apiGatewayData struct {
 // Gateway v1 resource carries no separate region field), creation/update time,
 // and a fingerprint of the default hostname; it emits the
 // api_gateway_uses_api_config edge to the resolved ApiConfig resource, and
-// surfaces the ApiConfig full resource name as a correlation anchor. The raw
-// defaultHostname DNS name never leaves the parser — only its deterministic
-// fingerprint does, mirroring the Pub/Sub Subscription push-endpoint host
-// treatment.
+// surfaces the ApiConfig full resource name as a correlation anchor only when
+// apiGatewayAPIConfigFullName resolves the reference to the documented
+// apigateway.googleapis.com ApiConfig shape — a malformed or wrong-domain
+// apiConfig value mints no edge or anchor. The raw defaultHostname DNS name
+// never leaves the parser — only its deterministic fingerprint does,
+// mirroring the Pub/Sub Subscription push-endpoint host treatment.
 func extractAPIGateway(ctx ExtractContext) (AttributeExtraction, error) {
 	var data apiGatewayData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -131,19 +150,39 @@ func apiGatewayRegionFromFullName(fullName string) string {
 // apiGatewayAPIConfigFullName builds the CAI ApiConfig full resource name from
 // a Gateway's apiConfig reference. The API Gateway v1 API documents apiConfig
 // as the relative resource name
-// "projects/{project}/locations/global/apis/{api}/configs/{apiConfig}" with no
-// fixed CAI-prefix convention observed on the wire; an already CAI-prefixed
-// ("//apigateway.googleapis.com/...") value is returned unchanged so the prefix
-// is never doubled, mirroring the Bigtable Cluster CMEK-key-name and
-// Memorystore Redis Instance CMEK normalization. It returns "" only for a
-// blank reference.
+// "projects/{project}/locations/global/apis/{api}/configs/{apiConfig}" (per the
+// projects.locations.apis.configs REST reference); the CAI full resource name
+// is "//apigateway.googleapis.com/" plus that same path (per the Cloud Asset
+// Inventory resource-name-format reference). This is untrusted parser input,
+// so the derivation fails closed on both branches, mirroring the Org Policy
+// extractor's treatment of its own untrusted resource-name input:
+//
+//   - An already-absolute ("//...") value is trusted as-is only when it
+//     carries the exact "//apigateway.googleapis.com/" service prefix.
+//     TrimPrefix would silently no-op and accept a wrong-domain absolute name
+//     (e.g. a "//compute.googleapis.com/..." reference), fabricating a
+//     cross-service anchor/edge from an untrusted value; any other absolute
+//     value returns "".
+//   - A relative value is only prefixed when it matches the documented
+//     "projects/.../apis/.../configs/..." shape (recognized here by requiring
+//     a non-empty "/apis/" marker with non-empty prefix and suffix); any other
+//     relative value returns "" rather than minting a fabricated CAI name from
+//     an arbitrary string.
 func apiGatewayAPIConfigFullName(apiConfig string) string {
 	trimmed := strings.TrimSpace(apiConfig)
 	if trimmed == "" {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
+		if strings.HasPrefix(trimmed, apiGatewayAPIConfigFullResourceNamePrefix) {
+			return trimmed
+		}
+		return ""
 	}
-	return "//apigateway.googleapis.com/" + strings.TrimPrefix(trimmed, "/")
+	relative := strings.TrimPrefix(trimmed, "/")
+	prefix, suffix, ok := strings.Cut(relative, apiGatewayAPIConfigRelativeMarker)
+	if !ok || prefix == "" || suffix == "" {
+		return ""
+	}
+	return apiGatewayAPIConfigFullResourceNamePrefix + relative
 }

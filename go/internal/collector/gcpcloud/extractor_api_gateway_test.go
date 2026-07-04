@@ -129,8 +129,8 @@ func TestExtractAPIGatewayNoDefaultHostnameNoFingerprint(t *testing.T) {
 	}
 }
 
-// TestExtractAPIGatewayNeverPersistsRawHostnameOrAPIConfigDoubleForm proves the
-// raw defaultHostname DNS name never leaves the parser, only its fingerprint.
+// TestExtractAPIGatewayNeverPersistsRawHostname proves the raw defaultHostname
+// DNS name never leaves the parser, only its fingerprint.
 func TestExtractAPIGatewayNeverPersistsRawHostname(t *testing.T) {
 	const data = `{
 		"defaultHostname": "leaky-secret-host.uc.gateway.dev"
@@ -151,6 +151,95 @@ func TestExtractAPIGatewayNeverPersistsRawHostname(t *testing.T) {
 func TestExtractAPIGatewayMalformedDataErrors(t *testing.T) {
 	if _, err := extractAPIGateway(apiGatewayContext(`{not json`)); err == nil {
 		t.Fatalf("expected an error for malformed resource data")
+	}
+}
+
+// TestExtractAPIGatewayWrongDomainAPIConfigNoEdge proves an apiConfig value
+// carrying an absolute CAI-shaped name from a different, untrusted service
+// mints no edge or anchor. Accepting any "//..." value unchanged (as opposed
+// to validating the apigateway.googleapis.com service prefix) would let a
+// malformed or adversarial CAI payload mint a fabricated relationship toward
+// an arbitrary resource in another GCP service.
+func TestExtractAPIGatewayWrongDomainAPIConfigNoEdge(t *testing.T) {
+	const data = `{
+		"apiConfig": "//compute.googleapis.com/projects/demo-project/global/networks/default"
+	}`
+	got, err := extractAPIGateway(apiGatewayContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 0 {
+		t.Fatalf("expected no edges for a wrong-domain apiConfig, got %#v", got.Relationships)
+	}
+	if len(got.CorrelationAnchors) != 0 {
+		t.Fatalf("expected no anchors for a wrong-domain apiConfig, got %#v", got.CorrelationAnchors)
+	}
+}
+
+// TestExtractAPIGatewayMalformedRelativeAPIConfigNoEdge proves a relative
+// apiConfig value that does not match the documented
+// "projects/{project}/locations/global/apis/{api}/configs/{apiConfig}" shape
+// mints no edge or anchor, rather than being blindly prefixed into a
+// fabricated CAI name.
+func TestExtractAPIGatewayMalformedRelativeAPIConfigNoEdge(t *testing.T) {
+	const data = `{
+		"apiConfig": "not-a-real-resource-path"
+	}`
+	got, err := extractAPIGateway(apiGatewayContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 0 {
+		t.Fatalf("expected no edges for a malformed relative apiConfig, got %#v", got.Relationships)
+	}
+	if len(got.CorrelationAnchors) != 0 {
+		t.Fatalf("expected no anchors for a malformed relative apiConfig, got %#v", got.CorrelationAnchors)
+	}
+}
+
+// TestAPIGatewayAPIConfigFullNameFailsClosed unit-tests
+// apiGatewayAPIConfigFullName directly: an absolute name must carry the exact
+// apigateway.googleapis.com CAI service prefix to pass through unchanged; a
+// wrong-domain absolute name and a malformed relative name must both yield ""
+// rather than minting a fabricated anchor/edge target.
+func TestAPIGatewayAPIConfigFullNameFailsClosed(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "correct relative shape is prefixed",
+			input: "projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg",
+			want:  "//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg",
+		},
+		{
+			name:  "already CAI-prefixed apigateway value passes through unchanged",
+			input: "//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg",
+			want:  "//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg",
+		},
+		{
+			name:  "wrong-domain absolute value fails closed",
+			input: "//compute.googleapis.com/projects/demo-project/global/networks/default",
+			want:  "",
+		},
+		{
+			name:  "malformed relative value fails closed",
+			input: "not-a-real-resource-path",
+			want:  "",
+		},
+		{
+			name:  "blank value fails closed",
+			input: "",
+			want:  "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := apiGatewayAPIConfigFullName(tc.input); got != tc.want {
+				t.Errorf("apiGatewayAPIConfigFullName(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
 	}
 }
 
