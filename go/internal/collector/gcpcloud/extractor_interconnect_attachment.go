@@ -24,6 +24,7 @@ const assetTypeComputeInterconnect = "compute.googleapis.com/Interconnect"
 const (
 	relationshipTypeInterconnectAttachmentUsesRouter       = "interconnect_attachment_uses_router"
 	relationshipTypeInterconnectAttachmentUsesInterconnect = "interconnect_attachment_uses_interconnect"
+	relationshipTypeInterconnectAttachmentUsesNetwork      = "interconnect_attachment_uses_network"
 )
 
 // interconnectAttachmentData is the bounded view of a CAI
@@ -38,17 +39,34 @@ const (
 // Boundaries. PartnerAsn is a string-encoded int64 per the compute API
 // convention and is decoded via json.RawMessage/parseFlexibleInt64 so an
 // absent value (most DEDICATED attachments) is distinguished from a
-// legitimately present zero.
+// legitimately present zero. L2Forwarding is present only for a
+// `type: L2_DEDICATED` attachment, per the live Compute v1 discovery document
+// (`l2Forwarding` "is required if the type is L2_DEDICATED"); the top-level
+// InterconnectAttachment resource itself carries no `network` field at all —
+// only the nested `l2Forwarding.network` names the attached VPC network.
 type interconnectAttachmentData struct {
-	Region                 string          `json:"region"`
-	Router                 string          `json:"router"`
-	Interconnect           string          `json:"interconnect"`
-	Type                   string          `json:"type"`
-	Bandwidth              string          `json:"bandwidth"`
-	EdgeAvailabilityDomain string          `json:"edgeAvailabilityDomain"`
-	State                  string          `json:"state"`
-	PartnerAsn             json.RawMessage `json:"partnerAsn"`
-	CreationTimestamp      string          `json:"creationTimestamp"`
+	Region                 string                          `json:"region"`
+	Router                 string                          `json:"router"`
+	Interconnect           string                          `json:"interconnect"`
+	Type                   string                          `json:"type"`
+	Bandwidth              string                          `json:"bandwidth"`
+	EdgeAvailabilityDomain string                          `json:"edgeAvailabilityDomain"`
+	State                  string                          `json:"state"`
+	PartnerAsn             json.RawMessage                 `json:"partnerAsn"`
+	CreationTimestamp      string                          `json:"creationTimestamp"`
+	L2Forwarding           *interconnectAttachmentL2Config `json:"l2Forwarding"`
+}
+
+// interconnectAttachmentL2Config is the bounded view of an L2_DEDICATED
+// attachment's `l2Forwarding` block. TunnelEndpointIpAddress and
+// DefaultApplianceIpAddress are intentionally omitted from this struct:
+// encoding/json silently ignores JSON object keys with no matching struct
+// field, so neither IP address is ever decoded into Go memory, matching the
+// same Payload Boundaries treatment as every other IP-address field on this
+// resource. ApplianceMappings (per-VLAN-tag appliance IP routing) is likewise
+// never decoded, since every entry resolves to an IP address.
+type interconnectAttachmentL2Config struct {
+	Network string `json:"network"`
 }
 
 func init() {
@@ -59,7 +77,8 @@ func init() {
 // for one compute InterconnectAttachment CAI asset. It returns the
 // Terraform/drift/monitoring attribute set (region, attachment type,
 // provisioned bandwidth, edge availability domain, state, partner ASN when
-// present, and creation time); the resolved Cloud Router and Interconnect as
+// present, and creation time); the resolved Cloud Router, Interconnect, and
+// (for an L2_DEDICATED attachment only) the l2Forwarding VPC Network as
 // correlation anchors; and the typed edges to those resources. No candidate,
 // customer, or cloud-router IP address ever reaches the output, since
 // interconnectAttachmentData declares no struct field for any of them.
@@ -80,6 +99,12 @@ func extractInterconnectAttachment(ctx ExtractContext) (AttributeExtraction, err
 	if interconnectName := computeResourceFullNameFromSelfLink(data.Interconnect, "interconnects", ctx.ProjectID); interconnectName != "" {
 		anchors = append(anchors, interconnectName)
 		rels = append(rels, interconnectAttachmentEdge(ctx, relationshipTypeInterconnectAttachmentUsesInterconnect, interconnectName, assetTypeComputeInterconnect))
+	}
+	if data.L2Forwarding != nil {
+		if networkName := computeFullResourceNameFromSelfLink(data.L2Forwarding.Network, ctx.ProjectID); networkName != "" {
+			anchors = append(anchors, networkName)
+			rels = append(rels, interconnectAttachmentEdge(ctx, relationshipTypeInterconnectAttachmentUsesNetwork, networkName, assetTypeComputeNetwork))
+		}
 	}
 
 	return AttributeExtraction{

@@ -137,6 +137,61 @@ func TestExtractInterconnectAttachmentMalformedDataErrors(t *testing.T) {
 	}
 }
 
+func TestExtractInterconnectAttachmentL2DedicatedNetworkEdge(t *testing.T) {
+	// L2_DEDICATED attachments carry their network reference nested under
+	// l2Forwarding.network (verified against the live Compute v1 discovery
+	// document's InterconnectAttachmentL2Forwarding schema), not the top-level
+	// `network` field the InterconnectAttachment resource does not have. The
+	// l2Forwarding tunnelEndpointIpAddress and defaultApplianceIpAddress
+	// fields must never be decoded — both are IP addresses.
+	const data = `{
+		"region": "us-central1",
+		"type": "L2_DEDICATED",
+		"l2Forwarding": {
+			"network": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/prod-vpc",
+			"tunnelEndpointIpAddress": "169.254.2.1",
+			"defaultApplianceIpAddress": "169.254.2.2"
+		}
+	}`
+
+	got, err := extractInterconnectAttachment(interconnectAttachmentContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	const network = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
+	assertRelationship(t, got.Relationships, relationshipTypeInterconnectAttachmentUsesNetwork, network, assetTypeComputeNetwork)
+	if !containsStringSlice(got.CorrelationAnchors, network) {
+		t.Errorf("expected network anchor %q in %#v", network, got.CorrelationAnchors)
+	}
+
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal extraction: %v", err)
+	}
+	for _, forbidden := range []string{"169.254.2.1", "169.254.2.2"} {
+		if containsString(string(blob), forbidden) {
+			t.Fatalf("extraction leaked l2Forwarding IP address %q: %s", forbidden, blob)
+		}
+	}
+}
+
+func TestExtractInterconnectAttachmentNoL2ForwardingYieldsNoNetworkEdge(t *testing.T) {
+	// A non-L2 attachment (DEDICATED/PARTNER/PARTNER_PROVIDER) carries no
+	// l2Forwarding block at all, so no network edge is ever fabricated for it.
+	const data = `{"region": "us-central1", "type": "DEDICATED"}`
+
+	got, err := extractInterconnectAttachment(interconnectAttachmentContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeInterconnectAttachmentUsesNetwork {
+			t.Fatalf("expected no network edge without l2Forwarding, got %#v", rel)
+		}
+	}
+}
+
 func TestExtractInterconnectAttachmentNeverLeaksIPOrLabelData(t *testing.T) {
 	// candidateCloudRouterIpAddress, cloudRouterIpAddress,
 	// customerRouterIpAddress, and their IPv6 counterparts must never be
