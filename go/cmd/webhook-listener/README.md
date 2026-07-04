@@ -33,10 +33,13 @@ flowchart LR
 - `ESHU_WEBHOOK_GITLAB_TOKEN` enables `/webhooks/gitlab`.
 - `ESHU_WEBHOOK_BITBUCKET_SECRET` enables `/webhooks/bitbucket`.
 - `ESHU_AWS_FRESHNESS_TOKEN` enables `/webhooks/aws/eventbridge`.
-- `ESHU_GCP_FRESHNESS_TOKEN` enables `/webhook/gcp-freshness`. Default-off:
-  the route is not mounted until this token is configured, and until the
-  epic's dedicated security-review child approves the push endpoint for
-  broader rollout.
+- `ESHU_GCP_FRESHNESS_TOKEN` enables `/webhook/gcp-freshness` via the shared
+  bearer token. Default-off: the route is not mounted unless this token or
+  the OIDC pair below is configured.
+- `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE` and `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA`
+  together enable `/webhook/gcp-freshness` via verified Pub/Sub push OIDC —
+  an independent, fail-closed second accepted auth path. Must be set
+  together; either token or OIDC (or both) authenticates a request.
 - `ESHU_WEBHOOK_PAGERDUTY_SECRET` enables `/webhooks/pagerduty`.
 - `ESHU_WEBHOOK_JIRA_SECRET` enables `/webhooks/jira`.
 - `ESHU_WEBHOOK_GITHUB_PATH` overrides the GitHub route.
@@ -59,17 +62,19 @@ Bitbucket uses `X-Hub-Signature` for provider authentication.
 AWS freshness intake accepts either `Authorization: Bearer <token>` or
 `X-Eshu-AWS-Freshness-Token: <token>` and stores only the normalized
 `(account_id, region, service_kind)` wake-up trigger.
-GCP freshness intake accepts either `Authorization: Bearer <token>` or
-`X-Eshu-GCP-Freshness-Token: <token>` as the sole required auth mechanism and
-fails closed with no anonymous or partially-authenticated path; it stores
-only the normalized `(parent_scope_kind, parent_scope_id, asset_type,
-location)` wake-up trigger decoded from the base64 Cloud Asset Inventory
-`TemporalAsset` in the Pub/Sub push envelope. The first delivery to a new CAI
-feed subscription is a bare-string welcome message, not a `TemporalAsset`;
-the route acknowledges it (202, `reason=welcome_message`) without storing a
-trigger. Real Pub/Sub push OIDC token verification (audience + service
-account allowlist) is tracked as a second accepted auth path in #4339 and is
-not implemented yet.
+GCP freshness intake accepts two independent, fail-closed auth paths — either
+is sufficient, and there is no anonymous or partially-authenticated path:
+either `Authorization: Bearer <token>` or `X-Eshu-GCP-Freshness-Token: <token>`
+matching the configured shared token, or a Google-signed Pub/Sub push OIDC
+token verified via `google.golang.org/api/idtoken` (signature against
+Google's public certs, `aud` claim matching the configured audience, and
+`email`/`email_verified` claims matching the configured allowlisted service
+account). It stores only the normalized `(parent_scope_kind, parent_scope_id,
+asset_type, location)` wake-up trigger decoded from the base64 Cloud Asset
+Inventory `TemporalAsset` in the Pub/Sub push envelope. The first delivery to
+a new CAI feed subscription is a bare-string welcome message, not a
+`TemporalAsset`; the route acknowledges it (202, `reason=welcome_message`)
+without storing a trigger.
 PagerDuty incident freshness intake uses `X-PagerDuty-Signature` and a delivery
 identifier from the payload `event.id`, `X-Webhook-Id`, or `X-Request-Id`; Jira
 intake uses `X-Hub-Signature` and a delivery identifier from
@@ -102,7 +107,7 @@ of metric labels and request-outcome logs.
 | `eshu_dp_webhook_trigger_decisions_total` | Counter | Normalized repository or incident trigger decisions that reached durable storage, by provider, event kind, decision, reason, and status. |
 | `eshu_dp_webhook_store_operations_total` | Counter | Trigger-store upsert attempts by provider, outcome, and stored status. |
 | `eshu_dp_aws_freshness_events_total` | Counter | AWS Config/EventBridge intake and coordinator handoff events by bounded kind and action. |
-| `eshu_dp_gcp_freshness_events_total` | Counter | GCP Cloud Asset Inventory feed intake and coordinator handoff events by bounded kind and action. |
+| `eshu_dp_gcp_freshness_events_total` | Counter | GCP Cloud Asset Inventory feed intake and coordinator handoff events by bounded kind, action, and auth_path (`shared_token`/`oidc`/`none`). |
 | `eshu_dp_webhook_request_duration_seconds` | Histogram | End-to-end provider route latency, including body read, auth verification, normalization, and store handoff. |
 | `eshu_dp_webhook_store_duration_seconds` | Histogram | Durable trigger-store latency for the Postgres upsert path. |
 | `webhook.handle` | Span | Provider route handling for one delivery. |

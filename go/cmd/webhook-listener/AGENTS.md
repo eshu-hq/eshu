@@ -8,12 +8,14 @@ Read these files first:
 4. `incident_freshness_handler.go`
 5. `aws_freshness_handler.go`
 6. `gcp_freshness_handler.go`
-7. `handler_observability_test.go`
-8. `main.go`
-9. `handler_test.go`
-10. `incident_freshness_handler_test.go`
-11. `aws_freshness_handler_test.go`
-12. `gcp_freshness_handler_test.go`
+7. `gcp_freshness_oidc.go`
+8. `handler_observability_test.go`
+9. `main.go`
+10. `handler_test.go`
+11. `incident_freshness_handler_test.go`
+12. `aws_freshness_handler_test.go`
+13. `gcp_freshness_handler_test.go`
+14. `gcp_freshness_oidc_test.go`
 
 ## Invariants
 
@@ -27,13 +29,19 @@ Read these files first:
   labels. AWS freshness metrics use only bounded `kind` and `action` labels.
 - Keep GCP resource names, parent scope ids, asset bodies, and raw Pub/Sub
   push payloads out of metric labels. GCP freshness metrics use only bounded
-  `kind` and `action` labels.
+  `kind`, `action`, and `auth_path` labels.
 - The GCP freshness route (`/webhook/gcp-freshness`) is default-off: it is not
-  mounted unless `ESHU_GCP_FRESHNESS_TOKEN` is configured, and the shared
-  token is the sole required auth mechanism today. Do not add an OIDC or
-  anonymous fallback that would let a request through without a valid
-  matching token; real Pub/Sub push OIDC verification is a separate,
-  dedicated security-review change (#4339).
+  mounted unless the shared token (`ESHU_GCP_FRESHNESS_TOKEN`) or the OIDC
+  pair (`ESHU_GCP_FRESHNESS_OIDC_AUDIENCE` +
+  `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA`) is configured. Both are independent,
+  fail-closed accepted auth paths (#4659); either being valid is sufficient.
+  Never add a third path, an anonymous bypass, or a partially-authenticated
+  fallback. Never log or emit the raw OIDC token, the request's decoded
+  email claim, or the shared token value — the `auth_path` metric label is
+  a bounded enum (`shared_token`/`oidc`/`none`), never a raw credential.
+- `verifyGCPPushOIDC` takes an injected `gcpPushOIDCValidator` so tests never
+  make a live call to Google; only `googleOIDCValidator` (the production
+  implementation, wrapping `google.golang.org/api/idtoken`) talks to Google.
 - Keep public ingress limited to provider webhook routes.
 
 ## Common Changes
@@ -48,6 +56,10 @@ Read these files first:
   in `aws_freshness_handler_test.go`.
 - Add GCP freshness route behavior in `gcp_freshness_handler.go` and cover it
   in `gcp_freshness_handler_test.go`.
+- Add GCP freshness Pub/Sub push OIDC verification behavior in
+  `gcp_freshness_oidc.go` and cover it in `gcp_freshness_oidc_test.go`, using
+  the injected `gcpPushOIDCValidator` seam (never make a live call to Google
+  in a test).
 - Add or change OTEL behavior in `handler.go` and cover it in
   `handler_observability_test.go`.
 - Add runtime startup wiring in `main.go` only after the handler/store contract

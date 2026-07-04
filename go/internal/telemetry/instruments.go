@@ -4537,6 +4537,12 @@ func AttrAction(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionAction, v)
 }
 
+// AttrAuthPath returns an auth_path attribute for the GCP freshness webhook's
+// bounded accepted-auth-path label ("shared_token", "oidc", or "none").
+func AttrAuthPath(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionAuthPath, v)
+}
+
 // AttrProvider returns a provider attribute for metric recording.
 func AttrProvider(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionProvider, v)

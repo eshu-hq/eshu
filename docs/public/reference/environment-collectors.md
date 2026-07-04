@@ -499,8 +499,10 @@ Set exactly one of `ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or
 | `ESHU_WEBHOOK_DEFAULT_BRANCH` | unset | webhook-listener | Fallback default branch when provider payloads omit repository default branch. |
 | `ESHU_AWS_FRESHNESS_TOKEN` | unset | webhook-listener | Enables AWS freshness intake and validates bearer or `X-Eshu-AWS-Freshness-Token` headers. |
 | `ESHU_AWS_FRESHNESS_PATH` | `/webhooks/aws/eventbridge` | webhook-listener | HTTP path for AWS freshness intake. |
-| `ESHU_GCP_FRESHNESS_TOKEN` | unset | webhook-listener | Enables GCP Cloud Asset Inventory (CAI) feed freshness intake and validates bearer or `X-Eshu-GCP-Freshness-Token` headers; the sole required auth mechanism today (Pub/Sub push OIDC verification is not implemented yet). |
+| `ESHU_GCP_FRESHNESS_TOKEN` | unset | webhook-listener | Enables GCP Cloud Asset Inventory (CAI) feed freshness intake and validates bearer or `X-Eshu-GCP-Freshness-Token` headers. One of two independent accepted auth paths (see `ESHU_GCP_FRESHNESS_OIDC_*` below); either is sufficient. |
 | `ESHU_GCP_FRESHNESS_PATH` | `/webhook/gcp-freshness` | webhook-listener | HTTP path for GCP freshness intake. |
+| `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE` | unset | webhook-listener | Enables Pub/Sub push OIDC verification as a second accepted auth path for GCP freshness intake; must equal the `aud` claim Google's Pub/Sub push mints (the push subscription's `--push-auth-token-audience`). Must be set together with `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA`. |
+| `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA` | unset | webhook-listener | The push service-account email the verified OIDC token's `email` claim must match (with `email_verified=true`) for the request to authenticate. Must be set together with `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE`. |
 
 PagerDuty and Jira webhook variables only enqueue bounded incident freshness
 triggers. They do not store provider payloads or emit facts directly; the

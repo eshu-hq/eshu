@@ -127,21 +127,16 @@ webhookListener:
 	}
 }
 
-// TestHelmGCPFreshnessWebhookHasNoOIDCConfigSurface proves that
-// webhookListener.gcpFreshness specifically has no OIDC-related values key.
-// go/cmd/webhook-listener does not implement Pub/Sub push OIDC verification
-// (verifyGCPPushOIDC in gcp_freshness_handler.go is stubbed to always return
-// false and is never called from the request path); a schema-validated
-// "oidc" values block that enforces nothing would be a security footgun — an
-// operator could set it and believe the push path is OIDC-authenticated when
-// it is not. OIDC verification and its paired Helm values block are tracked
-// together in issue #4659, to land in lockstep. The assertion is scoped to
-// the gcpFreshness subtree only (not a whole-file "oidc" ban), so it does not
-// collide with an OIDC surface a different provider or component might add
-// later. If a caller sets oidc.* on gcpFreshness anyway (an unknown key the
-// schema does not declare), Helm ignores it silently; this test also proves
-// that even then no OIDC-named environment variable is ever rendered.
-func TestHelmGCPFreshnessWebhookHasNoOIDCConfigSurface(t *testing.T) {
+// TestHelmGCPFreshnessWebhookHasOIDCConfigSurface proves that
+// webhookListener.gcpFreshness.oidc is a real, schema-declared, functional
+// values block: setting it renders the ESHU_GCP_FRESHNESS_OIDC_* environment
+// variables that go/cmd/webhook-listener's OIDC verification path consumes
+// (see gcp_freshness_oidc.go and config.go). Issue #4659 replaced the
+// negative "no OIDC surface" assertion this test previously enforced —
+// go/cmd/webhook-listener now implements real Pub/Sub push OIDC verification,
+// so a schema-validated "oidc" block no longer implies protection the
+// endpoint does not have.
+func TestHelmGCPFreshnessWebhookHasOIDCConfigSurface(t *testing.T) {
 	t.Parallel()
 
 	valuesYAML := readRepositoryFile(t, "../../..", "deploy/helm/eshu/values.yaml")
@@ -150,8 +145,9 @@ func TestHelmGCPFreshnessWebhookHasNoOIDCConfigSurface(t *testing.T) {
 		t.Fatalf("parse deploy/helm/eshu/values.yaml: %v", err)
 	}
 	gcpFreshnessDefaults := helmMap(helmMap(values["webhookListener"])["gcpFreshness"])
-	if _, ok := gcpFreshnessDefaults["oidc"]; ok {
-		t.Fatalf("webhookListener.gcpFreshness.oidc present in deploy/helm/eshu/values.yaml = %#v, want absent (see issue #4659)", gcpFreshnessDefaults["oidc"])
+	oidcDefaults := helmMap(gcpFreshnessDefaults["oidc"])
+	if enabled, _ := oidcDefaults["enabled"].(bool); enabled {
+		t.Fatalf("webhookListener.gcpFreshness.oidc.enabled default = %#v, want false (default-off)", oidcDefaults["enabled"])
 	}
 
 	schemaJSON := readRepositoryFile(t, "../../..", "deploy/helm/eshu/values.schema.json")
@@ -162,12 +158,13 @@ func TestHelmGCPFreshnessWebhookHasNoOIDCConfigSurface(t *testing.T) {
 	webhookListenerSchema := helmMap(helmMap(schema["properties"])["webhookListener"])
 	gcpFreshnessSchema := helmMap(helmMap(webhookListenerSchema["properties"])["gcpFreshness"])
 	gcpFreshnessSchemaProps := helmMap(gcpFreshnessSchema["properties"])
-	if _, ok := gcpFreshnessSchemaProps["oidc"]; ok {
-		t.Fatalf("webhookListener.gcpFreshness.oidc present in deploy/helm/eshu/values.schema.json properties = %#v, want absent (see issue #4659)", gcpFreshnessSchemaProps["oidc"])
+	oidcSchema := helmMap(gcpFreshnessSchemaProps["oidc"])
+	if _, ok := oidcSchema["properties"]; !ok {
+		t.Fatalf("webhookListener.gcpFreshness.oidc missing from deploy/helm/eshu/values.schema.json properties, want declared object (see issue #4659)")
 	}
 
-	valuesPath := filepath.Join(t.TempDir(), "webhook-listener-gcp-freshness-unknown-oidc-key-values.yaml")
-	unknownOIDCKeyValues := []byte(`
+	valuesPath := filepath.Join(t.TempDir(), "webhook-listener-gcp-freshness-oidc-values.yaml")
+	oidcValues := []byte(`
 contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 webhookListener:
@@ -182,8 +179,40 @@ webhookListener:
       audience: https://eshu.example.test/webhook/gcp-freshness
       allowedServiceAccountEmail: push-invoker@example-project.iam.gserviceaccount.com
 `)
-	if err := os.WriteFile(valuesPath, unknownOIDCKeyValues, 0o600); err != nil {
-		t.Fatalf("write GCP freshness unknown-oidc-key values: %v", err)
+	if err := os.WriteFile(valuesPath, oidcValues, 0o600); err != nil {
+		t.Fatalf("write GCP freshness oidc values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-webhook-listener")
+	container := requireHelmContainer(t, deployment, "webhook-listener")
+	env := helmEnvByName(container)
+
+	assertHelmLiteralEnv(t, env, "ESHU_GCP_FRESHNESS_OIDC_AUDIENCE", "https://eshu.example.test/webhook/gcp-freshness")
+	assertHelmLiteralEnv(t, env, "ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA", "push-invoker@example-project.iam.gserviceaccount.com")
+}
+
+// TestHelmGCPFreshnessWebhookOIDCDisabledRendersNoOIDCEnv proves that leaving
+// webhookListener.gcpFreshness.oidc at its default-off value renders none of
+// the ESHU_GCP_FRESHNESS_OIDC_* environment variables, even when the GCP
+// freshness route itself is enabled via the shared token.
+func TestHelmGCPFreshnessWebhookOIDCDisabledRendersNoOIDCEnv(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "webhook-listener-gcp-freshness-oidc-disabled-values.yaml")
+	values := []byte(`
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+webhookListener:
+  enabled: true
+  gcpFreshness:
+    enabled: true
+    path: /webhook/gcp-freshness
+    secretName: eshu-gcp-freshness-webhook
+    tokenKey: token
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write GCP freshness oidc-disabled values: %v", err)
 	}
 
 	manifests := renderHelmChart(t, "-f", valuesPath)
@@ -192,7 +221,7 @@ webhookListener:
 	env := helmEnvByName(container)
 	for name := range env {
 		if strings.Contains(strings.ToUpper(name), "OIDC") {
-			t.Fatalf("env %s rendered, but go/cmd/webhook-listener has no OIDC verification consumer (see issue #4659)", name)
+			t.Fatalf("env %s rendered with oidc.enabled unset (default-off), want absent", name)
 		}
 	}
 }

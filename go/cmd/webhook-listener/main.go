@@ -114,7 +114,8 @@ func run(parent context.Context) error {
 		}
 	}
 	var gcpFreshnessStore *postgres.GCPFreshnessStore
-	if cfg.GCPFreshnessToken != "" {
+	var oidcValidator gcpPushOIDCValidator
+	if gcpFreshnessConfigured(cfg) {
 		gcpFreshnessDB := &postgres.InstrumentedDB{
 			Inner:       postgres.SQLDB{DB: db},
 			Tracer:      tracer,
@@ -125,6 +126,9 @@ func run(parent context.Context) error {
 		if err := gcpFreshnessStore.EnsureSchema(parent); err != nil {
 			return err
 		}
+		if cfg.GCPFreshnessOIDCAudience != "" && cfg.GCPFreshnessOIDCAllowedSA != "" {
+			oidcValidator = googleOIDCValidator{}
+		}
 	}
 	webhookMux, err := newWebhookMux(webhookHandler{
 		Config:                 cfg,
@@ -132,6 +136,7 @@ func run(parent context.Context) error {
 		IncidentFreshnessStore: incidentFreshnessStore,
 		AWSFreshnessStore:      awsFreshnessStore,
 		GCPFreshnessStore:      gcpFreshnessStore,
+		GCPPushOIDCValidator:   oidcValidator,
 		Logger:                 logger,
 		Instruments:            instruments,
 		Tracer:                 tracer,

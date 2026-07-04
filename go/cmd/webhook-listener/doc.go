@@ -17,10 +17,12 @@
 // service-tuple wake-up triggers and never write graph truth directly. GCP
 // Cloud Asset Inventory Pub/Sub push deliveries are normalized into
 // parent-scope/asset-type/location wake-up triggers, drop the raw asset data
-// blob, and never write graph truth directly; the route requires the shared
-// X-Eshu-GCP-Freshness-Token as its sole auth mechanism today (real Pub/Sub
-// push OIDC verification is tracked separately) and stays unmounted until
-// that token is configured. PagerDuty and Jira deliveries are normalized into
+// blob, and never write graph truth directly; the route accepts two
+// independent, fail-closed auth paths — the shared X-Eshu-GCP-Freshness-Token
+// (or Authorization: Bearer) and a verified Pub/Sub push OIDC token (Google
+// signature, audience, and allowlisted service-account email/email_verified
+// claims) — either sufficient, and stays unmounted until at least one is
+// configured. PagerDuty and Jira deliveries are normalized into
 // scoped incident freshness wake-ups and never emit incident, change,
 // work-item, deployment, code, or PR facts directly. Jira intake admits only
 // issue created, updated, and deleted events as collector wake-ups. Request
@@ -29,8 +31,9 @@
 // bounded structured logs plus OTEL counters, histograms, and spans through
 // telemetry.Instruments and telemetry.SpanWebhookHandle/
 // telemetry.SpanWebhookStore. Provider, event kind, decision, status, outcome,
-// reason, AWS freshness kind, AWS freshness action, GCP freshness kind, and
-// GCP freshness action are bounded metric labels; repository, delivery
-// identity, incident IDs, issue keys, resource names, and ARNs stay out of
+// reason, AWS freshness kind, AWS freshness action, GCP freshness kind, GCP
+// freshness action, and GCP freshness auth_path (shared_token/oidc/none) are
+// bounded metric labels; repository, delivery identity, incident IDs, issue
+// keys, resource names, ARNs, and OIDC token/claim values stay out of
 // metrics.
 package main

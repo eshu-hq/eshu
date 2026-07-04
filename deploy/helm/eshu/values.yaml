@@ -294,6 +294,10 @@ webhookListener:
     path: /webhook/gcp-freshness
     secretName: ""
     tokenKey: token
+    oidc:
+      enabled: false
+      audience: ""
+      allowedServiceAccountEmail: ""
   pagerDuty:
     enabled: false
     path: /webhooks/pagerduty

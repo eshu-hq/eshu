@@ -73,11 +73,16 @@ const (
 	MetricDimensionRiskType = "risk_type"
 	// MetricDimensionSeverity labels posture-observation metrics with bounded
 	// operator severity classes.
-	MetricDimensionSeverity  = "severity"
-	MetricDimensionResult    = "result"
-	MetricDimensionReason    = "reason"
-	MetricDimensionKind      = "kind"
-	MetricDimensionAction    = "action"
+	MetricDimensionSeverity = "severity"
+	MetricDimensionResult   = "result"
+	MetricDimensionReason   = "reason"
+	MetricDimensionKind     = "kind"
+	MetricDimensionAction   = "action"
+	// MetricDimensionAuthPath labels GCP freshness webhook events with the
+	// bounded accepted auth path that authenticated the request: "shared_token",
+	// "oidc", or "none" (no accepted path matched). Producers must never use a
+	// raw header, token, or claim value here.
+	MetricDimensionAuthPath  = "auth_path"
 	MetricDimensionProvider  = "provider"
 	MetricDimensionEventKind = "event_kind"
 	MetricDimensionDecision  = "decision"

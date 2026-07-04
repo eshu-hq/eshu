@@ -334,21 +334,6 @@ func TestWebhookHandlerGCPFreshnessStoreFailureReturns500(t *testing.T) {
 	}
 }
 
-func TestVerifyGCPPushOIDCAlwaysRejects(t *testing.T) {
-	t.Parallel()
-
-	// #4339 gates real Pub/Sub push OIDC verification behind a separate
-	// security review. Until that lands, this path must always reject so
-	// nobody accidentally treats an unverified bearer token as an
-	// authenticated Google-issued push request.
-	req := httptest.NewRequest(http.MethodPost, "/webhook/gcp-freshness", nil)
-	req.Header.Set("Authorization", "Bearer some-google-issued-looking-jwt")
-
-	if verifyGCPPushOIDC(req) {
-		t.Fatal("verifyGCPPushOIDC() = true, want false (stubbed, fails closed until #4339)")
-	}
-}
-
 func TestLoadWebhookListenerConfigAllowsGCPFreshnessOnly(t *testing.T) {
 	t.Parallel()
 

@@ -1,10 +1,11 @@
 # GCP Change Feed Operator Setup
 
 This page walks an operator through provisioning the Google Cloud side of the
-GCP change feed — a Cloud Asset Inventory (CAI) feed, a Pub/Sub topic, a push
-subscription, and the small push-forwarder that bridges Pub/Sub's OIDC push
-auth to Eshu's shared-token auth — and enabling it on the Eshu side. It
-complements
+GCP change feed — a Cloud Asset Inventory (CAI) feed, a Pub/Sub topic, and a
+push subscription — and enabling it on the Eshu side. Eshu's webhook listener
+verifies Pub/Sub's own OIDC push token directly (issue #4659), so a native
+push subscription can point straight at `/webhook/gcp-freshness`; no
+intermediary forwarder is required. It complements
 [Helm Collector and Webhook Values](helm-collector-and-webhook-values.md),
 which documents the chart's `webhookListener.gcpFreshness` block, and
 [Environment Variables — Collectors](../../reference/environment-collectors.md),
@@ -33,42 +34,38 @@ delivery's `messageId`, the asset's ancestry (to derive parent scope kind and
 ID), asset type, resource location, and observed time — enough to target a
 rescan, nothing else.
 
-### Read this before provisioning: a native Pub/Sub push subscription cannot reach this endpoint today
+### Two ways to authenticate a native Pub/Sub push subscription
 
-`/webhook/gcp-freshness` authenticates a request with exactly one mechanism:
-a shared bearer token, sent as `X-Eshu-GCP-Freshness-Token` or
-`Authorization: Bearer <token>`
-(`go/cmd/webhook-listener/gcp_freshness_handler.go`, `validGCPFreshnessToken`).
-It fails closed — a request without that exact token is rejected with `401`
-before the body is even read.
+`/webhook/gcp-freshness` accepts two independent, fail-closed auth paths —
+either is sufficient:
 
-A **native** Google Cloud Pub/Sub push subscription cannot supply that token.
-Pub/Sub authenticated push always sends its own Google-signed OIDC JWT in the
-`Authorization` header, and push subscriptions have no supported mechanism to
-also attach a static custom header such as
-`X-Eshu-GCP-Freshness-Token` (see
-[Authenticate push subscriptions](https://cloud.google.com/pubsub/docs/authenticate-push-subscriptions)
-and the
-[`gcloud pubsub subscriptions create` reference](https://cloud.google.com/sdk/gcloud/reference/pubsub/subscriptions/create),
-whose push-auth flags cover only the endpoint and the OIDC service
-account/audience). Eshu's handler does not verify that OIDC JWT — the
-`verifyGCPPushOIDC` function exists in the handler but always returns
-`false` and is never called on the request path; it is a documented,
-tested placeholder for future work tracked in issue #4659, not a second
-accepted auth path.
+1. **Pub/Sub push OIDC** (recommended for a native push subscription): a
+   push subscription configured with `--push-auth-service-account` has
+   Pub/Sub mint a short-lived, audience-bound Google-signed OIDC token and
+   attach it as `Authorization: Bearer <token>` on every push. Eshu verifies
+   that token's signature against Google's public certs, checks the `aud`
+   claim against the configured audience, and checks the token's `email`
+   claim against the configured allowlisted service account (with
+   `email_verified=true`). See
+   [Eshu-side configuration](#eshu-side-configuration) below for the
+   `oidc.audience` / `oidc.allowedServiceAccountEmail` values.
+2. **Shared bearer token**: a static token sent as
+   `X-Eshu-GCP-Freshness-Token` or `Authorization: Bearer <token>`
+   (`go/cmd/webhook-listener/gcp_freshness_handler.go`,
+   `validGCPFreshnessToken`), compared with a constant-time check. This
+   remains useful if you already have infrastructure that injects the shared
+   token — for example a proxy or forwarder in front of Eshu, or a
+   non-Pub/Sub caller replaying stored deliveries.
 
-The net effect: **a bare native push subscription pointed directly at
-`/webhook/gcp-freshness`, with no forwarder in between, will authenticate
-every single delivery as a `401` and never store a freshness trigger.** Do
-not set that up expecting it to work.
+Both fail closed independently — a request without a valid token on either
+path is rejected with `401` before the body is even read. If neither is
+configured, the chart does not even mount the route.
 
-This page therefore documents the path that actually delivers today: a small
-**push-forwarder** service that receives the OIDC-authenticated Pub/Sub push,
-verifies it belongs to your feed, and re-calls `/webhook/gcp-freshness` with
-the shared token attached. If your environment cannot run a forwarder, treat
-the direct-push path as **blocked** until OIDC verification lands in #4659,
-and fall back to relying on the claim-driven GCP collector's own poll cadence
-for freshness instead.
+This page provisions the OIDC path directly against a native push
+subscription, since it needs no extra infrastructure. If your environment
+already runs a forwarder or proxy in front of Eshu for other reasons, the
+[shared freshness token](#shared-freshness-token-optional-or-in-addition-to-oidc)
+path still works unchanged.
 
 ## Provisioning steps (Google Cloud side)
 
@@ -139,59 +136,25 @@ gcloud iam service-accounts add-iam-policy-binding \
   --role="roles/iam.serviceAccountTokenCreator"
 ```
 
-### 5. Deploy a push-forwarder
+### 5. Create the push subscription
 
-Because the native push subscription's OIDC-authenticated request cannot
-carry Eshu's shared token (see
-[the note above](#read-this-before-provisioning-a-native-pubsub-push-subscription-cannot-reach-this-endpoint-today)),
-point the push subscription at a small forwarder instead of directly at
-Eshu. A minimal forwarder (Cloud Run or Cloud Functions is a natural fit,
-since both integrate with Pub/Sub push and Google-managed OIDC verification
-out of the box) does exactly two things per request:
-
-1. Verifies the inbound request's OIDC token — audience matches the
-   forwarder's own URL, issuer is Google, and the token's service-account
-   principal matches `PLACEHOLDER-GCP-FRESHNESS-PUSH-SA@PLACEHOLDER-PROJECT.iam.gserviceaccount.com`.
-   Cloud Run and Cloud Functions can enforce this automatically when deployed
-   with `--no-allow-unauthenticated` and the push subscription's
-   `--push-auth-service-account` set to the same service account, so the
-   platform itself rejects tokens with the wrong principal before your code
-   runs.
-2. Re-issues the same request body to
-   `https://PLACEHOLDER-ESHU-HOSTNAME/webhook/gcp-freshness`, attaching
-   `X-Eshu-GCP-Freshness-Token: PLACEHOLDER-RANDOM-TOKEN-VALUE` (the same
-   value configured in [Eshu-side configuration](#eshu-side-configuration)
-   below), and returns Eshu's response status back to Pub/Sub unchanged, so
-   Pub/Sub's retry behavior still reflects Eshu's actual accept/reject
-   decision.
-
-Keep the forwarder to that shape. It is a token-injection relay, not a place
-to add business logic, retries, or buffering — Eshu's own coalescing and
-durable trigger storage already handle duplicates and retries once a request
-reaches `/webhook/gcp-freshness`.
-
-If your environment cannot run a forwarder, do not point a native push
-subscription directly at `/webhook/gcp-freshness`; it will not authenticate.
-Treat direct push as blocked pending #4659 and rely on the GCP collector's
-own poll cadence for freshness until either the forwarder or OIDC enforcement
-is in place.
-
-### 6. Create the push subscription
-
-Point the subscription's push endpoint at the forwarder from step 5, not
-directly at Eshu:
+Point the subscription's push endpoint directly at Eshu's webhook listener.
+`--push-auth-service-account` tells Pub/Sub which service account to mint
+OIDC tokens for; `--push-auth-token-audience` sets the token's `aud` claim,
+which must match `oidc.audience` in
+[Eshu-side configuration](#eshu-side-configuration) below.
 
 ```bash
 gcloud pubsub subscriptions create PLACEHOLDER-GCP-FRESHNESS-SUB \
   --project=PLACEHOLDER-PROJECT \
   --topic=PLACEHOLDER-GCP-FRESHNESS-TOPIC \
-  --push-endpoint=https://PLACEHOLDER-FORWARDER-HOSTNAME/ \
+  --push-endpoint=https://PLACEHOLDER-ESHU-HOSTNAME/webhook/gcp-freshness \
   --push-auth-service-account=PLACEHOLDER-GCP-FRESHNESS-PUSH-SA@PLACEHOLDER-PROJECT.iam.gserviceaccount.com \
-  --push-auth-token-audience=https://PLACEHOLDER-FORWARDER-HOSTNAME/
+  --push-auth-token-audience=https://PLACEHOLDER-ESHU-HOSTNAME/webhook/gcp-freshness
 ```
 
 Set a bounded acknowledgement deadline and retry policy so a slow or briefly
-unavailable forwarder or Eshu endpoint does not silently drop notifications:
+unavailable Eshu endpoint does not silently drop notifications:
 
 ```bash
 gcloud pubsub subscriptions update PLACEHOLDER-GCP-FRESHNESS-SUB \
@@ -207,10 +170,10 @@ with backoff until the message is acknowledged or its retention window
 expires (see
 [Push subscriptions](https://cloud.google.com/pubsub/docs/push)). This
 matters because `/webhook/gcp-freshness` returns non-2xx for more than just
-transport errors: a request with a missing or mismatched shared token
-returns `401`, and a request whose decoded payload does not match the
-expected `TemporalAsset` shape returns `400`. Both are **retried by Pub/Sub**,
-not silently dropped — see
+transport errors: a request that fails both accepted auth paths (shared token
+and OIDC) returns `401`, and a request whose decoded payload does not match
+the expected `TemporalAsset` shape returns `400`. Both are **retried by
+Pub/Sub**, not silently dropped — see
 [Push retry semantics](#push-retry-semantics) in Troubleshooting for what
 that means operationally. Only a successful store
 (`202`) and the benign first-delivery welcome message (also `202`,
@@ -221,23 +184,45 @@ than creating duplicate rescans.
 
 ## Eshu-side configuration
 
-### Shared freshness token
+### OIDC (recommended for a native push subscription)
 
-The webhook route authenticates with a shared bearer token, not per-request
-GCP credentials. Generate a random, sufficiently long token and store it as a
-Kubernetes Secret; do not commit it to a values file or manifest.
+No secret material is needed for OIDC — Eshu verifies Google's own signed
+token rather than a static credential. You only need the audience string
+(matching the subscription's `--push-auth-token-audience` from
+[step 5](#5-create-the-push-subscription)) and the push service account's
+email (from [step 4](#4-create-a-least-privilege-push-service-account)).
+
+```yaml
+webhookListener:
+  enabled: true
+  gcpFreshness:
+    enabled: true
+    path: /webhook/gcp-freshness
+    oidc:
+      enabled: true
+      audience: https://PLACEHOLDER-ESHU-HOSTNAME/webhook/gcp-freshness
+      allowedServiceAccountEmail: PLACEHOLDER-GCP-FRESHNESS-PUSH-SA@PLACEHOLDER-PROJECT.iam.gserviceaccount.com
+```
+
+`audience` and `allowedServiceAccountEmail` render as plain (non-secret)
+environment values — they are a reference URL and a service-account email,
+never credential material. Both must be set together; the chart mounts the
+route once `gcpFreshness.enabled=true` and at least one auth path
+(`oidc` or the shared token below) is configured.
+
+### Shared freshness token (optional, or in addition to OIDC)
+
+The shared bearer token remains a fully independent, optional second auth
+path — useful if you already inject a static token from other infrastructure
+in front of Eshu, or if you prefer not to run OIDC verification. Generate a
+random, sufficiently long token and store it as a Kubernetes Secret; do not
+commit it to a values file or manifest.
 
 ```bash
 kubectl create secret generic PLACEHOLDER-GCP-FRESHNESS-SECRET \
   --from-literal=token=PLACEHOLDER-RANDOM-TOKEN-VALUE \
   --namespace PLACEHOLDER-NAMESPACE
 ```
-
-### Helm values
-
-Enable the route in your Helm values (see
-[Helm Collector and Webhook Values](helm-collector-and-webhook-values.md#webhook-listener)
-for the full `webhookListener` contract):
 
 ```yaml
 webhookListener:
@@ -253,7 +238,10 @@ webhookListener:
 the key used in `--from-literal`. The chart renders this token read-only into
 the webhook-listener Deployment via `secretKeyRef` and does not log it. The
 Ingress path is only rendered when `gcpFreshness.enabled=true`, so the route
-stays entirely absent from the deployment until an operator opts in.
+stays entirely absent from the deployment until an operator opts into at
+least one auth path. See
+[Helm Collector and Webhook Values](helm-collector-and-webhook-values.md#webhook-listener)
+for the full `webhookListener` contract.
 
 Only the GCP collector's own workflow claim path (its `instanceId` and
 `collectorInstances` entry, documented in
@@ -280,45 +268,34 @@ it outright — widen the interval, do not set it to zero.
 
 ## Current auth posture
 
-Read this section before assuming OIDC protects `/webhook/gcp-freshness`
-directly.
+`/webhook/gcp-freshness` accepts two independent, fail-closed auth paths —
+either being valid is sufficient, and neither weakens the other:
 
-The webhook route's **sole enforced authentication** is the shared bearer
-token: either the `X-Eshu-GCP-Freshness-Token` header or an
-`Authorization: Bearer <token>` header, compared against the configured token
-with a constant-time check. The route fails closed — an unconfigured or empty
-token never validates, and the chart does not even mount the route unless
-`gcpFreshness.enabled=true` with a `secretName` set.
+- **Pub/Sub push OIDC**: Eshu verifies the Google-signed push token's
+  signature against Google's public certs (via
+  `google.golang.org/api/idtoken`), checks the `aud` claim against the
+  configured `oidc.audience`, and checks the token's `email` claim against
+  `oidc.allowedServiceAccountEmail` with `email_verified=true`. A missing
+  token, bad signature, wrong audience, unverified email, or disallowed
+  principal all fail closed.
+- **Shared bearer token**: either the `X-Eshu-GCP-Freshness-Token` header or
+  an `Authorization: Bearer <token>` header, compared against the configured
+  token with a constant-time check. An unconfigured or empty token never
+  validates.
 
-Pub/Sub push OIDC verification at the Eshu handler — validating the
-Google-signed push token's signature, audience, and service-account
-principal — is **not implemented**. The handler carries a stub
-(`verifyGCPPushOIDC`) that always rejects and is not called anywhere in the
-request path; it exists only so the intent is documented and tested, not as
-a second accepted auth mechanism against `/webhook/gcp-freshness` itself.
-This is exactly why this page routes push traffic through the forwarder in
-[step 5](#5-deploy-a-push-forwarder): the forwarder is where OIDC
-verification actually happens today (enforced by the platform when deployed
-with `--no-allow-unauthenticated`), and the forwarder is the piece that
-translates a verified request into Eshu's shared-token contract.
+The chart does not mount the route at all unless `gcpFreshness.enabled=true`
+with at least one of the two auth paths configured.
 
-Treat the shared token with the same care as any bearer credential: rotate
-it if you suspect exposure. Do not rely on source-IP allowlisting as a
-substitute control — Pub/Sub and Cloud Run/Functions push traffic does not
-originate from a small, stable, documented IP range, so an IP allowlist
-either gives a false sense of protection or breaks legitimate delivery when
-Google's infrastructure changes. If you need defense in depth beyond the
-shared token and the forwarder's OIDC check, restrict who can invoke the
-forwarder (for example Cloud Run's own IAM invoker binding, already implied
-by `--no-allow-unauthenticated`) rather than filtering by network origin.
+Treat the shared token (if configured) with the same care as any bearer
+credential: rotate it if you suspect exposure. Do not rely on source-IP
+allowlisting as a substitute control for either path — Pub/Sub push traffic
+does not originate from a small, stable, documented IP range, so an IP
+allowlist either gives a false sense of protection or breaks legitimate
+delivery when Google's infrastructure changes.
 
-OIDC enforcement directly in Eshu is tracked in issue #4659. Enabling it will
-land as a Go change plus a paired Helm `oidc` values block in the same PR —
-the chart does not expose an inert `oidc` block today because a config
-surface that renders no enforcement would imply protection the endpoint does
-not have. Once #4659 ships, operators who prefer a direct push subscription
-over maintaining a forwarder will be able to drop the forwarder from this
-setup.
+If your environment already runs a forwarder or proxy in front of Eshu for
+unrelated reasons, it continues to work via the shared-token path unchanged;
+nothing about OIDC support requires removing it.
 
 ## Verification
 
@@ -329,18 +306,22 @@ example, add a label to a tracked Compute Engine instance), then check the
 webhook listener's metrics:
 
 ```promql
-sum(rate(eshu_dp_gcp_freshness_events_total[5m])) by (kind, action)
+sum(rate(eshu_dp_gcp_freshness_events_total[5m])) by (kind, action, auth_path)
 ```
 
 `eshu_dp_gcp_freshness_events_total` is labeled by bounded `kind`
-(`asset_change`, `asset_deleted`, or `unknown`) and `action`
+(`asset_change`, `asset_deleted`, or `unknown`), `action`
 (`intake_stored`, `intake_coalesced`, `intake_ignored`, `intake_rejected`,
-`intake_failed`). See
+`intake_failed`), and `auth_path` (`shared_token`, `oidc`, or `none` — which
+accepted auth path, if any, authenticated the request; never a raw header,
+token, or claim value). See
 [Telemetry Coverage Contract](../../observability/telemetry-coverage.md) and
 [Metrics — Ingestion and Collectors](../../reference/telemetry/metrics-ingestion-collectors.md)
 for the full metric contract. A rising `intake_stored`/`intake_coalesced`
 count after a tracked change confirms deliveries are reaching the endpoint and
-authenticating successfully.
+authenticating successfully; `auth_path` confirms which mechanism is actually
+being used, so you can tell an OIDC-only setup is really authenticating over
+OIDC rather than an unexpectedly-still-configured shared token.
 
 The very first delivery to a newly created subscription is a benign
 Pub/Sub welcome message, not an asset notification; the route acknowledges it
@@ -382,29 +363,31 @@ Pub/Sub only counts HTTP `102`,
 ([Push subscriptions](https://cloud.google.com/pubsub/docs/push)). Every
 other status is a delivery failure that Pub/Sub retries with backoff, up to
 the subscription's message retention window (and to a dead-letter topic if
-one is configured). `/webhook/gcp-freshness` returns `401` for a missing or
-mismatched shared token and `400` for a payload that does not decode as the
-expected `TemporalAsset` shape — both of those are retried, not silently
-dropped. Only a successful store and the first-delivery welcome message
-return `202`. If the forwarder or Eshu is misconfigured, expect
+one is configured). `/webhook/gcp-freshness` returns `401` when a request
+fails both accepted auth paths (OIDC and shared token) and `400` for a
+payload that does not decode as the expected `TemporalAsset` shape — both of
+those are retried, not silently dropped. Only a successful store and the
+first-delivery welcome message return `202`. If Eshu is misconfigured, expect
 `numUndeliveredMessages` on the subscription to climb and eventual
 dead-lettering (if configured) rather than quiet message loss — that is the
 signal to watch, not an absence of errors.
 
-**All deliveries return 401 / `intake_rejected` with an auth reason.** This
-almost always means the forwarder is not attaching the shared token, or is
-attaching the wrong one. Confirm the Secret referenced by
+**All deliveries return 401 / `intake_rejected` with an auth reason.** Check
+the webhook listener's structured logs for the request's auth path outcome
+(never the token or claim values themselves — see
+[Confirm events arrive](#confirm-events-arrive) for the bounded `auth_path`
+metric label). For the OIDC path, confirm `oidc.audience` exactly matches the
+subscription's `--push-auth-token-audience` and `oidc.allowedServiceAccountEmail`
+exactly matches `--push-auth-service-account`; a scheme, trailing slash, or
+casing mismatch on the audience is a common cause. For the shared-token path,
+confirm the Secret referenced by
 `webhookListener.gcpFreshness.secretName`/`tokenKey` matches the literal
-token value the forwarder sends as `X-Eshu-GCP-Freshness-Token`. Remember
-that the request Eshu evaluates comes from the forwarder, not from Pub/Sub
-directly — Eshu never sees or checks the forwarder's own inbound OIDC token,
-so a "wrong service account" failure at that layer shows up as the forwarder
-itself rejecting or failing to invoke (check the forwarder's own logs and
-its Cloud Run/Functions invoker IAM binding), not as a 401 from Eshu. If
-Eshu is returning 401 despite the forwarder logging a successful send, check
-for a proxy, ingress, or load balancer between the forwarder and the
-webhook-listener pod that could be stripping the `X-Eshu-GCP-Freshness-Token`
-or `Authorization` header.
+token value the caller sends as `X-Eshu-GCP-Freshness-Token`. If you point a
+native push subscription directly at Eshu (no intermediary), a 401 here means
+neither path validated — it is not a forwarder problem, since there is no
+forwarder in that topology. If you do run a proxy, ingress, or load balancer
+in front of the webhook-listener pod, confirm it is not stripping the
+`Authorization` or `X-Eshu-GCP-Freshness-Token` header.
 
 **No events arrive at all.** Confirm the subscription's push endpoint
 resolves and is reachable from Google's Pub/Sub infrastructure (a private or
