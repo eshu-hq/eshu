@@ -1017,7 +1017,7 @@ family (`dns_record.go`), not this typed-depth seam.
 posture (`enable_inbound_forwarding`) and logging posture (`enable_logging`) as
 explicit tri-state booleans — a real `false` reported by the Cloud DNS v1 API
 is kept distinct from the field being entirely absent from a partial CAI page,
-mirroring the Backend Service extractor's `enableCDN` treatment — plus the
+mirroring the Backend Service extractor's `enable_cdn` treatment — plus the
 resolvable bound-network count and the alternative-name-server count; emits
 the typed `dns_policy_applies_to_network` edge to each resolvable
 `networks[].networkUrl` VPC `Network`, surfacing those network resource names

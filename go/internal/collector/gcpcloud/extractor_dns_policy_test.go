@@ -209,6 +209,69 @@ func TestExtractDNSPolicyNetworkURLResolutionSkipsUnresolvable(t *testing.T) {
 	}
 }
 
+func TestExtractDNSPolicyDuplicateNetworksDeduped(t *testing.T) {
+	// The same VPC network bound twice (or two networkUrl values that resolve
+	// to the same full resource name) must not inflate network_count nor
+	// produce duplicate anchors/edges, mirroring the dedup already applied to
+	// CorrelationAnchors elsewhere in the extractor family.
+	const data = `{
+		"name": "vpc-policy",
+		"networks": [
+			{"networkUrl": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/vpc-a"},
+			{"networkUrl": "https://www.googleapis.com/compute/v1/projects/demo-project/global/networks/vpc-a"},
+			{"networkUrl": "projects/demo-project/global/networks/vpc-a"}
+		]
+	}`
+
+	got, err := extractDNSPolicy(dnsPolicyContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	const vpcA = "//compute.googleapis.com/projects/demo-project/global/networks/vpc-a"
+
+	if got.Attributes["network_count"] != 1 {
+		t.Errorf("network_count = %v, want 1 (deduped)", got.Attributes["network_count"])
+	}
+	if !reflect.DeepEqual(got.CorrelationAnchors, []string{vpcA}) {
+		t.Fatalf("anchors not deduped: got %#v", got.CorrelationAnchors)
+	}
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected exactly 1 deduped edge, got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+}
+
+func TestExtractDNSPolicyTargetNameServersNeverRetainRawJSON(t *testing.T) {
+	// TargetNameServers must decode only redaction-safe metadata (forwarding
+	// path presence/value); no field on the decode target may hold the raw
+	// per-element JSON (which carries ipv4Address/ipv6Address), even
+	// transiently, since a future debug/error path could serialize the
+	// decode target itself rather than the returned AttributeExtraction.
+	const data = `{
+		"alternativeNameServerConfig": {
+			"targetNameServers": [
+				{"ipv4Address": "10.0.0.1", "forwardingPath": "private"},
+				{"ipv6Address": "2001:db8::1", "forwardingPath": "default"}
+			]
+		}
+	}`
+
+	var decoded dnsPolicyData
+	if err := json.Unmarshal([]byte(data), &decoded); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	blob, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatalf("marshal decode target: %v", err)
+	}
+	for _, needle := range []string{"10.0.0.1", "2001:db8::1"} {
+		if containsString(string(blob), needle) {
+			t.Fatalf("decode target retains raw name-server JSON %q: %s", needle, blob)
+		}
+	}
+}
+
 func TestExtractDNSPolicyNoDescriptionAttribute(t *testing.T) {
 	// description is free-form operator text, not a bounded control-plane
 	// field usable for Terraform import/drift, edges, correlation, or

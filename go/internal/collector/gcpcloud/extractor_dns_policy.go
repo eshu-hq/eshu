@@ -21,6 +21,19 @@ const dnsPolicyAssetType = "dns.googleapis.com/Policy"
 // materializes an edge only when both endpoints resolve exactly.
 const relationshipTypeDNSPolicyAppliesToNetwork = "dns_policy_applies_to_network"
 
+// dnsPolicyTargetNameServer is the bounded, redaction-safe view of one
+// alternativeNameServerConfig.targetNameServers[] entry. Per the live Cloud
+// DNS v1 discovery document, the API's TargetNameServer shape carries
+// ipv4Address, ipv6Address, and forwardingPath; only forwardingPath is a
+// bounded control-plane enum ("default"/"private") safe to decode. Neither
+// ipv4Address nor ipv6Address has a Go struct field here — not even as
+// json.RawMessage — so the raw address value never exists as a decoded Go
+// value, closing the gap where a future debug/error path might serialize the
+// decode target itself rather than the returned AttributeExtraction.
+type dnsPolicyTargetNameServer struct {
+	ForwardingPath string `json:"forwardingPath"`
+}
+
 // dnsPolicyData is the bounded view of a CAI dns.googleapis.com/Policy
 // resource.data blob. EnableInboundForwarding and EnableLogging are *bool:
 // the Cloud DNS v1 discovery document defines both as plain proto3 boolean
@@ -33,9 +46,10 @@ const relationshipTypeDNSPolicyAppliesToNetwork = "dns_policy_applies_to_network
 // free-form operator text, not a bounded control-plane field usable for
 // Terraform import/drift, edges, correlation, or monitoring, per the same
 // treatment the DNS Managed Zone extractor gives its own dnsName.
-// alternativeNameServerConfig.targetNameServers[].ipv4Address/ipv6Address are
-// read only to count entries; the address values themselves are never
-// decoded into a Go field the extractor can accidentally surface.
+// alternativeNameServerConfig.targetNameServers[] decodes only the bounded
+// dnsPolicyTargetNameServer shape (forwardingPath); the address fields are
+// read only to count entries and are never decoded into a Go field the
+// extractor can accidentally surface.
 type dnsPolicyData struct {
 	EnableInboundForwarding *bool `json:"enableInboundForwarding"`
 	EnableLogging           *bool `json:"enableLogging"`
@@ -43,7 +57,7 @@ type dnsPolicyData struct {
 		NetworkURL string `json:"networkUrl"`
 	} `json:"networks"`
 	AlternativeNameServerConfig *struct {
-		TargetNameServers []json.RawMessage `json:"targetNameServers"`
+		TargetNameServers []dnsPolicyTargetNameServer `json:"targetNameServers"`
 	} `json:"alternativeNameServerConfig"`
 }
 
@@ -57,8 +71,12 @@ func init() {
 // so a real false is kept distinct from an absent field — bound-network
 // count, and alternative-name-server count); the bound networks as
 // correlation anchors; and a typed dns_policy_applies_to_network edge per
-// resolved network. The policy's own description and alternative-name-server
-// addresses are never decoded into an attribute or anchor.
+// resolved network. Bound networks are deduplicated by resolved full
+// resource name before network_count, anchors, and edges are derived, so a
+// duplicate networks[] entry (or two networkUrl values resolving to the same
+// full resource name) can never overcount or emit a duplicate edge. The
+// policy's own description and alternative-name-server addresses are never
+// decoded into an attribute or anchor.
 func extractDNSPolicy(ctx ExtractContext) (AttributeExtraction, error) {
 	var data dnsPolicyData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -76,18 +94,26 @@ func extractDNSPolicy(ctx ExtractContext) (AttributeExtraction, error) {
 		attrs["enable_logging"] = *data.EnableLogging
 	}
 
-	var networkCount int
+	var resolvedNames []string
 	for _, network := range data.Networks {
 		name := computeFullResourceNameFromSelfLink(network.NetworkURL, ctx.ProjectID)
 		if name == "" {
 			continue
 		}
-		networkCount++
+		resolvedNames = append(resolvedNames, name)
+	}
+	// Dedup by resolved full resource name before counting or emitting
+	// relationships: duplicate networks[] entries (or distinct networkUrl
+	// values that resolve to the same full resource name) must not inflate
+	// network_count nor produce duplicate edges, matching the dedup already
+	// applied to CorrelationAnchors below.
+	dedupedNames := dedupeNonEmpty(resolvedNames)
+	for _, name := range dedupedNames {
 		anchors = append(anchors, name)
 		rels = append(rels, dnsPolicyEdge(ctx, name))
 	}
-	if networkCount > 0 {
-		attrs["network_count"] = networkCount
+	if len(dedupedNames) > 0 {
+		attrs["network_count"] = len(dedupedNames)
 	}
 
 	if data.AlternativeNameServerConfig != nil {
