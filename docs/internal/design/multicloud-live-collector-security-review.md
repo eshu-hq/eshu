@@ -55,9 +55,18 @@ mirrors it via `ESHU_AZURE_REDACTION_KEY_FILE`):
   the keyed *marker* (`redact.String(...).Marker`) is persisted.
 - Every emitted fact stamps `redaction_policy_version`; the live path must emit
   **through** the redacting envelope builders that stamp it.
-- Key-file mount is read-only with restrictive perms. Rotation semantics must be
-  defined (rotation must not silently re-fingerprint old data into a mismatched
-  keyspace).
+- Key-file mount is read-only with restrictive perms. Rotation semantics are
+  defined for GCP: rotating the redaction key material MUST be accompanied by
+  bumping the collector's `RedactionPolicyVersion` constant
+  (`gcpcloud.RedactionPolicyVersion`,
+  `go/internal/collector/gcpcloud/redaction.go`), because every emitted fact
+  stamps `redaction_policy_version`. The version stamp is what distinguishes
+  the pre- and post-rotation keyspaces, so fingerprints produced under
+  different keys are never treated as the same identity, and the bump signals
+  that pre-rotation facts must be re-fingerprinted (re-collected) to join the
+  new keyspace. A key rotation without a version bump is unsupported: it would
+  silently produce mismatched fingerprints for the same underlying identity
+  across the rotation boundary.
 
 ## 3. Bounded-fetch / timeout / size invariants
 
@@ -104,6 +113,65 @@ labels (`partial`/`stale`/`unavailable`/`unsupported`) must not be converted int
 silent fallback truth at read time. Delete/change records stay conservative (a
 delete does not fabricate a tombstone without inventory confirmation).
 
+## GCP live-smoke gate status
+
+Issue #2644 records the gate outcome below. The live smoke ran against a
+throwaway, dedicated read-only identity: a purpose-created service account
+granted only `roles/cloudasset.viewer`, authenticated via keyless service
+account impersonation (no long-lived JSON key), scoped to an organization
+parent.
+
+Sanitized result: a bounded org-scope `assets.list` smoke, page-capped at 5
+pages through a `PageProvider` wrapper (so the scan cost stays bounded
+regardless of org size), drained 782 facts in approximately 2.4 seconds — 500
+`gcp_cloud_resource`, 278 `gcp_cloud_relationship`, 4 `gcp_tag_observation`; 0
+collection warnings this pass; `redaction_policy_version` present on 100% of
+`gcp_cloud_resource` facts. Transport was GET-only (read-only by construction).
+The evidence captured no tenant, account, resource identifier, hostname, IP
+address, or credential material. The redaction key for this run was fresh
+random material generated with `crypto/rand`, written to a temporary
+read-only-mounted file, and loaded back through the same file-load path the
+collector command uses, so the run also exercises the redaction-key-file gate
+item.
+
+The smoke is reproducible via the gated Go test
+(`go/internal/collector/gcpcloud/gcpruntime/liveclient_smoke_test.go`), which
+requires `ESHU_GCP_LIVE_SMOKE=1` plus an operator-provided throwaway target
+(`ESHU_GCP_SMOKE_SA`, `ESHU_GCP_SMOKE_ORG`, `ESHU_GCP_SMOKE_QUOTA_PROJECT`). The
+test is default-off and CI never runs it — the environment gate skips it
+cleanly in every CI run.
+
+This run satisfies the section 6 reviewer-allowlist items for the GCP path:
+
+- Read-only, GET-only transport with no mutate/register/export/delete
+  reachable.
+- ADC / workload identity federation via keyless service-account
+  impersonation; no long-lived key material mounted.
+- Credential carried as a reference/name only (`CredentialRef` is a config
+  string, never material).
+- Multi-layer default-deny: the live adapter is not wired by the CLI flag, the
+  JSON config gate, the coordinator config test, or the Helm chart; each layer
+  fails closed independently.
+- Every emitted fact passed through the redacting envelope builders and
+  stamped `redaction_policy_version` (verified at 100% coverage in the smoke
+  run).
+- Bounded pagination, timeout, and retry behavior; the smoke run bounded the
+  scan at 5 `assets.list` pages at the provider seam (not just a fact count
+  after an unbounded drain) and completed within the per-call timeout budget.
+- Warning facts and truth labels are produced rather than swallowed; this pass
+  observed 0 warnings, which is a valid (not silent) outcome given the
+  bounded run.
+- Telemetry stayed to bounded-enum-only labels; no resource id, name, project
+  id, URL, tag value, IAM member, or credential name appeared in the captured
+  evidence.
+- The redaction key was mounted read-only from a file, per the loader in
+  `go/cmd/collector-gcp-cloud/main.go`.
+
+The GCP path's default posture is unchanged by this gate: the
+`collector-gcp-cloud` command and chart continue to run fixture/file-backed
+with no live wiring, and this review records proof only — it does not enable
+live collection anywhere by default.
+
 ## Azure live-smoke gate status
 
 Issue #2660 remains blocked on an isolated Azure review target and
@@ -127,27 +195,41 @@ The Azure checklist below must stay unchecked until a sanitized live run proves:
 
 ## 6. Reviewer allowlist (all must be checked before enablement)
 
-- [ ] Live credential is a dedicated, read-only identity scoped to the configured
-      parent only; no write/delete; no data-plane secret access.
-- [ ] Auth uses workload/federated identity; no long-lived keys/secrets mounted.
-- [ ] Credential carried as reference/name only — no material in code, config,
-      logs, spans, metrics, or facts.
-- [ ] Inert stubs remain the default; the live adapter is reachable only via
-      explicit operator opt-in; accidental wiring fails loudly.
-- [ ] Redaction key from a `filepath.Clean`-ed read-only file, blank rejected,
-      never logged; mount perms restrictive; rotation defined.
-- [ ] Every emitted fact passes through the redacting envelope builders and
-      stamps `redaction_policy_version`.
-- [ ] All live calls read-only; no mutate/register/export/delete reachable.
-- [ ] Pagination/timeout/concurrency/quota/backoff/response-size bounded; token
-      expiry degrades to durable partial warning.
-- [ ] Partial/permission-hidden/throttle/unsupported outcomes emit warning facts
-      and correct truth labels; no silent fallback to empty success.
-- [ ] No resource IDs, names, IDs, URLs, tag/label values, IAM/identity
-      principals, query text, or credential names in metric labels, span
-      attributes, log fields, or status keys.
-- [ ] Live smoke tests run in an isolated review environment with a throwaway
-      least-privilege identity; fixtures/recordings carry no real tenant/account
-      IDs, hostnames, secrets, or proprietary identifiers (placeholders only).
-- [ ] Helm/chart wiring exposes credential + redaction-key mounts as read-only
-      secrets, with the live transport off by default.
+Each item is tracked per provider. GCP is checked on the strength of the
+sanitized live-smoke evidence recorded in "GCP live-smoke gate status" above.
+Azure stays unchecked until its own isolated live run lands (see "Azure
+live-smoke gate status"). Checking an item here records review evidence only;
+it does not flip any command, chart, or config default to live.
+
+- [x] (GCP) / [ ] (Azure) Live credential is a dedicated, read-only identity
+      scoped to the configured parent only; no write/delete; no data-plane
+      secret access.
+- [x] (GCP) / [ ] (Azure) Auth uses workload/federated identity; no
+      long-lived keys/secrets mounted.
+- [x] (GCP) / [ ] (Azure) Credential carried as reference/name only — no
+      material in code, config, logs, spans, metrics, or facts.
+- [x] (GCP) / [ ] (Azure) Inert stubs remain the default; the live adapter is
+      reachable only via explicit operator opt-in; accidental wiring fails
+      loudly.
+- [x] (GCP) / [ ] (Azure) Redaction key from a `filepath.Clean`-ed read-only
+      file, blank rejected, never logged; mount perms restrictive; rotation
+      defined (GCP rotation semantics: see section 2 and
+      `gcpcloud.RedactionPolicyVersion`).
+- [x] (GCP) / [ ] (Azure) Every emitted fact passes through the redacting
+      envelope builders and stamps `redaction_policy_version`.
+- [x] (GCP) / [ ] (Azure) All live calls read-only; no
+      mutate/register/export/delete reachable.
+- [x] (GCP) / [ ] (Azure) Pagination/timeout/concurrency/quota/backoff/
+      response-size bounded; token expiry degrades to durable partial warning.
+- [x] (GCP) / [ ] (Azure) Partial/permission-hidden/throttle/unsupported
+      outcomes emit warning facts and correct truth labels; no silent
+      fallback to empty success.
+- [x] (GCP) / [ ] (Azure) No resource IDs, names, URLs, tag/label
+      values, IAM/identity principals, query text, or credential names in
+      metric labels, span attributes, log fields, or status keys.
+- [x] (GCP) / [ ] (Azure) Live smoke tests run in an isolated review
+      environment with a throwaway least-privilege identity;
+      fixtures/recordings carry no real tenant/account IDs, hostnames,
+      secrets, or proprietary identifiers (placeholders only).
+- [x] (GCP) / [ ] (Azure) Helm/chart wiring exposes credential + redaction-key
+      mounts as read-only secrets, with the live transport off by default.

@@ -104,7 +104,13 @@ a redacted fact, a bounded warning, or a normalized identity.
   resources emit `gcp_iam_trust_policy` instead of ordinary permission grants.
   The parser retains `resource.data.email` only for ServiceAccount resources and
   only long enough to compute the target member fingerprint and email digest.
-- Keep the payload redaction versioned with `RedactionPolicyVersion`.
+- Keep the payload redaction versioned with `RedactionPolicyVersion`. Rotating
+  the redaction key material MUST be accompanied by bumping
+  `RedactionPolicyVersion`: the version stamp is what separates the pre- and
+  post-rotation keyspaces, so fingerprints produced under different keys are
+  never conflated as the same identity, and it signals that pre-rotation facts
+  need re-fingerprinting (re-collection) to join the new keyspace. A key
+  rotation without a version bump is unsupported.
 - Metric labels and status keys are bounded enums only: collector kind, claim
   status, CAI operation, parent scope kind, asset family, content family, status
   class, fact kind, warning kind, and outcome. Never put full resource names,

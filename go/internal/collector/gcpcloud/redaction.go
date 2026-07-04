@@ -12,6 +12,17 @@ import (
 // RedactionPolicyVersion identifies the GCP cloud collector redaction policy
 // attached to every emitted fact payload. Reducers and audits use it to know
 // which fingerprinting and payload-boundary rules produced a fact.
+//
+// Rotation: rotating the underlying redact.Key material MUST be accompanied by
+// bumping this constant. The version stamp is what distinguishes the pre- and
+// post-rotation keyspaces, so fingerprints produced under different keys are
+// never treated as the same identity. Bumping it also signals that facts
+// stamped with an older version were fingerprinted under retired key material
+// and must be re-collected (re-fingerprinted) to join the current keyspace. A
+// key rotation without a version bump is unsupported: it would silently
+// produce mismatched fingerprints for the same underlying identity across the
+// rotation boundary. See docs/internal/design/multicloud-live-collector-security-review.md
+// (section 2, Redaction-key handling) for the full rotation procedure.
 const RedactionPolicyVersion = "gcp-cloud-2026-06-09"
 
 const (
