@@ -64,11 +64,7 @@ func extractFirebaseRuleset(ctx ExtractContext) (AttributeExtraction, error) {
 		attrs["creation_time"] = v
 	}
 	if data.Metadata != nil {
-		services := newStringSet()
-		for _, svc := range data.Metadata.Services {
-			services.add(svc)
-		}
-		if sorted := services.sorted(); len(sorted) > 0 {
+		if sorted := dedupeSortedNonEmpty(data.Metadata.Services); len(sorted) > 0 {
 			attrs["services"] = sorted
 		}
 	}

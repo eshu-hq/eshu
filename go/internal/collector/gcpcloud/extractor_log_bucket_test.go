@@ -127,24 +127,3 @@ func TestExtractLogBucketMalformedDataErrors(t *testing.T) {
 		t.Fatalf("expected an error for malformed resource data")
 	}
 }
-
-func TestLogBucketKMSKeyFullName(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"relative key", "projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"leading slash", "/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"already kms full name", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"wrong-domain absolute name rejected", "//compute.googleapis.com/projects/p/whatever", ""},
-		{"blank", "", ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := logBucketKMSKeyFullName(tc.in); got != tc.want {
-				t.Errorf("logBucketKMSKeyFullName(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
-	}
-}

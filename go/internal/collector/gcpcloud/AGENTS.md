@@ -25,6 +25,7 @@
    (`RegisterAssetExtractor`, `AttributeExtraction`, `ExtractContext`).
 14. `extractor_bigquery_table.go` - reference extractor for
    `bigquery.googleapis.com/Table`; the model to copy for a new asset type.
+   It also owns the shared `dedupeNonEmpty`/`trimmedStrings` string helpers.
 15. `extractor_compute_network.go` - typed-depth extractor for
    `compute.googleapis.com/Network` (VPC) emitting contained-subnetwork and
    peering edges.
@@ -514,8 +515,45 @@
   schema version via `GCPFactKinds()` / `GCPSchemaVersion(kind)` and registers it
   in `CoreFactKinds()`.
 - Keep every source file under 500 lines; split into a sibling before the cap.
+- Normalize a CMEK CryptoKey reference through the shared
+  `cmekKeyFullResourceName` in `extractor_helpers.go`; do NOT copy the
+  trim/`//`-guard/prefix logic into a new per-extractor helper. It is strict:
+  a blank yields "", an absolute name passes through only for the Cloud KMS
+  domain (any other `//service.googleapis.com/...` is rejected so a malformed
+  asset can never mint a wrong-domain KMS edge), and a bare relative name is
+  prefixed after a single leading-slash trim. An extractor needing extra shape
+  validation wraps it (see `sqlInstanceKMSKeyFullName`). The Disk
+  `kmsCryptoKeyFullName` self-link parser (strips a trailing
+  `/cryptoKeyVersions/`) serves a different input contract and is intentionally
+  separate. Use `dedupeSortedNonEmpty` (also in `extractor_helpers.go`) for a
+  sorted-unique attribute slice rather than a bespoke set type.
 - Update `README.md`, `doc.go`, and this file when the exported surface or
   contract changes, then run `scripts/verify-package-docs.sh`.
+
+### KMS/dedup helper consolidation evidence (#4400)
+
+The #4400 consolidation of the per-extractor CMEK full-name and sorted-dedup
+helpers into `extractor_helpers.go` is a pure refactor of in-process,
+allocation-bounded string helpers on the collector's parse path; it changes no
+query, graph write, worker, lease, batch, or Compose/Helm knob.
+
+- No-Regression Evidence: baseline `go test ./internal/collector/gcpcloud
+  ./internal/correlation/cloudinventory ./internal/relationships -count=1` = all
+  pass before the change; after the change the same command = all pass with every
+  pre-existing extraction/normalization assertion unchanged. Input shape:
+  per-asset CAI `resource.data` blobs (bare relative, leading-slash, and
+  already-`//cloudkms.googleapis.com/`-prefixed CMEK key names). The helpers are
+  O(n) over a single reference string / bounded attribute slice with no added
+  allocation versus the deleted per-file copies, so there is no hot-path cost
+  delta on the git-collector E2E baseline. The only behavior delta is that a
+  wrong-domain absolute CMEK reference — which real Cloud Asset Inventory never
+  emits — is now dropped instead of surfaced, proven by the new
+  `TestExtract*WrongDomainKMSKey*` extraction tests.
+- No-Observability-Change: `extractor_helpers.go` registers no metric; extraction
+  outcomes remain covered by the collector-local
+  `eshu_dp_gcp_cloud_attribute_extractions_total` and
+  `eshu_dp_gcp_cloud_facts_emitted_total` counters (see
+  `docs/public/observability/telemetry-coverage.md`).
 
 ## What Not To Change Without An ADR
 

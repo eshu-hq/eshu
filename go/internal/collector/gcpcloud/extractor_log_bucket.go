@@ -76,7 +76,7 @@ func extractLogBucket(ctx ExtractContext) (AttributeExtraction, error) {
 	var anchors []string
 	var rels []RelationshipObservation
 	if data.CMEKSettings != nil {
-		if keyName := logBucketKMSKeyFullName(data.CMEKSettings.KMSKeyName); keyName != "" {
+		if keyName := cmekKeyFullResourceName(data.CMEKSettings.KMSKeyName); keyName != "" {
 			attrs["customer_managed_encryption"] = true
 			anchors = append(anchors, keyName)
 			rels = append(rels, RelationshipObservation{
@@ -95,23 +95,4 @@ func extractLogBucket(ctx ExtractContext) (AttributeExtraction, error) {
 		CorrelationAnchors: anchors,
 		Relationships:      rels,
 	}, nil
-}
-
-// logBucketKMSKeyFullName builds the CAI CryptoKey full resource name from a
-// relative CMEK key name. An already-normalized Cloud KMS full resource name is
-// returned unchanged so the prefix is never doubled; an absolute name for a
-// different service (a typo or malformed asset) is rejected with "" so no
-// wrong-domain endpoint poisons the edge or anchor; a blank reference yields "".
-func logBucketKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		if strings.HasPrefix(trimmed, cloudKMSResourceNamePrefix) {
-			return trimmed
-		}
-		return ""
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }

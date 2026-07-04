@@ -241,27 +241,39 @@ func sqlInstanceReferenceFullName(ref, sourceProjectID string) string {
 // name from diskEncryptionConfiguration.kmsKeyName, which the sqladmin API may
 // report as a bare "projects/.../locations/.../keyRings/.../cryptoKeys/..."
 // relative name or as an already CAI-prefixed
-// "//cloudkms.googleapis.com/..." full resource name. An already-prefixed
-// value is returned unchanged so the prefix is never doubled; a bare value is
-// prefixed only when it matches the expected CryptoKey path shape. It returns
-// "" for a blank reference or an unrecognized shape, so a malformed key name
-// never becomes an edge endpoint or anchor.
+// "//cloudkms.googleapis.com/..." full resource name. It layers a bare-name
+// shape gate on top of the shared strict CMEK normalization
+// (cmekKeyFullResourceName): a bare value is accepted only when it matches the
+// expected CryptoKey path shape, so a malformed bare key name never becomes an
+// edge endpoint or anchor. An absolute name is delegated to the shared helper,
+// which keeps a Cloud KMS full name unchanged and rejects any other service
+// domain. It returns "" for a blank reference or an unrecognized bare shape.
 func sqlInstanceKMSKeyFullName(kmsKeyName string) string {
 	trimmed := strings.TrimSpace(kmsKeyName)
 	if trimmed == "" {
 		return ""
 	}
-	if strings.HasPrefix(trimmed, "//") {
-		if strings.HasPrefix(trimmed, cloudKMSResourceNamePrefix) {
-			return trimmed
-		}
+	// A bare (non-absolute) reference must match the full CryptoKey path shape
+	// before the shared helper prefixes it; the shared helper alone would prefix
+	// any bare string, so the shape gate stays here to preserve sqladmin's
+	// stricter contract. An absolute name is delegated straight to the shared
+	// helper, which enforces the Cloud KMS domain.
+	if !strings.HasPrefix(trimmed, "//") && !isSQLCryptoKeyBareShape(trimmed) {
 		return ""
 	}
-	if strings.HasPrefix(trimmed, "projects/") && strings.Contains(trimmed, "/locations/") &&
-		strings.Contains(trimmed, "/keyRings/") && strings.Contains(trimmed, "/cryptoKeys/") {
-		return cloudKMSResourceNamePrefix + trimmed
-	}
-	return ""
+	return cmekKeyFullResourceName(trimmed)
+}
+
+// isSQLCryptoKeyBareShape reports whether a bare (non-absolute) kmsKeyName has
+// the full CryptoKey path shape the sqladmin API is documented to emit
+// (projects/.../locations/.../keyRings/.../cryptoKeys/...). It gates the bare
+// branch of sqlInstanceKMSKeyFullName so a malformed relative name is rejected
+// rather than blindly prefixed into a bogus CryptoKey endpoint.
+func isSQLCryptoKeyBareShape(bareName string) bool {
+	return strings.HasPrefix(bareName, "projects/") &&
+		strings.Contains(bareName, "/locations/") &&
+		strings.Contains(bareName, "/keyRings/") &&
+		strings.Contains(bareName, "/cryptoKeys/")
 }
 
 // sqlInstanceEdge builds a supported typed relationship observation rooted at

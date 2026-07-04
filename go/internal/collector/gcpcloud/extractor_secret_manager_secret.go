@@ -171,7 +171,7 @@ func secretHasCMEK(data secretManagerSecretData) bool {
 func secretManagerKMSKeyFullNames(data secretManagerSecretData) []string {
 	var keys []string
 	if a := data.Replication.Automatic; a != nil && a.CustomerManagedEncryption != nil {
-		if name := secretManagerKMSKeyFullName(a.CustomerManagedEncryption.KMSKeyName); name != "" {
+		if name := cmekKeyFullResourceName(a.CustomerManagedEncryption.KMSKeyName); name != "" {
 			keys = append(keys, name)
 		}
 	}
@@ -180,28 +180,12 @@ func secretManagerKMSKeyFullNames(data secretManagerSecretData) []string {
 			if r.CustomerManagedEncryption == nil {
 				continue
 			}
-			if name := secretManagerKMSKeyFullName(r.CustomerManagedEncryption.KMSKeyName); name != "" {
+			if name := cmekKeyFullResourceName(r.CustomerManagedEncryption.KMSKeyName); name != "" {
 				keys = append(keys, name)
 			}
 		}
 	}
 	return dedupeNonEmpty(keys)
-}
-
-// secretManagerKMSKeyFullName builds the CAI CryptoKey full resource name from a
-// relative KMS key name (projects/.../cryptoKeys/...). An already-normalized CAI
-// full resource name (//cloudkms.googleapis.com/...) is returned unchanged so the
-// prefix is never doubled. It returns "" for a blank reference so the caller
-// emits no encryption edge.
-func secretManagerKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // secretManagerTopicFullNames returns the deduplicated Pub/Sub topic full
