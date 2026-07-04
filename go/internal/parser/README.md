@@ -535,7 +535,7 @@ a second `os.ReadFile`. If the priming read fails, nothing is cached and both
 call sites fall back to their normal independent read-and-fail behavior, so
 error handling is unchanged.
 
-Benchmark Evidence: `go test -run '^$' -bench BenchmarkParsePath -benchmem
+Benchmark Evidence: `go test -run '^$' -bench BenchmarkParse -benchmem
 ./internal/parser` on the same machine (darwin/arm64, Apple M5 Max), before
 (origin/main) vs after, `-count=5` on `c`, `go`, and `sql` (representative of
 tree-sitter, heaviest-payload, and lexical-adapter parse shapes): `c` B/op

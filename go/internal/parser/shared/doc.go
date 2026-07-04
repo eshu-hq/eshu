@@ -27,6 +27,15 @@
 // for the duration of a single call so the dispatched language parser and the
 // engine's post-parse content-metadata inference share one os.ReadFile instead
 // of each reading independently. Callers of PrimeSource MUST pair it with
-// ClearSource (typically via defer) so the cache never observes stale content
-// on a later parse of the same path.
+// ClearSource (typically via defer) so the cache entry does not leak past the
+// call that primed it and is not left stale for a later, non-overlapping
+// parse of the same path. The cache is a mutex-guarded, reference-counted map
+// keyed by absolute path: PrimeSource follows first-writer-wins (a second
+// concurrent prime for the same path increments the refcount but never
+// replaces the already-cached bytes) and ClearSource only deletes the entry
+// once every reference has been released. This makes concurrent ParsePath
+// calls on the SAME path torn-read-safe by design: they intentionally share
+// one consistent snapshot for as long as any of them are in flight, and
+// neither call can overwrite the other's snapshot or delete it out from
+// under the other mid-parse.
 package shared

@@ -80,14 +80,49 @@ func BasePayload(path string, lang string, isDependency bool) map[string]any {
 	}
 }
 
-// sourceCache holds bytes primed by PrimeSource for the duration of one
-// Engine.ParsePath call, keyed by absolute path. It lets the language parser
-// invoked through parseDefinition and the engine's post-parse content-metadata
-// inference share one physical disk read instead of each reading the file
-// independently. Entries are removed by ClearSource immediately after the
-// owning ParsePath call finishes, so the cache never observes stale content
-// across separate parses of the same path (e.g. a file edited between calls).
-var sourceCache sync.Map
+// sourceCacheEntry holds one path's primed bytes plus the number of
+// in-flight ParsePath calls currently relying on them. refs lets two or more
+// concurrent calls on the SAME absolute path safely share one primed
+// snapshot: the entry is only removed once every primer has cleared it.
+type sourceCacheEntry struct {
+	body []byte
+	refs int
+}
+
+// sourceCache holds bytes primed by PrimeSource for the duration of one or
+// more concurrent Engine.ParsePath calls on the same absolute path. It lets
+// the language parser invoked through parseDefinition and the engine's
+// post-parse content-metadata inference share one physical disk read instead
+// of each reading the file independently.
+//
+// Concurrency contract (torn-read safety): sourceCache is process-global and
+// keyed by absolute path, so two concurrent ParsePath calls on the same path
+// prime and clear the same entry. PrimeSource follows first-writer-wins --
+// the first goroutine to prime a path's bytes owns that snapshot for as long
+// as any goroutine still holds a reference, and later PrimeSource calls for
+// the same path only increment refs rather than replacing the body. ClearSource
+// decrements refs and deletes the entry only when the last reference is
+// released. This guarantees every concurrent same-path parse observes ONE
+// consistent snapshot: within one ParsePath call, the language parser's read
+// and the content-metadata read always see the same bytes, and no goroutine
+// can delete another in-flight goroutine's entry early. Without this
+// contract, a plain last-writer-wins map lets one call's PrimeSource
+// overwrite another's bytes, or one call's ClearSource delete an entry a
+// sibling call still needs -- producing a payload that mixes two different
+// versions of the same nominal file (a torn read) if the file changed
+// between the two callers' physical reads. This is strictly safer than the
+// pre-single-read-cache code, which could already observe two different file
+// versions within one ParsePath call if the file changed mid-parse; the
+// cache must not make that hazard worse across concurrent same-path calls.
+//
+// All access to sourceCacheEntries goes through sourceCacheMu; there is no
+// lock-free fast path, since entries are small maps mutated under low
+// contention (one entry per concurrently-parsed path, held only for the
+// duration of a single file parse).
+var (
+	sourceCacheMu      sync.Mutex
+	sourceCacheEntries = map[string]*sourceCacheEntry{}
+)
 
 // readSourceHook, when non-nil, observes every physical disk read performed by
 // ReadSource. It exists only so tests can count real os.ReadFile calls without
@@ -99,19 +134,44 @@ var (
 	readSourceHook   func(path string)
 )
 
-// PrimeSource stores pre-read bytes for path so the next ReadSource(path) call
-// on this goroutine's call stack returns them without touching disk. Callers
-// MUST pair this with ClearSource once the parse that needed the shared read
-// completes, so the cache does not leak across unrelated calls or observe
-// stale content on a later parse of the same path.
+// PrimeSource stores pre-read bytes for path so the next ReadSource(path)
+// call returns them without touching disk. It follows first-writer-wins
+// semantics: if an entry for path already exists (another concurrent
+// ParsePath call on the same path primed it first), this call only
+// increments that entry's refcount and keeps the existing body -- it never
+// overwrites already-cached bytes. This guarantees every concurrent
+// same-path caller observes one consistent snapshot instead of a torn mix of
+// two callers' reads. Callers MUST pair this with ClearSource once the parse
+// that needed the shared read completes, so the entry is released promptly
+// and does not leak into an unrelated later call on the same path.
 func PrimeSource(path string, body []byte) {
-	sourceCache.Store(path, body)
+	sourceCacheMu.Lock()
+	defer sourceCacheMu.Unlock()
+
+	if entry, ok := sourceCacheEntries[path]; ok {
+		entry.refs++
+		return
+	}
+	sourceCacheEntries[path] = &sourceCacheEntry{body: body, refs: 1}
 }
 
-// ClearSource removes any primed cache entry for path. Safe to call even when
-// no entry was primed.
+// ClearSource releases one reference primed for path. The cache entry is
+// deleted only once its refcount reaches zero, so a goroutine finishing its
+// ParsePath call cannot delete an entry a sibling goroutine (still parsing
+// the same path concurrently) still relies on. Safe to call even when no
+// entry was primed.
 func ClearSource(path string) {
-	sourceCache.Delete(path)
+	sourceCacheMu.Lock()
+	defer sourceCacheMu.Unlock()
+
+	entry, ok := sourceCacheEntries[path]
+	if !ok {
+		return
+	}
+	entry.refs--
+	if entry.refs <= 0 {
+		delete(sourceCacheEntries, path)
+	}
 }
 
 // ReadSource reads one parser input file and wraps the path into read errors.
@@ -119,10 +179,12 @@ func ClearSource(path string) {
 // the cached slice instead of issuing a second os.ReadFile, so a single
 // ParsePath call reads a file's contents from disk at most once regardless of
 // how many internal consumers (the language parser plus content-metadata
-// inference) need the bytes.
+// inference) need the bytes. A cache miss never populates the cache -- only
+// PrimeSource does that -- so ReadSource callers outside a primed ParsePath
+// call always see a real, current disk read.
 func ReadSource(path string) ([]byte, error) {
-	if cached, ok := sourceCache.Load(path); ok {
-		return cached.([]byte), nil
+	if cached, ok := cachedSource(path); ok {
+		return cached, nil
 	}
 	readSourceHookMu.Lock()
 	hook := readSourceHook
@@ -135,6 +197,26 @@ func ReadSource(path string) ([]byte, error) {
 		return nil, fmt.Errorf("read source %q: %w", path, err)
 	}
 	return body, nil
+}
+
+// cachedSource returns the primed body for path, if any, under the shared
+// cache lock.
+func cachedSource(path string) ([]byte, bool) {
+	sourceCacheMu.Lock()
+	defer sourceCacheMu.Unlock()
+
+	entry, ok := sourceCacheEntries[path]
+	if !ok {
+		return nil, false
+	}
+	return entry.body, true
+}
+
+// sourceCacheEntryForTest returns the raw cached body for path, if present.
+// Test-only: it lets tests assert entry presence/absence directly instead of
+// only inferring cache state through ReadSource's cache-or-disk fallback.
+func sourceCacheEntryForTest(path string) ([]byte, bool) {
+	return cachedSource(path)
 }
 
 // SetReadSourceHookForTest installs a hook invoked on every physical

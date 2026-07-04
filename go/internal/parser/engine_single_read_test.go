@@ -5,7 +5,9 @@ package parser
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -105,6 +107,147 @@ func Hello%d() string {
 			t.Fatalf("ParsePath(%q) error = %v, want nil", paths[i], err)
 		}
 	}
+}
+
+// TestParsePathConcurrentSamePathDoesNotTearReads is an integration-level
+// companion to the #4657 codex P2 finding covered deterministically by
+// shared.TestPrimeSourceFirstWriterWinsUnderRefcount and
+// shared.TestClearSourceSurvivesUntilLastRefcountDecrement: the single-read
+// cache in shared.go is a global keyed by absolute path, so two concurrent
+// Engine.ParsePath calls on the SAME path interleave PrimeSource/ClearSource.
+// Under the pre-fix sync.Map, one goroutine's ClearSource could delete
+// another in-flight goroutine's primed entry mid-parse, and one goroutine's
+// PrimeSource could overwrite another's bytes outright, letting a single
+// ParsePath call mix the language parser's bytes (one version) with
+// inferContentMetadata's bytes (a different version) -- a torn read within
+// one call.
+//
+// This test drives many concurrent ParsePath calls against one real file
+// path while a background writer atomically replaces the file's content
+// (rename over the path, never a truncating in-place write, so a concurrent
+// reader always sees one complete version), then asserts every returned
+// payload is internally consistent: exactly one function bucket entry whose
+// name carries the well-formed "HelloVersionN" shape. A torn read would
+// surface here as a malformed or duplicated function bucket. In practice the
+// exact PrimeSource/ClearSource interleaving window is narrow enough that
+// this test does not reliably fail against the pre-fix sync.Map at
+// reasonable iteration counts -- the shared-package tests above are the
+// deterministic regression proof for this defect. This test's job is to
+// prove the fixed cache holds up under heavy concurrent same-path load in the
+// real Engine.ParsePath path (no panic, no -race violation, no functional
+// corruption), which the shared-package unit tests alone cannot exercise.
+// Run with -race.
+func TestParsePathConcurrentSamePathDoesNotTearReads(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "service.go")
+
+	// Each version's function name embeds the version number, so the parsed
+	// function name is only derivable from the exact bytes the language
+	// parser observed for that call.
+	source := func(version int) string {
+		return fmt.Sprintf(`package service
+
+func HelloVersion%d() string {
+	return "hello-%d"
+}
+`, version, version)
+	}
+
+	// Seed the file so the very first read always succeeds.
+	writeTestFile(t, filePath, source(0))
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	stop := make(chan struct{})
+	var writerWG sync.WaitGroup
+	writerWG.Add(1)
+	go func() {
+		defer writerWG.Done()
+		version := 1
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			// Rename over the target instead of truncating it in place
+			// (writeTestFile's os.WriteFile) so a concurrent ParsePath call
+			// always observes either the fully-old or fully-new file, never a
+			// truncated/half-written one. A torn-truncated read is a test
+			// harness artifact, not the sourceCache hazard under test, and
+			// would otherwise produce indistinguishable false failures.
+			atomicWriteTestFile(t, filePath, source(version))
+			version++
+		}
+	}()
+
+	const goroutines = 24
+	var wg sync.WaitGroup
+	errs := make([]error, goroutines)
+	for i := range goroutines {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			payload, parseErr := engine.ParsePath(repoRoot, filePath, false, Options{})
+			if parseErr != nil {
+				// A file rename between LookupByPath and the physical read
+				// can transiently fail to parse (e.g. ENOENT); that is not
+				// the hazard under test (torn reads within one successful
+				// call), so only real torn-read mismatches fail the test.
+				return
+			}
+			errs[index] = assertSinglePayloadVersionConsistent(payload)
+		}(i)
+	}
+	wg.Wait()
+	close(stop)
+	writerWG.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("goroutine %d: %v", i, err)
+		}
+	}
+}
+
+// atomicWriteTestFile replaces path's content by writing to a sibling temp
+// file and renaming it over path. Unlike writeTestFile (os.WriteFile, which
+// truncates path in place), this guarantees a concurrent reader observes
+// either the complete old bytes or the complete new bytes, never a
+// truncated partial write -- required for a background writer racing
+// Engine.ParsePath in TestParsePathConcurrentSamePathDoesNotTearReads.
+func atomicWriteTestFile(t *testing.T, path string, body string) {
+	t.Helper()
+
+	tmp := path + ".tmp"
+	if err := osWriteFile(tmp, []byte(body)); err != nil {
+		t.Fatalf("osWriteFile(%q) error = %v, want nil", tmp, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		t.Fatalf("os.Rename(%q, %q) error = %v, want nil", tmp, path, err)
+	}
+}
+
+// assertSinglePayloadVersionConsistent checks one ParsePath payload for
+// internal consistency: it must name exactly one function, and that
+// function's name must carry the well-formed "HelloVersionN" shape emitted
+// by source(). A torn read that mixed bytes from two different concurrent
+// primers would surface here as a malformed or duplicated function bucket.
+func assertSinglePayloadVersionConsistent(payload map[string]any) error {
+	functions, _ := payload["functions"].([]map[string]any)
+	if len(functions) != 1 {
+		return fmt.Errorf("functions bucket = %#v, want exactly 1 entry (torn/duplicated read)", functions)
+	}
+	name, _ := functions[0]["name"].(string)
+	if !strings.HasPrefix(name, "HelloVersion") {
+		return fmt.Errorf("function name = %q, want HelloVersionN shape", name)
+	}
+	return nil
 }
 
 // TestParsePathReadsRawTextSourceExactlyOnce covers the raw_text language,
