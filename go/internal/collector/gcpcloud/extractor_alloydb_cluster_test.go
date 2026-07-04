@@ -174,6 +174,87 @@ func TestExtractAlloyDBClusterProjectLessNetworkPartialResolvedAgainstProject(t 
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
+// TestExtractAlloyDBClusterNumericProjectNetworkNormalizedToProjectID proves a
+// networkConfig.network reference in the documented current-API form
+// projects/<project_number>/global/networks/<id> (the AlloyDB v1 discovery
+// document specifies the numeric project number here, not the project id) is
+// rewritten to the cluster's own project id before the edge is built. Cloud
+// Asset Inventory names Compute Network assets with projects/<project_id>, so
+// a raw numeric-project passthrough would never resolve to the collected
+// Network node — the network belongs to the same project as the cluster per
+// the discovery document, so ctx.ProjectID (parsed from the cluster's own CAI
+// full resource name) is the correct substitution.
+func TestExtractAlloyDBClusterNumericProjectNetworkNormalizedToProjectID(t *testing.T) {
+	const data = `{
+		"networkConfig": {
+			"network": "projects/123456789012/global/networks/prod-vpc"
+		}
+	}`
+
+	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
+}
+
+// TestExtractAlloyDBClusterNumericProjectDeprecatedNetworkFieldNormalized
+// proves the same numeric-project normalization applies to the deprecated
+// top-level network field, not only networkConfig.network.
+func TestExtractAlloyDBClusterNumericProjectDeprecatedNetworkFieldNormalized(t *testing.T) {
+	const data = `{
+		"network": "projects/123456789012/global/networks/legacy-vpc"
+	}`
+
+	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+		"//compute.googleapis.com/projects/demo-project/global/networks/legacy-vpc", assetTypeComputeNetwork)
+}
+
+// TestExtractAlloyDBClusterAlphanumericProjectIDNetworkUnchanged proves a
+// networkConfig.network reference that already carries a project id (not a
+// numeric project number) is left exactly as reported, so the numeric-project
+// normalization never rewrites a value that was already correct.
+func TestExtractAlloyDBClusterAlphanumericProjectIDNetworkUnchanged(t *testing.T) {
+	const data = `{
+		"networkConfig": {
+			"network": "projects/other-project-id/global/networks/shared-vpc"
+		}
+	}`
+
+	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+		"//compute.googleapis.com/projects/other-project-id/global/networks/shared-vpc", assetTypeComputeNetwork)
+}
+
+// TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkNormalized
+// proves the numeric-project normalization also applies when networkConfig.
+// network already carries the CAI compute.googleapis.com/ prefix (a shape
+// computeFullResourceNameFromSelfLink otherwise passes through unchanged),
+// so an already-absolute numeric-project reference does not silently escape
+// normalization the way a bare relative reference would not.
+func TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkNormalized(t *testing.T) {
+	const data = `{
+		"networkConfig": {
+			"network": "//compute.googleapis.com/projects/123456789012/global/networks/prod-vpc"
+		}
+	}`
+
+	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
+}
+
 func TestExtractAlloyDBClusterKMSKeyAlreadyCAIPrefixedNotDoublePrefixed(t *testing.T) {
 	const data = `{
 		"encryptionConfig": {

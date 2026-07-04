@@ -81,8 +81,13 @@ type alloyDBClusterData struct {
 // subscription type, creation time, KMS key name, encryption type, automated
 // and continuous backup posture); the VPC network and CMEK CryptoKey resource
 // names as cross-source correlation anchors; and the typed network and
-// encryption edges. initialUser (including any password) is never decoded, so
-// no credential material can ever reach the output.
+// encryption edges. The network reference's project segment is normalized from
+// a numeric project number to the cluster's own project id before the edge is
+// built (see alloyDBClusterNormalizeNetworkProject), since AlloyDB v1 reports
+// networkConfig.network with the numeric project number while Cloud Asset
+// Inventory names Compute Network assets with the project id. initialUser
+// (including any password) is never decoded, so no credential material can
+// ever reach the output.
 func extractAlloyDBCluster(ctx ExtractContext) (AttributeExtraction, error) {
 	var data alloyDBClusterData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -94,7 +99,8 @@ func extractAlloyDBCluster(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 
 	if networkRef := alloyDBClusterNetworkReference(data); networkRef != "" {
-		if networkName := computeFullResourceNameFromSelfLink(networkRef, ctx.ProjectID); networkName != "" {
+		normalizedRef := alloyDBClusterNormalizeNetworkProject(networkRef, ctx.ProjectID)
+		if networkName := computeFullResourceNameFromSelfLink(normalizedRef, ctx.ProjectID); networkName != "" {
 			anchors = append(anchors, networkName)
 			rels = append(rels, alloyDBClusterEdge(ctx, relationshipTypeAlloyDBClusterInNetwork, networkName, assetTypeComputeNetwork))
 		}
@@ -128,6 +134,54 @@ func alloyDBClusterNetworkReference(data alloyDBClusterData) string {
 		}
 	}
 	return strings.TrimSpace(data.Network)
+}
+
+// alloyDBClusterNormalizeNetworkProject rewrites a project-qualified network
+// reference's project segment from a numeric project number to sourceProjectID
+// (the cluster's own project id) when that segment is purely numeric. The
+// AlloyDB v1 discovery document specifies networkConfig.network in the form
+// "projects/{project_number}/global/networks/{network_id}" — the numeric
+// project number, not the project id — while Cloud Asset Inventory names
+// Compute Network assets with "projects/{project_id}/...". Left unnormalized,
+// a numeric-project reference would resolve to a full resource name that never
+// matches the collected Network node's own CAI identity, silently dropping the
+// edge. The network is documented to always belong to the same project as the
+// cluster, so the cluster's own project id (parsed from its CAI full resource
+// name) is the correct substitution. A reference whose project segment is not
+// purely numeric (already a project id) is returned unchanged; a reference
+// with no "projects/" segment at all (a project-less partial or an already
+// CAI-prefixed full name) is also returned unchanged, since
+// computeFullResourceNameFromSelfLink resolves those shapes on its own.
+func alloyDBClusterNormalizeNetworkProject(ref, sourceProjectID string) string {
+	const marker = "projects/"
+	idx := strings.Index(ref, marker)
+	if idx < 0 {
+		return ref
+	}
+	afterMarker := ref[idx+len(marker):]
+	projectSegment, rest, ok := strings.Cut(afterMarker, "/")
+	if !ok || projectSegment == "" || !isDigitsOnly(projectSegment) {
+		return ref
+	}
+	project := strings.TrimSpace(sourceProjectID)
+	if project == "" {
+		return ref
+	}
+	return ref[:idx] + marker + project + "/" + rest
+}
+
+// isDigitsOnly reports whether s is non-empty and every rune is an ASCII
+// digit, the shape of a GCP numeric project number.
+func isDigitsOnly(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // alloyDBClusterAttributes assembles the bounded attribute map. Empty or
