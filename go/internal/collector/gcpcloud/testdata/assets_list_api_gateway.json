@@ -1,0 +1,38 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//apigateway.googleapis.com/projects/demo-project/locations/us-central1/gateways/prod-gw",
+      "assetType": "apigateway.googleapis.com/Gateway",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/locations/us-central1/gateways/prod-gw",
+          "createTime": "2026-01-15T10:00:00Z",
+          "updateTime": "2026-02-01T12:30:00Z",
+          "labels": {"env": "prod"},
+          "displayName": "Prod Gateway",
+          "apiConfig": "projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg",
+          "state": "ACTIVE",
+          "defaultHostname": "prod-gw-abc123.uc.gateway.dev"
+        }
+      }
+    },
+    {
+      "name": "//apigateway.googleapis.com/projects/demo-project/locations/us-east1/gateways/staging-gw",
+      "assetType": "apigateway.googleapis.com/Gateway",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/demo-project/locations/us-east1/gateways/staging-gw",
+          "createTime": "2026-03-01T00:00:00Z",
+          "displayName": "Staging Gateway",
+          "apiConfig": "projects/demo-project/locations/global/apis/staging-api/configs/staging-cfg",
+          "state": "CREATING"
+        }
+      }
+    }
+  ]
+}
