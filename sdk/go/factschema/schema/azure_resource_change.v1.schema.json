@@ -1,0 +1,92 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/azure/v1/resource_change.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "actor_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "actor_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "change_time": {
+      "type": "string"
+    },
+    "change_type": {
+      "type": "string"
+    },
+    "changed_property_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "changed_property_paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "changed_property_truncated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "client_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_tombstone_candidate": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "operation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_arm_resource_id": {
+      "type": "string"
+    },
+    "target_normalized_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_resource_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "target_arm_resource_id",
+    "change_type",
+    "change_time"
+  ],
+  "title": "Eshu azure_resource_change Payload (schema version 1)",
+  "type": "object"
+}

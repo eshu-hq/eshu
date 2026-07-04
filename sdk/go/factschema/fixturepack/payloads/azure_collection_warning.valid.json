@@ -1,0 +1,8 @@
+{
+  "warning_kind": "permission_hidden",
+  "outcome": "partial",
+  "resource_family": "microsoft.compute",
+  "retryable": false,
+  "hidden_resource_count": 3,
+  "message": "principal lacked read access to 3 resources in scope"
+}

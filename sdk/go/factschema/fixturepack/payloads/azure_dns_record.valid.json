@@ -1,0 +1,8 @@
+{
+  "zone_arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.Network/dnsZones/demo.example.com",
+  "record_type": "A",
+  "record_name_fingerprint": "fp:demo-record-marker",
+  "target_fingerprints": ["fp:demo-target-marker"],
+  "target_count": 1,
+  "ttl_seconds": 300
+}

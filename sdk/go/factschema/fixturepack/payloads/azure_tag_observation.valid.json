@@ -1,0 +1,8 @@
+{
+  "arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm-demo",
+  "resource_type": "microsoft.compute/virtualmachines",
+  "tag_value_fingerprints": {"env": "fp:demo-env-marker"},
+  "tag_keys": ["env"],
+  "tag_count": 1,
+  "tag_truncated": false
+}

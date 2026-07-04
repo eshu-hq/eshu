@@ -1,0 +1,68 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/azure/v1/dns_record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "provider_time": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "record_name_fingerprint": {
+      "type": "string"
+    },
+    "record_type": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "target_fingerprints": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "target_truncated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "ttl_seconds": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "zone_arm_resource_id": {
+      "type": "string"
+    },
+    "zone_normalized_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "zone_arm_resource_id",
+    "record_type",
+    "record_name_fingerprint"
+  ],
+  "title": "Eshu azure_dns_record Payload (schema version 1)",
+  "type": "object"
+}

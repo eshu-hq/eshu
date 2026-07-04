@@ -16,6 +16,7 @@ import (
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
@@ -291,6 +292,14 @@ var payloadContracts = []struct {
 	{FactKindGCPCollectionWarning, "gcp_collection_warning.v1.schema.json", reflect.TypeOf(gcpv1.CollectionWarning{})},
 	{FactKindGCPDNSRecord, "gcp_dns_record.v1.schema.json", reflect.TypeOf(gcpv1.DNSRecord{})},
 	{FactKindGCPIAMPolicyObservation, "gcp_iam_policy_observation.v1.schema.json", reflect.TypeOf(gcpv1.IAMPolicyObservation{})},
+	{FactKindAzureCloudResource, "azure_cloud_resource.v1.schema.json", reflect.TypeOf(azurev1.CloudResource{})},
+	{FactKindAzureCloudRelationship, "azure_cloud_relationship.v1.schema.json", reflect.TypeOf(azurev1.CloudRelationship{})},
+	{FactKindAzureTagObservation, "azure_tag_observation.v1.schema.json", reflect.TypeOf(azurev1.TagObservation{})},
+	{FactKindAzureIdentityObservation, "azure_identity_observation.v1.schema.json", reflect.TypeOf(azurev1.IdentityObservation{})},
+	{FactKindAzureResourceChange, "azure_resource_change.v1.schema.json", reflect.TypeOf(azurev1.ResourceChange{})},
+	{FactKindAzureDNSRecord, "azure_dns_record.v1.schema.json", reflect.TypeOf(azurev1.DNSRecord{})},
+	{FactKindAzureImageReference, "azure_image_reference.v1.schema.json", reflect.TypeOf(azurev1.ImageReference{})},
+	{FactKindAzureCollectionWarning, "azure_collection_warning.v1.schema.json", reflect.TypeOf(azurev1.CollectionWarning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry
@@ -393,6 +402,9 @@ func TestDerivedKeySetsMatchGeneratedSchemas(t *testing.T) {
 // json.Unmarshal of an absent key leaves it nil), so a []string field tagged
 // `json:"x,omitempty"` is not ambiguous the way a bare string field tagged
 // `json:"x,omitempty"` would be. Banning the pointer and scalar shapes means
+// json.Unmarshal of an absent key leaves it nil), so `[]string
+// `json:"x,omitempty"“ is not ambiguous the way a bare `string
+// `json:"x,omitempty"“ would be. Banning the pointer and scalar shapes means
 // the schema generator's "no omitempty ⇒ required" rule and the intuition
 // "pointer/slice/map ⇒ optional" can never disagree.
 // requiredCollectionKey identifies one intentionally-required slice/map field

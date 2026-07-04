@@ -1,0 +1,91 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/azure/v1/tag_observation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "arm_resource_id": {
+      "type": "string"
+    },
+    "normalized_resource_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_time": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_group": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "subscription_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tag_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "tag_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "tag_truncated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "tag_value_fingerprints": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "arm_resource_id",
+    "resource_type"
+  ],
+  "title": "Eshu azure_tag_observation Payload (schema version 1)",
+  "type": "object"
+}
