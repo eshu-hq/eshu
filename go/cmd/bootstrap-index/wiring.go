@@ -214,6 +214,14 @@ func openBootstrapCanonicalWriter(
 		return nil, nil, err
 	}
 
+	// Bound canonical graph writes on the shared in-flight gate (issue #4515,
+	// Lane B), OUTERMOST so permit-wait never counts against
+	// ESHU_CANONICAL_WRITE_TIMEOUT. Default unset ceiling (both
+	// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT and
+	// ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT) leaves this a passthrough, so
+	// behavior is unchanged until an operator opts in.
+	executor = newBootstrapGraphWriteGate(getenv, instruments).boundExecutor(executor)
+
 	writer := sourcecypher.NewCanonicalNodeWriter(
 		executor,
 		neo4jBatchSize(getenv),

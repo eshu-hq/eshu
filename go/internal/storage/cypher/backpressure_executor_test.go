@@ -71,6 +71,19 @@ func (e *concurrencyProbeExecutor) ExecuteGroup(ctx context.Context, _ []Stateme
 	return e.err
 }
 
+func (e *concurrencyProbeExecutor) ExecutePhaseGroup(ctx context.Context, _ []Statement) error {
+	e.enter()
+	defer e.leave()
+	if e.release != nil {
+		select {
+		case <-e.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return e.err
+}
+
 // TestBackpressureExecutorBoundsConcurrentWrites is the core regression for
 // issue #3560: without a write-path bound, every reducer/projector worker can
 // drive a concurrent graph write at once, so a slow NornicDB backend is hammered
@@ -214,6 +227,109 @@ func TestBackpressureExecutorGroupRespectsBound(t *testing.T) {
 
 	if peak := probe.peakConcurrency(); peak > maxInFlight {
 		t.Fatalf("peak concurrent grouped writes = %d, want <= %d", peak, maxInFlight)
+	}
+}
+
+// TestBackpressureExecutorPhaseGroupRespectsBound mirrors
+// TestBackpressureExecutorGroupRespectsBound for the phase-group path: bootstrap's
+// canonical executor (bootstrapNornicDBPhaseGroupExecutor) implements
+// PhaseGroupExecutor, not GroupExecutor, so ExecutePhaseGroup must draw from the
+// same permit pool and respect the same in-flight ceiling as Execute/ExecuteGroup.
+func TestBackpressureExecutorPhaseGroupRespectsBound(t *testing.T) {
+	const maxInFlight = 2
+	const callers = 12
+
+	probe := &concurrencyProbeExecutor{release: make(chan struct{})}
+	exec := NewBackpressureExecutor(probe, maxInFlight, nil)
+
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = exec.ExecutePhaseGroup(context.Background(), []Statement{{Cypher: "RETURN 1"}})
+		}()
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if exec.InFlight() >= maxInFlight {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(probe.release)
+	wg.Wait()
+
+	if peak := probe.peakConcurrency(); peak > maxInFlight {
+		t.Fatalf("peak concurrent phase-group writes = %d, want <= %d", peak, maxInFlight)
+	}
+	if got := exec.InFlight(); got != 0 {
+		t.Fatalf("InFlight() = %d after drain, want 0 (permit leak)", got)
+	}
+}
+
+// TestBackpressureExecutorPhaseGroupReleasesPermitOnError mirrors
+// TestBackpressureExecutorReleasesPermitOnError for ExecutePhaseGroup: a failing
+// inner phase-group write (e.g. a graph-write timeout) must still release its
+// permit so a stuck backend does not permanently starve the write path.
+func TestBackpressureExecutorPhaseGroupReleasesPermitOnError(t *testing.T) {
+	wantErr := errors.New("graph write timed out")
+	probe := &concurrencyProbeExecutor{err: wantErr}
+	exec := NewBackpressureExecutor(probe, 1, nil)
+
+	for i := 0; i < 5; i++ {
+		if err := exec.ExecutePhaseGroup(context.Background(), []Statement{{Cypher: "RETURN 1"}}); !errors.Is(err, wantErr) {
+			t.Fatalf("ExecutePhaseGroup() error = %v, want %v", err, wantErr)
+		}
+	}
+	if got := exec.InFlight(); got != 0 {
+		t.Fatalf("InFlight() = %d after errors, want 0 (permit leaked on error path)", got)
+	}
+}
+
+// TestBackpressureExecutorPhaseGroupErrorsWhenInnerLacksSupport proves
+// ExecutePhaseGroup fails closed (mirroring ExecuteGroup's errInnerNoExecuteGroup
+// contract) rather than silently degrading, when the wrapped inner executor does
+// not implement PhaseGroupExecutor.
+func TestBackpressureExecutorPhaseGroupErrorsWhenInnerLacksSupport(t *testing.T) {
+	inner := ExecuteOnlyExecutor{Inner: &concurrencyProbeExecutor{}}
+	exec := NewBackpressureExecutor(inner, 4, nil)
+
+	err := exec.ExecutePhaseGroup(context.Background(), []Statement{{Cypher: "RETURN 1"}})
+	if !errors.Is(err, errInnerNoExecutePhaseGroup) {
+		t.Fatalf("ExecutePhaseGroup() error = %v, want errInnerNoExecutePhaseGroup", err)
+	}
+	if got := exec.InFlight(); got != 0 {
+		t.Fatalf("InFlight() = %d after unsupported call, want 0 (permit leak)", got)
+	}
+}
+
+// TestPhaseGroupBackpressureExecutorExposesOnlyExecuteAndPhaseGroup is the
+// interface-preservation regression for the bootstrap wiring fix: wrapping a
+// PhaseGroupExecutor-only inner (bootstrap's canonical executor shape) must
+// produce a value that still implements cypher.PhaseGroupExecutor, without
+// exposing GroupExecutor (the inner never supported it).
+func TestPhaseGroupBackpressureExecutorExposesOnlyExecuteAndPhaseGroup(t *testing.T) {
+	probe := &concurrencyProbeExecutor{}
+	exec := NewBackpressureExecutor(probe, 4, nil)
+	wrapped := PhaseGroupBackpressureExecutor(exec)
+
+	if _, ok := wrapped.(PhaseGroupExecutor); !ok {
+		t.Fatal("PhaseGroupBackpressureExecutor does not expose PhaseGroupExecutor, want it preserved")
+	}
+	if _, ok := wrapped.(GroupExecutor); ok {
+		t.Fatal("PhaseGroupBackpressureExecutor exposes GroupExecutor, want no GroupExecutor for a PhaseGroupExecutor-only inner")
+	}
+	if err := wrapped.Execute(context.Background(), Statement{Cypher: "RETURN 1"}); err != nil {
+		t.Fatalf("Execute() error = %v, want nil", err)
+	}
+	pge, ok := wrapped.(PhaseGroupExecutor)
+	if !ok {
+		t.Fatal("wrapped value lost PhaseGroupExecutor after Execute call")
+	}
+	if err := pge.ExecutePhaseGroup(context.Background(), []Statement{{Cypher: "RETURN 1"}}); err != nil {
+		t.Fatalf("ExecutePhaseGroup() error = %v, want nil", err)
 	}
 }
 

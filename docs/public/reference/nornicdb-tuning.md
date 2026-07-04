@@ -150,6 +150,58 @@ backend is healthy.
 | `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK` | `500` | Defers ingester reducer-intent admission once the count of reducer rows retrying with `failure_class = graph_write_timeout` reaches this value. Set to `0` to disable the graph-write backpressure gate. |
 | `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` | `100` | Hysteresis floor: admission resumes only after the graph-write-timeout retrying depth falls below this value. Must be less than the high-water mark. An unset or out-of-range value is clamped to one fifth of the high mark. |
 
+### Bootstrap-Index In-Flight Canonical Gate (Issue #4515, Lane B)
+
+`bootstrap-index` supports the same in-flight canonical write gate the reducer
+and projector use (`go/internal/graphbackpressure`), bounding concurrent
+canonical NornicDB writes so a slow backend holds its permits longer instead of
+being hit by every worker's write at once. It reuses the existing knobs:
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | unset (disabled) | Shared concurrent-write ceiling. bootstrap-index reads it as the fallback for its canonical class, same as the reducer and projector. |
+| `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | unset (disabled) | Canonical-class ceiling; takes precedence over the shared knob for bootstrap-index's single write class. |
+
+The gate wraps bootstrap's canonical executor OUTERMOST (before
+`NewCanonicalNodeWriter`), so a permit-wait never counts against
+`ESHU_CANONICAL_WRITE_TIMEOUT`. Both knobs default unset, so the gate is a
+passthrough by default: the 895-repo full-corpus proof for #4515 showed 0
+graph-write-timeout pressure on bootstrap's canonical write path, so there is
+no evidence yet that bootstrap needs this bound enabled. It exists as
+insurance for a future run that does show graph-write-timeout pressure.
+
+Enabling this gate for bootstrap-index required extending the shared
+backpressure primitive first: bootstrap's canonical NornicDB executor
+(`bootstrapNornicDBPhaseGroupExecutor`) implements `cypher.PhaseGroupExecutor`
+(`ExecutePhaseGroup`), not `cypher.GroupExecutor`, so
+`graphbackpressure.WrapExecutorWithGate` needed a phase-group-aware case to
+avoid silently degrading every bootstrap canonical write to per-statement
+sequential execution — see `go/internal/graphbackpressure/README.md` for the
+full evidence.
+
+No-Regression Evidence: `go test ./internal/storage/cypher
+./internal/graphbackpressure ./cmd/bootstrap-index ./cmd/reducer -race
+-count=1` (936 tests, 4 packages) proves the reducer's and projector's existing
+`GroupExecutor`-based wiring is unchanged while bootstrap's new
+`PhaseGroupExecutor`-based wiring correctly bounds writes. Peak-concurrency
+proof: `TestBoundBootstrapCanonicalExecutorBoundsPeakConcurrency` drives 10
+concurrent `ExecutePhaseGroup` callers at
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=2` and asserts peak concurrent inner calls
+never exceeds 2 (before: unbounded up to 10; after: capped at 2), with every
+caller still completing.
+`TestBoundBootstrapCanonicalExecutorTerminatesUnderMixedPressure` drives 20
+concurrent callers (mixed success and injected graph-write-timeout failures) at
+a ceiling of 3 and asserts the whole run terminates within a bounded deadline
+with peak concurrency never exceeding 3, proving the permit releases on both
+the success and the timeout path so a saturated pool cannot deadlock.
+`TestBoundBootstrapCanonicalExecutorDisabledIsPassthrough` proves the default
+(both knobs unset) path returns the inner executor unchanged.
+
+Observability Evidence: bootstrap-index's gate reuses the existing
+`eshu_dp_graph_write_backpressure_engaged_total{gate="canonical"}` counter and
+`eshu_dp_graph_write_backpressure_wait_seconds{gate="canonical"}` histogram; no
+new metric, span, or log field is introduced.
+
 The gate reuses the existing admission loop in
 `go/cmd/ingester/reducer_admission.go` and the
 `eshu_dp_reducer_admission_deferrals_total` counter. The failure-class-scoped
