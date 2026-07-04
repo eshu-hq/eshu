@@ -593,6 +593,38 @@
    helper (never redeclaring it); `labels` are not re-declared in typed depth
    since the collector's shared label path already captures and fingerprints
    them.
+54. `extractor_interconnect_attachment.go` - typed-depth extractor for
+   `compute.googleapis.com/InterconnectAttachment` (region, attachment type
+   DEDICATED/PARTNER/PARTNER_PROVIDER/L2_DEDICATED, provisioned bandwidth
+   enum, edge availability domain, state, partner ASN decoded via
+   `json.RawMessage`/`parseFlexibleInt64` so an absent value — the common case
+   for a DEDICATED attachment — is distinguished from a legitimately present
+   zero, and creation time); emits `interconnect_attachment_uses_router` to
+   the resolved Cloud `Router`, `interconnect_attachment_uses_interconnect` to
+   the resolved `Interconnect`, and (only when `l2Forwarding` is present, i.e.
+   for a `type: L2_DEDICATED` attachment) `interconnect_attachment_uses_network`
+   to the VPC Network named by the nested `l2Forwarding.network` — the
+   InterconnectAttachment resource itself carries no top-level `network`
+   field, per the live Compute v1 discovery document. Reuses
+   `assetTypeComputeInterconnectAttachment` and `assetTypeComputeRouter`, both
+   declared by the sibling Cloud Router extractor (`extractor_router.go`,
+   #4301), never redeclaring either — that extractor's own
+   `router_interface_linked_interconnect_attachment` edge already targets
+   `assetTypeComputeInterconnectAttachment` (the attachment itself, not the
+   underlying Interconnect). This extractor declares
+   `assetTypeComputeInterconnect` here, fresh, for its own
+   `interconnect_attachment_uses_interconnect` edge target and for any future
+   Interconnect extractor to reuse. `l2Forwarding`'s own
+   `tunnelEndpointIpAddress` and `defaultApplianceIpAddress` fields, and its
+   per-VLAN-tag `applianceMappings`, are never decoded — every one resolves to
+   an IP address. Every candidate/customer/cloud-router IP
+   address field the Compute API exposes on this resource
+   (`candidateCloudRouterIpAddress`, `candidateCustomerRouterIpAddress`,
+   `cloudRouterIpAddress`, `customerRouterIpAddress`, and their IPv6
+   counterparts, plus `candidateSubnets` and `ipsecInternalAddresses`) is
+   never decoded into Go memory at all — `interconnectAttachmentData`
+   declares no struct field for any of them, so encoding/json silently
+   ignores those keys during Unmarshal.
 
 ## Invariants
 
