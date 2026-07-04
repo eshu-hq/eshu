@@ -1,0 +1,9 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "instance_id": "i-0abc123",
+  "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc123",
+  "resource_type": "aws_ec2_instance",
+  "imds_v2_required": true,
+  "public_ip_associated": false
+}

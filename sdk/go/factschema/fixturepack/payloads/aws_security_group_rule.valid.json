@@ -1,0 +1,12 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "group_id": "sg-0abc",
+  "direction": "ingress",
+  "ip_protocol": "tcp",
+  "source_kind": "cidr",
+  "source_value": "0.0.0.0/0",
+  "from_port": 443,
+  "to_port": 443,
+  "is_internet": true
+}

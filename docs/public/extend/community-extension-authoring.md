@@ -237,6 +237,48 @@ example lives in
 in-tree `eshu component conform` command remains the convenience wrapper that
 loads the manifest and fixture files from disk for you.
 
+### Validate payload shape against a pinned fixture pack
+
+`conformance.Run` also validates fact **payload shape** when you supply
+`Request.PayloadSchemas` — a fact kind mapped to its JSON Schema bytes. A fixture
+whose payload omits a schema-required field, carries a wrong-typed field, or is
+checked against a schema construct the harness cannot interpret fails closed with
+a `payload_schema_invalid` finding that names the offending field. A kind with no
+supplied schema is not payload-validated, so provenance-only kinds are
+unaffected.
+
+The schemas ship as a versioned, importable **fixture pack** inside the contracts
+module, `github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack`. Pin the
+`sdk/go/factschema` module at a released version and read the schema (and, if you
+want, the pack's own valid/invalid example payloads) from it:
+
+```go
+schema, _ := fixturepack.SchemaFor("aws_resource")
+report := conformance.Run(conformance.Request{
+    Manifest: manifest, // declares dev.acme.collector.aws_resource
+    Fixtures: []collector.Result{result}, // emits dev.acme.collector.aws_resource
+    Mode:     conformance.ModeFixture,
+    PayloadSchemas: map[string]json.RawMessage{
+        // Map YOUR namespaced kind to the aws_resource schema SHAPE. The bare
+        // core kind "aws_resource" is host-owned and reserved; you emit the
+        // same shape under your own namespaced kind. This is the extension
+        // contract, not a mismatch.
+        "dev.acme.collector.aws_resource": schema,
+    },
+})
+```
+
+The fixture-pack **version is the `sdk/go/factschema` module version** — one git
+tag, one lockstep release. Pinning that module at a tag pins the schemas and
+example payloads that were valid together at that tag, so a payload shape your
+collector can no longer satisfy surfaces as a failed conformance run in your own
+CI the moment you bump the pin, before the mismatch ever reaches a reducer. To
+cut a new pack, cut a `sdk/go/factschema` release. A worked, out-of-tree example
+that pins the pack and proves both the accept and the fail-closed path lives in
+`examples/collector-extensions/scorecard/fixturepack_pin_test.go`; see
+`sdk/go/factschema/fixturepack/README.md` for the accessor surface and the full
+versioning procedure.
+
 The core host adapter lives in `go/internal/collector/extensionhost`. It is a
 claim-aware intake adapter, not a plugin API: core builds a bounded JSON
 claim/config/contract request, launches a host-provided runner such as the local

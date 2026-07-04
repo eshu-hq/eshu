@@ -11,6 +11,18 @@
 // collector repository can run conformance in its own CI by importing only
 // github.com/eshu-hq/eshu/sdk/go/collector and this package.
 //
+// When the caller supplies Request.PayloadSchemas (a fact kind mapped to its
+// JSON Schema bytes), the harness also validates each fixture fact payload
+// against its schema and fails closed on a missing required field, a wrong-typed
+// field, or a schema construct outside the supported subset. The subset is a
+// deliberately small slice of JSON Schema (typed and nullable properties,
+// string-array and nested-object items, string-valued maps) sufficient for the
+// checked-in factschema payload schemas; CompileSchema reports whether a schema
+// stays inside it. The schema bytes are caller-supplied so this package neither
+// reads files nor depends on a schema library — the in-tree host reads the
+// canonical schemas from disk and an out-of-tree collector reads them from the
+// pinned github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack.
+//
 // The in-tree extension host re-exports this report contract so the same
 // verdict is produced inside and outside the Eshu monorepo.
 package conformance

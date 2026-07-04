@@ -21,6 +21,17 @@ collector-sdk/v1alpha1 result fixtures:
   one semantic schema version; fixtures only emit declared kinds/versions. When
   `Request.ReservedFactKinds` is supplied (the in-tree host passes the core
   fact-kind registry), a manifest that claims a host-owned kind fails closed.
+- **Payload shape** — when `Request.PayloadSchemas` maps a fact kind to its JSON
+  Schema, every fixture fact of that kind is validated against it and fails
+  closed (`payload_schema_invalid`) on a missing required field, a wrong-typed
+  field, or a schema construct the validator cannot interpret (it never passes a
+  payload it could not actually validate). A kind with no supplied schema is not
+  payload-validated, so provenance-only kinds are unaffected. The caller supplies
+  the schema bytes — the in-tree host reads `sdk/go/factschema/schema/*.json`, an
+  out-of-tree collector reads them from the pinned
+  `sdk/go/factschema/fixturepack` — so this package stays dependency-free and
+  performs no I/O. `CompileSchema` lets a caller pre-check that a schema is
+  within the supported subset.
 - **Redaction** — fixtures are rejected for credential-bearing payload keys or
   source URIs (delegated to the SDK validator).
 - **Claim lifecycle** — fixtures carry a complete claim, generation, and source

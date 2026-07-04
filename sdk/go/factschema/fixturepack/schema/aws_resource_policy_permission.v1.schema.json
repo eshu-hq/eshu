@@ -1,0 +1,94 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/iam/v1/resource_policy_permission.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "actions": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "effect": {
+      "type": "string"
+    },
+    "has_conditions": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_public": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "not_actions": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "not_resources": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "policy_source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal_arns": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "region": {
+      "type": "string"
+    },
+    "resource_arn": {
+      "type": "string"
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "resources": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "resource_arn",
+    "resource_type",
+    "effect"
+  ],
+  "title": "Eshu aws_resource_policy_permission Payload (schema version 1)",
+  "type": "object"
+}
