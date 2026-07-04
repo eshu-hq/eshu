@@ -1,0 +1,95 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/ociregistry/v1/image_referrer.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "annotations": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "artifact_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "referrer_digest": {
+      "type": "string"
+    },
+    "referrer_media_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": "string"
+    },
+    "size_bytes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "source_api_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject_digest": {
+      "type": "string"
+    },
+    "subject_media_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "repository_id",
+    "subject_digest",
+    "referrer_digest"
+  ],
+  "title": "Eshu oci_registry.image_referrer Payload (schema version 1)",
+  "type": "object"
+}

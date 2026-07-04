@@ -1,0 +1,8 @@
+{
+  "repository_id": "oci-registry://registry.example.com/team/api",
+  "tag": "prod",
+  "resolved_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "media_type": "application/vnd.oci.image.manifest.v1+json",
+  "identity_strength": "weak_tag",
+  "mutated": false
+}

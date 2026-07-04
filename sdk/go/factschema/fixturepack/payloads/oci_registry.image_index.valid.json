@@ -1,0 +1,6 @@
+{
+  "repository_id": "oci-registry://registry.example.com/team/api",
+  "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "media_type": "application/vnd.oci.image.index.v1+json",
+  "manifests": [{"digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "media_type": "application/vnd.oci.image.manifest.v1+json"}]
+}

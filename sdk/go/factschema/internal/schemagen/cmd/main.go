@@ -72,6 +72,16 @@ func run() error {
 		{name: "kubernetes_live.pod_template.v1.schema.json", generate: schemagen.KubernetesLivePodTemplateSchema},
 		{name: "kubernetes_live.relationship.v1.schema.json", generate: schemagen.KubernetesLiveRelationshipSchema},
 		{name: "kubernetes_live.warning.v1.schema.json", generate: schemagen.KubernetesLiveWarningSchema},
+		// The oci_registry family fact kinds are DOTTED (like the incident
+		// family). The schema filename is the dotted kind plus the version
+		// suffix; a dot in a filename is valid and needs no transform.
+		{name: "oci_registry.repository.v1.schema.json", generate: schemagen.OCIRegistryRepositorySchema},
+		{name: "oci_registry.image_manifest.v1.schema.json", generate: schemagen.OCIImageManifestSchema},
+		{name: "oci_registry.image_index.v1.schema.json", generate: schemagen.OCIImageIndexSchema},
+		{name: "oci_registry.image_descriptor.v1.schema.json", generate: schemagen.OCIImageDescriptorSchema},
+		{name: "oci_registry.image_tag_observation.v1.schema.json", generate: schemagen.OCIImageTagObservationSchema},
+		{name: "oci_registry.image_referrer.v1.schema.json", generate: schemagen.OCIImageReferrerSchema},
+		{name: "oci_registry.warning.v1.schema.json", generate: schemagen.OCIRegistryWarningSchema},
 	}
 
 	for _, target := range targets {

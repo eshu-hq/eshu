@@ -1,0 +1,80 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/ociregistry/v1/tag_observation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "identity_strength": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "media_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mutated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "previous_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": "string"
+    },
+    "resolved_digest": {
+      "type": "string"
+    },
+    "tag": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "repository_id",
+    "tag",
+    "resolved_digest"
+  ],
+  "title": "Eshu oci_registry.image_tag_observation Payload (schema version 1)",
+  "type": "object"
+}

@@ -43,6 +43,13 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "kubernetes_live.pod_template.v1.schema.json", generate: schemagen.KubernetesLivePodTemplateSchema},
 		{file: "kubernetes_live.relationship.v1.schema.json", generate: schemagen.KubernetesLiveRelationshipSchema},
 		{file: "kubernetes_live.warning.v1.schema.json", generate: schemagen.KubernetesLiveWarningSchema},
+		{file: "oci_registry.repository.v1.schema.json", generate: schemagen.OCIRegistryRepositorySchema},
+		{file: "oci_registry.image_manifest.v1.schema.json", generate: schemagen.OCIImageManifestSchema},
+		{file: "oci_registry.image_index.v1.schema.json", generate: schemagen.OCIImageIndexSchema},
+		{file: "oci_registry.image_descriptor.v1.schema.json", generate: schemagen.OCIImageDescriptorSchema},
+		{file: "oci_registry.image_tag_observation.v1.schema.json", generate: schemagen.OCIImageTagObservationSchema},
+		{file: "oci_registry.image_referrer.v1.schema.json", generate: schemagen.OCIImageReferrerSchema},
+		{file: "oci_registry.warning.v1.schema.json", generate: schemagen.OCIRegistryWarningSchema},
 	}
 
 	for _, tc := range cases {
@@ -100,6 +107,13 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"kubernetes_live.pod_template.v1.schema.json",
 		"kubernetes_live.relationship.v1.schema.json",
 		"kubernetes_live.warning.v1.schema.json",
+		"oci_registry.repository.v1.schema.json",
+		"oci_registry.image_manifest.v1.schema.json",
+		"oci_registry.image_index.v1.schema.json",
+		"oci_registry.image_descriptor.v1.schema.json",
+		"oci_registry.image_tag_observation.v1.schema.json",
+		"oci_registry.image_referrer.v1.schema.json",
+		"oci_registry.warning.v1.schema.json",
 	}
 
 	for _, file := range files {

@@ -15,11 +15,12 @@ import (
 	"time"
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 func testEnvelope(payload map[string]any) Envelope {
@@ -300,6 +301,13 @@ var payloadContracts = []struct {
 	{FactKindKubernetesLivePodTemplate, "kubernetes_live.pod_template.v1.schema.json", reflect.TypeOf(kuberneteslivev1.PodTemplate{})},
 	{FactKindKubernetesLiveRelationship, "kubernetes_live.relationship.v1.schema.json", reflect.TypeOf(kuberneteslivev1.Relationship{})},
 	{FactKindKubernetesLiveWarning, "kubernetes_live.warning.v1.schema.json", reflect.TypeOf(kuberneteslivev1.Warning{})},
+	{FactKindOCIRegistryRepository, "oci_registry.repository.v1.schema.json", reflect.TypeOf(ociregistryv1.Repository{})},
+	{FactKindOCIImageManifest, "oci_registry.image_manifest.v1.schema.json", reflect.TypeOf(ociregistryv1.ImageManifest{})},
+	{FactKindOCIImageIndex, "oci_registry.image_index.v1.schema.json", reflect.TypeOf(ociregistryv1.ImageIndex{})},
+	{FactKindOCIImageDescriptor, "oci_registry.image_descriptor.v1.schema.json", reflect.TypeOf(ociregistryv1.ImageDescriptor{})},
+	{FactKindOCIImageTagObservation, "oci_registry.image_tag_observation.v1.schema.json", reflect.TypeOf(ociregistryv1.TagObservation{})},
+	{FactKindOCIImageReferrer, "oci_registry.image_referrer.v1.schema.json", reflect.TypeOf(ociregistryv1.ImageReferrer{})},
+	{FactKindOCIRegistryWarning, "oci_registry.warning.v1.schema.json", reflect.TypeOf(ociregistryv1.Warning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

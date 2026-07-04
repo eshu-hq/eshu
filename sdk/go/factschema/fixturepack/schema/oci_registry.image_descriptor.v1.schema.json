@@ -1,0 +1,49 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/ociregistry/v1/image_descriptor.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "artifact_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "descriptor_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "digest": {
+      "type": "string"
+    },
+    "media_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": "string"
+    },
+    "size_bytes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "repository_id",
+    "digest"
+  ],
+  "title": "Eshu oci_registry.image_descriptor Payload (schema version 1)",
+  "type": "object"
+}
