@@ -47,7 +47,7 @@ or marker that already diagnoses it.
 | retry backoff+jitter (reducer) | go/internal/storage/postgres/reducer_queue_helpers.go:255 | `eshu_dp_reducer_retry_surge_total` | reducer queue |
 | batch claim | go/internal/reducer/repo_dependency_projection_runner.go:149 | `eshu_dp_reducer_batch_claim_size`, `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
 | fact load | go/internal/reducer/cross_repo_resolution.go:178 | `eshu_dp_postgres_query_duration_seconds`, `eshu_dp_cross_repo_resolution_duration_seconds`, `eshu_dp_cross_repo_evidence_loaded_total` | reducer fact load |
-| candidate classification (admission deferral) | go/cmd/ingester/reducer_admission.go:363 | `eshu_dp_reducer_admission_deferrals_total` | reducer admission |
+| candidate classification (admission deferral) | go/internal/reduceradmission/admission.go:383 | `eshu_dp_reducer_admission_deferrals_total` | reducer admission |
 | candidate classification (CI/CD run correlation) | go/internal/reducer/ci_cd_run_correlation.go:160 | `eshu_dp_ci_cd_run_correlations_total` | reducer admission |
 | candidate classification (cloud inventory) | go/internal/reducer/cloud_inventory_admission.go:413 | `eshu_dp_cloud_inventory_admissions_total` | reducer admission |
 | candidate classification (container image identity) | go/internal/reducer/container_image_identity.go:191 | `eshu_dp_container_image_identity_decisions_total` | reducer admission |

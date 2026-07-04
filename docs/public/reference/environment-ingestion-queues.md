@@ -79,8 +79,10 @@ held time for large repositories.
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
 | `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative uses `NumCPU` | ingester projector | Source-local projector worker count. |
-| `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` | `10000`; set `0` to disable | ingester projector | Defers source-local reducer intent enqueues while outstanding reducer queue depth is at or above this threshold. |
-| `ESHU_REDUCER_ADMISSION_POLL_INTERVAL` | `1s` | ingester projector | Queue-depth recheck interval while reducer admission is deferring. Must be greater than zero when set. |
+| `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` | `10000`; set `0` to disable | ingester projector, bootstrap-index projector | Defers reducer intent enqueues while outstanding reducer queue depth is at or above this threshold. Shared admission gate (`internal/reduceradmission`); both producers apply identical backpressure (issue #4515 parity). |
+| `ESHU_REDUCER_ADMISSION_POLL_INTERVAL` | `1s` | ingester projector, bootstrap-index projector | Queue-depth recheck interval while reducer admission is deferring. Must be greater than zero when set. |
+| `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK` | `500`; set `0` to disable | ingester projector, bootstrap-index projector | Graph-write-timeout-scoped backpressure gate; defers reducer intent enqueues while retrying-state graph-write-timeout depth is at or above this threshold. |
+| `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` | `100` | ingester projector, bootstrap-index projector | Hysteresis floor; admission resumes only after graph-write-timeout depth falls below this value. Must be less than `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK`. |
 | `ESHU_LARGE_GEN_THRESHOLD` | `10000` facts | ingester projector | Fact-count threshold for large-generation semaphore. |
 | `ESHU_LARGE_GEN_MAX_CONCURRENT` | default `2`; local-authoritative `4` | ingester projector | Concurrent large source-local generations. |
 | `ESHU_PROJECTOR_MAX_ATTEMPTS` | `3` | ingester/projector retry policy | Max projector attempts before terminal failure. |

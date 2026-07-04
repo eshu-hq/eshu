@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reduceradmission
 
 import (
 	"context"
@@ -29,18 +29,18 @@ func TestReducerAdmissionReadinessBacklogDoesNotThrottle(t *testing.T) {
 		depths:                 []map[string]map[string]int64{{"reducer": {"pending": 5, "retrying": 800}}},
 		graphWriteTimeoutDepth: []int64{0},
 	}
-	writer := &recordingReducerIntentWriter{}
+	inner := &recordingIntentWriter{}
 	sleeps := 0
-	admission := reducerAdmissionWriter{
-		inner:       writer,
+	admission := writer{
+		inner:       inner,
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10_000,
 			RetryingHighWaterMark: 500,
 			RetryingLowWaterMark:  100,
 			PollInterval:          time.Second,
 		},
-		deferral: newAdmissionDeferralState(),
+		deferral: newDeferralState(),
 		sleep: func(context.Context, time.Duration) error {
 			sleeps++
 			return nil
@@ -59,16 +59,16 @@ func TestReducerAdmissionReadinessBacklogDoesNotThrottle(t *testing.T) {
 	if sleeps != 0 {
 		t.Fatalf("sleep count = %d, want 0 (readiness backlog must not throttle)", sleeps)
 	}
-	if writer.calls != 1 {
-		t.Fatalf("inner enqueue count = %d, want 1", writer.calls)
+	if inner.calls != 1 {
+		t.Fatalf("inner enqueue count = %d, want 1", inner.calls)
 	}
 }
 
 // TestReducerAdmissionGraphWriteTimeoutBacklogThrottles proves the gate still
 // engages when the retrying backlog is genuine graph-write-timeout pressure.
 // Here the graph-write-timeout depth alone exceeds the high-water mark, so the
-// producer defers until it recovers below the low-water mark, even though total
-// retrying depth is identical to the readiness-only case above.
+// producer defers until it recovers below the low-water mark, even though
+// total retrying depth is identical to the readiness-only case above.
 func TestReducerAdmissionGraphWriteTimeoutBacklogThrottles(t *testing.T) {
 	t.Parallel()
 
@@ -81,18 +81,18 @@ func TestReducerAdmissionGraphWriteTimeoutBacklogThrottles(t *testing.T) {
 		// Second read: 40 graph-write timeouts (below low-water 100) -> resume.
 		graphWriteTimeoutDepth: []int64{600, 40},
 	}
-	writer := &recordingReducerIntentWriter{}
+	inner := &recordingIntentWriter{}
 	sleeps := 0
-	admission := reducerAdmissionWriter{
-		inner:       writer,
+	admission := writer{
+		inner:       inner,
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10_000,
 			RetryingHighWaterMark: 500,
 			RetryingLowWaterMark:  100,
 			PollInterval:          time.Second,
 		},
-		deferral: newAdmissionDeferralState(),
+		deferral: newDeferralState(),
 		sleep: func(context.Context, time.Duration) error {
 			sleeps++
 			return nil
@@ -107,14 +107,14 @@ func TestReducerAdmissionGraphWriteTimeoutBacklogThrottles(t *testing.T) {
 	if sleeps != 1 {
 		t.Fatalf("sleep count = %d, want 1 (graph-write-timeout backlog must throttle)", sleeps)
 	}
-	if writer.calls != 1 {
-		t.Fatalf("inner enqueue count = %d, want 1", writer.calls)
+	if inner.calls != 1 {
+		t.Fatalf("inner enqueue count = %d, want 1", inner.calls)
 	}
 }
 
-// TestReducerAdmissionGraphWritePressureRecordsFailureClass proves the deferral
-// telemetry names the failure class that drove the pressure signal, so an
-// operator can confirm at 3 AM that graph-write timeouts (not readiness
+// TestReducerAdmissionGraphWritePressureRecordsFailureClass proves the
+// deferral telemetry names the failure class that drove the pressure signal,
+// so an operator can confirm at 3 AM that graph-write timeouts (not readiness
 // backlogs) caused the producer to back off.
 func TestReducerAdmissionGraphWritePressureRecordsFailureClass(t *testing.T) {
 	t.Parallel()
@@ -127,16 +127,16 @@ func TestReducerAdmissionGraphWritePressureRecordsFailureClass(t *testing.T) {
 		graphWriteTimeoutDepth: []int64{600, 10},
 	}
 	recorder := &recordingFailureClassReader{}
-	admission := reducerAdmissionWriter{
-		inner:       &recordingReducerIntentWriter{},
+	admission := writer{
+		inner:       &recordingIntentWriter{},
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10_000,
 			RetryingHighWaterMark: 500,
 			RetryingLowWaterMark:  100,
 			PollInterval:          time.Second,
 		},
-		deferral:         newAdmissionDeferralState(),
+		deferral:         newDeferralState(),
 		failureClassSink: recorder.record,
 		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
@@ -146,7 +146,7 @@ func TestReducerAdmissionGraphWritePressureRecordsFailureClass(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
 	}
-	if got, want := recorder.last(), admissionGraphWriteTimeoutFailureClass; got != want {
+	if got, want := recorder.last(), GraphWriteTimeoutFailureClass; got != want {
 		t.Fatalf("deferral failure class = %q, want %q", got, want)
 	}
 }

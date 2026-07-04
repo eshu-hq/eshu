@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/reduceradmission"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -116,6 +117,16 @@ func buildBootstrapProjector(
 	projectorQueue.MaxRetryDelay = projectorRetryPolicy.MaxRetryDelay
 	projectorQueue.JitterFraction = projectorRetryPolicy.JitterFraction
 	reducerQueue := postgres.NewReducerQueue(instrumentedDB, "bootstrap-index", time.Minute)
+	// Reducer admission parity (#4515): bootstrap-index gets the same
+	// queue-depth backpressure the ingester has always had, so a bootstrap run
+	// cannot drive unbounded reducer queue growth or outrun a timing-out graph
+	// backend. See internal/reduceradmission for the two-gate policy; unlike
+	// the ingester, bootstrap-index has no local-lightweight bypass to apply
+	// first.
+	reducerIntentWriter, err := reduceradmission.WrapIntentWriter(instrumentedDB, reducerQueue, getenv, instruments, logger)
+	if err != nil {
+		return projectorDeps{}, err
+	}
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {
 		return projectorDeps{}, err
@@ -125,7 +136,7 @@ func buildBootstrapProjector(
 		ContentWriter: postgres.NewContentWriter(instrumentedDB).
 			WithLogger(logger).
 			WithEntityBatchSize(contentConfig.EntityBatchSize),
-		IntentWriter:                  reducerQueue,
+		IntentWriter:                  reducerIntentWriter,
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(instrumentedDB),
 		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(instrumentedDB),
 		PackageRegistryIdentityLocker: postgres.PackageRegistryIdentityLocker{DB: instrumentedDB},

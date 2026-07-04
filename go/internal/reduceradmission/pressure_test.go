@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reduceradmission
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 func TestReducerAdmissionDefersOnGraphWritePressure(t *testing.T) {
 	t.Parallel()
 
-	reader := &fakeReducerAdmissionDepthReader{
+	reader := &fakeDepthReader{
 		depths: []map[string]map[string]int64{
 			// retrying is over the high-water mark; total depth is small.
 			{"reducer": {"pending": 2, "retrying": 50}},
@@ -30,18 +30,18 @@ func TestReducerAdmissionDefersOnGraphWritePressure(t *testing.T) {
 			{"reducer": {"pending": 2, "retrying": 3}},
 		},
 	}
-	writer := &recordingReducerIntentWriter{}
+	inner := &recordingIntentWriter{}
 	sleeps := 0
-	admission := reducerAdmissionWriter{
-		inner:       writer,
+	admission := writer{
+		inner:       inner,
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10_000,
 			RetryingHighWaterMark: 25,
 			RetryingLowWaterMark:  10,
 			PollInterval:          time.Second,
 		},
-		deferral: newAdmissionDeferralState(),
+		deferral: newDeferralState(),
 		sleep: func(context.Context, time.Duration) error {
 			sleeps++
 			return nil
@@ -62,37 +62,38 @@ func TestReducerAdmissionDefersOnGraphWritePressure(t *testing.T) {
 	if got, want := reader.calls, 2; got != want {
 		t.Fatalf("depth read count = %d, want %d", got, want)
 	}
-	if got, want := writer.calls, 1; got != want {
+	if got, want := inner.calls, 1; got != want {
 		t.Fatalf("inner enqueue count = %d, want %d", got, want)
 	}
 }
 
 // TestReducerAdmissionGraphWritePressureHysteresis proves the low-water mark
 // holds the producer back through the gap between the high- and low-water
-// marks. A reading between the two marks keeps deferring once pressure has been
-// detected, so the producer does not flap back on the first partial recovery.
+// marks. A reading between the two marks keeps deferring once pressure has
+// been detected, so the producer does not flap back on the first partial
+// recovery.
 func TestReducerAdmissionGraphWritePressureHysteresis(t *testing.T) {
 	t.Parallel()
 
-	reader := &fakeReducerAdmissionDepthReader{
+	reader := &fakeDepthReader{
 		depths: []map[string]map[string]int64{
 			{"reducer": {"retrying": 40}}, // above high-water: defer
 			{"reducer": {"retrying": 20}}, // between marks: still defer (hysteresis)
 			{"reducer": {"retrying": 8}},  // below low-water: resume
 		},
 	}
-	writer := &recordingReducerIntentWriter{}
+	inner := &recordingIntentWriter{}
 	sleeps := 0
-	admission := reducerAdmissionWriter{
-		inner:       writer,
+	admission := writer{
+		inner:       inner,
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10_000,
 			RetryingHighWaterMark: 25,
 			RetryingLowWaterMark:  10,
 			PollInterval:          time.Second,
 		},
-		deferral: newAdmissionDeferralState(),
+		deferral: newDeferralState(),
 		sleep: func(context.Context, time.Duration) error {
 			sleeps++
 			return nil
@@ -107,7 +108,7 @@ func TestReducerAdmissionGraphWritePressureHysteresis(t *testing.T) {
 	if got, want := sleeps, 2; got != want {
 		t.Fatalf("sleep count = %d, want %d (low-water hysteresis must hold)", got, want)
 	}
-	if got, want := writer.calls, 1; got != want {
+	if got, want := inner.calls, 1; got != want {
 		t.Fatalf("inner enqueue count = %d, want %d", got, want)
 	}
 }
@@ -119,23 +120,23 @@ func TestReducerAdmissionGraphWritePressureHysteresis(t *testing.T) {
 func TestReducerAdmissionGraphWritePressureRecordsReason(t *testing.T) {
 	t.Parallel()
 
-	reader := &fakeReducerAdmissionDepthReader{
+	reader := &fakeDepthReader{
 		depths: []map[string]map[string]int64{
 			{"reducer": {"retrying": 50}},
 			{"reducer": {"retrying": 1}},
 		},
 	}
 	recorder := &recordingDeferralReasonReader{}
-	admission := reducerAdmissionWriter{
-		inner:       &recordingReducerIntentWriter{},
+	admission := writer{
+		inner:       &recordingIntentWriter{},
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10_000,
 			RetryingHighWaterMark: 25,
 			RetryingLowWaterMark:  10,
 			PollInterval:          time.Second,
 		},
-		deferral:         newAdmissionDeferralState(),
+		deferral:         newDeferralState(),
 		failureClassSink: recorder.record,
 		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
@@ -145,33 +146,33 @@ func TestReducerAdmissionGraphWritePressureRecordsReason(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
 	}
-	if got, want := recorder.last(), admissionDeferralReasonGraphWritePressure; got != want {
+	if got, want := recorder.last(), DeferralReasonGraphWritePressure; got != want {
 		t.Fatalf("deferral reason = %q, want %q", got, want)
 	}
 }
 
 // TestReducerAdmissionTotalDepthRecordsHighWaterReason proves the total-depth
-// gate still records the original high_water reason, so the new pressure signal
-// does not mislabel a deep-but-healthy queue.
+// gate still records the original high_water reason, so the new pressure
+// signal does not mislabel a deep-but-healthy queue.
 func TestReducerAdmissionTotalDepthRecordsHighWaterReason(t *testing.T) {
 	t.Parallel()
 
-	reader := &fakeReducerAdmissionDepthReader{
+	reader := &fakeDepthReader{
 		depths: []map[string]map[string]int64{
 			{"reducer": {"pending": 10}},
 			{"reducer": {"pending": 4}},
 		},
 	}
 	recorder := &recordingDeferralReasonReader{}
-	admission := reducerAdmissionWriter{
-		inner:       &recordingReducerIntentWriter{},
+	admission := writer{
+		inner:       &recordingIntentWriter{},
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10,
 			RetryingHighWaterMark: 0, // graph-write pressure gate disabled
 			PollInterval:          time.Second,
 		},
-		deferral:         newAdmissionDeferralState(),
+		deferral:         newDeferralState(),
 		failureClassSink: recorder.record,
 		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
@@ -181,30 +182,30 @@ func TestReducerAdmissionTotalDepthRecordsHighWaterReason(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
 	}
-	if got, want := recorder.last(), admissionDeferralReasonHighWater; got != want {
+	if got, want := recorder.last(), DeferralReasonHighWater; got != want {
 		t.Fatalf("deferral reason = %q, want %q", got, want)
 	}
 }
 
 // TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState proves the
 // hysteresis state is shared and race-free across concurrent producer Enqueue
-// calls: the ingester runs projection workers concurrently and they share one
-// admission writer value. Run with -race.
+// calls: both the ingester and bootstrap-index run projection workers
+// concurrently and share one admission writer value. Run with -race.
 func TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState(t *testing.T) {
 	t.Parallel()
 
 	reader := alwaysLowRetryingDepthReader{}
-	writer := &syncCountingReducerIntentWriter{}
-	admission := reducerAdmissionWriter{
-		inner:       writer,
+	inner := &syncCountingIntentWriter{}
+	admission := writer{
+		inner:       inner,
 		depthReader: reader,
-		config: reducerAdmissionConfig{
+		config: Config{
 			HighWaterMark:         10_000,
 			RetryingHighWaterMark: 25,
 			RetryingLowWaterMark:  10,
 			PollInterval:          time.Millisecond,
 		},
-		deferral: newAdmissionDeferralState(),
+		deferral: newDeferralState(),
 		sleep:    func(context.Context, time.Duration) error { return nil },
 	}
 
@@ -221,22 +222,22 @@ func TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState(t *testin
 		}()
 	}
 	wg.Wait()
-	if got, want := writer.total(), 16; got != want {
+	if got, want := inner.total(), 16; got != want {
 		t.Fatalf("enqueued intents = %d, want %d", got, want)
 	}
 }
 
-// syncCountingReducerIntentWriter is a concurrency-safe inner writer for the
+// syncCountingIntentWriter is a concurrency-safe inner writer for the
 // concurrent admission test. The production producer may call Enqueue from
 // multiple projection workers, so only the shared hysteresis state must be
 // race-free; this fake simply tallies safely so the test asserts no intent is
 // lost.
-type syncCountingReducerIntentWriter struct {
+type syncCountingIntentWriter struct {
 	mu    sync.Mutex
 	count int
 }
 
-func (w *syncCountingReducerIntentWriter) Enqueue(
+func (w *syncCountingIntentWriter) Enqueue(
 	_ context.Context,
 	intents []projector.ReducerIntent,
 ) (projector.IntentResult, error) {
@@ -246,21 +247,21 @@ func (w *syncCountingReducerIntentWriter) Enqueue(
 	return projector.IntentResult{Count: len(intents)}, nil
 }
 
-func (w *syncCountingReducerIntentWriter) total() int {
+func (w *syncCountingIntentWriter) total() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.count
 }
 
-func TestLoadReducerAdmissionConfigGraphWritePressure(t *testing.T) {
+func TestLoadConfigGraphWritePressure(t *testing.T) {
 	t.Parallel()
 
-	config, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
+	config, err := LoadConfig(mapGetenv(map[string]string{
 		"ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK": "500",
 		"ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK":  "100",
 	}))
 	if err != nil {
-		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
 	}
 	if got, want := config.RetryingHighWaterMark, int64(500); got != want {
 		t.Fatalf("RetryingHighWaterMark = %d, want %d", got, want)
@@ -270,60 +271,60 @@ func TestLoadReducerAdmissionConfigGraphWritePressure(t *testing.T) {
 	}
 }
 
-func TestLoadReducerAdmissionConfigGraphWritePressureDefaultsEnabled(t *testing.T) {
+func TestLoadConfigGraphWritePressureDefaultsEnabled(t *testing.T) {
 	t.Parallel()
 
-	config, err := loadReducerAdmissionConfig(mapGetenv(nil))
+	config, err := LoadConfig(mapGetenv(nil))
 	if err != nil {
-		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
 	}
-	if config.RetryingHighWaterMark != defaultReducerAdmissionRetryingHighWaterMark {
+	if config.RetryingHighWaterMark != defaultRetryingHighWaterMark {
 		t.Fatalf("RetryingHighWaterMark = %d, want default %d",
-			config.RetryingHighWaterMark, defaultReducerAdmissionRetryingHighWaterMark)
+			config.RetryingHighWaterMark, defaultRetryingHighWaterMark)
 	}
-	if config.RetryingLowWaterMark != defaultReducerAdmissionRetryingLowWaterMark {
+	if config.RetryingLowWaterMark != defaultRetryingLowWaterMark {
 		t.Fatalf("RetryingLowWaterMark = %d, want default %d",
-			config.RetryingLowWaterMark, defaultReducerAdmissionRetryingLowWaterMark)
+			config.RetryingLowWaterMark, defaultRetryingLowWaterMark)
 	}
 	if !config.graphWritePressureEnabled() {
 		t.Fatal("default graph-write pressure gate is disabled, want enabled")
 	}
 }
 
-func TestLoadReducerAdmissionConfigGraphWritePressureExplicitZeroDisables(t *testing.T) {
+func TestLoadConfigGraphWritePressureExplicitZeroDisables(t *testing.T) {
 	t.Parallel()
 
-	config, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
+	config, err := LoadConfig(mapGetenv(map[string]string{
 		"ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK": "0",
 	}))
 	if err != nil {
-		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
 	}
 	if config.graphWritePressureEnabled() {
 		t.Fatal("explicit zero graph-write pressure gate is enabled, want disabled")
 	}
 }
 
-func TestLoadReducerAdmissionConfigRejectsLowWaterAboveHighWater(t *testing.T) {
+func TestLoadConfigRejectsLowWaterAboveHighWater(t *testing.T) {
 	t.Parallel()
 
-	_, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
+	_, err := LoadConfig(mapGetenv(map[string]string{
 		"ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK": "100",
 		"ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK":  "200",
 	}))
 	if err == nil {
-		t.Fatal("loadReducerAdmissionConfig() error = nil, want low>=high validation error")
+		t.Fatal("LoadConfig() error = nil, want low>=high validation error")
 	}
 }
 
-func TestLoadReducerAdmissionConfigRejectsNegativeRetryingMark(t *testing.T) {
+func TestLoadConfigRejectsNegativeRetryingMark(t *testing.T) {
 	t.Parallel()
 
-	_, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
+	_, err := LoadConfig(mapGetenv(map[string]string{
 		"ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK": "-1",
 	}))
 	if err == nil {
-		t.Fatal("loadReducerAdmissionConfig() error = nil, want invalid config error")
+		t.Fatal("LoadConfig() error = nil, want invalid config error")
 	}
 }
 

@@ -8,7 +8,7 @@ correlation, supply-chain impact, capacity, and memory metrics.
 | Metric | Type | Use |
 | --- | --- | --- |
 | `eshu_dp_reducer_intents_enqueued_total` | counter | Reducer intent enqueue volume by domain. |
-| `eshu_dp_reducer_admission_deferrals_total` | counter | Ingester source-local reducer intent enqueue deferrals while reducer backlog is at the configured high-water mark. |
+| `eshu_dp_reducer_admission_deferrals_total` | counter | Reducer intent enqueue deferrals (ingester and bootstrap-index) while reducer backlog is at the configured high-water mark or graph-write-timeout depth is under pressure. |
 | `eshu_dp_reducer_executions_total` | counter | Reducer execution volume by domain and status. |
 | `eshu_dp_reducer_run_duration_seconds` | histogram | Handler execution window after a worker starts a work item. |
 | `eshu_dp_reducer_queue_wait_seconds` | histogram | Time visible in the reducer queue before handler start. |
