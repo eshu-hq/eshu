@@ -1550,7 +1550,7 @@
             "project_id": "supply-chain-demo-project",
             "location": "us-central1",
             "display_name": "demo-memcache",
-            "state": "",
+            "state": "READY",
             "asset_type_family": "memcache",
             "correlation_anchors": [
               "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc"

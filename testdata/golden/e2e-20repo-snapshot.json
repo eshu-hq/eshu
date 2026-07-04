@@ -1521,7 +1521,7 @@
       },
       {
         "id": "rc-150",
-        "description": "A Memorystore Memcached Instance CloudResource is connected to its authorized VPC Network CloudResource via a GCP_memcache_instance_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-memcache Instance (asset_type memcache.googleapis.com/Instance, with bounded memcache_version/node_count/cpu_count/memory_size_mb/zone_count attributes and no discoveryEndpoint/node host/node port) and a gcp_cloud_relationship fact with relationship_type memcache_instance_in_network targeting the shared demo-vpc Network, matching the #4323 extractor contract (PR #4653). GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Instance cloud_resource + relationship facts, so this locks in the Memorystore Memcached Instance typed-depth extractor's golden-corpus follow-up (#4655).",
+        "description": "Memcached Instance -> authorized VPC Network edge: demo-memcache -> demo-vpc via GCP_memcache_instance_in_network, from a matching resource + relationship fact pair. Zero without those facts (#4655).",
         "relationship": "GCP_memcache_instance_in_network",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
