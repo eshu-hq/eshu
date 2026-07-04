@@ -20,16 +20,22 @@ import (
 // dead-letters as a per-fact input_invalid quarantine rather than a silent
 // empty-string graph identity or a whole-intent abort.
 //
-// The sibling azure_tag_observation, azure_identity_observation,
-// azure_resource_change, azure_dns_record, azure_image_reference, and
-// azure_collection_warning kinds have typed structs and a Decode/Encode seam
-// in sdk/go/factschema (decode_azure.go), but no reducer handler in this
-// package consumes them yet (their current consumers, e.g.
-// go/internal/storage/postgres/cloud_resource_change_evidence.go and
-// cloud_identity_policy_evidence.go, decode a raw JSON payload directly and
-// are a separate migration boundary). Wiring a decode wrapper for a kind with
-// no reducer caller here would be dead code the go-lint unused check rejects;
-// add one only alongside the handler that starts consuming it.
+// This wrapper lives in a per-family factschema_decode_azure.go file. The
+// Contract System v1 §6 gate-2 payload-usage manifest globs the reducer dir's
+// factschema_decode*.go files for decode seams (go/internal/payloadusage), so a
+// per-family file is discovered and gated the same as the main file; keeping
+// each cloud family's decode wrappers in its own file keeps the diff of a new
+// family self-contained.
+//
+// Only the two WIRED azure kinds (azure_cloud_resource,
+// azure_cloud_relationship) are decoded through a typed seam this wave. The
+// family's other consumed kinds (azure_tag_observation,
+// azure_identity_observation, azure_resource_change, azure_image_reference)
+// are intentionally NOT decoded through a typed seam: their read-side consumers
+// are a shared cross-provider surface or an Azure-specific storage loader not
+// converted in this wave, so a decode wrapper for them would be dead code with
+// no caller (and a hollow, never-validated contract). They migrate with the
+// surface that reads them.
 func decodeAzureCloudResource(env facts.Envelope) (azurev1.CloudResource, error) {
 	resource, err := factschema.DecodeAzureCloudResource(factschemaEnvelope(env))
 	if err != nil {

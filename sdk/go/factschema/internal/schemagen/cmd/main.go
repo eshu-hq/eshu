@@ -65,11 +65,7 @@ func run() error {
 		{name: "gcp_iam_policy_observation.v1.schema.json", generate: schemagen.GCPIAMPolicyObservationSchema},
 		{name: "azure_cloud_resource.v1.schema.json", generate: schemagen.AzureCloudResourceSchema},
 		{name: "azure_cloud_relationship.v1.schema.json", generate: schemagen.AzureCloudRelationshipSchema},
-		{name: "azure_tag_observation.v1.schema.json", generate: schemagen.AzureTagObservationSchema},
-		{name: "azure_identity_observation.v1.schema.json", generate: schemagen.AzureIdentityObservationSchema},
-		{name: "azure_resource_change.v1.schema.json", generate: schemagen.AzureResourceChangeSchema},
 		{name: "azure_dns_record.v1.schema.json", generate: schemagen.AzureDNSRecordSchema},
-		{name: "azure_image_reference.v1.schema.json", generate: schemagen.AzureImageReferenceSchema},
 		{name: "azure_collection_warning.v1.schema.json", generate: schemagen.AzureCollectionWarningSchema},
 	}
 

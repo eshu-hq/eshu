@@ -1,8 +1,0 @@
-{
-  "target_arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm-demo",
-  "change_type": "updated",
-  "change_time": "2026-07-01T00:00:00Z",
-  "operation": "Microsoft.Compute/virtualMachines/write",
-  "actor_class": "user",
-  "changed_property_paths": ["properties.hardwareProfile.vmSize"]
-}

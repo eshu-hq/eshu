@@ -42,8 +42,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if len(manifest.Kinds) != 14 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 14 (8 aws/iam + 4 wired incident + 2 wired gcp kinds via the factschema_decode*.go glob); got %+v", len(manifest.Kinds), manifest.Kinds)
+	if len(manifest.Kinds) != 16 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 16 (8 aws/iam + 4 wired incident + 2 wired gcp + 2 wired azure kinds via the factschema_decode*.go glob); got %+v", len(manifest.Kinds), manifest.Kinds)
 	}
 
 	var awsResource *KindManifest
@@ -141,8 +141,8 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 	if len(violations) != 0 {
 		t.Fatalf("Gate() found %d violation(s) against the real repository state, want 0:\n%s", len(violations), violationsString(violations))
 	}
-	if len(manifest.Kinds) != 14 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 14", len(manifest.Kinds))
+	if len(manifest.Kinds) != 16 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 16", len(manifest.Kinds))
 	}
 }
 
@@ -262,4 +262,73 @@ func mustMarshal(t *testing.T, m Manifest) string {
 		t.Fatalf("marshal manifest: %v", err)
 	}
 	return encoded
+}
+
+// TestLoadCoversWiredAzureKinds proves the payload-usage manifest actually
+// scans the azure/v1 struct dir and the wired azure decode seams — not that
+// "azure isn't scanned". It asserts the two wired azure kinds
+// (azure_cloud_resource, azure_cloud_relationship) appear in the manifest with
+// their real reducer handler files as the used-field source, so a regression
+// that drops azure from the gate (e.g. a removed AzureStructDir default or a
+// dropped factKindSchemaFile entry) fails here rather than silently narrowing
+// coverage. The four DEFERRED azure kinds (tag_observation,
+// identity_observation, resource_change, image_reference) must NOT appear:
+// they have no typed decode seam this wave, so gating them would be a hollow
+// contract.
+func TestLoadCoversWiredAzureKinds(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := Load(Paths{RepoRoot: repoRoot(t)})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	byKind := map[string]*KindManifest{}
+	for i := range manifest.Kinds {
+		byKind[manifest.Kinds[i].FactKind] = &manifest.Kinds[i]
+	}
+
+	wired := map[string]struct {
+		decodeFunc string
+		structType string
+		usedFile   string
+	}{
+		"FactKindAzureCloudResource":     {"decodeAzureCloudResource", "azurev1.CloudResource", "azure_resource_materialization.go"},
+		"FactKindAzureCloudRelationship": {"decodeAzureCloudRelationship", "azurev1.CloudRelationship", "azure_relationship_join.go"},
+	}
+	for kind, want := range wired {
+		got, ok := byKind[kind]
+		if !ok {
+			t.Fatalf("wired azure kind %q missing from manifest; azure/v1 is not being scanned/gated", kind)
+		}
+		if got.DecodeFunc != want.decodeFunc {
+			t.Errorf("%s DecodeFunc = %q, want %q", kind, got.DecodeFunc, want.decodeFunc)
+		}
+		if got.StructType != want.structType {
+			t.Errorf("%s StructType = %q, want %q", kind, got.StructType, want.structType)
+		}
+		usedInHandler := false
+		for _, u := range got.UsedFields {
+			for _, f := range u.Files {
+				if f == want.usedFile {
+					usedInHandler = true
+				}
+			}
+		}
+		if !usedInHandler {
+			t.Errorf("%s has no used field recorded in %s; the azure handler usage is not being scanned: %+v", kind, want.usedFile, got.UsedFields)
+		}
+	}
+
+	deferred := []string{
+		"FactKindAzureTagObservation",
+		"FactKindAzureIdentityObservation",
+		"FactKindAzureResourceChange",
+		"FactKindAzureImageReference",
+	}
+	for _, kind := range deferred {
+		if _, present := byKind[kind]; present {
+			t.Errorf("deferred azure kind %q appears in the manifest; it has no typed decode seam this wave and must not be gated (hollow contract)", kind)
+		}
+	}
 }

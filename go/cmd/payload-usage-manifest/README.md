@@ -49,10 +49,11 @@ specific handler file, fact kind, and field.
 | --- | --- | --- |
 | `-repo-root` | `.` | Repository root; every other path defaults relative to it |
 | `-reducer-dir` | `<repo-root>/go/internal/reducer` | Reducer handler source directory |
-| `-decode-file` | `<reducer-dir>/factschema_decode.go` | The decode seam file `ParseDecodeSeams` reads |
+| `-decode-file-glob` | `<reducer-dir>/factschema_decode*.go` | Glob of per-family decode-seam files `ParseDecodeSeamsGlob` reads |
 | `-schema-dir` | `<repo-root>/sdk/go/factschema/schema` | Checked-in JSON Schemas (the gate's declared-field source of truth) |
 | `-aws-struct-dir` | `<repo-root>/sdk/go/factschema/aws/v1` | Typed AWS struct package |
 | `-iam-struct-dir` | `<repo-root>/sdk/go/factschema/iam/v1` | Typed IAM struct package |
+| `-azure-struct-dir` | `<repo-root>/sdk/go/factschema/azure/v1` | Typed Azure struct package |
 | `-mode` | `gate` | `generate` or `gate` |
 | `-out` | stdout | `generate` mode's output file path |
 

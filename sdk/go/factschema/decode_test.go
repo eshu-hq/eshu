@@ -294,11 +294,7 @@ var payloadContracts = []struct {
 	{FactKindGCPIAMPolicyObservation, "gcp_iam_policy_observation.v1.schema.json", reflect.TypeOf(gcpv1.IAMPolicyObservation{})},
 	{FactKindAzureCloudResource, "azure_cloud_resource.v1.schema.json", reflect.TypeOf(azurev1.CloudResource{})},
 	{FactKindAzureCloudRelationship, "azure_cloud_relationship.v1.schema.json", reflect.TypeOf(azurev1.CloudRelationship{})},
-	{FactKindAzureTagObservation, "azure_tag_observation.v1.schema.json", reflect.TypeOf(azurev1.TagObservation{})},
-	{FactKindAzureIdentityObservation, "azure_identity_observation.v1.schema.json", reflect.TypeOf(azurev1.IdentityObservation{})},
-	{FactKindAzureResourceChange, "azure_resource_change.v1.schema.json", reflect.TypeOf(azurev1.ResourceChange{})},
 	{FactKindAzureDNSRecord, "azure_dns_record.v1.schema.json", reflect.TypeOf(azurev1.DNSRecord{})},
-	{FactKindAzureImageReference, "azure_image_reference.v1.schema.json", reflect.TypeOf(azurev1.ImageReference{})},
 	{FactKindAzureCollectionWarning, "azure_collection_warning.v1.schema.json", reflect.TypeOf(azurev1.CollectionWarning{})},
 }
 

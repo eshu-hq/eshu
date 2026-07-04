@@ -1,7 +1,0 @@
-{
-  "owning_arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.ContainerService/managedClusters/aks-demo",
-  "tag_digest_confidence": "digest",
-  "image_reference": "demoregistry.azurecr.io/demo-app@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234567",
-  "image_digest": "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234567",
-  "container_name_fingerprint": "fp:demo-container-marker"
-}

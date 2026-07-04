@@ -61,6 +61,8 @@ type Paths struct {
 	IncidentStructDir string
 	// GCPStructDir is sdk/go/factschema/gcp/v1.
 	GCPStructDir string
+	// AzureStructDir is sdk/go/factschema/azure/v1.
+	AzureStructDir string
 }
 
 // ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
@@ -96,6 +98,9 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.GCPStructDir) == "" {
 		resolved.GCPStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "gcp", "v1")
+	}
+	if strings.TrimSpace(resolved.AzureStructDir) == "" {
+		resolved.AzureStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "azure", "v1")
 	}
 	// DecodeFile / DecodeFiles are intentionally NOT defaulted here: the glob
 	// path can fail, and ResolvePaths returns no error. resolveDecodeFiles (from
@@ -215,7 +220,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes))
+	azureShapes, err := ParseStructShapes(resolved.AzureStructDir, "azurev1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
@@ -226,6 +235,9 @@ func Load(p Paths) (Manifest, error) {
 		shapes[k] = v
 	}
 	for k, v := range gcpShapes {
+		shapes[k] = v
+	}
+	for k, v := range azureShapes {
 		shapes[k] = v
 	}
 

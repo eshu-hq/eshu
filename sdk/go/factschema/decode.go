@@ -87,17 +87,8 @@ const (
 	// FactKindAzureCloudRelationship is the "azure_cloud_relationship" fact
 	// kind.
 	FactKindAzureCloudRelationship = "azure_cloud_relationship"
-	// FactKindAzureTagObservation is the "azure_tag_observation" fact kind.
-	FactKindAzureTagObservation = "azure_tag_observation"
-	// FactKindAzureIdentityObservation is the "azure_identity_observation"
-	// fact kind.
-	FactKindAzureIdentityObservation = "azure_identity_observation"
-	// FactKindAzureResourceChange is the "azure_resource_change" fact kind.
-	FactKindAzureResourceChange = "azure_resource_change"
 	// FactKindAzureDNSRecord is the "azure_dns_record" fact kind.
 	FactKindAzureDNSRecord = "azure_dns_record"
-	// FactKindAzureImageReference is the "azure_image_reference" fact kind.
-	FactKindAzureImageReference = "azure_image_reference"
 	// FactKindAzureCollectionWarning is the "azure_collection_warning" fact
 	// kind.
 	FactKindAzureCollectionWarning = "azure_collection_warning"

@@ -1,4 +1,0 @@
-{
-  "arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm-demo",
-  "principal_fingerprint": "fp:demo-principal-marker"
-}

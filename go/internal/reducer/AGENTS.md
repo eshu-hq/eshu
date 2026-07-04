@@ -645,7 +645,17 @@ No-Regression Evidence (Wave 4a typed-payload decode, Contract System v1
 `DecodeAzureCloudRelationship`, wrapped by `decodeAzureCloudResource`/
 `decodeAzureCloudRelationship` in `factschema_decode_azure.go`) instead of raw
 `payloadString(env.Payload, "key")` map lookups, mirroring the #4568 AWS
-migration. `azureCloudResourceNodeRow` now returns its resolved join identity
+migration. Only the two WIRED azure kinds are typed this wave; the four whose
+sole consumer is a shared cross-provider surface or an unconverted
+Azure-specific storage loader (`azure_tag_observation`,
+`azure_identity_observation`, `azure_resource_change`, `azure_image_reference`)
+are deferred to the change that converts their read path, matching how #4568
+left `aws_tag_observation`/`aws_image_reference` untyped. The wired decode
+wrappers live in a per-family `factschema_decode_azure.go` file; the Contract
+System v1 §6 gate-2 payload-usage manifest (go/internal/payloadusage) globs the
+reducer dir's `factschema_decode*.go` files for decode seams and scans
+`sdk/go/factschema/azure/v1` for struct shapes, so a per-family file is
+discovered and gated the same as the base file. `azureCloudResourceNodeRow` now returns its resolved join identity
 (`resourceID`) alongside the row and uid so `buildAzureCloudResourceJoinIndex`
 never re-decodes an already-decoded resource fact to recover its join key — a
 double-decode that a first benchmark pass caught as an avoidable regression

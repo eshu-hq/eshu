@@ -1,4 +1,0 @@
-{
-  "resource_type": "microsoft.compute/virtualmachines",
-  "tag_value_fingerprints": {"env": "fp:demo-env-marker"}
-}
