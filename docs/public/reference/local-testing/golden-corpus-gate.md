@@ -45,9 +45,15 @@ alongside `rc-1` (deployable-unit) and `rc-3` (cross-repo `DEPENDS_ON`). The
 20-repo node/edge count tolerances remain **advisory** (`WARN`) so latent gaps
 surface without blocking.
 
-The blocking correlation set is configurable
-(`golden-corpus-gate -required-correlations=rc-3,rc-1,rc-2,rc-4`) so the gate can
-be widened one assertion at a time as the underlying behaviour is proven.
+The blocking correlation set is configurable via `-required-correlations`.
+`scripts/verify-golden-corpus-gate.sh` passes `-required-correlations="all"`,
+which single-sources the blocking set from the snapshot's own
+`required_correlations` ids (#4596): promoting a newly-added `rc-N` to blocking
+is a one-file edit to the snapshot, not also a hand-edit to a second,
+duplicated comma-separated id list in the script. To stage a new `rc-N` as
+advisory-only before it is proven, pass an explicit comma-separated subset
+(e.g. `-required-correlations=rc-3,rc-1,rc-2,rc-4`) instead of `all`; an empty
+value blocks nothing.
 
 ## Macro per-phase regression (B-11)
 
