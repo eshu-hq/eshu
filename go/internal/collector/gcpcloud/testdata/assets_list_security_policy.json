@@ -1,0 +1,57 @@
+{
+  "readTime": "2026-07-04T00:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/global/securityPolicies/armor-policy",
+      "assetType": "compute.googleapis.com/SecurityPolicy",
+      "updateTime": "2026-07-03T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "armor-policy",
+          "description": "Blocks known bad actors",
+          "type": "CLOUD_ARMOR",
+          "creationTimestamp": "2026-06-01T00:00:00.000-07:00",
+          "adaptiveProtectionConfig": {
+            "layer7DdosDefenseConfig": {
+              "enable": true,
+              "ruleVisibility": "STANDARD"
+            }
+          },
+          "rules": [
+            {
+              "priority": 1000,
+              "action": "deny(403)",
+              "description": "Block bad IPs",
+              "match": {
+                "versionedExpr": "SRC_IPS_V1",
+                "config": {"srcIpRanges": ["203.0.113.0/24"]}
+              },
+              "preview": false
+            },
+            {
+              "priority": 2147483647,
+              "action": "allow",
+              "description": "Default rule",
+              "match": {"config": {"srcIpRanges": ["*"]}},
+              "preview": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "//compute.googleapis.com/projects/demo-project/regions/us-central1/securityPolicies/regional-armor-policy",
+      "assetType": "compute.googleapis.com/SecurityPolicy",
+      "updateTime": "2026-07-03T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "regional-armor-policy",
+          "type": "CLOUD_ARMOR",
+          "region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1"
+        }
+      }
+    }
+  ]
+}
