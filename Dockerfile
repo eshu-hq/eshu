@@ -22,11 +22,13 @@ WORKDIR /build
 # Download modules natively (avoids QEMU + Go 1.26 TLS/crypto panics).
 COPY go/go.mod go/go.sum ./go/
 COPY sdk/go/collector/go.mod ./sdk/go/collector/
+COPY sdk/go/factschema/go.mod ./sdk/go/factschema/
 RUN cd go && GONOSUMDB='*' GONOSUMCHECK='*' go mod download
 
 # Copy Go source and local SDK modules referenced by go.mod replacements.
 COPY go/ ./go/
 COPY sdk/go/collector/ ./sdk/go/collector/
+COPY sdk/go/factschema/ ./sdk/go/factschema/
 
 # Build all Go binaries. xx-go sets GOARCH, CGO_ENABLED, and CC automatically
 # for the target platform. CGO is required for tree-sitter parser bindings.
