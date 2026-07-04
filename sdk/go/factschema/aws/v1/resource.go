@@ -29,13 +29,22 @@ import "encoding/json"
 //     ServiceKind — fields the node projector and more than one consumer read.
 //     Each is a pointer/slice/map/omitempty so an absent value stays distinct
 //     from an observed zero.
-//   - Optional (pass-through): Attributes carries every remaining payload key
-//     (service-specific fields such as an RDS engine, an instance-profile's
-//     role_arns, or a workload's environment) UNTYPED, with JSON type fidelity
-//     preserved through the round trip. Service-specific consumers read
-//     resource.Attributes["engine"] — through the decoded struct, never
-//     env.Payload["engine"] — so the "no raw payload key access" contract holds
-//     while these fields are honestly not yet a typed contract.
+//   - Optional (pass-through): Attributes carries every top-level payload key
+//     with no named struct field above, UNTYPED, with JSON type fidelity
+//     preserved through the round trip. The collector emitter
+//     (awscloud.NewResourceEnvelope) does NOT flatten service-specific fields to
+//     the top level: it nests them one level deep under a single "attributes"
+//     object (payload["attributes"] = {"engine": …, "role_arns": …}). So the
+//     service-specific fields land at Attributes["attributes"], not directly on
+//     Attributes. A service-specific consumer reads them through the decoded
+//     struct with the reducer's payloadAttributes(resource.Attributes) helper
+//     (which returns resource.Attributes["attributes"] as a map), e.g.
+//     payloadAttributes(resource.Attributes)["engine"] — never
+//     env.Payload["attributes"]["engine"] — so the "no raw payload key access"
+//     contract holds while these fields are honestly not yet a typed contract.
+//     (Attributes also captures the emitter's "collector_instance_id" boundary
+//     key, which has no named field; it is boundary metadata, not a service
+//     attribute, and no graph consumer reads it from here.)
 //
 // Typing service-specific attributes per resource_type is deferred, tracked
 // separately (design §7, remaining families / per-type modeling); it is a
@@ -102,15 +111,18 @@ type Resource struct {
 	// empty map would be omitted and decode back as nil.
 	Tags *map[string]string `json:"tags,omitempty"`
 
-	// Attributes carries every service-specific payload key that has no named
-	// struct field above (for example an RDS engine, an instance-profile's
-	// role_arns, or a workload's environment). It is the documented untyped
-	// pass-through: service-specific reducer consumers read their fields from
-	// here through the decoded struct rather than from the raw envelope payload.
-	// JSON type fidelity is preserved by the custom UnmarshalJSON, so a value
-	// that decodes to a float64 / bool / []any / map[string]any from the raw
-	// payload decodes to the same Go type here. Optional and omitempty: a
-	// resource with no service-specific fields leaves it nil.
+	// Attributes carries every top-level payload key with no named struct field
+	// above, untyped and with JSON type fidelity preserved by the custom
+	// UnmarshalJSON. In practice the collector emitter's only such keys are the
+	// nested "attributes" object (which itself holds the service-specific fields
+	// such as an RDS engine, an instance-profile's role_arns, or a workload's
+	// environment) and the "collector_instance_id" boundary token. Because the
+	// service fields are nested, a consumer reaches a service field at
+	// Attributes["attributes"][key], not Attributes[key]; the reducer's
+	// payloadAttributes(resource.Attributes) helper returns that nested map. A
+	// value that decodes to a float64 / bool / []any / map[string]any from the
+	// raw payload decodes to the same Go type here. Optional: a payload with no
+	// unmodeled top-level keys leaves it nil.
 	Attributes map[string]any `json:"-"`
 }
 

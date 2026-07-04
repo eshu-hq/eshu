@@ -6,6 +6,7 @@ package factschema
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -213,15 +214,34 @@ func assignField(field reflect.Value, raw any) error {
 // jsonNumberToInt32 coerces a JSONB-native number (float64 from encoding/json,
 // or an in-memory int/int32/int64) into an int32, matching how the previous
 // json.Unmarshal path filled *int32 port/hop-limit fields.
+//
+// It fails closed: a non-integral float (for example a port of 8080.5) or a
+// value outside the int32 range is rejected with an error rather than silently
+// truncated or wrapped, so a malformed number dead-letters the fact as
+// input_invalid instead of projecting a wrong port/hop-limit into the graph.
+// This mirrors encoding/json, which returns an UnmarshalTypeError when a JSON
+// number does not fit the target int32.
 func jsonNumberToInt32(raw any) (int32, error) {
 	switch n := raw.(type) {
 	case float64:
+		if math.Trunc(n) != n {
+			return 0, fmt.Errorf("want integer, got non-integral number %v", n)
+		}
+		if n < math.MinInt32 || n > math.MaxInt32 {
+			return 0, fmt.Errorf("number %v out of int32 range", n)
+		}
 		return int32(n), nil
 	case int:
+		if int64(n) < math.MinInt32 || int64(n) > math.MaxInt32 {
+			return 0, fmt.Errorf("number %v out of int32 range", n)
+		}
 		return int32(n), nil
 	case int32:
 		return n, nil
 	case int64:
+		if n < math.MinInt32 || n > math.MaxInt32 {
+			return 0, fmt.Errorf("number %v out of int32 range", n)
+		}
 		return int32(n), nil
 	default:
 		return 0, fmt.Errorf("want number, got %T", raw)

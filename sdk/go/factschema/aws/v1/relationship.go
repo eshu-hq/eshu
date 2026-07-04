@@ -25,10 +25,16 @@ import "encoding/json"
 //     may be empty; the reducer resolves an endpoint through the ARN index
 //     first and the resource-id index second, and substitutes "unknown" for an
 //     empty TargetType.
-//   - Optional (pass-through): Attributes carries every remaining payload key
-//     (for example the verb-specific "attributes" object) UNTYPED with JSON type
-//     fidelity preserved, so a consumer reads relationship.Attributes[...]
-//     through the decoded struct, never env.Payload[...].
+//   - Optional (pass-through): Attributes carries every top-level payload key
+//     with no named field above, UNTYPED with JSON type fidelity preserved. As
+//     with aws_resource, the emitter nests the verb-specific fields one level
+//     deep under a single "attributes" object rather than flattening them, so
+//     those fields land at Attributes["attributes"], not directly on Attributes;
+//     a consumer reaches them via the reducer's
+//     payloadAttributes(relationship.Attributes) helper through the decoded
+//     struct, never env.Payload["attributes"][...]. (Attributes also captures the
+//     emitter's "collector_instance_id" boundary key, which no graph consumer
+//     reads from here.)
 //
 // Typing verb-specific relationship attributes per relationship_type is deferred
 // to the same follow-up as aws_resource service attributes (design §7, one
@@ -73,13 +79,16 @@ type Relationship struct {
 	// "unknown" when it is empty, so an absent value never blocks an edge.
 	TargetType *string `json:"target_type,omitempty"`
 
-	// Attributes carries every verb-specific payload key that has no named
-	// struct field above (for example the nested "attributes" object a
-	// cloudwatch_alarm_observes_metric fact carries). It is the documented
-	// untyped pass-through, mirroring awsv1.Resource.Attributes: verb-specific
-	// reducer consumers read their fields from here through the decoded struct.
+	// Attributes carries every top-level payload key with no named struct field
+	// above, untyped, mirroring awsv1.Resource.Attributes. In practice the
+	// emitter's only such keys are the nested "attributes" object (which holds
+	// the verb-specific fields, e.g. a cloudwatch_alarm_observes_metric fact's
+	// dimension summary) and the "collector_instance_id" boundary token. Because
+	// the verb-specific fields are nested, a consumer reaches one at
+	// Attributes["attributes"][key], not Attributes[key]; the reducer's
+	// payloadAttributes(relationship.Attributes) helper returns that nested map.
 	// JSON type fidelity is preserved by the custom UnmarshalJSON. Optional: a
-	// relationship with no verb-specific fields leaves it nil.
+	// payload with no unmodeled top-level keys leaves it nil.
 	Attributes map[string]any `json:"-"`
 }
 
