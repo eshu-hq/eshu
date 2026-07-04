@@ -558,17 +558,27 @@ a multi-region database), and `enableDropProtection` as an explicit tri-state
 `EnableCDN` treatment). It emits a `spanner_database_in_instance` edge to the
 parent `spanner.googleapis.com/Instance` — derived from the database's own CAI
 full resource name (`.../instances/<i>/databases/<d>`), since the Database
-resource carries no separate parent-instance field, mirroring the Bigtable
-Cluster extractor's own parent-Instance derivation and failing closed on any
-name that does not carry the exact documented shape — and a
-`spanner_database_encrypted_by_kms_key` edge to the CMEK `CryptoKey` from
-`encryptionConfig.kmsKeyName`, normalized through the shared, strict-domain
-`cmekKeyFullResourceName` helper. Both the parent Instance and the CMEK key are
-surfaced as correlation anchors. `encryptionInfo` (Cloud KMS key-version usage
-detail) and `restoreInfo` (the backup/source-database reference for a restored
-database) are intentionally not declared as struct fields at all, so neither
-is ever decoded into Go memory — verified against the live Spanner v1
-discovery document's Database schema.
+resource carries no separate parent-instance field. The derivation matches the
+full string against an anchored regular expression
+(`^//spanner\.googleapis\.com/projects/[^/]+/instances/([^/]+)/databases/[^/]+$`),
+not a loose substring search: an unanchored check would also accept an extra
+segment between the instance and the databases marker
+(`.../instances/<i>/extra/databases/<d>`), silently deriving a wrong parent, or
+a trailing segment after the database id, so any name that does not carry the
+exact documented shape fails closed (no edge, no anchor). It emits a
+`spanner_database_encrypted_by_kms_key` edge to every CMEK `CryptoKey` resolved
+from `encryptionConfig` — the singular `kmsKeyName` and the plural
+`kmsKeyNames[]` are independent fields per the discovery document (not a
+deprecated/replacement pair: `kmsKeyNames[]` covers a multi-region instance
+configuration that needs more than one regional key to fully cover its
+regions), so both are decoded and each resolves to its own edge, normalized
+through the shared, strict-domain `cmekKeyFullResourceName` helper and
+deduplicated. The parent Instance and every resolved CMEK key are surfaced as
+correlation anchors. `encryptionInfo` (Cloud KMS key-version usage detail, not
+a key resource name) and `restoreInfo` (the backup/source-database reference
+for a restored database) are intentionally not declared as struct fields at
+all, so neither is ever decoded into Go memory — verified against the live
+Spanner v1 discovery document's Database schema.
 
 **IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
 fingerprinted email, display name, OAuth2 client id, disabled posture, and a
