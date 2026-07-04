@@ -489,16 +489,30 @@
    `network_endpoint_group_in_subnetwork` edges to the resolved Network and
    Subnetwork; emits no reverse edge toward the enclosing BackendService,
    since that relationship is already emitted, in the opposite direction, by
-   `extractor_backend_service.go`. A `cloudRun`/`appEngine`/`cloudFunction`
-   sub-object's `service`/`function` name is surfaced as a bounded attribute
-   only, never an edge or anchor, since it names no resolvable CAI resource
-   identity (no project/region/resource-type triple) — only a name scoped to
-   the NEG's own project and region; its `urlMask`/`tag` fields are
-   data-plane routing templates (the same treatment as the URL Map
-   extractor's host/path rules) and are never decoded into a Go struct field
-   at all. `pscTargetService` is a bare hostname, never a resolvable CAI
-   resource, so it is reduced to a deterministic host fingerprint mirroring
-   the Pub/Sub Subscription push-endpoint host-fingerprint treatment; a PSC
+   `extractor_backend_service.go`. For a SERVERLESS NEG the `serverless_type`
+   discriminator is set from sub-object PRESENCE (not from a non-empty name),
+   so a URL-mask NEG that carries the `cloudRun`/`appEngine`/`cloudFunction`
+   object without a fixed service/function name still classifies; a
+   `cloudRun.service` fixed name additionally emits a
+   `network_endpoint_group_targets_serverless_service` edge to the
+   `run.googleapis.com/Service` resolved in the NEG's own project and region
+   (reusing `assetTypeRunService` / `runServiceResourceNamePrefix`, mirroring
+   the Eventarc Trigger extractor's Cloud Run edge). An `appEngine`/
+   `cloudFunction` reference stays a bounded attribute only, never an edge,
+   because an App Engine app id need not equal the project id and a Cloud
+   Function reference carries no gen1/gen2 or region qualifier, so neither
+   resolves to an exact CAI endpoint from the NEG alone; the
+   `urlMask`/`tag`/`version` fields are data-plane routing templates (the same
+   treatment as the URL Map extractor's host/path rules) and are never decoded
+   into a Go struct field at all. A PRIVATE_SERVICE_CONNECT NEG's
+   `pscTargetService` is resolved two mutually-exclusive ways: a Producer
+   Service Attachment self-link emits a
+   `network_endpoint_group_targets_service_attachment` edge to the
+   `compute.googleapis.com/ServiceAttachment` (reusing
+   `assetTypeComputeServiceAttachment` and `computeResourceFullNameFromSelfLink`
+   from `extractor_forwarding_rule.go`), while a bare Google API hostname names
+   no CAI resource and is reduced to a deterministic host fingerprint mirroring
+   the Pub/Sub Subscription push-endpoint host-fingerprint treatment. A PSC
    NEG's `pscData.consumerPscAddress` (the allocated VIP) is never decoded
    into a struct field at all, per the Payload Boundaries no-IP-address rule;
    `pscConnectionId` is kept as the raw string the API reports, never parsed

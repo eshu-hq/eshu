@@ -130,17 +130,55 @@ func TestExtractNetworkEndpointGroupServerlessCloudRun(t *testing.T) {
 		t.Fatalf("attributes mismatch: got %#v want keys %#v", got.Attributes, wantAttrs)
 	}
 
-	// Serverless refs are not resolvable CAI resource identities (only a
-	// service/tag string scoped to the same project+region), so no edge or
-	// anchor is emitted for them, and no urlMask or tag value ever leaves the
-	// parser.
-	if len(got.Relationships) != 0 {
-		t.Fatalf("expected no relationships for a serverless NEG, got %#v", got.Relationships)
+	// A Cloud Run serverless NEG names an exactly resolvable Cloud Run service:
+	// the service is a control-plane resource in the NEG's own project and
+	// region, so it resolves to a run.googleapis.com/Service CAI name and emits
+	// a typed edge, mirroring the Eventarc Trigger extractor's Cloud Run edge.
+	wantService := "//run.googleapis.com/projects/demo-project/locations/us-central1/services/order-service"
+	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupTargetsServerlessService, wantService, assetTypeRunService)
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected exactly 1 relationship (cloud run service), got %#v", got.Relationships)
 	}
+	foundService := false
 	for _, a := range got.CorrelationAnchors {
+		if a == wantService {
+			foundService = true
+		}
+		// The urlMask routing template and the tag are data-plane routing
+		// values and must never leave the parser.
 		if a == "<tag>.domain.com/<service>" || a == "revision-0010" {
 			t.Fatalf("urlMask/tag leaked into correlation anchors: %#v", got.CorrelationAnchors)
 		}
+	}
+	if !foundService {
+		t.Errorf("expected cloud run service anchor %q in %#v", wantService, got.CorrelationAnchors)
+	}
+}
+
+func TestExtractNetworkEndpointGroupServerlessCloudRunURLMaskNoName(t *testing.T) {
+	// A URL-mask Cloud Run NEG carries the cloudRun object with no fixed
+	// service name; the Compute API parses <service> from the request URL at
+	// runtime. The discriminator must still be set from sub-object presence, and
+	// no service edge is emitted since there is no fixed service to resolve.
+	const data = `{
+		"name": "run-mask-neg",
+		"networkEndpointType": "SERVERLESS",
+		"region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+		"cloudRun": {"urlMask": "<service>.example.com"}
+	}`
+
+	got, err := extractNetworkEndpointGroup(networkEndpointGroupContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["serverless_type"] != "cloud_run" {
+		t.Errorf("serverless_type = %v, want cloud_run", got.Attributes["serverless_type"])
+	}
+	if _, ok := got.Attributes["serverless_service"]; ok {
+		t.Errorf("did not expect serverless_service for a url-mask NEG: %#v", got.Attributes)
+	}
+	if len(got.Relationships) != 0 {
+		t.Fatalf("expected no relationships for a url-mask NEG with no fixed service, got %#v", got.Relationships)
 	}
 }
 
@@ -168,6 +206,14 @@ func TestExtractNetworkEndpointGroupServerlessAppEngine(t *testing.T) {
 	if _, ok := got.Attributes["serverless_version"]; ok {
 		t.Errorf("did not expect serverless_version to be surfaced (data-plane routing value): %#v", got.Attributes)
 	}
+	// App Engine and Cloud Function serverless refs are surfaced as attributes
+	// only, never edges: the App Engine app id is not derivable exactly from the
+	// NEG (the app id need not equal the project id) and a Cloud Function
+	// reference carries no gen1/gen2 or region qualifier, so neither resolves to
+	// an exact CAI endpoint. Only the Cloud Run edge is emitted.
+	if len(got.Relationships) != 0 {
+		t.Fatalf("expected no relationships for an app engine NEG, got %#v", got.Relationships)
+	}
 }
 
 func TestExtractNetworkEndpointGroupServerlessCloudFunction(t *testing.T) {
@@ -189,6 +235,9 @@ func TestExtractNetworkEndpointGroupServerlessCloudFunction(t *testing.T) {
 	}
 	if got.Attributes["serverless_service"] != "func1" {
 		t.Errorf("serverless_service = %v, want func1", got.Attributes["serverless_service"])
+	}
+	if len(got.Relationships) != 0 {
+		t.Fatalf("expected no relationships for a cloud function NEG, got %#v", got.Relationships)
 	}
 }
 
@@ -241,6 +290,55 @@ func TestExtractNetworkEndpointGroupPrivateServiceConnect(t *testing.T) {
 	// network is still a valid edge target for a PSC NEG per the live schema.
 	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/default", assetTypeComputeNetwork)
+	// A Google-API hostname pscTargetService names no CAI resource, so it is
+	// fingerprinted, not turned into an edge. Only the network edge is emitted.
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected only the network edge for an API-hostname PSC NEG, got %#v", got.Relationships)
+	}
+	if _, ok := got.Attributes["psc_target_service_attachment"]; ok {
+		t.Errorf("did not expect a service-attachment attribute for a hostname target: %#v", got.Attributes)
+	}
+}
+
+func TestExtractNetworkEndpointGroupPSCTargetServiceAttachment(t *testing.T) {
+	// When pscTargetService is a Producer Service Attachment self-link rather
+	// than a Google API hostname, it names a resolvable
+	// compute.googleapis.com/ServiceAttachment, so a typed edge is emitted (the
+	// same asset type the ForwardingRule extractor already resolves) and the
+	// opaque host fingerprint is not.
+	const data = `{
+		"name": "psc-sa-neg",
+		"networkEndpointType": "PRIVATE_SERVICE_CONNECT",
+		"region": "https://www.googleapis.com/compute/v1/projects/demo-project/regions/us-central1",
+		"pscTargetService": "https://www.googleapis.com/compute/v1/projects/producer-project/regions/us-central1/serviceAttachments/my-psc-sa"
+	}`
+
+	got, err := extractNetworkEndpointGroup(networkEndpointGroupContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantSA := "//compute.googleapis.com/projects/producer-project/regions/us-central1/serviceAttachments/my-psc-sa"
+	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupTargetsServiceAttachment, wantSA, assetTypeComputeServiceAttachment)
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected exactly 1 relationship (service attachment), got %#v", got.Relationships)
+	}
+	if got.Attributes["psc_target_service_attachment"] != wantSA {
+		t.Errorf("psc_target_service_attachment = %v, want %v", got.Attributes["psc_target_service_attachment"], wantSA)
+	}
+	// The resolvable self-link is not also fingerprinted as an opaque hostname.
+	if _, ok := got.Attributes["psc_target_service_fingerprint"]; ok {
+		t.Errorf("did not expect a host fingerprint for a resolvable service-attachment target: %#v", got.Attributes)
+	}
+	foundSA := false
+	for _, a := range got.CorrelationAnchors {
+		if a == wantSA {
+			foundSA = true
+		}
+	}
+	if !foundSA {
+		t.Errorf("expected service-attachment anchor %q in %#v", wantSA, got.CorrelationAnchors)
+	}
 }
 
 func TestExtractNetworkEndpointGroupAnnotationsBoundedToCount(t *testing.T) {

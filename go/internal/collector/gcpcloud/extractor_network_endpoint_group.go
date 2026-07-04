@@ -26,9 +26,26 @@ import (
 // opposite direction, by extractor_backend_service.go
 // (relationshipTypeBackendServiceHasBackend), so emitting it again from this
 // side would duplicate the same fact under a different relationship type.
+//
+// relationshipTypeNetworkEndpointGroupTargetsServerlessService is emitted only
+// for a Cloud Run serverless backend with a fixed service name: the service
+// resolves exactly to a run.googleapis.com/Service in the NEG's own project and
+// region (mirroring the Eventarc Trigger extractor's Cloud Run edge). App
+// Engine and Cloud Function serverless refs stay attribute-only, not edges,
+// because neither resolves to an exact CAI endpoint from the NEG alone (the App
+// Engine app id need not equal the project id; a Cloud Function ref carries no
+// gen1/gen2 or region qualifier).
+//
+// relationshipTypeNetworkEndpointGroupTargetsServiceAttachment is emitted only
+// when a PRIVATE_SERVICE_CONNECT NEG's pscTargetService is a Producer Service
+// Attachment self-link (resolving to compute.googleapis.com/ServiceAttachment,
+// the same asset type the ForwardingRule extractor resolves). A bare Google API
+// hostname target names no CAI resource and is host-fingerprinted instead.
 const (
-	relationshipTypeNetworkEndpointGroupInNetwork    = "network_endpoint_group_in_network"
-	relationshipTypeNetworkEndpointGroupInSubnetwork = "network_endpoint_group_in_subnetwork"
+	relationshipTypeNetworkEndpointGroupInNetwork                = "network_endpoint_group_in_network"
+	relationshipTypeNetworkEndpointGroupInSubnetwork             = "network_endpoint_group_in_subnetwork"
+	relationshipTypeNetworkEndpointGroupTargetsServerlessService = "network_endpoint_group_targets_serverless_service"
+	relationshipTypeNetworkEndpointGroupTargetsServiceAttachment = "network_endpoint_group_targets_service_attachment"
 )
 
 // networkEndpointGroupServerlessCloudRun, ...AppEngine, and ...CloudFunction
@@ -54,17 +71,19 @@ func init() {
 //   - networkEndpointType is decoded as a free string, not validated against a
 //     hardcoded Go enum, since the Compute API is the source of truth for
 //     valid values and a newly-added enum member must not fail extraction.
-//   - cloudRun/appEngine/cloudFunction carry only a `service`/`function` name
-//     scoped to the NEG's own project+region; they are NOT a resolvable CAI
-//     resource identity (no project/region/resource-type triple), so they
-//     surface as a bounded attribute pair, never an edge or anchor. Their
-//     `urlMask`/`tag` fields are data-plane routing templates (the same
-//     treatment as UrlMap's host/path rules) and are never decoded into a Go
-//     struct field at all.
-//   - pscTargetService is a bare hostname (for example
-//     "asia-northeast3-cloudkms.googleapis.com"), never a resolvable CAI
-//     resource; it is reduced to a deterministic host fingerprint, mirroring
-//     the Pub/Sub Subscription push-endpoint host-fingerprint treatment.
+//   - cloudRun carries a `service` name scoped to the NEG's own project and
+//     region, which resolves exactly to a run.googleapis.com/Service, so it
+//     yields a typed edge (mirroring the Eventarc Trigger extractor). appEngine
+//     and cloudFunction carry only a `service`/`function` name that does not
+//     resolve to an exact CAI endpoint from the NEG alone, so they surface as a
+//     bounded attribute only. Their `urlMask`/`tag`/`version` fields are
+//     data-plane routing templates (the same treatment as UrlMap's host/path
+//     rules) and are never decoded into a Go struct field at all.
+//   - pscTargetService is either a Producer Service Attachment self-link, which
+//     resolves to a compute.googleapis.com/ServiceAttachment edge, or a bare
+//     Google API hostname (for example "asia-northeast3-cloudkms.googleapis.com"),
+//     which names no CAI resource and is reduced to a deterministic host
+//     fingerprint, mirroring the Pub/Sub Subscription push-endpoint treatment.
 //   - pscData.consumerPscAddress is a VIP IP address and is never decoded into
 //     a struct field at all, per the GCP collector contract Payload
 //     Boundaries (no public or private IP address is ever persisted).
@@ -124,18 +143,21 @@ type networkEndpointGroupPSCData struct {
 // for one compute NetworkEndpointGroup CAI asset. It returns the
 // Terraform/drift/monitoring attribute set (endpoint type, size, default
 // port, zone or region placement, creation time, serverless discriminator
-// and service/function name, PSC posture and target-service fingerprint, and
-// a bounded annotation count), the enclosing network/subnetwork as
-// cross-source correlation anchors, and the typed network/subnetwork edges.
-// No public or private IP address (a PSC consumer VIP) and no data-plane
-// routing template (a serverless urlMask/tag) ever reaches the output.
+// and service/function name, PSC posture, and a bounded annotation count),
+// cross-source correlation anchors, and the typed edges: the enclosing
+// network and subnetwork, the targeted Cloud Run service for a Cloud Run
+// serverless NEG, and the targeted Service Attachment for a PSC NEG whose
+// pscTargetService is a Producer Service Attachment self-link. No public or
+// private IP address (a PSC consumer VIP) and no data-plane routing template
+// (a serverless urlMask/tag) ever reaches the output.
 func extractNetworkEndpointGroup(ctx ExtractContext) (AttributeExtraction, error) {
 	var data networkEndpointGroupData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
 		return AttributeExtraction{}, fmt.Errorf("decode network endpoint group data: %w", err)
 	}
 
-	attrs := networkEndpointGroupAttributes(data)
+	attrs := map[string]any{}
+	networkEndpointGroupCoreAttributes(data, attrs)
 
 	var anchors []string
 	var rels []RelationshipObservation
@@ -149,6 +171,18 @@ func extractNetworkEndpointGroup(ctx ExtractContext) (AttributeExtraction, error
 		rels = append(rels, networkEndpointGroupEdge(ctx, relationshipTypeNetworkEndpointGroupInSubnetwork, subnetName, assetTypeComputeSubnetwork))
 	}
 
+	serverlessRels, serverlessAnchors := networkEndpointGroupServerlessAttributes(ctx, data, attrs)
+	rels = append(rels, serverlessRels...)
+	anchors = append(anchors, serverlessAnchors...)
+
+	pscRels, pscAnchors := networkEndpointGroupPSCAttributes(ctx, data, attrs)
+	rels = append(rels, pscRels...)
+	anchors = append(anchors, pscAnchors...)
+
+	if n := len(data.Annotations); n > 0 {
+		attrs["annotation_count"] = n
+	}
+
 	return AttributeExtraction{
 		Attributes:         attrs,
 		CorrelationAnchors: dedupeNonEmpty(anchors),
@@ -156,14 +190,13 @@ func extractNetworkEndpointGroup(ctx ExtractContext) (AttributeExtraction, error
 	}, nil
 }
 
-// networkEndpointGroupAttributes assembles the bounded attribute map. Empty
-// or absent fields are omitted rather than written as zero values so a
+// networkEndpointGroupCoreAttributes fills the bounded scalar attribute set.
+// Empty or absent fields are omitted rather than written as zero values so a
 // partial CAI page does not fabricate a posture. A NEG is either zonal
 // (zone set) or regional/global (region set, or neither for a global
 // internet NEG) per the Compute resource model, so both are decoded and kept
 // independently rather than one being derived from the other.
-func networkEndpointGroupAttributes(data networkEndpointGroupData) map[string]any {
-	attrs := map[string]any{}
+func networkEndpointGroupCoreAttributes(data networkEndpointGroupData, attrs map[string]any) {
 	if v := strings.TrimSpace(data.NetworkEndpointType); v != "" {
 		attrs["network_endpoint_type"] = v
 	}
@@ -182,60 +215,102 @@ func networkEndpointGroupAttributes(data networkEndpointGroupData) map[string]an
 	if v, ok := normalizeRFC3339(data.CreationTimestamp); ok {
 		attrs["creation_time"] = v
 	}
-
-	networkEndpointGroupServerlessAttributes(data, attrs)
-	networkEndpointGroupPSCAttributes(data, attrs)
-
-	if n := len(data.Annotations); n > 0 {
-		attrs["annotation_count"] = n
-	}
-	return attrs
 }
 
 // networkEndpointGroupServerlessAttributes sets the serverless_type
-// discriminator and serverless_service name for a SERVERLESS NEG's exactly
-// one configured backend (cloudRun, appEngine, or cloudFunction — the
-// Compute API enforces this mutual exclusivity). No urlMask, tag, or version
-// value is ever surfaced, since those are data-plane routing templates, not
-// resource identities.
-func networkEndpointGroupServerlessAttributes(data networkEndpointGroupData, attrs map[string]any) {
+// discriminator for a SERVERLESS NEG's exactly one configured backend
+// (cloudRun, appEngine, or cloudFunction — the Compute API enforces this
+// mutual exclusivity). The discriminator is set from sub-object PRESENCE, not
+// from a non-empty name, because a URL-mask NEG carries the sub-object with no
+// fixed service/function name (the name is parsed from the request URL at
+// runtime) yet is still a valid Cloud Run / App Engine / Cloud Function NEG
+// that inventory must be able to distinguish. serverless_service is added only
+// when a fixed name is present, and the Cloud Run service — the one serverless
+// backend that resolves exactly to a CAI resource in the NEG's own project and
+// region — emits a typed edge, mirroring the Eventarc Trigger extractor. No
+// urlMask, tag, or version value is ever surfaced, since those are data-plane
+// routing templates, not resource identities.
+func networkEndpointGroupServerlessAttributes(ctx ExtractContext, data networkEndpointGroupData, attrs map[string]any) ([]RelationshipObservation, []string) {
 	switch {
-	case data.CloudRun != nil && strings.TrimSpace(data.CloudRun.Service) != "":
+	case data.CloudRun != nil:
 		attrs["serverless_type"] = networkEndpointGroupServerlessCloudRun
-		attrs["serverless_service"] = strings.TrimSpace(data.CloudRun.Service)
-	case data.AppEngine != nil && strings.TrimSpace(data.AppEngine.Service) != "":
+		service := strings.TrimSpace(data.CloudRun.Service)
+		if service == "" {
+			return nil, nil
+		}
+		attrs["serverless_service"] = service
+		serviceName := networkEndpointGroupRunServiceFullName(ctx.ProjectID, data.Region, service)
+		if serviceName == "" {
+			return nil, nil
+		}
+		return []RelationshipObservation{
+			networkEndpointGroupEdge(ctx, relationshipTypeNetworkEndpointGroupTargetsServerlessService, serviceName, assetTypeRunService),
+		}, []string{serviceName}
+	case data.AppEngine != nil:
 		attrs["serverless_type"] = networkEndpointGroupServerlessAppEngine
-		attrs["serverless_service"] = strings.TrimSpace(data.AppEngine.Service)
-	case data.CloudFunction != nil && strings.TrimSpace(data.CloudFunction.Function) != "":
+		if service := strings.TrimSpace(data.AppEngine.Service); service != "" {
+			attrs["serverless_service"] = service
+		}
+	case data.CloudFunction != nil:
 		attrs["serverless_type"] = networkEndpointGroupServerlessCloudFunction
-		attrs["serverless_service"] = strings.TrimSpace(data.CloudFunction.Function)
+		if fn := strings.TrimSpace(data.CloudFunction.Function); fn != "" {
+			attrs["serverless_service"] = fn
+		}
 	}
+	return nil, nil
 }
 
 // networkEndpointGroupPSCAttributes sets the bounded Private Service Connect
-// posture: the fingerprinted target-service hostname, connection status,
-// producer port, and connection id. consumerPscAddress is never read (see
-// networkEndpointGroupPSCData's doc comment), so it can never be surfaced
-// here even by omission-of-a-guard mistake.
-func networkEndpointGroupPSCAttributes(data networkEndpointGroupData, attrs map[string]any) {
-	if fp := networkEndpointGroupPSCTargetServiceFingerprint(data.PSCTargetService); fp != "" {
+// posture: connection status, producer port, and connection id from pscData,
+// plus target-service resolution. A pscTargetService that is a Producer
+// Service Attachment self-link resolves to a compute.googleapis.com/
+// ServiceAttachment and emits a typed edge (the same asset type the
+// ForwardingRule extractor resolves); a bare Google API hostname names no CAI
+// resource and is reduced to a deterministic host fingerprint instead — the
+// two cases are mutually exclusive, so exactly one of the edge or the
+// fingerprint is produced. consumerPscAddress is never read (see
+// networkEndpointGroupPSCData's doc comment), so it can never be surfaced here
+// even by omission-of-a-guard mistake.
+func networkEndpointGroupPSCAttributes(ctx ExtractContext, data networkEndpointGroupData, attrs map[string]any) ([]RelationshipObservation, []string) {
+	var rels []RelationshipObservation
+	var anchors []string
+	if saName := computeResourceFullNameFromSelfLink(data.PSCTargetService, "serviceAttachments", ctx.ProjectID); saName != "" {
+		attrs["psc_target_service_attachment"] = saName
+		anchors = append(anchors, saName)
+		rels = append(rels, networkEndpointGroupEdge(ctx, relationshipTypeNetworkEndpointGroupTargetsServiceAttachment, saName, assetTypeComputeServiceAttachment))
+	} else if fp := networkEndpointGroupPSCTargetServiceFingerprint(data.PSCTargetService); fp != "" {
 		attrs["psc_target_service_fingerprint"] = fp
 	}
-	if data.PSCData == nil {
-		return
+	if data.PSCData != nil {
+		if v := strings.TrimSpace(data.PSCData.PSCConnectionStatus); v != "" {
+			attrs["psc_connection_status"] = v
+		}
+		if v, ok := parseFlexibleInt64(data.PSCData.ProducerPort); ok {
+			attrs["psc_producer_port"] = v
+		}
+		// pscConnectionId is a Compute-assigned uint64 that can exceed
+		// float64/int64 precision; it is kept as the raw string the API
+		// reports, never parsed to a numeric type.
+		if v := strings.TrimSpace(data.PSCData.PSCConnectionID); v != "" {
+			attrs["psc_connection_id"] = v
+		}
 	}
-	if v := strings.TrimSpace(data.PSCData.PSCConnectionStatus); v != "" {
-		attrs["psc_connection_status"] = v
+	return rels, anchors
+}
+
+// networkEndpointGroupRunServiceFullName builds the CAI Cloud Run Service full
+// resource name for a serverless NEG's cloudRun.service. The service is a
+// control-plane resource in the NEG's own project (ctx.ProjectID) and region
+// (the NEG's own region self-link), so it resolves exactly. It returns "" when
+// the project, region, or service is missing, so no unresolved edge is minted.
+func networkEndpointGroupRunServiceFullName(projectID, regionRef, service string) string {
+	project := strings.TrimSpace(projectID)
+	region := computeRegionName(regionRef)
+	svc := strings.TrimSpace(service)
+	if project == "" || region == "" || svc == "" {
+		return ""
 	}
-	if v, ok := parseFlexibleInt64(data.PSCData.ProducerPort); ok {
-		attrs["psc_producer_port"] = v
-	}
-	// pscConnectionId is a Compute-assigned uint64 that can exceed
-	// float64/int64 precision; it is kept as the raw string the API reports,
-	// never parsed to a numeric type.
-	if v := strings.TrimSpace(data.PSCData.PSCConnectionID); v != "" {
-		attrs["psc_connection_id"] = v
-	}
+	return runServiceResourceNamePrefix + "projects/" + project + "/locations/" + region + "/services/" + svc
 }
 
 // networkEndpointGroupPSCTargetServiceFingerprint returns a stable,
