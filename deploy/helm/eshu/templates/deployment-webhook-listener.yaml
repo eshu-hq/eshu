@@ -84,11 +84,13 @@ spec:
             {{- if .Values.webhookListener.gcpFreshness.enabled }}
             - name: ESHU_GCP_FRESHNESS_PATH
               value: {{ .Values.webhookListener.gcpFreshness.path | quote }}
+            {{- if .Values.webhookListener.gcpFreshness.secretName }}
             - name: ESHU_GCP_FRESHNESS_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.webhookListener.gcpFreshness.secretName }}
                   key: {{ .Values.webhookListener.gcpFreshness.tokenKey }}
+            {{- end }}
             {{- if .Values.webhookListener.gcpFreshness.oidc.enabled }}
             - name: ESHU_GCP_FRESHNESS_OIDC_AUDIENCE
               value: {{ .Values.webhookListener.gcpFreshness.oidc.audience | quote }}

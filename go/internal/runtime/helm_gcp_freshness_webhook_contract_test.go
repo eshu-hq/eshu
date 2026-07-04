@@ -226,6 +226,76 @@ webhookListener:
 	}
 }
 
+// TestHelmGCPFreshnessWebhookOIDCOnlyRendersWithoutSecret proves the codex/
+// Copilot-flagged OIDC-only deployment renders cleanly: gcpFreshness.enabled
+// with only oidc.audience/oidc.allowedServiceAccountEmail set (no secretName
+// at all) renders the route, the OIDC env vars, and never renders
+// ESHU_GCP_FRESHNESS_TOKEN or any secretKeyRef pointing at a nonexistent
+// Secret. Confirms the documented "OIDC needs no secret material" contract is
+// actually renderable, not just described.
+func TestHelmGCPFreshnessWebhookOIDCOnlyRendersWithoutSecret(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "webhook-listener-gcp-freshness-oidc-only-values.yaml")
+	values := []byte(`
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+webhookListener:
+  enabled: true
+  gcpFreshness:
+    enabled: true
+    path: /webhook/gcp-freshness
+    oidc:
+      enabled: true
+      audience: https://eshu.example.test/webhook/gcp-freshness
+      allowedServiceAccountEmail: push-invoker@example-project.iam.gserviceaccount.com
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write GCP freshness oidc-only values: %v", err)
+	}
+
+	manifests := renderHelmChart(t, "-f", valuesPath)
+	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-webhook-listener")
+	container := requireHelmContainer(t, deployment, "webhook-listener")
+	env := helmEnvByName(container)
+
+	assertHelmLiteralEnv(t, env, "ESHU_GCP_FRESHNESS_PATH", "/webhook/gcp-freshness")
+	assertHelmLiteralEnv(t, env, "ESHU_GCP_FRESHNESS_OIDC_AUDIENCE", "https://eshu.example.test/webhook/gcp-freshness")
+	assertHelmLiteralEnv(t, env, "ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA", "push-invoker@example-project.iam.gserviceaccount.com")
+
+	if _, ok := env["ESHU_GCP_FRESHNESS_TOKEN"]; ok {
+		t.Fatalf("env ESHU_GCP_FRESHNESS_TOKEN rendered with no secretName configured, want absent for an OIDC-only deployment")
+	}
+}
+
+// TestHelmGCPFreshnessWebhookRequiresSecretOrOIDC proves that
+// webhookListener.gcpFreshness.enabled=true with neither secretName nor a
+// complete oidc.audience/oidc.allowedServiceAccountEmail pair fails to
+// render, rather than silently producing a route with no accepted auth path.
+func TestHelmGCPFreshnessWebhookRequiresSecretOrOIDC(t *testing.T) {
+	t.Parallel()
+
+	valuesPath := filepath.Join(t.TempDir(), "webhook-listener-gcp-freshness-neither-values.yaml")
+	values := []byte(`
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+webhookListener:
+  enabled: true
+  gcpFreshness:
+    enabled: true
+    path: /webhook/gcp-freshness
+`)
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		t.Fatalf("write GCP freshness neither-secret-nor-oidc values: %v", err)
+	}
+
+	output := renderHelmChartFailure(t, "-f", valuesPath)
+	wantSubstring := "webhookListener.gcpFreshness requires either secretName"
+	if !strings.Contains(output, wantSubstring) {
+		t.Fatalf("helm template error = %q, want substring %q", output, wantSubstring)
+	}
+}
+
 func TestGCPFreshnessWebhookValuesAreDocumented(t *testing.T) {
 	t.Parallel()
 

@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"google.golang.org/api/idtoken"
 )
 
 // fakeGCPPushOIDCValidator is a hermetic, in-process stand-in for
@@ -47,6 +49,74 @@ const (
 	gcpFreshnessTestOIDCAllowedSA  = "push-invoker@example-project.iam.gserviceaccount.com"
 	gcpFreshnessTestOIDCValidToken = "valid-google-signed-oidc-token"
 )
+
+// TestValidateGoogleOIDCPayloadAcceptsGoogleIssuers proves both accepted
+// Google issuer forms (bare and https-prefixed) pass the issuer check and
+// extract the email/email_verified claims.
+func TestValidateGoogleOIDCPayloadAcceptsGoogleIssuers(t *testing.T) {
+	t.Parallel()
+
+	for _, issuer := range []string{"accounts.google.com", "https://accounts.google.com"} {
+		t.Run(issuer, func(t *testing.T) {
+			t.Parallel()
+			payload := &idtoken.Payload{
+				Issuer: issuer,
+				Claims: map[string]any{
+					"email":          gcpFreshnessTestOIDCAllowedSA,
+					"email_verified": true,
+				},
+			}
+			email, emailVerified, err := validateGoogleOIDCPayload(payload)
+			if err != nil {
+				t.Fatalf("validateGoogleOIDCPayload() error = %v, want nil for issuer %q", err, issuer)
+			}
+			if email != gcpFreshnessTestOIDCAllowedSA || !emailVerified {
+				t.Fatalf("validateGoogleOIDCPayload() = (%q, %v), want (%q, true)", email, emailVerified, gcpFreshnessTestOIDCAllowedSA)
+			}
+		})
+	}
+}
+
+// TestValidateGoogleOIDCPayloadRejectsWrongIssuer proves a Google-signed
+// token minted for an unrelated purpose (any issuer other than Google's own
+// accounts.google.com forms) is rejected, even though idtoken.Validate itself
+// does not check the issuer claim. This is the fix for the codex P1 finding:
+// idtoken.Validate only verifies signature, audience, and expiry.
+func TestValidateGoogleOIDCPayloadRejectsWrongIssuer(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{
+		"",
+		"https://attacker.example.test",
+		"google.com",
+		"https://accounts.google.com.attacker.test",
+	}
+	for _, issuer := range tests {
+		t.Run(issuer, func(t *testing.T) {
+			t.Parallel()
+			payload := &idtoken.Payload{
+				Issuer: issuer,
+				Claims: map[string]any{
+					"email":          gcpFreshnessTestOIDCAllowedSA,
+					"email_verified": true,
+				},
+			}
+			if _, _, err := validateGoogleOIDCPayload(payload); err == nil {
+				t.Fatalf("validateGoogleOIDCPayload() error = nil for issuer %q, want rejection", issuer)
+			}
+		})
+	}
+}
+
+// TestValidateGoogleOIDCPayloadRejectsNilPayload proves a nil payload is
+// rejected fail-closed rather than panicking.
+func TestValidateGoogleOIDCPayloadRejectsNilPayload(t *testing.T) {
+	t.Parallel()
+
+	if _, _, err := validateGoogleOIDCPayload(nil); err == nil {
+		t.Fatal("validateGoogleOIDCPayload(nil) error = nil, want rejection")
+	}
+}
 
 func TestVerifyGCPPushOIDCAcceptsValidToken(t *testing.T) {
 	t.Parallel()

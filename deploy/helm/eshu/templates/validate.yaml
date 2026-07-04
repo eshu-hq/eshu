@@ -521,8 +521,11 @@
 {{- if and .Values.webhookListener.awsFreshness.enabled (not .Values.webhookListener.awsFreshness.secretName) -}}
 {{- fail "webhookListener.awsFreshness.secretName is required when webhookListener.awsFreshness.enabled=true" -}}
 {{- end -}}
-{{- if and .Values.webhookListener.gcpFreshness.enabled (not .Values.webhookListener.gcpFreshness.secretName) -}}
-{{- fail "webhookListener.gcpFreshness.secretName is required when webhookListener.gcpFreshness.enabled=true" -}}
+{{- if .Values.webhookListener.gcpFreshness.enabled -}}
+{{- $gcpFreshnessOIDCConfigured := and .Values.webhookListener.gcpFreshness.oidc.audience .Values.webhookListener.gcpFreshness.oidc.allowedServiceAccountEmail -}}
+{{- if and (not .Values.webhookListener.gcpFreshness.secretName) (not $gcpFreshnessOIDCConfigured) -}}
+{{- fail "webhookListener.gcpFreshness requires either secretName (shared token) or both oidc.audience and oidc.allowedServiceAccountEmail when enabled=true" -}}
+{{- end -}}
 {{- end -}}
 {{- if and .Values.webhookListener.pagerDuty.enabled (not .Values.webhookListener.pagerDuty.secretName) -}}
 {{- fail "webhookListener.pagerDuty.secretName is required when webhookListener.pagerDuty.enabled=true" -}}

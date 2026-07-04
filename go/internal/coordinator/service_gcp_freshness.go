@@ -24,6 +24,18 @@ const (
 	gcpFreshnessActionCreated     = "handoff_created"
 	gcpFreshnessActionFailed      = "handoff_failed"
 	gcpFreshnessActionSkipped     = "handoff_skipped"
+
+	// gcpFreshnessAuthPathNotApplicable is the neutral auth_path value the
+	// coordinator's handoff loop stamps on eshu_dp_gcp_freshness_events_total.
+	// The webhook listener's intake path (go/cmd/webhook-listener) stamps this
+	// same counter with the auth mechanism that authenticated the inbound push
+	// ("shared_token"/"oidc"/"none"); the coordinator's own handoff loop is a
+	// downstream trigger-claim/fan-out step with no request to authenticate,
+	// so it is not one of those three values. Every producer of this counter
+	// must set auth_path so all series share one bounded label set — a mixed
+	// label set (some series with the attribute, some without) breaks
+	// Prometheus `sum by (..., auth_path)` aggregation (see issue #4659 review).
+	gcpFreshnessAuthPathNotApplicable = "n/a"
 )
 
 // GCPFreshnessTriggerStore is the durable trigger queue surface used by the
@@ -346,6 +358,7 @@ func (s Service) recordGCPFreshnessEvent(ctx context.Context, kind freshness.Eve
 	s.GCPFreshnessEvents.Add(ctx, 1, metric.WithAttributes(
 		telemetry.AttrKind(kindValue),
 		telemetry.AttrAction(action),
+		telemetry.AttrAuthPath(gcpFreshnessAuthPathNotApplicable),
 	))
 }
 

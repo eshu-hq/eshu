@@ -78,10 +78,14 @@ const (
 	MetricDimensionReason   = "reason"
 	MetricDimensionKind     = "kind"
 	MetricDimensionAction   = "action"
-	// MetricDimensionAuthPath labels GCP freshness webhook events with the
-	// bounded accepted auth path that authenticated the request: "shared_token",
-	// "oidc", or "none" (no accepted path matched). Producers must never use a
-	// raw header, token, or claim value here.
+	// MetricDimensionAuthPath labels every eshu_dp_gcp_freshness_events_total
+	// series with a bounded four-value enum: "shared_token" or "oidc" (the
+	// webhook listener's accepted auth path that authenticated the inbound
+	// push), "none" (the webhook listener rejected the request — neither path
+	// matched), or "n/a" (the coordinator's downstream handoff loop, which has
+	// no request to authenticate). Every producer of this counter MUST set
+	// this label so all series share one label set; producers must never use
+	// a raw header, token, or claim value here.
 	MetricDimensionAuthPath  = "auth_path"
 	MetricDimensionProvider  = "provider"
 	MetricDimensionEventKind = "event_kind"

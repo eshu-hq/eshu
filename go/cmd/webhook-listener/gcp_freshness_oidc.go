@@ -35,10 +35,24 @@ type gcpPushOIDCValidator interface {
 // audience claim. It never logs or persists the raw token.
 type googleOIDCValidator struct{}
 
+// googleOIDCIssuers is the closed set of issuer claim values Google mints
+// service-account-signed OIDC tokens under (Pub/Sub push, IAM, and other
+// Google-signed ID tokens all use one of these two forms). idtoken.Validate
+// verifies signature, audience, and expiry, but NOT the issuer — Google's own
+// Pub/Sub authenticated-push sample explicitly checks payload.Issuer after
+// validation, because a syntactically valid Google-signed token minted for an
+// unrelated purpose would otherwise pass every other check. Rejecting any
+// other issuer keeps this verification scoped to genuine Google-minted tokens.
+var googleOIDCIssuers = map[string]bool{
+	"accounts.google.com":         true,
+	"https://accounts.google.com": true,
+}
+
 // ValidateGCPPushToken implements gcpPushOIDCValidator using Google's official
 // idtoken verifier. See idtoken.Validate for the exact verification the
 // upstream library performs (RS256/ES256 signature check against Google's
-// certs, audience match, expiry).
+// certs, audience match, expiry); the issuer claim is checked afterward via
+// validateGoogleOIDCPayload since idtoken.Validate does not check it.
 func (googleOIDCValidator) ValidateGCPPushToken(
 	ctx context.Context,
 	idToken string,
@@ -47,6 +61,19 @@ func (googleOIDCValidator) ValidateGCPPushToken(
 	payload, err := idtoken.Validate(ctx, idToken, audience)
 	if err != nil {
 		return "", false, fmt.Errorf("validate GCP push OIDC token: %w", err)
+	}
+	return validateGoogleOIDCPayload(payload)
+}
+
+// validateGoogleOIDCPayload checks the issuer claim on an already
+// signature/audience/expiry-verified idtoken.Payload and extracts the
+// email/email_verified claims. Split out from ValidateGCPPushToken so the
+// issuer check has direct unit-test coverage without requiring a live,
+// Google-signed token (idtoken.Validate itself always calls out to Google's
+// cert endpoints, so it cannot be exercised hermetically).
+func validateGoogleOIDCPayload(payload *idtoken.Payload) (string, bool, error) {
+	if payload == nil || !googleOIDCIssuers[payload.Issuer] {
+		return "", false, fmt.Errorf("validate GCP push OIDC token: unexpected issuer")
 	}
 	email, _ := payload.Claims["email"].(string)
 	emailVerified, _ := payload.Claims["email_verified"].(bool)
