@@ -143,15 +143,26 @@ func (f fakeCounter) ListNodeProperty(_ context.Context, label, prop string) ([]
 	return f.nodeProp[label+"|"+prop], f.err
 }
 
-// fileLanguageFloor seeds the File-language required-node floor (rn-file-language,
-// minimum_count 10) so a minimal-gate test can satisfy the snapshot's
-// unconditionally-asserted required nodes while focusing on its own assertion.
+// fileLanguageFloor seeds every unconditionally-asserted required_nodes floor
+// (rn-file-language, rn-dataplex-entry-group, rn-identity-platform-config) so a
+// minimal-gate test can satisfy the snapshot's required nodes while focusing on
+// its own assertion. The two GCP posture-only entries pin identity via a single
+// CloudResource node carrying the matching resource_type value (see
+// testdata/golden/e2e-20repo-snapshot.json).
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
 	for i := range langs {
 		langs[i] = "go"
 	}
-	return map[string]int64{"File": int64(len(langs))}, map[string][]string{"File|language": langs}
+	nodes := map[string]int64{"File": int64(len(langs)), "CloudResource": 2}
+	nodeProp := map[string][]string{
+		"File|language": langs,
+		"CloudResource|resource_type": {
+			"dataplex.googleapis.com/EntryGroup",
+			"identitytoolkit.googleapis.com/Config",
+		},
+	}
+	return nodes, nodeProp
 }
 
 func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {

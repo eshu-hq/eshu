@@ -1353,6 +1353,34 @@
         "required_node_properties": [
           "language"
         ]
+      },
+      {
+        "id": "rn-dataplex-entry-group",
+        "description": "At least 1 CloudResource node carries resource_type dataplex.googleapis.com/EntryGroup; the gcpcloud cassette's demo-entry-group asset (asset_type_family dataplex) has no outbound edges or correlation anchors (an entry group is a container referenced inbound by its entries, per the #4478 extractor contract), so identity is pinned by node presence and the resource_type property rather than by a required_correlation. Isolates this posture-only resource from the aggregate CloudResource floor, which alone cannot distinguish it from the other 89 GCP nodes sharing the label.",
+        "label": "CloudResource",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "resource_type"
+        ],
+        "allowed_node_property_values": {
+          "resource_type": [
+            "dataplex.googleapis.com/EntryGroup"
+          ]
+        }
+      },
+      {
+        "id": "rn-identity-platform-config",
+        "description": "At least 1 CloudResource node carries resource_type identitytoolkit.googleapis.com/Config; the gcpcloud cassette's demo-identity-config asset (asset_type_family identitytoolkit) has no outbound edges or correlation anchors (the config's graph value -- its owning project, IdP configs, and authorized domains -- is either ancestry already carried on the base observation or non-resolvable CAI sub-resources/strings, per the #4475 extractor contract), so identity is pinned by node presence and the resource_type property rather than by a required_correlation. Isolates this posture-only resource from the aggregate CloudResource floor, which alone cannot distinguish it from the other 89 GCP nodes sharing the label.",
+        "label": "CloudResource",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "resource_type"
+        ],
+        "allowed_node_property_values": {
+          "resource_type": [
+            "identitytoolkit.googleapis.com/Config"
+          ]
+        }
       }
     ]
   },
