@@ -467,6 +467,46 @@
    counts and are never persisted or surfaced to any fact — only bounded counts
    and booleans leave this extractor, mirroring the Custom IAM Role extractor's
    treatment of its permission list.
+50. `extractor_network_endpoint_group.go` - typed-depth extractor for
+   `compute.googleapis.com/NetworkEndpointGroup` (network endpoint type
+   decoded as a free string — never validated against a hardcoded Go enum,
+   since the Compute API is the source of truth for valid values — size,
+   default port, zone or region placement, creation time, a serverless
+   discriminator plus service/function name for a SERVERLESS NEG's exactly
+   one configured cloudRun/appEngine/cloudFunction backend, Private Service
+   Connect posture — connection status, producer port, connection id, and a
+   fingerprinted target-service hostname — and a bounded annotation count;
+   verified against the live Compute v1 discovery document, whose
+   `networkEndpointType` enum is `GCE_VM_IP`, `GCE_VM_IP_PORT`,
+   `GCE_VM_IP_PORTMAP`, `INTERNET_FQDN_PORT`, `INTERNET_IP_PORT`,
+   `NON_GCP_PRIVATE_IP_PORT`, `PRIVATE_SERVICE_CONNECT`, `SERVERLESS`).
+   Reuses `assetTypeComputeNetworkEndpointGroup` from
+   `extractor_backend_service.go` (the BackendService extractor already
+   resolves a backend entry's `group` reference toward this asset type as its
+   shared `backend_service_has_backend` edge target; never redeclaring it
+   here) and `assetTypeComputeNetwork` / `assetTypeComputeSubnetwork` from
+   `extractor_subnetwork.go`. Emits `network_endpoint_group_in_network` and
+   `network_endpoint_group_in_subnetwork` edges to the resolved Network and
+   Subnetwork; emits no reverse edge toward the enclosing BackendService,
+   since that relationship is already emitted, in the opposite direction, by
+   `extractor_backend_service.go`. A `cloudRun`/`appEngine`/`cloudFunction`
+   sub-object's `service`/`function` name is surfaced as a bounded attribute
+   only, never an edge or anchor, since it names no resolvable CAI resource
+   identity (no project/region/resource-type triple) — only a name scoped to
+   the NEG's own project and region; its `urlMask`/`tag` fields are
+   data-plane routing templates (the same treatment as the URL Map
+   extractor's host/path rules) and are never decoded into a Go struct field
+   at all. `pscTargetService` is a bare hostname, never a resolvable CAI
+   resource, so it is reduced to a deterministic host fingerprint mirroring
+   the Pub/Sub Subscription push-endpoint host-fingerprint treatment; a PSC
+   NEG's `pscData.consumerPscAddress` (the allocated VIP) is never decoded
+   into a struct field at all, per the Payload Boundaries no-IP-address rule;
+   `pscConnectionId` is kept as the raw string the API reports, never parsed
+   to a numeric type, since it is a Compute-assigned uint64 that can exceed
+   int64/float64 precision. `annotations` is a label-shaped map; only its
+   bounded count is surfaced, mirroring the Filestore Instance and Workflows
+   Workflow treatment of labels/tags already captured by the collector's
+   shared label path.
 
 ## Invariants
 
