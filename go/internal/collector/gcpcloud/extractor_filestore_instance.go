@@ -102,7 +102,7 @@ func extractFilestoreInstance(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, filestoreInstanceEdge(ctx, relationshipTypeFilestoreInstanceInNetwork, networkName, assetTypeComputeNetwork))
 	}
 
-	if kmsName := filestoreKMSKeyFullName(data.KMSKeyName); kmsName != "" {
+	if kmsName := cmekKeyFullResourceName(data.KMSKeyName); kmsName != "" {
 		attrs["kms_key_name"] = strings.TrimPrefix(kmsName, cloudKMSResourceNamePrefix)
 		anchors = append(anchors, kmsName)
 		rels = append(rels, filestoreInstanceEdge(ctx, relationshipTypeFilestoreInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
@@ -163,30 +163,6 @@ func filestoreNetworkFullName(ref, projectID string) string {
 		trimmed = "global/networks/" + trimmed
 	}
 	return computeFullResourceNameFromSelfLink(trimmed, projectID)
-}
-
-// filestoreKMSKeyFullName builds the CAI CryptoKey full resource name from
-// kmsKeyName, which the Filestore API documents as a KMS key reference
-// without a fixed prefix convention. An already CAI-prefixed
-// ("//cloudkms.googleapis.com/...") value is returned unchanged so the prefix
-// is never doubled; an absolute name for any other service domain is rejected
-// (returns "") so a typo or malformed asset can never poison the anchor or edge
-// with a non-KMS endpoint; a bare relative name is prefixed. This mirrors the
-// Logging Log Bucket extractor's logBucketKMSKeyFullName rather than the
-// Memorystore Redis Instance helper, which accepts any absolute name. It
-// returns "" for a blank or wrong-domain reference.
-func filestoreKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		if strings.HasPrefix(trimmed, cloudKMSResourceNamePrefix) {
-			return trimmed
-		}
-		return ""
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // filestoreInstanceEdge builds a supported typed relationship observation

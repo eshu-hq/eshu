@@ -150,20 +150,12 @@ func secretManagerSecretAttributes(data secretManagerSecretData) map[string]any 
 }
 
 // secretHasCMEK reports whether the secret declares customer-managed encryption
-// on its automatic replication or any user-managed replica.
+// that resolves to at least one Cloud KMS CryptoKey. It is derived from the same
+// normalized key set that drives the encryption edges (secretManagerKMSKeyFullNames)
+// so the customer_managed_encryption attribute and the emitted edges always
+// agree: a wrong-domain kmsKeyName the strict normalizer rejects sets neither.
 func secretHasCMEK(data secretManagerSecretData) bool {
-	if a := data.Replication.Automatic; a != nil && a.CustomerManagedEncryption != nil &&
-		strings.TrimSpace(a.CustomerManagedEncryption.KMSKeyName) != "" {
-		return true
-	}
-	if u := data.Replication.UserManaged; u != nil {
-		for _, r := range u.Replicas {
-			if r.CustomerManagedEncryption != nil && strings.TrimSpace(r.CustomerManagedEncryption.KMSKeyName) != "" {
-				return true
-			}
-		}
-	}
-	return false
+	return len(secretManagerKMSKeyFullNames(data)) > 0
 }
 
 // secretManagerKMSKeyFullNames returns the deduplicated CMEK CryptoKey full
@@ -171,7 +163,7 @@ func secretHasCMEK(data secretManagerSecretData) bool {
 func secretManagerKMSKeyFullNames(data secretManagerSecretData) []string {
 	var keys []string
 	if a := data.Replication.Automatic; a != nil && a.CustomerManagedEncryption != nil {
-		if name := secretManagerKMSKeyFullName(a.CustomerManagedEncryption.KMSKeyName); name != "" {
+		if name := cmekKeyFullResourceName(a.CustomerManagedEncryption.KMSKeyName); name != "" {
 			keys = append(keys, name)
 		}
 	}
@@ -180,28 +172,12 @@ func secretManagerKMSKeyFullNames(data secretManagerSecretData) []string {
 			if r.CustomerManagedEncryption == nil {
 				continue
 			}
-			if name := secretManagerKMSKeyFullName(r.CustomerManagedEncryption.KMSKeyName); name != "" {
+			if name := cmekKeyFullResourceName(r.CustomerManagedEncryption.KMSKeyName); name != "" {
 				keys = append(keys, name)
 			}
 		}
 	}
 	return dedupeNonEmpty(keys)
-}
-
-// secretManagerKMSKeyFullName builds the CAI CryptoKey full resource name from a
-// relative KMS key name (projects/.../cryptoKeys/...). An already-normalized CAI
-// full resource name (//cloudkms.googleapis.com/...) is returned unchanged so the
-// prefix is never doubled. It returns "" for a blank reference so the caller
-// emits no encryption edge.
-func secretManagerKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // secretManagerTopicFullNames returns the deduplicated Pub/Sub topic full

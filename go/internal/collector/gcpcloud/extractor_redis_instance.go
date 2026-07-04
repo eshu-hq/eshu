@@ -81,7 +81,7 @@ func extractRedisInstance(ctx ExtractContext) (AttributeExtraction, error) {
 	}
 
 	if kms := strings.TrimSpace(data.CustomerManagedKey); kms != "" {
-		if kmsName := redisInstanceKMSKeyFullName(kms); kmsName != "" {
+		if kmsName := cmekKeyFullResourceName(kms); kmsName != "" {
 			attrs["customer_managed_key"] = strings.TrimPrefix(kmsName, cloudKMSResourceNamePrefix)
 			anchors = append(anchors, kmsName)
 			rels = append(rels, redisInstanceEdge(ctx, relationshipTypeRedisInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
@@ -140,24 +140,6 @@ func redisInstanceAttributes(data redisInstanceData) map[string]any {
 		}
 	}
 	return attrs
-}
-
-// redisInstanceKMSKeyFullName builds the CAI CryptoKey full resource name from
-// customerManagedKey, which the Memorystore API documents as a KMS key
-// reference without a fixed prefix convention. An already CAI-prefixed
-// ("//cloudkms.googleapis.com/...") value is returned unchanged so the prefix
-// is never doubled; a bare relative name is prefixed as-is, mirroring the
-// Dataproc Cluster and Cloud Storage Bucket CMEK normalization. It returns ""
-// only for a blank reference.
-func redisInstanceKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // redisInstanceEdge builds a supported typed relationship observation rooted

@@ -172,23 +172,38 @@ func TestExtractPubSubTopicMalformedDataErrors(t *testing.T) {
 	}
 }
 
-func TestPubSubTopicKMSKeyFullName(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"relative key", "projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"leading slash", "/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"already full name", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"blank", "", ""},
+// TestExtractPubSubTopicWrongDomainKMSKeyEmitsNoEdgeOrAnchor proves the Pub/Sub
+// Topic extractor now drops a wrong-domain absolute kmsKeyName after converging
+// onto the shared strict cmekKeyFullResourceName. Before consolidation this
+// extractor used a permissive helper that returned any //-prefixed value
+// unchanged, which would have minted a bogus encryption edge to a non-KMS
+// endpoint. Real Cloud Asset Inventory never emits such a value for kmsKeyName,
+// so this hardens a latent fabricated-edge path without changing valid-input
+// behavior. The valid-input normalization itself is covered by
+// TestCMEKKeyFullResourceName.
+func TestExtractPubSubTopicWrongDomainKMSKeyEmitsNoEdgeOrAnchor(t *testing.T) {
+	raw := `{"kmsKeyName": "//pubsub.googleapis.com/projects/p/topics/t"}`
+	got, err := extractPubSubTopic(ExtractContext{
+		FullResourceName: "//pubsub.googleapis.com/projects/p/topics/topic",
+		AssetType:        assetTypePubSubTopic,
+		ProjectID:        "p",
+		Data:             []byte(raw),
+	})
+	if err != nil {
+		t.Fatalf("extractPubSubTopic returned error: %v", err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := pubSubTopicKMSKeyFullName(tc.in); got != tc.want {
-				t.Errorf("pubSubTopicKMSKeyFullName(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
+	if _, ok := got.Attributes["customer_managed_encryption"]; ok {
+		t.Errorf("wrong-domain kmsKeyName must not set customer_managed_encryption: %#v", got.Attributes)
+	}
+	for _, anchor := range got.CorrelationAnchors {
+		if anchor == "//pubsub.googleapis.com/projects/p/topics/t" {
+			t.Errorf("wrong-domain kmsKeyName leaked as anchor: %q", anchor)
+		}
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeTopicEncryptedByKMSKey {
+			t.Errorf("wrong-domain kmsKeyName minted an encryption edge: %+v", rel)
+		}
 	}
 }
 

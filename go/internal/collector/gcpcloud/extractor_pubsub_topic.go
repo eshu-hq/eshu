@@ -6,7 +6,6 @@ package gcpcloud
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -73,7 +72,12 @@ func extractPubSubTopic(ctx ExtractContext) (AttributeExtraction, error) {
 
 	var anchors []string
 	var rels []RelationshipObservation
-	if kmsName := pubSubTopicKMSKeyFullName(data.KMSKeyName); kmsName != "" {
+	if kmsName := cmekKeyFullResourceName(data.KMSKeyName); kmsName != "" {
+		// Derive the CMEK posture from the normalized key so the attribute agrees
+		// with the edge: a wrong-domain kmsKeyName that the strict normalizer
+		// rejects must not report customer_managed_encryption=true while emitting
+		// no encryption edge.
+		attrs["customer_managed_encryption"] = true
 		anchors = append(anchors, kmsName)
 		rels = append(rels, pubSubTopicEdge(ctx, relationshipTypeTopicEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
@@ -101,9 +105,6 @@ func pubSubTopicAttributes(data pubSubTopicData) map[string]any {
 	if v := strings.TrimSpace(data.State); v != "" {
 		attrs["state"] = v
 	}
-	if strings.TrimSpace(data.KMSKeyName) != "" {
-		attrs["customer_managed_encryption"] = true
-	}
 	if p := data.MessageStoragePolicy; p != nil {
 		if regions := dedupeSortedNonEmpty(p.AllowedPersistenceRegions); len(regions) > 0 {
 			attrs["message_storage_regions"] = regions
@@ -125,22 +126,6 @@ func pubSubTopicAttributes(data pubSubTopicData) map[string]any {
 		attrs["message_retention_duration"] = v
 	}
 	return attrs
-}
-
-// pubSubTopicKMSKeyFullName builds the CAI CryptoKey full resource name from a
-// relative KMS key name (projects/.../cryptoKeys/...). An already-normalized CAI
-// full resource name (//cloudkms.googleapis.com/...) is returned unchanged so the
-// prefix is never doubled. It returns "" for a blank reference so the caller
-// emits no encryption edge.
-func pubSubTopicKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // pubSubTopicSchemaFullName builds the CAI Pub/Sub Schema full resource name from
@@ -171,13 +156,4 @@ func pubSubTopicEdge(ctx ExtractContext, relationshipType, targetName, targetTyp
 		TargetAssetType:        targetType,
 		SupportState:           RelationshipSupportSupported,
 	}
-}
-
-// dedupeSortedNonEmpty trims, drops blanks, deduplicates, and sorts a string
-// slice so an attribute like the message-storage region set is deterministic
-// regardless of the order the API reported it.
-func dedupeSortedNonEmpty(in []string) []string {
-	out := dedupeNonEmpty(in)
-	sort.Strings(out)
-	return out
 }

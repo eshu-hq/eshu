@@ -213,23 +213,35 @@ func TestSecretManagerSecretTTLExpiration(t *testing.T) {
 	}
 }
 
-func TestSecretManagerKMSKeyFullName(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"relative key", "projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"leading slash", "/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"already full name", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"blank", "", ""},
+// TestExtractSecretManagerWrongDomainKMSKeyEmitsNoEdgeOrAnchor proves the Secret
+// Manager Secret extractor now drops a wrong-domain absolute CMEK kmsKeyName
+// after converging onto the shared strict cmekKeyFullResourceName. Before
+// consolidation this extractor used a permissive helper that returned any
+// //-prefixed value unchanged. Real Cloud Asset Inventory never emits such a
+// value; the valid-input normalization is covered by TestCMEKKeyFullResourceName.
+func TestExtractSecretManagerWrongDomainKMSKeyEmitsNoEdgeOrAnchor(t *testing.T) {
+	raw := `{"replication":{"automatic":{"customerManagedEncryption":{"kmsKeyName":"//pubsub.googleapis.com/projects/p/topics/t"}}}}`
+	got, err := extractSecretManagerSecret(ExtractContext{
+		FullResourceName: "//secretmanager.googleapis.com/projects/p/secrets/s",
+		AssetType:        secretManagerSecretAssetType,
+		ProjectID:        "p",
+		Data:             []byte(raw),
+	})
+	if err != nil {
+		t.Fatalf("extractSecretManagerSecret returned error: %v", err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := secretManagerKMSKeyFullName(tc.in); got != tc.want {
-				t.Errorf("secretManagerKMSKeyFullName(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
+	if _, ok := got.Attributes["customer_managed_encryption"]; ok {
+		t.Errorf("wrong-domain kmsKeyName must not set customer_managed_encryption: %#v", got.Attributes)
+	}
+	for _, anchor := range got.CorrelationAnchors {
+		if anchor == "//pubsub.googleapis.com/projects/p/topics/t" {
+			t.Errorf("wrong-domain kmsKeyName leaked as anchor: %q", anchor)
+		}
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeSecretEncryptedByKMSKey {
+			t.Errorf("wrong-domain kmsKeyName minted an encryption edge: %+v", rel)
+		}
 	}
 }
 

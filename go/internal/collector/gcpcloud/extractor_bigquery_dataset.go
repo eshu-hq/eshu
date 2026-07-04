@@ -6,7 +6,6 @@ package gcpcloud
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -255,18 +254,18 @@ func addDatasetAccessSummary(attrs map[string]any, access []bigQueryDatasetAcces
 		return
 	}
 	attrs["access_entry_count"] = len(access)
-	roles := newStringSet()
-	classes := newStringSet()
+	roles := make([]string, 0, len(access))
+	classes := make([]string, 0, len(access))
 	for _, entry := range access {
 		if role := strings.TrimSpace(entry.Role); role != "" {
-			roles.add(role)
+			roles = append(roles, role)
 		}
-		classes.add(datasetAccessMemberClass(entry))
+		classes = append(classes, datasetAccessMemberClass(entry))
 	}
-	if sorted := roles.sorted(); len(sorted) > 0 {
+	if sorted := dedupeSortedNonEmpty(roles); len(sorted) > 0 {
 		attrs["access_roles"] = sorted
 	}
-	if sorted := classes.sorted(); len(sorted) > 0 {
+	if sorted := dedupeSortedNonEmpty(classes); len(sorted) > 0 {
 		attrs["access_member_classes"] = sorted
 	}
 }
@@ -325,34 +324,4 @@ func bigQueryDatasetEdge(ctx ExtractContext, relationshipType, targetName, targe
 		TargetAssetType:        targetType,
 		SupportState:           RelationshipSupportSupported,
 	}
-}
-
-// stringSet collects distinct non-blank strings and returns them sorted, keeping
-// the bounded role and principal-class summaries deterministic across CAI pages.
-type stringSet struct {
-	seen map[string]struct{}
-}
-
-func newStringSet() stringSet {
-	return stringSet{seen: map[string]struct{}{}}
-}
-
-func (s stringSet) add(value string) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return
-	}
-	s.seen[trimmed] = struct{}{}
-}
-
-func (s stringSet) sorted() []string {
-	if len(s.seen) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(s.seen))
-	for v := range s.seen {
-		out = append(out, v)
-	}
-	sort.Strings(out)
-	return out
 }

@@ -339,24 +339,30 @@ func TestDataflowRegionFromZone(t *testing.T) {
 	}
 }
 
-func TestDataflowJobKMSKeyFullName(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"relative key", "projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"leading slash", "/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"already full name", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k", "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/r/cryptoKeys/k"},
-		{"whitespace only", "   ", ""},
-		{"blank", "", ""},
+// TestExtractDataflowJobWrongDomainKMSKeyEmitsNoEdgeOrAttribute proves the
+// Dataflow Job extractor now drops a wrong-domain absolute serviceKmsKeyName
+// after converging onto the shared strict cmekKeyFullResourceName. Before
+// consolidation this extractor used a permissive helper that returned any
+// //-prefixed value unchanged. Real Cloud Asset Inventory never emits such a
+// value; the valid-input normalization is covered by TestCMEKKeyFullResourceName.
+func TestExtractDataflowJobWrongDomainKMSKeyEmitsNoEdgeOrAttribute(t *testing.T) {
+	const data = `{"environment": {"serviceKmsKeyName": "//pubsub.googleapis.com/projects/p/topics/t"}}`
+	got, err := extractDataflowJob(dataflowJobContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := dataflowJobKMSKeyFullName(tc.in); got != tc.want {
-				t.Errorf("dataflowJobKMSKeyFullName(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
+	if _, ok := got.Attributes["service_kms_key_name"]; ok {
+		t.Errorf("wrong-domain CMEK must not set service_kms_key_name: %#v", got.Attributes)
+	}
+	for _, anchor := range got.CorrelationAnchors {
+		if anchor == "//pubsub.googleapis.com/projects/p/topics/t" {
+			t.Errorf("wrong-domain serviceKmsKeyName leaked as anchor: %q", anchor)
+		}
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeDataflowJobEncryptedByKMSKey {
+			t.Fatalf("wrong-domain serviceKmsKeyName minted a CMEK edge: %#v", rel)
+		}
 	}
 }
 

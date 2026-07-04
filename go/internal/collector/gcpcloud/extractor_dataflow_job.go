@@ -120,7 +120,7 @@ func extractDataflowJob(ctx ExtractContext) (AttributeExtraction, error) {
 			anchors = append(anchors, fp)
 		}
 
-		if kms := dataflowJobKMSKeyFullName(env.ServiceKmsKeyName); kms != "" {
+		if kms := cmekKeyFullResourceName(env.ServiceKmsKeyName); kms != "" {
 			attrs["service_kms_key_name"] = strings.TrimPrefix(kms, cloudKMSResourceNamePrefix)
 			anchors = append(anchors, kms)
 			rels = append(rels, dataflowJobEdge(ctx, relationshipTypeDataflowJobEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
@@ -297,24 +297,6 @@ func dataflowStagingBucket(prefix string) string {
 		return strings.TrimSpace(bucket)
 	}
 	return ""
-}
-
-// dataflowJobKMSKeyFullName builds the CAI CryptoKey full resource name from a
-// Dataflow Job's environment.serviceKmsKeyName, which the API documents as a
-// relative KMS key reference. An already CAI-prefixed
-// ("//cloudkms.googleapis.com/...") value is returned unchanged so the prefix
-// is never doubled; a bare relative name is prefixed, mirroring the Dataproc
-// Cluster and Memorystore Redis Instance CMEK normalization. It returns "" for
-// a blank reference.
-func dataflowJobKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // dataflowJobEdge builds one typed provider relationship observation anchored
