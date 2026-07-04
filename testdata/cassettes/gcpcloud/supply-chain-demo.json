@@ -1539,6 +1539,58 @@
         },
         {
           "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:memcache.googleapis.com/Instance:supply-chain-demo-project:us-central1:demo-memcache",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//memcache.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/instances/demo-memcache",
+            "asset_type": "memcache.googleapis.com/Instance",
+            "project_id": "supply-chain-demo-project",
+            "location": "us-central1",
+            "display_name": "demo-memcache",
+            "state": "READY",
+            "asset_type_family": "memcache",
+            "correlation_anchors": [
+              "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc"
+            ],
+            "attributes": {
+              "display_name": "demo-memcache",
+              "zone_count": 2,
+              "node_count": 3,
+              "cpu_count": 1,
+              "memory_size_mb": 1024,
+              "memcache_version": "MEMCACHE_1_5",
+              "memcache_full_version": "1.5.16",
+              "creation_time": "2026-01-15T00:00:00Z",
+              "state": "READY",
+              "maintenance_version": "1",
+              "effective_maintenance_version": "1",
+              "memcache_node_count": 3
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:memcache_instance_in_network:demo-memcache->demo-vpc",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//memcache.googleapis.com/projects/supply-chain-demo-project/locations/us-central1/instances/demo-memcache",
+            "source_asset_type": "memcache.googleapis.com/Instance",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "memcache_instance_in_network",
+            "target_full_resource_name": "//compute.googleapis.com/projects/supply-chain-demo-project/global/networks/demo-vpc",
+            "target_asset_type": "compute.googleapis.com/Network",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
           "stable_fact_key": "gcp:project:supply-chain-demo-project:pubsub.googleapis.com/Schema:supply-chain-demo-project:global:demo-schema",
           "schema_version": "1.1.0",
           "collector_kind": "gcp",
