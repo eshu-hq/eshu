@@ -93,23 +93,32 @@ and anything with a repo-scale performance contract. A candidate index, query
 rewrite, cache, prefilter, denormalization, or backend knob is a theory until it
 is measured — do not build on an unmeasured one. Agents MUST NOT dispatch an
 executor, land production code, or open a PR on a theory that has not been
-proven, and MUST kill any executor already dispatched on an unproven theory
+proven, and MUST stop any executor already dispatched on an unproven theory
 until the proof lands.
 
 A valid proof isolates the theory against representative data — ideally the
-worst-case partition or dataset, not the average — and shows BOTH of:
+worst-case partition or dataset, not the average — and always shows the win:
+OLD shape versus NEW shape measured on the same data (for example
+`EXPLAIN ANALYZE` timings, `PROFILE` db-hits, or benchmark ns/op). The result
+proof then depends on whether the change is meant to alter behavior:
 
-- the win: OLD shape versus NEW shape measured on the same data (for example
-  `EXPLAIN ANALYZE` timings, `PROFILE` db-hits, or benchmark ns/op), and
-- exact-equivalence: the NEW shape returns identical results to the OLD shape
-  (a symmetric set-difference of `0/0`, matching row counts, or identical
-  output), so the speedup is not bought by changing the answer.
+- Output-preserving change (an optimization or rewrite whose results are meant
+  to stay identical): also show exact-equivalence — the NEW shape returns
+  identical results to the OLD shape (a symmetric set-difference of `0/0`,
+  matching row counts, or identical output), so the speedup is not bought by
+  changing the answer.
+- Behavior change (a correctness or accuracy fix where the old path returned
+  wrong graph/query/deployment truth): prove the intended delta instead — the
+  NEW output matches the corrected expectation via a failing-then-green
+  regression test or an explicit expected-diff, never identity with the old
+  wrong output.
 
 A theory that is disproven is a saved implementation, not a failure: record the
 result and pick the next candidate. A change of this kind MUST NOT be created,
 accepted, pushed, or merged unless the theory proof — the shim/`EXPLAIN`/`PROFILE`/
-benchmark commands actually run, their before/after numbers, and the equivalence
-check — is recorded alongside the finished change's local proof. PRs MUST NOT be
+benchmark commands actually run, their before/after numbers, and the
+equivalence or expected-delta check — is recorded alongside the finished
+change's local proof. PRs MUST NOT be
 accepted on the expectation that a rewrite is faster; the number and the
 equivalence MUST be shown. This complements [Evidence Rules](#evidence-rules) and
 [Serialization Is Not A Fix](#serialization-is-not-a-fix).
