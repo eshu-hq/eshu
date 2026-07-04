@@ -329,8 +329,14 @@ func TestWrapBoundsConcurrency(t *testing.T) {
 	for time.Now().Before(deadline) && bp.InFlight() < maxInFlight {
 		time.Sleep(time.Millisecond)
 	}
-	if got := bp.InFlight(); got > maxInFlight {
-		t.Fatalf("InFlight() = %d, want <= %d", got, maxInFlight)
+	// InFlight() must actually REACH maxInFlight, not merely stay at or below
+	// it: with 10 blocked callers racing for 2 permits, a wait loop that timed
+	// out below the ceiling would mean writes never reached the configured
+	// concurrency budget (an accidental serialization regression the
+	// project's "Serialization Is Not A Fix" rule bars), which a
+	// got<=maxInFlight-only assertion would silently accept.
+	if got := bp.InFlight(); got != maxInFlight {
+		t.Fatalf("InFlight() = %d, want exactly %d (bound breached or writes were serialized below the ceiling)", got, maxInFlight)
 	}
 	close(probe.release)
 	wg.Wait()

@@ -16,13 +16,6 @@ import (
 // degrading a grouped write to per-statement execution.
 var errInnerNoExecuteGroup = errors.New("inner executor does not support ExecuteGroup")
 
-// errInnerNoExecutePhaseGroup is returned by ExecutePhaseGroup when the wrapped
-// executor does not implement PhaseGroupExecutor, mirroring
-// errInnerNoExecuteGroup's fail-closed contract so the backpressure wrapper
-// never silently degrades a phase-group write (e.g. bootstrap-index's
-// canonical phase-group executor) to per-statement execution.
-var errInnerNoExecutePhaseGroup = errors.New("inner executor does not support ExecutePhaseGroup")
-
 // BackpressureObserver receives backpressure signals from a BackpressureExecutor
 // so a runtime can surface them as operator metrics without coupling this
 // package to a concrete meter. waited reports that a write blocked for a permit
@@ -216,28 +209,6 @@ func (e *BackpressureExecutor) ExecuteGroup(ctx context.Context, statements []St
 	return ge.ExecuteGroup(ctx, statements)
 }
 
-// ExecutePhaseGroup runs a bounded phase-group write (one canonical write
-// phase, e.g. bootstrap-index's per-label/per-phase grouped statements) under
-// the same in-flight bound as Execute and ExecuteGroup, so the phase-group path
-// cannot bypass the ceiling. It acquires exactly ONE permit for the whole call
-// — covering every statement in the group plus any retry/deadline the inner
-// executor applies — and releases it when the call completes, mirroring
-// ExecuteGroup's one-permit-per-call contract exactly. It returns
-// errInnerNoExecutePhaseGroup if Inner does not support phase-group writes,
-// rather than silently degrading to sequential execution.
-func (e *BackpressureExecutor) ExecutePhaseGroup(ctx context.Context, statements []Statement) error {
-	pge, ok := e.inner.(PhaseGroupExecutor)
-	if !ok {
-		return errInnerNoExecutePhaseGroup
-	}
-	release, err := e.gate.Acquire(ctx, groupOperationLabel(statements))
-	if err != nil {
-		return err
-	}
-	defer release()
-	return pge.ExecutePhaseGroup(ctx, statements)
-}
-
 // executeOnlyBackpressureWrapper wraps BackpressureExecutor but intentionally
 // does not implement GroupExecutor. Use it when the inner executor does not
 // support grouped writes so callers that type-assert GroupExecutor fall through
@@ -259,38 +230,4 @@ func (w executeOnlyBackpressureWrapper) Execute(ctx context.Context, stmt Statem
 // execution rather than hitting errInnerNoExecuteGroup inside ExecuteGroup.
 func ExecuteOnlyBackpressureExecutor(bp *BackpressureExecutor) Executor {
 	return executeOnlyBackpressureWrapper{bp: bp}
-}
-
-// phaseGroupBackpressureWrapper wraps BackpressureExecutor and exposes exactly
-// Execute and ExecutePhaseGroup, intentionally never GroupExecutor. Use it when
-// the inner executor implements PhaseGroupExecutor but not GroupExecutor (e.g.
-// bootstrap-index's bootstrapNornicDBPhaseGroupExecutor), so callers that
-// type-assert cypher.PhaseGroupExecutor see it preserved through the
-// backpressure gate, while callers that type-assert GroupExecutor correctly see
-// it absent rather than hitting errInnerNoExecuteGroup inside ExecuteGroup.
-type phaseGroupBackpressureWrapper struct {
-	bp *BackpressureExecutor
-}
-
-// Execute forwards the statement to the underlying BackpressureExecutor,
-// preserving the in-flight bound without exposing ExecuteGroup.
-func (w phaseGroupBackpressureWrapper) Execute(ctx context.Context, stmt Statement) error {
-	return w.bp.Execute(ctx, stmt)
-}
-
-// ExecutePhaseGroup forwards the phase-group write to the underlying
-// BackpressureExecutor's ExecutePhaseGroup, preserving the one-permit-per-call
-// in-flight bound.
-func (w phaseGroupBackpressureWrapper) ExecutePhaseGroup(ctx context.Context, statements []Statement) error {
-	return w.bp.ExecutePhaseGroup(ctx, statements)
-}
-
-// PhaseGroupBackpressureExecutor returns an Executor that also implements
-// PhaseGroupExecutor, backed by bp, without exposing GroupExecutor. Use when
-// the inner executor implements PhaseGroupExecutor but not GroupExecutor (the
-// bootstrap-index canonical write path) so type assertions for
-// cypher.PhaseGroupExecutor see the phase-group method preserved through the
-// gate instead of falling back to sequential per-statement execution.
-func PhaseGroupBackpressureExecutor(bp *BackpressureExecutor) Executor {
-	return phaseGroupBackpressureWrapper{bp: bp}
 }

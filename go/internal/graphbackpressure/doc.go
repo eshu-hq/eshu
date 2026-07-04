@@ -8,21 +8,18 @@
 // It is the root-cause control for issue #3560: when the graph backend is slow,
 // every reducer/projector/bootstrap-index worker can drive a concurrent write
 // that exceeds its deadline, and the timeouts dead-letter recoverable work. Wrap
-// and WrapExecutorWithGate bound in-flight writes so a slow backend holds its
-// permits longer, which blocks additional workers at the write boundary and
-// slows intake (closed-loop backpressure) instead of converting transient
-// slowness into a dead-letter flood. The bound is opt-in and not a serialization
-// fix: the ceiling is configurable and greater than one, so useful write
-// concurrency is preserved.
+// bounds in-flight writes so a slow backend holds its permits longer, which
+// blocks additional workers at the write boundary and slows intake (closed-loop
+// backpressure) instead of converting transient slowness into a dead-letter
+// flood. The bound is opt-in and not a serialization fix: the ceiling is
+// configurable and greater than one, so useful write concurrency is preserved.
 //
-// WrapExecutorWithGate preserves whichever grouped-write interface the wrapped
-// executor implements: cypher.GroupExecutor (atomic whole-materialization
-// writes, e.g. Neo4j) or cypher.PhaseGroupExecutor (bounded per-phase grouped
-// writes, e.g. bootstrap-index's NornicDB canonical executor, issue #4515 Lane
-// B). Preserving the narrower PhaseGroupExecutor interface through the gate is
-// required: without it, CanonicalNodeWriter.Write cannot distinguish the
-// wrapped executor from a plain Executor and silently falls back to
-// per-statement sequential execution, a serialization regression.
+// bootstrap-index (issue #4515, Lane B) wires the gate around the inner
+// GroupExecutor-capable layer of its canonical NornicDB executor, not around
+// its outer PhaseGroupExecutor entry point, because that outer call fans out
+// into multiple concurrent inner GroupExecutor calls; gating only the outer
+// call would leave the fan-out unbounded. See
+// cmd/bootstrap-index/nornicdb_wiring.go and this package's README for detail.
 //
 // The package exists on its own (rather than in internal/runtime) to avoid an
 // import cycle: the cypher package's internal tests import internal/runtime, so

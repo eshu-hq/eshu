@@ -280,13 +280,7 @@ func NewGate(maxInFlight int, instruments *telemetry.Instruments, gateName strin
 // exposes. When the gate is set but inner does not implement GroupExecutor (the
 // ExecuteOnlyExecutor path), the returned value intentionally does not expose
 // ExecuteGroup so callers that type-assert GroupExecutor fall through to
-// sequential execution instead of hitting errInnerNoExecuteGroup. When inner
-// implements cypher.PhaseGroupExecutor instead of GroupExecutor (bootstrap-
-// index's canonical executor shape, bootstrapNornicDBPhaseGroupExecutor), the
-// returned value preserves ExecutePhaseGroup rather than stripping it: without
-// this case, wrapping such an executor outermost would silently degrade every
-// bootstrap canonical write to CanonicalNodeWriter.Write's per-statement
-// sequential Execute fallback, a forbidden serialization regression.
+// sequential execution instead of hitting errInnerNoExecuteGroup.
 func WrapExecutorWithGate(inner cypher.Executor, gate *cypher.BackpressureGate) cypher.Executor {
 	if gate == nil {
 		return inner
@@ -294,9 +288,6 @@ func WrapExecutorWithGate(inner cypher.Executor, gate *cypher.BackpressureGate) 
 	bp := cypher.NewBackpressureExecutorWithGate(inner, gate)
 	if _, ok := inner.(cypher.GroupExecutor); ok {
 		return bp // full interface: Executor + GroupExecutor
-	}
-	if _, ok := inner.(cypher.PhaseGroupExecutor); ok {
-		return cypher.PhaseGroupBackpressureExecutor(bp) // Executor + PhaseGroupExecutor
 	}
 	return cypher.ExecuteOnlyBackpressureExecutor(bp) // Executor only
 }
