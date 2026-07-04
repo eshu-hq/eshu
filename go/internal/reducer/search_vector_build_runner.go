@@ -134,15 +134,30 @@ func (c SearchVectorBuildRunnerConfig) documentLimit() int {
 	return c.DocumentLimit
 }
 
+// SearchVectorBuildIdentity names the vector-identity tuple a search_vector_ready
+// signal is scoped to: the same (provider profile, source class, embedding
+// model, vector index version) tuple ListPendingSearchVectorScopes and the
+// builder ports key their work by. A ready publish for one identity tuple
+// MUST NOT satisfy freshness for a different tuple — otherwise a provider,
+// model, or index-version rollout (or two reducer/API configs sharing one
+// Postgres) would serve stale-under-new-config as fresh.
+type SearchVectorBuildIdentity struct {
+	ProviderProfileID  string
+	SourceClass        string
+	EmbeddingModelID   string
+	VectorIndexVersion string
+}
+
 // SearchVectorBuildReadyPublisher publishes the search_vector_ready
-// completion signal once a bounded sweep finds zero pending scopes, so a
-// downstream freshness evaluator (go/internal/query's
-// pending_search_vector FreshnessCause) can clear the cause. Implementations
-// persist a maintainer watermark (mirroring the
-// supply_chain_impact_winners_materialization pattern) so the signal survives
-// across the reducer and query/API process boundary.
+// completion signal, keyed by identity, once a bounded sweep finds zero
+// pending scopes for that identity, so a downstream freshness evaluator
+// (go/internal/query's pending_search_vector FreshnessCause) can clear the
+// cause for that same identity. Implementations persist a maintainer
+// watermark (mirroring the supply_chain_impact_winners_materialization
+// pattern) so the signal survives across the reducer and query/API process
+// boundary.
 type SearchVectorBuildReadyPublisher interface {
-	PublishSearchVectorReady(ctx context.Context) error
+	PublishSearchVectorReady(ctx context.Context, identity SearchVectorBuildIdentity) error
 }
 
 // SearchVectorBuildRunner builds derived vector rows beside normal
@@ -248,6 +263,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 			if err != nil {
 				return result, fmt.Errorf("build search vectors for %d scopes: %w", len(scopes), err)
 			}
+			r.publishReadyIfCaughtUp(ctx)
 			return result, nil
 		}
 	}
@@ -279,25 +295,52 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 	r.recordPhaseMetrics(ctx, result)
 	buildErr := errors.Join(failures...)
 	if buildErr == nil {
-		r.publishReadyIfCaughtUp(ctx, result)
+		r.publishReadyIfCaughtUp(ctx)
 	}
 	return result, buildErr
 }
 
-// publishReadyIfCaughtUp publishes the search_vector_ready completion signal
-// when this bounded sweep found zero pending scopes at the start (search is
-// caught up) and a ReadyPublisher is configured. It never publishes while
-// PendingScopes > 0, and the caller only reaches this on the error-free path,
-// so a failed sweep never reports readiness. A publish failure is logged, not
-// returned, mirroring the maintainer-resweep pattern elsewhere (the sweep
-// itself succeeded; only the completion signal failed to persist) so a
-// transient watermark-write error does not turn a successful bounded sweep
-// into a reported failure.
-func (r *SearchVectorBuildRunner) publishReadyIfCaughtUp(ctx context.Context, result SearchVectorBuildRunnerResult) {
-	if r.ReadyPublisher == nil || result.PendingScopes > 0 {
+// publishReadyIfCaughtUp re-checks pending scopes AFTER the build (not the
+// pre-build listing this sweep started with) and publishes search_vector_ready
+// only when that post-build check finds zero pending scopes for the runner's
+// vector-identity tuple. Gating on the post-build state (rather than the
+// pre-build PendingScopes count) is required because a sweep that drains the
+// LAST pending scopes has a non-zero pre-build count but a truly caught-up
+// post-build state — the exact case the signal exists for (#4673 review
+// fix). It is reached from both the batch-builder fast path and the serial
+// per-scope path so production (which uses the batch path) actually
+// publishes. A nil ReadyPublisher skips the check entirely (no extra
+// Postgres round trip when nobody reads the signal). A re-check probe error
+// or any remaining pending scope skips publish without treating the sweep
+// itself as failed. A publish failure is logged, not returned, mirroring the
+// maintainer-resweep pattern elsewhere (the sweep itself succeeded; only the
+// completion signal failed to persist) so a transient watermark-write error
+// does not turn a successful bounded sweep into a reported failure.
+func (r *SearchVectorBuildRunner) publishReadyIfCaughtUp(ctx context.Context) {
+	if r.ReadyPublisher == nil {
 		return
 	}
-	if err := r.ReadyPublisher.PublishSearchVectorReady(ctx); err != nil {
+	remaining, err := r.Pending.ListPendingSearchVectorScopes(ctx, SearchVectorBuildPendingRequest{
+		ProviderProfileID:  r.Config.ProviderProfileID,
+		SourceClass:        r.Config.SourceClass,
+		EmbeddingModelID:   r.Config.EmbeddingModelID,
+		VectorIndexVersion: r.Config.VectorIndexVersion,
+		Limit:              1,
+	})
+	if err != nil {
+		r.logPublishFailure(ctx, fmt.Errorf("re-check pending search vector scopes: %w", err))
+		return
+	}
+	if len(remaining) > 0 {
+		return
+	}
+	identity := SearchVectorBuildIdentity{
+		ProviderProfileID:  r.Config.ProviderProfileID,
+		SourceClass:        r.Config.SourceClass,
+		EmbeddingModelID:   r.Config.EmbeddingModelID,
+		VectorIndexVersion: r.Config.VectorIndexVersion,
+	}
+	if err := r.ReadyPublisher.PublishSearchVectorReady(ctx, identity); err != nil {
 		r.logPublishFailure(ctx, err)
 	}
 }

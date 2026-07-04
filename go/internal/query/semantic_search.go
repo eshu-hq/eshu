@@ -244,7 +244,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 
 	access := repositoryAccessFilterFromContext(r.Context())
 	if access.empty() {
-		WriteSuccess(w, r, http.StatusOK, emptySemanticSearchResponse(req), h.truthWithSearchVectorFreshness(r))
+		WriteSuccess(w, r, http.StatusOK, emptySemanticSearchResponse(req), h.truthWithSearchVectorFreshness(r, req.Mode))
 		return
 	}
 	if !access.allowsRepositoryID(body.RepoID) {
@@ -281,7 +281,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		r,
 		http.StatusOK,
 		semanticSearchResponseFromRetrieval(req, retrieval, indexResult, body.Rerank),
-		h.truthWithSearchVectorFreshness(r),
+		h.truthWithSearchVectorFreshness(r, req.Mode),
 	)
 }
 
@@ -369,20 +369,34 @@ func (h *SemanticSearchHandler) truth() *TruthEnvelope {
 }
 
 // truthWithSearchVectorFreshness builds the response truth envelope and, when
-// a search-vector-ready reader is configured, downgrades it from the
-// search-vector build sweep's search_vector_ready watermark so an outstanding
-// build is attributable (pending_search_vector) instead of served as silently
-// fresh. Mirrors applyWinnersFreshness's call-site shape in
-// supply_chain_impact_findings_handler.go: a probe failure reports the
-// envelope unavailable rather than dropping the already-served results.
-func (h *SemanticSearchHandler) truthWithSearchVectorFreshness(r *http.Request) *TruthEnvelope {
+// a search-vector-ready reader is configured AND the resolved mode is
+// vector-backed (semantic or hybrid — the same gate semanticSearchBackend
+// uses to decide whether LocalHybrid's vector path is even wired in),
+// downgrades it from the search-vector build sweep's search_vector_ready
+// watermark so an outstanding build is attributable (pending_search_vector)
+// instead of served as silently fresh. mode:"keyword" is served entirely by
+// the deterministic lexical index and is never degraded by vector/index
+// readiness (see semanticSearchDegradation), so it must never be downgraded
+// by a pending search-vector build. Mirrors applyWinnersFreshness's call-site
+// shape in supply_chain_impact_findings_handler.go: a probe failure reports
+// the envelope unavailable rather than dropping the already-served results.
+func (h *SemanticSearchHandler) truthWithSearchVectorFreshness(r *http.Request, mode searchbench.Mode) *TruthEnvelope {
 	truth := h.truth()
-	if h.SearchVectorReady == nil {
+	if h.SearchVectorReady == nil || !searchVectorBackedMode(mode) {
 		return truth
 	}
 	watermark, err := h.SearchVectorReady.SearchVectorReadyWatermark(r.Context())
 	applySearchVectorFreshness(truth, watermark, err, time.Now())
 	return truth
+}
+
+// searchVectorBackedMode reports whether mode retrieves through the
+// search-vector index (semantic or hybrid), matching the gate
+// semanticSearchBackend uses to decide whether LocalHybrid's vector path is
+// engaged. mode:"keyword" is served entirely by the deterministic lexical
+// index and never touches search-vector state.
+func searchVectorBackedMode(mode searchbench.Mode) bool {
+	return mode == searchbench.ModeSemantic || mode == searchbench.ModeHybrid
 }
 
 func writeSemanticSearchError(w http.ResponseWriter, r *http.Request, status int, code ErrorCode, message string) {
