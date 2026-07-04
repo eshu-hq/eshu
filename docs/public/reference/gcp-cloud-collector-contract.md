@@ -1238,6 +1238,22 @@ fields — `host`, `port`, `readEndpoint`, `readEndpointPort`,
 `reservedIpRange`, and `secondaryIpRange` — are never decoded, since each is
 an IP address, port, or CIDR range rather than a resource identity.
 
+**Memorystore Memcached Instance** (`memcache.googleapis.com/Instance`)
+captures display name, a bounded zone count, node count, per-node cpu count
+and memory size in MB (from `nodeConfig`), the Memcached major version
+(`memcacheVersion`) and full version string, creation time, state,
+maintenance version, effective maintenance version, and a bounded
+`memcacheNodes` count; emits the typed `memcache_instance_in_network` edge to
+the authorized Compute `Network` (resolved from `authorizedNetwork` the same
+way the Memorystore Redis Instance and VPC Network extractors resolve a
+selfLink or project-qualified/project-less partial); and surfaces the
+authorized network resource name as a correlation anchor. The Memcached API's
+connection-plane fields — `discoveryEndpoint` and each `memcacheNodes[]`
+entry's `host` and `port` — are never decoded, since each is a hostname, IP
+address, or port rather than a resource identity; only `nodeId`, `zone`, and
+`state` are declared on the per-node struct, and only their count crosses the
+redaction boundary.
+
 **Bigtable Instance** (`bigtableadmin.googleapis.com/Instance`) captures
 display name, state, instance type (`PRODUCTION`/`DEVELOPMENT`), and edition.
 The Bigtable Admin v2 Instance resource carries only instance-level metadata —
