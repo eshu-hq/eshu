@@ -930,6 +930,127 @@ the active concurrency; the existing `relationship.backfill_deferred` span and
 whole-pass totals. New instruments are registered in
 `internal/telemetry/instruments.go`.
 
+### Deferred fact-load payload hoist + regex fast arm (#3624)
+
+Long-pole diagnosis: `pg_stat_statements` on the live `eshufull` corpus attributed
+4,647s across 907 calls (~5.1s/call) to
+`listDeferredScopedRelationshipFactRecordsQuery`. The query re-evaluated
+`lower(fact.payload::text)` once for the `$1` `LIKE ANY` test and AGAIN, once per
+`unnest($2)` catalog repo_id row, inside the EXISTS self-exclusion arm — an
+O(facts × catalog × payload_size) re-lowering of the same payload text for every
+candidate repo_id, dominating the 2nd-half reducer long pole.
+
+Fix (query shape, `ingestion_backfill_deferred_facts.go`): hoist
+`lower(fact.payload::text)` and `lower(COALESCE(fact.payload->>'repo_id', ''))`
+into computed columns (`payload_lower`, `own_repo_id`) in the inner subquery, so
+every predicate arm below reuses the already-computed columns and
+`lower(payload::text)` is evaluated exactly once per row. Add a `$5`/`$6`
+performance-hint fast arm ahead of the existing EXISTS fallback:
+
+```
+payload_lower LIKE ANY($1)
+OR (own_repo_id = $6 AND $5::text IS NOT NULL AND payload_lower ~ $5)          -- fast arm
+OR (own_repo_id <> $6 AND EXISTS(unnest($2) ... same fallback as #3710))       -- fallback arm
+```
+
+`$6` is a lowercase "this partition's likely own repo_id" derived for free from
+`scope_id` (`deferredScopedFactOwnRepoIDFromScope`, `ingestion_backfill_deferred_regex.go`):
+`git-repository-scope:<repo_id>` scopes strip to `<repo_id>`; every other scope
+shape (GCP cloud-relationship scopes included) resolves to `""`. `$5` is a POSIX
+ARE alternation (`buildDeferredRepoIDRegex`) of the shared `$2` catalog repo_id
+values EXCLUDING `$6`, each value escaped with `regexp.QuoteMeta` so every ARE
+metacharacter (`` \ . + * ? ( ) | [ ] { } ^ $ ``) is a literal — verified directly
+against PostgreSQL 18 to be the exact character set the `~` operator needs
+escaped (distinct from LIKE's `` \ % _ ``). `$5` is passed as SQL `NULL`, not the
+empty alternation `(?:)`, when excluding `$6` leaves zero catalog values: `(?:)`
+is a zero-width match present in EVERY string under PostgreSQL ARE (verified:
+`SELECT 'x' ~ '(?:)'` returns `true`), so building it would silently turn
+`own_repo_id = $6 AND payload_lower ~ $5` into an unconditional match; the query
+guards `$5::text IS NOT NULL` first, so a NULL `$5` safely disables the fast arm
+for that partition.
+
+`own_repo_id` correctness independent of `$6` (why this is safe to derive without
+a discovery query): `own_repo_id` stays a PER-ROW computed column — a single
+`scope_id` partition can carry rows whose `payload->>'repo_id'` differs from any
+single value derivable from the scope_id, notably GCP cloud-relationship scopes,
+which carry no `repository` fact and have no single derivable repo_id at all.
+`$6` is only a hint about what a row's `own_repo_id` probably is:
+
+- When `$6` correctly predicts a row's `own_repo_id`, the fast arm fires and `$5`
+  (built by excluding exactly `$6`) resolves the self-exclusion with a single
+  regex match instead of the per-catalog-entry correlated EXISTS loop.
+- When `$6` is wrong for a row (`own_repo_id <> $6` — true for every GCP
+  cloud-relationship row, since `$6` is always `""` there and a GCP row's own
+  repo_id is essentially never empty), that row falls through to the EXISTS
+  fallback arm, byte-for-byte the pre-hoist #3710 self-exclusion predicate. The
+  row is never dropped and never wrongly matched merely because `$6` was wrong.
+
+A wrong or absent `$6` therefore only costs a fallback-arm evaluation for the
+affected rows — a bounded performance cost, never a correctness cost. This is why
+`loadActiveRepositoryGenerations` was considered and rejected as the `$6` source:
+it filters to `fact_kind = 'repository'` and drops every GCP cloud-relationship
+scope entirely (the same reason #3710's `loadActiveScopeGenerationPartitions`
+partition source exists), which would have made `$6` require re-deriving
+`own_repo_id` and broken the partition-source invariant that section documents. A
+live-corpus `mode()`-in-discovery alternative for deriving `$6` was also measured
+and rejected: it forces a heap scan plus an external-sort spill against the
+existing 225ms index-only discovery path, a regression `loadActiveScopeGenerationPartitions`
+does not have today.
+
+Accuracy is pinned by
+`TestDeferredScopedFactLoadHoistExactlyEquivalentToPreHoistShape`
+(`ingestion_backfill_deferred_facts_hoist_test.go`, gated on
+`ESHU_DEFERRED_HOIST_PROOF_DSN` or the shared `ESHU_DEFERRED_PARTITION_PROOF_DSN`
+/ `ESHU_LATEST_GENERATION_PROOF_DSN` proof DSNs): it runs the frozen pre-hoist
+query shape and the current production hoisted shape against IDENTICAL params
+over a fixture covering the app/app-config prefix overlap, a pure self-mention
+fact, an ArgoCD unconditional-anchor fact, a GCP fact with an empty own repo_id
+(the `own_repo_id = $6 = ""` fast-arm case), and a `$6`-mismatch row living
+inside a `$6`-hinted git-repository-scope partition (proving the fallback still
+fires per-row when the hint is wrong for that specific row) — and asserts
+IDENTICAL fact_id sets and IDENTICAL `relationships.DiscoverEvidence` output in
+both directions (0/0 set-diff). `buildDeferredRepoIDRegex` and
+`deferredScopedFactOwnRepoIDFromScope` have dedicated non-DB unit tests
+(`ingestion_backfill_deferred_regex_test.go`) covering own-value exclusion, ARE
+metacharacter escaping, case-insensitive dedupe, the empty/all-excluded
+"no usable alternation" case, and the `git-repository-scope:` prefix derivation
+including non-matching scope shapes. The existing #3659/#3710 non-DB regression
+guards (`ingestion_backfill_deferred_scope_test.go`) were updated in lockstep for
+the new six-parameter (`$1`..`$6`) call shape and still pass.
+
+Performance Evidence: live-corpus pure-SQL shim on the `eshufull` Postgres
+instance (PostgreSQL 18), comparing the pre-hoist #3710 query shape against the
+hoisted `$5`/`$6` shape with identical params. A representative medium scope
+(1,990 facts) went from 149,525ms (pre-hoist) to 15,181ms with the hoist alone
+(9.85x), then to 914ms with the hoist plus the `$5`/`$6` fast arm (163x total). A
+giant-tail scope (24,802 facts) completed in 13,864ms with the hoist plus fast
+arm. Both scopes' fact_id sets are byte-identical (0/0 set-diff, both directions)
+to the pre-hoist shape. Separately, over the full corpus (314,879 fact_records
+rows, all `git-repository-scope`), the `scope_id`-derived `$6` equals the row's
+actual `own_repo_id` for 314,799 rows (99.975%); the remaining 80 rows are handled
+correctly by the fallback arm exactly as designed above.
+
+Coordinator end-to-end (independent, live `eshufull` corpus; VPN down so run
+locally): the NEW shape run once across all 907 `(scope_id, generation_id)`
+partitions (314,879 rows, the real `$2` catalog and per-partition `$5`/`$6`)
+completed in 188,386ms, against a pre-hoist per-call baseline of 4,647s over 907
+`pg_stat_statements` calls from the real reducer run. The rigorous
+apples-to-apples number remains the per-scope 163x above; this aggregate also
+folds in the per-domain re-run that a separate candidate-extraction change
+(#3711) targets, so it is reported as a corroborating end-to-end figure, not the
+headline speedup.
+
+No-Observability-Change: the query rewrite changes only the SQL text and its bind
+parameters; `loadDeferredScopedRelationshipFactsForPartition` still returns the
+same `[]facts.Envelope` shape to the same caller
+(`loadDeferredScopedFactsAcrossPartitions`), which still records
+`DeferredBackfillPartitions`, `DeferredBackfillPartitionWorkers`, and
+`DeferredBackfillPartitionLoadDuration` and logs
+`deferred_backfill_fact_load_completed` exactly as before (#3710). No new metric,
+span, or log shape is introduced; a falling `DeferredBackfillPartitionLoadDuration`
+against the same partition shape is the operator-visible signal this fix is
+effective.
+
 ## Platform-Graph Conflict-Domain Partition (#3672)
 
 ### Conflict-Domain Map
