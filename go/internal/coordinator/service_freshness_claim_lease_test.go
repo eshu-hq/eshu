@@ -168,7 +168,7 @@ func TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure(t *testing.T)
 		ParentScopeKind: gcpcloud.ParentScopeProject,
 		ParentScopeID:   "project-fail",
 		AssetType:       "compute.googleapis.com/Instance",
-		Location:        "us-central1-a",
+		Location:        "us-central1",
 		ObservedAt:      now,
 	}, now)
 	if err != nil {
@@ -180,7 +180,7 @@ func TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure(t *testing.T)
 		ParentScopeKind: gcpcloud.ParentScopeProject,
 		ParentScopeID:   "project-ok",
 		AssetType:       "compute.googleapis.com/Instance",
-		Location:        "us-central1-a",
+		Location:        "us-central1",
 		ObservedAt:      now,
 	}, now)
 	if err != nil {
@@ -194,20 +194,26 @@ func TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure(t *testing.T)
 	store := &fakeStore{
 		instances: []workflow.CollectorInstance{
 			{
-				InstanceID:    "gcp-fail",
-				CollectorKind: scope.CollectorGCP,
-				Mode:          workflow.CollectorModeContinuous,
-				Enabled:       true,
-				ClaimsEnabled: true,
-				Configuration: testGCPConfigWithSingleContentFamily("project-fail", "resource"),
+				InstanceID:     "gcp-fail",
+				CollectorKind:  scope.CollectorGCP,
+				Mode:           workflow.CollectorModeContinuous,
+				Enabled:        true,
+				ClaimsEnabled:  true,
+				Configuration:  testGCPConfigWithSingleContentFamily("project-fail", "resource"),
+				LastObservedAt: now,
+				CreatedAt:      now,
+				UpdatedAt:      now,
 			},
 			{
-				InstanceID:    "gcp-ok",
-				CollectorKind: scope.CollectorGCP,
-				Mode:          workflow.CollectorModeContinuous,
-				Enabled:       true,
-				ClaimsEnabled: true,
-				Configuration: testGCPConfigWithSingleContentFamily("project-ok", "resource"),
+				InstanceID:     "gcp-ok",
+				CollectorKind:  scope.CollectorGCP,
+				Mode:           workflow.CollectorModeContinuous,
+				Enabled:        true,
+				ClaimsEnabled:  true,
+				Configuration:  testGCPConfigWithSingleContentFamily("project-ok", "resource"),
+				LastObservedAt: now,
+				CreatedAt:      now,
+				UpdatedAt:      now,
 			},
 		},
 	}
