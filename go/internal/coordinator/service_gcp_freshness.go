@@ -5,6 +5,7 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -20,10 +21,15 @@ import (
 const (
 	gcpFreshnessClaimOwner        = "workflow-coordinator"
 	defaultGCPFreshnessClaimLimit = 100
-	gcpFreshnessActionClaimed     = "handoff_claimed"
-	gcpFreshnessActionCreated     = "handoff_created"
-	gcpFreshnessActionFailed      = "handoff_failed"
-	gcpFreshnessActionSkipped     = "handoff_skipped"
+	// defaultGCPFreshnessClaimLeaseDuration mirrors
+	// defaultAWSFreshnessClaimLeaseDuration; see that constant's doc comment
+	// (#4576).
+	defaultGCPFreshnessClaimLeaseDuration = 5 * time.Minute
+	gcpFreshnessActionClaimed             = "handoff_claimed"
+	gcpFreshnessActionCreated             = "handoff_created"
+	gcpFreshnessActionFailed              = "handoff_failed"
+	gcpFreshnessActionSkipped             = "handoff_skipped"
+	gcpFreshnessActionReclaimed           = "claim_reclaimed"
 
 	// gcpFreshnessAuthPathNotApplicable is the neutral auth_path value the
 	// coordinator's handoff loop stamps on eshu_dp_gcp_freshness_events_total.
@@ -42,9 +48,26 @@ const (
 // workflow coordinator handoff loop. It mirrors AWSFreshnessTriggerStore; the
 // concrete Postgres implementation is postgres.GCPFreshnessStore (#4300).
 type GCPFreshnessTriggerStore interface {
-	ClaimQueuedTriggers(context.Context, string, time.Time, int) ([]freshness.StoredTrigger, error)
-	MarkTriggersHandedOff(context.Context, []string, time.Time) error
-	MarkTriggersFailed(context.Context, []string, time.Time, string, string) error
+	// ClaimQueuedTriggers atomically flips up to limit 'queued' rows to
+	// 'claimed', stamping a claim_expires_at lease (claimedAt+leaseDuration) so
+	// a mid-batch handoff abort or coordinator crash cannot strand the claim
+	// forever (#4576). The returned StoredTrigger.ClaimFencingToken must be
+	// presented back to MarkTriggersHandedOff/MarkTriggersFailed.
+	ClaimQueuedTriggers(ctx context.Context, owner string, claimedAt time.Time, limit int, leaseDuration time.Duration) ([]freshness.StoredTrigger, error)
+	// MarkTriggersHandedOff completes claimed triggers, fenced by each
+	// trigger's ClaimFencingToken (#4576): a row only completes if its current
+	// claim_fencing_token still matches the token the caller received from
+	// ClaimQueuedTriggers, so a stale claimant whose lease expired and was
+	// reaped — and whose trigger a different owner then re-claimed — cannot
+	// complete a claim it no longer holds.
+	MarkTriggersHandedOff(ctx context.Context, triggers []freshness.StoredTrigger, handedOffAt time.Time) error
+	// MarkTriggersFailed is MarkTriggersHandedOff's failure-path counterpart;
+	// see that method's doc comment for the fencing rationale (#4576).
+	MarkTriggersFailed(ctx context.Context, triggers []freshness.StoredTrigger, failedAt time.Time, failureClass string, failureMessage string) error
+	// ReapExpiredTriggerClaims reclaims 'claimed' rows whose claim_expires_at
+	// lease has expired back to 'queued', mirroring the workflow_claims
+	// expired-lease reclaim pattern (#4464).
+	ReapExpiredTriggerClaims(ctx context.Context, asOf time.Time, limit int) ([]freshness.StoredTrigger, error)
 }
 
 type gcpFreshnessEventCounter interface {
@@ -85,7 +108,8 @@ func (s Service) scheduleGCPFreshnessWork(
 		return fmt.Errorf("GCP planner is required before claiming GCP freshness triggers")
 	}
 	claimLimit := defaultGCPFreshnessClaimLimit
-	triggers, err := s.GCPFreshnessTriggers.ClaimQueuedTriggers(ctx, gcpFreshnessClaimOwner, observedAt.UTC(), claimLimit)
+	leaseDuration := s.gcpFreshnessClaimLeaseDuration()
+	triggers, err := s.GCPFreshnessTriggers.ClaimQueuedTriggers(ctx, gcpFreshnessClaimOwner, observedAt.UTC(), claimLimit, leaseDuration)
 	if err != nil {
 		return fmt.Errorf("claim GCP freshness triggers: %w", err)
 	}
@@ -103,12 +127,39 @@ func (s Service) scheduleGCPFreshnessWork(
 		}
 		s.markGCPFreshnessFailed(ctx, []freshness.StoredTrigger{trigger}, observedAt, "unauthorized_target", "no GCP collector instance scope matches the freshness target tuple")
 	}
+	// Continue on error rather than returning on the first assignment's
+	// failure: a bad plan request or transient per-trigger error must not
+	// abandon every remaining claimed batch-mate (#4576). Each failing
+	// assignment already durably marks its own triggers failed inside
+	// handoffGCPFreshnessAssignment before returning its error, so the
+	// triggers are not left stuck at 'claimed' by this path; errors are
+	// aggregated and returned once every assignment has been attempted.
+	var errs []error
 	for _, instanceID := range order {
-		if err := s.handoffGCPFreshnessAssignment(ctx, observedAt.UTC(), *assignments.byInstance[instanceID]); err != nil {
-			return err
+		assignment := *assignments.byInstance[instanceID]
+		if err := s.handoffGCPFreshnessAssignment(ctx, observedAt.UTC(), assignment); err != nil {
+			if s.Logger != nil {
+				s.Logger.Warn(
+					"GCP freshness handoff failed for one assignment; continuing with remaining batch-mates",
+					"error", err,
+					"instance_id", assignment.Instance.InstanceID,
+					"trigger_count", len(assignment.Triggers),
+				)
+			}
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+// gcpFreshnessClaimLeaseDuration returns the configured GCP freshness claim
+// lease duration, falling back to defaultGCPFreshnessClaimLeaseDuration when
+// unset.
+func (s Service) gcpFreshnessClaimLeaseDuration() time.Duration {
+	if s.Config.GCPFreshnessClaimLeaseDuration > 0 {
+		return s.Config.GCPFreshnessClaimLeaseDuration
+	}
+	return defaultGCPFreshnessClaimLeaseDuration
 }
 
 // gcpFreshnessAssignment is every trigger and the deduped, fanned-out scope
@@ -215,7 +266,7 @@ func (s Service) handoffGCPFreshnessAssignment(
 		s.markGCPFreshnessFailed(ctx, assignment.Triggers, observedAt, "workflow_handoff_failed", err.Error())
 		return fmt.Errorf("create GCP freshness workflow run for %q: %w", assignment.Instance.InstanceID, err)
 	}
-	if err := s.GCPFreshnessTriggers.MarkTriggersHandedOff(ctx, gcpFreshnessTriggerIDs(assignment.Triggers), observedAt); err != nil {
+	if err := s.GCPFreshnessTriggers.MarkTriggersHandedOff(ctx, assignment.Triggers, observedAt); err != nil {
 		return fmt.Errorf("mark GCP freshness trigger handed off: %w", err)
 	}
 	action := gcpFreshnessActionSkipped
@@ -319,17 +370,16 @@ func (s Service) markGCPFreshnessFailed(
 	failureClass string,
 	failureMessage string,
 ) {
-	ids := gcpFreshnessTriggerIDs(triggers)
-	if len(ids) > 0 {
+	if len(triggers) > 0 {
 		// Best-effort: we are already on the failure path, so a failed
 		// failure-marking write must not abort reconciliation. It is logged
 		// rather than swallowed so an operator can see that the triggers were not
 		// durably marked failed (mirrors AWS freshness #3793).
-		if err := s.GCPFreshnessTriggers.MarkTriggersFailed(ctx, ids, observedAt, failureClass, failureMessage); err != nil && s.Logger != nil {
+		if err := s.GCPFreshnessTriggers.MarkTriggersFailed(ctx, triggers, observedAt, failureClass, failureMessage); err != nil && s.Logger != nil {
 			s.Logger.Warn(
 				"gcp-freshness trigger failure marking did not persist",
 				"error", err,
-				"trigger_count", len(ids),
+				"trigger_count", len(triggers),
 				"failure_class", failureClass,
 			)
 		}
@@ -367,15 +417,4 @@ func (s Service) recordGCPFreshnessFanOut(ctx context.Context, resolvedScopeCoun
 		return
 	}
 	s.GCPFreshnessFanOut.Record(ctx, int64(resolvedScopeCount))
-}
-
-func gcpFreshnessTriggerIDs(triggers []freshness.StoredTrigger) []string {
-	ids := make([]string, 0, len(triggers))
-	for _, trigger := range triggers {
-		id := strings.TrimSpace(trigger.TriggerID)
-		if id != "" {
-			ids = append(ids, id)
-		}
-	}
-	return ids
 }

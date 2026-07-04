@@ -29,6 +29,20 @@ func (s Service) recordRunReconciliation(ctx context.Context, observation RunRec
 	s.Metrics.RecordRunReconciliation(ctx, observation)
 }
 
+func (s Service) recordAWSFreshnessReap(ctx context.Context, observation FreshnessReapObservation) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordAWSFreshnessReap(ctx, observation)
+}
+
+func (s Service) recordGCPFreshnessReap(ctx context.Context, observation FreshnessReapObservation) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordGCPFreshnessReap(ctx, observation)
+}
+
 func tickerChan(ticker *time.Ticker) <-chan time.Time {
 	if ticker == nil {
 		return nil

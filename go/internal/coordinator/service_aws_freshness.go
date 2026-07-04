@@ -5,6 +5,7 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,18 +20,43 @@ import (
 const (
 	awsFreshnessClaimOwner        = "workflow-coordinator"
 	defaultAWSFreshnessClaimLimit = 100
-	awsFreshnessActionClaimed     = "handoff_claimed"
-	awsFreshnessActionCreated     = "handoff_created"
-	awsFreshnessActionFailed      = "handoff_failed"
-	awsFreshnessActionSkipped     = "handoff_skipped"
+	// defaultAWSFreshnessClaimLeaseDuration bounds how long a claimed AWS
+	// freshness trigger can sit unresolved before runReapExpiredAWSFreshnessClaims
+	// reclaims it back to 'queued'. It mirrors workflow.DefaultClaimLeaseTTL's
+	// order of magnitude: long enough to cover one plan+handoff round trip,
+	// short enough that a stranded trigger (mid-batch abort or coordinator
+	// crash, #4576) is not silently lost for long.
+	defaultAWSFreshnessClaimLeaseDuration = 5 * time.Minute
+	awsFreshnessActionClaimed             = "handoff_claimed"
+	awsFreshnessActionCreated             = "handoff_created"
+	awsFreshnessActionFailed              = "handoff_failed"
+	awsFreshnessActionSkipped             = "handoff_skipped"
+	awsFreshnessActionReclaimed           = "claim_reclaimed"
 )
 
 // AWSFreshnessTriggerStore is the durable trigger queue surface used by the
 // workflow coordinator handoff loop.
 type AWSFreshnessTriggerStore interface {
-	ClaimQueuedTriggers(context.Context, string, time.Time, int) ([]freshness.StoredTrigger, error)
-	MarkTriggersHandedOff(context.Context, []string, time.Time) error
-	MarkTriggersFailed(context.Context, []string, time.Time, string, string) error
+	// ClaimQueuedTriggers atomically flips up to limit 'queued' rows to
+	// 'claimed', stamping a claim_expires_at lease (claimedAt+leaseDuration) so
+	// a mid-batch handoff abort or coordinator crash cannot strand the claim
+	// forever (#4576). The returned StoredTrigger.ClaimFencingToken must be
+	// presented back to MarkTriggersHandedOff/MarkTriggersFailed.
+	ClaimQueuedTriggers(ctx context.Context, owner string, claimedAt time.Time, limit int, leaseDuration time.Duration) ([]freshness.StoredTrigger, error)
+	// MarkTriggersHandedOff completes claimed triggers, fenced by each
+	// trigger's ClaimFencingToken (#4576): a row only completes if its current
+	// claim_fencing_token still matches the token the caller received from
+	// ClaimQueuedTriggers, so a stale claimant whose lease expired and was
+	// reaped — and whose trigger a different owner then re-claimed — cannot
+	// complete a claim it no longer holds.
+	MarkTriggersHandedOff(ctx context.Context, triggers []freshness.StoredTrigger, handedOffAt time.Time) error
+	// MarkTriggersFailed is MarkTriggersHandedOff's failure-path counterpart;
+	// see that method's doc comment for the fencing rationale (#4576).
+	MarkTriggersFailed(ctx context.Context, triggers []freshness.StoredTrigger, failedAt time.Time, failureClass string, failureMessage string) error
+	// ReapExpiredTriggerClaims reclaims 'claimed' rows whose claim_expires_at
+	// lease has expired back to 'queued', mirroring the workflow_claims
+	// expired-lease reclaim pattern (#4464).
+	ReapExpiredTriggerClaims(ctx context.Context, asOf time.Time, limit int) ([]freshness.StoredTrigger, error)
 }
 
 // AWSFreshnessPlanner plans ordinary AWS workflow work from claimed freshness
@@ -55,7 +81,8 @@ func (s Service) scheduleAWSFreshnessWork(
 		return fmt.Errorf("AWS freshness planner is required before claiming freshness triggers")
 	}
 	claimLimit := defaultAWSFreshnessClaimLimit
-	triggers, err := s.AWSFreshnessTriggers.ClaimQueuedTriggers(ctx, awsFreshnessClaimOwner, observedAt.UTC(), claimLimit)
+	leaseDuration := s.awsFreshnessClaimLeaseDuration()
+	triggers, err := s.AWSFreshnessTriggers.ClaimQueuedTriggers(ctx, awsFreshnessClaimOwner, observedAt.UTC(), claimLimit, leaseDuration)
 	if err != nil {
 		return fmt.Errorf("claim AWS freshness triggers: %w", err)
 	}
@@ -66,15 +93,41 @@ func (s Service) scheduleAWSFreshnessWork(
 		return nil
 	}
 	assignments := s.assignAWSFreshnessTriggers(ctx, observedAt.UTC(), triggers, instances)
+	// Continue on error rather than returning on the first assignment's
+	// failure: a bad plan request or transient per-trigger error must not
+	// abandon every remaining claimed batch-mate (#4576). Each failing
+	// assignment already durably marks its own triggers failed inside
+	// handoffAWSFreshnessAssignment before returning its error, so the
+	// triggers are not left stuck at 'claimed' by this path; errors are
+	// aggregated and returned once every assignment has been attempted.
+	var errs []error
 	for _, assignment := range assignments {
 		if len(assignment.triggers) == 0 {
 			continue
 		}
 		if err := s.handoffAWSFreshnessAssignment(ctx, observedAt.UTC(), assignment); err != nil {
-			return err
+			if s.Logger != nil {
+				s.Logger.Warn(
+					"AWS freshness handoff failed for one assignment; continuing with remaining batch-mates",
+					"error", err,
+					"instance_id", assignment.instance.InstanceID,
+					"trigger_count", len(assignment.triggers),
+				)
+			}
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+// awsFreshnessClaimLeaseDuration returns the configured AWS freshness claim
+// lease duration, falling back to defaultAWSFreshnessClaimLeaseDuration when
+// unset.
+func (s Service) awsFreshnessClaimLeaseDuration() time.Duration {
+	if s.Config.AWSFreshnessClaimLeaseDuration > 0 {
+		return s.Config.AWSFreshnessClaimLeaseDuration
+	}
+	return defaultAWSFreshnessClaimLeaseDuration
 }
 
 type awsFreshnessAssignment struct {
@@ -152,8 +205,7 @@ func (s Service) handoffAWSFreshnessAssignment(
 		s.markAWSFreshnessFailed(ctx, assignment.triggers, observedAt, "workflow_handoff_failed", err.Error())
 		return fmt.Errorf("create AWS freshness workflow run for %q: %w", assignment.instance.InstanceID, err)
 	}
-	triggerIDs := awsFreshnessTriggerIDs(assignment.triggers)
-	if err := s.AWSFreshnessTriggers.MarkTriggersHandedOff(ctx, triggerIDs, observedAt); err != nil {
+	if err := s.AWSFreshnessTriggers.MarkTriggersHandedOff(ctx, assignment.triggers, observedAt); err != nil {
 		return fmt.Errorf("mark AWS freshness triggers handed off: %w", err)
 	}
 	action := awsFreshnessActionSkipped
@@ -173,17 +225,16 @@ func (s Service) markAWSFreshnessFailed(
 	failureClass string,
 	failureMessage string,
 ) {
-	ids := awsFreshnessTriggerIDs(triggers)
-	if len(ids) > 0 {
+	if len(triggers) > 0 {
 		// Best-effort: we are already on the failure path, so a failed
 		// failure-marking write must not abort reconciliation. It is logged
 		// rather than swallowed so an operator can see that the triggers were not
 		// durably marked failed (#3793).
-		if err := s.AWSFreshnessTriggers.MarkTriggersFailed(ctx, ids, observedAt, failureClass, failureMessage); err != nil && s.Logger != nil {
+		if err := s.AWSFreshnessTriggers.MarkTriggersFailed(ctx, triggers, observedAt, failureClass, failureMessage); err != nil && s.Logger != nil {
 			s.Logger.Warn(
 				"aws-freshness trigger failure marking did not persist",
 				"error", err,
-				"trigger_count", len(ids),
+				"trigger_count", len(triggers),
 				"failure_class", failureClass,
 			)
 		}
@@ -213,15 +264,4 @@ func (s Service) recordAWSFreshnessEvent(ctx context.Context, kind freshness.Eve
 		telemetry.AttrKind(kindValue),
 		telemetry.AttrAction(action),
 	))
-}
-
-func awsFreshnessTriggerIDs(triggers []freshness.StoredTrigger) []string {
-	ids := make([]string, 0, len(triggers))
-	for _, trigger := range triggers {
-		id := strings.TrimSpace(trigger.TriggerID)
-		if id != "" {
-			ids = append(ids, id)
-		}
-	}
-	return ids
 }

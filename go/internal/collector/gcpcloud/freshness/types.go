@@ -58,6 +58,15 @@ type StoredTrigger struct {
 	DuplicateCount int
 	ReceivedAt     time.Time
 	UpdatedAt      time.Time
+	// ClaimFencingToken is the value ClaimQueuedTriggers stamped for the
+	// current claim holder (#4576). It is the fencing token a caller must
+	// present back to MarkTriggersHandedOff/MarkTriggersFailed: the store
+	// only completes a trigger whose row still carries this exact token,
+	// so a stale claimant whose lease expired and was reaped by
+	// ReapExpiredTriggerClaims — and whose trigger was then re-claimed by
+	// a different owner, bumping the token again — can never complete the
+	// newer claim it no longer holds.
+	ClaimFencingToken int64
 }
 
 // Target is the GCP collector claim target derived from a trigger.
