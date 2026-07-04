@@ -52,8 +52,12 @@ emitter emits it unconditionally, optional where conditional:
   attribute is present, and the correlation loader consumes a blank provider id
   as provenance-only.
 - `CoverageWarning`: two emitters (Terraform-state and live PagerDuty) produce
-  this kind with different bases, so the required set is their INTERSECTION;
-  Terraform-only state fields are optional.
+  this kind with different bases, so the required set is their INTERSECTION
+  (`source_class`, `source_kind`, `outcome`, `scope_id`, `reason`,
+  `redaction_state`, `declared_match_state`). Terraform-only state fields are
+  optional, and `resource_class` is OPTIONAL here — the live emitter sets it but
+  the Terraform-state emitter (`incidentRoutingBasePayload`) never does, so
+  requiring it would dead-letter every Terraform-state coverage_warning.
 
 See each struct's godoc for the full field list and the emitter grounding.
 

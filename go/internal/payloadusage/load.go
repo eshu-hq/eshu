@@ -61,9 +61,16 @@ type Paths struct {
 	IncidentStructDir string
 }
 
-// ResolvePaths fills every empty field of p with its default relative to
-// RepoRoot (defaulting RepoRoot itself to "." when empty) and returns the
-// resolved copy. p is not mutated.
+// ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
+// relative to RepoRoot (defaulting RepoRoot itself to "." when empty) and
+// returns the resolved copy. p is not mutated.
+//
+// It deliberately does NOT resolve DecodeFile or DecodeFiles: the decode-seam
+// source is a glob whose resolution can fail, and ResolvePaths returns no error.
+// resolveDecodeFiles (called from Load) fills them — from an explicit
+// DecodeFile/DecodeFiles override, or by globbing factschema_decode*.go under
+// ReducerDir. So a caller inspecting the returned Paths sees resolved
+// directories but empty DecodeFile/DecodeFiles unless it set them.
 func ResolvePaths(p Paths) Paths {
 	resolved := p
 	resolved.RepoRoot = strings.TrimSpace(resolved.RepoRoot)

@@ -70,7 +70,7 @@ func benchCoverageWarning() incidentv1.CoverageWarning {
 		SourceClass:        "observed",
 		SourceKind:         "pagerduty_api",
 		Outcome:            "partial",
-		ResourceClass:      "service",
+		ResourceClass:      stringPtr("service"),
 		ScopeID:            "scope",
 		Reason:             "permission_hidden",
 		RedactionState:     "none",
@@ -259,4 +259,144 @@ func mustEncode(b *testing.B, encode func() (map[string]any, error)) map[string]
 		b.Fatalf("encode payload: %v", err)
 	}
 	return payload
+}
+
+// TestCoverageWarningWithoutResourceClassProjects is the failing-first
+// regression for the codex P1: the Terraform-state coverage_warning emitter
+// (terraformstate.emitIncidentRoutingCoverageWarning) builds its payload from
+// incidentRoutingBasePayload, which NEVER sets resource_class — it only sets
+// source_class, source_kind, outcome, the state locator, scope_id,
+// declared_match_state, and redaction_state, then the warning func adds reason.
+// So a real Terraform-state coverage_warning fact carries NO resource_class.
+//
+// If resource_class is REQUIRED on the CoverageWarning struct, every such fact
+// decodes as input_invalid and buildIncidentRoutingEvidenceInputs QUARANTINES
+// it, silently dropping real coverage evidence from incident-routing
+// materialization. This test builds exactly that Terraform-state-shaped payload
+// (no resource_class) and asserts the warning PROJECTS: zero quarantined facts,
+// and the warning is preserved in the built input for the incident to consume.
+// It fails on the resource_class-required struct and passes once resource_class
+// is optional.
+func TestCoverageWarningWithoutResourceClassProjects(t *testing.T) {
+	t.Parallel()
+
+	// A valid incident anchor so buildIncidentRoutingEvidenceInputs produces a
+	// packet at all (it returns no inputs without an incident.record).
+	incidentPayload, err := factschema.EncodeIncidentRecord(incidentv1.IncidentRecord{
+		Provider:           "pagerduty",
+		ProviderIncidentID: "PINCIDENT1",
+		ServiceID:          stringPtr("PSERVICE1"),
+		Service:            &incidentv1.ServiceReference{ID: stringPtr("PSERVICE1"), Summary: stringPtr("Checkout API")},
+	})
+	if err != nil {
+		t.Fatalf("EncodeIncidentRecord: %v", err)
+	}
+
+	// The exact shape emitIncidentRoutingCoverageWarning emits: the base
+	// Terraform-state fields plus outcome/reason/redaction_state — and NO
+	// resource_class. Built as a raw map (not via Encode) precisely because the
+	// point is that the emitter never populates resource_class.
+	tfStateWarningPayload := map[string]any{
+		"source_class":            "applied",
+		"source_kind":             "terraform_state",
+		"outcome":                 "unsupported",
+		"reason":                  "unsupported_pagerduty_resource",
+		"redaction_state":         "none",
+		"terraform_state_address": "pagerduty_unsupported.thing",
+		"resource_type":           "pagerduty_unsupported",
+		"resource_name":           "thing",
+		"module_address":          "",
+		"provider_address":        "registry.terraform.io/pagerduty/pagerduty",
+		"scope_id":                "scope-pagerduty",
+		"state_generation_id":     "tfstate-gen-1",
+		"state_lineage":           "lineage-1",
+		"backend_kind":            "s3",
+		"locator_hash":            "hash-1",
+		"declared_match_state":    "not_compared",
+		// "resource_class" intentionally absent — the emitter never sets it.
+	}
+
+	raw := IncidentRoutingRawEvidence{
+		Facts: []facts.Envelope{
+			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
+			{FactID: "warning-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingCoverageWarningFactKind, SchemaVersion: "1.0.0", Payload: tfStateWarningPayload},
+		},
+	}
+
+	inputs, quarantined, err := buildIncidentRoutingEvidenceInputs(raw)
+	if err != nil {
+		t.Fatalf("buildIncidentRoutingEvidenceInputs error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %d (%+v), want 0; a Terraform-state coverage_warning has no resource_class and must not be quarantined", len(quarantined), quarantined)
+	}
+	if len(inputs) != 1 {
+		t.Fatalf("inputs = %d, want 1 (one incident packet)", len(inputs))
+	}
+	if len(inputs[0].Warnings) != 1 {
+		t.Fatalf("warnings = %d, want 1; the coverage warning must project into the incident packet, not be dropped", len(inputs[0].Warnings))
+	}
+	if got := inputs[0].Warnings[0].Reason; got != "unsupported_pagerduty_resource" {
+		t.Fatalf("warning reason = %q, want unsupported_pagerduty_resource", got)
+	}
+}
+
+// TestAppliedResourceClassWhitespaceIsTrimmedBeforeServiceFilter guards the
+// pre-typing behavior Copilot flagged: the storage loader's
+// incidentRoutingPayloadString TRIMMED the value before the reducer compared
+// resource_class == "service", so a padded "service " was admitted as a
+// service-class applied resource. buildIncidentRoutingEvidenceInputs must trim
+// the decoded resource_class the same way — comparing the raw decoded string
+// would silently drop a padded fact that used to project. This test builds an
+// applied_pagerduty_resource whose resource_class is "service " (trailing space)
+// and asserts it still becomes applied evidence, not dropped.
+func TestAppliedResourceClassWhitespaceIsTrimmedBeforeServiceFilter(t *testing.T) {
+	t.Parallel()
+
+	incidentPayload, err := factschema.EncodeIncidentRecord(incidentv1.IncidentRecord{
+		Provider:           "pagerduty",
+		ProviderIncidentID: "PINCIDENT1",
+		ServiceID:          stringPtr("PSERVICE1"),
+		Service:            &incidentv1.ServiceReference{ID: stringPtr("PSERVICE1"), Summary: stringPtr("Checkout API")},
+	})
+	if err != nil {
+		t.Fatalf("EncodeIncidentRecord: %v", err)
+	}
+	// A padded resource_class value — the exact whitespace case. Built via Encode
+	// so every other required field is present; then the padded value is set
+	// directly on the payload map so the decode carries the untrimmed string.
+	appliedPayload, err := factschema.EncodeIncidentRoutingAppliedPagerDutyResource(incidentv1.AppliedPagerDutyResource{
+		SourceClass: "applied", SourceKind: "terraform_state", Outcome: "applied",
+		ResourceClass:         "service ", // trailing space
+		TerraformStateAddress: "pagerduty_service.checkout", ResourceType: "pagerduty_service",
+		ResourceName: "checkout", ModuleAddress: "module.pagerduty",
+		ProviderAddress: "registry.terraform.io/pagerduty/pagerduty", ScopeID: "scope-pagerduty",
+		StateGenerationID: "tfstate-gen-1", StateLineage: "lineage-1", BackendKind: "s3",
+		LocatorHash: "hash-1", DeclaredMatchState: "matched", RedactionState: "redacted",
+		ProviderObjectID: stringPtr("PSERVICE1"),
+	})
+	if err != nil {
+		t.Fatalf("EncodeIncidentRoutingAppliedPagerDutyResource: %v", err)
+	}
+
+	raw := IncidentRoutingRawEvidence{
+		Facts: []facts.Envelope{
+			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
+			{FactID: "applied-padded-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
+		},
+	}
+
+	inputs, quarantined, err := buildIncidentRoutingEvidenceInputs(raw)
+	if err != nil {
+		t.Fatalf("buildIncidentRoutingEvidenceInputs error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %d, want 0", len(quarantined))
+	}
+	if len(inputs) != 1 {
+		t.Fatalf("inputs = %d, want 1", len(inputs))
+	}
+	if len(inputs[0].Applied) != 1 {
+		t.Fatalf("applied evidence = %d, want 1; a padded \"service \" resource_class must be trimmed and admitted like the pre-typing loader did, not dropped", len(inputs[0].Applied))
+	}
 }

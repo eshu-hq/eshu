@@ -383,11 +383,24 @@ type ObservedPagerDutyIntegration struct {
 // over incidentRoutingBasePayload) and the live emitter
 // (pagerduty.NewPagerDutyConfigCoverageWarningEnvelope over
 // observedConfigBasePayload). The required set is the INTERSECTION of what BOTH
-// unconditionally emit: SourceClass, SourceKind, Outcome, ResourceClass,
-// ScopeID, Reason, and RedactionState. The Terraform-state base additionally
-// carries the state locator, but the live base does not, so those state fields
-// are optional here. The reducer reads Reason, SourceClass, SourceKind, and
-// ResourceClass through the incident-routing evidence loader.
+// unconditionally emit: SourceClass, SourceKind, Outcome, ScopeID, Reason,
+// RedactionState, and DeclaredMatchState. Everything else is optional because at
+// least one emitter omits it:
+//
+//   - ResourceClass is set ONLY by the live emitter's observedConfigBasePayload;
+//     the Terraform-state emitter builds its payload from
+//     incidentRoutingBasePayload, which never sets resource_class. Making it
+//     required would dead-letter (quarantine) every Terraform-state
+//     coverage_warning, silently dropping real coverage evidence — the accuracy
+//     bug this field-shape fix corrects. The reducer's coverage-warning mapper
+//     already tolerates a blank resource_class.
+//   - Provider and ProviderObjectID: live emitter only.
+//   - The state-locator fields (TerraformStateAddress, ResourceType, ...):
+//     Terraform-state emitter only.
+//
+// The reducer reads Reason, SourceClass, SourceKind, and ResourceClass through
+// the incident-routing evidence loader; a blank ResourceClass is a valid mapped
+// value, not an identity input.
 type CoverageWarning struct {
 	// SourceClass is the routing source class ("applied" or "observed").
 	// Required — both emitters set it.
@@ -399,10 +412,6 @@ type CoverageWarning struct {
 	// Outcome is the coverage-warning outcome ("unsupported" or "partial").
 	// Required — both emitters set it.
 	Outcome string `json:"outcome"`
-
-	// ResourceClass is the warned-about resource class. Required — both emitters
-	// set it (the live emitter defaults it to "unknown").
-	ResourceClass string `json:"resource_class"`
 
 	// ScopeID is the ingestion scope. Required — both emitters set it.
 	ScopeID string `json:"scope_id"`
@@ -418,6 +427,13 @@ type CoverageWarning struct {
 	// both bases emit it: the Terraform-state base as "not_compared" and the
 	// live base from its match-state argument (defaulting to not_compared).
 	DeclaredMatchState string `json:"declared_match_state"`
+
+	// ResourceClass is the warned-about resource class. Optional: ONLY the live
+	// (PagerDuty API) emitter sets it (defaulting to "unknown"); the
+	// Terraform-state emitter's incidentRoutingBasePayload never sets it, so a
+	// Terraform-state coverage_warning carries no resource_class. A required
+	// field here would dead-letter every such fact.
+	ResourceClass *string `json:"resource_class,omitempty"`
 
 	// Provider is the incident provider token. Optional: only the live
 	// (PagerDuty API) emitter sets it; the Terraform-state emitter does not.

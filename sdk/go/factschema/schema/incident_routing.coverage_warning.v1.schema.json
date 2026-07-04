@@ -58,7 +58,10 @@
       "type": "string"
     },
     "resource_class": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "resource_name": {
       "type": [
@@ -110,7 +113,6 @@
     "source_class",
     "source_kind",
     "outcome",
-    "resource_class",
     "scope_id",
     "reason",
     "redaction_state",

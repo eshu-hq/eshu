@@ -97,8 +97,12 @@ func buildIncidentRoutingEvidenceInputs(
 			}
 			// Only service-class applied resources become reducer input; other
 			// resource classes (teams, escalation policies, ...) are dropped, the
-			// same filter the pre-typing loader applied.
-			if resource.ResourceClass != "service" {
+			// same filter the pre-typing loader applied. TrimSpace before the
+			// compare preserves that loader's exact behavior: its
+			// incidentRoutingPayloadString(...) trimmed the value, so a padded
+			// "service " matched == "service" and was admitted. Comparing the raw
+			// decoded string here would silently drop such a fact.
+			if strings.TrimSpace(resource.ResourceClass) != "service" {
 				continue
 			}
 			applied = append(applied, incidentRoutingAppliedFromDecoded(env, resource))
@@ -252,7 +256,7 @@ func incidentRoutingWarningFromDecoded(
 		SourceClass:      strings.TrimSpace(warning.SourceClass),
 		SourceKind:       strings.TrimSpace(warning.SourceKind),
 		Reason:           strings.TrimSpace(warning.Reason),
-		ResourceClass:    strings.TrimSpace(warning.ResourceClass),
+		ResourceClass:    strings.TrimSpace(derefString(warning.ResourceClass)),
 		ProviderObjectID: strings.TrimSpace(derefString(warning.ProviderObjectID)),
 		ObservedAt:       incidentRoutingFormatEnvelopeTime(env.ObservedAt),
 	}
