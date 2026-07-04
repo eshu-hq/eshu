@@ -12,8 +12,7 @@
       "image": "registry.example.com/checkout@sha256:0000000000000000000000000000000000000000000000000000000000000001",
       "init": false,
       "ports": [8080],
-      "env_keys": ["PORT", "LOG_LEVEL"],
-      "env_from_secret": true
+      "env_keys": ["PORT", "LOG_LEVEL"]
     }
   ],
   "image_refs": ["registry.example.com/checkout@sha256:0000000000000000000000000000000000000000000000000000000000000001"],

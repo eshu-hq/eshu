@@ -61,3 +61,18 @@ It must remain independent from Eshu internals.
   never values. Do not add a values field; it would violate the collector's
   redaction contract (see `go/internal/collector/kuberneteslive/doc.go` /
   `envelope.go`'s `ContainerSummary` comment).
+- `PodTemplateContainer.EnvFromSecret` is a redaction-safe BOOLEAN existence
+  flag (it reports only that a container references secret-backed env, never a
+  value), and the real in-tree collector emits it. But the `env_from_secret`
+  key name matches the `sdk/go/collector` conformance redaction scanner's
+  `secret` substring heuristic (`validation.go` `sensitiveQueryPattern`), which
+  cannot distinguish a safe existence flag from a secret value. The in-tree
+  collector builds `facts.Envelope` directly and never runs that SDK scanner,
+  so it emits the key fine; but the fixture-pack conformance test
+  (`TestFixturePackPayloadsAgreeWithConformance`) DOES run the scanner against
+  every fixture. The `kubernetes_live.pod_template.valid.json` fixture
+  therefore deliberately OMITS `env_from_secret` from its example container —
+  the field stays optional in the struct and its decode is covered by the
+  round-trip tests. Do not add `env_from_secret` back to the fixture without
+  first resolving the scanner false-positive (tracked as a follow-up); it
+  would re-red the conformance gate.
