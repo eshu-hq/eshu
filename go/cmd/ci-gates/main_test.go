@@ -107,7 +107,8 @@ func TestSelectSubcommand_JSONOutput(t *testing.T) {
 	reg := writeRegistry(t, dir, selectTestRegistry)
 	paths := writePathsFile(t, dir, []string{"go/internal/foo.go"})
 
-	cmd := exec.Command(bin, "select",
+	cmd := exec.Command(
+		bin, "select",
 		"--registry", reg,
 		"--tier", "pre-pr",
 		"--paths-from", paths,
@@ -150,7 +151,8 @@ func TestSelectSubcommand_PlainOutput(t *testing.T) {
 	reg := writeRegistry(t, dir, selectTestRegistry)
 	paths := writePathsFile(t, dir, []string{"go/internal/foo.go"})
 
-	cmd := exec.Command(bin, "select",
+	cmd := exec.Command(
+		bin, "select",
 		"--registry", reg,
 		"--tier", "pre-pr",
 		"--paths-from", paths,
@@ -178,7 +180,8 @@ func TestSelectSubcommand_ExplainOutput(t *testing.T) {
 	reg := writeRegistry(t, dir, selectTestRegistry)
 	paths := writePathsFile(t, dir, []string{"go/internal/foo.go"})
 
-	cmd := exec.Command(bin, "select",
+	cmd := exec.Command(
+		bin, "select",
 		"--registry", reg,
 		"--tier", "pre-pr",
 		"--paths-from", paths,
@@ -250,7 +253,8 @@ func TestRunSubcommand_AccumulatesAndExitsNonzero(t *testing.T) {
 	reg := writeRegistry(t, dir, runTestRegistry)
 	paths := writePathsFile(t, dir, []string{"go/internal/foo.go"})
 
-	cmd := exec.Command(bin, "run",
+	cmd := exec.Command(
+		bin, "run",
 		"--registry", reg,
 		"--tier", "pre-pr",
 		"--paths-from", paths,
@@ -295,7 +299,8 @@ gates:
 	reg := writeRegistry(t, dir, yaml)
 	paths := writePathsFile(t, dir, []string{"go/internal/foo.go"})
 
-	cmd := exec.Command(bin, "run",
+	cmd := exec.Command(
+		bin, "run",
 		"--registry", reg,
 		"--tier", "pre-pr",
 		"--paths-from", paths,
@@ -315,7 +320,8 @@ func TestValidateSubcommand_PassesOnRealRegistry(t *testing.T) {
 		t.Skip("specs/ci-gates.v1.yaml not yet committed — skipping")
 	}
 
-	cmd := exec.Command(bin, "validate",
+	cmd := exec.Command(
+		bin, "validate",
 		"--registry", regPath,
 		"--repo-root", root,
 	)
@@ -337,7 +343,8 @@ func TestValidateSubcommand_DriftPassesOnRealRegistry(t *testing.T) {
 		t.Skip("specs/ci-gates.v1.yaml not yet committed — skipping")
 	}
 
-	cmd := exec.Command(bin, "validate",
+	cmd := exec.Command(
+		bin, "validate",
 		"--registry", regPath,
 		"--repo-root", root,
 		"--drift",
@@ -375,7 +382,8 @@ func TestValidateSubcommand_DriftCatchesUnregisteredWorkflow(t *testing.T) {
 	reg := writeRegistry(t, dir, `version: v1
 gates: []
 `)
-	cmd := exec.Command(bin, "validate",
+	cmd := exec.Command(
+		bin, "validate",
 		"--registry", reg,
 		"--repo-root", root,
 		"--drift",

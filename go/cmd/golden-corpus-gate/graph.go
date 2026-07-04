@@ -111,7 +111,8 @@ func (b *boltGraphCounter) CountCorrelation(ctx context.Context, from, rel, to s
 		}
 	}
 	return b.scalarCount(ctx, fmt.Sprintf(
-		"MATCH (:%s)-[r:%s]->(:%s) RETURN count(r) AS c", from, rel, to))
+		"MATCH (:%s)-[r:%s]->(:%s) RETURN count(r) AS c", from, rel, to,
+	))
 }
 
 func (b *boltGraphCounter) CountCorrelationWithEvidence(ctx context.Context, from, rel, to string, evidenceKinds []string) (int64, error) {

@@ -110,7 +110,8 @@ func DeltaMaterializationFromGenerations(
 	// rather than silently full-wipe.
 	if gen2Mat.Repository != nil && len(gen2Mat.Directories) == 0 {
 		return DeltaMaterialization{}, fmt.Errorf(
-			"gen2 has a repository but no surviving directories — refusing to build a delta that would retract every directory")
+			"gen2 has a repository but no surviving directories — refusing to build a delta that would retract every directory",
+		)
 	}
 
 	// Mark gen2 as a subsequent generation so the production retract phase fires.

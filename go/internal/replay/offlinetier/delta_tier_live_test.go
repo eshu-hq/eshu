@@ -148,7 +148,8 @@ func TestDeltaTombstoneNegativeControlBrokenRetraction(t *testing.T) {
 	}
 
 	// Negative control: with broken retraction gamma must still be present.
-	gammaAfterBroken, err := exec.count(ctx,
+	gammaAfterBroken, err := exec.count(
+		ctx,
 		`MATCH (d:Directory {path: $path}) RETURN count(d)`,
 		map[string]any{"path": deltaRepoPath + "/gamma"},
 	)
@@ -178,7 +179,8 @@ func TestDeltaTombstoneNegativeControlBrokenRetraction(t *testing.T) {
 		t.Fatalf("write correct gen2 (re-run): %v", err)
 	}
 
-	gammaAfterCorrect, err := exec.count(ctx,
+	gammaAfterCorrect, err := exec.count(
+		ctx,
 		`MATCH (d:Directory {path: $path}) RETURN count(d)`,
 		map[string]any{"path": deltaRepoPath + "/gamma"},
 	)
@@ -236,7 +238,8 @@ func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor,
 		assertDeltaDirCount(ctx, t, exec, d.Path, 1, "surviving directory must be present after gen2 write")
 	}
 
-	repoNameCount, err := exec.count(ctx,
+	repoNameCount, err := exec.count(
+		ctx,
 		`MATCH (r:Repository {id: $repo_id, name: $name}) RETURN count(r)`,
 		map[string]any{"repo_id": deltaRepoID, "name": "replay-delta-tombstone-v2"},
 	)
@@ -253,7 +256,8 @@ func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor,
 // it does not match want.
 func assertDeltaDirCount(ctx context.Context, t *testing.T, exec liveExecutor, path string, want int64, msg string) {
 	t.Helper()
-	count, err := exec.count(ctx,
+	count, err := exec.count(
+		ctx,
 		`MATCH (d:Directory {path: $path}) RETURN count(d)`,
 		map[string]any{"path": path},
 	)

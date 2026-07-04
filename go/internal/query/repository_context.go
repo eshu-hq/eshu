@@ -160,7 +160,8 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	if len(sourceToolBreakdown) > 0 {
 		result["source_tool_breakdown"] = sourceToolBreakdown
 	}
-	timer.Done(ctx,
+	timer.Done(
+		ctx,
 		slog.Int("language_count", len(languageBreakdown)),
 		slog.Int("source_tool_count", len(sourceToolBreakdown)),
 	)

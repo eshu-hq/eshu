@@ -120,7 +120,8 @@ func TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration(
 	if err != nil {
 		t.Fatalf("NewStoredTrigger(aws) error = %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := db.ExecContext(
+		ctx, `
 		INSERT INTO aws_freshness_triggers (
 			trigger_id, delivery_key, freshness_key, event_kind, event_id,
 			account_id, region, service_kind, resource_type, resource_id,
@@ -148,7 +149,8 @@ func TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration(
 	if err != nil {
 		t.Fatalf("NewStoredTrigger(gcp) error = %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := db.ExecContext(
+		ctx, `
 		INSERT INTO gcp_freshness_triggers (
 			trigger_id, delivery_key, freshness_key, event_kind, event_id,
 			parent_scope_kind, parent_scope_id, asset_type, location,

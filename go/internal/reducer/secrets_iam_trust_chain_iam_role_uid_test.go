@@ -233,7 +233,8 @@ func TestBuildSecretsIAMTrustChainReadModelsIsolatesMalformedPrincipalFromValidC
 	region := "aws-global"
 
 	envelopes := iamRoleUIDChainEnvelopes("sha256:sa-bad", "sha256:subject-bad", badRoleARN, "", "")
-	envelopes = append(envelopes,
+	envelopes = append(
+		envelopes,
 		iamRoleUIDChainEnvelopes("sha256:sa-good", "sha256:subject-good", goodRoleARN, accountID, region)...,
 	)
 

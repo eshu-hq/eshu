@@ -52,7 +52,8 @@ func TestSelect_FrontendLane(t *testing.T) {
 
 	consoleSel := cigates.FilterByCategory(
 		reg.Select([]string{"apps/console/src/App.tsx"}, cigates.TierPrePush),
-		[]cigates.Category{cigates.CategoryFrontend})
+		[]cigates.Category{cigates.CategoryFrontend},
+	)
 	sel := collectSelected(consoleSel)
 	if _, ok := sel["console-a11y"]; !ok {
 		t.Error("apps/console change should select console-a11y under category=frontend")
@@ -66,7 +67,8 @@ func TestSelect_FrontendLane(t *testing.T) {
 
 	siteSel := cigates.FilterByCategory(
 		reg.Select([]string{"src/main.ts"}, cigates.TierPrePush),
-		[]cigates.Category{cigates.CategoryFrontend})
+		[]cigates.Category{cigates.CategoryFrontend},
+	)
 	if _, ok := collectSelected(siteSel)["frontend-site"]; !ok {
 		t.Error("root src change should select frontend-site")
 	}
@@ -90,7 +92,8 @@ func TestSelect_SecurityLane(t *testing.T) {
 
 	depSel := collectSelected(cigates.FilterByCategory(
 		reg.Select([]string{"go/go.sum"}, cigates.TierPrePush),
-		[]cigates.Category{cigates.CategorySecurity}))
+		[]cigates.Category{cigates.CategorySecurity},
+	))
 	for _, id := range []string{"govulncheck", "nancy"} {
 		if _, ok := depSel[id]; !ok {
 			t.Errorf("go.sum change should select %q", id)
@@ -105,7 +108,8 @@ func TestSelect_SecurityLane(t *testing.T) {
 
 	deploySel := collectSelected(cigates.FilterByCategory(
 		reg.Select([]string{"Dockerfile"}, cigates.TierPrePush),
-		[]cigates.Category{cigates.CategorySecurity}))
+		[]cigates.Category{cigates.CategorySecurity},
+	))
 	if _, ok := deploySel["trivy-fs"]; !ok {
 		t.Error("Dockerfile change should select trivy-fs")
 	}
@@ -132,7 +136,8 @@ func TestSelect_RaceLane(t *testing.T) {
 	// A reducer (graph-write) change selects the race gate under category=race.
 	graphSel := cigates.FilterByCategory(
 		reg.Select([]string{"go/internal/reducer/handler.go"}, cigates.TierPrePR),
-		[]cigates.Category{cigates.CategoryRace})
+		[]cigates.Category{cigates.CategoryRace},
+	)
 	if _, ok := collectSelected(graphSel)["race-graph-writes"]; !ok {
 		t.Error("reducer change should select race-graph-writes under category=race")
 	}
@@ -141,7 +146,8 @@ func TestSelect_RaceLane(t *testing.T) {
 	// 2's scoped race covers it instead).
 	otherSel := cigates.FilterByCategory(
 		reg.Select([]string{"go/internal/queueclient/client.go"}, cigates.TierPrePR),
-		[]cigates.Category{cigates.CategoryRace})
+		[]cigates.Category{cigates.CategoryRace},
+	)
 	if _, ok := collectSelected(otherSel)["race-graph-writes"]; ok {
 		t.Error("non-graph change should NOT select race-graph-writes")
 	}
