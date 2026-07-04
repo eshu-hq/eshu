@@ -1,0 +1,59 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//alloydb.googleapis.com/projects/demo-project/locations/us-central1/clusters/primary",
+      "assetType": "alloydb.googleapis.com/Cluster",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "displayName": "primary-cluster",
+          "uid": "abc123",
+          "state": "READY",
+          "clusterType": "PRIMARY",
+          "databaseVersion": "POSTGRES_15",
+          "subscriptionType": "STANDARD",
+          "createTime": "2026-06-01T00:00:00Z",
+          "networkConfig": {
+            "network": "projects/demo-project/global/networks/prod-vpc"
+          },
+          "encryptionConfig": {
+            "kmsKeyName": "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/alloydb-key"
+          },
+          "encryptionInfo": {
+            "encryptionType": "CUSTOMER_MANAGED_ENCRYPTION"
+          },
+          "automatedBackupPolicy": {
+            "enabled": true,
+            "location": "us-central1",
+            "backupWindow": "3600s",
+            "timeBasedRetention": {
+              "retentionPeriod": "1209600s"
+            }
+          },
+          "continuousBackupConfig": {
+            "enabled": true,
+            "recoveryWindowDays": 14
+          },
+          "labels": {"team": "data-platform"}
+        }
+      }
+    },
+    {
+      "name": "//alloydb.googleapis.com/projects/demo-project/locations/us-east1/clusters/secondary",
+      "assetType": "alloydb.googleapis.com/Cluster",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-east1",
+        "data": {
+          "state": "READY",
+          "clusterType": "SECONDARY",
+          "databaseVersion": "POSTGRES_15"
+        }
+      }
+    }
+  ]
+}
