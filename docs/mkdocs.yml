@@ -73,6 +73,7 @@ nav:
     - Helm Values: deploy/kubernetes/helm-values.md
     - Helm Runtime Values: deploy/kubernetes/helm-runtime-values.md
     - Helm Collector and Webhook Values: deploy/kubernetes/helm-collector-and-webhook-values.md
+    - GCP Change Feed Operator Setup: deploy/kubernetes/gcp-freshness-operator-setup.md
     - Helm Routing and Storage Values: deploy/kubernetes/helm-routing-and-storage-values.md
     - Minimal Manifests: deploy/kubernetes/manifests.md
     - Argo CD / GitOps: deploy/kubernetes/argocd.md
