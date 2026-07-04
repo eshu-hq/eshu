@@ -2233,6 +2233,11 @@
     },
     {
       "category": "command",
+      "name": "payload-usage-manifest",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "projector",
       "readiness": "implemented"
     },

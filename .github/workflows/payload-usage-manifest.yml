@@ -1,0 +1,96 @@
+# Contract System v1 §6 enforcement gate 2: the payload-usage manifest
+# (issue #4573, docs/internal/design/contract-system-v1.md#6-enforcement-gates).
+# Derives, from the typed factschema.Decode* calls in
+# go/internal/reducer/factschema_decode.go, which declared payload fields
+# each reducer-decoded fact kind's handlers actually read, and fails when a
+# handler reads a field no checked-in JSON Schema
+# (sdk/go/factschema/schema/*.json) declares — the reverse break the
+# forward-direction factschema-diff gate (issue #4569) cannot catch.
+name: Payload Usage Manifest
+
+on:
+  pull_request:
+    paths:
+      - "go/internal/reducer/**"
+      - "sdk/go/factschema/**"
+      - "go/internal/payloadusage/**"
+      - "go/cmd/payload-usage-manifest/**"
+      - "scripts/*verify-payload-usage-manifest*.sh"
+      - ".github/workflows/payload-usage-manifest.yml"
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-mirror:
+    name: Verify payload-usage-manifest test mirror
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep and jq
+        run: sudo apt-get update && sudo apt-get install -y ripgrep jq
+
+      - name: Run Go unit tests
+        working-directory: go
+        run: go test ./internal/payloadusage/... ./cmd/payload-usage-manifest/... -count=1
+
+      - name: Run shell test mirror
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/test-verify-payload-usage-manifest.sh 2>&1 | tee /tmp/payload-usage-manifest-test.log
+
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payload-usage-manifest-test-log
+          path: /tmp/payload-usage-manifest-test.log
+          if-no-files-found: warn
+
+  gate:
+    name: Verify payload-usage-manifest gate
+    needs: test-mirror
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Run payload-usage-manifest gate
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/verify-payload-usage-manifest.sh 2>&1 | tee /tmp/payload-usage-manifest-gate.log
+
+      - name: Upload gate report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payload-usage-manifest-report
+          path: /tmp/payload-usage-manifest-gate.log
+          if-no-files-found: warn

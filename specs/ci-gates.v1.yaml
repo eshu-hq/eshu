@@ -345,6 +345,38 @@ gates:
     # newly added required field, or a deleted schema file — all without a
     # corresponding major version bump. See go/cmd/factschema-diff/README.md.
 
+  - id: payload-usage-manifest
+    name: Payload Usage Manifest (reverse contract gate)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/reducer/**"
+      - "sdk/go/factschema/**"
+      - "go/internal/payloadusage/**"
+      - "go/cmd/payload-usage-manifest/**"
+      - "scripts/*verify-payload-usage-manifest*.sh"
+    local:
+      command: "bash scripts/verify-payload-usage-manifest.sh"
+      test_command: "bash scripts/test-verify-payload-usage-manifest.sh"
+    ci:
+      workflow: payload-usage-manifest.yml
+      job: "Verify payload-usage-manifest gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # Contract System v1 §6 enforcement gate 2: derives, from the typed
+    # factschema.Decode* calls in go/internal/reducer/factschema_decode.go,
+    # which declared payload fields each reducer-decoded fact kind's handlers
+    # actually read (go/internal/payloadusage), and fails when a handler reads
+    # a field no checked-in JSON Schema
+    # (sdk/go/factschema/schema/*.json) declares. This is the REVERSE
+    # direction from factschema-diff (a schema breaking its own declared
+    # shape): a reducer starting to require a field no schema promises. See
+    # go/internal/payloadusage/README.md and
+    # go/internal/reducer/payload_usage_manifest_test.go
+    # (TestPayloadUsageManifest).
+
   - id: mcp-schema-drift
     name: MCP Schema Drift
     category: exactness
