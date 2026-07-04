@@ -76,6 +76,79 @@ func TestSearchVectorBuildRunnerUsesBatchBuilderForPendingScopes(t *testing.T) {
 	}, builder.batchRequests[0])
 }
 
+// TestSearchVectorBuildRunnerBatchPathPublishesReadyAfterDrainingLastPendingScopes
+// proves the search_vector_ready signal fires on the production FAST PATH
+// (SearchVectorBatchBuilder, used by searchVectorBuilderAdapter in
+// cmd/reducer) when a batch sweep drains the last pending scopes to zero —
+// not just the serial per-scope path (#4673 review fix, bugs #4/#5). Before
+// the fix, the batch path returned before the ready-publish call was ever
+// reached, so production never published the signal.
+func TestSearchVectorBuildRunnerBatchPathPublishesReadyAfterDrainingLastPendingScopes(t *testing.T) {
+	t.Parallel()
+
+	pending := &fakeSearchVectorPendingLister{
+		scopes: []SearchVectorBuildPendingScope{
+			{ScopeID: "scope-a", GenerationID: "gen-a", RepoID: "repo-a"},
+		},
+		postBuildScopes: nil,
+	}
+	builder := &fakeSearchVectorBatchBuilder{result: SearchVectorBuildResult{DocumentCount: 1, VectorCount: 1}}
+	publisher := &fakeSearchVectorReadyPublisher{}
+	runner := &SearchVectorBuildRunner{
+		Pending:        pending,
+		Builder:        builder,
+		ReadyPublisher: publisher,
+		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  testSearchVectorIdentity.ProviderProfileID,
+			SourceClass:        testSearchVectorIdentity.SourceClass,
+			EmbeddingModelID:   testSearchVectorIdentity.EmbeddingModelID,
+			VectorIndexVersion: testSearchVectorIdentity.VectorIndexVersion,
+		},
+	}
+
+	result, err := runner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.PendingScopes, "pre-build listing was non-empty")
+	require.Equal(t, 1, publisher.calls, "batch path drained the last pending scope; ready must publish")
+	require.Equal(t, []SearchVectorBuildIdentity{testSearchVectorIdentity}, publisher.identities)
+}
+
+// TestSearchVectorBuildRunnerBatchPathDoesNotPublishReadyWithPendingScopes
+// proves the batch fast path does NOT publish search_vector_ready when the
+// post-build re-check still finds pending scopes.
+func TestSearchVectorBuildRunnerBatchPathDoesNotPublishReadyWithPendingScopes(t *testing.T) {
+	t.Parallel()
+
+	pending := &fakeSearchVectorPendingLister{
+		scopes: []SearchVectorBuildPendingScope{
+			{ScopeID: "scope-a", GenerationID: "gen-a", RepoID: "repo-a"},
+		},
+		postBuildScopes: []SearchVectorBuildPendingScope{
+			{ScopeID: "scope-b", GenerationID: "gen-b", RepoID: "repo-b"},
+		},
+	}
+	builder := &fakeSearchVectorBatchBuilder{result: SearchVectorBuildResult{DocumentCount: 1, VectorCount: 1}}
+	publisher := &fakeSearchVectorReadyPublisher{}
+	runner := &SearchVectorBuildRunner{
+		Pending:        pending,
+		Builder:        builder,
+		ReadyPublisher: publisher,
+		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  testSearchVectorIdentity.ProviderProfileID,
+			SourceClass:        testSearchVectorIdentity.SourceClass,
+			EmbeddingModelID:   testSearchVectorIdentity.EmbeddingModelID,
+			VectorIndexVersion: testSearchVectorIdentity.VectorIndexVersion,
+		},
+	}
+
+	result, err := runner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.PendingScopes)
+	require.Equal(t, 0, publisher.calls)
+}
+
 type fakeSearchVectorBatchBuilder struct {
 	fakeSearchVectorBuilder
 	result        SearchVectorBuildResult

@@ -327,6 +327,12 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Index:       query.NewPostgresSemanticSearchIndexStore(db),
 			LocalHybrid: newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
 			Profile:     queryProfile,
+			SearchVectorReady: query.NewPostgresSearchVectorReadyStore(db, query.SearchVectorBuildIdentity{
+				ProviderProfileID:  semanticSearchEmbedding.ProviderProfileID,
+				SourceClass:        semanticSearchEmbedding.SourceClass,
+				EmbeddingModelID:   semanticSearchEmbedding.EmbeddingModelID,
+				VectorIndexVersion: semanticSearchEmbedding.VectorIndexVersion,
+			}),
 		},
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:              neo4jReader,

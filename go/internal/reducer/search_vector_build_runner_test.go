@@ -205,19 +205,33 @@ func TestServiceStartsSearchVectorBuildRunner(t *testing.T) {
 }
 
 type fakeSearchVectorPendingLister struct {
-	scopes   []SearchVectorBuildPendingScope
-	err      error
-	requests []SearchVectorBuildPendingRequest
+	mu sync.Mutex
+	// scopes is returned by the first ListPendingSearchVectorScopes call (the
+	// sweep's initial pending-scope listing).
+	scopes []SearchVectorBuildPendingScope
+	// postBuildScopes is returned by every call after the first — the
+	// post-build re-check RunOnce issues to decide whether to publish
+	// search_vector_ready (#4673 review fix: gate publish on POST-build
+	// state, not the pre-build listing). Nil (the zero value) means "caught
+	// up" for tests that don't care about the re-check response.
+	postBuildScopes []SearchVectorBuildPendingScope
+	err             error
+	requests        []SearchVectorBuildPendingRequest
 }
 
 func (f *fakeSearchVectorPendingLister) ListPendingSearchVectorScopes(
 	_ context.Context,
 	req SearchVectorBuildPendingRequest,
 ) ([]SearchVectorBuildPendingScope, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.requests = append(f.requests, req)
-	scopes := f.scopes
-	f.scopes = nil
-	return scopes, f.err
+	if len(f.requests) == 1 {
+		scopes := f.scopes
+		f.scopes = nil
+		return scopes, f.err
+	}
+	return f.postBuildScopes, f.err
 }
 
 type fakeSearchVectorBuilder struct {

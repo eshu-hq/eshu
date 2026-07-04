@@ -56,9 +56,26 @@ func searchVectorBuildRunnerFor(
 			EmbeddingModelID:   vectorConfig.EmbeddingModelID,
 			VectorIndexVersion: vectorConfig.VectorIndexVersion,
 		},
-		Logger:      logger,
-		Instruments: instruments,
+		Logger:         logger,
+		Instruments:    instruments,
+		ReadyPublisher: searchVectorReadyPublisherAdapter{store: postgres.NewEshuSearchVectorBuildReadyStore(database)},
 	}, nil
+}
+
+type searchVectorReadyPublisherAdapter struct {
+	store postgres.EshuSearchVectorBuildReadyStore
+}
+
+func (a searchVectorReadyPublisherAdapter) PublishSearchVectorReady(
+	ctx context.Context,
+	identity reducer.SearchVectorBuildIdentity,
+) error {
+	return a.store.PublishSearchVectorReady(ctx, postgres.EshuSearchVectorBuildIdentity{
+		ProviderProfileID:  identity.ProviderProfileID,
+		SourceClass:        identity.SourceClass,
+		EmbeddingModelID:   identity.EmbeddingModelID,
+		VectorIndexVersion: identity.VectorIndexVersion,
+	})
 }
 
 type searchVectorBuilderAdapter struct {

@@ -38,6 +38,13 @@ const (
 	// FreshnessCauseRetentionExpired marks a freshness gap caused by history
 	// that was deliberately pruned by a retention policy.
 	FreshnessCauseRetentionExpired FreshnessCause = "retention_expired"
+	// FreshnessCausePendingSearchVector marks a freshness gap caused by an
+	// outstanding search-vector build: SearchVectorBuildRunner has active
+	// scopes with pending vector rows for the semantic/hybrid search read
+	// path. The cause clears once the runner publishes its search_vector_ready
+	// completion signal (RunOnce completing a bounded sweep with zero pending
+	// scopes).
+	FreshnessCausePendingSearchVector FreshnessCause = "pending_search_vector"
 )
 
 // freshnessCauses is the closed enumeration of valid causes. Validation and the
@@ -51,6 +58,7 @@ var freshnessCauses = map[FreshnessCause]struct{}{
 	FreshnessCauseContentCoverageUnavailable: {},
 	FreshnessCauseUnsupportedProfile:         {},
 	FreshnessCauseRetentionExpired:           {},
+	FreshnessCausePendingSearchVector:        {},
 }
 
 // ValidFreshnessCause reports whether cause is a member of the closed cause
@@ -143,6 +151,11 @@ var freshnessCauseNextChecks = map[FreshnessCause]FreshnessNextCheck{
 		Tool:   "get_generation_lifecycle",
 		Route:  "GET /api/v0/freshness/generations",
 		Reason: "the requested history was pruned by retention; inspect the retained generation window",
+	},
+	FreshnessCausePendingSearchVector: {
+		Tool:   "get_index_status",
+		Route:  "GET /api/v0/status",
+		Reason: "check the search-vector build sweep; the answer catches up once the pending scopes reach zero and search_vector_ready is published",
 	},
 }
 
