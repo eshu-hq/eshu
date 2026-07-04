@@ -23,12 +23,22 @@ CREATE TABLE IF NOT EXISTS aws_freshness_triggers (
     claimed_by TEXT NULL,
     claimed_at TIMESTAMPTZ NULL,
     claim_expires_at TIMESTAMPTZ NULL,
+    claim_fencing_token BIGINT NOT NULL DEFAULT 0,
     handed_off_at TIMESTAMPTZ NULL,
     failed_at TIMESTAMPTZ NULL,
     failure_class TEXT NULL,
     failure_message TEXT NULL,
     PRIMARY KEY (trigger_id)
 );
+
+-- These ALTERs backfill columns this EnsureSchema DDL added after the table
+-- may already exist from a pre-#4576 deployment. CREATE TABLE IF NOT EXISTS
+-- above is a no-op against an existing table, so without these, a store
+-- created before #4576 would be missing claim_expires_at/claim_fencing_token
+-- and the index/query below would fail at startup with "column ... does not
+-- exist" (flagged in PR #4682 review).
+ALTER TABLE aws_freshness_triggers ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMPTZ NULL;
+ALTER TABLE aws_freshness_triggers ADD COLUMN IF NOT EXISTS claim_fencing_token BIGINT NOT NULL DEFAULT 0;
 
 CREATE UNIQUE INDEX IF NOT EXISTS aws_freshness_triggers_freshness_key_idx
     ON aws_freshness_triggers (freshness_key);

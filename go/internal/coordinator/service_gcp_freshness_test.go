@@ -32,6 +32,11 @@ type fakeGCPFreshnessTriggerStore struct {
 	reclaimCalls    int
 	reclaimErr      error
 	reclaimAsOfSeen []time.Time
+
+	// currentFencingToken simulates the store's claim_fencing_token column
+	// (#4576); see fakeAWSFreshnessTriggerStore's identical field doc comment.
+	currentFencingToken map[string]int64
+	fencedOutIDs        []string
 }
 
 func (f *fakeGCPFreshnessTriggerStore) ClaimQueuedTriggers(
@@ -43,7 +48,15 @@ func (f *fakeGCPFreshnessTriggerStore) ClaimQueuedTriggers(
 ) ([]freshness.StoredTrigger, error) {
 	f.claimCalls++
 	f.claimedLeases = append(f.claimedLeases, leaseDuration)
-	return append([]freshness.StoredTrigger(nil), f.claimed...), nil
+	if f.currentFencingToken == nil {
+		f.currentFencingToken = make(map[string]int64)
+	}
+	claimed := append([]freshness.StoredTrigger(nil), f.claimed...)
+	for i := range claimed {
+		f.currentFencingToken[claimed[i].TriggerID]++
+		claimed[i].ClaimFencingToken = f.currentFencingToken[claimed[i].TriggerID]
+	}
+	return claimed, nil
 }
 
 func (f *fakeGCPFreshnessTriggerStore) ReapExpiredTriggerClaims(
@@ -61,21 +74,33 @@ func (f *fakeGCPFreshnessTriggerStore) ReapExpiredTriggerClaims(
 
 func (f *fakeGCPFreshnessTriggerStore) MarkTriggersHandedOff(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []freshness.StoredTrigger,
 	_ time.Time,
 ) error {
-	f.handedOffIDs = append(f.handedOffIDs, triggerIDs...)
+	for _, trigger := range triggers {
+		if f.currentFencingToken != nil && f.currentFencingToken[trigger.TriggerID] != trigger.ClaimFencingToken {
+			f.fencedOutIDs = append(f.fencedOutIDs, trigger.TriggerID)
+			continue
+		}
+		f.handedOffIDs = append(f.handedOffIDs, trigger.TriggerID)
+	}
 	return nil
 }
 
 func (f *fakeGCPFreshnessTriggerStore) MarkTriggersFailed(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []freshness.StoredTrigger,
 	_ time.Time,
 	failureClass string,
 	failureReason string,
 ) error {
-	f.failedIDs = append(f.failedIDs, triggerIDs...)
+	for _, trigger := range triggers {
+		if f.currentFencingToken != nil && f.currentFencingToken[trigger.TriggerID] != trigger.ClaimFencingToken {
+			f.fencedOutIDs = append(f.fencedOutIDs, trigger.TriggerID)
+			continue
+		}
+		f.failedIDs = append(f.failedIDs, trigger.TriggerID)
+	}
 	f.failureClass = failureClass
 	f.failureReason = failureReason
 	return f.markFailedErr

@@ -202,6 +202,113 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsConcurrentSafety(t *testing.T)
 	}
 }
 
+// TestAWSFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration proves
+// the #4576 claim_fencing_token fencing raised in PR #4682 review against a
+// real Postgres instance: a trigger claimed by one owner, reaped back to
+// 'queued' after its lease expires, and then re-claimed by a different
+// owner, cannot be completed (via MarkTriggersHandedOff or MarkTriggersFailed)
+// by the original stale holder using the fencing token from its now-expired
+// claim. Only the new owner's completion, presenting the current token,
+// succeeds.
+func TestAWSFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration(t *testing.T) {
+	dsn := os.Getenv(freshnessClaimLeaseProofDSNEnv)
+	if dsn == "" {
+		t.Skip("set ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN to run the AWS/GCP freshness claim-lease integration proof")
+	}
+
+	db := freshnessLeaseProofDB(t, dsn)
+	store := NewAWSFreshnessStore(SQLDB{DB: db})
+	if err := store.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema() error = %v", err)
+	}
+
+	now := time.Date(2026, time.July, 4, 14, 0, 0, 0, time.UTC)
+	ctx := context.Background()
+
+	trigger := freshness.Trigger{
+		EventID:      "evt-stale-holder",
+		Kind:         freshness.EventKindConfigChange,
+		AccountID:    "123456789012",
+		Region:       "us-east-1",
+		ServiceKind:  awscloud.ServiceLambda,
+		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ResourceID:   "function-stale-holder",
+		ObservedAt:   now,
+	}
+	if _, err := store.StoreTrigger(ctx, trigger, now); err != nil {
+		t.Fatalf("StoreTrigger() error = %v", err)
+	}
+
+	// Original holder claims with a lease that is already expired relative to
+	// `now`, mirroring a coordinator replica that claimed, then stalled past
+	// its lease (e.g. GC pause, slow handoff) while the reaper moved on.
+	staleClaims, err := store.ClaimQueuedTriggers(ctx, "claimant-stale", now.Add(-10*time.Minute), 1, time.Minute)
+	if err != nil {
+		t.Fatalf("ClaimQueuedTriggers(stale) error = %v", err)
+	}
+	if len(staleClaims) != 1 {
+		t.Fatalf("len(staleClaims) = %d, want 1", len(staleClaims))
+	}
+	staleClaim := staleClaims[0]
+
+	// The reaper reclaims the expired claim back to 'queued'.
+	reclaimed, err := store.ReapExpiredTriggerClaims(ctx, now, 50)
+	if err != nil {
+		t.Fatalf("ReapExpiredTriggerClaims() error = %v", err)
+	}
+	if len(reclaimed) != 1 {
+		t.Fatalf("len(reclaimed) = %d, want 1", len(reclaimed))
+	}
+
+	// A different owner re-claims the reclaimed trigger, bumping
+	// claim_fencing_token again.
+	newClaims, err := store.ClaimQueuedTriggers(ctx, "claimant-new", now, 1, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("ClaimQueuedTriggers(new) error = %v", err)
+	}
+	if len(newClaims) != 1 {
+		t.Fatalf("len(newClaims) = %d, want 1", len(newClaims))
+	}
+	newClaim := newClaims[0]
+	if newClaim.ClaimFencingToken == staleClaim.ClaimFencingToken {
+		t.Fatalf("newClaim.ClaimFencingToken = %d, want different from staleClaim.ClaimFencingToken = %d", newClaim.ClaimFencingToken, staleClaim.ClaimFencingToken)
+	}
+
+	// The original stale holder attempts to complete the claim using the
+	// fencing token from its now-superseded claim. This must not affect the
+	// row: the row's current token belongs to the new owner.
+	if err := store.MarkTriggersHandedOff(ctx, []freshness.StoredTrigger{staleClaim}, now); err != nil {
+		t.Fatalf("MarkTriggersHandedOff(stale) error = %v", err)
+	}
+	assertAWSFreshnessTriggerStatus(t, db, staleClaim.TriggerID, string(freshness.TriggerStatusClaimed))
+
+	if err := store.MarkTriggersFailed(ctx, []freshness.StoredTrigger{staleClaim}, now, "stale-failure", "stale holder must not be able to fail this claim"); err != nil {
+		t.Fatalf("MarkTriggersFailed(stale) error = %v", err)
+	}
+	assertAWSFreshnessTriggerStatus(t, db, staleClaim.TriggerID, string(freshness.TriggerStatusClaimed))
+
+	// The new owner, presenting the current fencing token, can complete the
+	// claim.
+	if err := store.MarkTriggersHandedOff(ctx, []freshness.StoredTrigger{newClaim}, now); err != nil {
+		t.Fatalf("MarkTriggersHandedOff(new) error = %v", err)
+	}
+	assertAWSFreshnessTriggerStatus(t, db, newClaim.TriggerID, string(freshness.TriggerStatusHandedOff))
+}
+
+// assertAWSFreshnessTriggerStatus reads a trigger's current status directly
+// (bypassing the store API, which has no read-by-id method) so the test can
+// prove which write actually landed.
+func assertAWSFreshnessTriggerStatus(t *testing.T, db *sql.DB, triggerID string, want string) {
+	t.Helper()
+	var got string
+	if err := db.QueryRowContext(context.Background(), "SELECT status FROM aws_freshness_triggers WHERE trigger_id = $1", triggerID).Scan(&got); err != nil {
+		t.Fatalf("read trigger status: %v", err)
+	}
+	if got != want {
+		t.Fatalf("trigger %q status = %q, want %q", triggerID, got, want)
+	}
+}
+
 // freshnessLeaseProofDB opens an isolated-schema connection against dsn so
 // this suite's rows never collide with another integration test's fixtures
 // sharing the same database. The pool is capped at one connection: SET

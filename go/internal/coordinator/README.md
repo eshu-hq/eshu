@@ -564,10 +564,40 @@ had no reclaim path:
    and `FOR UPDATE SKIP LOCKED` together guarantee a reap pass can never touch
    (or race) a still-live claim-holder working within its lease window.
 
-Migration `040_aws_gcp_freshness_claim_lease.sql` adds the nullable
-`claim_expires_at TIMESTAMPTZ` column plus a partial index
-(`WHERE status = 'claimed'`) on each of `aws_freshness_triggers` and
-`gcp_freshness_triggers`.
+**Fencing completion against a reaped-then-reclaimed row (raised in PR #4682
+review).** The lease alone is not enough: with more than one coordinator
+replica, or a handoff that runs past its own lease while a reap pass reclaims
+it concurrently, a reclaimed trigger could be re-claimed by a different owner
+while the original (now-stale) holder is still mid-flight and later calls
+`MarkTriggersHandedOff`/`MarkTriggersFailed` — completing a claim it no longer
+holds. Every claimed row now also carries a `claim_fencing_token BIGINT`,
+bumped by `ClaimQueuedTriggers` on every claim (fresh or reclaimed). The
+returned `StoredTrigger.ClaimFencingToken` must be presented back to
+`MarkTriggersHandedOff`/`MarkTriggersFailed`, whose `UPDATE` statements now join
+against a `VALUES (trigger_id, fencing_token)` list and require
+`trigger.claim_fencing_token = fenced.fencing_token` in addition to
+`status = 'claimed'`. `ReapExpiredTriggerClaims` deliberately leaves
+`claim_fencing_token` untouched on reclaim (it only resets `status`,
+`claimed_by`, `claimed_at`, and `claim_expires_at`), so the next
+`ClaimQueuedTriggers` call bumps it again — the original holder's token can
+never match again, and its completion call silently affects zero rows instead
+of completing a claim it no longer holds. This mirrors the reducer's
+expired-lease fencing pattern (#4464).
+
+Migration `041_aws_gcp_freshness_claim_lease.sql` adds the nullable
+`claim_expires_at TIMESTAMPTZ` column, the `claim_fencing_token BIGINT NOT
+NULL DEFAULT 0` column, and a partial index (`WHERE status = 'claimed'`) on
+each of `aws_freshness_triggers` and `gcp_freshness_triggers`. It also
+backfills `claim_expires_at` for any row already sitting at `claimed` when the
+migration runs (derived from `claimed_at + 5 minutes`, the coordinator's
+default lease): without this backfill, a pre-existing stuck row would get
+`claim_expires_at = NULL`, and `ReapExpiredTriggerClaims`'s
+`claim_expires_at IS NOT NULL` predicate would skip it forever — leaving
+exactly the already-stuck triggers #4576 exists to rescue permanently
+stranded. `EnsureSchema` on both stores also runs the equivalent
+`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for `claim_expires_at` and
+`claim_fencing_token`, so a store created before #4576 gets the columns even
+if migration 041 has not been run against it directly.
 
 Performance Evidence: this adds one extra indexed column write to the existing
 `ClaimQueuedTriggers` UPDATE (no new query) and one new reap query per store
@@ -590,7 +620,7 @@ failing instance's trigger is marked `failed` rather than left `claimed`),
 runs before handoff each tick and records the reclaimed count as the
 stuck-claimed telemetry signal, and (c) `TestRunReapExpiredAWSFreshnessClaimsRecordsErrorOutcome`
 proving a reap failure is recorded with the error outcome rather than dropped.
-`go test ./internal/storage/postgres -run TestAWSFreshnessStoreReapExpiredTriggerClaims -race -count=1`
+`go test ./internal/storage/postgres -run 'Freshness' -race -count=1`
 against a real disposable Postgres 18 instance
 (`ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN`) additionally proves, against the
 database rather than SQL text alone: a claim with an already-expired lease is
@@ -599,7 +629,19 @@ untouched (no race against a live claim-holder), reap is idempotent (a second
 immediate pass reclaims nothing further), and 5 concurrent reap passes racing
 20 expired claims each reclaim a disjoint set — every row is reclaimed by
 exactly one caller, proving `FOR UPDATE SKIP LOCKED` prevents double-reclaim
-under concurrency.
+under concurrency (both AWS and GCP stores).
+`TestAWSFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration`/
+`TestGCPFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration` prove
+the fencing design end-to-end: after a claim is reaped and re-claimed by a
+different owner, the original stale holder's `MarkTriggersHandedOff` and
+`MarkTriggersFailed` calls (presenting its now-superseded fencing token) leave
+the row's status unchanged at `claimed`, while the new owner's call
+(presenting the current token) successfully transitions it to `handed_off`.
+`TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration`
+seeds both tables in their pre-#4576 shape, inserts a row already stuck at
+`claimed` with no lease columns, applies migration 041 verbatim, and proves
+`ReapExpiredTriggerClaims` reclaims that pre-existing stuck row on the very
+next pass — proving the backfill, not just the column addition.
 
 Observability Evidence: `eshu_dp_workflow_coordinator_aws_freshness_reap_total`/
 `..._gcp_freshness_reap_total` (outcome-dimensioned counters),

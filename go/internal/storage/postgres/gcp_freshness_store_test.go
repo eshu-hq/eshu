@@ -191,7 +191,11 @@ func TestGCPFreshnessStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *tes
 	store := NewGCPFreshnessStore(db)
 	now := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 
-	err := store.MarkTriggersHandedOff(context.Background(), []string{"trigger-2", "trigger-1", "trigger-2"}, now)
+	err := store.MarkTriggersHandedOff(context.Background(), []freshness.StoredTrigger{
+		{TriggerID: "trigger-2", ClaimFencingToken: 7},
+		{TriggerID: "trigger-1", ClaimFencingToken: 3},
+		{TriggerID: "trigger-2", ClaimFencingToken: 7},
+	}, now)
 	if err != nil {
 		t.Fatalf("MarkTriggersHandedOff() error = %v, want nil", err)
 	}
@@ -201,8 +205,11 @@ func TestGCPFreshnessStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *tes
 	if strings.Contains(db.execs[0].query, "ANY($1)") {
 		t.Fatalf("query still uses array parameter: %s", db.execs[0].query)
 	}
-	if !strings.Contains(db.execs[0].query, "trigger_id IN ($1, $2)") {
-		t.Fatalf("query missing individual id placeholders: %s", db.execs[0].query)
+	if !strings.Contains(db.execs[0].query, "VALUES ($1, $2::bigint), ($3, $4::bigint)") {
+		t.Fatalf("query missing fenced (trigger_id, fencing_token) VALUES pairs (dedup should drop the repeated trigger-2): %s", db.execs[0].query)
+	}
+	if !strings.Contains(db.execs[0].query, "trigger.claim_fencing_token = fenced.fencing_token") {
+		t.Fatalf("query missing claim_fencing_token fencing predicate: %s", db.execs[0].query)
 	}
 }
 
@@ -213,7 +220,7 @@ func TestGCPFreshnessStoreMarkTriggersFailedRequiresFailureClass(t *testing.T) {
 	store := NewGCPFreshnessStore(db)
 	now := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 
-	err := store.MarkTriggersFailed(context.Background(), []string{"trigger-1"}, now, "", "boom")
+	err := store.MarkTriggersFailed(context.Background(), []freshness.StoredTrigger{{TriggerID: "trigger-1", ClaimFencingToken: 1}}, now, "", "boom")
 	if err == nil {
 		t.Fatal("MarkTriggersFailed() error = nil, want non-nil for empty failure class")
 	}
@@ -239,6 +246,18 @@ func gcpFreshnessTriggerRow(
 	status freshness.TriggerStatus,
 	now time.Time,
 ) queueFakeRows {
+	return gcpFreshnessTriggerRowWithFencingToken(trigger, status, now, 0)
+}
+
+// gcpFreshnessTriggerRowWithFencingToken is gcpFreshnessTriggerRow with an
+// explicit trailing claim_fencing_token value; see
+// awsFreshnessTriggerRowWithFencingToken's doc comment (#4576).
+func gcpFreshnessTriggerRowWithFencingToken(
+	trigger freshness.Trigger,
+	status freshness.TriggerStatus,
+	now time.Time,
+	fencingToken int64,
+) queueFakeRows {
 	stored, err := freshness.NewStoredTrigger(trigger, now)
 	if err != nil {
 		panic(err)
@@ -258,5 +277,6 @@ func gcpFreshnessTriggerRow(
 		trigger.ObservedAt,
 		now,
 		now,
+		fencingToken,
 	}}}
 }

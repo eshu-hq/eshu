@@ -32,6 +32,15 @@ type fakeAWSFreshnessTriggerStore struct {
 	reclaimCalls    int
 	reclaimErr      error
 	reclaimAsOfSeen []time.Time
+
+	// currentFencingToken simulates the store's claim_fencing_token column
+	// (#4576): keyed by trigger id, it holds the token the CURRENT claim
+	// holder must present. MarkTriggersHandedOff/MarkTriggersFailed only
+	// complete a trigger whose passed-in ClaimFencingToken still matches,
+	// letting tests prove a stale (reaped-then-reassigned) holder cannot
+	// complete a claim it no longer holds.
+	currentFencingToken map[string]int64
+	fencedOutIDs        []string
 }
 
 func (f *fakeAWSFreshnessTriggerStore) ClaimQueuedTriggers(
@@ -43,7 +52,15 @@ func (f *fakeAWSFreshnessTriggerStore) ClaimQueuedTriggers(
 ) ([]freshness.StoredTrigger, error) {
 	f.claimCalls++
 	f.claimedLeases = append(f.claimedLeases, leaseDuration)
-	return append([]freshness.StoredTrigger(nil), f.claimed...), nil
+	if f.currentFencingToken == nil {
+		f.currentFencingToken = make(map[string]int64)
+	}
+	claimed := append([]freshness.StoredTrigger(nil), f.claimed...)
+	for i := range claimed {
+		f.currentFencingToken[claimed[i].TriggerID]++
+		claimed[i].ClaimFencingToken = f.currentFencingToken[claimed[i].TriggerID]
+	}
+	return claimed, nil
 }
 
 func (f *fakeAWSFreshnessTriggerStore) ReapExpiredTriggerClaims(
@@ -61,21 +78,33 @@ func (f *fakeAWSFreshnessTriggerStore) ReapExpiredTriggerClaims(
 
 func (f *fakeAWSFreshnessTriggerStore) MarkTriggersHandedOff(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []freshness.StoredTrigger,
 	_ time.Time,
 ) error {
-	f.handedOffIDs = append(f.handedOffIDs, triggerIDs...)
+	for _, trigger := range triggers {
+		if f.currentFencingToken != nil && f.currentFencingToken[trigger.TriggerID] != trigger.ClaimFencingToken {
+			f.fencedOutIDs = append(f.fencedOutIDs, trigger.TriggerID)
+			continue
+		}
+		f.handedOffIDs = append(f.handedOffIDs, trigger.TriggerID)
+	}
 	return nil
 }
 
 func (f *fakeAWSFreshnessTriggerStore) MarkTriggersFailed(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []freshness.StoredTrigger,
 	_ time.Time,
 	failureClass string,
 	failureReason string,
 ) error {
-	f.failedIDs = append(f.failedIDs, triggerIDs...)
+	for _, trigger := range triggers {
+		if f.currentFencingToken != nil && f.currentFencingToken[trigger.TriggerID] != trigger.ClaimFencingToken {
+			f.fencedOutIDs = append(f.fencedOutIDs, trigger.TriggerID)
+			continue
+		}
+		f.failedIDs = append(f.failedIDs, trigger.TriggerID)
+	}
 	f.failureClass = failureClass
 	f.failureReason = failureReason
 	return f.markFailedErr
