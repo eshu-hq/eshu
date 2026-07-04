@@ -123,7 +123,19 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows := ExtractKubernetesWorkloadNodeRows(envelopes)
+	rows, quarantined, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed kubernetes_live.pod_template fact (a
+	// missing required object_id) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while every valid fact
+	// still materializes its node below, so one bad fact never stalls the
+	// scope generation's node substrate.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesWorkloadMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -180,11 +192,13 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 		Domain:   DomainKubernetesWorkloadMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical kubernetes workload node(s) from %d pod-template fact(s)",
+			"materialized %d canonical kubernetes workload node(s) from %d pod-template fact(s); %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -204,16 +218,22 @@ func (h KubernetesWorkloadMaterializationHandler) recordNodesMaterialized(ctx co
 
 // ExtractKubernetesWorkloadNodeRows projects kubernetes_live.pod_template fact
 // envelopes into deterministic KubernetesWorkload node rows keyed by the stable
-// collector-emitted object_id. Rows are deduplicated by object_id so duplicate
-// facts (retries, overlapping snapshots) converge on a single node; tombstoned
-// pod templates (a deleted workload no longer running) and facts missing an
-// object_id are dropped rather than fabricating or asserting a phantom node. The
-// returned rows are sorted by uid for deterministic batch output.
-func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) []map[string]any {
+// collector-emitted object_id. Each fact is decoded through the factschema
+// seam, so a payload missing the required object_id key is quarantined as a
+// per-fact input_invalid dead-letter (returned in the []quarantinedFact slice)
+// rather than fabricating a node with an empty-string uid OR aborting the
+// whole batch: every valid fact still projects. Rows are deduplicated by
+// object_id so duplicate facts (retries, overlapping snapshots) converge on a
+// single node; tombstoned pod templates (a deleted workload no longer
+// running) are dropped rather than asserting a phantom node. The returned
+// rows are sorted by uid for deterministic batch output. Mirrors
+// ExtractGCPCloudResourceNodeRows (gcp_resource_materialization.go).
+func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
 	if len(envelopes) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
+	var quarantined []quarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != facts.KubernetesPodTemplateFactKind {
@@ -224,7 +244,17 @@ func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) []map[string]
 		if env.IsTombstone {
 			continue
 		}
-		row, uid, ok := kubernetesWorkloadNodeRow(env)
+		row, uid, ok, err := kubernetesWorkloadNodeRow(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
 		if !ok {
 			continue
 		}
@@ -234,7 +264,7 @@ func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) []map[string]
 	}
 
 	if len(byUID) == 0 {
-		return nil
+		return nil, quarantined, nil
 	}
 
 	uids := make([]string, 0, len(byUID))
@@ -247,31 +277,38 @@ func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) []map[string]
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows
+	return rows, quarantined, nil
 }
 
 // kubernetesWorkloadNodeRow builds one KubernetesWorkload node row from a
-// pod-template fact envelope, returning ok=false when the fact lacks the
-// collector-emitted object_id that forms the stable node uid. The node uid is
-// the object_id exactly; the raw Kubernetes metadata.uid is carried as the
-// workload_uid property only, never the node identity (the object_id already
-// folds metadata.uid into its identity tuple).
-func kubernetesWorkloadNodeRow(env facts.Envelope) (map[string]any, string, bool) {
-	objectID := payloadString(env.Payload, "object_id")
+// pod-template fact envelope, decoding the payload through the factschema
+// seam. It returns ok=false (with a nil error) only for a decoded-but-empty
+// object_id (present-but-empty is a valid decode, distinct from an absent
+// required key, which the decode seam already rejects as a classified error).
+// The node uid is the object_id exactly; the raw Kubernetes metadata.uid is
+// carried as the workload_uid property only, never the node identity (the
+// object_id already folds metadata.uid into its identity tuple).
+func kubernetesWorkloadNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
+	podTemplate, err := decodeKubernetesLivePodTemplate(env)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	objectID := podTemplate.ObjectID
 	if objectID == "" {
-		return nil, "", false
+		return nil, "", false, nil
 	}
 	row := map[string]any{
 		"uid":                    objectID,
-		"cluster_id":             payloadString(env.Payload, "cluster_id"),
-		"namespace":              payloadString(env.Payload, "namespace"),
-		"name":                   payloadString(env.Payload, "name"),
-		"workload_uid":           payloadString(env.Payload, "uid"),
-		"group_version_resource": payloadString(env.Payload, "group_version_resource"),
-		"service_account":        payloadString(env.Payload, "service_account"),
-		"image_refs":             payloadStrings(env.Payload, "", "image_refs"),
-		"selector":               flattenSelector(env.Payload["selector"]),
-		"correlation_anchors":    payloadStrings(env.Payload, "", "correlation_anchors"),
+		"cluster_id":             derefString(podTemplate.ClusterID),
+		"namespace":              derefString(podTemplate.Namespace),
+		"name":                   derefString(podTemplate.Name),
+		"workload_uid":           derefString(podTemplate.WorkloadUID),
+		"group_version_resource": derefString(podTemplate.GroupVersionResource),
+		"service_account":        derefString(podTemplate.ServiceAccount),
+		"image_refs":             uniqueSortedStrings(podTemplate.ImageRefs),
+		"selector":               flattenSelectorMap(podTemplate.Selector),
+		"correlation_anchors":    uniqueSortedStrings(podTemplate.CorrelationAnchors),
 		"source_fact_id":         env.FactID,
 		"stable_fact_key":        env.StableFactKey,
 		"source_system":          env.SourceRef.SourceSystem,
@@ -279,43 +316,29 @@ func kubernetesWorkloadNodeRow(env facts.Envelope) (map[string]any, string, bool
 		"source_confidence":      string(env.SourceConfidence),
 		"collector_kind":         env.CollectorKind,
 	}
-	return row, objectID, true
+	return row, objectID, true, nil
 }
 
-// flattenSelector renders a pod-template label selector map into a deterministic
-// sorted slice of "key=value" strings. Graph property values must be scalar or a
-// homogeneous list, so the selector map is flattened rather than stored as a map.
-// The order is sorted so retries and reprojections produce a byte-stable row.
-func flattenSelector(raw any) []string {
-	pairs := selectorPairs(raw)
+// flattenSelectorMap renders a pod-template label selector map into a
+// deterministic sorted slice of "key=value" strings. Graph property values
+// must be scalar or a homogeneous list, so the selector map is flattened
+// rather than stored as a map. The order is sorted so retries and
+// reprojections produce a byte-stable row.
+func flattenSelectorMap(selector map[string]string) []string {
+	if len(selector) == 0 {
+		return nil
+	}
+	pairs := make([]string, 0, len(selector))
+	for key, value := range selector {
+		if key = strings.TrimSpace(key); key != "" {
+			pairs = append(pairs, key+"="+value)
+		}
+	}
 	if len(pairs) == 0 {
 		return nil
 	}
 	sort.Strings(pairs)
 	return pairs
-}
-
-func selectorPairs(raw any) []string {
-	switch typed := raw.(type) {
-	case map[string]string:
-		pairs := make([]string, 0, len(typed))
-		for key, value := range typed {
-			if key = strings.TrimSpace(key); key != "" {
-				pairs = append(pairs, key+"="+value)
-			}
-		}
-		return pairs
-	case map[string]any:
-		pairs := make([]string, 0, len(typed))
-		for key, value := range typed {
-			if key = strings.TrimSpace(key); key != "" {
-				pairs = append(pairs, key+"="+fmt.Sprint(value))
-			}
-		}
-		return pairs
-	default:
-		return nil
-	}
 }
 
 // kubernetesWorkloadMaterializationTiming groups stage durations so the

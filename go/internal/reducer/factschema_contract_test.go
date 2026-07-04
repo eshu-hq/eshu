@@ -45,6 +45,9 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 		{"gcp_collection_warning", factschema.FactKindGCPCollectionWarning, facts.GCPCollectionWarningFactKind},
 		{"gcp_dns_record", factschema.FactKindGCPDNSRecord, facts.GCPDNSRecordFactKind},
 		{"gcp_iam_policy_observation", factschema.FactKindGCPIAMPolicyObservation, facts.GCPIAMPolicyObservationFactKind},
+		{"kubernetes_live.pod_template", factschema.FactKindKubernetesLivePodTemplate, facts.KubernetesPodTemplateFactKind},
+		{"kubernetes_live.relationship", factschema.FactKindKubernetesLiveRelationship, facts.KubernetesRelationshipFactKind},
+		{"kubernetes_live.warning", factschema.FactKindKubernetesLiveWarning, facts.KubernetesWarningFactKind},
 	}
 
 	for _, tc := range cases {

@@ -59,7 +59,11 @@ func BenchmarkExtractKubernetesWorkloadNodeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if rows := ExtractKubernetesWorkloadNodeRows(envelopes); len(rows) != 5000 {
+		rows, _, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+		if err != nil {
+			b.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v", err)
+		}
+		if len(rows) != 5000 {
 			b.Fatalf("rows = %d, want 5000", len(rows))
 		}
 	}
