@@ -705,7 +705,7 @@
       },
       {
         "id": "rc-48",
-        "description": "The analytics Dataset CloudResource is connected to a Cloud KMS CryptoKey CloudResource via a GCP_bigquery_dataset_encrypted_by_kms_key edge; the gcpcloud cassette's analytics Dataset fact now carries typed attributes (location, kms_key_name) matching the real #4292 extractor contract instead of the pre-extractor attributes:{} placeholder, plus a demo-key CryptoKey resource fact and a gcp_cloud_relationship fact with relationship_type bigquery_dataset_encrypted_by_kms_key. The GCP relationship materializer resolves both endpoints by full_resource_name; GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the CMEK relationship fact, so this locks in the BigQuery Dataset CMEK edge path end-to-end (#4383).",
+        "description": "BigQuery Dataset CMEK edge: analytics Dataset -> demo-key CryptoKey via GCP_bigquery_dataset_encrypted_by_kms_key, from the Dataset's kms_key_name attribute and a matching relationship fact. Zero without that fact (#4383).",
         "relationship": "GCP_bigquery_dataset_encrypted_by_kms_key",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -713,7 +713,7 @@
       },
       {
         "id": "rc-49",
-        "description": "A compute Subnetwork CloudResource is connected to its parent Network CloudResource via a GCP_subnetwork_in_network edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-subnet Subnetwork (asset_type compute.googleapis.com/Subnetwork) and one for the demo-vpc Network (asset_type compute.googleapis.com/Network), plus a gcp_cloud_relationship fact with relationship_type subnetwork_in_network, matching the #4286 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the GCP Subnetwork cloud_resource + relationship facts, so this locks in the Subnetwork typed-depth extractor's golden-corpus follow-up (#4377).",
+        "description": "Subnetwork -> parent Network edge: demo-subnet -> demo-vpc via GCP_subnetwork_in_network, from a matching resource + relationship fact pair. Zero without those facts (#4377).",
         "relationship": "GCP_subnetwork_in_network",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -721,7 +721,7 @@
       },
       {
         "id": "rc-50",
-        "description": "A VPC Network CloudResource is connected to its contained Subnetwork CloudResource via a GCP_vpc_network_contains_subnetwork edge; the gcpcloud cassette's demo-vpc Network fact carries typed attributes (auto_create_subnetworks, routing_mode, subnetwork_count) and a gcp_cloud_relationship fact with relationship_type vpc_network_contains_subnetwork, matching the #4285 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the VPC Network cloud_resource + relationship facts, so this locks in the VPC Network typed-depth extractor's golden-corpus follow-up (#4378).",
+        "description": "VPC Network -> contained Subnetwork edge: demo-vpc -> demo-subnet via GCP_vpc_network_contains_subnetwork, from the Network's typed attributes and a matching relationship fact. Zero without that fact (#4378).",
         "relationship": "GCP_vpc_network_contains_subnetwork",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -729,7 +729,7 @@
       },
       {
         "id": "rc-51",
-        "description": "An Artifact Registry DockerImage CloudResource is connected to its parent Repository CloudResource via a GCP_docker_image_in_repository edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the deployable-source DockerImage (asset_type artifactregistry.googleapis.com/DockerImage, with a placeholder-safe sha256 content digest) and one for the demo-repo Repository (asset_type artifactregistry.googleapis.com/Repository), plus a gcp_cloud_relationship fact with relationship_type docker_image_in_repository, matching the #4353 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the DockerImage cloud_resource + relationship facts, so this locks in the DockerImage typed-depth extractor's golden-corpus follow-up (#4381).",
+        "description": "DockerImage -> parent Repository edge: deployable-source (digest-qualified) -> demo-repo via GCP_docker_image_in_repository, from a matching resource + relationship fact pair. Zero without those facts (#4381).",
         "relationship": "GCP_docker_image_in_repository",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -737,7 +737,7 @@
       },
       {
         "id": "rc-52",
-        "description": "A Secret Manager Secret CloudResource is connected to a Cloud KMS CryptoKey CloudResource via a GCP_secret_encrypted_by_kms_key edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-secret Secret (asset_type secretmanager.googleapis.com/Secret, customer_managed_encryption: true) and a gcp_cloud_relationship fact with relationship_type secret_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4293 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Secret cloud_resource + CMEK relationship facts, so this locks in the Secret Manager Secret typed-depth extractor's golden-corpus follow-up (#4385).",
+        "description": "Secret Manager Secret CMEK edge: demo-secret -> demo-key CryptoKey via GCP_secret_encrypted_by_kms_key, from the Secret's customer_managed_encryption attribute and a matching relationship fact. Zero without that fact (#4385).",
         "relationship": "GCP_secret_encrypted_by_kms_key",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
@@ -745,7 +745,7 @@
       },
       {
         "id": "rc-53",
-        "description": "A Secret Manager Secret CloudResource is connected to a Pub/Sub Topic CloudResource via a GCP_secret_notifies_topic edge; the gcpcloud cassette's demo-secret Secret fact carries a topic_count attribute and a gcp_cloud_relationship fact with relationship_type secret_notifies_topic targeting the demo-rotation-topic Topic resource, matching the #4293 extractor's rotation-notification contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Secret->Topic relationship fact, so this locks in the Secret Manager Secret rotation-notification edge path end-to-end (#4385).",
+        "description": "Secret Manager Secret rotation-notification edge: demo-secret -> demo-rotation-topic via GCP_secret_notifies_topic, from the Secret's topic_count attribute and a matching relationship fact. Zero without that fact (#4385).",
         "relationship": "GCP_secret_notifies_topic",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
