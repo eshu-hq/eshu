@@ -5,6 +5,34 @@ package facts
 
 import "testing"
 
+func TestIsCanonicalSchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		version string
+		want    bool
+	}{
+		{"1.0.0", true},
+		{"1.1.0", true},
+		{"2.0.0", true},
+		{"10.20.30", true},
+		{"", false},
+		{" 1.0.0 ", false}, // surrounding whitespace is not canonical
+		{"1", false},
+		{"1.0", false},
+		{"v1.0.0", false}, // the registered form carries no leading v
+		{"next", false},
+		{"1.0.0-rc1", false},
+		{"1.0.0+build", false},
+		{"01.0.0", false},
+	}
+	for _, tc := range cases {
+		if got := IsCanonicalSchemaVersion(tc.version); got != tc.want {
+			t.Errorf("IsCanonicalSchemaVersion(%q) = %v, want %v", tc.version, got, tc.want)
+		}
+	}
+}
+
 func TestEveryCoreFactKindHasRegisteredSchemaVersion(t *testing.T) {
 	t.Parallel()
 

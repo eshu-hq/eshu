@@ -3,9 +3,11 @@
 ## Read first
 
 1. `README.md` - command purpose and boundaries.
-2. `main.go` - generator and validation logic.
-3. `specs/fact-kind-registry.v1.yaml` - source-of-truth registry input.
-4. `go/internal/facts/AGENTS.md` - generated artifact consumer guidance.
+2. `main.go` - generation, spec loading, and rendering.
+3. `validate.go` - spec validation (payload_schema containment, lifecycle
+   marker semver, family metadata, and per-kind override checks).
+4. `specs/fact-kind-registry.v1.yaml` - source-of-truth registry input.
+5. `go/internal/facts/AGENTS.md` - generated artifact consumer guidance.
 
 ## Invariants
 

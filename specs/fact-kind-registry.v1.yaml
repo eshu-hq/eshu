@@ -5,7 +5,22 @@
 # reducer domain, projection, admission, read surface, owner, and truth-profile
 # naming aligned with specs/surface-inventory.v1.yaml and
 # specs/evidence-continuity.v1.yaml.
-version: "1.0.0"
+#
+# v1.1.0 adds three additive, optional fields (per kind, with the same
+# per-kind override pattern as schema_version_overrides /
+# read_surface_overrides):
+#   - payload_schema / payload_schema_overrides: repo-relative path to the
+#     checked-in JSON Schema artifact under sdk/go/factschema/schema/ that
+#     describes a kind's payload shape. A dangling reference fails the
+#     generator closed. Most kinds leave this unset until their payload is
+#     migrated to a typed sdk/go/factschema struct (family-by-family plan,
+#     docs/internal/design/contract-system-v1.md section 7).
+#   - deprecated_in / deprecated_in_overrides: semver marker for when a kind
+#     was deprecated.
+#   - removed_in / removed_in_overrides: semver marker for when a kind is
+#     scheduled for removal. Requires deprecated_in to also be set.
+# See docs/public/reference/fact-schema-versioning.md for the full contract.
+version: "1.1.0"
 families:
   documentation:
     lifecycle_owner: go/internal/facts
@@ -27,6 +42,7 @@ families:
     read_surface: "GET /api/v0/cloud/inventory"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides: {aws_resource: "sdk/go/factschema/schema/aws_resource.v1.schema.json"}
     kinds: [aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning]
   azure:
     lifecycle_owner: go/internal/facts

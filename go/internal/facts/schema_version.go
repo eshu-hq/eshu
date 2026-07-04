@@ -15,6 +15,25 @@ import (
 // registers as its supported schema version.
 var schemaSemverPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
+// IsCanonicalSchemaVersion reports whether version is a canonical fact schema
+// version in the exact MAJOR.MINOR.PATCH form the registry stores: bare digits,
+// no leading "v", no pre-release or build metadata, and no surrounding
+// whitespace. It is the single source of truth for "is this a well-formed
+// schema-version string" and is shared by the runtime classifier and the
+// fact-kind registry generator, which uses it to validate the registry v1.1
+// deprecated_in/removed_in markers so a typo like "next" or "2" cannot reach
+// the generated source-of-truth artifact. It does not compare the version
+// against any supported version; use ClassifySchemaVersion for compatibility.
+func IsCanonicalSchemaVersion(version string) bool {
+	if !schemaSemverPattern.MatchString(version) {
+		return false
+	}
+	// Defense in depth: the pattern already rejects pre-release/build/"v"
+	// forms, but confirm the value is also a valid semver core so the two
+	// definitions cannot drift.
+	return semver.IsValid("v" + version)
+}
+
 // Compatibility classifies a candidate fact schema version against the version
 // a core consumer currently supports for a fact kind. It implements the
 // documented compatibility contract: unsupported majors are rejected with no

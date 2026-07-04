@@ -68,7 +68,12 @@ consume these types as their input or storage shape.
   `ValidateFactKindRegistry(entries)` — the generated fact-kind contract that
   records schema version, lifecycle owner, reducer domain, projection hook,
   admission hook, read surface, truth profile, optional semantic policy gate,
-  and no-provider posture for each core fact kind.
+  and no-provider posture for each core fact kind. Registry v1.1 adds three
+  optional per-kind fields: `PayloadSchema` (repo-relative path to a checked-in
+  JSON Schema artifact under `sdk/go/factschema/schema/`), `DeprecatedIn`, and
+  `RemovedIn` (semver deprecation markers). They stay blank on entries that
+  have not adopted a typed schema or a deprecation plan. See
+  [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md).
 - Documentation fact payloads — source-neutral payload structs and stable-ID
   helpers for documentation sources, documents, sections, links, entity
   mentions, non-authoritative claim candidates, owner references, ACL
@@ -91,7 +96,10 @@ consume these types as their input or storage shape.
   version so reducers, projectors, component activation, and API/MCP/CLI
   diagnostics classify a collector's fact version identically. `Compatibility`
   is `supported`, `unsupported_major`, `unsupported_minor`, or `unknown_kind`;
-  unsupported majors are rejected with no silent fallback. See
+  unsupported majors are rejected with no silent fallback.
+  `IsCanonicalSchemaVersion(version)` is the shared "is this a well-formed
+  MAJOR.MINOR.PATCH string" predicate the classifier and the fact-kind registry
+  generator both use to reject malformed versions and lifecycle markers. See
   [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md).
 
 The generated fact-kind contract source is

@@ -18,7 +18,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const supportedSpecVersion = "1.0.0"
+const supportedSpecVersion = "1.1.0"
+
+// payloadSchemaDir is the repo-relative directory that houses checked-in
+// JSON Schema artifacts. A family/kind's payload_schema value must resolve
+// to a file under this directory or generation fails closed.
+const payloadSchemaDir = "sdk/go/factschema/schema"
 
 type options struct {
 	repoRoot string
@@ -45,7 +50,26 @@ type familySpec struct {
 	TruthProfile           string            `yaml:"truth_profile"`
 	PolicyGate             string            `yaml:"policy_gate"`
 	ProviderKeyIndependent bool              `yaml:"provider_key_independent"`
-	Kinds                  []string          `yaml:"kinds"`
+	// PayloadSchema is the family-level default repo-relative path to a
+	// checked-in JSON Schema artifact under sdk/go/factschema/schema/.
+	// Optional; most families leave this and the per-kind override unset
+	// until their fact kinds gain a typed sdk/go/factschema struct.
+	PayloadSchema string `yaml:"payload_schema"`
+	// PayloadSchemaOverrides sets payload_schema per kind, following the
+	// same per-kind override pattern as schema_version_overrides and
+	// read_surface_overrides.
+	PayloadSchemaOverrides map[string]string `yaml:"payload_schema_overrides"`
+	// DeprecatedIn is the family-level default deprecation marker (semver).
+	// Optional.
+	DeprecatedIn string `yaml:"deprecated_in"`
+	// DeprecatedInOverrides sets deprecated_in per kind.
+	DeprecatedInOverrides map[string]string `yaml:"deprecated_in_overrides"`
+	// RemovedIn is the family-level default removal marker (semver).
+	// Optional.
+	RemovedIn string `yaml:"removed_in"`
+	// RemovedInOverrides sets removed_in per kind.
+	RemovedInOverrides map[string]string `yaml:"removed_in_overrides"`
+	Kinds              []string          `yaml:"kinds"`
 }
 
 type liveFamily struct {
@@ -75,7 +99,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	entries, err := buildRegistry(spec)
+	entries, err := buildRegistry(opts.repoRoot, spec)
 	if err != nil {
 		return err
 	}
@@ -150,7 +174,7 @@ func loadSpec(path string) (specFile, error) {
 	return spec, nil
 }
 
-func buildRegistry(spec specFile) ([]registryEntry, error) {
+func buildRegistry(repoRoot string, spec specFile) ([]registryEntry, error) {
 	liveByName := map[string]liveFamily{}
 	for _, family := range liveFamilies() {
 		liveByName[family.name] = family
@@ -165,7 +189,7 @@ func buildRegistry(spec specFile) ([]registryEntry, error) {
 		if !ok {
 			return nil, fmt.Errorf("spec references unknown fact family %q", name)
 		}
-		familyEntries, err := buildFamilyEntries(name, live, familySpec)
+		familyEntries, err := buildFamilyEntries(repoRoot, name, live, familySpec)
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +205,7 @@ func buildRegistry(spec specFile) ([]registryEntry, error) {
 	return entries, nil
 }
 
-func buildFamilyEntries(name string, live liveFamily, spec familySpec) ([]facts.FactKindRegistryEntry, error) {
+func buildFamilyEntries(repoRoot, name string, live liveFamily, spec familySpec) ([]facts.FactKindRegistryEntry, error) {
 	if err := validateFamilyMetadata(name, spec); err != nil {
 		return nil, err
 	}
@@ -191,6 +215,15 @@ func buildFamilyEntries(name string, live liveFamily, spec familySpec) ([]facts.
 		return nil, fmt.Errorf("family %q kinds drifted: spec=%v live=%v", name, specKinds, liveKinds)
 	}
 	if err := validateKindOverrides(name, "read_surface_overrides", spec.ReadSurfaceOverrides, specKinds); err != nil {
+		return nil, err
+	}
+	if err := validateKindOverrides(name, "payload_schema_overrides", spec.PayloadSchemaOverrides, specKinds); err != nil {
+		return nil, err
+	}
+	if err := validateKindOverrides(name, "deprecated_in_overrides", spec.DeprecatedInOverrides, specKinds); err != nil {
+		return nil, err
+	}
+	if err := validateKindOverrides(name, "removed_in_overrides", spec.RemovedInOverrides, specKinds); err != nil {
 		return nil, err
 	}
 	entries := make([]facts.FactKindRegistryEntry, 0, len(specKinds))
@@ -210,6 +243,30 @@ func buildFamilyEntries(name string, live liveFamily, spec familySpec) ([]facts.
 		if override := strings.TrimSpace(spec.ReadSurfaceOverrides[kind]); override != "" {
 			readSurface = override
 		}
+		payloadSchema := spec.PayloadSchema
+		if override := strings.TrimSpace(spec.PayloadSchemaOverrides[kind]); override != "" {
+			payloadSchema = override
+		}
+		if err := validatePayloadSchemaReference(repoRoot, name, kind, payloadSchema); err != nil {
+			return nil, err
+		}
+		deprecatedIn := spec.DeprecatedIn
+		if override := strings.TrimSpace(spec.DeprecatedInOverrides[kind]); override != "" {
+			deprecatedIn = override
+		}
+		removedIn := spec.RemovedIn
+		if override := strings.TrimSpace(spec.RemovedInOverrides[kind]); override != "" {
+			removedIn = override
+		}
+		if err := validateLifecycleMarker(name, kind, "deprecated_in", deprecatedIn); err != nil {
+			return nil, err
+		}
+		if err := validateLifecycleMarker(name, kind, "removed_in", removedIn); err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(removedIn) != "" && strings.TrimSpace(deprecatedIn) == "" {
+			return nil, fmt.Errorf("family %q kind %q has removed_in set without deprecated_in", name, kind)
+		}
 		entries = append(entries, facts.FactKindRegistryEntry{
 			Kind:                   kind,
 			SchemaVersion:          specVersion,
@@ -221,58 +278,12 @@ func buildFamilyEntries(name string, live liveFamily, spec familySpec) ([]facts.
 			TruthProfile:           facts.FactKindTruthProfile(spec.TruthProfile),
 			PolicyGate:             spec.PolicyGate,
 			ProviderKeyIndependent: spec.ProviderKeyIndependent,
+			PayloadSchema:          strings.TrimSpace(payloadSchema),
+			DeprecatedIn:           strings.TrimSpace(deprecatedIn),
+			RemovedIn:              strings.TrimSpace(removedIn),
 		})
 	}
 	return entries, nil
-}
-
-func validateFamilyMetadata(name string, spec familySpec) error {
-	for field, value := range map[string]string{
-		"lifecycle_owner": spec.LifecycleOwner,
-		"schema_version":  spec.SchemaVersion,
-		"reducer_domain":  spec.ReducerDomain,
-		"projection_hook": spec.ProjectionHook,
-		"admission_hook":  spec.AdmissionHook,
-		"read_surface":    spec.ReadSurface,
-		"truth_profile":   spec.TruthProfile,
-	} {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("family %q missing %s", name, field)
-		}
-	}
-	switch facts.FactKindTruthProfile(spec.TruthProfile) {
-	case facts.FactKindTruthDeterministic:
-		if !spec.ProviderKeyIndependent {
-			return fmt.Errorf("family %q deterministic truth requires provider_key_independent", name)
-		}
-	case facts.FactKindTruthProviderGated, facts.FactKindTruthFixtureGated:
-	case facts.FactKindTruthOptionalSemantic:
-		if strings.TrimSpace(spec.PolicyGate) == "" {
-			return fmt.Errorf("family %q optional_semantic truth requires policy_gate", name)
-		}
-	default:
-		return fmt.Errorf("family %q unsupported truth_profile %q", name, spec.TruthProfile)
-	}
-	return nil
-}
-
-func validateKindOverrides(name, field string, overrides map[string]string, specKinds []string) error {
-	if len(overrides) == 0 {
-		return nil
-	}
-	known := make(map[string]struct{}, len(specKinds))
-	for _, kind := range specKinds {
-		known[kind] = struct{}{}
-	}
-	for kind, value := range overrides {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("family %q %s for kind %q is blank", name, field, kind)
-		}
-		if _, ok := known[kind]; !ok {
-			return fmt.Errorf("family %q %s references unknown kind %q", name, field, kind)
-		}
-	}
-	return nil
 }
 
 func renderGo(entries []registryEntry) ([]byte, error) {
@@ -285,9 +296,10 @@ func renderGo(entries []registryEntry) ([]byte, error) {
 	buf.WriteString("package facts\n\n")
 	buf.WriteString("var factKindRegistryEntries = []FactKindRegistryEntry{\n")
 	for _, entry := range entries {
-		fmt.Fprintf(&buf, "\t{Kind: %q, SchemaVersion: %q, LifecycleOwner: %q, ReducerDomain: %q, ProjectionHook: %q, AdmissionHook: %q, ReadSurface: %q, TruthProfile: %q, PolicyGate: %q, ProviderKeyIndependent: %t},\n",
+		fmt.Fprintf(&buf, "\t{Kind: %q, SchemaVersion: %q, LifecycleOwner: %q, ReducerDomain: %q, ProjectionHook: %q, AdmissionHook: %q, ReadSurface: %q, TruthProfile: %q, PolicyGate: %q, ProviderKeyIndependent: %t, PayloadSchema: %q, DeprecatedIn: %q, RemovedIn: %q},\n",
 			entry.Kind, entry.SchemaVersion, entry.LifecycleOwner, entry.ReducerDomain, entry.ProjectionHook,
-			entry.AdmissionHook, entry.ReadSurface, entry.TruthProfile, entry.PolicyGate, entry.ProviderKeyIndependent)
+			entry.AdmissionHook, entry.ReadSurface, entry.TruthProfile, entry.PolicyGate, entry.ProviderKeyIndependent,
+			entry.PayloadSchema, entry.DeprecatedIn, entry.RemovedIn)
 	}
 	buf.WriteString("}\n\n")
 	buf.WriteString("var factKindRegistryByKind = buildFactKindRegistryByKind(factKindRegistryEntries)\n")
@@ -302,12 +314,13 @@ func renderMarkdown(entries []registryEntry) []byte {
 	var buf bytes.Buffer
 	buf.WriteString("# Fact Kind Registries\n\n")
 	buf.WriteString("Generated from `specs/fact-kind-registry.v1.yaml`. Do not edit this file by hand; run `scripts/generate-fact-kind-registry.sh`.\n\n")
-	buf.WriteString("| Fact kind | Schema | Owner | Reducer domain | Projection | Admission | Read surface | Truth profile | Policy gate | No-provider |\n")
-	buf.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	buf.WriteString("| Fact kind | Schema | Owner | Reducer domain | Projection | Admission | Read surface | Truth profile | Policy gate | No-provider | Payload schema | Deprecated in | Removed in |\n")
+	buf.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, entry := range entries {
-		fmt.Fprintf(&buf, "| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%t` |\n",
+		fmt.Fprintf(&buf, "| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%t` | `%s` | `%s` | `%s` |\n",
 			entry.Kind, entry.SchemaVersion, entry.LifecycleOwner, entry.ReducerDomain, entry.ProjectionHook,
-			entry.AdmissionHook, entry.ReadSurface, entry.TruthProfile, entry.PolicyGate, entry.ProviderKeyIndependent)
+			entry.AdmissionHook, entry.ReadSurface, entry.TruthProfile, entry.PolicyGate, entry.ProviderKeyIndependent,
+			entry.PayloadSchema, entry.DeprecatedIn, entry.RemovedIn)
 	}
 	return buf.Bytes()
 }

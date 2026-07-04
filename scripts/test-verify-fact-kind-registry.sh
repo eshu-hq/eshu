@@ -7,6 +7,9 @@ trap 'rm -rf "$tmp_root"' EXIT
 
 mkdir -p "$tmp_root/specs"
 cp "$repo_root/specs/fact-kind-registry.v1.yaml" "$tmp_root/specs/fact-kind-registry.v1.yaml"
+mkdir -p "$tmp_root/sdk/go/factschema/schema"
+cp "$repo_root/sdk/go/factschema/schema/aws_resource.v1.schema.json" \
+  "$tmp_root/sdk/go/factschema/schema/aws_resource.v1.schema.json"
 
 ESHU_FACT_KIND_REGISTRY_REPO_ROOT="$tmp_root" \
   ESHU_FACT_KIND_REGISTRY_GO_DIR="${repo_root}/go" \
@@ -31,6 +34,14 @@ if ! rg -q 'semantic.documentation_observation' "$gen_doc"; then
 fi
 if ! rg -q 'No-provider' "$gen_doc"; then
   printf 'generated docs missing no-provider column\n' >&2
+  exit 1
+fi
+if ! rg -q 'PayloadSchema: "sdk/go/factschema/schema/aws_resource.v1.schema.json"' "$gen_go"; then
+  printf 'generated Go missing wired aws_resource payload_schema\n' >&2
+  exit 1
+fi
+if ! rg -q 'Payload schema' "$gen_doc"; then
+  printf 'generated docs missing payload schema column\n' >&2
   exit 1
 fi
 
@@ -73,6 +84,21 @@ fi
 if ! rg -q 'policy_gate' /tmp/eshu-fact-kind-registry-policy.err; then
   printf 'expected policy_gate validation error, got:\n' >&2
   head -n 20 /tmp/eshu-fact-kind-registry-policy.err >&2
+  exit 1
+fi
+
+cp "$repo_root/specs/fact-kind-registry.v1.yaml" "$tmp_root/specs/fact-kind-registry.v1.yaml"
+perl -0pi -e 's/aws_resource: "sdk\/go\/factschema\/schema\/aws_resource\.v1\.schema\.json"/aws_resource: "sdk\/go\/factschema\/schema\/does_not_exist.v1.schema.json"/' \
+  "$tmp_root/specs/fact-kind-registry.v1.yaml"
+if ESHU_FACT_KIND_REGISTRY_REPO_ROOT="$tmp_root" \
+  ESHU_FACT_KIND_REGISTRY_GO_DIR="${repo_root}/go" \
+  "$repo_root/scripts/verify-fact-kind-registry.sh" >/tmp/eshu-fact-kind-registry-dangling.out 2>/tmp/eshu-fact-kind-registry-dangling.err; then
+  printf 'expected dangling payload_schema reference check to fail\n' >&2
+  exit 1
+fi
+if ! rg -q 'payload_schema' /tmp/eshu-fact-kind-registry-dangling.err; then
+  printf 'expected payload_schema validation error, got:\n' >&2
+  head -n 20 /tmp/eshu-fact-kind-registry-dangling.err >&2
   exit 1
 fi
 
