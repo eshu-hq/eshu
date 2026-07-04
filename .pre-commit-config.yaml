@@ -43,7 +43,7 @@ repos:
         # for that file is `mkdocs build --strict`, which loads the custom tags
         # correctly; a plain YAML decode would reject a valid config and force
         # `--no-verify` on any nav edit.
-        exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$'
+        exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$|^deploy/helm/eshu/templates/'
       - id: check-added-large-files
         stages: [pre-commit]
         # Catches an accidentally-committed Go build artifact (e.g. a bare
