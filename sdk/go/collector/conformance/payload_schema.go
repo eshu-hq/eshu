@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // payloadSchema is the decoded, minimal JSON Schema subset the conformance
@@ -35,9 +34,11 @@ type objectSchema struct {
 	// required lists the property names that must be present and non-null.
 	required []string
 	// properties maps a declared property name to its schema. A payload key not
-	// present here is allowed (every payload schema is open,
-	// additionalProperties: true, so collectors may emit context keys the
-	// reducer ignores).
+	// present here is allowed: compileAdditionalProperties only admits open
+	// objects (additionalProperties true or omitted, or a string-valued map),
+	// rejecting additionalProperties:false, so an undeclared key never means a
+	// closed-object violation and collectors may emit context keys the reducer
+	// ignores.
 	properties map[string]propertySchema
 	// valueType constrains the type of every additional (undeclared) property
 	// value when set, modelling additionalProperties: {"type": ...} — the
@@ -161,10 +162,17 @@ func compileObject(doc map[string]json.RawMessage) (objectSchema, error) {
 }
 
 // compileAdditionalProperties decodes an object's additionalProperties. It
-// accepts a boolean (open or closed object, no value-type constraint returned)
+// accepts additionalProperties:true (an open object, no value-type constraint)
 // or a single-type schema {"type": <primitive>} constraining every additional
-// value (the "tags" string-map shape). Any richer additionalProperties schema
-// is rejected so it cannot pass unvalidated.
+// value (the "tags" string-map shape). additionalProperties:false — a CLOSED
+// object that forbids undeclared keys — is rejected as an unsupported construct:
+// the validator does not implement closed-object semantics, and silently
+// treating false like true would under-validate undeclared keys, the exact
+// fail-open the guardrail forbids. No checked-in schema is closed (the design
+// mandates open payload schemas so collectors may emit context keys the reducer
+// ignores); a closed schema landing here is the signal to implement closed
+// semantics deliberately, not to pass it blind. Any richer additionalProperties
+// schema is likewise rejected.
 func compileAdditionalProperties(doc map[string]json.RawMessage) (string, error) {
 	rawAP, ok := doc["additionalProperties"]
 	if !ok {
@@ -172,6 +180,9 @@ func compileAdditionalProperties(doc map[string]json.RawMessage) (string, error)
 	}
 	var asBool bool
 	if err := json.Unmarshal(rawAP, &asBool); err == nil {
+		if !asBool {
+			return "", fmt.Errorf("\"additionalProperties\": false (closed object) is not supported; payload schemas must be open")
+		}
 		return "", nil
 	}
 	var apObject map[string]json.RawMessage
@@ -319,165 +330,4 @@ func requireObjectType(doc map[string]json.RawMessage) error {
 		return fmt.Errorf("schema top-level \"type\" must be \"object\", got %q", typeName)
 	}
 	return nil
-}
-
-// validatePayload checks a decoded fact payload against the compiled schema,
-// returning an error naming the first offending field.
-func (s payloadSchema) validatePayload(payload map[string]any) error {
-	return s.root.validate("", payload)
-}
-
-// validate checks a decoded object value against this object schema. path is the
-// dotted field prefix for error messages (empty at the payload root). A required
-// field that is absent or explicitly null, a declared property whose value has
-// the wrong type, or an additional property that violates the value-type
-// constraint is a violation. Undeclared keys are allowed unless a value-type
-// constraint applies.
-func (o objectSchema) validate(path string, value map[string]any) error {
-	for _, field := range o.required {
-		v, ok := value[field]
-		if !ok || v == nil {
-			return fmt.Errorf("missing required field %q", qualify(path, field))
-		}
-	}
-	for name, child := range value {
-		if prop, ok := o.properties[name]; ok {
-			if err := prop.validateValue(qualify(path, name), child); err != nil {
-				return err
-			}
-			continue
-		}
-		if o.valueType != "" {
-			if err := checkPrimitiveType(qualify(path, name), o.valueType, child); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// validateValue checks one property value against a property schema, naming the
-// field on mismatch and recursing into arrays and nested objects.
-func (p propertySchema) validateValue(field string, value any) error {
-	if value == nil {
-		if _, ok := p.types["null"]; ok {
-			return nil
-		}
-		return fmt.Errorf("field %q is null but the schema does not allow null", field)
-	}
-
-	actual := jsonTypeOf(value)
-	if !typeSetAccepts(p.types, actual) {
-		return fmt.Errorf("field %q has type %s, want one of %s", field, actual, sortedTypeList(p.types))
-	}
-
-	switch actual {
-	case "array":
-		if p.items == nil {
-			return nil
-		}
-		elements, _ := value.([]any)
-		for index, element := range elements {
-			if err := p.items.validateValue(fmt.Sprintf("%s[%d]", field, index), element); err != nil {
-				return err
-			}
-		}
-	case "object":
-		if p.object == nil {
-			return nil
-		}
-		entries, _ := value.(map[string]any)
-		if err := p.object.validate(field, entries); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// checkPrimitiveType asserts a value matches a single primitive type name,
-// naming the field on mismatch. It is used for additionalProperties value-type
-// constraints (the string-map shape).
-func checkPrimitiveType(field, want string, value any) error {
-	if value == nil {
-		return fmt.Errorf("field %q is null but the schema requires %s", field, want)
-	}
-	if actual := jsonTypeOf(value); !typeAccepts(want, actual) {
-		return fmt.Errorf("field %q has type %s, want %s", field, actual, want)
-	}
-	return nil
-}
-
-// typeSetAccepts reports whether any schema type in the set accepts a value of
-// the actual JSON type.
-func typeSetAccepts(types map[string]struct{}, actual string) bool {
-	for schemaType := range types {
-		if typeAccepts(schemaType, actual) {
-			return true
-		}
-	}
-	return false
-}
-
-// typeAccepts reports whether a schema type accepts a value of the actual JSON
-// type. An exact match always accepts; additionally an integer value satisfies a
-// "number"-typed schema, since JSON Schema treats integers as a subset of
-// numbers. No checked-in schema uses a bare "number" type today, but this keeps
-// the validator correct if one does rather than falsely rejecting a whole-number
-// value.
-func typeAccepts(schemaType, actual string) bool {
-	if schemaType == actual {
-		return true
-	}
-	return schemaType == "number" && actual == "integer"
-}
-
-// jsonTypeOf reports the JSON Schema type name of a value decoded from JSON into
-// Go's any (map[string]any / []any / float64 / bool / string / nil). encoding/json
-// decodes every JSON number to float64, so an integral float64 is reported as
-// "integer" (satisfying an integer-typed schema) while a fractional float64 is
-// "number".
-func jsonTypeOf(value any) string {
-	switch typed := value.(type) {
-	case nil:
-		return "null"
-	case bool:
-		return "boolean"
-	case float64:
-		if typed == float64(int64(typed)) {
-			return "integer"
-		}
-		return "number"
-	case json.Number:
-		if strings.ContainsAny(string(typed), ".eE") {
-			return "number"
-		}
-		return "integer"
-	case string:
-		return "string"
-	case []any:
-		return "array"
-	case map[string]any:
-		return "object"
-	default:
-		return "unknown"
-	}
-}
-
-// qualify joins a dotted field path prefix with a child field name.
-func qualify(prefix, field string) string {
-	if prefix == "" {
-		return field
-	}
-	return prefix + "." + field
-}
-
-// sortedTypeList renders a type set as a sorted, comma-separated list for a
-// deterministic error message.
-func sortedTypeList(types map[string]struct{}) string {
-	names := make([]string, 0, len(types))
-	for name := range types {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return strings.Join(names, ", ")
 }

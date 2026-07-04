@@ -261,15 +261,17 @@ func TestCompileSchemaRejectsUnsupportedCompositions(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"ref":           `{"type":"object","properties":{"a":{"$ref":"#/x"}}}`,
-		"oneOf":         `{"type":"object","oneOf":[{"type":"object"}]}`,
-		"anyOf":         `{"type":"object","properties":{"a":{"anyOf":[{"type":"string"}]}}}`,
-		"allOf":         `{"type":"object","allOf":[{"type":"object"}]}`,
-		"enum":          `{"type":"object","properties":{"a":{"type":"string","enum":["x"]}}}`,
-		"pattern":       `{"type":"object","properties":{"a":{"type":"string","pattern":"^x$"}}}`,
-		"numericBounds": `{"type":"object","properties":{"a":{"type":"integer","minimum":0}}}`,
-		"nonObjectRoot": `{"type":"array","items":{"type":"string"}}`,
-		"unknownType":   `{"type":"object","properties":{"a":{"type":"date"}}}`,
+		"ref":                `{"type":"object","properties":{"a":{"$ref":"#/x"}}}`,
+		"oneOf":              `{"type":"object","oneOf":[{"type":"object"}]}`,
+		"anyOf":              `{"type":"object","properties":{"a":{"anyOf":[{"type":"string"}]}}}`,
+		"allOf":              `{"type":"object","allOf":[{"type":"object"}]}`,
+		"enum":               `{"type":"object","properties":{"a":{"type":"string","enum":["x"]}}}`,
+		"pattern":            `{"type":"object","properties":{"a":{"type":"string","pattern":"^x$"}}}`,
+		"numericBounds":      `{"type":"object","properties":{"a":{"type":"integer","minimum":0}}}`,
+		"nonObjectRoot":      `{"type":"array","items":{"type":"string"}}`,
+		"unknownType":        `{"type":"object","properties":{"a":{"type":"date"}}}`,
+		"closedObjectRoot":   `{"type":"object","additionalProperties":false,"properties":{"a":{"type":"string"}}}`,
+		"closedNestedObject": `{"type":"object","additionalProperties":true,"properties":{"o":{"type":"object","additionalProperties":false,"properties":{"x":{"type":"string"}}}}}`,
 	}
 	for name, schema := range cases {
 		name, schema := name, schema
@@ -277,6 +279,29 @@ func TestCompileSchemaRejectsUnsupportedCompositions(t *testing.T) {
 			t.Parallel()
 			if err := conformance.CompileSchema(json.RawMessage(schema)); err == nil {
 				t.Fatalf("CompileSchema accepted an unsupported construct %q, want fail closed", name)
+			}
+		})
+	}
+}
+
+// TestCompileSchemaAcceptsOpenObjects proves the reject of
+// additionalProperties:false does not over-reject the open shapes every
+// checked-in schema uses: additionalProperties:true and an omitted
+// additionalProperties both compile, and the string-valued map form compiles.
+func TestCompileSchemaAcceptsOpenObjects(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"additionalTrue":  `{"type":"object","additionalProperties":true,"properties":{"a":{"type":"string"}}}`,
+		"additionalOmit":  `{"type":"object","properties":{"a":{"type":"string"}}}`,
+		"stringValuedMap": `{"type":"object","additionalProperties":true,"properties":{"tags":{"type":["object","null"],"additionalProperties":{"type":"string"}}}}`,
+	}
+	for name, schema := range cases {
+		name, schema := name, schema
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if err := conformance.CompileSchema(json.RawMessage(schema)); err != nil {
+				t.Fatalf("CompileSchema rejected an open object %q: %v", name, err)
 			}
 		})
 	}
@@ -323,6 +348,67 @@ func TestRunValidatesNestedObjectArrayItems(t *testing.T) {
 	}
 	if !findingMentions(report, conformance.FindingPayloadSchemaInvalid, "encrypted") {
 		t.Fatalf("findings = %#v, want a finding naming the nested field %q", report.Findings, "encrypted")
+	}
+}
+
+// TestRunAcceptsNativeGoPayloadValues proves conformance accepts a payload built
+// with native JSON-serializable Go types — the exact shape an out-of-tree
+// collector's Collect() returns before any json round trip. int, []string, and
+// map[string]string must validate against integer, array, and string-map schema
+// fields without the caller having to marshal/unmarshal first. Before the fix
+// these decoded to Go's native kinds that the type switch reported as "unknown",
+// failing an otherwise-valid payload.
+func TestRunAcceptsNativeGoPayloadValues(t *testing.T) {
+	t.Parallel()
+
+	const nativeSchema = `{
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["account_id"],
+      "properties": {
+        "account_id": {"type": "string"},
+        "port": {"type": ["integer", "null"]},
+        "anchors": {"type": ["array", "null"], "items": {"type": "string"}},
+        "tags": {"type": ["object", "null"], "additionalProperties": {"type": "string"}}
+      }
+    }`
+
+	payload := map[string]any{
+		"account_id": "123456789012",
+		"port":       int(443),                         // native int, not float64
+		"anchors":    []string{"a", "b"},               // native []string, not []any
+		"tags":       map[string]string{"env": "prod"}, // native map, not map[string]any
+	}
+
+	report := conformance.Run(conformance.Request{
+		Manifest:       awsManifest(),
+		Fixtures:       []collector.Result{awsResourceResult(payload)},
+		Mode:           conformance.ModeFixture,
+		PayloadSchemas: map[string]json.RawMessage{awsResourceKind: json.RawMessage(nativeSchema)},
+	})
+
+	if !report.OK() {
+		t.Fatalf("findings = %#v, want passed for native Go payload values", report.Findings)
+	}
+}
+
+// TestRunRejectsNonSerializablePayload proves a payload that cannot be marshaled
+// to JSON (a channel value) fails closed rather than panicking or passing.
+func TestRunRejectsNonSerializablePayload(t *testing.T) {
+	t.Parallel()
+
+	payload := validAWSResourcePayload()
+	payload["bad"] = make(chan int)
+
+	report := conformance.Run(conformance.Request{
+		Manifest:       awsManifest(),
+		Fixtures:       []collector.Result{awsResourceResult(payload)},
+		Mode:           conformance.ModeFixture,
+		PayloadSchemas: map[string]json.RawMessage{awsResourceKind: json.RawMessage(awsResourceSchema)},
+	})
+
+	if report.OK() {
+		t.Fatal("report OK = true, want failed for a non-JSON-serializable payload")
 	}
 }
 

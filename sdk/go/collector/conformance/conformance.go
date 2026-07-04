@@ -86,18 +86,21 @@ type Request struct {
 	// callers may leave it nil and rely on namespacing alone. A manifest that
 	// declares a reserved kind fails closed.
 	ReservedFactKinds []string
-	// PayloadSchemas maps a fact kind to the JSON Schema its emitted payloads
-	// must satisfy, keyed by the exact fact-kind wire string (for example
-	// "aws_resource"). The caller supplies the schema bytes so this package
-	// performs no file I/O and takes no schema-library dependency: the in-tree
-	// host reads them from sdk/go/factschema/schema/*.json and an out-of-tree
-	// collector reads them from the pinned fixture pack. A fixture fact whose
-	// kind has an entry here is validated against it and fails closed on a
-	// missing required field, a wrong-typed field, or a schema construct the
-	// harness cannot validate. A fixture fact whose kind has no entry is not
-	// payload-validated (provenance-only kinds carry no registered schema), and
-	// leaving the map nil disables payload validation entirely, preserving the
-	// pre-payload-validation behavior.
+	// PayloadSchemas maps an emitted fixture fact kind to the JSON Schema its
+	// payloads must satisfy. The key is the exact fact-kind string the fixture
+	// emits, which for an out-of-tree collector is its own namespaced kind mapped
+	// to a core payload shape (for example "dev.acme.collector.resource" pointing
+	// at the aws_resource schema shape), because the bare core kinds are
+	// host-owned and reserved and cannot be emitted directly. The caller supplies
+	// the schema bytes so this package performs no file I/O and takes no
+	// schema-library dependency; an out-of-tree collector reads the shape from
+	// the pinned sdk/go/factschema/fixturepack. A fixture fact whose kind has an
+	// entry here is validated against it and fails closed on a missing required
+	// field, a wrong-typed field, or a schema construct the harness cannot
+	// validate. A fixture fact whose kind has no entry is not payload-validated
+	// (provenance-only kinds carry no registered schema), and leaving the map nil
+	// disables payload validation entirely, preserving the pre-payload-validation
+	// behavior.
 	PayloadSchemas map[string]json.RawMessage
 }
 
