@@ -896,17 +896,27 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).
-- `/api/v0/code/language-query` treats `entity_type=variable` as
-  graph-first/content-backed: semantic `Variable` graph rows such as TSX
-  component assertions and Elixir module attributes keep graph metadata, while
-  plain variables fall back to `content_entities` so source-local projection
-  does not need to graph-write every local variable.
+- `/api/v0/code/language-query` treats `entity_type=variable` as pure
+  content-backed (`contentBackedEntityTypes`), not graph-first. The
+  canonical-graph skip in the projector's `canonical_builder.go` removes plain
+  `Variable` nodes from the graph projection but leaves ALL `Variable` rows —
+  plain and semantic — in `content_entities`. Routing `variable` through the
+  graph-first path (`graphFirstContentBackedEntityTypes`) is unsafe: a FEW
+  semantic `Variable` graph nodes still exist (module attributes, TSX/Elixir
+  component-type-assertion variables), and any non-empty graph result there
+  short-circuits the content fallback in
+  `queryGraphFirstContentByLanguageWithSemanticFilter`, silently omitting the
+  plain variables the query is meant to surface. `entity_type=module_attribute`
+  keeps the graph-first route since it legitimately wants the semantic graph
+  node first.
   No-Regression Evidence: `go test ./internal/query -run
-  'TestHandleLanguageQueryVariableFallsBackToContentStore|TestHandleLanguageQuery_TSXVariableAssertionUsesGraphMetadataWithoutContent|TestHandleLanguageQuery_TSXReactFCWrapperUsesGraphFirstPath|TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesGraphFirstPath|TestHandleLanguageQuery_ElixirModuleAttributeUsesGraphMetadataWithoutContent'
-  -count=1` proves plain variable fallback and semantic variable graph-first
-  readback. No-Observability-Change: existing graph query spans,
-  content-store Postgres spans, HTTP route attribution, result limits, and
-  response fields diagnose the path; no new telemetry or public field is added.
+  'TestHandleLanguageQueryVariableFallsBackToContentStore|TestHandleLanguageQueryVariableIncludesContentVariablesWhenGraphHasSemanticRow|TestHandleLanguageQuery_TSXVariableAssertionUsesContentMetadata|TestHandleLanguageQuery_TSXReactFCWrapperUsesContentBackedPath|TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesContentBackedPath|TestHandleLanguageQuery_ElixirModuleAttributeUsesGraphMetadataWithoutContent'
+  -count=1` proves plain variables are never omitted when a semantic Variable
+  graph row exists for the same language/repo, and that `module_attribute`
+  keeps its graph-first semantic readback. No-Observability-Change: existing
+  graph query spans, content-store Postgres spans, HTTP route attribution,
+  result limits, and response fields diagnose the path; no new telemetry or
+  public field is added.
 - Repository-language inventory reads use the Postgres content index through
   `CountRepositoriesByLanguage`, `ListRepositoriesByLanguage`, and
   `RepositoryLanguageInventory`. The API and MCP contract is count-first and
