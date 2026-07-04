@@ -39,7 +39,7 @@ func NewTSConfigImportResolver(repoRoot string, path string) TSConfigImportResol
 		return TSConfigImportResolver{}
 	}
 
-	options := tsConfigCompilerOptions(configPath)
+	options := cachedTSConfigCompilerOptions(configPath)
 	baseURL := options.BaseURL
 	if baseURL == "" && len(options.Paths) > 0 {
 		baseURL = "."

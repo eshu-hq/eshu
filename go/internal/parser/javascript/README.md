@@ -166,6 +166,57 @@ fixture moved from `599210708 ns/op`, `678622440 B/op`, and `2972914 allocs/op`
 to `44396500 ns/op`, `4635872 B/op`, and `148424 allocs/op`. Compatibility is
 guarded by `TestPreScanMatchesParseDeclarationNames`.
 
+### Per-repository config-scope cache (issue #4515 P2a)
+
+`NewTSConfigImportResolver` and the package.json helpers
+(`PackageFileRootKinds`, `NearestPackageRoot`, `PackagePublicSourcePaths`) each
+walk up from a source file's own directory to find its nearest
+`tsconfig.json`/`package.json`, then read and parse that file. Before this
+cache, every `Parse` call repeated the read and parse independently, even
+though every file under one package/tsconfig scope resolves to the identical
+config file. `config_scope_cache.go` memoizes the parsed content keyed by the
+resolved config file's absolute path (NOT by repo root, since a monorepo can
+have several distinct tsconfig.json/package.json files each owning a different
+subtree — keying by repo root would incorrectly collapse those and leak one
+package's config into a sibling package's files). A cache hit re-`os.Stat`s the
+config file and only reuses the parsed value when `(mtime, size)` still match
+what was cached, so a repository re-scanned after its config changed on disk
+recomputes rather than serving stale evidence across scan generations.
+Concurrent same-key callers (multiple parse workers on the same repository)
+are coalesced onto one in-flight computation via a per-key `sync.WaitGroup`
+under the cache mutex; distinct keys, including two different repositories
+parsing concurrently, never share that WaitGroup and proceed fully in
+parallel.
+
+Performance Evidence: `go test ./internal/parser -run '^$' -bench
+BenchmarkParsePathTypeScriptRepoSharedConfig -benchmem -count=10` over a
+50-file TypeScript fixture sharing one tsconfig.json and one package.json
+(Apple M5 Max) moved from `202.06m` to `41.72m` sec/op (`benchstat`:
+`-79.35%`, `p=0.000, n=10`), `3.143Mi` to `2.935Mi` B/op (`-6.60%`), and
+`72.87k` to `70.81k` allocs/op (`-2.82%`). `TestNearestTSConfigOptionsComputedOnceForSharedConfig`,
+`TestNearestPackageManifestComputedOnceForSharedManifest`, and the
+`internal/parser`-level `TestEngineParsePathComputesRepoConfigMetadataOnceForSharedManifests`
+assert the config read+parse happens exactly once across many files sharing
+one config, not once per file. `TestConfigScopeCacheDoesNotCollapseDistinctMonorepoManifests`
+guards the multi-package monorepo case, `TestConfigScopeCacheInvalidatesOnManifestChange`
+guards the stale-generation case, and `TestConfigScopeCacheConcurrentAccessIsRaceFree`
+plus the `internal/parser`-level
+`TestEngineParsePathConcurrentJavaScriptFilesShareConfigComputationOnce` prove
+`-race`-clean concurrent access with single-flight coalescing (not just a
+racy double-compute that happens to be safe).
+
+No-Regression Evidence: this is a caching/memoization change only. No
+`Parse` signature changed and no payload field changed; every js/ts/tsx
+fixture and golden-corpus assertion in `go test ./internal/parser/...` stays
+byte-identical before and after (`go test ./internal/parser/... -race
+-count=1`: 1496 passed, 41 packages).
+
+No-Observability-Change: this adds no metric, span, structured log, status
+field, queue, graph write, worker, lease, batch, or runtime knob. Operators
+still diagnose parse behavior through the existing collector
+`telemetry.FileParseDuration` instrument and `collector snapshot stage
+completed` logs.
+
 ## No-Regression Evidence
 
 The AST conversion replaces multi-pass regex/full-source scans with single-pass

@@ -24,7 +24,10 @@
 // parent package while this child package stays independent from internal/parser.
 // Resolvers accept JSONC TypeScript config files, keep resolution inside the
 // repository root, and return repository-relative source paths for
-// resolved_source metadata.
+// resolved_source metadata. Parsed tsconfig.json and package.json content is
+// memoized per resolved config file path (config_scope_cache.go) so every
+// source file sharing the same nearest config reuses one read and one parse
+// instead of repeating both per file.
 //
 // When Options.EmitDataflow is set, Parse also emits the opt-in value-flow
 // buckets "dataflow_functions", "taint_findings", and "interproc_findings"
