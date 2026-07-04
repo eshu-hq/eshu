@@ -167,6 +167,90 @@ func TestExtractCloudBuildTriggerManualSource(t *testing.T) {
 	}
 }
 
+func TestExtractCloudBuildTriggerPubsubSourceWithSourceToBuild(t *testing.T) {
+	// A Pub/Sub trigger commonly also carries sourceToBuild (the build-source
+	// reference); sourceToBuild must never shadow the actual firing mechanism,
+	// and its repository must resolve to its own distinct edge.
+	const data = `{
+		"id": "trigger-pubsub-repo",
+		"eventType": "PUBSUB",
+		"pubsubConfig": {"subscription": "projects/demo-project/subscriptions/sub-1", "topic": "projects/demo-project/topics/deploy-topic"},
+		"sourceToBuild": {"repository": "projects/demo-project/locations/us-central1/connections/my-conn/repositories/my-repo", "ref": "refs/heads/main", "repoType": "GITHUB"}
+	}`
+	got, err := extractCloudBuildTrigger(cloudBuildTriggerContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["source_type"] != "pubsub" {
+		t.Errorf("source_type = %v, want pubsub (sourceToBuild must not shadow the pubsub mechanism)", got.Attributes["source_type"])
+	}
+	const link = "//developerconnect.googleapis.com/projects/demo-project/locations/us-central1/connections/my-conn/repositories/my-repo"
+	if !containsStringSlice(got.CorrelationAnchors, link) {
+		t.Errorf("missing repository-link anchor %q in %#v", link, got.CorrelationAnchors)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeTriggerSourceRepositoryLink, link, assetTypeDeveloperConnectGitRepositoryLink)
+}
+
+func TestExtractCloudBuildTriggerWebhookSourceWithSourceToBuild(t *testing.T) {
+	const data = `{
+		"id": "trigger-webhook-repo",
+		"eventType": "WEBHOOK",
+		"webhookConfig": {"state": "OK"},
+		"sourceToBuild": {"repository": "projects/demo-project/locations/us-central1/connections/my-conn/repositories/my-repo", "ref": "refs/heads/main"}
+	}`
+	got, err := extractCloudBuildTrigger(cloudBuildTriggerContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["source_type"] != "webhook" {
+		t.Errorf("source_type = %v, want webhook (sourceToBuild must not shadow the webhook mechanism)", got.Attributes["source_type"])
+	}
+	const link = "//developerconnect.googleapis.com/projects/demo-project/locations/us-central1/connections/my-conn/repositories/my-repo"
+	assertRelationship(t, got.Relationships, relationshipTypeTriggerSourceRepositoryLink, link, assetTypeDeveloperConnectGitRepositoryLink)
+}
+
+func TestExtractCloudBuildTriggerSourceToBuildOnlyClassification(t *testing.T) {
+	// With no SCM-event or pubsub/webhook mechanism field set and no manual
+	// eventType, a bare sourceToBuild still classifies as source_to_build.
+	const data = `{"id": "trigger-sourcetobuild", "sourceToBuild": {"repository": "projects/demo-project/locations/us-central1/connections/my-conn/repositories/my-repo"}}`
+	got, err := extractCloudBuildTrigger(cloudBuildTriggerContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Attributes["source_type"] != "source_to_build" {
+		t.Errorf("source_type = %v, want source_to_build", got.Attributes["source_type"])
+	}
+}
+
+func TestExtractCloudBuildTriggerSourceToBuildNeverLeaksURI(t *testing.T) {
+	const data = `{"id": "trigger-uri", "sourceToBuild": {"uri": "https://github.com/should-not-leak/repo.git", "ref": "refs/heads/main"}}`
+	got, err := extractCloudBuildTrigger(cloudBuildTriggerContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("expected no relationships for a uri-only sourceToBuild, got %#v", got.Relationships)
+	}
+	blob, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if containsString(string(blob), "should-not-leak") {
+		t.Fatalf("sourceToBuild.uri leaked: %s", blob)
+	}
+}
+
+func TestExtractCloudBuildTriggerSourceToBuildWrongDomainNeverMintsEdge(t *testing.T) {
+	const data = `{"id": "trigger-wrongdomain", "sourceToBuild": {"repository": "//sourcerepo.googleapis.com/projects/demo-project/repos/my-repo"}}`
+	got, err := extractCloudBuildTrigger(cloudBuildTriggerContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 0 {
+		t.Errorf("expected no relationships for a wrong-domain sourceToBuild.repository, got %#v", got.Relationships)
+	}
+}
+
 func TestExtractCloudBuildTriggerNeverPersistsSubstitutions(t *testing.T) {
 	const data = `{"id": "trigger-x", "substitutions": {"_DEPLOY_SECRET": "should-not-leak-value"}}`
 	got, err := extractCloudBuildTrigger(cloudBuildTriggerContext(data))

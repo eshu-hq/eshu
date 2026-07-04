@@ -16,10 +16,11 @@ import (
 // TestCloudBuildTriggerOfflineFixtureEndToEnd exercises the offline
 // assets.list fixture for Cloud Build Trigger through parse -> normalize ->
 // attribute extraction -> generation -> envelope, proving the redaction-safe
-// typed-depth attributes, correlation anchors, and the source-repo edge reach
-// durable facts without any live GCP call, and that no build substitution
-// value, webhook secret reference, or raw service-account email ever lands on
-// a fact.
+// typed-depth attributes, correlation anchors, and the source-repo /
+// source-repository-link edges reach durable facts without any live GCP
+// call, that a Pub/Sub trigger's `sourceToBuild` never shadows its true
+// `source_type`, and that no build substitution value, webhook secret
+// reference, or raw service-account email ever lands on a fact.
 func TestCloudBuildTriggerOfflineFixtureEndToEnd(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "assets_list_cloud_build_trigger.json"))
 	if err != nil {
@@ -29,8 +30,8 @@ func TestCloudBuildTriggerOfflineFixtureEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse fixture page: %v", err)
 	}
-	if len(page.Resources) != 2 {
-		t.Fatalf("expected 2 resources, got %d", len(page.Resources))
+	if len(page.Resources) != 3 {
+		t.Fatalf("expected 3 resources, got %d", len(page.Resources))
 	}
 
 	gen := NewGeneration(attributesTestBoundary(), redact.Key{})
@@ -44,7 +45,8 @@ func TestCloudBuildTriggerOfflineFixtureEndToEnd(t *testing.T) {
 
 	resourceCount := 0
 	repoEdges := 0
-	var repoTriggerAttrs, githubTriggerAttrs map[string]any
+	repositoryLinkEdges := 0
+	var repoTriggerAttrs, githubTriggerAttrs, pubsubTriggerAttrs map[string]any
 	for _, env := range envelopes {
 		switch env.FactKind {
 		case facts.GCPCloudResourceFactKind:
@@ -54,16 +56,21 @@ func TestCloudBuildTriggerOfflineFixtureEndToEnd(t *testing.T) {
 				repoTriggerAttrs, _ = env.Payload["attributes"].(map[string]any)
 			case "//cloudbuild.googleapis.com/projects/demo-project/locations/global/triggers/trigger-gh":
 				githubTriggerAttrs, _ = env.Payload["attributes"].(map[string]any)
+			case "//cloudbuild.googleapis.com/projects/demo-project/locations/us-central1/triggers/trigger-pubsub-repo":
+				pubsubTriggerAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
 		case facts.GCPCloudRelationshipFactKind:
-			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeTriggerSourceRepo {
+			switch stringOrEmpty(env.Payload["relationship_type"]) {
+			case relationshipTypeTriggerSourceRepo:
 				repoEdges++
+			case relationshipTypeTriggerSourceRepositoryLink:
+				repositoryLinkEdges++
 			}
 		}
 	}
 
-	if resourceCount != 2 {
-		t.Errorf("gcp_cloud_resource facts = %d, want 2", resourceCount)
+	if resourceCount != 3 {
+		t.Errorf("gcp_cloud_resource facts = %d, want 3", resourceCount)
 	}
 	if repoTriggerAttrs == nil {
 		t.Fatalf("repo trigger carried no attributes")
@@ -83,8 +90,17 @@ func TestCloudBuildTriggerOfflineFixtureEndToEnd(t *testing.T) {
 	if githubTriggerAttrs["source_type"] != "github" {
 		t.Errorf("source_type = %v, want github", githubTriggerAttrs["source_type"])
 	}
+	if pubsubTriggerAttrs == nil {
+		t.Fatalf("pubsub+sourceToBuild trigger carried no attributes")
+	}
+	if pubsubTriggerAttrs["source_type"] != "pubsub" {
+		t.Errorf("source_type = %v, want pubsub (sourceToBuild must not shadow the pubsub mechanism)", pubsubTriggerAttrs["source_type"])
+	}
 	if repoEdges != 1 {
 		t.Errorf("trigger_source_repo edges = %d, want 1", repoEdges)
+	}
+	if repositoryLinkEdges != 1 {
+		t.Errorf("trigger_source_repository_link edges = %d, want 1", repositoryLinkEdges)
 	}
 
 	blob, err := json.Marshal(envelopes)

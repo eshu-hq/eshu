@@ -925,28 +925,49 @@ the log URL host and structured control-plane references leave the parser.
 **Cloud Build Trigger** (`cloudbuild.googleapis.com/BuildTrigger`) captures the
 user-assigned trigger `name`, disabled posture, creation time, build-config
 `filename`, the API's own `eventType` enum, a bounded `source_type` (`repo`,
-`github`, `repository_event`, `source_to_build`, `pubsub`, `webhook`, or
-`manual`) derived from which mutually-exclusive source field the trigger
-carries, the `includeBuildLogs` posture, the `approvalConfig.approvalRequired`
-posture, bounded `includedFiles`/`ignoredFiles`/`tags` counts, and the
-fingerprinted trigger service account (`tags` is free-form user text, unlike
-the shared `labels` map, so only its count is kept, never the tag strings);
-emits the typed `trigger_source_repo` edge to the Cloud Source Repositories
-`Repository` for a `triggerTemplate`-sourced trigger
-(reusing `assetTypeCloudBuildTrigger` and `assetTypeSourceRepo`, both declared
-by the Cloud Build Build extractor, and the same repoName/projectId-with-
-same-project-default resolution as a Build's `repoSource`); and surfaces the
-source repo and fingerprinted service-account email as correlation anchors. A
-GitHub, GitLab Enterprise, Bitbucket Server, Pub/Sub, webhook, Repo API, or
-manual source has no CAI-resolvable target asset type in this graph — GitHub
-owner/name, webhook state, and Pub/Sub topic/subscription are not emitted as
-edges or attributes — so only the bounded `source_type` enum records which
-kind of source the trigger uses. The trigger's `build` template,
-`substitutions`, the free-text CEL `filter`, `webhookConfig.secret` (a Secret
-Manager version reference used only to validate inbound webhook signatures),
-GitHub/GitLab/Bitbucket push and pull-request branch/tag regex detail, and
-`gitFileSource` are never read — only the bounded control-plane posture and
-the resolvable source-repo reference leave the parser.
+`github`, `repository_event`, `pubsub`, `webhook`, `source_to_build`, or
+`manual`) derived from which event-mechanism field the trigger carries, the
+`includeBuildLogs` posture, the `approvalConfig.approvalRequired` posture,
+bounded `includedFiles`/`ignoredFiles`/`tags` counts, and the fingerprinted
+trigger service account (`tags` is free-form user text, unlike the shared
+`labels` map, so only its count is kept, never the tag strings). `source_type`
+classifies the trigger's true firing mechanism — the SCM-event discriminators
+(`triggerTemplate`, `github`, `repositoryEventConfig`) first, then the
+invocation-mechanism discriminators (`pubsubConfig`, `webhookConfig`) — before
+falling back to `sourceToBuild` presence or the `eventType`-derived `manual`
+value; `sourceToBuild` is documented as the build-source reference used only by
+Webhook/Pub-Sub/Manual/Cron triggers, so its presence never shadows the actual
+firing mechanism a Pub/Sub or webhook trigger also carries. Emits two
+independent edges: the typed `trigger_source_repo` edge to the Cloud Source
+Repositories `Repository` for a `triggerTemplate`-sourced trigger (reusing
+`assetTypeCloudBuildTrigger` and `assetTypeSourceRepo`, both declared by the
+Cloud Build Build extractor, and the same repoName/projectId-with-
+same-project-default resolution as a Build's `repoSource`), and the typed
+`trigger_source_repository_link` edge to the Developer Connect
+`GitRepositoryLink` for a `sourceToBuild.repository` reference — verified
+against the live Cloud Asset Inventory supported-asset-types reference, which
+lists `developerconnect.googleapis.com/GitRepositoryLink` as its own asset
+type; Cloud Build's `GitRepoSource.repository` value is always shaped as that
+Developer Connect resource name (`projects/*/locations/*/connections/*/
+repositories/*`) regardless of the underlying `repoType` (Cloud Source
+Repositories, GitHub, GitLab, or Bitbucket connected through Developer
+Connect), never a `sourcerepo.googleapis.com` name, so it is never routed to
+the `assetTypeSourceRepo` edge; the derivation fails closed on any value that
+does not match the documented eight-segment shape or carry the exact
+Developer Connect CAI service prefix. Both edges surface their resolved
+target's resource name, along with the fingerprinted service-account email,
+as correlation anchors. A GitHub, GitLab Enterprise, or Bitbucket Server source
+named directly by `github` (not through Developer Connect) has no
+CAI-resolvable target asset type in this graph — GitHub owner/name, webhook
+state, and Pub/Sub topic/subscription are not emitted as edges or attributes —
+so only the bounded `source_type` enum records which mechanism fires the
+trigger. The trigger's `build` template, `substitutions`, the free-text CEL
+`filter`, `webhookConfig.secret` (a Secret Manager version reference used only
+to validate inbound webhook signatures), GitHub/GitLab/Bitbucket push and
+pull-request branch/tag regex detail, `gitFileSource`, and
+`sourceToBuild.uri`/`githubEnterpriseConfig`/`bitbucketServerConfig` are never
+read — only the bounded control-plane posture and the resolvable source-repo /
+repository-link references leave the parser.
 
 **Identity Platform Config** (`identitytoolkit.googleapis.com/Config`) captures
 the authentication posture: the enabled sign-in methods (email / phone /

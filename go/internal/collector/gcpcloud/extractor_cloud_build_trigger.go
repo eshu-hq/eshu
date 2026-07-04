@@ -15,7 +15,27 @@ import (
 // assetTypeCloudBuildTrigger and assetTypeSourceRepo asset types are declared
 // and owned by the Cloud Build Build extractor (extractor_cloud_build.go) and
 // are reused here, never redeclared.
-const relationshipTypeTriggerSourceRepo = "trigger_source_repo"
+const (
+	relationshipTypeTriggerSourceRepo           = "trigger_source_repo"
+	relationshipTypeTriggerSourceRepositoryLink = "trigger_source_repository_link"
+)
+
+// assetTypeDeveloperConnectGitRepositoryLink is the CAI asset type for a
+// Developer Connect connected repository, per the live Cloud Asset Inventory
+// supported-asset-types reference. A `sourceToBuild.repository` value is
+// always shaped as this asset type's resource name
+// (`projects/*/locations/*/connections/*/repositories/*`) regardless of the
+// underlying `repoType` (Cloud Source Repositories, GitHub, GitLab, or
+// Bitbucket connected through Developer Connect) — Cloud Build's
+// `GitRepoSource.repository` field never carries a `sourcerepo.googleapis.com`
+// resource name, so this is a distinct target asset type from
+// `assetTypeSourceRepo` (the `triggerTemplate` legacy Cloud Source
+// Repositories reference), never the same edge.
+const (
+	assetTypeDeveloperConnectGitRepositoryLink    = "developerconnect.googleapis.com/GitRepositoryLink"
+	developerConnectResourceNamePrefix            = "//developerconnect.googleapis.com/"
+	developerConnectGitRepositoryLinkNameSegments = 8 // projects/<p>/locations/<l>/connections/<c>/repositories/<r>
+)
 
 func init() {
 	RegisterAssetExtractor(assetTypeCloudBuildTrigger, extractCloudBuildTrigger)
@@ -32,7 +52,11 @@ func init() {
 // only to validate inbound webhook signatures), GitHub/GitLab/Bitbucket push
 // and pull-request branch/tag regex detail, and `gitFileSource` are never
 // decoded, so no build secret, CEL filter detail, or webhook secret reference
-// can be surfaced.
+// can be surfaced. `sourceToBuild.uri` (a raw repo URL),
+// `sourceToBuild.githubEnterpriseConfig`, and `sourceToBuild.bitbucketServerConfig`
+// are never decoded either — only `sourceToBuild.repository`, the Developer
+// Connect connected-repository resource name, is read, and only to derive an
+// edge.
 type cloudBuildTriggerData struct {
 	Name             string   `json:"name"`
 	CreateTime       string   `json:"createTime"`
@@ -71,15 +95,22 @@ type cloudBuildTriggerData struct {
 // time, build-config filename, event type, derived source type,
 // include-build-logs posture, approval posture, bounded included/ignored
 // file and tag counts, and the fingerprinted trigger service account), the
-// source repo and fingerprinted service-account email as correlation
-// anchors, and the typed trigger_source_repo edge for a Cloud Source
-// Repositories `triggerTemplate`.
-// A GitHub, GitLab Enterprise, Bitbucket Server, Pub/Sub, webhook, Repo-API,
-// or manual source has no CAI-resolvable target asset type in this graph, so
-// no edge is emitted for those; only the bounded `source_type` enum records
-// which kind of source the trigger uses. The service account is joined via
-// its fingerprinted-email digest; substitutions, the CEL `filter`, and the
-// webhook secret reference are never read.
+// source repo/repository-link and fingerprinted service-account email as
+// correlation anchors, and the typed `trigger_source_repo` edge for a Cloud
+// Source Repositories `triggerTemplate` plus the typed
+// `trigger_source_repository_link` edge for a Developer Connect
+// `sourceToBuild.repository`. The two edges are independent: `sourceToBuild`
+// names the build-source reference for a trigger whose actual firing
+// mechanism is Pub/Sub, webhook, manual, or cron (per the live Cloud Build v1
+// discovery document), so it is resolved unconditionally alongside whichever
+// event-mechanism field fires the build, never as a mutually-exclusive
+// alternative. A GitHub, GitLab Enterprise, or Bitbucket Server source named
+// directly by `github` (not through Developer Connect) has no CAI-resolvable
+// target asset type in this graph, so no edge is emitted for it; only the
+// bounded `source_type` enum records which mechanism fires the trigger. The
+// service account is joined via its fingerprinted-email digest;
+// substitutions, the CEL `filter`, the webhook secret reference, and
+// `sourceToBuild.uri` are never read.
 func extractCloudBuildTrigger(ctx ExtractContext) (AttributeExtraction, error) {
 	var data cloudBuildTriggerData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -105,6 +136,17 @@ func extractCloudBuildTrigger(ctx ExtractContext) (AttributeExtraction, error) {
 		if repo := cloudBuildSourceRepoFullName(repoProject, data.TriggerTemplate.RepoName); repo != "" {
 			anchors = append(anchors, repo)
 			rels = append(rels, cloudBuildEdge(ctx, relationshipTypeTriggerSourceRepo, repo, assetTypeSourceRepo))
+		}
+	}
+	// sourceToBuild is the build-source reference for a trigger that does not
+	// respond to SCM push/PR events (Pub/Sub, webhook, manual, or cron); it is
+	// independent of, and can coexist with, whichever event-mechanism field
+	// above fires the build, so it is resolved unconditionally rather than as
+	// a mutually-exclusive alternative to triggerTemplate/github/etc.
+	if data.SourceToBuild != nil {
+		if link := developerConnectGitRepositoryLinkFullName(data.SourceToBuild.Repository); link != "" {
+			anchors = append(anchors, link)
+			rels = append(rels, cloudBuildEdge(ctx, relationshipTypeTriggerSourceRepositoryLink, link, assetTypeDeveloperConnectGitRepositoryLink))
 		}
 	}
 
@@ -160,12 +202,18 @@ func cloudBuildTriggerAttributes(data cloudBuildTriggerData, saDigest string) ma
 }
 
 // cloudBuildTriggerSourceType returns the bounded enum describing which
-// mutually-exclusive source configuration the trigger carries. It checks the
-// shape-specific fields first (authoritative regardless of eventType), then
-// falls back to the API's own explicit `eventType` enum for a webhook or
-// pubsub trigger whose config sub-message CAI did not populate, and finally a
-// manual trigger, which carries no source config at all; "" when nothing is
-// set.
+// event mechanism fires the trigger's build. It checks the SCM-event
+// discriminators first (`triggerTemplate`, `github`, `repositoryEventConfig`),
+// then the invocation-mechanism discriminators (`pubsubConfig`,
+// `webhookConfig`) — these are the trigger's true classification per the
+// live Cloud Build v1 discovery document, which documents `sourceToBuild` as
+// "used only by Webhook, Pub/Sub, Manual, and Cron triggers": it names the
+// build-source reference for one of those triggers, not a distinct event
+// mechanism, so its presence must never shadow the actual firing mechanism
+// (a Pub/Sub or webhook trigger commonly carries both `pubsubConfig`/
+// `webhookConfig` AND `sourceToBuild` at once). `sourceToBuild`'s own
+// `source_to_build` classification and the `eventType`-derived `manual`
+// fallback apply only once none of the mechanism fields above are set.
 func cloudBuildTriggerSourceType(data cloudBuildTriggerData) string {
 	switch {
 	case data.TriggerTemplate != nil:
@@ -174,8 +222,6 @@ func cloudBuildTriggerSourceType(data cloudBuildTriggerData) string {
 		return "github"
 	case data.RepositoryEventConfig != nil:
 		return "repository_event"
-	case data.SourceToBuild != nil:
-		return "source_to_build"
 	case data.PubsubConfig != nil:
 		return "pubsub"
 	case data.WebhookConfig != nil:
@@ -188,7 +234,70 @@ func cloudBuildTriggerSourceType(data cloudBuildTriggerData) string {
 		return "pubsub"
 	case "MANUAL":
 		return "manual"
-	default:
+	}
+	if data.SourceToBuild != nil {
+		return "source_to_build"
+	}
+	return ""
+}
+
+// developerConnectGitRepositoryLinkFullName validates and returns the CAI
+// full resource name for a Developer Connect connected repository referenced
+// by `sourceToBuild.repository`. Cloud Build's `GitRepoSource.repository`
+// field is documented as `projects/*/locations/*/connections/*/repositories/*`
+// regardless of the underlying `repoType` (Cloud Source Repositories, GitHub,
+// GitLab, or Bitbucket Server/Cloud connected through Developer Connect), so
+// it is never a `sourcerepo.googleapis.com` resource name and must never be
+// routed to `assetTypeSourceRepo`/`cloudBuildSourceRepoFullName`. The
+// derivation fails closed: an already-absolute value is trusted only when it
+// carries the exact Developer Connect CAI service prefix, and a relative
+// value is qualified only when it matches the documented
+// `projects/<p>/locations/<l>/connections/<c>/repositories/<r>` eight-segment
+// shape; any other value (including a `uri`-only source with no `repository`
+// field) yields "" and mints no edge or anchor.
+func developerConnectGitRepositoryLinkFullName(repository string) string {
+	trimmed := strings.TrimSpace(repository)
+	if trimmed == "" {
 		return ""
 	}
+	if strings.HasPrefix(trimmed, "//") {
+		if !strings.HasPrefix(trimmed, developerConnectResourceNamePrefix) {
+			return ""
+		}
+		relative := strings.TrimPrefix(trimmed, developerConnectResourceNamePrefix)
+		if !developerConnectGitRepositoryLinkShapeValid(relative) {
+			return ""
+		}
+		return trimmed
+	}
+	relative := strings.TrimPrefix(trimmed, "/")
+	if !developerConnectGitRepositoryLinkShapeValid(relative) {
+		return ""
+	}
+	return developerConnectResourceNamePrefix + relative
+}
+
+// developerConnectGitRepositoryLinkShapeValid reports whether a relative
+// resource-name path matches the documented
+// `projects/<p>/locations/<l>/connections/<c>/repositories/<r>` shape (odd
+// segments are the literal path keywords, even segments are their values; all
+// must be non-blank).
+func developerConnectGitRepositoryLinkShapeValid(relative string) bool {
+	segments := strings.Split(relative, "/")
+	if len(segments) != developerConnectGitRepositoryLinkNameSegments {
+		return false
+	}
+	wantKeywords := []string{"projects", "", "locations", "", "connections", "", "repositories", ""}
+	for i, want := range wantKeywords {
+		if want == "" {
+			if strings.TrimSpace(segments[i]) == "" {
+				return false
+			}
+			continue
+		}
+		if segments[i] != want {
+			return false
+		}
+	}
+	return true
 }
