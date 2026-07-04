@@ -650,6 +650,20 @@
    GKE Cluster extractor's own sentinel handling; per-key Airflow config
    override/env-variable values, maintenance-window recurrence, and any
    private-cluster/IP-allocation CIDR value never leave the parser.
+56. `extractor_memcache_instance.go` - typed-depth extractor for
+   `memcache.googleapis.com/Instance` (Memorystore for Memcached: display
+   name, a bounded zone count, node count, per-node cpu count and memory size
+   in MB from `nodeConfig`, memcache major version, full version string,
+   creation time, state, maintenance version, effective maintenance version,
+   and a bounded `memcacheNodes` count); emits the
+   `memcache_instance_in_network` edge to the authorized Compute `Network`,
+   resolved from `authorizedNetwork` the same way the Memorystore Redis
+   Instance extractor (`extractor_redis_instance.go`, #38 above) resolves a
+   selfLink or project-qualified/project-less partial. Never reads
+   `discoveryEndpoint` or any `memcacheNodes[].host`/`.port` — hostname, IP
+   address, or port values, never resource identities; the per-node struct
+   declares only `nodeId`, `zone`, and `state` fields, so only the node count
+   crosses the redaction boundary.
 
 ## Invariants
 
