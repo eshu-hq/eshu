@@ -6,7 +6,6 @@ package php
 import (
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -134,7 +133,6 @@ func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
 // file, so candidate order never depends on where in the file a "use"
 // statement appears relative to the attribute that references it.
 func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
-	recordFullWalkForTest()
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "namespace_use_declaration":
@@ -164,7 +162,6 @@ func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
 // assignment, and parameter variable rows plus every call row with inferred
 // receiver types.
 func emitPHPVariablesAndCalls(state *phpParseState, root *tree_sitter.Node) {
-	recordFullWalkForTest()
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "variable_name":
@@ -179,45 +176,6 @@ func emitPHPVariablesAndCalls(state *phpParseState, root *tree_sitter.Node) {
 			emitPHPFunctionCall(state, node)
 		}
 	})
-}
-
-// fullWalkHookMu guards fullWalkHook so -race sees no data race between a
-// test installing the hook and Parse invoking it on another goroutine.
-var (
-	fullWalkHookMu sync.Mutex
-	fullWalkHook   func()
-)
-
-// recordFullWalkForTest invokes the test-installed full-tree-walk observer,
-// if any. It is a no-op outside tests; production Parse callers never set the
-// hook. Kept in non-test code (rather than a _test.go file) so every full
-// walk entry point in this package can call it inline.
-func recordFullWalkForTest() {
-	fullWalkHookMu.Lock()
-	hook := fullWalkHook
-	fullWalkHookMu.Unlock()
-	if hook != nil {
-		hook()
-	}
-}
-
-// SetFullWalkHookForTest installs a hook invoked once per independent
-// full-tree AST traversal Parse performs (buildPHPParentLookup,
-// collectPHPDeclarations, emitPHPVariablesAndCalls). Tests use it to pin the
-// walk count as a regression guard against reintroducing a redundant pass.
-// The returned func restores the previous hook. Test-only: production code
-// never calls this and must not run concurrently with another test that also
-// installs the hook, since the hook is process-global.
-func SetFullWalkHookForTest(hook func()) func() {
-	fullWalkHookMu.Lock()
-	previous := fullWalkHook
-	fullWalkHook = hook
-	fullWalkHookMu.Unlock()
-	return func() {
-		fullWalkHookMu.Lock()
-		fullWalkHook = previous
-		fullWalkHookMu.Unlock()
-	}
 }
 
 func parseError(path string) error {

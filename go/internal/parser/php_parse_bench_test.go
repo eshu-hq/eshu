@@ -14,13 +14,16 @@ import (
 // classes, methods, and Symfony Route attributes. Before the walk-collapse fix
 // (#4515 P2b), Parse ran four independent full-tree traversals per file:
 // buildPHPParentLookup, collectPHPDeclarations (phase 1),
-// emitPHPVariablesAndCalls (phase 2), and a dedicated route-attribute walk in
-// buildPHPFrameworkSemantics. The route walk visited "attribute" nodes that
-// phase 1 already visits for observePHPAttribute, so it folded into phase 1,
-// dropping the full-tree walk count from 4 to 3 per file (see
-// TestParseFullTreeWalkCount in internal/parser/php). This benchmark is the
-// regression gate that proves the parse path stays bounded on route-heavy PHP,
-// the shape that exercised the now-removed fourth walk most.
+// emitPHPVariablesAndCalls (phase 2), and a dedicated route-attribute
+// shared.WalkNamed walk in buildPHPFrameworkSemantics. The route walk visited
+// "attribute" nodes that phase 1 already visits for observePHPAttribute, so it
+// folded into phase 1, dropping the shared.WalkNamed call count from 3 to 2
+// per file (buildPHPParentLookup is a separate stack-based traversal, not
+// shared.WalkNamed, and is unaffected). TestParseFullTreeWalkCount in
+// internal/parser/php pins that shared.WalkNamed==2 invariant directly against
+// the traversal primitive. This benchmark is the regression gate that proves
+// the parse path stays bounded on route-heavy PHP, the shape that exercised
+// the now-removed walk most.
 func BenchmarkParsePathPHPRouteHeavy(b *testing.B) {
 	repoRoot := b.TempDir()
 	filePath := filepath.Join(repoRoot, "heavy.php")

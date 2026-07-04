@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -237,8 +238,39 @@ func SetReadSourceHookForTest(hook func(path string)) func() {
 	}
 }
 
+// walkNamedHook, when non-nil, observes every call to WalkNamed (one call per
+// independent full-tree traversal a language parser performs). It exists only
+// so tests can count real full-tree walks without changing WalkNamed's
+// signature; production code never sets it. An atomic.Pointer keeps the
+// common (nil) case a single atomic load with no mutex, since WalkNamed sits
+// on the parse hot path (called a handful of times per file, but for every
+// file in a repository scan). Only the test-side setter needs to synchronize
+// a compare-and-store against a concurrent restore.
+var walkNamedHook atomic.Pointer[func()]
+
+// SetWalkNamedHookForTest installs a hook invoked once per WalkNamed call
+// (i.e. once per independent full-tree traversal), and returns a restore
+// function that must be deferred to reset the hook. Tests use this to prove a
+// parser performs the expected number of full-tree passes -- counting the
+// real traversal primitive, not a manually annotated call site, so the guard
+// still catches a regression that reintroduces a WalkNamed-based walk without
+// updating any hand-added instrumentation. Test-only: production code never
+// calls this. Callers must not run this test in parallel with any other test
+// that also installs the hook or parses PHP/other WalkNamed-based languages
+// concurrently, since the hook is process-global.
+func SetWalkNamedHookForTest(hook func()) func() {
+	previous := walkNamedHook.Swap(&hook)
+	return func() {
+		walkNamedHook.Store(previous)
+	}
+}
+
 // WalkNamed visits a node and every named descendant in source order.
 func WalkNamed(node *tree_sitter.Node, visit func(*tree_sitter.Node)) {
+	if hook := walkNamedHook.Load(); hook != nil {
+		(*hook)()
+	}
+
 	if node == nil {
 		return
 	}

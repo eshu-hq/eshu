@@ -22,7 +22,6 @@ type phpParentLookup struct {
 // indexes named and unnamed children because ancestor chains can pass through
 // unnamed grammar wrappers.
 func buildPHPParentLookup(root *tree_sitter.Node) *phpParentLookup {
-	recordFullWalkForTest()
 	lookup := &phpParentLookup{parents: make(map[uintptr]*tree_sitter.Node)}
 	if root == nil {
 		return lookup

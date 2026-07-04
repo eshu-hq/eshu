@@ -72,29 +72,37 @@ the PHP 10K LOC pre-scan fixture at `194719834 ns/op`, `36197800 B/op`, and
 Compatibility is guarded by `TestPreScanMatchesParseDeclarationNames`.
 
 Performance Evidence: Parse used to run four independent full-tree AST
-traversals per file: `buildPHPParentLookup` (parent-edge index),
-`collectPHPDeclarations` (phase 1: declarations/imports/type evidence/dead-code
-facts), `emitPHPVariablesAndCalls` (phase 2: variables/calls), and a dedicated
-route-attribute walk inside `buildPHPFrameworkSemantics` for
+traversals per file: `buildPHPParentLookup` (parent-edge index, a separate
+stack-based walk over named and unnamed children), `collectPHPDeclarations`
+(phase 1: declarations/imports/type evidence/dead-code facts, a
+`shared.WalkNamed` pass), `emitPHPVariablesAndCalls` (phase 2:
+variables/calls, a second `shared.WalkNamed` pass), and a dedicated
+route-attribute `shared.WalkNamed` walk inside `buildPHPFrameworkSemantics` for
 `framework_semantics.symfony.route_entries`. The route walk visited `attribute`
 nodes that phase 1 already visits for `observePHPAttribute`, so it now folds
 into phase 1: `collectPHPDeclarations` records candidate route attribute nodes
 in source order, and `buildPHPFrameworkSemantics`/`phpSymfonyRoutes` resolve
 those candidates against the fully-collected import set after phase 1
-completes, with no traversal of their own. This drops the full-tree walk count
-from 4 to 3 per file; phase 1 and phase 2 stay separate two-pass walks because
-phase 2 depends on whole-file type evidence (property types, method/function
-return types, import aliases) that phase 1 only finishes collecting once it
-has seen the entire file — see "Do not collapse the two passes" in
-AGENTS.md. `TestParseFullTreeWalkCount` in this package pins the walk count at
-3. `go test ./internal/parser -run '^$' -bench BenchmarkParsePathPHPRouteHeavy
--benchmem -count=10` plus `benchstat` on a synthetic 60-method,
-Symfony-Route-attributed PHP controller measured `14.53m ± 6%` before this
-change versus `12.58m ± 5%` after (`-13.44%`, `p=0.000`, `n=10`); allocations
-fell from `89.16k` to `81.23k` per op (`-8.89%`) and bytes/op from `2.819Mi` to
-`2.624Mi` (`-6.90%`). Emitted payload shape stayed byte-identical across all 18
-tracked PHP fixtures under `tests/fixtures/`, confirmed by diffing
-`ParsePath` output before and after with worktree-path fields stripped.
+completes, with no traversal of their own. This drops the `shared.WalkNamed`
+call count from 3 to 2 per file (the parent-lookup walk is unaffected, since it
+is not `shared.WalkNamed`); phase 1 and phase 2 stay separate two-pass walks
+because phase 2 depends on whole-file type evidence (property types,
+method/function return types, import aliases) that phase 1 only finishes
+collecting once it has seen the entire file — see "Do not collapse the two
+passes" in AGENTS.md. `TestParseFullTreeWalkCount` in this package installs
+`shared.SetWalkNamedHookForTest` and pins the count at exactly 2 `WalkNamed`
+calls per `Parse`, so it fails if a future change restores the route walk (or
+any other pass) as a `shared.WalkNamed` call, regardless of where in the
+package that call is added. `go test ./internal/parser -run '^$' -bench
+BenchmarkParsePathPHPRouteHeavy -benchmem -count=10` plus `benchstat` on a
+synthetic 60-method, Symfony-Route-attributed PHP controller measured
+`14.53ms ± 6%` (benchstat's `14.53m` in `sec/op` units) before this change
+versus `12.58ms ± 5%` (`12.58m`) after (`-13.44%`, `p=0.000`, `n=10`);
+allocations fell from `89.16k` to `81.23k` per op (`-8.89%`) and bytes/op from
+`2.819Mi` to `2.624Mi` (`-6.90%`). Emitted payload shape stayed byte-identical
+across all 18 tracked PHP fixtures under `tests/fixtures/`, confirmed by
+diffing `ParsePath` output before and after with worktree-path fields
+stripped.
 
 Performance Evidence: remote collector-discovered five-repo parse profiling
 on 2026-07-02, with 16 parse workers and NornicDB PR #230 backend bits,
