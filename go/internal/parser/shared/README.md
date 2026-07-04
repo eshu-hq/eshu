@@ -43,10 +43,19 @@ inference, parser runtime caching, or language-specific semantics.
 The godoc contract is in `doc.go` and `shared.go`. Current exports are
 `Options`, `GoImportedInterfaceParamMethods`, `GoDirectMethodCallRoots`,
 `GoPackageSemanticRoots`, `GoPackageSemanticRootOptions`, `BasePayload`, `ReadSource`,
+`PrimeSource`, `ClearSource`, `SetReadSourceHookForTest`,
 `WalkNamed`, `NodeText`, `NodeLine`, `NodeEndLine`, `CloneNode`,
 `AppendBucket`, `SortNamedBucket`, `SortNamedMaps`, `CollectBucketNames`,
 `IntValue`, `LastPathSegment`, `DedupeNonEmptyStrings`, `BranchNodeSet`,
 `NewBranchNodeSet`, and `CyclomaticComplexity`.
+
+`PrimeSource`/`ClearSource` back the single-physical-read cache
+`Engine.ParsePath` uses so the language parser and the engine's
+content-metadata inference share one disk read; see the parent package
+README's "Single physical read per `ParsePath` call" section for the full
+contract. `SetReadSourceHookForTest` is test-only instrumentation for counting
+physical `ReadSource` reads without changing its signature; production code
+never calls it.
 
 `CyclomaticComplexity` is the shared McCabe walker. Each tree-sitter language
 adapter passes a `BranchNodeSet` (built with `NewBranchNodeSet`) that names the
@@ -90,6 +99,11 @@ the collector snapshot path.
 - No-Observability-Change (issue #3488): the walker writes only the existing
   `cyclomatic_complexity` function-entity field; it adds no metric, span, log,
   status field, env var, or graph query.
+- Benchmark/No-Observability-Change evidence for the `ReadSource` single-read
+  cache (`PrimeSource`/`ClearSource`) is recorded in the parent package
+  README's "Single physical read per `ParsePath` call" section; this package
+  only adds the cache lookup and test-hook plumbing `ReadSource` and
+  `SetReadSourceHookForTest` use.
 
 ## Gotchas / invariants
 

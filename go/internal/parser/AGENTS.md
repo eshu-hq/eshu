@@ -221,6 +221,12 @@ No-Regression Evidence: `go test ./internal/parser -run 'TestEngine(DispatchesRe
 
 No-Observability-Change: provider dispatch and code-call resolver registration add no graph query, queue, worker, lease, batch, runtime knob, metric instrument, metric label, route, or status field. Operators still diagnose parser behavior through existing collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`, and code-call materialization through existing durable intent rows plus the existing completion log.
 
+### Single physical read per `ParsePath` call (issue #4515, front-half throughput)
+
+No-Regression Evidence: `go test ./internal/parser -run 'TestParsePathReadsSourceExactlyOnce|TestParsePathReadsRawTextSourceExactlyOnce' -count=1` failed before the single-read cache existed (`ParsePath` read a Go and a raw_text fixture's bytes twice: once inside the dispatched language parser via `shared.ReadSource`/`readSource`, once again for `inferContentMetadata`), then passed after `ParsePath` primed a call-scoped cache (`shared.PrimeSource`/`shared.ClearSource`, keyed by absolute path) that both `shared.ReadSource` and the engine-local `readSource` consult before touching disk. Full `go test ./internal/parser/... -count=1` (every language sub-package) stayed green with no fixture or golden-gate change, which is the byte-identity proof: no sub-package `Parse` signature changed, so every language's payload is built from the identical bytes it would have read itself. See the parent README's "Single physical read per `ParsePath` call" section for the `BenchmarkParsePath` before/after numbers.
+
+No-Observability-Change: this adds no metric, span, structured log, status field, queue, graph write, worker, lease, batch, or runtime knob. Operators still diagnose parse behavior through the existing collector `telemetry.FileParseDuration` instrument and `collector snapshot stage completed` logs.
+
 ### Cyclomatic complexity per language (issue #3488)
 
 No-Regression Evidence: `go test ./internal/parser -run TestCyclomaticComplexityPerLanguage -count=1`
