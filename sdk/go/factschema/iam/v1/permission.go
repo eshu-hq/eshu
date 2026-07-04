@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package v1 holds the schema-version-1 typed payload structs for the AWS IAM
-// fact family (Contract System v1 §3.1,
-// docs/internal/design/contract-system-v1.md). It is part of the standalone
-// github.com/eshu-hq/eshu/sdk/go/factschema module and imports nothing under
-// go/internal.
 package v1
 
 // Permission is the schema-version-1 typed payload for the "aws_iam_permission"

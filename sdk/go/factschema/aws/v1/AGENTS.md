@@ -2,8 +2,9 @@
 
 This directory is part of the public
 `github.com/eshu-hq/eshu/sdk/go/factschema` Go module. It holds the
-schema-version-1 typed payload structs for the `aws` fact family. It must
-remain independent from Eshu internals.
+schema-version-1 typed payload structs for the `aws` fact family: `Resource`,
+`Relationship`, `SecurityGroupRule`, `EC2InstancePosture`, and
+`S3BucketPosture`. It must remain independent from Eshu internals.
 
 ## Required Checks
 
@@ -19,12 +20,37 @@ remain independent from Eshu internals.
 ## Contract Rules
 
 - Required payload fields are non-pointer, no-`omitempty` struct fields;
-  optional fields are pointers or carry `omitempty`. Both the schema
-  generator (`../../internal/schemagen`) and the decode seam's required-field
-  check (`../../decode.go`) derive from this shape — keep all three in
-  agreement (`TestRequiredFieldsMatchStructShape` and
-  `TestAWSResourceSchemaHasNoDrift` enforce it).
+  optional fields are pointers, or slices/maps carrying `omitempty`. Both the
+  schema generator (`../../internal/schemagen`) and the decode seam's
+  required-field check (`../../decode.go`) derive from this shape — keep all
+  three in agreement (`TestRequiredFieldsMatchStructShape` and the
+  `schema_gen_test.go` drift tests enforce it).
+- `ClassificationInputInvalid` is the parent `factschema` package's own
+  constant (`decode.go`). A reducer handler receiving it must dead-letter the
+  fact rather than proceed with a zero-value struct.
 - Removing, renaming, or narrowing a field is a major schema bump and needs a
-  conversion shim in the parent package's decode seam, not a silent edit here.
-- This scaffold defines one fact kind (`aws.resource`). Adding a second kind
-  or migrating a real fact family is follow-on epic work, not a casual edit.
+  conversion shim in the parent package's decode seam (`decodeLatestMajor` in
+  `../../decode.go`), not a silent edit here.
+- `Resource` and `Relationship` are polymorphic envelopes: type and validate
+  only the shared identity and common fields; every remaining
+  service-/verb-specific key stays in `Attributes map[string]any`, untyped,
+  on purpose. The pass-through is nested: the collector nests service-specific
+  fields one level deep under a single `"attributes"` payload key, so a
+  reducer consumer reaches one at `Attributes["attributes"][key]`, via the
+  `payloadAttributes(...)` helper — never flat `Attributes[key]`. Do not add
+  a per-resource-type field here casually; typing `Attributes` contents is
+  tracked as separate follow-up work (design §7, issue #4631); see the
+  package `README.md`.
+- If you add a named field to `Resource` or `Relationship`, add its JSON tag
+  to `resourceKnownKeys` / `relationshipKnownKeys` in the same change (in
+  `resource.go` / `relationship.go`). Forgetting this leaks the new field
+  into `Attributes` as well as the named struct field, which is silently
+  wrong, not a compile error.
+- `SecurityGroupRule`, `EC2InstancePosture`, and `S3BucketPosture` have no
+  `Attributes` pass-through; every payload key they care about is a named
+  field. Do not add one without discussing scope — it changes this package's
+  polymorphic-vs-fully-typed shape for that kind.
+- This package defines five fact kinds (`aws_resource`, `aws_relationship`,
+  `aws_security_group_rule`, `ec2_instance_posture`, `s3_bucket_posture`).
+  Adding a sixth kind or a `v2` major is follow-on epic work, not a casual
+  edit.
