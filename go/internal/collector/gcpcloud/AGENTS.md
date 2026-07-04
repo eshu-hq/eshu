@@ -664,6 +664,42 @@
    address, or port values, never resource identities; the per-node struct
    declares only `nodeId`, `zone`, and `state` fields, so only the node count
    crosses the redaction boundary.
+57. `extractor_certificate_manager_certificate.go` - typed-depth extractor for
+   `certificatemanager.googleapis.com/Certificate` (certificate classification
+   MANAGED/SELF_MANAGED/MANAGED_IDENTITY derived from which of the mutually
+   exclusive `managed`/`selfManaged`/`managedIdentity` blocks is present,
+   defaulting to SELF_MANAGED when none is set; scope; managed-provisioning
+   state; a bounded managed-domain count; a bounded DNS-authorization count; a
+   bounded subject-alternative-name count; a bounded label count; and
+   create/update/expiry time). Emits a
+   `certificate_manager_certificate_uses_dns_authorization` edge for each
+   resolved `managed.dnsAuthorizations[]` entry and a
+   `certificate_manager_certificate_uses_issuance_config` edge for a resolved
+   `managed.issuanceConfig`, declaring
+   `assetTypeCertificateManagerDNSAuthorization` and
+   `assetTypeCertificateManagerCertificateIssuanceConfig` here (the first
+   extractor to reference either target type, mirroring how the ForwardingRule
+   extractor declares proxy-kind asset types for reuse by their own eventual
+   typed-depth extractors) and reusing `assetTypeCertificateManagerCertificate`
+   and `certificateManagerFullName` from the sibling Target HTTPS Proxy
+   extractor (`extractor_target_https_proxy.go`), never redeclaring them. Also
+   resolves each `usedBy[].name` entry (`resolveCertManagerCertificateUsedBy`)
+   into a `certificate_manager_certificate_used_by_certificate_map_entry` edge
+   toward a declared `assetTypeCertificateManagerCertificateMapEntry` (the
+   CertificateMap-served path — no other extractor emits an edge for it, since
+   CertificateMapEntry has no typed-depth extractor yet) or a
+   `certificate_manager_certificate_used_by_target_https_proxy` edge toward the
+   directly-referencing TargetHttpsProxy; fails closed on a blank,
+   unresolvable, or wrong-domain reference. Never decodes `managed.domains[]`,
+   `sanDnsnames`, or the managed-identity `identity` SPIFFE ID into an
+   attribute or anchor (the extractor seam carries no redaction key, so —
+   mirroring the SSL Certificate extractor's treatment of its own
+   `managed.domains[]` and `subjectAlternativeNames` — every domain value and
+   the SPIFFE ID are reduced to bounded counts or presence only), and never
+   decodes the top-level `pemCertificate`,
+   `selfManaged.pemCertificate`/`selfManaged.pemPrivateKey` PEM material, or
+   `managed.provisioningIssue`/`managed.authorizationAttemptInfo` free-text
+   failure detail.
 
 ## Invariants
 
