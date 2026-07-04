@@ -67,6 +67,11 @@ func run() error {
 		{name: "azure_cloud_relationship.v1.schema.json", generate: schemagen.AzureCloudRelationshipSchema},
 		{name: "azure_dns_record.v1.schema.json", generate: schemagen.AzureDNSRecordSchema},
 		{name: "azure_collection_warning.v1.schema.json", generate: schemagen.AzureCollectionWarningSchema},
+		// The kubernetes_live family fact kinds are DOTTED, matching the
+		// incident family's convention above.
+		{name: "kubernetes_live.pod_template.v1.schema.json", generate: schemagen.KubernetesLivePodTemplateSchema},
+		{name: "kubernetes_live.relationship.v1.schema.json", generate: schemagen.KubernetesLiveRelationshipSchema},
+		{name: "kubernetes_live.warning.v1.schema.json", generate: schemagen.KubernetesLiveWarningSchema},
 	}
 
 	for _, target := range targets {

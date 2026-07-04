@@ -1,0 +1,23 @@
+{
+  "object_id": "kube-obj:demo-cluster:apps-v1-deployments:payments:checkout:1a2b3c4d",
+  "cluster_id": "demo-cluster",
+  "namespace": "payments",
+  "name": "checkout",
+  "uid": "11111111-2222-3333-4444-555555555555",
+  "group_version_resource": "apps/v1/deployments",
+  "service_account": "checkout-sa",
+  "containers": [
+    {
+      "name": "checkout",
+      "image": "registry.example.com/checkout@sha256:0000000000000000000000000000000000000000000000000000000000000001",
+      "init": false,
+      "ports": [8080],
+      "env_keys": ["PORT", "LOG_LEVEL"],
+      "env_from_secret": true
+    }
+  ],
+  "image_refs": ["registry.example.com/checkout@sha256:0000000000000000000000000000000000000000000000000000000000000001"],
+  "selector": {"app": "checkout"},
+  "labels": {"app": "checkout", "team": "payments"},
+  "correlation_anchors": ["kube-obj:demo-cluster:apps-v1-deployments:payments:checkout:1a2b3c4d"]
+}

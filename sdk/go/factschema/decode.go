@@ -92,6 +92,23 @@ const (
 	// FactKindAzureCollectionWarning is the "azure_collection_warning" fact
 	// kind.
 	FactKindAzureCollectionWarning = "azure_collection_warning"
+
+	// The kubernetes_live family fact-kind strings are DOTTED, matching the
+	// incident family's convention above. The dots are part of the wire kind
+	// the collector already emits (go/internal/facts.KubernetesPodTemplateFactKind
+	// and siblings); the values here MATCH those wire strings byte-for-byte and
+	// never invent or rename the namespace. TestFactSchemaKindsMatchWireFactKinds
+	// (reducer side) asserts each stays byte-equal to its facts.*FactKind
+	// counterpart.
+
+	// FactKindKubernetesLivePodTemplate is the "kubernetes_live.pod_template"
+	// fact kind.
+	FactKindKubernetesLivePodTemplate = "kubernetes_live.pod_template"
+	// FactKindKubernetesLiveRelationship is the "kubernetes_live.relationship"
+	// fact kind.
+	FactKindKubernetesLiveRelationship = "kubernetes_live.relationship"
+	// FactKindKubernetesLiveWarning is the "kubernetes_live.warning" fact kind.
+	FactKindKubernetesLiveWarning = "kubernetes_live.warning"
 )
 
 // Classification values a DecodeError carries. These are this module's own

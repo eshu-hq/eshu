@@ -1,0 +1,7 @@
+{
+  "reason": "forbidden_resource",
+  "cluster_id": "demo-cluster",
+  "resource_scope": "apps/v1/deployments",
+  "message": "list forbidden for apps/v1/deployments in namespace payments",
+  "correlation_anchors": ["demo-cluster"]
+}

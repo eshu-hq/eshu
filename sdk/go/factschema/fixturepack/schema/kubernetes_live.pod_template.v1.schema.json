@@ -1,0 +1,141 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/kuberneteslive/v1/pod_template.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "cluster_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "containers": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "env_from_secret": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "env_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "init": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ports": {
+            "items": {
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "group_version_resource": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_refs": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "object_id": {
+      "type": "string"
+    },
+    "selector": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "service_account": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "object_id"
+  ],
+  "title": "Eshu kubernetes_live.pod_template Payload (schema version 1)",
+  "type": "object"
+}
