@@ -1,0 +1,9 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "relationship_type": "attached_to",
+  "source_resource_id": "eni-0abc",
+  "target_resource_id": "i-0def",
+  "source_arn": "arn:aws:ec2:us-east-1:123456789012:network-interface/eni-0abc",
+  "target_arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0def"
+}

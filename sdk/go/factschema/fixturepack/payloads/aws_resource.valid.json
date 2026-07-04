@@ -1,0 +1,10 @@
+{
+  "account_id": "123456789012",
+  "resource_id": "vpc-0abc123def456",
+  "region": "us-east-1",
+  "resource_type": "aws_vpc",
+  "arn": "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-0abc123def456",
+  "name": "prod-vpc",
+  "tags": {"env": "prod"},
+  "correlation_anchors": ["vpc-0abc123def456"]
+}

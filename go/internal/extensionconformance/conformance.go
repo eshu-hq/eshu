@@ -117,6 +117,14 @@ func Run(ctx context.Context, req Request) (Report, error) {
 		fixtures = append(fixtures, result)
 	}
 
+	// PayloadSchemas is intentionally not supplied here. The pack keys schemas by
+	// bare core fact kind, but this host passes ReservedFactKinds=CoreFactKinds()
+	// and the manifest validator requires every declared kind to be namespaced,
+	// so a component can never declare a core kind and a core-keyed schema map
+	// would never match a fixture fact. Wiring it would validate nothing while
+	// reading as if the CLI checks payload shape. CLI payload validation needs a
+	// manifest field mapping a component's namespaced kind to a core payload
+	// shape; see the follow-up issue referenced in doc.go.
 	report := conformance.Run(conformance.Request{
 		Manifest:          manifestToPublic(manifest),
 		Fixtures:          fixtures,

@@ -1,0 +1,10 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "principal_arn": "arn:aws:iam::123456789012:role/app",
+  "effect": "Allow",
+  "policy_source": "attached_policy",
+  "actions": ["s3:GetObject"],
+  "resources": ["arn:aws:s3:::prod-logs/*"],
+  "has_conditions": false
+}

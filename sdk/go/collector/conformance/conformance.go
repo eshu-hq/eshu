@@ -4,7 +4,9 @@
 package conformance
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	collector "github.com/eshu-hq/eshu/sdk/go/collector"
@@ -46,6 +48,12 @@ const (
 	// FindingFixtureContractFailed means a fixture violates the manifest-derived
 	// collector SDK contract.
 	FindingFixtureContractFailed FindingCode = "fixture_contract_failed"
+	// FindingPayloadSchemaInvalid means a fixture fact payload failed validation
+	// against the checked-in JSON Schema for its fact kind: a required field was
+	// absent or null, a field carried the wrong type, or the supplied schema
+	// used a construct the harness cannot validate (which fails closed rather
+	// than passing unchecked). The finding message names the offending field.
+	FindingPayloadSchemaInvalid FindingCode = "payload_schema_invalid"
 )
 
 // SourceEvidenceOnlyReducerPhase is the only reducer consumer phase optional
@@ -78,6 +86,22 @@ type Request struct {
 	// callers may leave it nil and rely on namespacing alone. A manifest that
 	// declares a reserved kind fails closed.
 	ReservedFactKinds []string
+	// PayloadSchemas maps an emitted fixture fact kind to the JSON Schema its
+	// payloads must satisfy. The key is the exact fact-kind string the fixture
+	// emits, which for an out-of-tree collector is its own namespaced kind mapped
+	// to a core payload shape (for example "dev.acme.collector.resource" pointing
+	// at the aws_resource schema shape), because the bare core kinds are
+	// host-owned and reserved and cannot be emitted directly. The caller supplies
+	// the schema bytes so this package performs no file I/O and takes no
+	// schema-library dependency; an out-of-tree collector reads the shape from
+	// the pinned sdk/go/factschema/fixturepack. A fixture fact whose kind has an
+	// entry here is validated against it and fails closed on a missing required
+	// field, a wrong-typed field, or a schema construct the harness cannot
+	// validate. A fixture fact whose kind has no entry is not payload-validated
+	// (provenance-only kinds carry no registered schema), and leaving the map nil
+	// disables payload validation entirely, preserving the pre-payload-validation
+	// behavior.
+	PayloadSchemas map[string]json.RawMessage
 }
 
 // Report is the stable conformance result returned to CLIs and automation.
@@ -154,9 +178,18 @@ func Run(req Request) Report {
 		return report
 	}
 
+	schemas, schemaErr := compileSchemas(req.PayloadSchemas)
+	if schemaErr != nil {
+		// A schema that cannot be compiled fails closed: the harness refuses to
+		// pass a fixture it cannot actually validate against the declared
+		// contract, rather than silently skipping payload validation.
+		addBlockingFinding(&report, FindingPayloadSchemaInvalid, schemaErr.Error(), -1)
+		return report
+	}
+
 	validator := collector.NewValidator(req.Manifest.Contract())
 	for index, fixture := range req.Fixtures {
-		validateFixture(&report, validator, index, fixture)
+		validateFixture(&report, validator, schemas, index, fixture)
 	}
 
 	if hasBlockingFindings(report) {
@@ -164,6 +197,33 @@ func Run(req Request) Report {
 	}
 	report.Status = StatusPassed
 	return report
+}
+
+// compileSchemas compiles every supplied payload schema up front so a malformed
+// or unsupported schema is a single request-level failure, and each compiled
+// schema is reused across every fixture. It returns the first compile error so
+// Run can fail closed rather than validate fixtures against a schema it cannot
+// interpret. Kinds are compiled in sorted order so the reported error is
+// deterministic across runs.
+func compileSchemas(raw map[string]json.RawMessage) (map[string]payloadSchema, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	kinds := make([]string, 0, len(raw))
+	for kind := range raw {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+
+	compiled := make(map[string]payloadSchema, len(raw))
+	for _, kind := range kinds {
+		schema, err := compileSchema(raw[kind])
+		if err != nil {
+			return nil, fmt.Errorf("payload schema for fact kind %q: %w", kind, err)
+		}
+		compiled[kind] = schema
+	}
+	return compiled, nil
 }
 
 func normalizeMode(mode Mode) Mode {
@@ -207,7 +267,7 @@ func addReducerConsumerFindings(report *Report, manifest Manifest) {
 	}
 }
 
-func validateFixture(report *Report, validator collector.Validator, index int, fixture collector.Result) {
+func validateFixture(report *Report, validator collector.Validator, schemas map[string]payloadSchema, index int, fixture collector.Result) {
 	report.Summary.FixtureCount++
 
 	validationReport, err := validator.ValidateResult(fixture)
@@ -220,12 +280,39 @@ func validateFixture(report *Report, validator collector.Validator, index int, f
 		addBlockingFinding(report, FindingFixtureContractFailed, fmt.Sprintf("idempotent re-emission failed: %v", err), index)
 		return
 	}
+	// Validate each fact payload against its checked-in JSON Schema when the
+	// caller supplied one for that kind. A kind with no supplied schema is not
+	// payload-validated, matching the provenance-only change-matrix row.
+	if err := validateFixturePayloads(schemas, fixture); err != nil {
+		addBlockingFinding(report, FindingPayloadSchemaInvalid, err.Error(), index)
+		return
+	}
 	report.Summary.IdempotentReemissionChecked = true
 	report.Summary.FactCount += validationReport.FactCount
 	report.Summary.DuplicateCount += validationReport.DuplicateCount
 	report.Summary.RedactionCount += validationReport.RedactionCount
 	report.Summary.TombstoneCount += validationReport.TombstoneCount
 	report.Summary.StatusCount += validationReport.StatusCount
+}
+
+// validateFixturePayloads checks every fact in the fixture against the compiled
+// payload schema for its kind, when one exists. It returns the first violation,
+// naming the fact kind and the offending field, so the finding message an
+// external collector reads points straight at the payload key to fix.
+func validateFixturePayloads(schemas map[string]payloadSchema, fixture collector.Result) error {
+	if len(schemas) == 0 {
+		return nil
+	}
+	for _, fact := range fixture.Facts {
+		schema, ok := schemas[fact.Kind]
+		if !ok {
+			continue
+		}
+		if err := schema.validatePayload(fact.Payload); err != nil {
+			return fmt.Errorf("fact %q payload: %w", fact.Kind, err)
+		}
+	}
+	return nil
 }
 
 func addBlockingFinding(report *Report, code FindingCode, message string, fixtureIndex int) {
