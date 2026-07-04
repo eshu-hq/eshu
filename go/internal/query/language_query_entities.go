@@ -16,7 +16,6 @@ var graphBackedEntityTypes = map[string]string{
 	"enum":            "Enum",
 	"union":           "Union",
 	"macro":           "Macro",
-	"variable":        "Variable",
 	"type_annotation": "TypeAnnotation",
 }
 
@@ -36,6 +35,15 @@ var contentBackedEntityTypes = map[string]string{
 	"terragrunt_input":        "TerragruntInput",
 	"guard":                   "guard",
 	"protocol_implementation": "ProtocolImplementation",
+	// "variable" is pure content-backed, not graph-first. The canonical-graph
+	// skip in canonical_builder.go removes plain Variable nodes from the graph
+	// projection but leaves ALL Variable rows (plain and semantic) in the
+	// content store. A FEW semantic Variable graph nodes still exist (module
+	// attributes, TSX/Elixir component-type-assertion variables), so routing
+	// "variable" through the graph-first path would short-circuit on those few
+	// non-empty graph rows and never fall back to content, silently omitting
+	// the plain variables this entity type is meant to surface.
+	"variable": "Variable",
 }
 
 var graphFirstContentBackedEntityTypes = map[string]string{

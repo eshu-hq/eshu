@@ -11,23 +11,27 @@ import (
 	"testing"
 )
 
-func TestHandleLanguageQuery_TSXReactFCWrapperUsesGraphFirstPath(t *testing.T) {
+// TestHandleLanguageQuery_TSXReactFCWrapperUsesContentBackedPath covers the
+// content-backed "variable" path (see language_query_entities.go): a TSX
+// React.FC component-type-assertion variable's semantic summary derives from
+// EntityContent.Metadata, since "variable" no longer takes the graph-first
+// route.
+func TestHandleLanguageQuery_TSXReactFCWrapperUsesContentBackedPath(t *testing.T) {
 	t.Parallel()
 
 	handler := &LanguageQueryHandler{
-		Neo4j: &mockLanguageQueryGraphReader{
-			rows: []map[string]any{
+		Content: &languageQueryContentStore{
+			rows: []EntityContent{
 				{
-					"entity_id":                "variable-1",
-					"name":                     "Dynamic",
-					"labels":                   []any{"Variable"},
-					"file_path":                "src/Screen.tsx",
-					"repo_id":                  "repo-1",
-					"repo_name":                "repo-1",
-					"language":                 "tsx",
-					"start_line":               int64(6),
-					"end_line":                 int64(6),
-					"component_type_assertion": "React.FC",
+					EntityID:     "content-variable-1",
+					RepoID:       "repo-1",
+					RelativePath: "src/Screen.tsx",
+					EntityType:   "Variable",
+					EntityName:   "Dynamic",
+					StartLine:    6,
+					EndLine:      6,
+					Language:     "tsx",
+					Metadata:     map[string]any{"component_type_assertion": "React.FC"},
 				},
 			},
 		},
@@ -78,23 +82,27 @@ func TestHandleLanguageQuery_TSXReactFCWrapperUsesGraphFirstPath(t *testing.T) {
 	}
 }
 
-func TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesGraphFirstPath(t *testing.T) {
+// TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesContentBackedPath
+// covers the content-backed "variable" path (see language_query_entities.go):
+// a TSX React.FunctionComponent component-type-assertion variable's semantic
+// summary derives from EntityContent.Metadata, since "variable" no longer
+// takes the graph-first route.
+func TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesContentBackedPath(t *testing.T) {
 	t.Parallel()
 
 	handler := &LanguageQueryHandler{
-		Neo4j: &mockLanguageQueryGraphReader{
-			rows: []map[string]any{
+		Content: &languageQueryContentStore{
+			rows: []EntityContent{
 				{
-					"entity_id":                "variable-2",
-					"name":                     "Dynamic",
-					"labels":                   []any{"Variable"},
-					"file_path":                "src/Screen.tsx",
-					"repo_id":                  "repo-1",
-					"repo_name":                "repo-1",
-					"language":                 "tsx",
-					"start_line":               int64(6),
-					"end_line":                 int64(6),
-					"component_type_assertion": "React.FunctionComponent",
+					EntityID:     "content-variable-2",
+					RepoID:       "repo-1",
+					RelativePath: "src/Screen.tsx",
+					EntityType:   "Variable",
+					EntityName:   "Dynamic",
+					StartLine:    6,
+					EndLine:      6,
+					Language:     "tsx",
+					Metadata:     map[string]any{"component_type_assertion": "React.FunctionComponent"},
 				},
 			},
 		},

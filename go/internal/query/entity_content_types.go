@@ -120,6 +120,7 @@ var resolveContentBackedEntityTypes = map[string]string{
 	"type_alias":               "TypeAlias",
 	"type_annotation":          "TypeAnnotation",
 	"typedef":                  "Typedef",
+	"variable":                 "Variable",
 	"guard":                    "guard",
 	"protocol_implementation":  "ProtocolImplementation",
 	"module_attribute":         "module_attribute",
