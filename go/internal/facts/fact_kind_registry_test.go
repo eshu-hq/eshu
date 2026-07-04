@@ -120,6 +120,23 @@ func TestValidateFactKindRegistryCatchesDrift(t *testing.T) {
 			},
 			wantErr: "removed_in",
 		},
+		{
+			name: "non-semver deprecated_in",
+			mutate: func(entries []FactKindRegistryEntry) []FactKindRegistryEntry {
+				entries[0].DeprecatedIn = "next"
+				return entries
+			},
+			wantErr: "deprecated_in",
+		},
+		{
+			name: "non-semver removed_in",
+			mutate: func(entries []FactKindRegistryEntry) []FactKindRegistryEntry {
+				entries[0].DeprecatedIn = "1.2.0"
+				entries[0].RemovedIn = "soon"
+				return entries
+			},
+			wantErr: "removed_in",
+		},
 	}
 
 	for _, tc := range cases {
@@ -137,7 +154,7 @@ func TestValidateFactKindRegistryCatchesDrift(t *testing.T) {
 	}
 }
 
-func TestValidateFactKindRegistryAcceptsPreV2EntriesWithoutOptionalFields(t *testing.T) {
+func TestValidateFactKindRegistryAcceptsPreV11EntriesWithoutOptionalFields(t *testing.T) {
 	t.Parallel()
 
 	entries := FactKindRegistry()
@@ -151,7 +168,7 @@ func TestValidateFactKindRegistryAcceptsPreV2EntriesWithoutOptionalFields(t *tes
 	}
 }
 
-func TestValidateFactKindRegistryAcceptsPopulatedV2Fields(t *testing.T) {
+func TestValidateFactKindRegistryAcceptsPopulatedV11Fields(t *testing.T) {
 	t.Parallel()
 
 	entries := FactKindRegistry()

@@ -258,6 +258,12 @@ func buildFamilyEntries(repoRoot, name string, live liveFamily, spec familySpec)
 		if override := strings.TrimSpace(spec.RemovedInOverrides[kind]); override != "" {
 			removedIn = override
 		}
+		if err := validateLifecycleMarker(name, kind, "deprecated_in", deprecatedIn); err != nil {
+			return nil, err
+		}
+		if err := validateLifecycleMarker(name, kind, "removed_in", removedIn); err != nil {
+			return nil, err
+		}
 		if strings.TrimSpace(removedIn) != "" && strings.TrimSpace(deprecatedIn) == "" {
 			return nil, fmt.Errorf("family %q kind %q has removed_in set without deprecated_in", name, kind)
 		}
@@ -278,79 +284,6 @@ func buildFamilyEntries(repoRoot, name string, live liveFamily, spec familySpec)
 		})
 	}
 	return entries, nil
-}
-
-// validatePayloadSchemaReference fails closed when a non-blank payload_schema
-// value does not resolve to a real file under sdk/go/factschema/schema/. A
-// dangling reference — a typo, a moved file, or a schema that was never
-// generated — must never be silently accepted as a valid contract pointer.
-func validatePayloadSchemaReference(repoRoot, family, kind, payloadSchema string) error {
-	ref := strings.TrimSpace(payloadSchema)
-	if ref == "" {
-		return nil
-	}
-	wantPrefix := payloadSchemaDir + "/"
-	if !strings.HasPrefix(ref, wantPrefix) {
-		return fmt.Errorf("family %q kind %q payload_schema %q must be under %s", family, kind, ref, payloadSchemaDir)
-	}
-	abs := filepath.Join(repoRoot, filepath.FromSlash(ref))
-	info, err := os.Stat(abs)
-	if err != nil {
-		return fmt.Errorf("family %q kind %q payload_schema %q does not exist: %w", family, kind, ref, err)
-	}
-	if info.IsDir() {
-		return fmt.Errorf("family %q kind %q payload_schema %q is a directory, want a file", family, kind, ref)
-	}
-	return nil
-}
-
-func validateFamilyMetadata(name string, spec familySpec) error {
-	for field, value := range map[string]string{
-		"lifecycle_owner": spec.LifecycleOwner,
-		"schema_version":  spec.SchemaVersion,
-		"reducer_domain":  spec.ReducerDomain,
-		"projection_hook": spec.ProjectionHook,
-		"admission_hook":  spec.AdmissionHook,
-		"read_surface":    spec.ReadSurface,
-		"truth_profile":   spec.TruthProfile,
-	} {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("family %q missing %s", name, field)
-		}
-	}
-	switch facts.FactKindTruthProfile(spec.TruthProfile) {
-	case facts.FactKindTruthDeterministic:
-		if !spec.ProviderKeyIndependent {
-			return fmt.Errorf("family %q deterministic truth requires provider_key_independent", name)
-		}
-	case facts.FactKindTruthProviderGated, facts.FactKindTruthFixtureGated:
-	case facts.FactKindTruthOptionalSemantic:
-		if strings.TrimSpace(spec.PolicyGate) == "" {
-			return fmt.Errorf("family %q optional_semantic truth requires policy_gate", name)
-		}
-	default:
-		return fmt.Errorf("family %q unsupported truth_profile %q", name, spec.TruthProfile)
-	}
-	return nil
-}
-
-func validateKindOverrides(name, field string, overrides map[string]string, specKinds []string) error {
-	if len(overrides) == 0 {
-		return nil
-	}
-	known := make(map[string]struct{}, len(specKinds))
-	for _, kind := range specKinds {
-		known[kind] = struct{}{}
-	}
-	for kind, value := range overrides {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("family %q %s for kind %q is blank", name, field, kind)
-		}
-		if _, ok := known[kind]; !ok {
-			return fmt.Errorf("family %q %s references unknown kind %q", name, field, kind)
-		}
-	}
-	return nil
 }
 
 func renderGo(entries []registryEntry) ([]byte, error) {

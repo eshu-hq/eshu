@@ -183,12 +183,15 @@ aws:
   kinds: [aws_dns_record, aws_resource, ...]
 ```
 
-The generator fails closed on a dangling reference: a `payload_schema` value
-that does not resolve to a real file under `sdk/go/factschema/schema/`
-relative to the repo root stops generation with an error naming the
-missing path. Fact kinds without a typed schema yet simply omit the field —
-this is the expected incremental state, not a gap to backfill in every
-change.
+The generator fails closed on a bad reference. A `payload_schema` value is
+rejected when it is not a clean forward-slash path (no `.`, `..`, or trailing
+slash), when it points outside `sdk/go/factschema/schema/`, when the resolved
+path escapes that directory, or when it does not name a real file there. The
+clean-path and containment checks run before any filesystem lookup, so a
+traversal such as `sdk/go/factschema/schema/../../secret.json` cannot slip a
+non-schema repo file past the guard. Fact kinds without a typed schema yet
+simply omit the field; that is the expected incremental state, not a gap to
+backfill in every change.
 
 ### Declaring deprecation and removal
 
@@ -209,9 +212,14 @@ some_family:
   removed_in_overrides: {some_family.old_kind: "2.0.0"}
 ```
 
-`removed_in` without a `deprecated_in` on the same kind is rejected by both
-the generator and `facts.ValidateFactKindRegistry` — a kind cannot go
-straight from active to removed without a declared deprecation window.
+Both markers must be canonical `MAJOR.MINOR.PATCH` semver (the same form the
+envelope `schema_version` uses, validated through
+`facts.IsCanonicalSchemaVersion`). A typo like `next` or `2` is rejected by
+the generator and by `facts.ValidateFactKindRegistry`, so a marker that later
+tooling cannot compare as a version never reaches the generated artifact.
+`removed_in` without a `deprecated_in` on the same kind is likewise rejected
+by both — a kind cannot go straight from active to removed without a declared
+deprecation window.
 Deprecation markers are informational at the registry layer today: they
 give conformance tooling and the schema-diff gate (design section 6) a
 place to warn on continued use of a deprecated kind ahead of an eventual

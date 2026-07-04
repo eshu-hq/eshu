@@ -192,6 +192,130 @@ func TestBuildFamilyEntriesAppliesDeprecationMarkers(t *testing.T) {
 	}
 }
 
+func TestBuildFamilyEntriesRejectsNonSemverLifecycleMarkers(t *testing.T) {
+	repoRoot := t.TempDir()
+	live := liveFamily{
+		name:    "aws",
+		kinds:   func() []string { return []string{"aws_resource"} },
+		version: func(string) (string, bool) { return "1.0.0", true },
+	}
+	base := familySpec{
+		LifecycleOwner:         "go/internal/facts",
+		SchemaVersion:          "1.0.0",
+		ReducerDomain:          "aws_cloud_runtime_drift",
+		ProjectionHook:         "cloud_asset_resolution",
+		AdmissionHook:          "facts.ValidateSchemaVersion",
+		ReadSurface:            "GET /api/v0/cloud/inventory",
+		TruthProfile:           "provider_gated",
+		ProviderKeyIndependent: false,
+		Kinds:                  []string{"aws_resource"},
+	}
+
+	cases := []struct {
+		name    string
+		mutate  func(*familySpec)
+		wantCtx string
+	}{
+		{
+			name:    "non-semver deprecated_in",
+			mutate:  func(s *familySpec) { s.DeprecatedInOverrides = map[string]string{"aws_resource": "next"} },
+			wantCtx: "deprecated_in",
+		},
+		{
+			name: "non-semver removed_in",
+			mutate: func(s *familySpec) {
+				s.DeprecatedInOverrides = map[string]string{"aws_resource": "1.2.0"}
+				s.RemovedInOverrides = map[string]string{"aws_resource": "2"}
+			},
+			wantCtx: "removed_in",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := base
+			tc.mutate(&spec)
+			_, err := buildFamilyEntries(repoRoot, "aws", live, spec)
+			if err == nil {
+				t.Fatalf("buildFamilyEntries() error = nil, want non-semver %s error", tc.wantCtx)
+			}
+			if !strings.Contains(err.Error(), tc.wantCtx) || !strings.Contains(err.Error(), "semver") {
+				t.Fatalf("buildFamilyEntries() error = %q, want %s + semver context", err, tc.wantCtx)
+			}
+		})
+	}
+}
+
+// TestBuildFamilyEntriesRejectsPayloadSchemaEscapingSchemaDir proves the
+// containment guard is not bypassable with `..` traversal: a ref whose cleaned
+// form resolves to a real repo file OUTSIDE sdk/go/factschema/schema/ must fail
+// closed even though os.Stat on the resolved path would otherwise succeed.
+func TestBuildFamilyEntriesRejectsPayloadSchemaEscapingSchemaDir(t *testing.T) {
+	live := liveFamily{
+		name:    "aws",
+		kinds:   func() []string { return []string{"aws_resource"} },
+		version: func(string) (string, bool) { return "1.0.0", true },
+	}
+	baseSpec := func(ref string) familySpec {
+		return familySpec{
+			LifecycleOwner:         "go/internal/facts",
+			SchemaVersion:          "1.0.0",
+			ReducerDomain:          "aws_cloud_runtime_drift",
+			ProjectionHook:         "cloud_asset_resolution",
+			AdmissionHook:          "facts.ValidateSchemaVersion",
+			ReadSurface:            "GET /api/v0/cloud/inventory",
+			TruthProfile:           "provider_gated",
+			ProviderKeyIndependent: false,
+			PayloadSchemaOverrides: map[string]string{"aws_resource": ref},
+			Kinds:                  []string{"aws_resource"},
+		}
+	}
+
+	cases := []struct {
+		name string
+		// ref is the payload_schema value under test.
+		ref string
+		// realTargetRel, when non-empty, is a repo-relative file the test
+		// creates so os.Stat on the resolved path WOULD succeed — proving the
+		// rejection comes from containment, not a dangling stat.
+		realTargetRel string
+	}{
+		{
+			// Escapes to <repoRoot>/OUTSIDE.md, a real file (the four ../ climb
+			// schema -> factschema -> go -> sdk -> repoRoot), so os.Stat on the
+			// resolved path succeeds and only the containment check can reject it.
+			name:          "escapes to real repo file via traversal",
+			ref:           "sdk/go/factschema/schema/../../../../OUTSIDE.md",
+			realTargetRel: "OUTSIDE.md",
+		},
+		{
+			name: "trailing-slash non-clean ref",
+			ref:  "sdk/go/factschema/schema/aws_resource.v1.schema.json/",
+		},
+		{
+			name: "dot-segment non-clean ref",
+			ref:  "sdk/go/factschema/schema/./aws_resource.v1.schema.json",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			if tc.realTargetRel != "" {
+				target := filepath.Join(repoRoot, filepath.FromSlash(tc.realTargetRel))
+				if err := writeTestFile(t, target, "x"); err != nil {
+					t.Fatalf("writeTestFile() error = %v", err)
+				}
+			}
+			_, err := buildFamilyEntries(repoRoot, "aws", live, baseSpec(tc.ref))
+			if err == nil {
+				t.Fatalf("buildFamilyEntries() error = nil, want %q rejected", tc.ref)
+			}
+			if !strings.Contains(err.Error(), "payload_schema") {
+				t.Fatalf("buildFamilyEntries() error = %q, want payload_schema context", err)
+			}
+		})
+	}
+}
+
 func writeTestFile(t *testing.T, path, contents string) error {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {

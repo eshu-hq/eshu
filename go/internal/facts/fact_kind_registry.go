@@ -112,6 +112,14 @@ func validateFactKindRegistryEntry(entry FactKindRegistryEntry, expected map[str
 			return fmt.Errorf("fact kind %q missing %s", kind, field)
 		}
 	}
+	for field, marker := range map[string]string{
+		"deprecated_in": entry.DeprecatedIn,
+		"removed_in":    entry.RemovedIn,
+	} {
+		if v := strings.TrimSpace(marker); v != "" && !IsCanonicalSchemaVersion(v) {
+			return fmt.Errorf("fact kind %q %s %q is not a canonical semver (MAJOR.MINOR.PATCH)", kind, field, v)
+		}
+	}
 	if strings.TrimSpace(entry.RemovedIn) != "" && strings.TrimSpace(entry.DeprecatedIn) == "" {
 		return fmt.Errorf("fact kind %q has removed_in set without deprecated_in", kind)
 	}

@@ -96,7 +96,10 @@ consume these types as their input or storage shape.
   version so reducers, projectors, component activation, and API/MCP/CLI
   diagnostics classify a collector's fact version identically. `Compatibility`
   is `supported`, `unsupported_major`, `unsupported_minor`, or `unknown_kind`;
-  unsupported majors are rejected with no silent fallback. See
+  unsupported majors are rejected with no silent fallback.
+  `IsCanonicalSchemaVersion(version)` is the shared "is this a well-formed
+  MAJOR.MINOR.PATCH string" predicate the classifier and the fact-kind registry
+  generator both use to reject malformed versions and lifecycle markers. See
   [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md).
 
 The generated fact-kind contract source is
