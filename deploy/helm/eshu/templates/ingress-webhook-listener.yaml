@@ -55,6 +55,15 @@ spec:
                 port:
                   number: 8080
           {{- end }}
+          {{- if $.Values.webhookListener.gcpFreshness.enabled }}
+          - path: {{ $.Values.webhookListener.gcpFreshness.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "eshu.webhookListenerFullname" $ }}
+                port:
+                  number: 8080
+          {{- end }}
           {{- if $.Values.webhookListener.pagerDuty.enabled }}
           - path: {{ $.Values.webhookListener.pagerDuty.path | quote }}
             pathType: Exact

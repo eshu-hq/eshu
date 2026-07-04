@@ -95,13 +95,30 @@ not connect to the graph backend.
 Defaults: disabled, `maxBodyBytes=1048576`, empty `defaultBranch`, all
 providers disabled, provider paths `/webhooks/github`, `/webhooks/gitlab`,
 `/webhooks/bitbucket`, `/webhooks/aws/eventbridge`,
-`/webhooks/pagerduty`, and `/webhooks/jira`.
+`/webhook/gcp-freshness`, `/webhooks/pagerduty`, and `/webhooks/jira`.
 
 When enabled, at least one provider must be enabled and each enabled provider
 needs its Secret name. PagerDuty and Jira also require `scopeId`, which must
 match the configured claim-driven collector target allowed to receive the
 freshness wake-up. Webhook ingress renders only enabled provider paths as
 `Exact` paths to the webhook listener Service.
+
+`webhookListener.gcpFreshness` gates the GCP Cloud Asset Inventory (CAI)
+change-feed intake route (`/webhook/gcp-freshness` by default). It is
+default-off like every other provider and requires `secretName` (the shared
+push token, mounted read-only via `secretKeyRef`) once enabled.
+
+Current auth posture: the shared bearer token
+(`X-Eshu-GCP-Freshness-Token` or `Authorization: Bearer`) is the **sole**
+required auth mechanism. It is compared with a constant-time `hmac.Equal`
+check performed before the request body is read, and the route fails closed
+when no token is configured — the chart simply does not mount it. Pub/Sub
+push OIDC verification (validating the Google-signed push token's audience
+and service-account principal) is **not implemented yet**; there is no
+`oidc` values surface in this chart because a config block that renders no
+enforcement would imply protection the endpoint does not have. OIDC
+verification and its paired Helm values block are tracked together in
+issue #4659.
 
 ## Render Checks
 

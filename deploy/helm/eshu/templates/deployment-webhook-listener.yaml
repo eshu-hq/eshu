@@ -81,6 +81,15 @@ spec:
                   name: {{ .Values.webhookListener.awsFreshness.secretName }}
                   key: {{ .Values.webhookListener.awsFreshness.tokenKey }}
             {{- end }}
+            {{- if .Values.webhookListener.gcpFreshness.enabled }}
+            - name: ESHU_GCP_FRESHNESS_PATH
+              value: {{ .Values.webhookListener.gcpFreshness.path | quote }}
+            - name: ESHU_GCP_FRESHNESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.gcpFreshness.secretName }}
+                  key: {{ .Values.webhookListener.gcpFreshness.tokenKey }}
+            {{- end }}
             {{- if .Values.webhookListener.pagerDuty.enabled }}
             - name: ESHU_WEBHOOK_PAGERDUTY_PATH
               value: {{ .Values.webhookListener.pagerDuty.path | quote }}
