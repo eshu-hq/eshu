@@ -15,7 +15,7 @@ surfaces in core CI instead of an external collector's production run.
 
 | File | Purpose |
 | --- | --- |
-| `decodeseam.go` | `ParseDecodeSeams` — finds every `decode<Kind>` function in `factschema_decode.go` and the struct type + fact kind it decodes |
+| `decodeseam.go` | `ParseDecodeSeams` — finds every `decode<Kind>` function in one `factschema_decode*.go` file and the struct type + fact kind it decodes; `load.go`'s `resolveDecodeFiles` globs every such file so per-family split files are all parsed |
 | `structshape.go` | `ParseStructShapes` — extracts a typed struct's named, JSON-tagged fields and required/optional flag |
 | `usage.go` | `ScanDecodeUsage` — AST-walks reducer handler files and finds which declared fields each handler actually reads, direct or across a helper-function call |
 | `manifest.go` | `BuildManifest`, `CheckManifest`, `Violation` — joins the three derivations and compares used fields against a declared set |
@@ -28,15 +28,18 @@ The manifest is derived from the typed `factschema.Decode*` calls that landed
 in [#4640](https://github.com/eshu-hq/eshu/pull/4640) — never from a
 hand-maintained list of field names. Concretely:
 
-1. `ParseDecodeSeams` parses `go/internal/reducer/factschema_decode.go` with
-   `go/ast` and matches the exact
+1. `ParseDecodeSeams` parses every `go/internal/reducer/factschema_decode*.go`
+   file (globbed by `resolveDecodeFiles` — families split their wrappers across
+   per-family files such as `factschema_decode_incident.go` for the 500-line
+   cap, and the gate must follow the split) with `go/ast` and matches the exact
    `func decode<Kind>(facts.Envelope) (<pkg>.<Struct>, error)` shape, reading
    the `factschema.FactKind*` selector referenced in the body to attribute
    each seam to its wire fact kind.
 2. `ParseStructShapes` parses the typed struct packages
-   (`sdk/go/factschema/aws/v1`, `sdk/go/factschema/iam/v1`) and reads each
-   named field's `json` tag. A field is required when it is not a
-   pointer/slice/map and carries no `omitempty` — the same rule
+   (`sdk/go/factschema/aws/v1`, `sdk/go/factschema/iam/v1`,
+   `sdk/go/factschema/incident/v1`) and reads each named field's `json` tag. A
+   field is required when it is not a pointer/slice/map and carries no
+   `omitempty` — the same rule
    `sdk/go/factschema/decode.go`'s `requiredFields` registration and the
    schema generator use. A field tagged `json:"-"` (the untyped `Attributes`
    pass-through every polymorphic envelope carries) is excluded: it is not a

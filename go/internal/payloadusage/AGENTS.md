@@ -60,10 +60,18 @@
   `factKindSchemaFile` — `Load`/`Gate` fail loudly via
   `UnmappedSeamFactKinds` when a seam has no mapping, so a forgotten mapping
   is a startup error, not a silent gap.
-- **A new struct-family directory** (a family beyond `aws/v1`/`iam/v1`): add
-  a `ParseStructShapes(dir, "<alias>v1")` call in `load.go`'s `Load` and merge
-  its result into the combined `shapes` map, matching the existing
-  `awsShapes`/`iamShapes` pattern.
+- **A new struct-family directory** (a family beyond `aws/v1`, `iam/v1`,
+  `incident/v1`): add a `<Family>StructDir` field to `Paths` + its default in
+  `ResolvePaths`, a `ParseStructShapes(resolved.<Family>StructDir, "<alias>v1")`
+  call in `load.go`'s `Load`, and merge its result into the combined `shapes`
+  map, matching the existing `awsShapes`/`iamShapes`/`incidentShapes` pattern.
+  Wire the matching `-<family>-struct-dir` flag in the CLI
+  (`go/cmd/payload-usage-manifest/main.go`).
+- **A family that splits its decode wrappers** into a new
+  `factschema_decode_<family>.go` file: nothing to do — `resolveDecodeFiles`
+  globs `factschema_decode*.go`, so a per-family split file is picked up
+  automatically. Do NOT reintroduce a single hardcoded `DecodeFile` path; that
+  would silently drop the split family's coverage.
 - **New violation detail** (for example distinguishing "required" vs
   "optional" undeclared fields): extend `Violation` in `manifest.go` and
   `CheckManifest`'s construction of it; keep `Violation.String()` naming the

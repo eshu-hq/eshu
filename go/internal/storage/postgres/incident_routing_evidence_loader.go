@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -30,62 +29,48 @@ WHERE entity_type = 'PagerDutyDeclaration'
 ORDER BY repo_id ASC, relative_path ASC, start_line ASC, entity_id ASC
 `
 
-// LoadIncidentRoutingEvidence implements reducer.IncidentRoutingEvidenceLoader
-// for PagerDuty incident-routing graph materialization.
-func (s FactStore) LoadIncidentRoutingEvidence(
+// LoadIncidentRoutingRawEvidence implements reducer.IncidentRoutingEvidenceLoader
+// for PagerDuty incident-routing graph materialization. It returns the RAW
+// incident-context and incident-routing fact envelopes (payloads undecoded, for
+// the reducer to decode through the typed contracts seam) plus the declared
+// PagerDuty routing evidence read from content_entities metadata.
+//
+// The declared read needs a bounded service-name allowlist, derived here by
+// peeking at the incident.record facts' service summaries. That peek is only a
+// query bound, never authoritative correlation truth: the reducer re-matches
+// declared candidates against the DECODED incident service name, so a missing or
+// malformed service summary here can only narrow the declared candidate set,
+// never invent a wrong correlation. The fact payloads themselves are handed back
+// undecoded so a malformed required field surfaces as a per-fact input_invalid
+// dead-letter in the reducer, not a silent empty read here.
+func (s FactStore) LoadIncidentRoutingRawEvidence(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) ([]reducer.IncidentRoutingEvidenceInput, error) {
+) (reducer.IncidentRoutingRawEvidence, error) {
 	factKinds := append([]string{facts.IncidentRecordFactKind}, facts.IncidentRoutingFactKinds()...)
 	envelopes, err := s.ListFactsByKind(ctx, scopeID, generationID, factKinds)
 	if err != nil {
-		return nil, err
+		return reducer.IncidentRoutingRawEvidence{}, err
 	}
 
-	incidents := make([]reducer.IncidentRoutingIncident, 0)
-	applied := make([]reducer.IncidentRoutingAppliedEvidence, 0)
-	observed := make([]reducer.IncidentRoutingObservedEvidence, 0)
-	warnings := make([]reducer.IncidentRoutingCoverageWarning, 0)
-	for _, envelope := range envelopes {
-		if envelope.IsTombstone {
-			continue
-		}
-		switch envelope.FactKind {
-		case facts.IncidentRecordFactKind:
-			if incident := incidentRoutingIncidentFromEnvelope(envelope); incident.ProviderIncidentID != "" {
-				incidents = append(incidents, incident)
-			}
-		case facts.IncidentRoutingAppliedPagerDutyResourceFactKind:
-			if appliedEvidence, ok := incidentRoutingAppliedFromEnvelope(envelope); ok {
-				applied = append(applied, appliedEvidence)
-			}
-		case facts.IncidentRoutingObservedPagerDutyServiceFactKind:
-			observed = append(observed, incidentRoutingObservedFromEnvelope(envelope))
-		case facts.IncidentRoutingCoverageWarningFactKind:
-			warnings = append(warnings, incidentRoutingWarningFromEnvelope(envelope))
-		}
-	}
-	if len(incidents) == 0 {
-		return nil, nil
+	serviceNames := incidentRoutingServiceNameAllowlistFromEnvelopes(envelopes)
+	if len(serviceNames) == 0 {
+		// No incident.record anchor with a service name: no declared read. The
+		// reducer builds no packets without an incident anchor, so return the
+		// (possibly non-empty) envelopes without the declaration round trip.
+		return reducer.IncidentRoutingRawEvidence{Facts: envelopes}, nil
 	}
 
-	declared, err := s.loadIncidentRoutingDeclaredEvidence(ctx, incidentRoutingServiceNameAllowlist(incidents))
+	declared, err := s.loadIncidentRoutingDeclaredEvidence(ctx, serviceNames)
 	if err != nil {
-		return nil, err
+		return reducer.IncidentRoutingRawEvidence{}, err
 	}
 
-	inputs := make([]reducer.IncidentRoutingEvidenceInput, 0, len(incidents))
-	for _, incident := range incidents {
-		inputs = append(inputs, reducer.IncidentRoutingEvidenceInput{
-			Incident: incident,
-			Declared: declared,
-			Applied:  applied,
-			Observed: observed,
-			Warnings: warnings,
-		})
-	}
-	return inputs, nil
+	return reducer.IncidentRoutingRawEvidence{
+		Facts:    envelopes,
+		Declared: declared,
+	}, nil
 }
 
 func (s FactStore) loadIncidentRoutingDeclaredEvidence(
@@ -142,83 +127,23 @@ func (s FactStore) loadIncidentRoutingDeclaredEvidence(
 	return out, nil
 }
 
-func incidentRoutingIncidentFromEnvelope(envelope facts.Envelope) reducer.IncidentRoutingIncident {
-	service := incidentRoutingPayloadMap(envelope.Payload, "service")
-	return reducer.IncidentRoutingIncident{
-		Provider:           firstNonEmptyString(incidentRoutingPayloadString(envelope.Payload, "provider"), "pagerduty"),
-		ProviderIncidentID: firstNonEmptyString(incidentRoutingPayloadString(envelope.Payload, "provider_incident_id"), envelope.SourceRef.SourceRecordID),
-		ScopeID:            envelope.ScopeID,
-		ServiceID:          firstNonEmptyString(incidentRoutingPayloadString(envelope.Payload, "service_id"), incidentRoutingPayloadString(service, "id")),
-		ServiceName:        incidentRoutingPayloadString(service, "summary"),
-		ServiceURL:         incidentRoutingPayloadString(service, "url"),
-		EvidenceFactID:     envelope.FactID,
-		SourceURL:          firstNonEmptyString(incidentRoutingPayloadString(envelope.Payload, "source_url"), envelope.SourceRef.SourceURI),
-		SourceConfidence:   envelope.SourceConfidence,
-		ObservedAt:         incidentRoutingFormatTime(envelope.ObservedAt),
-	}
-}
-
-func incidentRoutingAppliedFromEnvelope(envelope facts.Envelope) (reducer.IncidentRoutingAppliedEvidence, bool) {
-	if incidentRoutingPayloadString(envelope.Payload, "resource_class") != "service" {
-		return reducer.IncidentRoutingAppliedEvidence{}, false
-	}
-	return reducer.IncidentRoutingAppliedEvidence{
-		FactID:                    envelope.FactID,
-		SourceClass:               incidentRoutingPayloadString(envelope.Payload, "source_class"),
-		SourceKind:                incidentRoutingPayloadString(envelope.Payload, "source_kind"),
-		Outcome:                   incidentRoutingPayloadString(envelope.Payload, "outcome"),
-		ResourceClass:             incidentRoutingPayloadString(envelope.Payload, "resource_class"),
-		ProviderObjectID:          incidentRoutingPayloadString(envelope.Payload, "provider_object_id"),
-		NameFingerprint:           incidentRoutingPayloadString(envelope.Payload, "name_fingerprint"),
-		EscalationPolicyReference: incidentRoutingPayloadString(envelope.Payload, "escalation_policy_reference"),
-		TerraformStateAddress:     incidentRoutingPayloadString(envelope.Payload, "terraform_state_address"),
-		ProviderAddress:           incidentRoutingPayloadString(envelope.Payload, "provider_address"),
-		ModuleAddress:             incidentRoutingPayloadString(envelope.Payload, "module_address"),
-		StateGenerationID:         incidentRoutingPayloadString(envelope.Payload, "state_generation_id"),
-		DeclaredMatchState:        incidentRoutingPayloadString(envelope.Payload, "declared_match_state"),
-		RedactionState:            incidentRoutingPayloadString(envelope.Payload, "redaction_state"),
-		ObservedAt:                incidentRoutingFormatTime(envelope.ObservedAt),
-	}, true
-}
-
-func incidentRoutingObservedFromEnvelope(envelope facts.Envelope) reducer.IncidentRoutingObservedEvidence {
-	return reducer.IncidentRoutingObservedEvidence{
-		FactID:                    envelope.FactID,
-		SourceClass:               incidentRoutingPayloadString(envelope.Payload, "source_class"),
-		SourceKind:                incidentRoutingPayloadString(envelope.Payload, "source_kind"),
-		Outcome:                   incidentRoutingPayloadString(envelope.Payload, "outcome"),
-		ServiceID:                 incidentRoutingPayloadString(envelope.Payload, "service_id"),
-		ProviderObjectID:          incidentRoutingPayloadString(envelope.Payload, "provider_object_id"),
-		NameFingerprint:           incidentRoutingPayloadString(envelope.Payload, "name_fingerprint"),
-		Status:                    incidentRoutingPayloadString(envelope.Payload, "status"),
-		EscalationPolicyReference: incidentRoutingPayloadString(envelope.Payload, "escalation_policy_reference"),
-		DeclaredMatchState:        incidentRoutingPayloadString(envelope.Payload, "declared_match_state"),
-		DriftCandidateReason:      incidentRoutingPayloadString(envelope.Payload, "drift_candidate_reason"),
-		RedactionState:            incidentRoutingPayloadString(envelope.Payload, "redaction_state"),
-		SourceURL:                 firstNonEmptyString(incidentRoutingPayloadString(envelope.Payload, "source_url"), envelope.SourceRef.SourceURI),
-		Disabled:                  incidentRoutingPayloadBool(envelope.Payload, "disabled"),
-		Deleted:                   incidentRoutingPayloadBool(envelope.Payload, "deleted"),
-		ManuallyCreated:           incidentRoutingPayloadBool(envelope.Payload, "manually_created"),
-		ObservedAt:                incidentRoutingFormatTime(envelope.ObservedAt),
-	}
-}
-
-func incidentRoutingWarningFromEnvelope(envelope facts.Envelope) reducer.IncidentRoutingCoverageWarning {
-	return reducer.IncidentRoutingCoverageWarning{
-		FactID:           envelope.FactID,
-		SourceClass:      incidentRoutingPayloadString(envelope.Payload, "source_class"),
-		SourceKind:       incidentRoutingPayloadString(envelope.Payload, "source_kind"),
-		Reason:           incidentRoutingPayloadString(envelope.Payload, "reason"),
-		ResourceClass:    incidentRoutingPayloadString(envelope.Payload, "resource_class"),
-		ProviderObjectID: incidentRoutingPayloadString(envelope.Payload, "provider_object_id"),
-		ObservedAt:       incidentRoutingFormatTime(envelope.ObservedAt),
-	}
-}
-
-func incidentRoutingServiceNameAllowlist(incidents []reducer.IncidentRoutingIncident) []string {
-	seen := make(map[string]struct{}, len(incidents))
-	for _, incident := range incidents {
-		serviceName := strings.ToLower(strings.TrimSpace(incident.ServiceName))
+// incidentRoutingServiceNameAllowlistFromEnvelopes derives the bounded,
+// lowercased service-name allowlist for the declared-evidence query by peeking at
+// the incident.record facts' service summaries. This is deliberately a raw peek,
+// not a typed decode: the allowlist is only a query bound (which declared rows to
+// read), never authoritative correlation truth, and the reducer re-matches
+// declared candidates against the DECODED incident service name. Reading a
+// malformed or missing service summary here can only narrow the candidate set, so
+// there is no accuracy hazard in reading it without the dead-letter apparatus.
+// Tombstoned facts are excluded, matching the reducer's decode-side skip.
+func incidentRoutingServiceNameAllowlistFromEnvelopes(envelopes []facts.Envelope) []string {
+	seen := make(map[string]struct{})
+	for _, envelope := range envelopes {
+		if envelope.IsTombstone || envelope.FactKind != facts.IncidentRecordFactKind {
+			continue
+		}
+		service := incidentRoutingPayloadMap(envelope.Payload, "service")
+		serviceName := strings.ToLower(incidentRoutingPayloadString(service, "summary"))
 		if serviceName == "" {
 			continue
 		}
@@ -262,20 +187,4 @@ func incidentRoutingPayloadMap(payload map[string]any, key string) map[string]an
 		return nil
 	}
 	return typed
-}
-
-func incidentRoutingFormatTime(value time.Time) string {
-	if value.IsZero() {
-		return ""
-	}
-	return value.UTC().Format(time.RFC3339)
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

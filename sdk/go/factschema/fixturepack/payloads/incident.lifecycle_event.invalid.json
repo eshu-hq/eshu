@@ -1,0 +1,5 @@
+{
+  "provider": "pagerduty",
+  "provider_event_id": "PLOGENTRY1",
+  "event_type": "trigger_log_entry"
+}

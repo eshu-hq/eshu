@@ -1,0 +1,5 @@
+{
+  "provider": "pagerduty",
+  "service_id": "PSERVICE1",
+  "title": "example incident"
+}

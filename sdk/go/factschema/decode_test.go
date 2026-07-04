@@ -16,6 +16,7 @@ import (
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
+	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 func testEnvelope(payload map[string]any) Envelope {
@@ -276,6 +277,14 @@ var payloadContracts = []struct {
 	{FactKindAWSIAMPermission, "aws_iam_permission.v1.schema.json", reflect.TypeOf(iamv1.Permission{})},
 	{FactKindAWSResourcePolicyPermission, "aws_resource_policy_permission.v1.schema.json", reflect.TypeOf(iamv1.ResourcePolicyPermission{})},
 	{FactKindAWSIAMPrincipal, "aws_iam_principal.v1.schema.json", reflect.TypeOf(iamv1.Principal{})},
+	{FactKindIncidentRecord, "incident.record.v1.schema.json", reflect.TypeOf(incidentv1.IncidentRecord{})},
+	{FactKindIncidentLifecycleEvent, "incident.lifecycle_event.v1.schema.json", reflect.TypeOf(incidentv1.LifecycleEvent{})},
+	{FactKindChangeRecord, "change.record.v1.schema.json", reflect.TypeOf(incidentv1.ChangeRecord{})},
+	{FactKindIncidentRoutingAppliedPagerDutyResource, "incident_routing.applied_pagerduty_resource.v1.schema.json", reflect.TypeOf(incidentv1.AppliedPagerDutyResource{})},
+	{FactKindIncidentRoutingAppliedAlertRoute, "incident_routing.applied_alert_route.v1.schema.json", reflect.TypeOf(incidentv1.AppliedAlertRoute{})},
+	{FactKindIncidentRoutingObservedPagerDutyService, "incident_routing.observed_pagerduty_service.v1.schema.json", reflect.TypeOf(incidentv1.ObservedPagerDutyService{})},
+	{FactKindIncidentRoutingObservedPagerDutyIntegration, "incident_routing.observed_pagerduty_integration.v1.schema.json", reflect.TypeOf(incidentv1.ObservedPagerDutyIntegration{})},
+	{FactKindIncidentRoutingCoverageWarning, "incident_routing.coverage_warning.v1.schema.json", reflect.TypeOf(incidentv1.CoverageWarning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

@@ -1,0 +1,111 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/incident/v1/applied_pagerduty_resource.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "backend_kind": {
+      "type": "string"
+    },
+    "declared_match_state": {
+      "type": "string"
+    },
+    "escalation_policy_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "integration_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "locator_hash": {
+      "type": "string"
+    },
+    "module_address": {
+      "type": "string"
+    },
+    "name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "provider_address": {
+      "type": "string"
+    },
+    "provider_object_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_state": {
+      "type": "string"
+    },
+    "resource_class": {
+      "type": "string"
+    },
+    "resource_name": {
+      "type": "string"
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "service_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_class": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": "string"
+    },
+    "state_generation_id": {
+      "type": "string"
+    },
+    "state_lineage": {
+      "type": "string"
+    },
+    "state_serial": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "terraform_state_address": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_class",
+    "source_kind",
+    "outcome",
+    "resource_class",
+    "terraform_state_address",
+    "resource_type",
+    "resource_name",
+    "module_address",
+    "provider_address",
+    "scope_id",
+    "state_generation_id",
+    "state_lineage",
+    "backend_kind",
+    "locator_hash",
+    "declared_match_state",
+    "redaction_state"
+  ],
+  "title": "Eshu incident_routing.applied_pagerduty_resource Payload (schema version 1)",
+  "type": "object"
+}

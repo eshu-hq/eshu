@@ -148,50 +148,30 @@ func TestFactStoreLoadIncidentRoutingEvidenceBuildsInputsFromFactsAndDeclaration
 	}
 	store := NewFactStore(db)
 
-	inputs, err := store.LoadIncidentRoutingEvidence(
+	raw, err := store.LoadIncidentRoutingRawEvidence(
 		context.Background(),
 		"pagerduty:account:example",
 		"pagerduty:generation-1",
 	)
 	if err != nil {
-		t.Fatalf("LoadIncidentRoutingEvidence() error = %v, want nil", err)
+		t.Fatalf("LoadIncidentRoutingRawEvidence() error = %v, want nil", err)
 	}
-	if got, want := len(inputs), 1; got != want {
-		t.Fatalf("len(inputs) = %d, want %d", got, want)
+	// The storage layer returns the raw fact envelopes undecoded: all five
+	// (incident, two applied, observed, warning) are handed back for the reducer
+	// to decode through the typed contracts seam. It does NOT filter by resource
+	// class or decode payloads here — that is the reducer's job now.
+	if got, want := len(raw.Facts), 5; got != want {
+		t.Fatalf("len(raw.Facts) = %d, want %d (all fact kinds returned undecoded)", got, want)
 	}
-	input := inputs[0]
-	if got, want := input.Incident.ProviderIncidentID, "PINCIDENT1"; got != want {
-		t.Fatalf("incident provider id = %q, want %q", got, want)
+	if got, want := raw.Facts[0].FactKind, facts.IncidentRecordFactKind; got != want {
+		t.Fatalf("raw.Facts[0].FactKind = %q, want %q", got, want)
 	}
-	if got, want := input.Incident.ServiceName, "Checkout API"; got != want {
-		t.Fatalf("incident service name = %q, want %q", got, want)
-	}
-	if got, want := input.Incident.ServiceURL, "https://example.pagerduty.com/services/PSERVICE1"; got != want {
-		t.Fatalf("incident service url = %q, want %q", got, want)
-	}
-	if got, want := len(input.Declared), 1; got != want {
+	// The declared evidence stays a storage-decoded content_entities read.
+	if got, want := len(raw.Declared), 1; got != want {
 		t.Fatalf("declared evidence count = %d, want %d", got, want)
 	}
-	if got, want := input.Declared[0].ServiceName, "Checkout API"; got != want {
+	if got, want := raw.Declared[0].ServiceName, "Checkout API"; got != want {
 		t.Fatalf("declared service name = %q, want %q", got, want)
-	}
-	if got, want := len(input.Applied), 1; got != want {
-		t.Fatalf("applied evidence count = %d, want only service resource", got)
-	}
-	if got, want := input.Applied[0].ProviderObjectID, "PSERVICE1"; got != want {
-		t.Fatalf("applied provider object id = %q, want %q", got, want)
-	}
-	if got, want := len(input.Observed), 1; got != want {
-		t.Fatalf("observed evidence count = %d, want %d", got, want)
-	}
-	if got, want := input.Observed[0].Status, "active"; got != want {
-		t.Fatalf("observed status = %q, want %q", got, want)
-	}
-	if got, want := len(input.Warnings), 1; got != want {
-		t.Fatalf("warning count = %d, want %d", got, want)
-	}
-	if got, want := input.Warnings[0].Reason, "permission_hidden"; got != want {
-		t.Fatalf("warning reason = %q, want %q", got, want)
 	}
 
 	if got, want := len(db.queries), 2; got != want {
@@ -245,16 +225,22 @@ func TestFactStoreLoadIncidentRoutingEvidenceSkipsDeclarationReadWithoutIncident
 	}
 	store := NewFactStore(db)
 
-	inputs, err := store.LoadIncidentRoutingEvidence(
+	raw, err := store.LoadIncidentRoutingRawEvidence(
 		context.Background(),
 		"pagerduty:account:example",
 		"pagerduty:generation-1",
 	)
 	if err != nil {
-		t.Fatalf("LoadIncidentRoutingEvidence() error = %v, want nil", err)
+		t.Fatalf("LoadIncidentRoutingRawEvidence() error = %v, want nil", err)
 	}
-	if len(inputs) != 0 {
-		t.Fatalf("inputs = %#v, want no incident-routing packets without incident.record anchor", inputs)
+	// Without an incident.record anchor the declared read is skipped (no service
+	// names to bound it), but the raw fact envelopes are still returned; the
+	// reducer produces no packets from them because there is no incident anchor.
+	if got, want := len(raw.Facts), 1; got != want {
+		t.Fatalf("len(raw.Facts) = %d, want the observed fact returned undecoded", got)
+	}
+	if len(raw.Declared) != 0 {
+		t.Fatalf("declared = %#v, want none without an incident anchor", raw.Declared)
 	}
 	if got, want := len(db.queries), 1; got != want {
 		t.Fatalf("query count = %d, want only fact query", got)

@@ -70,6 +70,30 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindAWSIAMPrincipal:
 		_, err := DecodeAWSIAMPrincipal(env)
 		return err
+	case FactKindIncidentRecord:
+		_, err := DecodeIncidentRecord(env)
+		return err
+	case FactKindIncidentLifecycleEvent:
+		_, err := DecodeIncidentLifecycleEvent(env)
+		return err
+	case FactKindChangeRecord:
+		_, err := DecodeChangeRecord(env)
+		return err
+	case FactKindIncidentRoutingAppliedPagerDutyResource:
+		_, err := DecodeIncidentRoutingAppliedPagerDutyResource(env)
+		return err
+	case FactKindIncidentRoutingAppliedAlertRoute:
+		_, err := DecodeIncidentRoutingAppliedAlertRoute(env)
+		return err
+	case FactKindIncidentRoutingObservedPagerDutyService:
+		_, err := DecodeIncidentRoutingObservedPagerDutyService(env)
+		return err
+	case FactKindIncidentRoutingObservedPagerDutyIntegration:
+		_, err := DecodeIncidentRoutingObservedPagerDutyIntegration(env)
+		return err
+	case FactKindIncidentRoutingCoverageWarning:
+		_, err := DecodeIncidentRoutingCoverageWarning(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -88,6 +112,14 @@ var allDecodedKinds = []string{
 	FactKindAWSIAMPermission,
 	FactKindAWSResourcePolicyPermission,
 	FactKindAWSIAMPrincipal,
+	FactKindIncidentRecord,
+	FactKindIncidentLifecycleEvent,
+	FactKindChangeRecord,
+	FactKindIncidentRoutingAppliedPagerDutyResource,
+	FactKindIncidentRoutingAppliedAlertRoute,
+	FactKindIncidentRoutingObservedPagerDutyService,
+	FactKindIncidentRoutingObservedPagerDutyIntegration,
+	FactKindIncidentRoutingCoverageWarning,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -205,6 +237,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeAWSResourcePolicyPermission(env)
 			case FactKindAWSIAMPrincipal:
 				_, err = DecodeAWSIAMPrincipal(env)
+			case FactKindIncidentRecord:
+				_, err = DecodeIncidentRecord(env)
+			case FactKindIncidentLifecycleEvent:
+				_, err = DecodeIncidentLifecycleEvent(env)
+			case FactKindChangeRecord:
+				_, err = DecodeChangeRecord(env)
+			case FactKindIncidentRoutingAppliedPagerDutyResource:
+				_, err = DecodeIncidentRoutingAppliedPagerDutyResource(env)
+			case FactKindIncidentRoutingAppliedAlertRoute:
+				_, err = DecodeIncidentRoutingAppliedAlertRoute(env)
+			case FactKindIncidentRoutingObservedPagerDutyService:
+				_, err = DecodeIncidentRoutingObservedPagerDutyService(env)
+			case FactKindIncidentRoutingObservedPagerDutyIntegration:
+				_, err = DecodeIncidentRoutingObservedPagerDutyIntegration(env)
+			case FactKindIncidentRoutingCoverageWarning:
+				_, err = DecodeIncidentRoutingCoverageWarning(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

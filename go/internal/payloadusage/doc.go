@@ -15,12 +15,16 @@
 //
 // The manifest is DERIVED, not hand-maintained, from three sources:
 //
-//   - ParseDecodeSeams reads go/internal/reducer/factschema_decode.go and
-//     finds every decode<Kind> function's return struct type and the
-//     factschema.FactKind* constant it decodes.
+//   - ParseDecodeSeams reads every go/internal/reducer/factschema_decode*.go
+//     file (globbed, not a single file — families split their decode wrappers
+//     across per-family files such as factschema_decode_incident.go as the
+//     500-line cap forces a split) and finds every decode<Kind> function's
+//     return struct type and the factschema.FactKind* constant it decodes. A
+//     gate that read only factschema_decode.go would silently miss a family
+//     whose wrappers live in a split file.
 //   - ParseStructShapes reads the typed struct packages
-//     (sdk/go/factschema/{aws,iam}/v1) and extracts each struct's named,
-//     JSON-tagged fields (excluding the untyped Attributes pass-through
+//     (sdk/go/factschema/{aws,iam,incident}/v1) and extracts each struct's
+//     named, JSON-tagged fields (excluding the untyped Attributes pass-through
 //     tagged json:"-"), with a required/optional flag matching the same
 //     pointer/slice/map-or-omitempty rule the decode seam and the schema
 //     generator use.

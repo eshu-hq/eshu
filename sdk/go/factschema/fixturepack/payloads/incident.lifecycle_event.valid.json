@@ -1,0 +1,7 @@
+{
+  "provider": "pagerduty",
+  "provider_event_id": "PLOGENTRY1",
+  "provider_incident_id": "PINCIDENT1",
+  "event_type": "trigger_log_entry",
+  "summary": "incident triggered"
+}

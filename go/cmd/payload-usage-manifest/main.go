@@ -18,14 +18,15 @@ import (
 // options holds the parsed CLI flags for one payload-usage-manifest
 // invocation.
 type options struct {
-	repoRoot     string
-	reducerDir   string
-	decodeFile   string
-	schemaDir    string
-	awsStructDir string
-	iamStructDir string
-	mode         string
-	outputPath   string
+	repoRoot          string
+	reducerDir        string
+	decodeFile        string
+	schemaDir         string
+	awsStructDir      string
+	iamStructDir      string
+	incidentStructDir string
+	mode              string
+	outputPath        string
 }
 
 const helpText = `payload-usage-manifest derives, from the typed factschema.Decode* calls in
@@ -65,12 +66,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	paths := payloadusage.Paths{
-		RepoRoot:     opts.repoRoot,
-		ReducerDir:   opts.reducerDir,
-		DecodeFile:   opts.decodeFile,
-		SchemaDir:    opts.schemaDir,
-		AWSStructDir: opts.awsStructDir,
-		IAMStructDir: opts.iamStructDir,
+		RepoRoot:          opts.repoRoot,
+		ReducerDir:        opts.reducerDir,
+		DecodeFile:        opts.decodeFile,
+		SchemaDir:         opts.schemaDir,
+		AWSStructDir:      opts.awsStructDir,
+		IAMStructDir:      opts.iamStructDir,
+		IncidentStructDir: opts.incidentStructDir,
 	}
 
 	switch opts.mode {
@@ -132,10 +134,11 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	opts := options{}
 	flags.StringVar(&opts.repoRoot, "repo-root", ".", "repository root (used to resolve default paths)")
 	flags.StringVar(&opts.reducerDir, "reducer-dir", "", "directory of reducer handler source (default: <repo-root>/go/internal/reducer)")
-	flags.StringVar(&opts.decodeFile, "decode-file", "", "path to factschema_decode.go (default: <reducer-dir>/factschema_decode.go)")
+	flags.StringVar(&opts.decodeFile, "decode-file", "", "restrict seam parsing to this one file (default: glob <reducer-dir>/factschema_decode*.go across every per-family decode file)")
 	flags.StringVar(&opts.schemaDir, "schema-dir", "", "directory of checked-in JSON Schemas (default: <repo-root>/sdk/go/factschema/schema)")
 	flags.StringVar(&opts.awsStructDir, "aws-struct-dir", "", "directory of aws/v1 typed structs (default: <repo-root>/sdk/go/factschema/aws/v1)")
 	flags.StringVar(&opts.iamStructDir, "iam-struct-dir", "", "directory of iam/v1 typed structs (default: <repo-root>/sdk/go/factschema/iam/v1)")
+	flags.StringVar(&opts.incidentStructDir, "incident-struct-dir", "", "directory of incident/v1 typed structs (default: <repo-root>/sdk/go/factschema/incident/v1)")
 	flags.StringVar(&opts.mode, "mode", "gate", `"generate" to emit the manifest, "gate" to check it against declared schemas (default "gate")`)
 	flags.StringVar(&opts.outputPath, "out", "", "generate mode: output file path (default: stdout)")
 	if err := flags.Parse(args); err != nil {

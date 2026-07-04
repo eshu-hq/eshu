@@ -1,0 +1,129 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/incident/v1/observed_pagerduty_integration.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "declared_match_state": {
+      "type": "string"
+    },
+    "deleted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "disabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "drift_candidate_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "integration_id": {
+      "type": "string"
+    },
+    "integration_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "manually_created": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "provider_object_id": {
+      "type": "string"
+    },
+    "redaction_state": {
+      "type": "string"
+    },
+    "resource_class": {
+      "type": "string"
+    },
+    "routing_key_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "service_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_class": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": "string"
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "updated_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vendor_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "source_class",
+    "source_kind",
+    "outcome",
+    "resource_class",
+    "provider_object_id",
+    "scope_id",
+    "declared_match_state",
+    "redaction_state",
+    "integration_id"
+  ],
+  "title": "Eshu incident_routing.observed_pagerduty_integration Payload (schema version 1)",
+  "type": "object"
+}

@@ -111,10 +111,11 @@
 // dead-code reads can use a standing lookup before falling back to completed
 // relationship intents, and empty reachable-set snapshots still make durable
 // progress.
-// FactStore.LoadIncidentRoutingEvidence serves the PagerDuty incident-routing
-// graph materialization domain by loading incident-scoped anchors and
-// same-generation routing facts, then resolving Terraform-source
-// PagerDutyDeclaration content rows through a bounded service-name allowlist.
+// FactStore.LoadIncidentRoutingRawEvidence serves the PagerDuty incident-routing
+// graph materialization domain by returning the raw incident and routing fact
+// envelopes undecoded (the reducer decodes them through the typed
+// sdk/go/factschema seam) plus the Terraform-source PagerDutyDeclaration content
+// rows resolved through a bounded service-name allowlist.
 // Current
 // source-run history lookups let chunked code-call projection avoid retracting
 // edges written by earlier chunks from the same accepted run. StatusStore also
