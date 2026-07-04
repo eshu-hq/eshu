@@ -12,7 +12,7 @@
 # ACTIVE_GENERATIONS, GENERATION_LIVENESS_FAILURES,
 # GENERATION_LIVENESS_RECOVERED, GENERATION_LIVENESS_SUPERSEDED,
 # QUEUE_DEPTH, QUEUE_OLDEST_AGE, WORKER_POOL_ACTIVE,
-# SHARED_ACCEPTANCE_ROWS, GRAPH_ORPHAN_NODES.
+# SHARED_ACCEPTANCE_ROWS, GRAPH_ORPHAN_NODES, REDUCER_INPUT_INVALID_FACTS.
 
 operator_dashboard_panels_1() {
   cat <<EOF
@@ -302,6 +302,27 @@ operator_dashboard_panels_1() {
       ],
       "fieldConfig": {
         "defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Reducer input_invalid Facts (rate)",
+      "description": "Rate of facts the reducer quarantined because their payload was missing a required identity field (input_invalid). Non-zero means the graph is under-projecting for that domain/fact_kind until the collector defect is fixed; a sustained spike is an accuracy alarm.",
+      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 31},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "expr": "sum(rate(${REDUCER_INPUT_INVALID_FACTS}[5m])) by (domain, fact_kind)",
+          "legendFormat": "{{domain}} / {{fact_kind}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
         "overrides": []
       },
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}

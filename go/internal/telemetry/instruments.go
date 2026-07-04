@@ -490,6 +490,19 @@ type Instruments struct {
 	// materialize an edge because their endpoint node was not scanned in this
 	// scope; resolved modes count materialized edges.
 	AWSRelationshipEdges metric.Int64Counter
+	// ReducerInputInvalidFacts counts reducer facts quarantined during typed
+	// payload decode because a required identity field was missing or null
+	// (issue #4568, input_invalid). Labels: domain (the reducer domain that
+	// consumed the fact), fact_kind (the malformed fact kind). Each increment is
+	// a per-fact dead-letter: the fact is skipped and NOT projected, while the
+	// batch's valid facts still materialize, so one malformed fact never stalls a
+	// scope generation's graph. A non-zero rate signals a collector emitting a
+	// fact without its emitter-guaranteed identity fields — a genuine collector
+	// defect an operator can locate through the paired structured error log
+	// (fact_id + field). The count is a rate signal, not exactly-once: an intent
+	// retried after a post-decode failure re-quarantines the same facts and may
+	// over-count, which is acceptable for an alerting rate.
+	ReducerInputInvalidFacts metric.Int64Counter
 	// GCPRelationshipEdges counts GCP relationship edge projection outcomes
 	// (issue #2348). Labels: relationship_type, join_mode (full_resource_name /
 	// unresolved / partial / unsupported / invalid_type / empty_type /
@@ -2458,6 +2471,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSRelationshipEdges counter: %w", err)
+	}
+
+	inst.ReducerInputInvalidFacts, err = meter.Int64Counter(
+		"eshu_dp_reducer_input_invalid_facts_total",
+		metric.WithDescription("Total reducer facts quarantined during typed payload decode for a missing required identity field (input_invalid), by domain and fact_kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerInputInvalidFacts counter: %w", err)
 	}
 
 	inst.GCPRelationshipEdges, err = meter.Int64Counter(

@@ -118,6 +118,8 @@ or marker that already diagnoses it.
 | extraction provenance — files by language | go/internal/telemetry/instruments.go (RegisterFilesByLanguageObservableGauge) | `eshu_dp_files_by_language` | reducer graph |
 | search decay scoring | go/internal/searchdecaytelemetry/observer.go:31 | `eshu_dp_search_decay_policy_applications_total` | reducer search |
 | shared acceptance read model | go/internal/storage/postgres/code_call_intent_writer.go:37 | `eshu_dp_shared_acceptance_rows`, `eshu_dp_shared_acceptance_upserts_total`, `eshu_dp_shared_acceptance_lookup_errors_total`, `eshu_dp_shared_acceptance_upsert_duration_seconds`, `eshu_dp_shared_acceptance_lookup_duration_seconds`, `eshu_dp_shared_acceptance_prefetch_size` | reducer shared acceptance |
+| typed-payload decode quarantine | go/internal/reducer/factschema_decode.go:162 | `eshu_dp_reducer_input_invalid_facts_total` | reducer typed decode |
+| secrets/IAM trust-chain observations builder | go/internal/reducer/secrets_iam_trust_chain_observations.go:76 | No-Observability-Change: covered by `eshu_dp_secrets_iam_reducer_trust_chains_total` and `eshu_dp_secrets_iam_posture_observations_total` (emitted by the secrets/IAM posture handler above); this file holds the read-model observation builders extracted from secrets_iam_trust_chain_build.go for the 500-line cap and emits no metric of its own | reducer secrets/IAM |
 
 <!-- eshu:metric:section=projector-stages -->
 ## Projector Stages
