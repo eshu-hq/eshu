@@ -2987,8 +2987,17 @@
             "display_name": "demo-log-bucket",
             "state": "",
             "asset_type_family": "logging",
-            "correlation_anchors": [],
-            "attributes": {}
+            "correlation_anchors": [
+              "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key"
+            ],
+            "attributes": {
+              "lifecycle_state": "ACTIVE",
+              "retention_days": 30,
+              "locked": true,
+              "analytics_enabled": true,
+              "creation_time": "2024-06-01T00:00:00Z",
+              "customer_managed_encryption": true
+            }
           }
         },
         {
@@ -3573,6 +3582,325 @@
             "relationship_type": "service_account_key_of",
             "target_full_resource_name": "//iam.googleapis.com/projects/supply-chain-demo-project/serviceAccounts/demo-deployer@supply-chain-demo-project.iam.gserviceaccount.com",
             "target_asset_type": "iam.googleapis.com/ServiceAccount",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:firebase.googleapis.com/FirebaseProject:supply-chain-demo-project:global:demo-firebase-project",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//firebase.googleapis.com/projects/supply-chain-demo-project",
+            "asset_type": "firebase.googleapis.com/FirebaseProject",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-firebase-project",
+            "state": "",
+            "asset_type_family": "firebase",
+            "correlation_anchors": [
+              "//cloudresourcemanager.googleapis.com/projects/123456789",
+              "demo-hosting-site",
+              "demo-firebase-project-default-rtdb",
+              "//storage.googleapis.com/projects/_/buckets/demo-bucket"
+            ],
+            "attributes": {
+              "state": "ACTIVE",
+              "display_name": "Demo Firebase Project",
+              "location_id": "us-central",
+              "hosting_site_present": true,
+              "realtime_database_present": true,
+              "default_storage_bucket_present": true
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:cloudresourcemanager.googleapis.com/Project:supply-chain-demo-project:global:123456789",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//cloudresourcemanager.googleapis.com/projects/123456789",
+            "asset_type": "cloudresourcemanager.googleapis.com/Project",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "supply-chain-demo-project",
+            "state": "",
+            "asset_type_family": "cloudresourcemanager",
+            "correlation_anchors": [],
+            "attributes": {}
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:firebase_project_backed_by_project:demo-firebase-project->123456789",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//firebase.googleapis.com/projects/supply-chain-demo-project",
+            "source_asset_type": "firebase.googleapis.com/FirebaseProject",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "firebase_project_backed_by_project",
+            "target_full_resource_name": "//cloudresourcemanager.googleapis.com/projects/123456789",
+            "target_asset_type": "cloudresourcemanager.googleapis.com/Project",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:firebase_project_default_bucket:demo-firebase-project->demo-bucket",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//firebase.googleapis.com/projects/supply-chain-demo-project",
+            "source_asset_type": "firebase.googleapis.com/FirebaseProject",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "firebase_project_default_bucket",
+            "target_full_resource_name": "//storage.googleapis.com/projects/_/buckets/demo-bucket",
+            "target_asset_type": "storage.googleapis.com/Bucket",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "partial"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:firebaserules.googleapis.com/Ruleset:supply-chain-demo-project:global:demo-ruleset",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//firebaserules.googleapis.com/projects/supply-chain-demo-project/rulesets/demo-ruleset",
+            "asset_type": "firebaserules.googleapis.com/Ruleset",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-ruleset",
+            "state": "",
+            "asset_type_family": "firebaserules",
+            "correlation_anchors": [
+              "//firebase.googleapis.com/projects/supply-chain-demo-project"
+            ],
+            "attributes": {
+              "source_file_count": 2,
+              "creation_time": "2024-06-01T00:00:00Z",
+              "services": [
+                "cloud.firestore"
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:firebase_ruleset_belongs_to_project:demo-ruleset->demo-firebase-project",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//firebaserules.googleapis.com/projects/supply-chain-demo-project/rulesets/demo-ruleset",
+            "source_asset_type": "firebaserules.googleapis.com/Ruleset",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "firebase_ruleset_belongs_to_project",
+            "target_full_resource_name": "//firebase.googleapis.com/projects/supply-chain-demo-project",
+            "target_asset_type": "firebase.googleapis.com/FirebaseProject",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:firebase.googleapis.com/FirebaseAppInfo:supply-chain-demo-project:global:demo-web-app",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//firebase.googleapis.com/projects/supply-chain-demo-project/webApps/1:123456789:web:demo-web-app",
+            "asset_type": "firebase.googleapis.com/FirebaseAppInfo",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-web-app",
+            "state": "",
+            "asset_type_family": "firebase",
+            "correlation_anchors": [
+              "//firebase.googleapis.com/projects/supply-chain-demo-project"
+            ],
+            "attributes": {
+              "app_id": "1:123456789:web:demo-web-app",
+              "platform": "WEB",
+              "display_name": "Demo Web App",
+              "namespace": "com.example.supply-chain-demo",
+              "state": "ACTIVE"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:firebase_app_belongs_to_project:demo-web-app->demo-firebase-project",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//firebase.googleapis.com/projects/supply-chain-demo-project/webApps/1:123456789:web:demo-web-app",
+            "source_asset_type": "firebase.googleapis.com/FirebaseAppInfo",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "firebase_app_belongs_to_project",
+            "target_full_resource_name": "//firebase.googleapis.com/projects/supply-chain-demo-project",
+            "target_asset_type": "firebase.googleapis.com/FirebaseProject",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:log_bucket_encrypted_by_kms_key:demo-log-bucket->demo-key",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//logging.googleapis.com/projects/supply-chain-demo-project/locations/global/buckets/demo-log-bucket",
+            "source_asset_type": "logging.googleapis.com/LogBucket",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "log_bucket_encrypted_by_kms_key",
+            "target_full_resource_name": "//cloudkms.googleapis.com/projects/supply-chain-demo-project/locations/us/keyRings/demo-ring/cryptoKeys/demo-key",
+            "target_asset_type": "cloudkms.googleapis.com/CryptoKey",
+            "target_project_id": "supply-chain-demo-project",
+            "support_state": "supported"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:recaptchaenterprise.googleapis.com/Key:supply-chain-demo-project:global:demo-recaptcha-key",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//recaptchaenterprise.googleapis.com/projects/supply-chain-demo-project/keys/demo-recaptcha-key",
+            "asset_type": "recaptchaenterprise.googleapis.com/Key",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-recaptcha-key",
+            "state": "",
+            "asset_type_family": "recaptchaenterprise",
+            "correlation_anchors": [],
+            "attributes": {
+              "display_name": "Demo reCAPTCHA Key",
+              "creation_time": "2024-06-01T00:00:00Z",
+              "platform_type": "web",
+              "integration_type": "SCORE",
+              "allowed_domain_count": 2,
+              "waf_service": "CA",
+              "waf_feature": "CHALLENGE_PAGE"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:apikeys.googleapis.com/Key:supply-chain-demo-project:global:demo-api-key",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//apikeys.googleapis.com/projects/supply-chain-demo-project/locations/global/keys/demo-api-key",
+            "asset_type": "apikeys.googleapis.com/Key",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-api-key",
+            "state": "",
+            "asset_type_family": "apikeys",
+            "correlation_anchors": [
+              "sha256:51d330b2a34a7935bd9404d2b9c59555d05cf0bf180c804392d0eddad8a12df9"
+            ],
+            "attributes": {
+              "display_name": "Demo API Key",
+              "creation_time": "2024-06-01T00:00:00Z",
+              "restriction_type": "server",
+              "api_target_count": 2,
+              "api_target_services": [
+                "maps-backend.googleapis.com",
+                "translate.googleapis.com"
+              ],
+              "authorized_service_account_email_fingerprint": "sha256:51d330b2a34a7935bd9404d2b9c59555d05cf0bf180c804392d0eddad8a12df9"
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:iam.googleapis.com/WorkloadIdentityPool:supply-chain-demo-project:global:demo-wif-pool",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//iam.googleapis.com/projects/supply-chain-demo-project/locations/global/workloadIdentityPools/demo-wif-pool",
+            "asset_type": "iam.googleapis.com/WorkloadIdentityPool",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-wif-pool",
+            "state": "",
+            "asset_type_family": "iam",
+            "correlation_anchors": [],
+            "attributes": {
+              "state": "ACTIVE",
+              "disabled": false
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:iam.googleapis.com/WorkloadIdentityPoolProvider:supply-chain-demo-project:global:demo-wif-provider-aws",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "full_resource_name": "//iam.googleapis.com/projects/supply-chain-demo-project/locations/global/workloadIdentityPools/demo-wif-pool/providers/demo-wif-provider-aws",
+            "asset_type": "iam.googleapis.com/WorkloadIdentityPoolProvider",
+            "project_id": "supply-chain-demo-project",
+            "location": "global",
+            "display_name": "demo-wif-provider-aws",
+            "state": "",
+            "asset_type_family": "iam",
+            "correlation_anchors": [
+              "123456789012"
+            ],
+            "attributes": {
+              "state": "ACTIVE",
+              "disabled": false,
+              "provider_type": "aws",
+              "aws_account_id": "123456789012",
+              "attribute_mapping_key_count": 2
+            }
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:supply-chain-demo-project:relationship:workload_identity_provider_of_pool:demo-wif-provider-aws->demo-wif-pool",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "source_full_resource_name": "//iam.googleapis.com/projects/supply-chain-demo-project/locations/global/workloadIdentityPools/demo-wif-pool/providers/demo-wif-provider-aws",
+            "source_asset_type": "iam.googleapis.com/WorkloadIdentityPoolProvider",
+            "source_project_id": "supply-chain-demo-project",
+            "relationship_type": "workload_identity_provider_of_pool",
+            "target_full_resource_name": "//iam.googleapis.com/projects/supply-chain-demo-project/locations/global/workloadIdentityPools/demo-wif-pool",
+            "target_asset_type": "iam.googleapis.com/WorkloadIdentityPool",
             "target_project_id": "supply-chain-demo-project",
             "support_state": "supported"
           }

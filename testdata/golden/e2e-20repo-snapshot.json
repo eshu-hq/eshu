@@ -51,9 +51,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 77,
+        "min": 85,
         "max": 101,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 77: 2 AWS + 75 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 85: 2 AWS + 83 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
       "TerraformResource": {
         "min": 1,
@@ -1251,6 +1251,46 @@
         "id": "rc-116",
         "description": "An IAM ServiceAccountKey CloudResource is connected to its parent IAM ServiceAccount CloudResource via a GCP_service_account_key_of edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-deployer-key-1 ServiceAccountKey (asset_type iam.googleapis.com/ServiceAccountKey, with bounded key_type/key_algorithm/key_origin/valid_after_time/valid_before_time/disabled/parent_service_account_email_fingerprint attributes and never any key material) and a gcp_cloud_relationship fact with relationship_type service_account_key_of targeting the synthetic demo-deployer-sa ServiceAccount, matching the #4414 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the ServiceAccountKey cloud_resource + relationship facts, so this locks in the IAM ServiceAccountKey typed-depth extractor's golden-corpus follow-up (#4414).",
         "relationship": "GCP_service_account_key_of",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-117",
+        "description": "A Firebase Rules Ruleset CloudResource is connected to its parent Firebase Project CloudResource via a GCP_firebase_ruleset_belongs_to_project edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-ruleset Ruleset (asset_type firebaserules.googleapis.com/Ruleset, with bounded source_file_count/creation_time/services attributes and never the raw rule source content) and a gcp_cloud_relationship fact with relationship_type firebase_ruleset_belongs_to_project targeting the demo-firebase-project FirebaseProject, matching the #4504 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Ruleset cloud_resource + relationship facts, so this locks in the Firebase Rules Ruleset typed-depth extractor's golden-corpus follow-up (#4504).",
+        "relationship": "GCP_firebase_ruleset_belongs_to_project",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-118",
+        "description": "A Firebase App Info CloudResource is connected to its parent Firebase Project CloudResource via a GCP_firebase_app_belongs_to_project edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-web-app FirebaseAppInfo (asset_type firebase.googleapis.com/FirebaseAppInfo, with bounded app_id/platform/display_name/namespace/state attributes) and a gcp_cloud_relationship fact with relationship_type firebase_app_belongs_to_project targeting the shared demo-firebase-project FirebaseProject, matching the #4501 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the FirebaseAppInfo cloud_resource + relationship facts, so this locks in the Firebase App Info typed-depth extractor's golden-corpus follow-up (#4501).",
+        "relationship": "GCP_firebase_app_belongs_to_project",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-119",
+        "description": "A Firebase Project CloudResource is connected to its backing GCP Project CloudResource via a GCP_firebase_project_backed_by_project edge; the gcpcloud cassette carries a gcp_cloud_resource fact for the demo-firebase-project FirebaseProject (asset_type firebase.googleapis.com/FirebaseProject, with bounded state/display_name/location_id/hosting_site_present/realtime_database_present/default_storage_bucket_present attributes) and a gcp_cloud_relationship fact with relationship_type firebase_project_backed_by_project targeting the synthetic project-number-keyed 123456789 CloudResourceManager Project (asset_type cloudresourcemanager.googleapis.com/Project, which has no typed extractor yet so it projects as a generic CloudResource), matching the #4495 extractor's supported backing-project edge. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the FirebaseProject cloud_resource + relationship facts, so this locks in the Firebase Project typed-depth extractor's golden-corpus follow-up (#4495). The FirebaseProject's OTHER relationship (firebase_project_default_bucket, to the default Storage bucket) is intentionally NOT asserted here: the extractor marks it support_state=partial because Firebase's deprecated DefaultResources block is unreliable, and the reducer's GCP relationship join (go/internal/reducer/gcp_relationship_join.go) treats a partial relationship's target as unresolved and never writes a graph edge for it — asserting a required_correlation for an edge the reducer contractually never materializes would be an unreachable, always-failing assertion. The cassette still carries that gcp_cloud_relationship fact (support_state=partial) for extractor-behavior fixture completeness.",
+        "relationship": "GCP_firebase_project_backed_by_project",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-120",
+        "description": "A Logging Log Bucket CloudResource is connected to its CMEK Cloud KMS CryptoKey CloudResource via a GCP_log_bucket_encrypted_by_kms_key edge; the gcpcloud cassette's existing demo-log-bucket LogBucket node (previously a bare LogSink-export target with no typed attributes) is enriched with the #4482 extractor's bounded lifecycle_state/retention_days/locked/analytics_enabled/creation_time/customer_managed_encryption attributes and a new gcp_cloud_relationship fact with relationship_type log_bucket_encrypted_by_kms_key targeting the shared demo-key CryptoKey, matching the #4482 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the LogBucket->CryptoKey relationship fact, so this locks in the Logging Log Bucket typed-depth extractor's golden-corpus follow-up (#4482).",
+        "relationship": "GCP_log_bucket_encrypted_by_kms_key",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-121",
+        "description": "An IAM Workload Identity Pool Provider CloudResource is connected to its parent Workload Identity Pool CloudResource via a GCP_workload_identity_provider_of_pool edge; the gcpcloud cassette carries gcp_cloud_resource facts for the demo-wif-pool WorkloadIdentityPool (asset_type iam.googleapis.com/WorkloadIdentityPool, bounded state/disabled attributes, no outbound edges since it is the inbound side) and the demo-wif-provider-aws WorkloadIdentityPoolProvider (asset_type iam.googleapis.com/WorkloadIdentityPoolProvider, bounded state/disabled/provider_type/aws_account_id/attribute_mapping_key_count attributes, never OIDC JWKS or SAML metadata) plus a gcp_cloud_relationship fact with relationship_type workload_identity_provider_of_pool targeting the shared demo-wif-pool, matching the #4434 extractor contract. GCPCloudResourceEdgeWriter prefixes the Cypher relationship type with GCP_. The count is provably zero without the Provider cloud_resource + relationship facts, so this locks in the IAM Workload Identity Pool + Provider typed-depth extractors' golden-corpus follow-up (#4434).",
+        "relationship": "GCP_workload_identity_provider_of_pool",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
