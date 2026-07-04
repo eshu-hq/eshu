@@ -137,4 +137,35 @@ func TestPartitionDecodeFailures(t *testing.T) {
 			t.Fatal("fatal = nil; a non-input_invalid decode error must stay fatal")
 		}
 	})
+
+	t.Run("unsupported schema major stays fatal even when labeled input_invalid", func(t *testing.T) {
+		t.Parallel()
+
+		// The contracts module currently labels an unsupported schema major
+		// input_invalid, but it is version skew, not a malformed individual
+		// payload. partitionDecodeFailures excludes the ErrUnsupportedSchemaMajor
+		// sentinel from the quarantine path so a schema-rollout / version-skew fact
+		// fails the whole work item for durable triage (it can succeed once the
+		// reducer supports the major) rather than being silently skipped per-fact
+		// as if the collector had dropped a required field.
+		decodeErr := newFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
+			FactKind:       factschema.FactKindAWSResource,
+			Classification: factschema.ClassificationInputInvalid,
+			Err:            fmt.Errorf("%w: %q", factschema.ErrUnsupportedSchemaMajor, "2.0.0"),
+		})
+
+		q, ok, fatal := partitionDecodeFailures(env, decodeErr)
+		if ok {
+			t.Fatal("ok = true; an unsupported schema major must NOT be quarantined per-fact")
+		}
+		if fatal == nil {
+			t.Fatal("fatal = nil; an unsupported schema major must stay fatal for durable triage")
+		}
+		if !errors.Is(fatal, factschema.ErrUnsupportedSchemaMajor) {
+			t.Fatalf("fatal = %v, want it to wrap ErrUnsupportedSchemaMajor", fatal)
+		}
+		if (q != quarantinedFact{}) {
+			t.Fatalf("quarantinedFact = %+v, want zero value for a fatal error", q)
+		}
+	})
 }

@@ -128,7 +128,15 @@ type quarantinedFact struct {
 // forbids. TestPartitionDecodeFailures locks the boundary.
 func partitionDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bool, error) {
 	var decodeErr *factDecodeError
-	if errors.As(err, &decodeErr) && decodeErr.err.Classification == factschema.ClassificationInputInvalid {
+	// An unsupported schema major is version skew, not a malformed individual
+	// payload: the contracts module currently labels it input_invalid, but it
+	// must fail the whole work item for durable triage (it can succeed once the
+	// reducer supports the major), never be quarantined and skipped per-fact.
+	// Excluding the sentinel keeps this function matching its documented contract
+	// above, where an unsupported schema major is listed as fatal.
+	if errors.As(err, &decodeErr) &&
+		decodeErr.err.Classification == factschema.ClassificationInputInvalid &&
+		!errors.Is(err, factschema.ErrUnsupportedSchemaMajor) {
 		return quarantinedFact{
 			factID:         env.FactID,
 			factKind:       env.FactKind,
