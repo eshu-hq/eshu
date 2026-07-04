@@ -1,0 +1,70 @@
+{
+  "readTime": "2026-07-03T00:00:00Z",
+  "assets": [
+    {
+      "name": "//cloudbuild.googleapis.com/projects/demo-project/locations/us-central1/triggers/trigger-123",
+      "assetType": "cloudbuild.googleapis.com/BuildTrigger",
+      "updateTime": "2026-07-02T12:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "id": "trigger-123",
+          "name": "deploy-on-push",
+          "createTime": "2026-07-02T11:50:00Z",
+          "disabled": false,
+          "filename": "cloudbuild.yaml",
+          "eventType": "REPO",
+          "includeBuildLogs": "INCLUDE_BUILD_LOGS_WITH_STATUS",
+          "serviceAccount": "projects/demo-project/serviceAccounts/trigger-sa@demo-project.iam.gserviceaccount.com",
+          "triggerTemplate": {"projectId": "demo-project", "repoName": "my-repo", "branchName": "main"},
+          "includedFiles": ["src/**"],
+          "ignoredFiles": ["docs/**", "*.md"],
+          "tags": ["nightly", "do-not-leak-tag-value"],
+          "approvalConfig": {"approvalRequired": true},
+          "substitutions": {"_DEPLOY_SECRET": "should-not-leak-value"},
+          "labels": {"team": "platform"}
+        }
+      }
+    },
+    {
+      "name": "//cloudbuild.googleapis.com/projects/demo-project/locations/global/triggers/trigger-gh",
+      "assetType": "cloudbuild.googleapis.com/BuildTrigger",
+      "updateTime": "2026-07-02T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "id": "trigger-gh",
+          "eventType": "REPO",
+          "createTime": "2023-02-01T09:00:00Z",
+          "github": {
+            "owner": "eshu-hq",
+            "name": "eshu",
+            "push": {"branch": "^main$"}
+          },
+          "webhookConfig": {"secret": "projects/demo-project/secrets/whsecret/versions/1", "state": "OK"}
+        }
+      }
+    },
+    {
+      "name": "//cloudbuild.googleapis.com/projects/demo-project/locations/us-central1/triggers/trigger-pubsub-repo",
+      "assetType": "cloudbuild.googleapis.com/BuildTrigger",
+      "updateTime": "2026-07-02T12:10:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "id": "trigger-pubsub-repo",
+          "eventType": "PUBSUB",
+          "createTime": "2026-07-02T12:00:00Z",
+          "pubsubConfig": {"subscription": "projects/demo-project/subscriptions/sub-1", "topic": "projects/demo-project/topics/deploy-topic"},
+          "sourceToBuild": {
+            "repository": "projects/demo-project/locations/us-central1/connections/my-conn/repositories/my-repo",
+            "ref": "refs/heads/main",
+            "repoType": "GITHUB"
+          }
+        }
+      }
+    }
+  ]
+}

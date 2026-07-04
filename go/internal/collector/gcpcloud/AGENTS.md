@@ -726,6 +726,61 @@
    here; its cluster edge will resolve from the Instance side once an
    Instance extractor is added, the same inbound-edge pattern the Bigtable
    Cluster/Instance pair already uses in this package.
+59. `extractor_cloud_build_trigger.go` - typed-depth extractor for
+   `cloudbuild.googleapis.com/BuildTrigger` (the user-assigned trigger `name`,
+   disabled posture, creation time, build-config filename, the API's own
+   `eventType` enum, a derived bounded `source_type` —
+   `repo`/`github`/`repository_event`/`pubsub`/`webhook`/`source_to_build`/
+   `manual` — from whichever event-mechanism field the trigger carries,
+   `includeBuildLogs` posture, `approvalConfig.approvalRequired` posture,
+   bounded `includedFiles`/`ignoredFiles`/`tags` counts, and the fingerprinted
+   trigger service account; `tags` is free-form user text, unlike the shared
+   `labels` map the collector already fingerprints, so only its count is kept,
+   never the tag strings). `source_type` checks the SCM-event discriminators
+   (`triggerTemplate`, `github`, `repositoryEventConfig`) first, then the
+   invocation-mechanism discriminators (`pubsubConfig`, `webhookConfig`),
+   before falling back to `sourceToBuild` presence or the
+   `eventType`-derived `manual` value — per the live Cloud Build v1 discovery
+   document, `sourceToBuild` is the build-source reference used only by
+   Webhook/Pub-Sub/Manual/Cron triggers, not a distinct firing mechanism, so it
+   must never shadow a coexisting `pubsubConfig`/`webhookConfig` (a real
+   Pub/Sub or webhook trigger commonly carries both). Reuses
+   `assetTypeCloudBuildTrigger` and `assetTypeSourceRepo` (both declared by the
+   sibling Cloud Build Build extractor, `extractor_cloud_build.go`, never
+   redeclared here), and the shared `cloudBuildSourceRepoFullName` /
+   `cloudBuildServiceAccountEmail` / `cloudBuildEdge` helpers it also declares.
+   Emits two independent edges: `trigger_source_repo` to the Cloud Source
+   Repositories `Repository` for a `triggerTemplate`-sourced trigger, resolving
+   a bare `projectId` against the trigger's own project the same way the Build
+   extractor's `repoSource.projectId` default resolves (a project id is parsed
+   from the trigger's own CAI full resource name via the domain-agnostic
+   `eventarcProjectLocation` helper from `extractor_eventarc_trigger.go`, never
+   a Cloud-Build-specific parser, since both extractors need only the generic
+   `projects/<id>/locations/<id>` segments); and `trigger_source_repository_link`
+   to the newly-declared `assetTypeDeveloperConnectGitRepositoryLink`
+   (`developerconnect.googleapis.com/GitRepositoryLink`, verified against the
+   live Cloud Asset Inventory supported-asset-types reference) for a
+   `sourceToBuild.repository` reference, resolved unconditionally alongside
+   whichever event-mechanism field fires the build rather than as a
+   mutually-exclusive alternative. Cloud Build's `GitRepoSource.repository`
+   value is always shaped as
+   `projects/<p>/locations/<l>/connections/<c>/repositories/<r>` regardless of
+   the underlying `repoType` (Cloud Source Repositories, GitHub, GitLab, or
+   Bitbucket connected through Developer Connect), never a
+   `sourcerepo.googleapis.com` name, so `developerConnectGitRepositoryLinkFullName`
+   is a distinct, dedicated resolver from `cloudBuildSourceRepoFullName` — never
+   reused across the two asset types — and fails closed on any value that does
+   not match the documented eight-segment shape or carry the exact Developer
+   Connect CAI service prefix. A GitHub, GitLab Enterprise, or Bitbucket Server
+   source named directly by `github` (not through Developer Connect) has no
+   CAI-resolvable target asset type in this graph, so it mints no edge or raw
+   owner/name attribute — only the bounded `source_type` enum records which
+   mechanism fires the trigger. Never reads the trigger's own `build` template,
+   `substitutions`, the free-text CEL `filter`, `webhookConfig.secret` (a
+   Secret Manager version reference used only to validate inbound webhook
+   signatures), GitHub/GitLab/Bitbucket push/pull-request branch/tag regex
+   detail, `gitFileSource`, or `sourceToBuild.uri`/`githubEnterpriseConfig`/
+   `bitbucketServerConfig`.
 
 ## Invariants
 
