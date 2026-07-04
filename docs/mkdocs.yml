@@ -203,6 +203,7 @@ nav:
     - Environment Variables: reference/environment-variables.md
     - Environment Variable Registry (generated): reference/env-registry.md
     - Runtime And Storage Environment: reference/environment-runtime-storage.md
+    - Postgres Tuning: reference/postgres-tuning.md
     - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
     - Collector Environment: reference/environment-collectors.md
     - Cassette And Replay Proof: reference/cassette-replay.md

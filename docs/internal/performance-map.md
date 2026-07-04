@@ -71,9 +71,11 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
   budgets, and the proof ladder. Query-plan guardrail:
   `go/internal/queryplan/validator.go` + the fixture
   `go/internal/queryplan/testdata/hot-cypher.yaml`. Skill: `cypher-query-rigor`.
-- **Postgres** → **gap (see below).** Owning package: `go/internal/storage/postgres`
-  (+ its `README.md`); design inventory: `docs/internal/design/1286-postgres-ownership-inventory.md`.
-  There is no operator-facing Postgres tuning doc yet.
+- **Postgres** → `docs/public/reference/postgres-tuning.md`: pool knobs,
+  queue/table/index diagnostics, autovacuum signals, and proof evidence for
+  `storage/postgres`. Owning package: `go/internal/storage/postgres` (+ its
+  `README.md`); design inventory:
+  `docs/internal/design/1286-postgres-ownership-inventory.md`.
 - **Diagnostic doctrine** → skill `eshu-diagnostic-rigor`: the evidence ladder,
   "queue wait ≠ need more concurrency", conflict-domain correctness, NornicDB
   query-shape sensitivity. Concurrency surfaces → `concurrency-deadlock-rigor`.
@@ -102,10 +104,7 @@ defect — partition by conflict key or make the write idempotent.
 
 ## Known gaps (honest — these are where you propose new docs)
 
-1. **No Postgres operator tuning doc** — index strategy, connection-pool knobs,
-   and query-plan guidance for `storage/postgres` are undocumented. When you
-   tune Postgres, propose a `docs/public/reference/postgres-tuning.md`.
-2. **No published SLO / performance contract** — the scale-corpus spec defines
+1. **No published SLO / performance contract** — the scale-corpus spec defines
    *which* metrics to measure (fact rows/sec, queue-claim p95, reducer drain,
    graph-write p95, api/mcp p95) but not target thresholds. Treat "baseline or
    known-normal timing" as the bar until an SLO doc lands.
