@@ -81,13 +81,17 @@ type alloyDBClusterData struct {
 // subscription type, creation time, KMS key name, encryption type, automated
 // and continuous backup posture); the VPC network and CMEK CryptoKey resource
 // names as cross-source correlation anchors; and the typed network and
-// encryption edges. The network reference's project segment is normalized from
-// a numeric project number to the cluster's own project id before the edge is
-// built (see alloyDBClusterNormalizeNetworkProject), since AlloyDB v1 reports
-// networkConfig.network with the numeric project number while Cloud Asset
-// Inventory names Compute Network assets with the project id. initialUser
-// (including any password) is never decoded, so no credential material can
-// ever reach the output.
+// encryption edges. The network reference's project segment is left exactly as
+// AlloyDB reports it (see alloyDBClusterNetworkFullName): AlloyDB supports
+// Shared VPC, where a cluster's own project (a Shared VPC service project) can
+// reference a network owned by a different host project, so a numeric project
+// segment cannot be safely assumed to be the cluster's own project number and
+// rewritten to the cluster's project id — doing so could fabricate a wrong
+// edge to a same-named network that happens to exist in the cluster's project.
+// A numeric-project reference that does not match any collected Compute
+// Network's project-id-keyed CAI identity simply yields no edge (safe) rather
+// than a wrong one. initialUser (including any password) is never decoded, so
+// no credential material can ever reach the output.
 func extractAlloyDBCluster(ctx ExtractContext) (AttributeExtraction, error) {
 	var data alloyDBClusterData
 	if err := json.Unmarshal(ctx.Data, &data); err != nil {
@@ -99,8 +103,7 @@ func extractAlloyDBCluster(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 
 	if networkRef := alloyDBClusterNetworkReference(data); networkRef != "" {
-		normalizedRef := alloyDBClusterNormalizeNetworkProject(networkRef, ctx.ProjectID)
-		if networkName := computeFullResourceNameFromSelfLink(normalizedRef, ctx.ProjectID); networkName != "" {
+		if networkName := alloyDBClusterNetworkFullName(networkRef, ctx.ProjectID); networkName != "" {
 			anchors = append(anchors, networkName)
 			rels = append(rels, alloyDBClusterEdge(ctx, relationshipTypeAlloyDBClusterInNetwork, networkName, assetTypeComputeNetwork))
 		}
@@ -136,52 +139,45 @@ func alloyDBClusterNetworkReference(data alloyDBClusterData) string {
 	return strings.TrimSpace(data.Network)
 }
 
-// alloyDBClusterNormalizeNetworkProject rewrites a project-qualified network
-// reference's project segment from a numeric project number to sourceProjectID
-// (the cluster's own project id) when that segment is purely numeric. The
-// AlloyDB v1 discovery document specifies networkConfig.network in the form
-// "projects/{project_number}/global/networks/{network_id}" — the numeric
-// project number, not the project id — while Cloud Asset Inventory names
-// Compute Network assets with "projects/{project_id}/...". Left unnormalized,
-// a numeric-project reference would resolve to a full resource name that never
-// matches the collected Network node's own CAI identity, silently dropping the
-// edge. The network is documented to always belong to the same project as the
-// cluster, so the cluster's own project id (parsed from its CAI full resource
-// name) is the correct substitution. A reference whose project segment is not
-// purely numeric (already a project id) is returned unchanged; a reference
-// with no "projects/" segment at all (a project-less partial or an already
-// CAI-prefixed full name) is also returned unchanged, since
-// computeFullResourceNameFromSelfLink resolves those shapes on its own.
-func alloyDBClusterNormalizeNetworkProject(ref, sourceProjectID string) string {
-	const marker = "projects/"
-	idx := strings.Index(ref, marker)
-	if idx < 0 {
-		return ref
+// alloyDBClusterNetworkFullName derives the Compute Network CAI full resource
+// name from a networkConfig.network (or deprecated top-level network)
+// reference. AlloyDB reports this reference with a numeric project number in
+// the common non-Shared-VPC case per the v1 discovery document, but AlloyDB
+// also supports Shared VPC, where the cluster's own project (a service
+// project) references a network owned by a different host project — so the
+// reference's project segment cannot be assumed to be the cluster's own
+// project number.
+//
+// A project-qualified reference (projects/<segment>/global/networks/<id>,
+// whether bare or already CAI-prefixed with //compute.googleapis.com/) is
+// therefore passed through with its project segment exactly as reported,
+// never rewritten to sourceProjectID: rewriting a numeric segment would risk
+// fabricating an edge to a same-named network that happens to exist in the
+// cluster's own project, which is worse than the edge silently not resolving
+// (Cloud Asset Inventory names Compute Network assets with the project id, so
+// an unresolved numeric segment simply yields no edge). Only a project-less
+// partial (global/networks/<id>, with no "projects/" segment at all) is
+// resolved against sourceProjectID, since that shape is unambiguous — GCP APIs
+// only omit the project segment for a same-project reference.
+func alloyDBClusterNetworkFullName(ref, sourceProjectID string) string {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return ""
 	}
-	afterMarker := ref[idx+len(marker):]
-	projectSegment, rest, ok := strings.Cut(afterMarker, "/")
-	if !ok || projectSegment == "" || !isDigitsOnly(projectSegment) {
-		return ref
+	if strings.HasPrefix(trimmed, computeResourceNamePrefix) {
+		return trimmed
 	}
-	project := strings.TrimSpace(sourceProjectID)
-	if project == "" {
-		return ref
+	if strings.HasPrefix(trimmed, "projects/") {
+		return computeResourceNamePrefix + trimmed
 	}
-	return ref[:idx] + marker + project + "/" + rest
-}
-
-// isDigitsOnly reports whether s is non-empty and every rune is an ASCII
-// digit, the shape of a GCP numeric project number.
-func isDigitsOnly(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
+	if strings.HasPrefix(trimmed, "global/networks/") {
+		project := strings.TrimSpace(sourceProjectID)
+		if project == "" {
+			return ""
 		}
+		return computeResourceNamePrefix + "projects/" + project + "/" + trimmed
 	}
-	return true
+	return ""
 }
 
 // alloyDBClusterAttributes assembles the bounded attribute map. Empty or

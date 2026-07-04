@@ -174,51 +174,9 @@ func TestExtractAlloyDBClusterProjectLessNetworkPartialResolvedAgainstProject(t 
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
-// TestExtractAlloyDBClusterNumericProjectNetworkNormalizedToProjectID proves a
-// networkConfig.network reference in the documented current-API form
-// projects/<project_number>/global/networks/<id> (the AlloyDB v1 discovery
-// document specifies the numeric project number here, not the project id) is
-// rewritten to the cluster's own project id before the edge is built. Cloud
-// Asset Inventory names Compute Network assets with projects/<project_id>, so
-// a raw numeric-project passthrough would never resolve to the collected
-// Network node — the network belongs to the same project as the cluster per
-// the discovery document, so ctx.ProjectID (parsed from the cluster's own CAI
-// full resource name) is the correct substitution.
-func TestExtractAlloyDBClusterNumericProjectNetworkNormalizedToProjectID(t *testing.T) {
-	const data = `{
-		"networkConfig": {
-			"network": "projects/123456789012/global/networks/prod-vpc"
-		}
-	}`
-
-	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
-		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
-}
-
-// TestExtractAlloyDBClusterNumericProjectDeprecatedNetworkFieldNormalized
-// proves the same numeric-project normalization applies to the deprecated
-// top-level network field, not only networkConfig.network.
-func TestExtractAlloyDBClusterNumericProjectDeprecatedNetworkFieldNormalized(t *testing.T) {
-	const data = `{
-		"network": "projects/123456789012/global/networks/legacy-vpc"
-	}`
-
-	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
-		"//compute.googleapis.com/projects/demo-project/global/networks/legacy-vpc", assetTypeComputeNetwork)
-}
-
 // TestExtractAlloyDBClusterAlphanumericProjectIDNetworkUnchanged proves a
 // networkConfig.network reference that already carries a project id (not a
-// numeric project number) is left exactly as reported, so the numeric-project
-// normalization never rewrites a value that was already correct.
+// numeric project number) is passed through exactly as reported.
 func TestExtractAlloyDBClusterAlphanumericProjectIDNetworkUnchanged(t *testing.T) {
 	const data = `{
 		"networkConfig": {
@@ -234,13 +192,68 @@ func TestExtractAlloyDBClusterAlphanumericProjectIDNetworkUnchanged(t *testing.T
 		"//compute.googleapis.com/projects/other-project-id/global/networks/shared-vpc", assetTypeComputeNetwork)
 }
 
-// TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkNormalized
-// proves the numeric-project normalization also applies when networkConfig.
-// network already carries the CAI compute.googleapis.com/ prefix (a shape
-// computeFullResourceNameFromSelfLink otherwise passes through unchanged),
-// so an already-absolute numeric-project reference does not silently escape
-// normalization the way a bare relative reference would not.
-func TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkNormalized(t *testing.T) {
+// TestExtractAlloyDBClusterNumericProjectNetworkNeverRewritten proves that a
+// networkConfig.network reference in the documented common-case form
+// projects/<project_number>/global/networks/<id> is carried through with its
+// project segment exactly as reported — never rewritten to ctx.ProjectID.
+// AlloyDB supports Shared VPC, where the cluster's own project (a service
+// project) can reference a network owned by a different host project, so a
+// numeric project segment cannot be safely assumed to be the cluster's own
+// project number. Rewriting it would risk fabricating an edge to a
+// same-named network that happens to exist in the cluster's own project;
+// leaving the numeric segment as-is means the edge simply does not resolve
+// (Cloud Asset Inventory names Compute Network assets with the project id),
+// which is the safe outcome. This anchor/edge target intentionally differs
+// from ctx.ProjectID ("demo-project").
+func TestExtractAlloyDBClusterNumericProjectNetworkNeverRewritten(t *testing.T) {
+	const data = `{
+		"networkConfig": {
+			"network": "projects/123456789012/global/networks/prod-vpc"
+		}
+	}`
+
+	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+		"//compute.googleapis.com/projects/123456789012/global/networks/prod-vpc", assetTypeComputeNetwork)
+}
+
+// TestExtractAlloyDBClusterSharedVPCHostProjectNetworkNeverRewrittenToServiceProject
+// proves the Shared VPC case explicitly: when the cluster's own project id
+// ("demo-project", a service project) differs from the network's host
+// project number, the emitted edge targets the host project's network
+// reference verbatim — it is never rewritten to point at a network in the
+// cluster's own (service) project, which would be a fabricated edge to a
+// resource that was never observed.
+func TestExtractAlloyDBClusterSharedVPCHostProjectNetworkNeverRewrittenToServiceProject(t *testing.T) {
+	const data = `{
+		"networkConfig": {
+			"network": "projects/999888777666/global/networks/host-shared-vpc"
+		}
+	}`
+
+	got, err := extractAlloyDBCluster(alloyDBClusterContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Relationships) != 1 {
+		t.Fatalf("expected 1 edge, got %d: %#v", len(got.Relationships), got.Relationships)
+	}
+	target := got.Relationships[0].TargetFullResourceName
+	if target != "//compute.googleapis.com/projects/999888777666/global/networks/host-shared-vpc" {
+		t.Fatalf("edge target = %q, want the host-project reference preserved verbatim", target)
+	}
+	if containsString(target, "demo-project") {
+		t.Fatalf("edge target fabricated a reference to the cluster's own project: %q", target)
+	}
+}
+
+// TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkUnchanged
+// proves the same never-rewritten behavior when networkConfig.network already
+// carries the CAI compute.googleapis.com/ prefix.
+func TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkUnchanged(t *testing.T) {
 	const data = `{
 		"networkConfig": {
 			"network": "//compute.googleapis.com/projects/123456789012/global/networks/prod-vpc"
@@ -252,7 +265,7 @@ func TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkNormalized(
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
-		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
+		"//compute.googleapis.com/projects/123456789012/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
 func TestExtractAlloyDBClusterKMSKeyAlreadyCAIPrefixedNotDoublePrefixed(t *testing.T) {
