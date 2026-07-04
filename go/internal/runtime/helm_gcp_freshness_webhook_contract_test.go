@@ -4,10 +4,13 @@
 package runtime
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TestHelmGCPFreshnessWebhookDefaultOff proves the GCP freshness route stays
@@ -110,46 +113,61 @@ webhookListener:
 		t.Fatal("webhook-listener ServiceMonitor has no endpoints")
 	}
 
-	// ESHU_GCP_FRESHNESS_TOKEN must only ever be a secretKeyRef (asserted by
-	// assertHelmSecretEnv above); assert here that no other env entry carries
-	// the configured secret/token key names as a literal value, which would
-	// indicate the token leaked into a literal env instead of a secret ref.
-	for name, entry := range env {
-		if name == "ESHU_GCP_FRESHNESS_TOKEN" {
-			continue
-		}
-		if got, ok := entry["value"].(string); ok && strings.Contains(got, "eshu-gcp-freshness-webhook") {
-			t.Fatalf("env %s literal value %q references the freshness secret name", name, got)
-		}
+	// The real security property: ESHU_GCP_FRESHNESS_TOKEN is sourced only via
+	// secretKeyRef, never as a literal `value` field, so the token never
+	// appears as plaintext in the rendered manifest. assertHelmSecretEnv above
+	// already proves the secretKeyRef shape; assert the negative directly here
+	// rather than via a substring scan of unrelated env values.
+	tokenEnv, ok := env["ESHU_GCP_FRESHNESS_TOKEN"]
+	if !ok {
+		t.Fatal("env ESHU_GCP_FRESHNESS_TOKEN missing")
+	}
+	if _, hasLiteral := tokenEnv["value"]; hasLiteral {
+		t.Fatalf("env ESHU_GCP_FRESHNESS_TOKEN has a literal value field %#v, want valueFrom.secretKeyRef only", tokenEnv["value"])
 	}
 }
 
-// TestHelmGCPFreshnessWebhookHasNoOIDCConfigSurface proves the chart does not
-// expose any OIDC-related values key for GCP freshness. go/cmd/webhook-listener
-// does not implement Pub/Sub push OIDC verification (verifyGCPPushOIDC in
-// gcp_freshness_handler.go is stubbed to always return false and is never
-// called from the request path); a schema-validated "oidc" values block that
-// enforces nothing would be a security footgun — an operator could set it and
-// believe the push path is OIDC-authenticated when it is not. OIDC
-// verification and its paired Helm values block are tracked together in
-// issue #4659, to land in lockstep. If a caller sets oidc.* anyway (an unknown
-// key the schema does not declare), Helm ignores it silently; this test also
-// proves that even then no OIDC-named environment variable is ever rendered.
+// TestHelmGCPFreshnessWebhookHasNoOIDCConfigSurface proves that
+// webhookListener.gcpFreshness specifically has no OIDC-related values key.
+// go/cmd/webhook-listener does not implement Pub/Sub push OIDC verification
+// (verifyGCPPushOIDC in gcp_freshness_handler.go is stubbed to always return
+// false and is never called from the request path); a schema-validated
+// "oidc" values block that enforces nothing would be a security footgun — an
+// operator could set it and believe the push path is OIDC-authenticated when
+// it is not. OIDC verification and its paired Helm values block are tracked
+// together in issue #4659, to land in lockstep. The assertion is scoped to
+// the gcpFreshness subtree only (not a whole-file "oidc" ban), so it does not
+// collide with an OIDC surface a different provider or component might add
+// later. If a caller sets oidc.* on gcpFreshness anyway (an unknown key the
+// schema does not declare), Helm ignores it silently; this test also proves
+// that even then no OIDC-named environment variable is ever rendered.
 func TestHelmGCPFreshnessWebhookHasNoOIDCConfigSurface(t *testing.T) {
 	t.Parallel()
 
-	for _, file := range []string{
-		"deploy/helm/eshu/values.yaml",
-		"deploy/helm/eshu/values.schema.json",
-	} {
-		content := readRepositoryFile(t, "../../..", file)
-		if strings.Contains(strings.ToLower(content), "oidc") {
-			t.Fatalf("%s contains an oidc reference; GCP freshness OIDC is not implemented (see issue #4659) and must not have a chart config surface yet", file)
-		}
+	valuesYAML := readRepositoryFile(t, "../../..", "deploy/helm/eshu/values.yaml")
+	var values map[string]any
+	if err := yaml.Unmarshal([]byte(valuesYAML), &values); err != nil {
+		t.Fatalf("parse deploy/helm/eshu/values.yaml: %v", err)
+	}
+	gcpFreshnessDefaults := helmMap(helmMap(values["webhookListener"])["gcpFreshness"])
+	if _, ok := gcpFreshnessDefaults["oidc"]; ok {
+		t.Fatalf("webhookListener.gcpFreshness.oidc present in deploy/helm/eshu/values.yaml = %#v, want absent (see issue #4659)", gcpFreshnessDefaults["oidc"])
+	}
+
+	schemaJSON := readRepositoryFile(t, "../../..", "deploy/helm/eshu/values.schema.json")
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
+		t.Fatalf("parse deploy/helm/eshu/values.schema.json: %v", err)
+	}
+	webhookListenerSchema := helmMap(helmMap(schema["properties"])["webhookListener"])
+	gcpFreshnessSchema := helmMap(helmMap(webhookListenerSchema["properties"])["gcpFreshness"])
+	gcpFreshnessSchemaProps := helmMap(gcpFreshnessSchema["properties"])
+	if _, ok := gcpFreshnessSchemaProps["oidc"]; ok {
+		t.Fatalf("webhookListener.gcpFreshness.oidc present in deploy/helm/eshu/values.schema.json properties = %#v, want absent (see issue #4659)", gcpFreshnessSchemaProps["oidc"])
 	}
 
 	valuesPath := filepath.Join(t.TempDir(), "webhook-listener-gcp-freshness-unknown-oidc-key-values.yaml")
-	values := []byte(`
+	unknownOIDCKeyValues := []byte(`
 contentStore:
   dsn: postgresql://eshu:secret@postgres:5432/eshu
 webhookListener:
@@ -164,7 +182,7 @@ webhookListener:
       audience: https://eshu.example.test/webhook/gcp-freshness
       allowedServiceAccountEmail: push-invoker@example-project.iam.gserviceaccount.com
 `)
-	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+	if err := os.WriteFile(valuesPath, unknownOIDCKeyValues, 0o600); err != nil {
 		t.Fatalf("write GCP freshness unknown-oidc-key values: %v", err)
 	}
 
