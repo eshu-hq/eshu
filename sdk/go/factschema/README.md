@@ -129,9 +129,16 @@ and §7 step 1 ("envelope unification").
 required field (classified error, zero-value struct never returned),
 present-but-empty required field (decodes successfully), round trip (typed
 struct → payload map → decoded struct, both with and without optional
-fields present), unsupported schema major, and a reflection-based assertion
-that the struct's pointer/omitempty shape matches the required/optional
-contract documented on `aws/v1.Resource`.
+fields present), and unsupported schema major. It also holds the
+single-source-of-truth locks: `TestDerivedKeySetsMatchGeneratedSchemas`
+asserts the reflectively derived required/known key sets equal each generated
+schema's `required` and `properties`, `TestPayloadStructShapeConvention` bans
+the field shapes that would make "required" ambiguous, and
+`TestPayloadContractsCoverAllSchemas` fails if a schema file has no registered
+payload contract — so adding a fact kind cannot skip these checks.
+
+`fields_test.go` covers the reflective derivation itself (`payloadKeySetOf`,
+`parseJSONTag`) that both the decode seam and those locks depend on.
 
 `schema_gen_test.go` is the drift gate described above.
 

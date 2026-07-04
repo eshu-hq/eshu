@@ -109,11 +109,15 @@ func makeTypeNullable(prop map[string]any) {
 // per-kind generator delegates here so all schemas are built identically: the
 // reflector runs with DoNotReference so the flat struct inlines directly instead
 // of producing a $defs/$ref indirection, and with the default
-// RequiredFromJSONSchemaTags=false so "required" is derived from Go's own
-// pointer/omitempty shape (Contract System v1 §3.1) — a struct field is required
-// exactly when it is a non-pointer, non-slice, non-map type with no `omitempty`
-// json tag, matching the rule decode.go's requiredFields table encodes
-// independently.
+// RequiredFromJSONSchemaTags=false so "required" is derived from the json tags
+// alone (Contract System v1 §3.1): a field is required in the generated schema
+// exactly when its json tag carries no `omitempty` option. The decode seam
+// derives the same required set from the same struct tags via fields.go's
+// payloadKeySetOf, so the generated schema and the runtime validator share one
+// source of truth rather than two hand-kept lists. TestDerivedKeySetsMatch-
+// GeneratedSchemas locks the two derivations together, and the flat-struct
+// convention (TestPayloadStructShapeConvention) keeps "no omitempty ⇒ required"
+// equivalent to the "pointer/slice/map ⇒ optional" intuition the docs describe.
 //
 // allowAdditional controls the top-level "additionalProperties" keyword. Fully
 // typed kinds pass false so the schema rejects unknown keys (a renamed or extra

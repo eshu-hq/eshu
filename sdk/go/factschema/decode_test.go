@@ -4,9 +4,13 @@
 package factschema
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,127 +255,204 @@ func TestDecodeAWSResource_UnsupportedMajor(t *testing.T) {
 	}
 }
 
-// TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty
-// asserts, by reflection over the struct tags, the required/optional
-// contract documented on awsv1.Resource: required fields are non-pointer
-// with no omitempty tag, optional fields are pointer or omitempty.
-func TestRequiredFieldsAreNonPointerAndOptionalFieldsArePointerOrOmitEmpty(t *testing.T) {
+// payloadContracts is the registry of every typed fact-kind payload and its
+// checked-in JSON Schema. The drift tests below iterate it, so adding a new
+// fact kind means adding one row here — and TestPayloadContractsCoverAllSchemas
+// makes forgetting that row a test failure rather than a silent coverage gap.
+var payloadContracts = []struct {
+	// factKind is the fact kind identifier, used only for test messages.
+	factKind string
+	// schemaFile is the schema's filename under schema/.
+	schemaFile string
+	// typ is the payload struct type whose reflectively derived key set must
+	// match the generated schema.
+	typ reflect.Type
+}{
+	{FactKindAWSResource, "aws_resource.v1.schema.json", reflect.TypeOf(awsv1.Resource{})},
+	{FactKindAWSRelationship, "aws_relationship.v1.schema.json", reflect.TypeOf(awsv1.Relationship{})},
+	{FactKindAWSSecurityGroupRule, "aws_security_group_rule.v1.schema.json", reflect.TypeOf(awsv1.SecurityGroupRule{})},
+	{FactKindEC2InstancePosture, "ec2_instance_posture.v1.schema.json", reflect.TypeOf(awsv1.EC2InstancePosture{})},
+	{FactKindS3BucketPosture, "s3_bucket_posture.v1.schema.json", reflect.TypeOf(awsv1.S3BucketPosture{})},
+	{FactKindAWSIAMPermission, "aws_iam_permission.v1.schema.json", reflect.TypeOf(iamv1.Permission{})},
+	{FactKindAWSResourcePolicyPermission, "aws_resource_policy_permission.v1.schema.json", reflect.TypeOf(iamv1.ResourcePolicyPermission{})},
+	{FactKindAWSIAMPrincipal, "aws_iam_principal.v1.schema.json", reflect.TypeOf(iamv1.Principal{})},
+}
+
+// TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry
+// and the checked-in schema/ directory disagree about which fact kinds exist:
+// a schema file with no registry row (a kind added without wiring its drift
+// coverage) or a registry row naming a missing schema file. This is the guard
+// that keeps "add a kind" from silently skipping the single-source-of-truth
+// checks the other tests enforce.
+func TestPayloadContractsCoverAllSchemas(t *testing.T) {
 	t.Parallel()
 
-	wantRequired := map[string]bool{
-		"account_id":          true,
-		"resource_id":         true,
-		"region":              true,
-		"resource_type":       true,
-		"arn":                 false,
-		"name":                false,
-		"state":               false,
-		"service_kind":        false,
-		"tags":                false,
-		"correlation_anchors": false,
+	entries, err := os.ReadDir("schema")
+	if err != nil {
+		t.Fatalf("read schema dir: %v", err)
 	}
-
-	typ := reflect.TypeOf(awsv1.Resource{})
-	seen := map[string]bool{}
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		tag := field.Tag.Get("json")
-		jsonName, hasOmitEmpty := parseJSONTag(tag)
-		if jsonName == "" {
-			// The Attributes pass-through carries json:"-": it is not a wire
-			// field of its own (its keys flatten to top level via the custom
-			// MarshalJSON), so it is neither required nor an expected named key.
+	schemaFiles := map[string]bool{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".schema.json") {
 			continue
 		}
-		seen[jsonName] = true
+		schemaFiles[entry.Name()] = true
+	}
 
-		isPointerOrMap := field.Type.Kind() == reflect.Ptr || field.Type.Kind() == reflect.Map
-		required := !isPointerOrMap && !hasOmitEmpty
-
-		want, ok := wantRequired[jsonName]
-		if !ok {
-			t.Fatalf("unexpected field %q on awsv1.Resource, update the test's expectations", jsonName)
+	registered := map[string]bool{}
+	for _, contract := range payloadContracts {
+		if registered[contract.schemaFile] {
+			t.Fatalf("payloadContracts registers %q more than once", contract.schemaFile)
 		}
-		if required != want {
-			t.Fatalf("field %q required = %v, want %v", jsonName, required, want)
+		registered[contract.schemaFile] = true
+		if !schemaFiles[contract.schemaFile] {
+			t.Fatalf("payloadContracts row for %q names schema file %q, which does not exist under schema/", contract.factKind, contract.schemaFile)
 		}
 	}
-	for name := range wantRequired {
-		if !seen[name] {
-			t.Fatalf("expected field %q not found on awsv1.Resource", name)
+	for name := range schemaFiles {
+		if !registered[name] {
+			t.Fatalf("schema file %q has no payloadContracts row; add one so its key set is drift-checked", name)
 		}
 	}
 }
 
-// TestRequiredFieldsMatchStructShape locks decode.go's requiredFields map to
-// each typed struct's actual shape. requiredFields drives decodeAndValidate's
-// missing-field check; if it drifts from a struct — for example a new required
-// (non-pointer, non-omitempty) field is added to the struct but not to
-// requiredFields — decodeAndValidate silently skips validating that field and
-// decodes its absence to a zero value, the exact silent-zero-value failure this
-// module exists to prevent. This test computes the required set by reflection
-// over each struct and asserts it equals the map entry, so that drift is a test
-// failure rather than a latent accuracy hole. Every new fact kind MUST add a
-// row here (and to requiredFields) so its struct stays locked to its map entry.
-func TestRequiredFieldsMatchStructShape(t *testing.T) {
+// TestDerivedKeySetsMatchGeneratedSchemas is the definitive single-source-of-
+// truth lock: for each registered fact kind it derives the required and known
+// key sets from the payload struct (via the same payloadKeySetOf the decode
+// path uses) and asserts they equal the generated schema's "required" array
+// and "properties" keys. Because the schema is generated from the same struct,
+// the two agree automatically unless the two derivation rules diverge — for
+// example an invopop upgrade changing its required semantics, or a change to
+// parseJSONTag. That divergence, not a hand-map edit, is the only remaining
+// drift axis, and this test is what catches it.
+func TestDerivedKeySetsMatchGeneratedSchemas(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		factKind string
-		typ      reflect.Type
-	}{
-		{FactKindAWSResource, reflect.TypeOf(awsv1.Resource{})},
-		{FactKindAWSRelationship, reflect.TypeOf(awsv1.Relationship{})},
-		{FactKindAWSSecurityGroupRule, reflect.TypeOf(awsv1.SecurityGroupRule{})},
-		{FactKindEC2InstancePosture, reflect.TypeOf(awsv1.EC2InstancePosture{})},
-		{FactKindS3BucketPosture, reflect.TypeOf(awsv1.S3BucketPosture{})},
-		{FactKindAWSIAMPermission, reflect.TypeOf(iamv1.Permission{})},
-		{FactKindAWSResourcePolicyPermission, reflect.TypeOf(iamv1.ResourcePolicyPermission{})},
-		{FactKindAWSIAMPrincipal, reflect.TypeOf(iamv1.Principal{})},
-	}
-
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.factKind, func(t *testing.T) {
+	for _, contract := range payloadContracts {
+		t.Run(contract.factKind, func(t *testing.T) {
 			t.Parallel()
 
-			want := requiredSetFromStruct(tc.typ)
-
-			got := map[string]bool{}
-			for _, name := range requiredFields[tc.factKind] {
-				if got[name] {
-					t.Fatalf("requiredFields[%q] lists %q more than once", tc.factKind, name)
-				}
-				got[name] = true
+			raw, err := os.ReadFile(filepath.Join("schema", contract.schemaFile))
+			if err != nil {
+				t.Fatalf("read schema %q: %v", contract.schemaFile, err)
+			}
+			var doc struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+				Required   []string                   `json:"required"`
+			}
+			if err := json.Unmarshal(raw, &doc); err != nil {
+				t.Fatalf("unmarshal schema %q: %v", contract.schemaFile, err)
 			}
 
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("requiredFields[%q] = %v, want %v (derived from struct shape); update decode.go's requiredFields to match the struct", tc.factKind, sortedKeys(got), sortedKeys(want))
+			ks := payloadKeySetOf(contract.typ)
+
+			schemaProperties := map[string]bool{}
+			for name := range doc.Properties {
+				schemaProperties[name] = true
+			}
+			if got := keySet(ks.Known); !reflect.DeepEqual(got, schemaProperties) {
+				t.Fatalf("derived known keys = %v, want schema properties %v", sortedKeys(got), sortedKeys(schemaProperties))
+			}
+
+			schemaRequired := map[string]bool{}
+			for _, name := range doc.Required {
+				schemaRequired[name] = true
+			}
+			if got := keySet(ks.Required); !reflect.DeepEqual(got, schemaRequired) {
+				t.Fatalf("derived required keys = %v, want schema required %v", sortedKeys(got), sortedKeys(schemaRequired))
 			}
 		})
 	}
 }
 
-// requiredSetFromStruct computes the required JSON field set for a typed payload
-// struct by the same rule the schema generator uses: a field is required exactly
-// when it is a non-pointer, non-slice, non-map type with no omitempty json tag.
-// Pointers, slices, and maps (and any omitempty field) are optional. Keeping the
-// rule here in agreement with schemagen.reflectSchema's derivation is what makes
-// struct → requiredFields and struct → schema independently test-locked.
-func requiredSetFromStruct(typ reflect.Type) map[string]bool {
-	required := map[string]bool{}
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		jsonName, hasOmitEmpty := parseJSONTag(field.Tag.Get("json"))
-		switch field.Type.Kind() {
-		case reflect.Ptr, reflect.Slice, reflect.Map:
-			continue
-		}
-		if !hasOmitEmpty {
-			required[jsonName] = true
+// TestPayloadStructShapeConvention enforces the two struct-shape bans that keep
+// the required rule ("no omitempty ⇒ required") unambiguous per field. A
+// pointer field without omitempty is required by the schema yet nullable, a
+// required-but-nullable contradiction decodeAndValidate would reject at runtime
+// as a null required field. A non-pointer, non-slice, non-map field with
+// omitempty collapses the absent and zero-value states, discarding the
+// observed/not-observed distinction the pointer-and-omitempty optional fields
+// exist to preserve. Slice and map fields are exempt from that second ban: a
+// nil slice/map already round-trips through omitempty exactly like a nil
+// pointer (encoding/json omits a nil or empty slice/map with omitempty and a
+// json.Unmarshal of an absent key leaves it nil), so `[]string
+// `json:"x,omitempty"`` is not ambiguous the way a bare `string
+// `json:"x,omitempty"`` would be. Banning the pointer and scalar shapes means
+// the schema generator's "no omitempty ⇒ required" rule and the intuition
+// "pointer/slice/map ⇒ optional" can never disagree.
+func TestPayloadStructShapeConvention(t *testing.T) {
+	t.Parallel()
+
+	for _, contract := range payloadContracts {
+		t.Run(contract.factKind, func(t *testing.T) {
+			t.Parallel()
+
+			typ := contract.typ
+			seen := map[string]string{} // json name -> first Go field that declared it
+			for i := 0; i < typ.NumField(); i++ {
+				field := typ.Field(i)
+				if field.Anonymous {
+					t.Fatalf("field %q is embedded; payload structs must be flat", field.Name)
+				}
+				if field.PkgPath != "" {
+					continue
+				}
+				name, omitEmpty, skip := parseJSONTag(field.Tag.Get("json"), field.Name)
+				if skip {
+					continue
+				}
+				if prior, dup := seen[name]; dup {
+					t.Fatalf("fields %q and %q both serialize to json key %q; payload key names must be unique", prior, field.Name, name)
+				}
+				seen[name] = field.Name
+				switch field.Type.Kind() {
+				case reflect.Pointer:
+					if !omitEmpty {
+						t.Fatalf("field %q is a pointer without omitempty (required-but-nullable); add omitempty or make it a value type", field.Name)
+					}
+				case reflect.Slice, reflect.Map:
+					// Nil is both the zero value and the absent-key decode
+					// result for a slice/map, so omitempty does not collapse
+					// a distinction the way it would for a scalar; either
+					// tagging is unambiguous, but every current slice/map
+					// field carries omitempty by convention (see aws/v1,
+					// iam/v1), so only the missing-omitempty case is a bug.
+					if !omitEmpty {
+						t.Fatalf("field %q is a required slice/map (no omitempty); either field name it as required intentionally or add omitempty", field.Name)
+					}
+				default:
+					if omitEmpty {
+						t.Fatalf("field %q is a non-pointer with omitempty (collapses absent and zero value); make it a pointer or drop omitempty", field.Name)
+					}
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkDecodeAWSResource records the baseline cost of the current
+// json.Marshal/Unmarshal decode path so any future move to a lower-allocation
+// decoder is justified by a before/after measurement rather than intuition.
+func BenchmarkDecodeAWSResource(b *testing.B) {
+	env := testEnvelope(fullAWSResourcePayload())
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := DecodeAWSResource(env); err != nil {
+			b.Fatalf("DecodeAWSResource() error = %v", err)
 		}
 	}
-	return required
+}
+
+// keySet collects a slice of key names into a set so the drift test can
+// compare the derived keys against the generated schema's keys order-
+// independently. Duplicate json names are caught separately, by
+// TestPayloadStructShapeConvention, not here.
+func keySet(names []string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return set
 }
 
 func sortedKeys(m map[string]bool) []string {
@@ -381,37 +462,4 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-// TestParseJSONTag covers the tag-splitting helper the reflection lock tests
-// rely on, including multi-option tags where omitempty is not the last option
-// (json.Marshal accepts options in any order) and the skip tag "-".
-func TestParseJSONTag(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		tag           string
-		wantName      string
-		wantOmitEmpty bool
-	}{
-		{tag: "name", wantName: "name", wantOmitEmpty: false},
-		{tag: "name,omitempty", wantName: "name", wantOmitEmpty: true},
-		{tag: "name,omitempty,string", wantName: "name", wantOmitEmpty: true},
-		{tag: "name,string,omitempty", wantName: "name", wantOmitEmpty: true},
-		{tag: "-", wantName: "", wantOmitEmpty: false},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.tag, func(t *testing.T) {
-			t.Parallel()
-
-			name, omitEmpty := parseJSONTag(tc.tag)
-			if name != tc.wantName {
-				t.Fatalf("parseJSONTag(%q) name = %q, want %q", tc.tag, name, tc.wantName)
-			}
-			if omitEmpty != tc.wantOmitEmpty {
-				t.Fatalf("parseJSONTag(%q) omitEmpty = %v, want %v", tc.tag, omitEmpty, tc.wantOmitEmpty)
-			}
-		})
-	}
 }

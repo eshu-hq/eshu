@@ -11,21 +11,32 @@ import (
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
+// requiredFieldsForKind returns the reflectively derived required-field set
+// for one fact kind, looked up via the payloadContracts registry
+// (decode_test.go) so this file has no key list of its own to drift out of
+// sync with the structs — it always asks the same single source of truth
+// decodeAndValidate itself reads.
+func requiredFieldsForKind(t *testing.T, factKind string) []string {
+	t.Helper()
+	for _, contract := range payloadContracts {
+		if contract.factKind == factKind {
+			return payloadKeySetOf(contract.typ).Required
+		}
+	}
+	t.Fatalf("requiredFieldsForKind: no payloadContracts row for fact kind %q", factKind)
+	return nil
+}
+
 // fullPayloadForKind returns a minimal valid payload map (every required key
 // present, non-empty) for one fact kind, so a per-kind test can delete a single
 // required key and prove decode dead-letters on exactly that field.
-func fullPayloadForKind(factKind string) map[string]any {
-	base := func(extra map[string]any) map[string]any {
-		out := map[string]any{}
-		for _, key := range requiredFields[factKind] {
-			out[key] = "x"
-		}
-		for key, value := range extra {
-			out[key] = value
-		}
-		return out
+func fullPayloadForKind(t *testing.T, factKind string) map[string]any {
+	t.Helper()
+	out := map[string]any{}
+	for _, key := range requiredFieldsForKind(t, factKind) {
+		out[key] = "x"
 	}
-	return base(nil)
+	return out
 }
 
 // decodeByKind dispatches to the kind's public Decode function so the test
@@ -66,8 +77,8 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 }
 
 // allDecodedKinds is every fact kind this module decodes, so the per-kind tests
-// below fail if a new kind is added to requiredFields without wiring its Decode
-// dispatch and coverage here.
+// below fail if a new kind is added to payloadContracts without wiring its
+// Decode dispatch and coverage here.
 var allDecodedKinds = []string{
 	FactKindAWSResource,
 	FactKindAWSRelationship,
@@ -93,12 +104,12 @@ func TestDecodeEachKind_MissingEachRequiredFieldDeadLetters(t *testing.T) {
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
-			for _, field := range requiredFields[factKind] {
+			for _, field := range requiredFieldsForKind(t, factKind) {
 				field := field
 				t.Run(field, func(t *testing.T) {
 					t.Parallel()
 
-					payload := fullPayloadForKind(factKind)
+					payload := fullPayloadForKind(t, factKind)
 					delete(payload, field)
 
 					err := decodeByKind(t, factKind, payload)
@@ -133,7 +144,7 @@ func TestDecodeEachKind_FullRequiredPayloadDecodes(t *testing.T) {
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
-			if err := decodeByKind(t, factKind, fullPayloadForKind(factKind)); err != nil {
+			if err := decodeByKind(t, factKind, fullPayloadForKind(t, factKind)); err != nil {
 				t.Fatalf("decode %s full required payload: error = %v, want nil", factKind, err)
 			}
 		})
@@ -153,8 +164,8 @@ func TestDecodeEachKind_PresentButEmptyRequiredFieldDecodes(t *testing.T) {
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
-			payload := fullPayloadForKind(factKind)
-			for _, field := range requiredFields[factKind] {
+			payload := fullPayloadForKind(t, factKind)
+			for _, field := range requiredFieldsForKind(t, factKind) {
 				payload[field] = ""
 			}
 			if err := decodeByKind(t, factKind, payload); err != nil {
@@ -175,7 +186,7 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
-			env := Envelope{FactKind: factKind, SchemaVersion: "2.0.0", Payload: fullPayloadForKind(factKind)}
+			env := Envelope{FactKind: factKind, SchemaVersion: "2.0.0", Payload: fullPayloadForKind(t, factKind)}
 			var err error
 			switch factKind {
 			case FactKindAWSResource:

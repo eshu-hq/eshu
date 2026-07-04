@@ -7,15 +7,6 @@ import (
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
-// init registers the required payload keys for every IAM-family fact kind this
-// file decodes. Each kind's required set is its collector emitter's non-empty
-// identity contract.
-func init() {
-	registerRequiredFields(FactKindAWSIAMPermission, "account_id", "region", "principal_arn", "effect", "policy_source")
-	registerRequiredFields(FactKindAWSResourcePolicyPermission, "account_id", "region", "resource_arn", "resource_type", "effect")
-	registerRequiredFields(FactKindAWSIAMPrincipal, "account_id", "region", "principal_arn", "principal_type")
-}
-
 // DecodeAWSIAMPermission decodes env.Payload into the latest iamv1.Permission
 // struct for the "aws_iam_permission" fact kind, dispatching on
 // env.SchemaVersion major per Contract System v1 §3.2. Callers (reducer

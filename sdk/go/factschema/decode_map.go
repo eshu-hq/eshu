@@ -8,29 +8,8 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"strings"
 	"sync"
 )
-
-// parseJSONTag splits a struct json tag into its field name and whether it
-// carries the omitempty option. The tag is a comma-separated list whose first
-// element is the field name and whose remaining elements are options in any
-// order (json.Marshal does not require omitempty to be last). The skip tag "-"
-// yields an empty name. decodeMapInto uses the name to map a payload key to a
-// field; the required/optional reflection tests use the omitempty flag.
-func parseJSONTag(tag string) (name string, omitEmpty bool) {
-	parts := strings.Split(tag, ",")
-	name = parts[0]
-	if name == "-" {
-		name = ""
-	}
-	for _, option := range parts[1:] {
-		if option == "omitempty" {
-			omitEmpty = true
-		}
-	}
-	return name, omitEmpty
-}
 
 // attributesField is the struct field name the polymorphic Resource and
 // Relationship structs use for their untyped service/verb pass-through. A field
@@ -132,8 +111,11 @@ func structPlanFor(t reflect.Type) *structPlan {
 			plan.attributesIndex = i
 			continue
 		}
-		jsonName, _ := parseJSONTag(field.Tag.Get("json"))
-		if jsonName == "" {
+		if field.PkgPath != "" {
+			continue // unexported field: never serialized
+		}
+		jsonName, _, skip := parseJSONTag(field.Tag.Get("json"), field.Name)
+		if skip {
 			continue
 		}
 		plan.known[jsonName] = struct{}{}
