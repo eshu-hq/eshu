@@ -21,9 +21,12 @@ func TestAWSFreshnessSchemaDefinesCoalescingKeys(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS aws_freshness_triggers",
 		"delivery_key TEXT NOT NULL",
 		"freshness_key TEXT NOT NULL",
+		"claim_expires_at TIMESTAMPTZ NULL",
 		"CREATE UNIQUE INDEX IF NOT EXISTS aws_freshness_triggers_freshness_key_idx",
 		"CREATE INDEX IF NOT EXISTS aws_freshness_triggers_status_received_idx",
 		"ON aws_freshness_triggers (status, received_at ASC, trigger_id ASC)",
+		"CREATE INDEX IF NOT EXISTS aws_freshness_triggers_claimed_lease_idx",
+		"ON aws_freshness_triggers (claim_expires_at)",
 	} {
 		if !strings.Contains(schema, want) {
 			t.Fatalf("AWSFreshnessSchemaSQL() missing %q:\n%s", want, schema)
@@ -85,7 +88,7 @@ func TestAWSFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	}
 	store := NewAWSFreshnessStore(db)
 
-	triggers, err := store.ClaimQueuedTriggers(context.Background(), "aws-freshness-handoff", now, 10)
+	triggers, err := store.ClaimQueuedTriggers(context.Background(), "aws-freshness-handoff", now, 10, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("ClaimQueuedTriggers() error = %v, want nil", err)
 	}
@@ -100,6 +103,80 @@ func TestAWSFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	}
 	if !strings.Contains(db.queries[0].query, "status = 'queued'") {
 		t.Fatalf("claim query missing queued filter: %s", db.queries[0].query)
+	}
+	if !strings.Contains(db.queries[0].query, "claim_expires_at = $4") {
+		t.Fatalf("claim query missing claim_expires_at lease assignment: %s", db.queries[0].query)
+	}
+	wantLeaseExpiry := now.Add(5 * time.Minute)
+	if got := db.queries[0].args[3]; got != wantLeaseExpiry {
+		t.Fatalf("claim_expires_at arg = %v, want %v", got, wantLeaseExpiry)
+	}
+}
+
+func TestAWSFreshnessStoreClaimQueuedTriggersRequiresPositiveLease(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewAWSFreshnessStore(db)
+
+	if _, err := store.ClaimQueuedTriggers(context.Background(), "aws-freshness-handoff", now, 10, 0); err == nil {
+		t.Fatal("ClaimQueuedTriggers() error = nil, want non-nil for zero lease duration")
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("query count = %d, want 0 (should fail before issuing query)", len(db.queries))
+	}
+}
+
+func TestAWSFreshnessStoreReapExpiredTriggerClaimsUsesSkipLockedAndLeaseExpiry(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 15, 10, 30, 0, 0, time.UTC)
+	trigger := testAWSFreshnessTrigger(now)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{awsFreshnessTriggerRow(trigger, freshness.TriggerStatusQueued, now)},
+	}
+	store := NewAWSFreshnessStore(db)
+
+	reclaimed, err := store.ReapExpiredTriggerClaims(context.Background(), now, 50)
+	if err != nil {
+		t.Fatalf("ReapExpiredTriggerClaims() error = %v, want nil", err)
+	}
+	if got, want := len(reclaimed), 1; got != want {
+		t.Fatalf("len(reclaimed) = %d, want %d", got, want)
+	}
+	if reclaimed[0].Status != freshness.TriggerStatusQueued {
+		t.Fatalf("reclaimed Status = %q, want %q", reclaimed[0].Status, freshness.TriggerStatusQueued)
+	}
+	query := db.queries[0].query
+	for _, want := range []string{
+		"FOR UPDATE SKIP LOCKED",
+		"status = 'claimed'",
+		"claim_expires_at IS NOT NULL",
+		"claim_expires_at < $1",
+		"SET status = 'queued'",
+		"claimed_by = NULL",
+		"claimed_at = NULL",
+		"claim_expires_at = NULL",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("reap query missing %q: %s", want, query)
+		}
+	}
+}
+
+func TestAWSFreshnessStoreReapExpiredTriggerClaimsRequiresPositiveLimit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 15, 10, 30, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewAWSFreshnessStore(db)
+
+	if _, err := store.ReapExpiredTriggerClaims(context.Background(), now, 0); err == nil {
+		t.Fatal("ReapExpiredTriggerClaims() error = nil, want non-nil for zero limit")
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("query count = %d, want 0 (should fail before issuing query)", len(db.queries))
 	}
 }
 

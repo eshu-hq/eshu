@@ -34,10 +34,20 @@ type Config struct {
 	HeartbeatInterval        time.Duration
 	ExpiredClaimLimit        int
 	ExpiredClaimRequeueDelay time.Duration
-	CollectorEgressPolicy    CollectorEgressPolicy
-	ExtensionEgressPolicy    ExtensionEgressPolicy
-	TenantBoundary           WorkflowTenantBoundary
-	CollectorInstances       []workflow.DesiredCollectorInstance
+	// AWSFreshnessClaimLeaseDuration bounds how long a claimed AWS freshness
+	// trigger can sit unresolved before the reap pass reclaims it back to
+	// 'queued' (#4576). Zero uses defaultAWSFreshnessClaimLeaseDuration.
+	AWSFreshnessClaimLeaseDuration time.Duration
+	// GCPFreshnessClaimLeaseDuration is AWSFreshnessClaimLeaseDuration's GCP
+	// counterpart (#4576). Zero uses defaultGCPFreshnessClaimLeaseDuration.
+	GCPFreshnessClaimLeaseDuration time.Duration
+	// FreshnessClaimReapLimit bounds how many stuck AWS/GCP freshness claims
+	// one reap pass reclaims (#4576). Zero uses defaultFreshnessClaimReapLimit.
+	FreshnessClaimReapLimit int
+	CollectorEgressPolicy   CollectorEgressPolicy
+	ExtensionEgressPolicy   ExtensionEgressPolicy
+	TenantBoundary          WorkflowTenantBoundary
+	CollectorInstances      []workflow.DesiredCollectorInstance
 }
 
 // LoadConfig parses the workflow coordinator config from environment.
@@ -93,6 +103,30 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	awsFreshnessClaimLeaseDuration, err := envDuration(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_AWS_FRESHNESS_CLAIM_LEASE_DURATION",
+		defaultAWSFreshnessClaimLeaseDuration,
+	)
+	if err != nil {
+		return Config{}, err
+	}
+	gcpFreshnessClaimLeaseDuration, err := envDuration(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION",
+		defaultGCPFreshnessClaimLeaseDuration,
+	)
+	if err != nil {
+		return Config{}, err
+	}
+	freshnessClaimReapLimit, err := envInt(
+		getenv,
+		"ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT",
+		defaultFreshnessClaimReapLimit,
+	)
+	if err != nil {
+		return Config{}, err
+	}
 	collectorEgressPolicy, err := ParseCollectorEgressPolicyJSON(getenv("ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON: %w", err)
@@ -119,19 +153,22 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	}
 
 	cfg := Config{
-		DeploymentMode:           deploymentMode,
-		ClaimsEnabled:            claimsEnabled,
-		ReconcileInterval:        reconcileInterval,
-		RunReconcileInterval:     runReconcileInterval,
-		ReapInterval:             reapInterval,
-		ClaimLeaseTTL:            claimLeaseTTL,
-		HeartbeatInterval:        heartbeatInterval,
-		ExpiredClaimLimit:        expiredClaimLimit,
-		ExpiredClaimRequeueDelay: expiredClaimRequeueDelay,
-		CollectorEgressPolicy:    collectorEgressPolicy,
-		ExtensionEgressPolicy:    extensionEgressPolicy,
-		TenantBoundary:           tenantBoundary,
-		CollectorInstances:       instances,
+		DeploymentMode:                 deploymentMode,
+		ClaimsEnabled:                  claimsEnabled,
+		ReconcileInterval:              reconcileInterval,
+		RunReconcileInterval:           runReconcileInterval,
+		ReapInterval:                   reapInterval,
+		ClaimLeaseTTL:                  claimLeaseTTL,
+		HeartbeatInterval:              heartbeatInterval,
+		ExpiredClaimLimit:              expiredClaimLimit,
+		ExpiredClaimRequeueDelay:       expiredClaimRequeueDelay,
+		AWSFreshnessClaimLeaseDuration: awsFreshnessClaimLeaseDuration,
+		GCPFreshnessClaimLeaseDuration: gcpFreshnessClaimLeaseDuration,
+		FreshnessClaimReapLimit:        freshnessClaimReapLimit,
+		CollectorEgressPolicy:          collectorEgressPolicy,
+		ExtensionEgressPolicy:          extensionEgressPolicy,
+		TenantBoundary:                 tenantBoundary,
+		CollectorInstances:             instances,
 	}
 	cfg = cfg.withDefaults()
 	if err := cfg.Validate(); err != nil {
@@ -171,6 +208,15 @@ func (c Config) Validate() error {
 	}
 	if c.ExpiredClaimRequeueDelay < 0 {
 		return fmt.Errorf("workflow coordinator expired claim requeue delay must not be negative")
+	}
+	if c.AWSFreshnessClaimLeaseDuration <= 0 {
+		return fmt.Errorf("workflow coordinator AWS freshness claim lease duration must be positive")
+	}
+	if c.GCPFreshnessClaimLeaseDuration <= 0 {
+		return fmt.Errorf("workflow coordinator GCP freshness claim lease duration must be positive")
+	}
+	if c.FreshnessClaimReapLimit <= 0 {
+		return fmt.Errorf("workflow coordinator freshness claim reap limit must be positive")
 	}
 	if err := c.TenantBoundary.validate(); err != nil {
 		return err
@@ -257,6 +303,15 @@ func (c Config) withDefaults() Config {
 	}
 	if c.ExpiredClaimRequeueDelay == 0 {
 		c.ExpiredClaimRequeueDelay = workflow.DefaultExpiredClaimRequeueDelay()
+	}
+	if c.AWSFreshnessClaimLeaseDuration <= 0 {
+		c.AWSFreshnessClaimLeaseDuration = defaultAWSFreshnessClaimLeaseDuration
+	}
+	if c.GCPFreshnessClaimLeaseDuration <= 0 {
+		c.GCPFreshnessClaimLeaseDuration = defaultGCPFreshnessClaimLeaseDuration
+	}
+	if c.FreshnessClaimReapLimit <= 0 {
+		c.FreshnessClaimReapLimit = defaultFreshnessClaimReapLimit
 	}
 	return c
 }

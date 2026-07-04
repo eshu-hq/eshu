@@ -61,4 +61,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"drop_eshu_search_index_terms_doc_idx",
 	"gcp_freshness_triggers",
 	"search_vector_build_materialization",
+	"aws_gcp_freshness_claim_lease",
 }

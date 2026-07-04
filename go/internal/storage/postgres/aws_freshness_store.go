@@ -92,11 +92,16 @@ func (s *AWSFreshnessStore) StoreTrigger(
 }
 
 // ClaimQueuedTriggers marks queued triggers as claimed for one handoff actor.
+// The claim carries a claim_expires_at lease (claimedAt+leaseDuration) so a
+// mid-batch handoff abort or coordinator crash cannot strand the row at
+// 'claimed' forever; a later ReapExpiredTriggerClaims call requeues it once
+// the lease expires (#4576).
 func (s *AWSFreshnessStore) ClaimQueuedTriggers(
 	ctx context.Context,
 	owner string,
 	claimedAt time.Time,
 	limit int,
+	leaseDuration time.Duration,
 ) ([]freshness.StoredTrigger, error) {
 	if s.db == nil {
 		return nil, errors.New("AWS freshness store database is required")
@@ -111,7 +116,18 @@ func (s *AWSFreshnessStore) ClaimQueuedTriggers(
 	if limit <= 0 {
 		return nil, errors.New("AWS freshness claim limit must be positive")
 	}
-	rows, err := s.db.QueryContext(ctx, claimQueuedAWSFreshnessTriggersQuery, limit, owner, claimedAt.UTC())
+	if leaseDuration <= 0 {
+		return nil, errors.New("AWS freshness claim lease duration must be positive")
+	}
+	claimedAtUTC := claimedAt.UTC()
+	rows, err := s.db.QueryContext(
+		ctx,
+		claimQueuedAWSFreshnessTriggersQuery,
+		limit,
+		owner,
+		claimedAtUTC,
+		claimedAtUTC.Add(leaseDuration),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("claim AWS freshness triggers: %w", err)
 	}
@@ -126,6 +142,44 @@ func (s *AWSFreshnessStore) ClaimQueuedTriggers(
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("claim AWS freshness triggers: %w", err)
+	}
+	return triggers, nil
+}
+
+// ReapExpiredTriggerClaims reclaims 'claimed' AWS freshness triggers whose
+// claim lease has expired back to 'queued', mirroring the workflow_claims
+// expired-lease reclaim pattern (#4464). This is what recovers a trigger
+// stranded at 'claimed' by a mid-batch handoff abort or a coordinator crash
+// between claim and mark-handed-off/failed (#4576).
+func (s *AWSFreshnessStore) ReapExpiredTriggerClaims(
+	ctx context.Context,
+	asOf time.Time,
+	limit int,
+) ([]freshness.StoredTrigger, error) {
+	if s.db == nil {
+		return nil, errors.New("AWS freshness store database is required")
+	}
+	if asOf.IsZero() {
+		return nil, errors.New("AWS freshness reap as-of time is required")
+	}
+	if limit <= 0 {
+		return nil, errors.New("AWS freshness reap limit must be positive")
+	}
+	rows, err := s.db.QueryContext(ctx, reapExpiredAWSFreshnessTriggerClaimsQuery, asOf.UTC(), limit)
+	if err != nil {
+		return nil, fmt.Errorf("reap expired AWS freshness trigger claims: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	triggers := make([]freshness.StoredTrigger, 0)
+	for rows.Next() {
+		trigger, err := scanAWSFreshnessTrigger(rows)
+		if err != nil {
+			return nil, fmt.Errorf("reap expired AWS freshness trigger claims: %w", err)
+		}
+		triggers = append(triggers, trigger)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("reap expired AWS freshness trigger claims: %w", err)
 	}
 	return triggers, nil
 }

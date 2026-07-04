@@ -20,23 +20,43 @@ import (
 )
 
 type fakeAWSFreshnessTriggerStore struct {
-	claimed       []freshness.StoredTrigger
-	claimCalls    int
-	handedOffIDs  []string
-	failedIDs     []string
-	failureClass  string
-	failureReason string
-	markFailedErr error
+	claimed         []freshness.StoredTrigger
+	claimCalls      int
+	claimedLeases   []time.Duration
+	handedOffIDs    []string
+	failedIDs       []string
+	failureClass    string
+	failureReason   string
+	markFailedErr   error
+	reclaimed       []freshness.StoredTrigger
+	reclaimCalls    int
+	reclaimErr      error
+	reclaimAsOfSeen []time.Time
 }
 
 func (f *fakeAWSFreshnessTriggerStore) ClaimQueuedTriggers(
-	context.Context,
-	string,
-	time.Time,
-	int,
+	_ context.Context,
+	_ string,
+	_ time.Time,
+	_ int,
+	leaseDuration time.Duration,
 ) ([]freshness.StoredTrigger, error) {
 	f.claimCalls++
+	f.claimedLeases = append(f.claimedLeases, leaseDuration)
 	return append([]freshness.StoredTrigger(nil), f.claimed...), nil
+}
+
+func (f *fakeAWSFreshnessTriggerStore) ReapExpiredTriggerClaims(
+	_ context.Context,
+	asOf time.Time,
+	_ int,
+) ([]freshness.StoredTrigger, error) {
+	f.reclaimCalls++
+	f.reclaimAsOfSeen = append(f.reclaimAsOfSeen, asOf)
+	if f.reclaimErr != nil {
+		return nil, f.reclaimErr
+	}
+	return append([]freshness.StoredTrigger(nil), f.reclaimed...), nil
 }
 
 func (f *fakeAWSFreshnessTriggerStore) MarkTriggersHandedOff(

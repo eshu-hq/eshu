@@ -105,9 +105,56 @@ UPDATE aws_freshness_triggers AS trigger
 SET status = 'claimed',
     claimed_by = $2,
     claimed_at = $3,
+    claim_expires_at = $4,
     updated_at = $3
 FROM claimed
 WHERE trigger.trigger_id = claimed.trigger_id
+RETURNING
+    trigger.trigger_id,
+    trigger.delivery_key,
+    trigger.freshness_key,
+    trigger.event_kind,
+    trigger.event_id,
+    trigger.account_id,
+    trigger.region,
+    trigger.service_kind,
+    trigger.resource_type,
+    trigger.resource_id,
+    trigger.status,
+    trigger.duplicate_count,
+    trigger.observed_at,
+    trigger.received_at,
+    trigger.updated_at
+`
+
+// reapExpiredAWSFreshnessTriggerClaimsQuery reclaims 'claimed' AWS freshness
+// triggers whose claim lease has expired back to 'queued' so a later handoff
+// tick retries them, mirroring the workflow_claims expired-lease reclaim
+// pattern (#4464). FOR UPDATE SKIP LOCKED lets a concurrent reap invocation
+// (or a still-running claim-holder that has not yet raced to expiry) skip
+// rows another transaction already holds instead of blocking, and the
+// claim_expires_at < $1 predicate ensures a reap can never touch a claim
+// whose lease has not actually expired yet, so it cannot race a live
+// claim-holder still processing its batch within the lease window.
+const reapExpiredAWSFreshnessTriggerClaimsQuery = `
+WITH candidate AS (
+    SELECT trigger_id
+    FROM aws_freshness_triggers
+    WHERE status = 'claimed'
+      AND claim_expires_at IS NOT NULL
+      AND claim_expires_at < $1
+    ORDER BY claim_expires_at ASC, trigger_id ASC
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE aws_freshness_triggers AS trigger
+SET status = 'queued',
+    claimed_by = NULL,
+    claimed_at = NULL,
+    claim_expires_at = NULL,
+    updated_at = $1
+FROM candidate
+WHERE trigger.trigger_id = candidate.trigger_id
 RETURNING
     trigger.trigger_id,
     trigger.delivery_key,
