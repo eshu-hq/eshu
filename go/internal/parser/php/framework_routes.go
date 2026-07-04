@@ -16,9 +16,15 @@ type phpRoute struct {
 	handler string
 }
 
-func buildPHPFrameworkSemantics(root *tree_sitter.Node, source []byte, payload map[string]any) map[string]any {
+// buildPHPFrameworkSemantics resolves framework route semantics from the
+// attribute candidates phase 1 already recorded while visiting every
+// "attribute" node for observePHPAttribute (see collectPHPDeclarations). It
+// performs no AST traversal of its own; imports must be fully collected by
+// the time this runs, which phase 1 guarantees since it finishes the whole
+// file before Parse calls this.
+func buildPHPFrameworkSemantics(candidates []*tree_sitter.Node, source []byte, payload map[string]any) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
-	appendPHPRouteFramework(semantics, "symfony", phpSymfonyRoutes(root, source, phpImportedSymfonyRouteNames(payload)))
+	appendPHPRouteFramework(semantics, "symfony", phpSymfonyRoutes(candidates, source, phpImportedSymfonyRouteNames(payload)))
 	return semantics
 }
 
@@ -48,31 +54,31 @@ func appendPHPRouteFramework(semantics map[string]any, name string, routes []php
 	}
 }
 
-func phpSymfonyRoutes(root *tree_sitter.Node, source []byte, importedRouteNames map[string]struct{}) []phpRoute {
-	if root == nil {
-		return nil
-	}
-
+// phpSymfonyRoutes resolves Symfony route entries from attribute candidates
+// gathered during the phase 1 declarations walk (see collectPHPDeclarations),
+// preserving the source-order sequence phase 1 recorded them in so route
+// entries emit in the same order the prior dedicated route walk produced.
+func phpSymfonyRoutes(candidates []*tree_sitter.Node, source []byte, importedRouteNames map[string]struct{}) []phpRoute {
 	routes := make([]phpRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+	for _, node := range candidates {
 		if node.Kind() != "attribute" {
-			return
+			continue
 		}
 		nameNode := phpAttributeNameNode(node)
 		if nameNode == nil || !phpIsExactSymfonyRouteAttribute(strings.TrimSpace(shared.NodeText(nameNode, source)), importedRouteNames) {
-			return
+			continue
 		}
 		method := phpAttributeOwningMethod(node)
 		if method == nil {
-			return
+			continue
 		}
 		handler := phpRouteHandlerName(method, source)
 		if handler == "" {
-			return
+			continue
 		}
 		routePath, methods, ok := phpSymfonyRouteAttribute(shared.NodeText(node, source))
 		if !ok {
-			return
+			continue
 		}
 		for _, httpMethod := range methods {
 			routes = append(routes, phpRoute{
@@ -81,7 +87,7 @@ func phpSymfonyRoutes(root *tree_sitter.Node, source []byte, importedRouteNames 
 				handler: handler,
 			})
 		}
-	})
+	}
 	return routes
 }
 

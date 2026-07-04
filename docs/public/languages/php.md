@@ -44,6 +44,13 @@ Canonical implementation:
   literal route, attribute, and hook registrations.
 - Fully dynamic dispatch and reflection-heavy flows remain outside the
   documented contract.
+- The parser performs three full-tree AST traversals per file (parent-edge
+  index, declaration/import/type-evidence/dead-code/route-attribute
+  collection, then variable/call emission). Symfony route-attribute
+  resolution folded into the declaration pass instead of running its own
+  traversal (#4515); emitted payload shape is unchanged. See
+  `go/internal/parser/php/README.md` for the walk-count and byte-identity
+  evidence.
 
 ## Framework And Library Support
 
