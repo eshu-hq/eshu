@@ -72,9 +72,10 @@ type spannerInstanceData struct {
 // spanner_instance_uses_instance_config edge to that InstanceConfig (a
 // separately CAI-inventoried topology resource). It emits no CMEK edge: CMEK is
 // a per-database property (encryptionConfig.kmsKeyName) carried by the child
-// spanner.googleapis.com/Database asset type — a separate, not-yet-registered
-// extractor — not by the Instance, so fabricating a KMS edge here would assert a
-// relationship the Instance resource does not carry. Raw label values, and any
+// spanner.googleapis.com/Database asset type — a separate extractor
+// (extractor_spanner_database.go, #4622) — not by the Instance, so fabricating
+// a KMS edge here would assert a relationship the Instance resource does not
+// carry. Raw label values, and any
 // data-plane connection endpoint, are never decoded here — only a bounded label
 // count crosses the redaction boundary.
 func extractSpannerInstance(ctx ExtractContext) (AttributeExtraction, error) {

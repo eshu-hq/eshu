@@ -535,17 +535,50 @@ is emitted as the edge endpoint and correlation anchor (a bare config id on a
 sparse page is qualified against the instance's own project; an already
 CAI-prefixed reference is not double-prefixed). No CMEK edge is emitted: CMEK is
 a per-database property (`encryptionConfig.kmsKeyName`) carried by the child
-`spanner.googleapis.com/Database` asset type — a separate, not-yet-registered
-typed-depth extractor — not by the Instance resource, so fabricating a KMS edge
-here would assert a relationship the Instance does not carry (the child Database
-extractor, when added, will own the CMEK edge, the same way the child Table
-extractor owns the BigQuery Table→Dataset edge rather than the Dataset
+`spanner.googleapis.com/Database` asset type — a separate typed-depth extractor
+(`extractor_spanner_database.go`, #4622) — not by the Instance resource, so
+fabricating a KMS edge here would assert a relationship the Instance does not
+carry (the child Database extractor owns the CMEK edge, the same way the child
+Table extractor owns the BigQuery Table→Dataset edge rather than the Dataset
 enumerating its Tables). Raw label keys and values are never decoded by this
 extractor; only the bounded label count crosses the redaction boundary, since
 per-key/value fingerprinting is the base observation path's job (`parse.go`),
 not the typed-depth extractor's. The Spanner Admin API's data-plane connection
 endpoints (`endpointUris`) are intentionally not declared as a struct field at
 all, so they are never decoded into Go memory in the first place.
+
+**Spanner Database** (`spanner.googleapis.com/Database`) is the child asset
+type this ticket adds, completing the CMEK/edge ownership split #4317
+deliberately deferred. It captures lifecycle state (including
+`READY_OPTIMIZING`, a database still being optimized after a restore),
+`databaseDialect` (`GOOGLE_STANDARD_SQL`/`POSTGRESQL`), `versionRetentionPeriod`,
+`earliestVersionTime`, `createTime`, `defaultLeader` (the read-write region for
+a multi-region database), and `enableDropProtection` as an explicit tri-state
+(a present `false` is kept, mirroring the Backend Service extractor's
+`EnableCDN` treatment). It emits a `spanner_database_in_instance` edge to the
+parent `spanner.googleapis.com/Instance` — derived from the database's own CAI
+full resource name (`.../instances/<i>/databases/<d>`), since the Database
+resource carries no separate parent-instance field. The derivation matches the
+full string against an anchored regular expression
+(`^//spanner\.googleapis\.com/projects/[^/]+/instances/([^/]+)/databases/[^/]+$`),
+not a loose substring search: an unanchored check would also accept an extra
+segment between the instance and the databases marker
+(`.../instances/<i>/extra/databases/<d>`), silently deriving a wrong parent, or
+a trailing segment after the database id, so any name that does not carry the
+exact documented shape fails closed (no edge, no anchor). It emits a
+`spanner_database_encrypted_by_kms_key` edge to every CMEK `CryptoKey` resolved
+from `encryptionConfig` — the singular `kmsKeyName` and the plural
+`kmsKeyNames[]` are independent fields per the discovery document (not a
+deprecated/replacement pair: `kmsKeyNames[]` covers a multi-region instance
+configuration that needs more than one regional key to fully cover its
+regions), so both are decoded and each resolves to its own edge, normalized
+through the shared, strict-domain `cmekKeyFullResourceName` helper and
+deduplicated. The parent Instance and every resolved CMEK key are surfaced as
+correlation anchors. `encryptionInfo` (Cloud KMS key-version usage detail, not
+a key resource name) and `restoreInfo` (the backup/source-database reference
+for a restored database) are intentionally not declared as struct fields at
+all, so neither is ever decoded into Go memory — verified against the live
+Spanner v1 discovery document's Database schema.
 
 **IAM Service Account** (`iam.googleapis.com/ServiceAccount`) captures unique id,
 fingerprinted email, display name, OAuth2 client id, disabled posture, and a

@@ -23,7 +23,6 @@
 12. `metrics.go` - scoped OTEL instruments with bounded labels.
 13. `extractor.go` - the per-asset-type typed-depth extractor registry
    (`RegisterAssetExtractor`, `AttributeExtraction`, `ExtractContext`).
-
 The per-asset-type typed-depth extractors (`extractor_<type>.go`) are
 catalogued in two sibling files. Read the relevant one before adding or
 modifying an extractor:
@@ -31,9 +30,9 @@ modifying an extractor:
 - [`AGENTS-extractors-1.md`](AGENTS-extractors-1.md) — catalog items 14–46:
   `extractor_bigquery_table.go` (item 14, the reference extractor to copy for a
   new asset type) through `extractor_spanner_instance.go`.
-- [`AGENTS-extractors-2.md`](AGENTS-extractors-2.md) — catalog items 47–60:
+- [`AGENTS-extractors-2.md`](AGENTS-extractors-2.md) — catalog items 47–61:
   `extractor_bigquery_transfer_config.go` through
-  `extractor_cloud_build_trigger.go`. Append a new extractor's entry at the end
+  `extractor_spanner_database.go`. Append a new extractor's entry at the end
   of part 2 and keep the numbering ascending.
 
 Both catalog files are one continuous ascending list numbered from 14. This
