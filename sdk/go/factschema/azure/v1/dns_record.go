@@ -13,8 +13,8 @@ package v1
 // known. DNS names are sensitive; the fingerprinted fields never carry raw
 // text.
 //
-// Required fields mirror what the emitter validates non-empty: ZoneARM-
-// ResourceID, RecordType, and RecordNameFingerprint (the emitter rejects a
+// Required fields mirror what the emitter validates non-empty:
+// ZoneARMResourceID, RecordType, and RecordNameFingerprint (the emitter rejects a
 // missing zone, record type, or record name before fingerprinting).
 type DNSRecord struct {
 	// ZoneARMResourceID is the raw ARM identity of the owning DNS zone.
