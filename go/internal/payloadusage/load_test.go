@@ -42,8 +42,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if len(manifest.Kinds) != 8 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 8 (the 8 decode<Kind> functions in factschema_decode.go); got %+v", len(manifest.Kinds), manifest.Kinds)
+	if len(manifest.Kinds) != 12 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 12 (8 decode<Kind> in factschema_decode.go + 4 in factschema_decode_incident.go, discovered via the factschema_decode*.go glob); got %+v", len(manifest.Kinds), manifest.Kinds)
 	}
 
 	var awsResource *KindManifest
@@ -141,8 +141,85 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 	if len(violations) != 0 {
 		t.Fatalf("Gate() found %d violation(s) against the real repository state, want 0:\n%s", len(violations), violationsString(violations))
 	}
-	if len(manifest.Kinds) != 8 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 8", len(manifest.Kinds))
+	if len(manifest.Kinds) != 12 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 12", len(manifest.Kinds))
+	}
+}
+
+// TestGateCoversIncidentFamily proves the payload-usage gate ACTUALLY protects
+// the incident family, not just that it passes. Before the factschema_decode*.go
+// glob, the gate parsed only factschema_decode.go, so the incident decode
+// wrappers in factschema_decode_incident.go were invisible: the gate stayed
+// green while covering nothing for incident (a silent false-green). This test
+// asserts two things the fix must hold:
+//
+//  1. Positive coverage — the manifest lists the incident kinds and their real
+//     field usage from incident_routing_evidence_decode.go, so the gate has an
+//     incident contract to check at all.
+//  2. Live reverse-break — if a field the incident handler actually reads
+//     (resource_class on the applied_pagerduty_resource kind, the sharpest
+//     silent-skip field) were absent from the declared schema, CheckManifest
+//     reports a violation naming it. This is the reverse-break the #4573 gate
+//     exists to catch (a handler requiring a field no schema declares), proven
+//     live for incident rather than only for aws.
+func TestGateCoversIncidentFamily(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := Load(Paths{RepoRoot: repoRoot(t)})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	const (
+		wiredKind      = "FactKindIncidentRoutingAppliedPagerDutyResource"
+		reverseField   = "resource_class"
+		reverseGoField = "ResourceClass"
+	)
+
+	var applied *KindManifest
+	for i := range manifest.Kinds {
+		if manifest.Kinds[i].FactKind == wiredKind {
+			applied = &manifest.Kinds[i]
+		}
+	}
+	if applied == nil {
+		t.Fatalf("%s not in manifest — the factschema_decode*.go glob is not picking up the incident decode wrappers, so the gate covers nothing for incident", wiredKind)
+	}
+	if applied.DecodeFunc != "decodeIncidentRoutingAppliedPagerDutyResource" {
+		t.Errorf("DecodeFunc = %q, want decodeIncidentRoutingAppliedPagerDutyResource", applied.DecodeFunc)
+	}
+
+	// Positive coverage: the handler's real field reads are captured.
+	usedByJSON := map[string]struct{}{}
+	for _, u := range applied.UsedFields {
+		usedByJSON[u.JSONName] = struct{}{}
+	}
+	if _, ok := usedByJSON[reverseField]; !ok {
+		t.Fatalf("%s used fields = %+v, want %q among them (the applied-resource decode reads it for the service-class filter)", wiredKind, applied.UsedFields, reverseField)
+	}
+
+	// Live reverse-break: drop reverseField from the declared set for this kind
+	// only, then confirm CheckManifest flags the incident handler reading it.
+	declared := map[string]map[string]struct{}{}
+	for _, k := range manifest.Kinds {
+		fields := map[string]struct{}{}
+		for _, f := range k.DeclaredFields {
+			fields[f.JSONName] = struct{}{}
+		}
+		declared[k.FactKind] = fields
+	}
+	delete(declared[wiredKind], reverseField)
+
+	violations := CheckManifest(manifest, declared)
+	var found bool
+	for _, v := range violations {
+		if v.FactKind == wiredKind && v.GoFieldName == reverseGoField {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("CheckManifest did not flag %s reading undeclared field %q; the reverse-break check is NOT live for the incident family. violations=%s",
+			wiredKind, reverseField, violationsString(violations))
 	}
 }
 

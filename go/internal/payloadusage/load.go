@@ -34,11 +34,22 @@ type Paths struct {
 	// field. Defaults to "." when empty.
 	RepoRoot string
 	// ReducerDir is go/internal/reducer — both the source of the decode
-	// seam (DecodeFile) and the handler files ScanDecodeUsage walks.
+	// seam files (DecodeFiles) and the handler files ScanDecodeUsage walks.
 	ReducerDir string
-	// DecodeFile is go/internal/reducer/factschema_decode.go, the single
-	// file ParseDecodeSeams reads.
+	// DecodeFile, when set, restricts seam parsing to that single file. It is
+	// the CLI's -decode-file override; leaving it empty is the normal path and
+	// lets DecodeFiles resolve to the per-family glob below. It is retained for
+	// backward compatibility with callers that pin one file.
 	DecodeFile string
+	// DecodeFiles is the set of reducer decode-seam files ParseDecodeSeams
+	// reads. Families split their decode wrappers into per-family files
+	// (factschema_decode.go, factschema_decode_incident.go, ...) as the
+	// 500-line cap forces a split, so the seam source is a GLOB, not a single
+	// file. When empty, ResolvePaths fills it from DecodeFile (if set) or from
+	// filepath.Glob(ReducerDir/"factschema_decode*.go"). A gate that read only
+	// the single factschema_decode.go would silently miss a family whose
+	// wrappers live in a split file — the exact false-green this glob closes.
+	DecodeFiles []string
 	// SchemaDir is sdk/go/factschema/schema, the checked-in JSON Schemas
 	// LoadDeclaredFieldsFromSchemas reads.
 	SchemaDir string
@@ -46,6 +57,8 @@ type Paths struct {
 	AWSStructDir string
 	// IAMStructDir is sdk/go/factschema/iam/v1.
 	IAMStructDir string
+	// IncidentStructDir is sdk/go/factschema/incident/v1.
+	IncidentStructDir string
 }
 
 // ResolvePaths fills every empty field of p with its default relative to
@@ -60,9 +73,6 @@ func ResolvePaths(p Paths) Paths {
 	if strings.TrimSpace(resolved.ReducerDir) == "" {
 		resolved.ReducerDir = filepath.Join(resolved.RepoRoot, "go", "internal", "reducer")
 	}
-	if strings.TrimSpace(resolved.DecodeFile) == "" {
-		resolved.DecodeFile = filepath.Join(resolved.ReducerDir, "factschema_decode.go")
-	}
 	if strings.TrimSpace(resolved.SchemaDir) == "" {
 		resolved.SchemaDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "schema")
 	}
@@ -72,7 +82,78 @@ func ResolvePaths(p Paths) Paths {
 	if strings.TrimSpace(resolved.IAMStructDir) == "" {
 		resolved.IAMStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "iam", "v1")
 	}
+	if strings.TrimSpace(resolved.IncidentStructDir) == "" {
+		resolved.IncidentStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "incident", "v1")
+	}
+	// DecodeFile / DecodeFiles are intentionally NOT defaulted here: the glob
+	// path can fail, and ResolvePaths returns no error. resolveDecodeFiles (from
+	// Load) fills them — from an explicit DecodeFile/DecodeFiles override, or by
+	// globbing every factschema_decode*.go under ReducerDir. Defaulting
+	// DecodeFile to the single legacy file here would defeat the glob and
+	// silently drop the per-family split files (the false-green this closes).
 	return resolved
+}
+
+// resolveDecodeFiles returns the set of reducer decode-seam files to parse.
+// When DecodeFiles is already set it is returned as-is; when only DecodeFile is
+// set (the CLI -decode-file override or the ResolvePaths legacy default) that
+// one file is used; otherwise it globs every factschema_decode*.go under
+// ReducerDir so a family whose wrappers live in a split file is covered. An
+// empty glob is an error rather than a silent zero-seam manifest.
+func resolveDecodeFiles(p Paths) ([]string, error) {
+	if len(p.DecodeFiles) > 0 {
+		return p.DecodeFiles, nil
+	}
+	if strings.TrimSpace(p.DecodeFile) != "" {
+		return []string{p.DecodeFile}, nil
+	}
+	pattern := filepath.Join(p.ReducerDir, "factschema_decode*.go")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("payloadusage: glob decode seam files %s: %w", pattern, err)
+	}
+	// Exclude _test.go files: the glob pattern would otherwise match a
+	// factschema_decode*_test.go if one were added, and a test-only helper is
+	// not a production seam.
+	files := matches[:0]
+	for _, m := range matches {
+		if strings.HasSuffix(m, "_test.go") {
+			continue
+		}
+		files = append(files, m)
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("payloadusage: no decode seam files matched %s", pattern)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+// parseDecodeSeamsFiles parses every file in files and returns the merged seam
+// set, sorted by FuncName. A function name appearing in more than one file is a
+// programming error (each decode<Kind> wrapper is defined once), reported rather
+// than silently deduplicated so a copy-paste across split files is caught.
+func parseDecodeSeamsFiles(files []string) ([]DecodeSeam, error) {
+	seen := map[string]string{} // FuncName -> file it was first seen in
+	var merged []DecodeSeam
+	for _, file := range files {
+		seams, err := ParseDecodeSeams(file)
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range seams {
+			if prior, dup := seen[s.FuncName]; dup {
+				return nil, fmt.Errorf(
+					"payloadusage: decode seam %s defined in both %s and %s; each decode<Kind> wrapper must be defined once",
+					s.FuncName, prior, file,
+				)
+			}
+			seen[s.FuncName] = file
+			merged = append(merged, s)
+		}
+	}
+	sort.Slice(merged, func(i, j int) bool { return merged[i].FuncName < merged[j].FuncName })
+	return merged, nil
 }
 
 // Load runs the full derivation pipeline against p (auto-resolving empty
@@ -88,12 +169,16 @@ func ResolvePaths(p Paths) Paths {
 func Load(p Paths) (Manifest, error) {
 	resolved := ResolvePaths(p)
 
-	seams, err := ParseDecodeSeams(resolved.DecodeFile)
+	decodeFiles, err := resolveDecodeFiles(resolved)
+	if err != nil {
+		return Manifest{}, err
+	}
+	seams, err := parseDecodeSeamsFiles(decodeFiles)
 	if err != nil {
 		return Manifest{}, err
 	}
 	if len(seams) == 0 {
-		return Manifest{}, fmt.Errorf("payloadusage: no decode seams found in %s", resolved.DecodeFile)
+		return Manifest{}, fmt.Errorf("payloadusage: no decode seams found in %s", strings.Join(decodeFiles, ", "))
 	}
 	if missing := UnmappedSeamFactKinds(seams); len(missing) > 0 {
 		return Manifest{}, fmt.Errorf(
@@ -110,11 +195,18 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes))
+	incidentShapes, err := ParseStructShapes(resolved.IncidentStructDir, "incidentv1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
 	for k, v := range iamShapes {
+		shapes[k] = v
+	}
+	for k, v := range incidentShapes {
 		shapes[k] = v
 	}
 

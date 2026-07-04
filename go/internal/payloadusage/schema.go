@@ -28,6 +28,17 @@ var factKindSchemaFile = map[string]string{
 	"FactKindAWSIAMPermission":            "aws_iam_permission.v1.schema.json",
 	"FactKindAWSResourcePolicyPermission": "aws_resource_policy_permission.v1.schema.json",
 	"FactKindAWSIAMPrincipal":             "aws_iam_principal.v1.schema.json",
+	// Incident family: ONLY the kinds a reducer decode seam wrapper actually
+	// decodes (factschema_decode_incident.go) are mapped, so the gate covers
+	// exactly what the reducer reads through the typed seam. The unwired
+	// incident kinds (lifecycle_event, change.record, applied_alert_route,
+	// observed_pagerduty_integration) carry a schema but no reducer decode
+	// call, so they are intentionally absent here — mapping them would assert a
+	// gate contract for a kind no handler reads.
+	"FactKindIncidentRecord":                          "incident.record.v1.schema.json",
+	"FactKindIncidentRoutingAppliedPagerDutyResource": "incident_routing.applied_pagerduty_resource.v1.schema.json",
+	"FactKindIncidentRoutingObservedPagerDutyService": "incident_routing.observed_pagerduty_service.v1.schema.json",
+	"FactKindIncidentRoutingCoverageWarning":          "incident_routing.coverage_warning.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema
