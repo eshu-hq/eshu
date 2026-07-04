@@ -16,6 +16,7 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
@@ -306,6 +307,39 @@ func decodeAWSIAMPrincipal(env facts.Envelope) (iamv1.Principal, error) {
 		return iamv1.Principal{}, newFactDecodeError(factschema.FactKindAWSIAMPrincipal, err)
 	}
 	return principal, nil
+}
+
+// decodeGCPCloudResource decodes one gcp_cloud_resource envelope into the typed
+// gcpv1.Resource struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required
+// field (full_resource_name, asset_type) or is otherwise malformed. It is the
+// single decode site for the gcp_cloud_resource kind on the reducer side:
+// every handler and join-index builder that consumes gcp_cloud_resource facts
+// decodes through here, and a missing required field is routed through
+// partitionDecodeFailures so it dead-letters as a per-fact input_invalid
+// quarantine rather than a silent empty-string graph identity or a whole-intent
+// abort. This mirrors decodeAWSResource.
+func decodeGCPCloudResource(env facts.Envelope) (gcpv1.Resource, error) {
+	resource, err := factschema.DecodeGCPCloudResource(factschemaEnvelope(env))
+	if err != nil {
+		return gcpv1.Resource{}, newFactDecodeError(factschema.FactKindGCPCloudResource, err)
+	}
+	return resource, nil
+}
+
+// decodeGCPCloudRelationship decodes one gcp_cloud_relationship envelope into
+// the typed gcpv1.Relationship struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required
+// field (source_full_resource_name, target_full_resource_name,
+// relationship_type) or is otherwise malformed. It is the single decode site
+// for the gcp_cloud_relationship kind on the reducer side. This mirrors
+// decodeAWSRelationship.
+func decodeGCPCloudRelationship(env facts.Envelope) (gcpv1.Relationship, error) {
+	relationship, err := factschema.DecodeGCPCloudRelationship(factschemaEnvelope(env))
+	if err != nil {
+		return gcpv1.Relationship{}, newFactDecodeError(factschema.FactKindGCPCloudRelationship, err)
+	}
+	return relationship, nil
 }
 
 // factschemaEnvelope adapts a go/internal/facts.Envelope to the contracts-module

@@ -1,0 +1,56 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/gcp/v1/dns_record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "managed_zone_full_resource_name": {
+      "type": "string"
+    },
+    "managed_zone_project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "record_name_fingerprint": {
+      "type": "string"
+    },
+    "record_type": {
+      "type": "string"
+    },
+    "target_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "target_fingerprints": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "target_truncated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "ttl_seconds": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "managed_zone_full_resource_name",
+    "record_type",
+    "record_name_fingerprint"
+  ],
+  "title": "Eshu gcp_dns_record Payload (schema version 1)",
+  "type": "object"
+}

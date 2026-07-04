@@ -112,7 +112,19 @@ func (h GCPResourceMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows := ExtractGCPCloudResourceNodeRows(envelopes)
+	rows, quarantined, err := ExtractGCPCloudResourceNodeRows(envelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed gcp_cloud_resource fact (a missing required
+	// identity field) is quarantined as a visible input_invalid dead-letter —
+	// counter + structured error log — while every valid fact still materializes
+	// its node below and the canonical-nodes-committed phase still publishes, so
+	// one bad fact never stalls the scope generation's node substrate.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainGCPResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -170,11 +182,13 @@ func (h GCPResourceMaterializationHandler) Handle(
 		Domain:   DomainGCPResourceMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical cloud resource node(s) from %d gcp resource fact(s)",
+			"materialized %d canonical cloud resource node(s) from %d gcp resource fact(s); %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -197,22 +211,37 @@ func (h GCPResourceMaterializationHandler) recordMetrics(
 }
 
 // ExtractGCPCloudResourceNodeRows projects gcp_cloud_resource fact envelopes into
-// deterministic CloudResource node rows keyed by a stable uid. Rows are
-// deduplicated by uid so duplicate facts (retries, overlapping scans) converge
-// on a single node, and incomplete identities (missing full_resource_name or
-// asset_type) are dropped rather than fabricating a node. The returned rows are
-// sorted by uid for deterministic batch output.
-func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]any {
+// deterministic CloudResource node rows keyed by a stable uid. Each fact is
+// decoded through the factschema seam, so a payload missing a required identity
+// field (full_resource_name, asset_type) is quarantined as a per-fact
+// input_invalid dead-letter (returned in the []quarantinedFact slice) rather
+// than fabricating a node with an empty-string uid OR aborting the whole batch:
+// every valid fact still projects. Rows are deduplicated by uid so duplicate
+// facts (retries, overlapping scans) converge on a single node. The returned
+// rows are sorted by uid for deterministic batch output. Mirrors
+// ExtractCloudResourceNodeRows (aws_resource_materialization.go).
+func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
 	if len(envelopes) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
+	var quarantined []quarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != facts.GCPCloudResourceFactKind {
 			continue
 		}
-		row, uid, ok := gcpCloudResourceNodeRow(env)
+		row, uid, ok, err := gcpCloudResourceNodeRow(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
 		if !ok {
 			continue
 		}
@@ -222,7 +251,7 @@ func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]an
 	}
 
 	if len(byUID) == 0 {
-		return nil
+		return nil, quarantined, nil
 	}
 
 	uids := make([]string, 0, len(byUID))
@@ -235,12 +264,19 @@ func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]an
 	for _, uid := range uids {
 		rows = append(rows, byUID[uid])
 	}
-	return rows
+	return rows, quarantined, nil
 }
 
 // gcpCloudResourceNodeRow builds one CloudResource node row from a
 // gcp_cloud_resource fact envelope, returning ok=false when the resource lacks
-// the identity needed to form a stable node uid.
+// the identity needed to form a stable node uid, or a classified decode error
+// when a required identity field is absent from the payload. Identity and
+// common fields are read from the decoded factschema struct, never the raw
+// envelope payload. This node row does not yet read the decoded struct's
+// untyped Attributes pass-through (the nested "attributes" bounded typed-depth
+// map); a future per-asset-type consumer would read it via the reducer's
+// payloadAttributes(resource.Attributes) helper, mirroring the AWS resource
+// row's service-anchor fields, once such a consumer exists.
 //
 // GCP resource identity is the globally-unique Cloud Asset Inventory
 // full_resource_name; the uid folds it together with asset type, project, and
@@ -248,14 +284,21 @@ func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) []map[string]an
 // staying collision-free. The GCP relationship edge join (#2348) resolves
 // endpoints by full_resource_name (stored as resource_id), so a resource that
 // does not materialize here is also not a join target — never a fabricated node.
-func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
-	fullResourceName := payloadString(env.Payload, "full_resource_name")
-	assetType := payloadString(env.Payload, "asset_type")
-	projectID := payloadString(env.Payload, "project_id")
-	location := payloadString(env.Payload, "location")
+func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
+	resource, err := decodeGCPCloudResource(env)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	fullResourceName := resource.FullResourceName
+	assetType := resource.AssetType
+	projectID := derefString(resource.ProjectID)
+	location := derefString(resource.Location)
 
 	if fullResourceName == "" || assetType == "" {
-		return nil, "", false
+		// Present-but-empty identity is a valid decode, distinct from an absent
+		// required key, which the decode seam already rejected above.
+		return nil, "", false, nil
 	}
 
 	uid := cloudResourceUID(projectID, location, assetType, fullResourceName)
@@ -264,17 +307,17 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) 
 		"arn":           "",
 		"resource_id":   fullResourceName,
 		"resource_type": assetType,
-		"name":          payloadString(env.Payload, "display_name"),
-		"state":         payloadString(env.Payload, "state"),
+		"name":          derefString(resource.DisplayName),
+		"state":         derefString(resource.State),
 		"account_id":    projectID,
 		"region":        location,
-		"service_kind":  payloadString(env.Payload, "asset_type_family"),
+		"service_kind":  derefString(resource.AssetTypeFamily),
 		// Present for parity with the AWS node row and the shared writer's SET
 		// clause; GCP carries no correlation anchors today (relationship edges
 		// resolve on full_resource_name), so this is nil until a GCP anchor
 		// source exists. The service_anchor_* keys are intentionally omitted,
 		// matching the AWS row for a resource with no service-anchor decision.
-		"correlation_anchors": payloadStrings(env.Payload, "", "correlation_anchors"),
+		"correlation_anchors": uniqueSortedStrings(resource.CorrelationAnchors),
 		"source_fact_id":      env.FactID,
 		"stable_fact_key":     env.StableFactKey,
 		"source_system":       env.SourceRef.SourceSystem,
@@ -282,7 +325,7 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) 
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
 	}
-	return row, uid, true
+	return row, uid, true, nil
 }
 
 // gcpResourceMaterializationTiming groups stage durations so the completion log

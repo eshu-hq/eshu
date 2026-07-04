@@ -1,0 +1,10 @@
+{
+  "managed_zone_full_resource_name": "//dns.googleapis.com/projects/demo-proj/managedZones/demo-zone",
+  "record_type": "A",
+  "record_name_fingerprint": "fp:record-name:abc123",
+  "managed_zone_project_id": "demo-proj",
+  "target_fingerprints": ["fp:target:def456"],
+  "target_count": 1,
+  "target_truncated": false,
+  "ttl_seconds": 300
+}

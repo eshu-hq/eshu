@@ -1,0 +1,57 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/gcp/v1/iam_policy_observation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "asset_type": {
+      "type": "string"
+    },
+    "condition_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "condition_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "etag_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "full_resource_name": {
+      "type": "string"
+    },
+    "members": {
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "full_resource_name",
+    "asset_type",
+    "role",
+    "members"
+  ],
+  "title": "Eshu gcp_iam_policy_observation Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,58 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/gcp/v1/resource.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "asset_type": {
+      "type": "string"
+    },
+    "asset_type_family": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "display_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "full_resource_name": {
+      "type": "string"
+    },
+    "location": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "full_resource_name",
+    "asset_type"
+  ],
+  "title": "Eshu gcp_cloud_resource Payload (schema version 1.1.0)",
+  "type": "object"
+}

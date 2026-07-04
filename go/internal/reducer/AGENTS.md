@@ -589,6 +589,54 @@ self-classifies via the existing `FailureClass()`/`Retryable()` reducer error
 interface. Operators still diagnose the path through the existing incident
 routing materialization completion log, reducer run spans, and reducer execution
 counters.
+No-Regression Evidence (Wave 4a, GCP family typed-payload decode): the GCP
+cloud-resource and cloud-relationship reducer handlers
+(`gcp_resource_materialization.go`, `gcp_relationship_join.go`,
+`gcp_relationship_materialization.go`) now decode `gcp_cloud_resource` and
+`gcp_cloud_relationship` fact payloads through the `sdk/go/factschema` seam
+(`decodeGCPCloudResource`, `decodeGCPCloudRelationship` in
+`factschema_decode.go`) instead of raw `payloadString` map lookups, mirroring
+the AWS/IAM/security-group migration (#4568). `ExtractGCPCloudResourceNodeRows`
+and `buildGCPCloudResourceJoinIndex`/`ExtractGCPRelationshipEdgeRows` now return
+a `[]quarantinedFact` alongside rows: a fact missing a required identity field
+(`full_resource_name`/`asset_type` for resources;
+`source_full_resource_name`/`target_full_resource_name`/`relationship_type` for
+relationships) is quarantined per-fact via `partitionDecodeFailures` rather than
+silently producing an empty-string `CloudResource` uid, while every valid fact
+in the same batch still projects. `go test ./internal/reducer -run
+'TestGCPResourceMaterializationQuarantinesMissingFullResourceName|TestGCPRelationshipMaterializationQuarantinesMissingRelationshipType'
+-count=1 -v` failed before the conversion (quarantine count 0, malformed fact
+silently dropped with no operator signal), then passed after: the malformed
+fact is recorded on `input_invalid_facts` and the valid sibling still
+materializes its node/edge, with no uid ever computed from the empty-string
+identity segment. Measured with the existing GCP benchmarks (in-memory
+extractor; 5,000-resource/-relationship corpus each already builds; darwin/
+arm64, `-count=3`): `go test ./internal/reducer -run '^$' -bench
+'BenchmarkExtractGCPCloudResourceNodeRows|BenchmarkExtractGCPRelationshipEdgeRows'
+-benchmem`. BEFORE (raw map, commit 9c8d2b655) -> AFTER (typed decode):
+`ExtractGCPCloudResourceNodeRows` 15.13ms/235,058 allocs -> 16.60ms/235,047
+allocs (+9.7% time, -0.005% allocs); `ExtractGCPRelationshipEdgeRows`
+43.50ms/605,125 allocs -> 44.46ms/600,123 allocs (+2.2% time, -0.8% allocs).
+Both deltas are within the diagnostic-rigor ~10% band; the residual cost buys
+the same accuracy guarantee the AWS migration did. Result class: Correctness
+win with a bounded, measured handler cost.
+
+No-Observability-Change (Wave 4a, GCP family): the typed-decode migration adds
+no route, graph query shape, queue table, worker, lease, runtime knob, metric
+instrument, or metric label. A malformed `gcp_cloud_resource`/
+`gcp_cloud_relationship` fact surfaces through the EXISTING dead-letter path —
+the same `recordQuarantinedFacts`/`inputInvalidSubSignals` seam the AWS
+migration wired — incrementing the existing
+`eshu_dp_reducer_input_invalid_facts_total` counter (labeled `domain` =
+`gcp_resource_materialization` / `gcp_relationship_materialization`, an
+existing label value set, not a new instrument) and logging the existing
+"reducer input_invalid fact quarantined" structured log line. The
+`payload-usage-manifest` gate (`go/internal/payloadusage`) required an
+additive-only extension: two new `factKindSchemaFile` entries
+(`FactKindGCPCloudResource`, `FactKindGCPCloudRelationship`) and a new
+`GCPStructDir` (`sdk/go/factschema/gcp/v1`) parsed alongside the existing AWS/
+IAM struct dirs in `Load`; this only widens which decode seams the gate covers
+and adds no new gate mechanism.
 
 ## Anti-patterns
 

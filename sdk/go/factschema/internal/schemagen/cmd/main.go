@@ -58,6 +58,11 @@ func run() error {
 		{name: "incident_routing.observed_pagerduty_service.v1.schema.json", generate: schemagen.IncidentRoutingObservedPagerDutyServiceSchema},
 		{name: "incident_routing.observed_pagerduty_integration.v1.schema.json", generate: schemagen.IncidentRoutingObservedPagerDutyIntegrationSchema},
 		{name: "incident_routing.coverage_warning.v1.schema.json", generate: schemagen.IncidentRoutingCoverageWarningSchema},
+		{name: "gcp_cloud_resource.v1.schema.json", generate: schemagen.GCPCloudResourceSchema},
+		{name: "gcp_cloud_relationship.v1.schema.json", generate: schemagen.GCPCloudRelationshipSchema},
+		{name: "gcp_collection_warning.v1.schema.json", generate: schemagen.GCPCollectionWarningSchema},
+		{name: "gcp_dns_record.v1.schema.json", generate: schemagen.GCPDNSRecordSchema},
+		{name: "gcp_iam_policy_observation.v1.schema.json", generate: schemagen.GCPIAMPolicyObservationSchema},
 	}
 
 	for _, target := range targets {

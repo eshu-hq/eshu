@@ -48,7 +48,10 @@ func BenchmarkExtractGCPRelationshipEdgeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows, _ := ExtractGCPRelationshipEdgeRows(resources, rels)
+		rows, _, _, err := ExtractGCPRelationshipEdgeRows(resources, rels)
+		if err != nil {
+			b.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
+		}
 		if len(rows) != resourceCount {
 			b.Fatalf("len(rows) = %d, want %d", len(rows), resourceCount)
 		}

@@ -339,12 +339,18 @@ func TestGCPRelationshipMaterializationPropagatesWriteError(t *testing.T) {
 func TestExtractGCPRelationshipEdgeRowsEmptyIsNil(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractGCPRelationshipEdgeRows(nil, nil)
+	rows, tally, quarantined, err := ExtractGCPRelationshipEdgeRows(nil, nil)
+	if err != nil {
+		t.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if rows != nil {
 		t.Fatalf("rows = %v, want nil", rows)
 	}
 	if tally.resolvedCount() != 0 || tally.skippedCount() != 0 {
 		t.Fatalf("tally = %+v, want empty", tally)
+	}
+	if quarantined != nil {
+		t.Fatalf("quarantined = %v, want nil", quarantined)
 	}
 }
 
@@ -364,7 +370,10 @@ func TestExtractGCPRelationshipEdgeRowsDeduplicatesAndSkipsSelfLoop(t *testing.T
 		}),
 	}
 
-	rows, tally := ExtractGCPRelationshipEdgeRows(resources, rels)
+	rows, tally, _, err := ExtractGCPRelationshipEdgeRows(resources, rels)
+	if err != nil {
+		t.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (duplicate + self-loop collapse to one edge)", len(rows))
 	}
@@ -457,7 +466,10 @@ func TestExtractGCPRelationshipEdgeRowsSkipsInvalidRelationshipType(t *testing.T
 		}),
 	}
 
-	rows, tally := ExtractGCPRelationshipEdgeRows(resources, rels)
+	rows, tally, _, err := ExtractGCPRelationshipEdgeRows(resources, rels)
+	if err != nil {
+		t.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 — unsafe relationship type must be skipped", len(rows))
 	}

@@ -1,0 +1,6 @@
+{
+  "full_resource_name": "//cloudresourcemanager.googleapis.com/projects/demo-proj",
+  "asset_type": "cloudresourcemanager.googleapis.com/Project",
+  "role": "roles/storage.admin",
+  "project_id": "demo-proj"
+}

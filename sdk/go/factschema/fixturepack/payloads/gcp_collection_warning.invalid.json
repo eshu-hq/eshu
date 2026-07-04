@@ -1,0 +1,4 @@
+{
+  "outcome": "partial",
+  "reason": "insufficient IAM permission to list resources in scope"
+}

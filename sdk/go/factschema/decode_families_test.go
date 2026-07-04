@@ -27,14 +27,78 @@ func requiredFieldsForKind(t *testing.T, factKind string) []string {
 	return nil
 }
 
+// structTypeForKind returns the payload struct reflect.Type for one fact kind
+// from the payloadContracts registry, so a required-field value can be built to
+// match the field's real Go type rather than assuming every required field is a
+// string.
+func structTypeForKind(t *testing.T, factKind string) reflect.Type {
+	t.Helper()
+	for _, contract := range payloadContracts {
+		if contract.factKind == factKind {
+			return contract.typ
+		}
+	}
+	t.Fatalf("structTypeForKind: no payloadContracts row for fact kind %q", factKind)
+	return nil
+}
+
+// requiredFieldValue returns a payload value for a required field that decodes
+// cleanly into its Go type. nonEmpty selects a populated value (for the
+// full-payload positive test) versus a type-appropriate empty-but-present value
+// (for the present-but-empty test): "" or [] or {} rather than always "".
+// Deriving the value from the field's kind keeps the generic tests correct for
+// any required non-string field (for example gcp_iam_policy_observation.members,
+// a required []map[string]string), not just string identity fields.
+func requiredFieldValue(t *testing.T, typ reflect.Type, jsonName string, nonEmpty bool) any {
+	t.Helper()
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		name, _, skip := parseJSONTag(field.Tag.Get("json"), field.Name)
+		if skip || name != jsonName {
+			continue
+		}
+		switch field.Type.Kind() {
+		case reflect.Slice:
+			if nonEmpty {
+				// One element whose own shape is valid: a []map[string]string
+				// (members) needs a map element; any other slice gets a string
+				// element. Either way this is a present, non-empty collection.
+				if field.Type.Elem().Kind() == reflect.Map {
+					return []any{map[string]any{"k": "v"}}
+				}
+				return []any{"x"}
+			}
+			return []any{} // present-but-empty collection
+		case reflect.Map:
+			if nonEmpty {
+				return map[string]any{"k": "v"}
+			}
+			return map[string]any{}
+		default:
+			if nonEmpty {
+				return "x"
+			}
+			return "" // present-but-empty scalar (a valid observed value)
+		}
+	}
+	t.Fatalf("requiredFieldValue: fact struct %s has no required field with json name %q", typ.Name(), jsonName)
+	return nil
+}
+
 // fullPayloadForKind returns a minimal valid payload map (every required key
 // present, non-empty) for one fact kind, so a per-kind test can delete a single
-// required key and prove decode dead-letters on exactly that field.
+// required key and prove decode dead-letters on exactly that field. Each value
+// matches the required field's Go type (a required slice gets a non-empty
+// slice, not the string "x").
 func fullPayloadForKind(t *testing.T, factKind string) map[string]any {
 	t.Helper()
+	typ := structTypeForKind(t, factKind)
 	out := map[string]any{}
 	for _, key := range requiredFieldsForKind(t, factKind) {
-		out[key] = "x"
+		out[key] = requiredFieldValue(t, typ, key, true)
 	}
 	return out
 }
@@ -94,6 +158,21 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindIncidentRoutingCoverageWarning:
 		_, err := DecodeIncidentRoutingCoverageWarning(env)
 		return err
+	case FactKindGCPCloudResource:
+		_, err := DecodeGCPCloudResource(env)
+		return err
+	case FactKindGCPCloudRelationship:
+		_, err := DecodeGCPCloudRelationship(env)
+		return err
+	case FactKindGCPCollectionWarning:
+		_, err := DecodeGCPCollectionWarning(env)
+		return err
+	case FactKindGCPDNSRecord:
+		_, err := DecodeGCPDNSRecord(env)
+		return err
+	case FactKindGCPIAMPolicyObservation:
+		_, err := DecodeGCPIAMPolicyObservation(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -120,6 +199,11 @@ var allDecodedKinds = []string{
 	FactKindIncidentRoutingObservedPagerDutyService,
 	FactKindIncidentRoutingObservedPagerDutyIntegration,
 	FactKindIncidentRoutingCoverageWarning,
+	FactKindGCPCloudResource,
+	FactKindGCPCloudRelationship,
+	FactKindGCPCollectionWarning,
+	FactKindGCPDNSRecord,
+	FactKindGCPIAMPolicyObservation,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -196,9 +280,10 @@ func TestDecodeEachKind_PresentButEmptyRequiredFieldDecodes(t *testing.T) {
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
+			typ := structTypeForKind(t, factKind)
 			payload := fullPayloadForKind(t, factKind)
 			for _, field := range requiredFieldsForKind(t, factKind) {
-				payload[field] = ""
+				payload[field] = requiredFieldValue(t, typ, field, false)
 			}
 			if err := decodeByKind(t, factKind, payload); err != nil {
 				t.Fatalf("decode %s all-empty required payload: error = %v, want nil (present-but-empty is valid)", factKind, err)
@@ -253,6 +338,16 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeIncidentRoutingObservedPagerDutyIntegration(env)
 			case FactKindIncidentRoutingCoverageWarning:
 				_, err = DecodeIncidentRoutingCoverageWarning(env)
+			case FactKindGCPCloudResource:
+				_, err = DecodeGCPCloudResource(env)
+			case FactKindGCPCloudRelationship:
+				_, err = DecodeGCPCloudRelationship(env)
+			case FactKindGCPCollectionWarning:
+				_, err = DecodeGCPCollectionWarning(env)
+			case FactKindGCPDNSRecord:
+				_, err = DecodeGCPDNSRecord(env)
+			case FactKindGCPIAMPolicyObservation:
+				_, err = DecodeGCPIAMPolicyObservation(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)
