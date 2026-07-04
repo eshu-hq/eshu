@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -48,12 +49,22 @@ const (
 // bootstrapCanonicalExecutorForGraphBackend mirrors ingester's NornicDB
 // canonical-write safety path so bootstrap-index cannot send a whole
 // source-local materialization as one oversized grouped transaction.
+//
+// gate is the single shared in-flight canonical permit pool for the whole
+// bootstrap-index run (built once by newBootstrapCanonicalGate). It wraps the
+// inner GroupExecutor-capable layer (bounded), NOT the outer
+// PhaseGroupExecutor fan-out, because ExecutePhaseGroup dispatches multiple
+// concurrent inner ExecuteGroup calls (executeEntityPhaseGroupConcurrently);
+// gating only the outer call would leave that fan-out unbounded. See
+// go/internal/graphbackpressure/README.md for the full rationale. A nil gate
+// (default, unset ceiling) leaves bounded unchanged.
 func bootstrapCanonicalExecutorForGraphBackend(
 	rawExecutor sourcecypher.Executor,
 	graphBackend runtimecfg.GraphBackend,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
+	gate *sourcecypher.BackpressureGate,
 ) (sourcecypher.Executor, error) {
 	instrumented := &sourcecypher.InstrumentedExecutor{
 		Inner: &sourcecypher.RetryingExecutor{
@@ -65,7 +76,8 @@ func bootstrapCanonicalExecutorForGraphBackend(
 		Instruments: instruments,
 	}
 	if graphBackend != runtimecfg.GraphBackendNornicDB {
-		return instrumented, nil
+		// Neo4j has no fan-out wrapper, so the gate applies directly here.
+		return graphbackpressure.WrapExecutorWithGate(instrumented, gate), nil
 	}
 
 	groupedWrites, err := nornicDBCanonicalGroupedWrites(getenv)
@@ -93,11 +105,15 @@ func bootstrapCanonicalExecutorForGraphBackend(
 		return nil, err
 	}
 
-	bounded := sourcecypher.TimeoutExecutor{
+	var bounded sourcecypher.Executor = sourcecypher.TimeoutExecutor{
 		Inner:       instrumented,
 		Timeout:     nornicDBCanonicalWriteTimeout(getenv),
 		TimeoutHint: canonicalWriteTimeoutEnv,
 	}
+	// Gate the inner GroupExecutor layer, not the outer PhaseGroupExecutor
+	// this function returns below (see the function doc comment). A nil gate
+	// (default) leaves bounded unchanged.
+	bounded = graphbackpressure.WrapExecutorWithGate(bounded, gate)
 	if groupedWrites {
 		// The toggle requested whole-materialization atomic canonical writes (one
 		// ExecuteGroup for every node phase). NornicDB cannot satisfy that for a
@@ -407,82 +423,4 @@ func nornicDBPositiveIntEnv(getenv func(string) string, key string, fallback int
 		return 0, fmt.Errorf("parse %s=%q: must be a positive integer", key, raw)
 	}
 	return n, nil
-}
-
-func nornicDBEntityLabelBatchSizes(getenv func(string) string, entityBatchSize int) (map[string]int, error) {
-	return nornicDBLabelSizeMap(
-		getenv,
-		nornicDBEntityLabelBatchSizesEnv,
-		defaultNornicDBEntityLabelBatchSizes(entityBatchSize),
-		entityBatchSize,
-	)
-}
-
-func nornicDBEntityLabelPhaseGroupStatements(getenv func(string) string, entityPhaseStatements int) (map[string]int, error) {
-	return nornicDBLabelSizeMap(
-		getenv,
-		nornicDBEntityLabelPhaseGroupStatementsEnv,
-		defaultNornicDBEntityLabelPhaseGroupStatements(entityPhaseStatements),
-		entityPhaseStatements,
-	)
-}
-
-func defaultNornicDBEntityLabelBatchSizes(entityBatchSize int) map[string]int {
-	return map[string]int{
-		"Function":    capOptionalBatchSize(entityBatchSize, defaultNornicDBFunctionEntityBatchSize),
-		"K8sResource": capOptionalBatchSize(entityBatchSize, defaultNornicDBK8sResourceEntityBatchSize),
-		"Struct":      capOptionalBatchSize(entityBatchSize, defaultNornicDBStructEntityBatchSize),
-		"Variable":    capOptionalBatchSize(entityBatchSize, defaultNornicDBVariableEntityBatchSize),
-	}
-}
-
-func defaultNornicDBEntityLabelPhaseGroupStatements(entityPhaseStatements int) map[string]int {
-	return map[string]int{
-		"Function":    capOptionalBatchSize(entityPhaseStatements, defaultNornicDBFunctionEntityPhaseStatements),
-		"K8sResource": capOptionalBatchSize(entityPhaseStatements, defaultNornicDBK8sResourceEntityPhaseStatements),
-		"Struct":      capOptionalBatchSize(entityPhaseStatements, defaultNornicDBStructEntityPhaseStatements),
-		"Variable":    capOptionalBatchSize(entityPhaseStatements, defaultNornicDBVariableEntityPhaseStatements),
-	}
-}
-
-func capOptionalBatchSize(configured int, limit int) int {
-	if configured <= 0 || configured > limit {
-		return limit
-	}
-	return configured
-}
-
-func nornicDBLabelSizeMap(
-	getenv func(string) string,
-	key string,
-	defaults map[string]int,
-	ceiling int,
-) (map[string]int, error) {
-	raw := strings.TrimSpace(getenv(key))
-	if raw == "" {
-		return defaults, nil
-	}
-	for _, entry := range strings.Split(raw, ",") {
-		parts := strings.SplitN(strings.TrimSpace(entry), "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("parse %s=%q: entries must be Label=size", key, raw)
-		}
-		label := strings.TrimSpace(parts[0])
-		if label == "" {
-			return nil, fmt.Errorf("parse %s=%q: label must be non-empty", key, raw)
-		}
-		size, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-		if err != nil || size <= 0 {
-			return nil, fmt.Errorf("parse %s=%q: label %q must have a positive integer size", key, raw, label)
-		}
-		defaults[label] = capOptionalBatchSize(ceiling, size)
-	}
-	return defaults, nil
-}
-
-func positiveOrDefault(value int, fallback int) int {
-	if value <= 0 {
-		return fallback
-	}
-	return value
 }

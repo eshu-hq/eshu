@@ -150,6 +150,81 @@ backend is healthy.
 | `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK` | `500` | Defers ingester reducer-intent admission once the count of reducer rows retrying with `failure_class = graph_write_timeout` reaches this value. Set to `0` to disable the graph-write backpressure gate. |
 | `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` | `100` | Hysteresis floor: admission resumes only after the graph-write-timeout retrying depth falls below this value. Must be less than the high-water mark. An unset or out-of-range value is clamped to one fifth of the high mark. |
 
+### Bootstrap-Index In-Flight Canonical Gate (Issue #4515, Lane B)
+
+`bootstrap-index` supports the same in-flight canonical write gate the reducer
+and projector use (`go/internal/graphbackpressure`), bounding concurrent
+canonical NornicDB writes so a slow backend holds its permits longer instead of
+being hit by every worker's write at once. It reuses the existing knobs:
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | unset | Shared concurrent-write ceiling. bootstrap-index reads it as the fallback for its canonical class, same as the reducer and projector. Setting this alone to a positive value ENABLES the gate for bootstrap-index's canonical class; it is not a no-op knob. |
+| `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | unset | Canonical-class ceiling; takes precedence over the shared knob for bootstrap-index's single write class. Leaving this unset does NOT by itself disable the gate — it only falls back to the shared knob above. |
+
+The gate is a passthrough (no bound, inner executor unchanged) only when
+**both** knobs are unset or non-positive. That is bootstrap-index's shipped
+default.
+
+Bootstrap-index's canonical NornicDB executor
+(`bootstrapNornicDBPhaseGroupExecutor` in `go/cmd/bootstrap-index/nornicdb_wiring.go`)
+implements `cypher.PhaseGroupExecutor` (`ExecutePhaseGroup`), and for the
+`entities`/`entity_containment` phases its `ExecutePhaseGroup` fans a single
+call out into up to `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` concurrent
+`ge.ExecuteGroup` calls against its inner `cypher.GroupExecutor`
+(`executeEntityPhaseGroupConcurrently`). Wrapping the gate around that outer
+`ExecutePhaseGroup` call would acquire only ONE permit per call, leaving every
+concurrent inner `ExecuteGroup` call in the fan-out unbounded —
+`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=2` would still allow up to
+`ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` (default up to 16) simultaneous Bolt
+writes. `bootstrapCanonicalExecutorForGraphBackend` therefore wraps the gate
+around the INNER `GroupExecutor`-capable layer (`bounded`, the
+`TimeoutExecutor` over the instrumented/retrying raw executor) BEFORE
+assigning it to `bootstrapNornicDBPhaseGroupExecutor.inner`, so every
+concurrent `ge.ExecuteGroup` call the fan-out makes independently draws a
+permit from the same shared gate, bounding actual concurrent backend writes
+regardless of `entityPhaseConcurrency`. The same wrap applies to the
+non-NornicDB (Neo4j) return path, which is a bare `GroupExecutor` with no
+fan-out wrapper. Because the wrap sits inside `bounded` (which already
+includes the `ESHU_CANONICAL_WRITE_TIMEOUT` deadline), a permit-wait does not
+extend that per-write timeout budget beyond what the inner
+`TimeoutExecutor`/retry stack already bounds.
+
+The gate itself is constructed exactly ONCE per bootstrap-index run
+(`newBootstrapCanonicalGate` in `go/cmd/bootstrap-index/graph_write_backpressure_wiring.go`,
+called from `openBootstrapCanonicalWriter` in `go/cmd/bootstrap-index/wiring.go`)
+and threaded into `bootstrapCanonicalExecutorForGraphBackend` as a single
+shared instance, so the ceiling bounds in-flight writes across every
+`projector.Service` worker goroutine for the whole run, not per-worker.
+
+No-Regression Evidence: `go test ./internal/storage/cypher
+./internal/graphbackpressure ./cmd/bootstrap-index ./cmd/reducer -race
+-count=1` (930 tests, 4 packages) proves the reducer's and projector's existing
+`GroupExecutor`-based wiring is unchanged while bootstrap's inner-layer wiring
+correctly bounds writes. Peak-concurrency proof:
+`TestBootstrapCanonicalGateBoundsConcurrentEntityFanOut`
+(`go/cmd/bootstrap-index/nornicdb_canonical_gate_fanout_test.go`) drives
+`ExecutePhaseGroup` with `entityPhaseConcurrency=8` and a gate ceiling of 2,
+and asserts peak concurrent inner `ExecuteGroup` calls reaches exactly 2
+(before the inner-layer fix: unbounded up to 8; after: capped at, and reaching,
+2), with every chunk still executing — this is the confirmed-bug regression:
+gating the outer `ExecutePhaseGroup` call alone would still show unbounded
+concurrency at the inner `ExecuteGroup` layer.
+`TestBootstrapCanonicalGateTerminatesUnderMixedFanOutPressure` drives a mix of
+succeeding and failing concurrent chunks at a ceiling of 3 and asserts the
+whole `ExecutePhaseGroup` call terminates within a bounded deadline, proving
+the permit releases on both the success and the error path so a saturated
+pool cannot deadlock.
+`TestBootstrapCanonicalGateDisabledFanOutIsUnbounded` proves the default (nil
+gate) path lets the fan-out reach its full configured
+`entityPhaseConcurrency`, matching pre-existing behavior with the gate
+disabled.
+
+Observability Evidence: bootstrap-index's gate reuses the existing
+`eshu_dp_graph_write_backpressure_engaged_total{gate="canonical"}` counter and
+`eshu_dp_graph_write_backpressure_wait_seconds{gate="canonical"}` histogram; no
+new metric, span, or log field is introduced.
+
 The gate reuses the existing admission loop in
 `go/cmd/ingester/reducer_admission.go` and the
 `eshu_dp_reducer_admission_deferrals_total` counter. The failure-class-scoped

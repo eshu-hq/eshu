@@ -108,8 +108,13 @@ func TestBackpressureExecutorBoundsConcurrentWrites(t *testing.T) {
 	close(probe.release)
 	wg.Wait()
 
-	if peak := probe.peakConcurrency(); peak > maxInFlight {
-		t.Fatalf("peak concurrent inner writes = %d, want <= %d (bound breached)", peak, maxInFlight)
+	// Peak must reach exactly maxInFlight, not just stay at or under it: with
+	// 24 blocked callers racing for 3 permits, a peak below the ceiling would
+	// mean the executor accidentally serialized writes below its configured
+	// concurrency budget, a "Serialization Is Not A Fix" regression that a
+	// peak<=maxInFlight-only assertion would silently pass.
+	if peak := probe.peakConcurrency(); peak != maxInFlight {
+		t.Fatalf("peak concurrent inner writes = %d, want exactly %d (bound breached or writes were serialized below the ceiling)", peak, maxInFlight)
 	}
 	if got := exec.InFlight(); got != 0 {
 		t.Fatalf("InFlight() = %d after drain, want 0 (permit leak)", got)
@@ -212,8 +217,11 @@ func TestBackpressureExecutorGroupRespectsBound(t *testing.T) {
 	close(probe.release)
 	wg.Wait()
 
-	if peak := probe.peakConcurrency(); peak > maxInFlight {
-		t.Fatalf("peak concurrent grouped writes = %d, want <= %d", peak, maxInFlight)
+	// Peak must reach exactly maxInFlight (not just stay under it) so this
+	// test cannot silently pass if ExecuteGroup accidentally serialized
+	// grouped writes instead of sharing the concurrent permit pool.
+	if peak := probe.peakConcurrency(); peak != maxInFlight {
+		t.Fatalf("peak concurrent grouped writes = %d, want exactly %d (bound breached or writes were serialized below the ceiling)", peak, maxInFlight)
 	}
 }
 

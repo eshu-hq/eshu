@@ -32,6 +32,7 @@ func TestBootstrapCanonicalExecutorUsesNornicDBPhaseGroupsByDefault(t *testing.T
 		},
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v, want nil", err)

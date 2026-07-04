@@ -202,12 +202,27 @@ func openBootstrapCanonicalWriter(
 		Instruments:            instruments,
 	}
 
+	// The shared in-flight canonical permit pool (issue #4515, Lane B) is
+	// constructed exactly ONCE here, per bootstrap-index run, and threaded
+	// into bootstrapCanonicalExecutorForGraphBackend so every concurrent
+	// canonical write this run performs — across every projector.Service
+	// worker and every concurrent chunk in the entity-phase fan-out
+	// (executeEntityPhaseGroupConcurrently) — draws from the same budget. See
+	// newBootstrapCanonicalGate and bootstrapCanonicalExecutorForGraphBackend
+	// for why the gate wraps the inner GroupExecutor layer rather than the
+	// outer per-phase-group call. Default unset ceiling (both
+	// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT and
+	// ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT) yields a nil gate, so behavior
+	// is unchanged until an operator opts in.
+	canonicalGate := newBootstrapCanonicalGate(getenv, instruments)
+
 	executor, err := bootstrapCanonicalExecutorForGraphBackend(
 		rawExecutor,
 		graphBackend,
 		getenv,
 		tracer,
 		instruments,
+		canonicalGate,
 	)
 	if err != nil {
 		_ = closeBootstrapNeo4jDriver(driver)
