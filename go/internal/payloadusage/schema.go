@@ -40,11 +40,11 @@ var factKindSchemaFile = map[string]string{
 	"FactKindIncidentRoutingObservedPagerDutyService": "incident_routing.observed_pagerduty_service.v1.schema.json",
 	"FactKindIncidentRoutingCoverageWarning":          "incident_routing.coverage_warning.v1.schema.json",
 	// GCP family: only the two wired cloud kinds the reducer decodes.
-	"FactKindGCPCloudResource":                        "gcp_cloud_resource.v1.schema.json",
-	"FactKindGCPCloudRelationship":                    "gcp_cloud_relationship.v1.schema.json",
+	"FactKindGCPCloudResource":     "gcp_cloud_resource.v1.schema.json",
+	"FactKindGCPCloudRelationship": "gcp_cloud_relationship.v1.schema.json",
 	// Azure family: only the two wired cloud kinds the reducer decodes.
-	"FactKindAzureCloudResource":                      "azure_cloud_resource.v1.schema.json",
-	"FactKindAzureCloudRelationship":                  "azure_cloud_relationship.v1.schema.json",
+	"FactKindAzureCloudResource":     "azure_cloud_resource.v1.schema.json",
+	"FactKindAzureCloudRelationship": "azure_cloud_relationship.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

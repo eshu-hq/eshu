@@ -242,7 +242,8 @@ func benchmarkIncidentRoutingRawEvidence(b *testing.B, incidentCount int) Incide
 
 	envelopes := make([]facts.Envelope, 0, incidentCount*4)
 	for i := 0; i < incidentCount; i++ {
-		envelopes = append(envelopes,
+		envelopes = append(
+			envelopes,
 			facts.Envelope{FactID: "incident", ScopeID: "scope", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
 			facts.Envelope{FactID: "applied", ScopeID: "scope", FactKind: facts.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
 			facts.Envelope{FactID: "observed", ScopeID: "scope", FactKind: facts.IncidentRoutingObservedPagerDutyServiceFactKind, SchemaVersion: "1.0.0", Payload: observedPayload},

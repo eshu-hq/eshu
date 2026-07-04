@@ -197,7 +197,8 @@ func validateReferencedTests(repoRoot string, contract Contract) []Finding {
 func collectProofRefs(contract Contract) []proofRefSite {
 	var sites []proofRefSite
 	for _, row := range contract.Rows {
-		sites = append(sites,
+		sites = append(
+			sites,
 			proofRefSite{rowID: row.ID, label: "source fact", ref: row.SourceFact.Ref},
 			proofRefSite{rowID: row.ID, label: "projection/read-model", ref: row.Continuity.Projection.Ref},
 			proofRefSite{rowID: row.ID, label: "API answer", ref: row.Continuity.API.Ref},

@@ -46,7 +46,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			EvaluateTiming(
 				time.Duration(o.elapsedSeconds*float64(time.Second)),
 				time.Duration(o.budgetSeconds*float64(time.Second)),
-				o.budgetMultiplier, &r)
+				o.budgetMultiplier, &r,
+			)
 		}
 		// B-11 (#3804): when the orchestrator emits per-phase timings, assert each
 		// phase against the committed baseline. Complements the total-wall-time

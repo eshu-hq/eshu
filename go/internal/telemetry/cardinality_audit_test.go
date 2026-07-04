@@ -65,7 +65,8 @@ func TestCardinalityAudit_RegistryIsClean(t *testing.T) {
 	for _, reg := range registered {
 		if hardBanned[reg] {
 			violations = append(violations, fmt.Sprintf(
-				"hard-banned dimension key %q found in MetricDimensionKeys() registry", reg))
+				"hard-banned dimension key %q found in MetricDimensionKeys() registry", reg,
+			))
 		}
 	}
 
@@ -78,7 +79,8 @@ func TestCardinalityAudit_RegistryIsClean(t *testing.T) {
 	for _, reg := range registered {
 		if risk[reg] {
 			warnings = append(warnings, fmt.Sprintf(
-				"risk-tracked dimension key %q found in registry (migrate to bounded alternative per follow-up issue)", reg))
+				"risk-tracked dimension key %q found in registry (migrate to bounded alternative per follow-up issue)", reg,
+			))
 		}
 	}
 	if len(warnings) > 0 {
@@ -129,7 +131,8 @@ func TestCardinalityAudit_NoBannedInlineKeys(t *testing.T) {
 			if hardBanned[key] && !seen[key] {
 				seen[key] = true
 				violations = append(violations, fmt.Sprintf(
-					"hard-banned dimension key %q used via attribute.String() in %s", key, e.Name()))
+					"hard-banned dimension key %q used via attribute.String() in %s", key, e.Name(),
+				))
 			}
 		}
 	}
@@ -177,7 +180,8 @@ func TestCardinalityAudit_NoBannedKeysInContractFiles(t *testing.T) {
 			wireKey := m[1]
 			if hardBanned[wireKey] {
 				violations = append(violations, fmt.Sprintf(
-					"hard-banned wire key %q in dimension constant in %s", wireKey, e.Name()))
+					"hard-banned wire key %q in dimension constant in %s", wireKey, e.Name(),
+				))
 			}
 		}
 	}
@@ -266,7 +270,8 @@ func TestCardinalityAudit_DimensionKeyCardinalityBound(t *testing.T) {
 	for key, rationale := range highCardinalityRiskKeys {
 		if regMap[key] {
 			warnings = append(warnings, fmt.Sprintf(
-				"high-cardinality-risk key %q is in the allow-list: %s", key, rationale))
+				"high-cardinality-risk key %q is in the allow-list: %s", key, rationale,
+			))
 		}
 	}
 

@@ -226,7 +226,8 @@ func TestBuildIAMCanPerformGrantCountsUncataloguedActions(t *testing.T) {
 
 	var tally iamCanPerformTally
 	grant := buildIAMCanPerformGrant(
-		iamPermissionStatementsForTest(t,
+		iamPermissionStatementsForTest(
+			t,
 			escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"cloudwatch:getmetricdata"}, []string{canPerformBucketARN}),
 		),
 		&tally,

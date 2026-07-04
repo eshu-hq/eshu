@@ -132,7 +132,8 @@ func TestClaimLatencyWithinBudget(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := c.WithinBudget(
 				durSeconds(tc.baseP95), durSeconds(tc.measP95),
-				durSeconds(tc.baseMax), durSeconds(tc.measMax))
+				durSeconds(tc.baseMax), durSeconds(tc.measMax),
+			)
 			if got != tc.want {
 				t.Errorf("WithinBudget(p95 %vs->%vs, max %vs->%vs) = %v, want %v",
 					tc.baseP95, tc.measP95, tc.baseMax, tc.measMax, got, tc.want)

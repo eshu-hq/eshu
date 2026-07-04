@@ -101,12 +101,14 @@ func TestExtractCloudTasksQueueHostPortStrippedBeforeFingerprint(t *testing.T) {
 	// the same endpoint correlates across extractors regardless of an explicit
 	// port, matching the hostname-only reduction other extractors apply.
 	withPort, err := extractCloudTasksQueue(cloudTasksQueueContext(
-		`{"httpTarget": {"uriOverride": {"host": "api.internal.example.com:443"}}}`))
+		`{"httpTarget": {"uriOverride": {"host": "api.internal.example.com:443"}}}`,
+	))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	bare, err := extractCloudTasksQueue(cloudTasksQueueContext(
-		`{"httpTarget": {"uriOverride": {"host": "api.internal.example.com"}}}`))
+		`{"httpTarget": {"uriOverride": {"host": "api.internal.example.com"}}}`,
+	))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

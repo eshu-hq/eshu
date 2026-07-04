@@ -44,7 +44,8 @@ func buildHermeticRepo(t *testing.T, scripts []string, workflows []string) strin
 
 func TestValidate_AllRefsPresent(t *testing.T) {
 	t.Parallel()
-	root := buildHermeticRepo(t,
+	root := buildHermeticRepo(
+		t,
 		[]string{"scripts/verify-openapi.sh", "scripts/test-verify-openapi.sh"},
 		[]string{"verify-openapi.yml"},
 	)
@@ -74,7 +75,8 @@ func TestValidate_AllRefsPresent(t *testing.T) {
 // a renamed or mistyped local.test_command script, not just local.command.
 func TestValidate_MissingTestCommandScript(t *testing.T) {
 	t.Parallel()
-	root := buildHermeticRepo(t,
+	root := buildHermeticRepo(
+		t,
 		[]string{"scripts/verify-openapi.sh"}, // command script present, test_command script absent
 		[]string{"verify-openapi.yml"},
 	)
@@ -102,7 +104,8 @@ func TestValidate_MissingTestCommandScript(t *testing.T) {
 
 func TestValidate_MissingScript(t *testing.T) {
 	t.Parallel()
-	root := buildHermeticRepo(t,
+	root := buildHermeticRepo(
+		t,
 		[]string{}, // no scripts
 		[]string{"verify-openapi.yml"},
 	)
@@ -129,7 +132,8 @@ func TestValidate_MissingScript(t *testing.T) {
 
 func TestValidate_MissingWorkflow(t *testing.T) {
 	t.Parallel()
-	root := buildHermeticRepo(t,
+	root := buildHermeticRepo(
+		t,
 		[]string{"scripts/verify-openapi.sh"},
 		[]string{}, // no workflows
 	)
@@ -156,7 +160,8 @@ func TestValidate_MissingWorkflow(t *testing.T) {
 
 func TestValidate_CIOnlySkipsScriptCheck(t *testing.T) {
 	t.Parallel()
-	root := buildHermeticRepo(t,
+	root := buildHermeticRepo(
+		t,
 		[]string{}, // no scripts needed — gate is CI-only
 		[]string{"reducer-contention-gate.yml"},
 	)
@@ -182,7 +187,8 @@ func TestValidate_CIOnlySkipsScriptCheck(t *testing.T) {
 
 func TestValidate_AccumulatesErrors(t *testing.T) {
 	t.Parallel()
-	root := buildHermeticRepo(t,
+	root := buildHermeticRepo(
+		t,
 		[]string{}, // missing all scripts
 		[]string{}, // missing all workflows
 	)

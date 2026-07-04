@@ -232,12 +232,14 @@ func (b Builder) buildDocumentRows(
 	if err := b.Values.UpsertBatch(ctx, dedupeValueBatch(valueBatch)); err != nil {
 		return generationID, fmt.Errorf(
 			"upsert vector value batch (scope=%s generation=%s rows=%d): %w",
-			req.ScopeID, generationID, len(valueBatch), err)
+			req.ScopeID, generationID, len(valueBatch), err,
+		)
 	}
 	if err := b.Metadata.UpsertBatch(ctx, dedupeMetadataBatch(metadataBatch)); err != nil {
 		return generationID, fmt.Errorf(
 			"upsert vector metadata batch (scope=%s generation=%s rows=%d): %w",
-			req.ScopeID, generationID, len(metadataBatch), err)
+			req.ScopeID, generationID, len(metadataBatch), err,
+		)
 	}
 	result.WriteUpsertDuration += time.Since(writeStart)
 	return generationID, nil

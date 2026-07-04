@@ -207,8 +207,9 @@ func scanFactEnvelope(rows Rows) (facts.Envelope, error) {
 //
 // Envelopes are deduplicated by fact_id before batching because Postgres
 // rejects ON CONFLICT DO UPDATE when the same key appears twice in a single
-// multi-row INSERT. The last occurrence of each fact_id wins, matching the
-// overwrite semantics of the old N+1 pattern.
+// multi-row INSERT. The highest fencing token wins; ties keep the last
+// occurrence to preserve the zero/equal-token overwrite semantics of the old
+// N+1 pattern.
 func upsertFacts(ctx context.Context, db ExecQueryer, envelopes []facts.Envelope) error {
 	if db == nil {
 		return fmt.Errorf("fact store database is required")
@@ -229,54 +230,25 @@ func upsertFacts(ctx context.Context, db ExecQueryer, envelopes []facts.Envelope
 	return nil
 }
 
-// deduplicateEnvelopes removes duplicate fact_ids, keeping the last occurrence.
-// This preserves the overwrite semantics of the old N+1 INSERT pattern.
+// deduplicateEnvelopes removes duplicate fact_ids, keeping the envelope with
+// the highest fencing token. When tokens tie, the last occurrence wins to
+// preserve the overwrite semantics of the old N+1 INSERT pattern and the
+// common zero-token collector path.
 //
-// Keeping the last array position — rather than the highest FencingToken — is
-// deliberately safe against the within-batch analogue of the issue #4444
-// cross-batch fencing race, and that safety is an invariant of how fact_ids
-// and fencing tokens are produced, not a coincidence:
-//
-//   - fact_id is a deterministic hash that always folds in scope_id and
-//     generation_id. Every collector's fact-id helper takes
-//     (factKind, stableKey, scopeID, generationID) — see git factEnvelope
-//     (collector/git_followup_facts.go) and awsFactID
-//     (collector/awscloud/envelope.go). Two envelopes that share a fact_id
-//     therefore share the same (scope_id, generation_id).
-//   - FencingToken identifies a single claim epoch, not a generation. One
-//     flushed batch is produced by one owner's one commit, and every collector
-//     stamps the same token onto every envelope it emits for that commit
-//     (boundary.FencingToken := item.CurrentFencingToken, see
-//     collector/awscloud/awsruntime/source.go; the git collector leaves it at
-//     the zero default). So all envelopes in one flushed batch carry the
-//     identical FencingToken, and last-position and highest-token select the
-//     same envelope.
-//
-// Tokens for the same (scope_id, generation_id)/fact_id CAN differ, but only
-// across claim epochs: reclaiming an expired work item increments
-// current_fencing_token on the same workflow_work_items row WITHOUT changing
-// generation_id (claimNextWorkflowWorkItemQuery in workflow_control_sql.go). A
-// reclaim epoch that re-emits the same fact does so in a SEPARATE commit — a
-// different flushed batch — which is exactly the cross-batch, out-of-order
-// arrival that the upsertFactBatchSuffix guard
-// (WHERE fact_records.fencing_token <= EXCLUDED.fencing_token, issue #4444)
-// resolves. It never lands two differing tokens for one fact_id inside one
-// batch.
-//
-// The only production caller, upsertStreamingFacts, additionally rejects any
-// envelope whose generation_id differs from the batch's generation, so a batch
-// cannot even mix generations. The descending-token-within-one-batch case that
-// would make last-position wrong is therefore unconstructible today. If a
-// future collector ever assigns per-fact fencing tokens within a single commit,
-// prefer the higher token here (falling back to last position on ties to
-// preserve the common zero/equal-token case) and add a regression test.
+// Production batches normally carry one token for every envelope in a claim
+// epoch; cross-batch ordering is still guarded in SQL by
+// upsertFactBatchSuffix's fencing predicate. Comparing the token here closes
+// the remaining in-memory case before a multi-row INSERT can collapse a newer
+// duplicate out of the batch.
 func deduplicateEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
 	if len(envelopes) == 0 {
 		return envelopes
 	}
 	seen := make(map[string]int, len(envelopes))
 	for i, e := range envelopes {
-		seen[e.FactID] = i
+		if previous, ok := seen[e.FactID]; !ok || e.FencingToken >= envelopes[previous].FencingToken {
+			seen[e.FactID] = i
+		}
 	}
 	if len(seen) == len(envelopes) {
 		return envelopes // no duplicates
