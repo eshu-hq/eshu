@@ -43,24 +43,44 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
   `go/internal/facts.Envelope` or `sdk/go/collector.Fact`) here — it is
   documented follow-up work in `README.md` and design §3.1/§7, out of scope
   for this scaffold.
-- This module now carries the whole AWS/IAM/security-group fact family
-  (`aws_resource`, `aws_relationship`, `aws_security_group_rule`,
-  `ec2_instance_posture`, `s3_bucket_posture`, `aws_iam_permission`,
-  `aws_resource_policy_permission`, `aws_iam_principal`), not a single sample
-  kind. When you add a new kind, add its typed struct under `<family>/v1`
-  (its required set is whatever the struct's own json tags declare — there is
-  no separate registration step), its `Decode<Kind>`/`Encode<Kind>` and
-  `FactKind<Kind>` in the family's `decode_<family>.go`, a schemagen entry, a
-  `schema/<kind>.v1.schema.json` artifact, and a `payloadContracts` row
-  (`decode_test.go`) so the drift tests cover it.
-  `TestPayloadContractsCoverAllSchemas`, `TestDerivedKeySetsMatchGeneratedSchemas`,
-  `TestPayloadStructShapeConvention`, `TestSchemasHaveNoDrift`, and the
-  reducer-side `TestFactSchemaKindsMatchWireFactKinds` drift lock all fail
-  until the new kind is wired consistently.
+- This module carries the AWS/IAM/security-group fact family (`aws_resource`,
+  `aws_relationship`, `aws_security_group_rule`, `ec2_instance_posture`,
+  `s3_bucket_posture`, `aws_iam_permission`, `aws_resource_policy_permission`,
+  `aws_iam_principal`) and the incident family (`incident.record`,
+  `incident.lifecycle_event`, `change.record`,
+  `incident_routing.applied_pagerduty_resource`,
+  `incident_routing.applied_alert_route`,
+  `incident_routing.observed_pagerduty_service`,
+  `incident_routing.observed_pagerduty_integration`,
+  `incident_routing.coverage_warning`). When you add a new kind, add its typed
+  struct under `<family>/v1` (its required set is whatever the struct's own json
+  tags declare — there is no separate registration step), its
+  `Decode<Kind>`/`Encode<Kind>` and `FactKind<Kind>` in the family's
+  `decode_<family>.go`, a schemagen entry, a `schema/<kind>.v1.schema.json`
+  artifact, and a `payloadContracts` row (`decode_test.go`) so the drift tests
+  cover it. `TestPayloadContractsCoverAllSchemas`,
+  `TestDerivedKeySetsMatchGeneratedSchemas`, `TestPayloadStructShapeConvention`,
+  `TestSchemasHaveNoDrift`, and the reducer-side
+  `TestFactSchemaKindsMatchWireFactKinds` drift lock all fail until the new kind
+  is wired consistently.
 - Fact-kind constant VALUES are the exact wire strings the collector emits and
-  the reducer loads (`go/internal/facts.*FactKind`, underscore-separated). The
-  reducer-side drift-lock test asserts each `FactKind<Kind>` equals its
-  `facts.*FactKind` counterpart, so never invent a namespaced or dotted value.
+  the reducer loads (`go/internal/facts.*FactKind`). Most are
+  underscore-separated (`aws_resource`); the incident family is DOTTED
+  (`incident.record`). The reducer-side drift-lock test asserts each
+  `FactKind<Kind>` equals its `facts.*FactKind` counterpart. "Never invent a
+  namespaced or dotted value" means never ADD dotting a wire kind does not
+  already have — when the wire kind IS dotted, MATCH it exactly and do not
+  rename it to underscores. The schema filename is the dotted kind plus
+  `.v1.schema.json` (`incident.record.v1.schema.json`); a dot in a filename is
+  valid and needs no transform in schemagen, `payloadContracts`, or the diff
+  tooling.
+- Some incident payload fields are read only by raw-SQL-JSONB loaders in
+  `go/internal/storage/postgres` (`incident_repository_correlation_loader.go`,
+  `service_incident_evidence_loader.go`), which the #4573 payload-usage manifest
+  gate cannot see (it scans reducer decode calls only). Those fields MUST still
+  be declared in the incident schemas; the reducer-side
+  `TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared` locks that coverage so
+  a dropped field fails the build instead of silently breaking the SQL read.
 - `aws_resource` and `aws_relationship` are polymorphic envelopes: they type
   their identity + common fields and pass service/verb-specific fields through an
   untyped `Attributes map[string]any` (custom Marshal/Unmarshal, open-object

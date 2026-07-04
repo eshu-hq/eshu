@@ -23,8 +23,9 @@ package v1
 // loaders (incident_repository_correlation_loader.go and
 // service_incident_evidence_loader.go) read; those loaders are outside the
 // factschema decode seam and so outside the #4573 payload-usage manifest gate's
-// view, so declaring them here is what keeps a future dropped field a visible
-// schema-diff break instead of a silent read of a missing column.
+// view (their conversion is tracked in #4683), so declaring them here is what
+// keeps a future dropped field a visible schema-diff break instead of a silent
+// read of a missing column.
 // TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared locks that coverage.
 type AppliedPagerDutyResource struct {
 	// SourceClass is the routing source class ("applied"). Required — the base

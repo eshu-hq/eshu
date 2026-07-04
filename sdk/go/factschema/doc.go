@@ -5,10 +5,16 @@
 // contracts described in Contract System v1
 // (docs/internal/design/contract-system-v1.md, §3.1-3.2): the canonical
 // Envelope, one typed payload struct per fact kind under
-// "<family>/v<major>" (starting with aws/v1), the generated JSON Schemas
-// checked in under schema/, and a kind-keyed decode seam so a reducer
-// handler always codes against a validated, latest-version struct instead
-// of reading map[string]any payload keys by hand.
+// "<family>/v<major>" (aws/v1, iam/v1, and incident/v1 today), the generated
+// JSON Schemas checked in under schema/, and a kind-keyed decode seam so a
+// reducer handler always codes against a validated, latest-version struct
+// instead of reading map[string]any payload keys by hand.
+//
+// Fact kinds may be underscore-separated (aws_resource) or dotted
+// (incident.record); the incident family is the first with dotted wire kinds.
+// The FactKind* constants and the generated schema filenames match the wire
+// kind byte-for-byte, dots included, and no decode, schema-generation, or
+// drift-lock tooling parses the kind string for a separator.
 //
 // The module is intentionally independent from Eshu internal Go packages,
 // the same constraint github.com/eshu-hq/eshu/sdk/go/collector already

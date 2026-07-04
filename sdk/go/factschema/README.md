@@ -8,18 +8,27 @@ does not import `github.com/eshu-hq/eshu/go/internal` packages — the same
 constraint `sdk/go/collector` already satisfies. Both collector repositories
 and the core reducer depend on this module; they never depend on each other.
 
-This is a **scaffold**: it demonstrates the pattern end to end with one
-sample fact kind, `aws.resource` (schema version 1). It intentionally does
-not migrate any existing fact family. See Contract System v1 §7
-(`docs/internal/design/contract-system-v1.md`) for the family-by-family
-migration plan this scaffold is step 1 of.
+The migration is incremental, family by family (Contract System v1 §7,
+`docs/internal/design/contract-system-v1.md`). Two families are typed today:
+
+- **aws / iam / security-group** — `aws/v1` and `iam/v1` (underscore kinds).
+- **incident** — `incident/v1`: the incident-context and incident-routing kinds
+  (`incident.record`, `incident.lifecycle_event`, `change.record`,
+  `incident_routing.applied_pagerduty_resource`,
+  `incident_routing.applied_alert_route`,
+  `incident_routing.observed_pagerduty_service`,
+  `incident_routing.observed_pagerduty_integration`,
+  `incident_routing.coverage_warning`). This is the first family with **dotted**
+  wire kinds; the `FactKind*` constants and schema filenames match the dots the
+  collector already emits (for example `incident.record.v1.schema.json`).
 
 ## Compatibility
 
 - Go module path: `github.com/eshu-hq/eshu/sdk/go/factschema`
-- Sample fact kind: `aws.resource`, schema version `1.0.0`
-- JSON Schema artifact: `schema/aws_resource.v1.schema.json`, generated with
-  [`invopop/jsonschema`](https://github.com/invopop/jsonschema)
+- JSON Schema artifacts: `schema/<kind>.v1.schema.json`, generated with
+  [`invopop/jsonschema`](https://github.com/invopop/jsonschema). One artifact
+  per typed fact kind; the file name is the wire kind plus `.v1.schema.json`,
+  including the dot for a dotted kind.
 
 ## Contracts
 
@@ -27,14 +36,14 @@ migration plan this scaffold is step 1 of.
   `stable_fact_key`, `scope_id`, `generation_id`, `collector_kind`,
   `source_confidence`, `observed_at`, `is_tombstone`, `source_ref`, and the
   raw `payload` map.
-- `aws/v1.Resource` — the sample typed payload struct for fact kind
-  `aws.resource`.
-- `DecodeAWSResource(env Envelope) (awsv1.Resource, error)` — the kind-keyed
-  decode seam. Reducer handlers call this instead of reading
-  `env.Payload["some_key"]` directly.
-- `EncodeAWSResource(resource awsv1.Resource) (map[string]any, error)` — the
-  emit-side counterpart collectors use to build an `Envelope.Payload` from a
-  typed struct.
+- `aws/v1.Resource`, `iam/v1.Permission`, `incident/v1.IncidentRecord`, and
+  their siblings — the typed payload structs, one per fact kind, under each
+  family's `<family>/v1` package.
+- `Decode<Kind>(env Envelope) (<Struct>, error)` — the kind-keyed decode seam
+  (for example `DecodeAWSResource`, `DecodeIncidentRecord`). Reducer handlers
+  call this instead of reading `env.Payload["some_key"]` directly.
+- `Encode<Kind>(<Struct>) (map[string]any, error)` — the emit-side counterpart
+  collectors use to build an `Envelope.Payload` from a typed struct.
 - `DecodeError` — the classified error type `decodeAndValidate` returns for
   a malformed or incomplete payload, carrying `Classification` (currently
   always `ClassificationInputInvalid`, `"input_invalid"`) and the missing
