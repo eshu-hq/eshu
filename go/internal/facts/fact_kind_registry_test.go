@@ -111,6 +111,15 @@ func TestValidateFactKindRegistryCatchesDrift(t *testing.T) {
 			},
 			wantErr: "provider_key_independent",
 		},
+		{
+			name: "removed_in without deprecated_in",
+			mutate: func(entries []FactKindRegistryEntry) []FactKindRegistryEntry {
+				entries[0].RemovedIn = "2.0.0"
+				entries[0].DeprecatedIn = ""
+				return entries
+			},
+			wantErr: "removed_in",
+		},
 	}
 
 	for _, tc := range cases {
@@ -125,6 +134,42 @@ func TestValidateFactKindRegistryCatchesDrift(t *testing.T) {
 				t.Fatalf("ValidateFactKindRegistry() error = %q, want substring %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestValidateFactKindRegistryAcceptsPreV2EntriesWithoutOptionalFields(t *testing.T) {
+	t.Parallel()
+
+	entries := FactKindRegistry()
+	for i := range entries {
+		entries[i].PayloadSchema = ""
+		entries[i].DeprecatedIn = ""
+		entries[i].RemovedIn = ""
+	}
+	if err := ValidateFactKindRegistry(entries); err != nil {
+		t.Fatalf("ValidateFactKindRegistry() with blank v1.1 fields error = %v, want nil", err)
+	}
+}
+
+func TestValidateFactKindRegistryAcceptsPopulatedV2Fields(t *testing.T) {
+	t.Parallel()
+
+	entries := FactKindRegistry()
+	found := false
+	for i := range entries {
+		if entries[i].Kind == AWSResourceFactKind {
+			entries[i].PayloadSchema = "sdk/go/factschema/schema/aws_resource.v1.schema.json"
+			entries[i].DeprecatedIn = "1.2.0"
+			entries[i].RemovedIn = "2.0.0"
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("test fixture missing %q", AWSResourceFactKind)
+	}
+	if err := ValidateFactKindRegistry(entries); err != nil {
+		t.Fatalf("ValidateFactKindRegistry() with populated v1.1 fields error = %v, want nil", err)
 	}
 }
 

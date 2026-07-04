@@ -39,6 +39,20 @@ type FactKindRegistryEntry struct {
 	TruthProfile           FactKindTruthProfile
 	PolicyGate             string
 	ProviderKeyIndependent bool
+	// PayloadSchema is the repo-relative path to the checked-in JSON Schema
+	// artifact under sdk/go/factschema/schema/ that describes this fact
+	// kind's payload shape. Optional: a kind whose payload has not yet been
+	// migrated to a typed sdk/go/factschema struct leaves this blank. See
+	// registry v1.1 (specs/fact-kind-registry.v1.yaml) and
+	// docs/public/reference/fact-schema-versioning.md.
+	PayloadSchema string
+	// DeprecatedIn is the registry-spec semver at which this fact kind (or
+	// field, when a future per-field marker lands) was marked deprecated.
+	// Optional; blank means not deprecated.
+	DeprecatedIn string
+	// RemovedIn is the registry-spec semver at which this fact kind is
+	// planned for removal. Optional; blank means no removal is scheduled.
+	RemovedIn string
 }
 
 // FactKindRegistry returns the generated fact-kind registry in stable order.
@@ -97,6 +111,9 @@ func validateFactKindRegistryEntry(entry FactKindRegistryEntry, expected map[str
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("fact kind %q missing %s", kind, field)
 		}
+	}
+	if strings.TrimSpace(entry.RemovedIn) != "" && strings.TrimSpace(entry.DeprecatedIn) == "" {
+		return fmt.Errorf("fact kind %q has removed_in set without deprecated_in", kind)
 	}
 	switch entry.TruthProfile {
 	case FactKindTruthDeterministic:

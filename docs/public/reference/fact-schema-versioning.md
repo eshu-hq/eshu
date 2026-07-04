@@ -145,9 +145,85 @@ When changing schema compatibility, cover:
 - namespace collision rejected
 - migration or rollback path where stored facts already exist
 
+## Registry v1.1: Payload Schema References And Deprecation Markers
+
+`specs/fact-kind-registry.v1.yaml` version `1.1.0` adds three optional,
+additive fields per fact kind, generated into `FactKindRegistryEntry`
+(`go/internal/facts/fact_kind_registry.generated.go`) by
+`go/cmd/fact-kind-registry`. These fields extend the existing registry
+contract; they do not replace `schema_version` or the envelope-level
+compatibility rules above, and every field predating v1.1 remains valid
+without them.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `payload_schema` | string, optional | Repo-relative path to the checked-in JSON Schema artifact under `sdk/go/factschema/schema/` that describes this fact kind's payload shape. |
+| `deprecated_in` | string, optional | Semver marker for the registry-spec version at which this fact kind was marked deprecated. |
+| `removed_in` | string, optional | Semver marker for the registry-spec version at which this fact kind is scheduled for removal. Requires `deprecated_in` to also be set. |
+
+All three follow the same per-kind override pattern the registry already
+uses for `schema_version_overrides` and `read_surface_overrides`: a family
+sets a default (`payload_schema:`, `deprecated_in:`, `removed_in:`) and
+overrides one kind at a time (`payload_schema_overrides: {kind: value}`,
+`deprecated_in_overrides: {kind: value}`, `removed_in_overrides: {kind:
+value}`).
+
+### Declaring a payload schema reference
+
+A collector author (or the reducer engineer migrating a family to a typed
+`sdk/go/factschema` struct, per the family-by-family plan in
+[Contract System v1 §7](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/contract-system-v1.md#7-migration-plan))
+wires `payload_schema` once the fact kind has a generated JSON Schema
+artifact checked in under `sdk/go/factschema/schema/`:
+
+```yaml
+aws:
+  # ...family defaults...
+  payload_schema_overrides: {aws_resource: "sdk/go/factschema/schema/aws_resource.v1.schema.json"}
+  kinds: [aws_dns_record, aws_resource, ...]
+```
+
+The generator fails closed on a dangling reference: a `payload_schema` value
+that does not resolve to a real file under `sdk/go/factschema/schema/`
+relative to the repo root stops generation with an error naming the
+missing path. Fact kinds without a typed schema yet simply omit the field —
+this is the expected incremental state, not a gap to backfill in every
+change.
+
+### Declaring deprecation and removal
+
+A fact kind (or, in a future extension, one of its fields) is marked
+deprecated by setting `deprecated_in` to the registry-spec version where the
+deprecation takes effect:
+
+```yaml
+some_family:
+  deprecated_in_overrides: {some_family.old_kind: "1.2.0"}
+```
+
+A later removal plan adds `removed_in`:
+
+```yaml
+some_family:
+  deprecated_in_overrides: {some_family.old_kind: "1.2.0"}
+  removed_in_overrides: {some_family.old_kind: "2.0.0"}
+```
+
+`removed_in` without a `deprecated_in` on the same kind is rejected by both
+the generator and `facts.ValidateFactKindRegistry` — a kind cannot go
+straight from active to removed without a declared deprecation window.
+Deprecation markers are informational at the registry layer today: they
+give conformance tooling and the schema-diff gate (design section 6) a
+place to warn on continued use of a deprecated kind ahead of an eventual
+major-version removal. They do not themselves change runtime accept/reject
+behavior; `facts.ClassifySchemaVersion` and `facts.ValidateSchemaVersion`
+remain the enforcement point for envelope-level `schema_version`
+compatibility.
+
 ## Related
 
 - [Fact Envelope Reference](fact-envelope-reference.md)
 - [Component Package Manager](component-package-manager.md)
 - [Plugin Trust Model](plugin-trust-model.md)
 - [Collector Authoring](../guides/collector-authoring.md)
+- [Contract System v1 design](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/contract-system-v1.md)
