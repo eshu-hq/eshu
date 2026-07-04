@@ -12,24 +12,26 @@ import (
 const defaultMaxWebhookBodyBytes = int64(1 << 20)
 
 type webhookListenerConfig struct {
-	GitHubSecret        string
-	GitLabToken         string
-	BitbucketSecret     string
-	PagerDutySecret     string
-	JiraSecret          string
-	AWSFreshnessToken   string
-	GCPFreshnessToken   string
-	GitHubPath          string
-	GitLabPath          string
-	BitbucketPath       string
-	PagerDutyPath       string
-	JiraPath            string
-	AWSFreshnessPath    string
-	GCPFreshnessPath    string
-	PagerDutyScopeID    string
-	JiraScopeID         string
-	MaxRequestBodyBytes int64
-	DefaultBranch       string
+	GitHubSecret              string
+	GitLabToken               string
+	BitbucketSecret           string
+	PagerDutySecret           string
+	JiraSecret                string
+	AWSFreshnessToken         string
+	GCPFreshnessToken         string
+	GCPFreshnessOIDCAudience  string
+	GCPFreshnessOIDCAllowedSA string
+	GitHubPath                string
+	GitLabPath                string
+	BitbucketPath             string
+	PagerDutyPath             string
+	JiraPath                  string
+	AWSFreshnessPath          string
+	GCPFreshnessPath          string
+	PagerDutyScopeID          string
+	JiraScopeID               string
+	MaxRequestBodyBytes       int64
+	DefaultBranch             string
 }
 
 func loadWebhookListenerConfig(getenv func(string) string) (webhookListenerConfig, error) {
@@ -37,34 +39,41 @@ func loadWebhookListenerConfig(getenv func(string) string) (webhookListenerConfi
 		return webhookListenerConfig{}, fmt.Errorf("webhook listener getenv is required")
 	}
 	cfg := webhookListenerConfig{
-		GitHubSecret:        strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_SECRET")),
-		GitLabToken:         strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_TOKEN")),
-		BitbucketSecret:     strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_SECRET")),
-		PagerDutySecret:     strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_SECRET")),
-		JiraSecret:          strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_SECRET")),
-		AWSFreshnessToken:   strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_TOKEN")),
-		GCPFreshnessToken:   strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_TOKEN")),
-		GitHubPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_PATH")), "/webhooks/github"),
-		GitLabPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_PATH")), "/webhooks/gitlab"),
-		BitbucketPath:       firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_PATH")), "/webhooks/bitbucket"),
-		PagerDutyPath:       firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_PATH")), "/webhooks/pagerduty"),
-		JiraPath:            firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_PATH")), "/webhooks/jira"),
-		AWSFreshnessPath:    firstNonEmpty(strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_PATH")), "/webhooks/aws/eventbridge"),
-		GCPFreshnessPath:    firstNonEmpty(strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_PATH")), "/webhook/gcp-freshness"),
-		PagerDutyScopeID:    strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID")),
-		JiraScopeID:         strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_SCOPE_ID")),
-		MaxRequestBodyBytes: int64FromEnv(getenv, "ESHU_WEBHOOK_MAX_BODY_BYTES", defaultMaxWebhookBodyBytes),
-		DefaultBranch:       strings.TrimSpace(getenv("ESHU_WEBHOOK_DEFAULT_BRANCH")),
+		GitHubSecret:              strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_SECRET")),
+		GitLabToken:               strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_TOKEN")),
+		BitbucketSecret:           strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_SECRET")),
+		PagerDutySecret:           strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_SECRET")),
+		JiraSecret:                strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_SECRET")),
+		AWSFreshnessToken:         strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_TOKEN")),
+		GCPFreshnessToken:         strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_TOKEN")),
+		GCPFreshnessOIDCAudience:  strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_OIDC_AUDIENCE")),
+		GCPFreshnessOIDCAllowedSA: strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA")),
+		GitHubPath:                firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITHUB_PATH")), "/webhooks/github"),
+		GitLabPath:                firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_GITLAB_PATH")), "/webhooks/gitlab"),
+		BitbucketPath:             firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_BITBUCKET_PATH")), "/webhooks/bitbucket"),
+		PagerDutyPath:             firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_PATH")), "/webhooks/pagerduty"),
+		JiraPath:                  firstNonEmpty(strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_PATH")), "/webhooks/jira"),
+		AWSFreshnessPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_AWS_FRESHNESS_PATH")), "/webhooks/aws/eventbridge"),
+		GCPFreshnessPath:          firstNonEmpty(strings.TrimSpace(getenv("ESHU_GCP_FRESHNESS_PATH")), "/webhook/gcp-freshness"),
+		PagerDutyScopeID:          strings.TrimSpace(getenv("ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID")),
+		JiraScopeID:               strings.TrimSpace(getenv("ESHU_WEBHOOK_JIRA_SCOPE_ID")),
+		MaxRequestBodyBytes:       int64FromEnv(getenv, "ESHU_WEBHOOK_MAX_BODY_BYTES", defaultMaxWebhookBodyBytes),
+		DefaultBranch:             strings.TrimSpace(getenv("ESHU_WEBHOOK_DEFAULT_BRANCH")),
 	}
+	gcpFreshnessOIDCConfigured := cfg.GCPFreshnessOIDCAudience != "" || cfg.GCPFreshnessOIDCAllowedSA != ""
 	if cfg.GitHubSecret == "" && cfg.GitLabToken == "" && cfg.BitbucketSecret == "" &&
-		cfg.PagerDutySecret == "" && cfg.JiraSecret == "" && cfg.AWSFreshnessToken == "" && cfg.GCPFreshnessToken == "" {
-		return webhookListenerConfig{}, fmt.Errorf("at least one webhook provider secret, AWS freshness token, or GCP freshness token is required")
+		cfg.PagerDutySecret == "" && cfg.JiraSecret == "" && cfg.AWSFreshnessToken == "" &&
+		cfg.GCPFreshnessToken == "" && !gcpFreshnessOIDCConfigured {
+		return webhookListenerConfig{}, fmt.Errorf("at least one webhook provider secret, AWS freshness token, or GCP freshness token/OIDC config is required")
 	}
 	if cfg.PagerDutySecret != "" && cfg.PagerDutyScopeID == "" {
 		return webhookListenerConfig{}, fmt.Errorf("pagerduty webhook scope id is required")
 	}
 	if cfg.JiraSecret != "" && cfg.JiraScopeID == "" {
 		return webhookListenerConfig{}, fmt.Errorf("jira webhook scope id is required")
+	}
+	if gcpFreshnessOIDCConfigured && (cfg.GCPFreshnessOIDCAudience == "" || cfg.GCPFreshnessOIDCAllowedSA == "") {
+		return webhookListenerConfig{}, fmt.Errorf("GCP freshness OIDC audience and allowed service account must both be set together")
 	}
 	if cfg.MaxRequestBodyBytes <= 0 {
 		return webhookListenerConfig{}, fmt.Errorf("webhook max body bytes must be positive")

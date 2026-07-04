@@ -50,6 +50,7 @@ type webhookHandler struct {
 	IncidentFreshnessStore incidentFreshnessStore
 	AWSFreshnessStore      awsFreshnessStore
 	GCPFreshnessStore      gcpFreshnessStore
+	GCPPushOIDCValidator   gcpPushOIDCValidator
 	Clock                  func() time.Time
 	Logger                 *slog.Logger
 	Instruments            *telemetry.Instruments
@@ -94,7 +95,7 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	if handler.AWSFreshnessStore == nil && handler.Config.AWSFreshnessToken != "" {
 		return nil, fmt.Errorf("AWS freshness trigger store is required")
 	}
-	if handler.GCPFreshnessStore == nil && handler.Config.GCPFreshnessToken != "" {
+	if handler.GCPFreshnessStore == nil && gcpFreshnessConfigured(handler.Config) {
 		return nil, fmt.Errorf("GCP freshness trigger store is required")
 	}
 	mux := http.NewServeMux()
@@ -116,7 +117,7 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	if handler.Config.AWSFreshnessToken != "" {
 		mux.HandleFunc(handler.Config.AWSFreshnessPath, handler.handleAWSFreshnessEventBridge)
 	}
-	if handler.Config.GCPFreshnessToken != "" {
+	if gcpFreshnessConfigured(handler.Config) {
 		mux.HandleFunc(handler.Config.GCPFreshnessPath, handler.handleGCPFreshnessPubSubPush)
 	}
 	return mux, nil
@@ -124,6 +125,14 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 
 func repoWebhookConfigured(config webhookListenerConfig) bool {
 	return config.GitHubSecret != "" || config.GitLabToken != "" || config.BitbucketSecret != ""
+}
+
+// gcpFreshnessConfigured reports whether the GCP freshness route should be
+// mounted: either the shared token or the OIDC audience+allowlist pair is
+// configured. Both are independently sufficient accepted auth paths.
+func gcpFreshnessConfigured(config webhookListenerConfig) bool {
+	return config.GCPFreshnessToken != "" ||
+		(config.GCPFreshnessOIDCAudience != "" && config.GCPFreshnessOIDCAllowedSA != "")
 }
 
 func incidentWebhookConfigured(config webhookListenerConfig) bool {

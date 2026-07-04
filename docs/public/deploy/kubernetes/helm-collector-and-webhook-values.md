@@ -108,17 +108,30 @@ change-feed intake route (`/webhook/gcp-freshness` by default). It is
 default-off like every other provider and requires `secretName` (the shared
 push token, mounted read-only via `secretKeyRef`) once enabled.
 
-Current auth posture: the shared bearer token
-(`X-Eshu-GCP-Freshness-Token` or `Authorization: Bearer`) is the **sole**
-required auth mechanism. It is compared with a constant-time `hmac.Equal`
-check performed before the request body is read, and the route fails closed
-when no token is configured — the chart simply does not mount it. Pub/Sub
-push OIDC verification (validating the Google-signed push token's audience
-and service-account principal) is **not implemented yet**; there is no
-`oidc` values surface in this chart because a config block that renders no
-enforcement would imply protection the endpoint does not have. OIDC
-verification and its paired Helm values block are tracked together in
-issue #4659.
+Current auth posture: the route accepts two independent, fail-closed auth
+paths — either is sufficient, and enabling one never weakens the other.
+
+- **Shared bearer token** (`X-Eshu-GCP-Freshness-Token` or
+  `Authorization: Bearer`), compared with a constant-time `hmac.Equal` check
+  performed before the request body is read. Fails closed when no token is
+  configured.
+- **Pub/Sub push OIDC** (`webhookListener.gcpFreshness.oidc`): validates the
+  Google-signed push token's signature against Google's public certs (via
+  `google.golang.org/api/idtoken`), checks the `aud` claim against
+  `oidc.audience`, and checks the token's `email` claim against
+  `oidc.allowedServiceAccountEmail` with `email_verified=true`. Fails closed
+  on any missing token, signature failure, audience mismatch, unverified
+  email, or disallowed principal. Default-off (`oidc.enabled: false`); setting
+  it renders `ESHU_GCP_FRESHNESS_OIDC_AUDIENCE` and
+  `ESHU_GCP_FRESHNESS_OIDC_ALLOWED_SA` as plain env values (these are a
+  reference audience URL and a service-account email, never secret
+  material — no `secretKeyRef` is needed for them).
+
+If neither path is configured, the route is not mounted at all (no
+regression from the prior shared-token-only behavior). See
+[GCP Change Feed Operator Setup](gcp-freshness-operator-setup.md) for the
+end-to-end provisioning walkthrough, including when a push-forwarder is still
+useful versus pointing a native push subscription directly at this route.
 
 ## Render Checks
 

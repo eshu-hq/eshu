@@ -44,6 +44,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"reason",
 		"kind",
 		"action",
+		"auth_path",
 		"provider",
 		"provider_kind",
 		"provider_profile_class",

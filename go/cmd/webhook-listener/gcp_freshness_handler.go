@@ -29,6 +29,15 @@ const (
 	gcpFreshnessActionRejected  = "intake_rejected"
 	gcpFreshnessActionFailed    = "intake_failed"
 	gcpFreshnessKindUnknown     = "unknown"
+
+	// gcpFreshnessAuthPathSharedToken and gcpFreshnessAuthPathOIDC are the
+	// bounded auth_path label values recorded on every GCP freshness event.
+	// gcpFreshnessAuthPathNone marks a request that satisfied neither accepted
+	// auth path. These three values are the closed label vocabulary; never
+	// derive this label from request headers or claims directly.
+	gcpFreshnessAuthPathSharedToken = "shared_token"
+	gcpFreshnessAuthPathOIDC        = "oidc"
+	gcpFreshnessAuthPathNone        = "none"
 )
 
 func (h webhookHandler) handleGCPFreshnessPubSubPush(w http.ResponseWriter, r *http.Request) {
@@ -42,26 +51,26 @@ func (h webhookHandler) handleGCPFreshnessPubSubPush(w http.ResponseWriter, r *h
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
 		result.Reason = webhookReasonBadMethod
-		h.recordGCPFreshnessEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected)
+		h.recordGCPFreshnessAuthEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected, gcpFreshnessAuthPathNone)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// TODO(#4339): add Pub/Sub push OIDC token verification (audience +
-	// service-account allowlist) as a second accepted auth path once the
-	// dedicated security review for this endpoint lands. Until then the
-	// shared X-Eshu-GCP-Freshness-Token below is the sole required auth
-	// mechanism — there is no anonymous or partially-authenticated path, so
-	// this stays fail-closed.
-	if !validGCPFreshnessToken(r, h.Config.GCPFreshnessToken) {
+	// Two independent, fail-closed accepted auth paths: the shared token
+	// (backward-compatible; also used by the documented push-forwarder) or a
+	// verified Pub/Sub push OIDC token (#4659). Either is sufficient; neither
+	// introduces an anonymous or partially-authenticated bypass — an absent
+	// or misconfigured path simply never validates.
+	authPath, authenticated := h.authenticateGCPFreshnessPush(r)
+	if !authenticated {
 		result.Reason = gcpFreshnessReasonAuth
-		h.recordGCPFreshnessEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected)
+		h.recordGCPFreshnessAuthEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected, authPath)
 		http.Error(w, "token verification failed", http.StatusUnauthorized)
 		return
 	}
 	payload, readReason, ok := h.readPostBody(w, r)
 	if !ok {
 		result.Reason = readReason
-		h.recordGCPFreshnessEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected)
+		h.recordGCPFreshnessAuthEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected, authPath)
 		return
 	}
 
@@ -72,7 +81,7 @@ func (h webhookHandler) handleGCPFreshnessPubSubPush(w http.ResponseWriter, r *h
 		// Pub/Sub does not retry it, but never store it as a trigger.
 		result.Outcome = webhookOutcomeIgnored
 		result.Reason = gcpFreshnessReasonNone
-		h.recordGCPFreshnessEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionIgnored)
+		h.recordGCPFreshnessAuthEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionIgnored, authPath)
 		writeWebhookJSON(w, http.StatusAccepted, map[string]any{
 			"status": "ignored",
 			"reason": "welcome_message",
@@ -82,7 +91,7 @@ func (h webhookHandler) handleGCPFreshnessPubSubPush(w http.ResponseWriter, r *h
 	result.EventKind = webhookEventKindGCPFreshness(trigger.Kind)
 	if err != nil {
 		result.Reason = gcpFreshnessReasonMalformed
-		h.recordGCPFreshnessEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected)
+		h.recordGCPFreshnessAuthEvent(r.Context(), gcpFreshnessKindUnknown, gcpFreshnessActionRejected, authPath)
 		http.Error(w, "unsupported or malformed GCP freshness event", http.StatusBadRequest)
 		return
 	}
@@ -90,7 +99,7 @@ func (h webhookHandler) handleGCPFreshnessPubSubPush(w http.ResponseWriter, r *h
 	if err != nil {
 		result.Outcome = webhookOutcomeFailed
 		result.Reason = gcpFreshnessReasonStore
-		h.recordGCPFreshnessEvent(r.Context(), string(trigger.Kind), gcpFreshnessActionFailed)
+		h.recordGCPFreshnessAuthEvent(r.Context(), string(trigger.Kind), gcpFreshnessActionFailed, authPath)
 		h.logGCPFreshnessStoreError(r.Context(), trigger, err)
 		http.Error(w, "store GCP freshness trigger", http.StatusInternalServerError)
 		return
@@ -98,12 +107,37 @@ func (h webhookHandler) handleGCPFreshnessPubSubPush(w http.ResponseWriter, r *h
 	result.Outcome = webhookOutcomeStored
 	result.Reason = gcpFreshnessReasonNone
 	result.Status = webhook.TriggerStatus(stored.Status)
-	h.recordGCPFreshnessEvent(r.Context(), string(trigger.Kind), gcpFreshnessIntakeAction(stored))
+	h.recordGCPFreshnessAuthEvent(r.Context(), string(trigger.Kind), gcpFreshnessIntakeAction(stored), authPath)
 	writeWebhookJSON(w, http.StatusAccepted, map[string]any{
 		"trigger_id": stored.TriggerID,
 		"status":     stored.Status,
 		"kind":       stored.Kind,
 	})
+}
+
+// authenticateGCPFreshnessPush checks both accepted auth paths for the GCP
+// freshness push route and reports which one (if any) succeeded, for the
+// bounded auth_path telemetry label. It fails closed: if neither path
+// validates, it returns (gcpFreshnessAuthPathNone, false).
+//
+// The shared-token check runs first because it is a fast, local, constant-time
+// comparison; the OIDC check only runs (and only makes a cert-fetch network
+// call, cached after the first request) when the shared token does not match,
+// so a request configured for shared-token auth never pays the OIDC cost.
+func (h webhookHandler) authenticateGCPFreshnessPush(r *http.Request) (string, bool) {
+	if validGCPFreshnessToken(r, h.Config.GCPFreshnessToken) {
+		return gcpFreshnessAuthPathSharedToken, true
+	}
+	if verifyGCPPushOIDC(
+		r.Context(),
+		r,
+		h.GCPPushOIDCValidator,
+		h.Config.GCPFreshnessOIDCAudience,
+		h.Config.GCPFreshnessOIDCAllowedSA,
+	) {
+		return gcpFreshnessAuthPathOIDC, true
+	}
+	return gcpFreshnessAuthPathNone, false
 }
 
 // validGCPFreshnessToken reports whether the request carries the configured
@@ -140,24 +174,18 @@ func gcpFreshnessBearerToken(header string) string {
 	return strings.TrimSpace(parts[1])
 }
 
-// verifyGCPPushOIDC always returns false.
-//
-// TODO(#4339): implement real Pub/Sub push OIDC token verification (audience
-// + service-account allowlist) once the security review for default-on push
-// auth lands. Until then this path is stubbed and fails closed: every
-// request must authenticate via the shared X-Eshu-GCP-Freshness-Token
-// instead.
-func verifyGCPPushOIDC(_ *http.Request) bool {
-	return false
-}
-
-func (h webhookHandler) recordGCPFreshnessEvent(ctx context.Context, kind string, action string) {
+// recordGCPFreshnessAuthEvent records a GCP freshness intake event with the
+// bounded kind, action, and auth_path labels. auth_path is one of
+// gcpFreshnessAuthPathSharedToken, gcpFreshnessAuthPathOIDC, or
+// gcpFreshnessAuthPathNone — never a raw header, token, or claim value.
+func (h webhookHandler) recordGCPFreshnessAuthEvent(ctx context.Context, kind string, action string, authPath string) {
 	if h.Instruments == nil {
 		return
 	}
 	h.Instruments.GCPFreshnessEvents.Add(ctx, 1, metric.WithAttributes(
 		telemetry.AttrKind(fallbackValue(kind)),
 		telemetry.AttrAction(fallbackValue(action)),
+		telemetry.AttrAuthPath(fallbackValue(authPath)),
 	))
 }
 

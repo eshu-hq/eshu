@@ -353,7 +353,15 @@
             "enabled": { "type": "boolean" },
             "path": { "type": "string" },
             "secretName": { "type": "string" },
-            "tokenKey": { "type": "string" }
+            "tokenKey": { "type": "string" },
+            "oidc": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "audience": { "type": "string" },
+                "allowedServiceAccountEmail": { "type": "string" }
+              }
+            }
           }
         },
         "pagerDuty": {

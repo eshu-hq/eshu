@@ -4537,6 +4537,14 @@ func AttrAction(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionAction, v)
 }
 
+// AttrAuthPath returns an auth_path attribute for eshu_dp_gcp_freshness_events_total
+// producers. v must be one of "shared_token", "oidc", "none", or "n/a" —
+// every producer of that counter must set this attribute so all series share
+// one label set.
+func AttrAuthPath(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionAuthPath, v)
+}
+
 // AttrProvider returns a provider attribute for metric recording.
 func AttrProvider(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionProvider, v)
