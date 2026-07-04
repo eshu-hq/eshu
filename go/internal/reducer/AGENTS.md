@@ -713,6 +713,111 @@ Handler` gained an `Instruments *telemetry.Instruments` field wired from
 `DefaultHandlers.Instruments` in `defaults_additive_domains_azure.go`,
 mirroring the AWS handlers' existing field.
 
+No-Regression Evidence (Wave 4b, kubernetes_live family typed-payload decode,
+Contract System v1 #4566): the live Kubernetes workload materialization
+handler (`kubernetes_workload_materialization.go`) and the correlation index
+builder (`kubernetes_correlation_index.go`) now decode
+`kubernetes_live.pod_template`/`kubernetes_live.relationship`/
+`kubernetes_live.warning` fact payloads through the `sdk/go/factschema` seam
+(`decodeKubernetesLivePodTemplate`/`decodeKubernetesLiveRelationship`/
+`decodeKubernetesLiveWarning` in `factschema_decode_kuberneteslive.go`)
+instead of raw `payloadString`/`payloadStrings` map lookups, mirroring the
+#4568 AWS migration. `ExtractKubernetesWorkloadNodeRows` and
+`buildKubernetesCorrelationIndex` now return a `[]quarantinedFact` alongside
+their result: a pod-template fact missing its required `object_id` identity
+field is quarantined per-fact via `partitionDecodeFailures` rather than
+silently producing an empty-string `KubernetesWorkload` node uid, while every
+valid fact in the same batch still projects.
+`TestKubernetesWorkloadMaterializationQuarantinesMissingObjectID` (new
+regression test mirroring
+`TestGCPResourceMaterializationQuarantinesMissingFullResourceName`) failed
+before the conversion (the old `payloadString` lookup returned `""` for the
+absent key and the pre-typing code silently dropped the fact with no operator
+signal — `SubSignals["input_invalid_facts"]` stayed `0`), then passed after:
+the malformed fact is recorded on `input_invalid_facts` and the valid sibling
+still materializes its node. The public, table-test-covered
+`BuildKubernetesCorrelationDecisions` keeps its existing error-free signature
+(`[]facts.Envelope -> []KubernetesCorrelationDecision`) and delegates to a new
+quarantine-aware `buildKubernetesCorrelationDecisionsWithQuarantine` that
+`KubernetesCorrelationHandler.Handle` calls directly, so the reducer intent
+path reports quarantines without changing the pure classifier's signature the
+existing table tests assert against.
+
+First benchmark pass (`BenchmarkExtractKubernetesWorkloadNodeRows`,
+5,000-pod-template corpus including a populated `selector` label map, the
+realistic Deployment shape) measured a regression exceeding the
+diagnostic-rigor ~10% band: BEFORE (raw map, commit 7df868370) 7.76ms/9.34MB/
+150,025 allocs -> naive typed decode 12.34ms/12.74MB/215,026 allocs (+59%
+time, +36% allocs). Root-caused to `sdk/go/factschema/decode_map.go`'s
+`assignField`, whose `map[string]string`/`*map[string]string` fields (the
+pod-template `Selector`/`Labels`, and AWS's pre-existing `Tags
+*map[string]string`) fell through to the bounded `jsonRoundTripValue`
+marshal/unmarshal fallback on every fact — the same fallback path the AWS
+migration's own benchmark never exercised (its benchmark payload never
+populates `tags`). Proven with a throwaway microbenchmark isolating
+`jsonRoundTripValue`'s marshal/unmarshal round trip against a direct
+type-assert/coerce path on the same map shape: 15.3x speedup
+(1.42µs/op -> 92ns/op), with an explicit equivalence check (0 symmetric diff)
+proving the fast path returns identical output to the fallback for every
+value it accepts. Applied the theory as a genuine fix rather than a
+kubernetes_live-local workaround: `decode_map.go` gained a `map[string]string`
+fast path (`anyToStringMap`, reached from both the `Ptr`-to-map and plain
+`Map` cases in `assignField`) that shares the exact type-assert/coerce shape
+the existing `map[string]any` fast path already used one branch above it, so
+every family decoding through `decode_map.go` (AWS, IAM, incident, GCP,
+Azure, kubernetes_live) benefits, not only this wave's kind. Re-measured after
+the fix: 8.27ms/9.54MB/150,019 allocs (+6.6% time, +2.1% memory, -6 allocs
+versus the pre-migration baseline) — within the diagnostic-rigor band.
+Re-ran the AWS/GCP/Azure/incident family benchmarks
+(`BenchmarkExtractCloudResourceNodeRows`,
+`BenchmarkExtractAWSRelationshipEdgeRows`,
+`BenchmarkBuildCloudResourceJoinIndex`,
+`BenchmarkExtractGCPCloudResourceNodeRows`,
+`BenchmarkExtractGCPRelationshipEdgeRows`,
+`BenchmarkExtractAzureCloudResourceNodeRows`,
+`BenchmarkExtractAzureRelationshipEdgeRows`,
+`BenchmarkBuildIncidentRoutingEvidenceInputs`) after the shared `decode_map.go`
+change: all stayed within their previously documented bands (for example
+`ExtractCloudResourceNodeRows` 15.3-15.6ms before this wave -> 16.6ms after,
+`ExtractGCPCloudResourceNodeRows` 16.6ms -> 16.75ms), confirming the fast path
+is additive (new accept paths only; every other shape still falls through to
+the identical `jsonRoundTripValue` fallback) and introduces no regression for
+the families that do not exercise `map[string]string` fields on their hot
+path. Measured `go test ./internal/reducer -run '^$' -bench
+'BenchmarkExtractKubernetesWorkloadNodeRows' -benchmem -count=3` (darwin/
+arm64, Apple M1 Max; backend: in-memory extractor; input: 5,000 synthetic
+`kubernetes_live.pod_template` facts each carrying a one-entry `selector`
+label map). Result class: Correctness win with a bounded, measured handler
+cost (well within the diagnostic-rigor band after the shared decode-path
+fix), plus a reusable performance improvement for every already-migrated
+family.
+`TestAnyToStringMap_CoercesJSONBNativeShape` and
+`TestDecodeMapInto_MapStringStringFastPath` (new,
+`sdk/go/factschema/decode_map_test.go`) lock the fast path's accept/
+reject/equivalence contract: a string-valued `map[string]any` and an
+already-typed `map[string]string` both decode correctly (including the
+empty-but-present map case staying non-nil), while a map carrying a
+non-string value or a non-map input falls back to `jsonRoundTripValue` rather
+than silently coercing or dropping data.
+
+No-Observability-Change (Wave 4b, kubernetes_live family): the typed-decode
+migration and the shared `decode_map.go` fast-path addition add no route,
+graph query shape, queue table, worker, lease, runtime knob, metric
+instrument, or metric label. A malformed `kubernetes_live.*` fact surfaces
+through the EXISTING dead-letter path — the same
+`partitionDecodeFailures`/`recordQuarantinedFacts` seam every prior family
+wired — incrementing the existing `eshu_dp_reducer_input_invalid_facts_total`
+counter (labeled `domain` = `kubernetes_workload_materialization` /
+`kubernetes_correlation`, an existing label value set, not a new instrument)
+and logging the existing "reducer input_invalid fact quarantined" structured
+log line, plus the existing `Result.SubSignals["input_invalid_facts"]` field.
+`KubernetesWorkloadMaterializationHandler` and `KubernetesCorrelationHandler`
+already carried an `Instruments *telemetry.Instruments` field before this
+wave; no new wiring was needed. The `decode_map.go` fast path changes only the
+internal path taken by `assignField` for a `map[string]string`-shaped field;
+it adds no telemetry surface of its own and is invisible to every existing
+operator-facing signal.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
