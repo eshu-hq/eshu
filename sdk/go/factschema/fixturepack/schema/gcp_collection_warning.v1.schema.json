@@ -1,0 +1,37 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/gcp/v1/collection_warning.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "hidden_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retryable": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "warning_kind": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "warning_kind",
+    "outcome"
+  ],
+  "title": "Eshu gcp_collection_warning Payload (schema version 1)",
+  "type": "object"
+}

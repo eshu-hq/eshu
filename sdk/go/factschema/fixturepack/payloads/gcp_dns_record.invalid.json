@@ -1,0 +1,4 @@
+{
+  "managed_zone_full_resource_name": "//dns.googleapis.com/projects/demo-proj/managedZones/demo-zone",
+  "record_name_fingerprint": "fp:record-name:abc123"
+}

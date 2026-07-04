@@ -71,6 +71,17 @@ const (
 	// FactKindIncidentRoutingCoverageWarning is the
 	// "incident_routing.coverage_warning" fact kind.
 	FactKindIncidentRoutingCoverageWarning = "incident_routing.coverage_warning"
+	// FactKindGCPCloudResource is the "gcp_cloud_resource" fact kind.
+	FactKindGCPCloudResource = "gcp_cloud_resource"
+	// FactKindGCPCloudRelationship is the "gcp_cloud_relationship" fact kind.
+	FactKindGCPCloudRelationship = "gcp_cloud_relationship"
+	// FactKindGCPCollectionWarning is the "gcp_collection_warning" fact kind.
+	FactKindGCPCollectionWarning = "gcp_collection_warning"
+	// FactKindGCPDNSRecord is the "gcp_dns_record" fact kind.
+	FactKindGCPDNSRecord = "gcp_dns_record"
+	// FactKindGCPIAMPolicyObservation is the "gcp_iam_policy_observation"
+	// fact kind.
+	FactKindGCPIAMPolicyObservation = "gcp_iam_policy_observation"
 )
 
 // Classification values a DecodeError carries. These are this module's own

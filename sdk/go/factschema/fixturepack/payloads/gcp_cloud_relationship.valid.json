@@ -1,0 +1,8 @@
+{
+  "source_full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/demo-vm",
+  "target_full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/disks/demo-disk",
+  "relationship_type": "INSTANCE_TO_DISK",
+  "source_asset_type": "compute.googleapis.com/Instance",
+  "target_asset_type": "compute.googleapis.com/Disk",
+  "support_state": "supported"
+}

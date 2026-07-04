@@ -1,0 +1,41 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/gcp/v1/relationship.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "relationship_type": {
+      "type": "string"
+    },
+    "source_asset_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_full_resource_name": {
+      "type": "string"
+    },
+    "support_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_asset_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_full_resource_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_full_resource_name",
+    "target_full_resource_name",
+    "relationship_type"
+  ],
+  "title": "Eshu gcp_cloud_relationship Payload (schema version 1)",
+  "type": "object"
+}

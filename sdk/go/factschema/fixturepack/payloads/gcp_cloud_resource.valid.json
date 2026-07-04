@@ -1,0 +1,10 @@
+{
+  "full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/demo-vm",
+  "asset_type": "compute.googleapis.com/Instance",
+  "project_id": "demo-proj",
+  "location": "us-central1-a",
+  "display_name": "demo-vm",
+  "state": "RUNNING",
+  "asset_type_family": "compute",
+  "correlation_anchors": ["demo-vm"]
+}

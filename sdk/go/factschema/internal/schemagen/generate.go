@@ -10,6 +10,7 @@ import (
 	"github.com/invopop/jsonschema"
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
@@ -317,4 +318,55 @@ const IncidentRoutingCoverageWarningSchemaID = schemaBaseID + "incident/v1/cover
 // incidentv1.CoverageWarning.
 func IncidentRoutingCoverageWarningSchema() ([]byte, error) {
 	return reflectSchema(IncidentRoutingCoverageWarningSchemaID, "Eshu incident_routing.coverage_warning Payload (schema version 1)", &incidentv1.CoverageWarning{})
+}
+
+// GCPCloudResourceSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1.1.0 "gcp_cloud_resource" payload.
+const GCPCloudResourceSchemaID = schemaBaseID + "gcp/v1/resource.schema.json"
+
+// GCPCloudResourceSchema returns the JSON Schema bytes for gcpv1.Resource.
+// The title names schema version 1.1.0 (facts.GCPCloudResourceSchemaVersion)
+// because this kind is one minor ahead of the rest of the gcp family; the
+// decode seam still dispatches on the schema-version major only.
+func GCPCloudResourceSchema() ([]byte, error) {
+	return reflectSchema(GCPCloudResourceSchemaID, "Eshu gcp_cloud_resource Payload (schema version 1.1.0)", &gcpv1.Resource{})
+}
+
+// GCPCloudRelationshipSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "gcp_cloud_relationship" payload.
+const GCPCloudRelationshipSchemaID = schemaBaseID + "gcp/v1/relationship.schema.json"
+
+// GCPCloudRelationshipSchema returns the JSON Schema bytes for
+// gcpv1.Relationship.
+func GCPCloudRelationshipSchema() ([]byte, error) {
+	return reflectSchema(GCPCloudRelationshipSchemaID, "Eshu gcp_cloud_relationship Payload (schema version 1)", &gcpv1.Relationship{})
+}
+
+// GCPCollectionWarningSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "gcp_collection_warning" payload.
+const GCPCollectionWarningSchemaID = schemaBaseID + "gcp/v1/collection_warning.schema.json"
+
+// GCPCollectionWarningSchema returns the JSON Schema bytes for
+// gcpv1.CollectionWarning.
+func GCPCollectionWarningSchema() ([]byte, error) {
+	return reflectSchema(GCPCollectionWarningSchemaID, "Eshu gcp_collection_warning Payload (schema version 1)", &gcpv1.CollectionWarning{})
+}
+
+// GCPDNSRecordSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "gcp_dns_record" payload.
+const GCPDNSRecordSchemaID = schemaBaseID + "gcp/v1/dns_record.schema.json"
+
+// GCPDNSRecordSchema returns the JSON Schema bytes for gcpv1.DNSRecord.
+func GCPDNSRecordSchema() ([]byte, error) {
+	return reflectSchema(GCPDNSRecordSchemaID, "Eshu gcp_dns_record Payload (schema version 1)", &gcpv1.DNSRecord{})
+}
+
+// GCPIAMPolicyObservationSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "gcp_iam_policy_observation" payload.
+const GCPIAMPolicyObservationSchemaID = schemaBaseID + "gcp/v1/iam_policy_observation.schema.json"
+
+// GCPIAMPolicyObservationSchema returns the JSON Schema bytes for
+// gcpv1.IAMPolicyObservation.
+func GCPIAMPolicyObservationSchema() ([]byte, error) {
+	return reflectSchema(GCPIAMPolicyObservationSchemaID, "Eshu gcp_iam_policy_observation Payload (schema version 1)", &gcpv1.IAMPolicyObservation{})
 }

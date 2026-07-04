@@ -1,0 +1,7 @@
+{
+  "warning_kind": "permission_hidden",
+  "outcome": "partial",
+  "reason": "insufficient IAM permission to list resources in scope",
+  "retryable": false,
+  "hidden_count": 3
+}

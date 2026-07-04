@@ -15,6 +15,7 @@ import (
 	"time"
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
@@ -285,6 +286,11 @@ var payloadContracts = []struct {
 	{FactKindIncidentRoutingObservedPagerDutyService, "incident_routing.observed_pagerduty_service.v1.schema.json", reflect.TypeOf(incidentv1.ObservedPagerDutyService{})},
 	{FactKindIncidentRoutingObservedPagerDutyIntegration, "incident_routing.observed_pagerduty_integration.v1.schema.json", reflect.TypeOf(incidentv1.ObservedPagerDutyIntegration{})},
 	{FactKindIncidentRoutingCoverageWarning, "incident_routing.coverage_warning.v1.schema.json", reflect.TypeOf(incidentv1.CoverageWarning{})},
+	{FactKindGCPCloudResource, "gcp_cloud_resource.v1.schema.json", reflect.TypeOf(gcpv1.Resource{})},
+	{FactKindGCPCloudRelationship, "gcp_cloud_relationship.v1.schema.json", reflect.TypeOf(gcpv1.Relationship{})},
+	{FactKindGCPCollectionWarning, "gcp_collection_warning.v1.schema.json", reflect.TypeOf(gcpv1.CollectionWarning{})},
+	{FactKindGCPDNSRecord, "gcp_dns_record.v1.schema.json", reflect.TypeOf(gcpv1.DNSRecord{})},
+	{FactKindGCPIAMPolicyObservation, "gcp_iam_policy_observation.v1.schema.json", reflect.TypeOf(gcpv1.IAMPolicyObservation{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry
@@ -384,11 +390,32 @@ func TestDerivedKeySetsMatchGeneratedSchemas(t *testing.T) {
 // exist to preserve. Slice and map fields are exempt from that second ban: a
 // nil slice/map already round-trips through omitempty exactly like a nil
 // pointer (encoding/json omits a nil or empty slice/map with omitempty and a
-// json.Unmarshal of an absent key leaves it nil), so `[]string
-// `json:"x,omitempty"`` is not ambiguous the way a bare `string
-// `json:"x,omitempty"`` would be. Banning the pointer and scalar shapes means
+// json.Unmarshal of an absent key leaves it nil), so a []string field tagged
+// `json:"x,omitempty"` is not ambiguous the way a bare string field tagged
+// `json:"x,omitempty"` would be. Banning the pointer and scalar shapes means
 // the schema generator's "no omitempty ⇒ required" rule and the intuition
 // "pointer/slice/map ⇒ optional" can never disagree.
+// requiredCollectionKey identifies one intentionally-required slice/map field
+// by its fact kind and json key name.
+type requiredCollectionKey struct {
+	factKind string
+	jsonName string
+}
+
+// intentionalRequiredCollections is the explicit allow-list of slice/map fields
+// that are REQUIRED (no omitempty) on purpose. A required collection is correct
+// only when the emitter unconditionally writes the key, so each entry documents
+// which emitter invariant justifies it. Everything else must stay optional
+// (omitempty) so a nil/absent collection never dead-letters a valid fact.
+var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
+	// gcp_iam_policy_observation.members: gcpcloud.NewIAMPolicyObservationEnvelope
+	// (iam_policy_observation.go:84-86) rejects an observation with zero
+	// fingerprinted members before the envelope is built, so members is the
+	// binding's unconditional principal evidence — an absent members key must
+	// dead-letter, not decode to a struct with no principal.
+	{FactKindGCPIAMPolicyObservation, "members"}: {},
+}
+
 func TestPayloadStructShapeConvention(t *testing.T) {
 	t.Parallel()
 
@@ -423,11 +450,19 @@ func TestPayloadStructShapeConvention(t *testing.T) {
 					// Nil is both the zero value and the absent-key decode
 					// result for a slice/map, so omitempty does not collapse
 					// a distinction the way it would for a scalar; either
-					// tagging is unambiguous, but every current slice/map
-					// field carries omitempty by convention (see aws/v1,
-					// iam/v1), so only the missing-omitempty case is a bug.
-					if !omitEmpty {
-						t.Fatalf("field %q is a required slice/map (no omitempty); either field name it as required intentionally or add omitempty", field.Name)
+					// tagging is unambiguous. Most slice/map fields carry
+					// omitempty by convention (see aws/v1, iam/v1) and are
+					// therefore optional. A slice/map WITHOUT omitempty is a
+					// required collection: the schema lists it in "required" and
+					// the decode seam dead-letters an absent or null key. That is
+					// only correct when the emitter unconditionally writes the
+					// key, so it must be opted in explicitly via
+					// intentionalRequiredCollections; a required collection not on
+					// that list is a bug (a field that would dead-letter a valid
+					// fact the emitter can produce without it).
+					_, allowed := intentionalRequiredCollections[requiredCollectionKey{contract.factKind, name}]
+					if !omitEmpty && !allowed {
+						t.Fatalf("field %q is a required slice/map (no omitempty) but is not in intentionalRequiredCollections; add it there with a justification or add omitempty", field.Name)
 					}
 				default:
 					if omitEmpty {

@@ -35,6 +35,11 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "aws_iam_permission.v1.schema.json", generate: schemagen.AWSIAMPermissionSchema},
 		{file: "aws_resource_policy_permission.v1.schema.json", generate: schemagen.AWSResourcePolicyPermissionSchema},
 		{file: "aws_iam_principal.v1.schema.json", generate: schemagen.AWSIAMPrincipalSchema},
+		{file: "gcp_cloud_resource.v1.schema.json", generate: schemagen.GCPCloudResourceSchema},
+		{file: "gcp_cloud_relationship.v1.schema.json", generate: schemagen.GCPCloudRelationshipSchema},
+		{file: "gcp_collection_warning.v1.schema.json", generate: schemagen.GCPCollectionWarningSchema},
+		{file: "gcp_dns_record.v1.schema.json", generate: schemagen.GCPDNSRecordSchema},
+		{file: "gcp_iam_policy_observation.v1.schema.json", generate: schemagen.GCPIAMPolicyObservationSchema},
 	}
 
 	for _, tc := range cases {
@@ -84,6 +89,11 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"aws_iam_permission.v1.schema.json",
 		"aws_resource_policy_permission.v1.schema.json",
 		"aws_iam_principal.v1.schema.json",
+		"gcp_cloud_resource.v1.schema.json",
+		"gcp_cloud_relationship.v1.schema.json",
+		"gcp_collection_warning.v1.schema.json",
+		"gcp_dns_record.v1.schema.json",
+		"gcp_iam_policy_observation.v1.schema.json",
 	}
 
 	for _, file := range files {

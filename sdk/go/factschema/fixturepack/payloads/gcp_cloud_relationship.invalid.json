@@ -1,0 +1,4 @@
+{
+  "target_full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/disks/demo-disk",
+  "relationship_type": "INSTANCE_TO_DISK"
+}
