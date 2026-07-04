@@ -53,19 +53,21 @@ class. `DeriveRequirements` reads the source registries:
 | `cost` | every projection | distinct `reducer_domain` (fact-kind registry) |
 | `ordering` | every shared-conflict-key projection | `reducer_domain` written by ≥2 projection hooks |
 | `delta_tombstone` | every retractable graph node type | `cypher.RetractableNodeEntityLabels()` |
+| `delta_tombstone` | every static retractable graph edge type | `cypher.RetractableEdgeTypes()` |
 | `crash` | the reducer drain | the drain singleton |
 
-The retractable node types and the reducer drain are declared in
+The retractable node types, static retractable edge types, and reducer drain are declared in
 `specs/replay-depth-requirements.v1.yaml` (`LoadDepthRequirements`);
 `EnumerateDepthSurfaces` turns them plus the fact-kind projections into
-`retractable_node:*`, `projection:*`, and `reducer_drain:*` surfaces, and the
-derived requirements are unioned with the manifest's explicit
-`scenario_requirements`. A lockstep test keeps `retractable_node_types`
-byte-equal to the cypher retract registry, so adding a retractable label makes
-the gate **demand** a delta scenario instead of the gap going unseen. Retractable
-graph *edge* types are a tracked follow-up (no single machine-readable set
-exists today). The missing surface/scenario_type pairs the gate lists are the
-C-14 ([#4367](https://github.com/eshu-hq/eshu/issues/4367)) backfill worklist.
+`retractable_node:*`, `retractable_edge:*`, `projection:*`, and
+`reducer_drain:*` surfaces, and the derived requirements are unioned with the
+manifest's explicit `scenario_requirements`. Lockstep tests keep
+`retractable_node_types` byte-equal to the cypher retract label registry and
+`retractable_edge_types` byte-equal to the static cypher edge-retract registry,
+so adding a retractable label or edge type makes the gate **demand** a delta
+scenario instead of the gap going unseen. The missing surface/scenario_type pairs
+the gate lists are the C-14 ([#4367](https://github.com/eshu-hq/eshu/issues/4367))
+backfill worklist.
 
 ## Why a manifest (and not just the registries)
 

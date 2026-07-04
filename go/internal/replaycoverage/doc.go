@@ -48,14 +48,16 @@
 //     registry),
 //   - ordering for every shared-conflict-key projection (a reducer_domain written
 //     by two or more distinct projection hooks),
-//   - delta_tombstone for every retractable graph node type, and
+//   - delta_tombstone for every retractable graph node and static edge type, and
 //   - crash for the reducer drain.
 //
-// The retractable node types and the reducer drain are declared in
-// specs/replay-depth-requirements.v1.yaml (LoadDepthRequirements); a lockstep
-// test keeps the node-type list byte-equal to cypher.RetractableNodeEntityLabels()
-// so a new retractable label makes the gate demand a delta scenario instead of
-// the gap going unseen. EnumerateDepthSurfaces enumerates the retractable_node,
+// The retractable node types, static retractable edge types, and reducer drain
+// are declared in specs/replay-depth-requirements.v1.yaml (LoadDepthRequirements);
+// lockstep tests keep the node-type list byte-equal to
+// cypher.RetractableNodeEntityLabels() and the edge-type list byte-equal to
+// cypher.RetractableEdgeTypes(), so a new retractable label or edge type makes
+// the gate demand a delta scenario instead of the gap going unseen.
+// EnumerateDepthSurfaces enumerates the retractable_node, retractable_edge,
 // projection, and reducer_drain surfaces; the derived requirements are unioned
 // with the manifest's explicit scenario_requirements before reconciliation.
 //

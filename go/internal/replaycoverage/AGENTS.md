@@ -37,12 +37,13 @@ those skills own.
 - **Depth requirements are derived and lockstep, not hand-listed.**
   `DeriveRequirements` derives the depth class per applicable surface — fault per
   collector, cost per projection, ordering per shared-conflict-key projection
-  (≥2 projection hooks), delta per retractable node type, crash for the drain.
-  The retractable node types live in `specs/replay-depth-requirements.v1.yaml`
-  and MUST stay byte-equal to `cypher.RetractableNodeEntityLabels()` (a lockstep
-  test enforces it). Never hand-maintain a parallel denominator that can silently
-  drift from the code that does the retraction — that reintroduces the #4186
-  blindness one layer up.
+  (≥2 projection hooks), delta per retractable node type and static retractable
+  edge type, crash for the drain. The retractable node and edge types live in
+  `specs/replay-depth-requirements.v1.yaml` and MUST stay byte-equal to
+  `cypher.RetractableNodeEntityLabels()` and `cypher.RetractableEdgeTypes()`
+  (lockstep tests enforce both). Never hand-maintain a parallel denominator that
+  can silently drift from the code that does the retraction — that reintroduces
+  the #4186 blindness one layer up.
 - **The language-parser scoreboard does not gate.** `BuildLanguageScoreboard`
   (C-11, #4364) is a visibility-only artifact over the
   `language-feature-parity-ledger`; it is deliberately kept out of

@@ -64,9 +64,10 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 	supported := EnumerateSupported(in.Inventory, in.FactKinds, in.Ledger, in.Matrix, in.ProductClaims, in.CLIShapes, in.Authorization)
 	manifest := in.Manifest
 	depthExempt := map[string]string{}
-	// C-13: derive depth (scenario_type) requirements per applicable surface. Gated
-	// on a non-empty depth spec so pre-C-13 callers keep breadth-only semantics.
-	if len(in.DepthRequirements.RetractableNodeTypes) > 0 {
+	// C-13/#4370: derive depth (scenario_type) requirements per applicable
+	// surface. Gated on a non-empty depth spec so pre-C-13 callers keep
+	// breadth-only semantics.
+	if len(in.DepthRequirements.RetractableNodeTypes) > 0 || len(in.DepthRequirements.RetractableEdgeTypes) > 0 {
 		supported = append(supported, EnumerateDepthSurfaces(in.DepthRequirements, in.FactKinds)...)
 		sortSupportedSurfaces(supported)
 		manifest.Requirements = unionRequirements(manifest.Requirements, DeriveRequirements(supported, in.DepthRequirements, in.FactKinds))

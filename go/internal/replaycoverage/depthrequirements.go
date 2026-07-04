@@ -14,10 +14,10 @@ import (
 )
 
 // DepthRequirementsFileName is the depth-requirement taxonomy spec inside the
-// specs directory. It declares the applicability classes that have no
-// machine-readable registry of their own (retractable graph node types and the
-// reducer drain); the projection/shared-projection/collector classes are derived
-// in code from the already-loaded registries.
+// specs directory. It declares the applicability classes mirrored from graph
+// retraction registries (retractable graph node and edge types) plus the reducer
+// drain; the projection/shared-projection/collector classes are derived in code
+// from the already-loaded registries.
 const DepthRequirementsFileName = "replay-depth-requirements.v1.yaml"
 
 // Depth-applicability registries. These enumerate the surfaces that C-13 (#4366)
@@ -25,6 +25,8 @@ const DepthRequirementsFileName = "replay-depth-requirements.v1.yaml"
 const (
 	// RegistryRetractableType is a retractable graph node type (delta_tombstone).
 	RegistryRetractableType Registry = "retractable_type"
+	// RegistryRetractableEdgeType is a retractable graph edge type (delta_tombstone).
+	RegistryRetractableEdgeType Registry = "retractable_edge_type"
 	// RegistryProjection is a reducer projection = a distinct reducer_domain
 	// (cost, plus ordering when the projection is shared-conflict-key).
 	RegistryProjection Registry = "projection"
@@ -40,6 +42,11 @@ type DepthRequirements struct {
 	// can tombstone; each requires a delta_tombstone scenario. Kept byte-equal to
 	// cypher.RetractableNodeEntityLabels() by a lockstep test.
 	RetractableNodeTypes []string
+	// RetractableEdgeTypes are the graph relationship types the static canonical
+	// and reducer edge retract paths can remove; each requires a delta_tombstone
+	// scenario.
+	// Kept byte-equal to cypher.RetractableEdgeTypes() by a lockstep test.
+	RetractableEdgeTypes []string
 	// ReducerDrain is the single reducer projection drain surface; it requires a
 	// crash scenario.
 	ReducerDrain ReducerDrainSurface
@@ -70,6 +77,7 @@ type DepthExemption struct {
 type depthRequirementsFile struct {
 	Version              string               `yaml:"version"`
 	RetractableNodeTypes []string             `yaml:"retractable_node_types"`
+	RetractableEdgeTypes []string             `yaml:"retractable_edge_types"`
 	ReducerDrain         depthDrainFile       `yaml:"reducer_drain"`
 	Exemptions           []depthExemptionFile `yaml:"exemptions"`
 }
@@ -89,8 +97,8 @@ type depthExemptionFile struct {
 // missing file is an error: unlike the coverage manifest, an absent depth spec
 // would silently drop every depth requirement (the exact #4186 blindness this
 // gate exists to remove), so the gate must fail loudly instead. The loader
-// rejects a blank/duplicate node type, a blank drain surface, and an exemption
-// with a blank surface, an invalid scenario_type, or a blank reason.
+// rejects a blank/duplicate node or edge type, a blank drain surface, and an
+// exemption with a blank surface, an invalid scenario_type, or a blank reason.
 func LoadDepthRequirements(path string) (DepthRequirements, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured depth spec under specs/, not external input
 	if err != nil {
@@ -116,6 +124,22 @@ func LoadDepthRequirements(path string) (DepthRequirements, error) {
 	}
 	if len(dr.RetractableNodeTypes) == 0 {
 		return DepthRequirements{}, fmt.Errorf("depth requirements %s: no retractable_node_types declared", path)
+	}
+
+	seen = map[string]struct{}{}
+	for _, rawType := range parsed.RetractableEdgeTypes {
+		edgeType := strings.TrimSpace(rawType)
+		if edgeType == "" {
+			return DepthRequirements{}, fmt.Errorf("depth requirements %s: blank retractable_edge_types entry", path)
+		}
+		if _, dup := seen[edgeType]; dup {
+			return DepthRequirements{}, fmt.Errorf("depth requirements %s: retractable edge type %q declared twice", path, edgeType)
+		}
+		seen[edgeType] = struct{}{}
+		dr.RetractableEdgeTypes = append(dr.RetractableEdgeTypes, edgeType)
+	}
+	if len(dr.RetractableEdgeTypes) == 0 {
+		return DepthRequirements{}, fmt.Errorf("depth requirements %s: no retractable_edge_types declared", path)
 	}
 
 	drainSurface := strings.TrimSpace(parsed.ReducerDrain.Surface)
@@ -145,6 +169,9 @@ func LoadDepthRequirements(path string) (DepthRequirements, error) {
 // retractableNodeSurfaceKey is the coverage key for a retractable graph node type.
 func retractableNodeSurfaceKey(label string) string { return "retractable_node:" + label }
 
+// retractableEdgeSurfaceKey is the coverage key for a retractable graph edge type.
+func retractableEdgeSurfaceKey(edgeType string) string { return "retractable_edge:" + edgeType }
+
 // projectionSurfaceKey is the coverage key for a reducer projection.
 func projectionSurfaceKey(domain string) string { return "projection:" + domain }
 
@@ -153,7 +180,8 @@ func reducerDrainSurfaceKey(surface string) string { return "reducer_drain:" + s
 
 // EnumerateDepthSurfaces returns the depth-only surfaces C-13 requires a depth
 // scenario_type for: a retractable_node surface per retractable graph node type,
-// a projection surface per distinct reducer_domain, and the single reducer_drain
+// a retractable_edge surface per retractable graph relationship type, a
+// projection surface per distinct reducer_domain, and the single reducer_drain
 // surface. Collector-boundary fault applies to the existing collector surfaces
 // and is added in DeriveRequirements, not here. The result is sorted by registry
 // then key so report output stays byte-stable.
@@ -164,6 +192,13 @@ func EnumerateDepthSurfaces(dr DepthRequirements, factKinds []facts.FactKindRegi
 			Registry: RegistryRetractableType,
 			Key:      retractableNodeSurfaceKey(label),
 			Detail:   fmt.Sprintf("retractable graph node type %q", label),
+		})
+	}
+	for _, edgeType := range dr.RetractableEdgeTypes {
+		out = append(out, SupportedSurface{
+			Registry: RegistryRetractableEdgeType,
+			Key:      retractableEdgeSurfaceKey(edgeType),
+			Detail:   fmt.Sprintf("retractable graph edge type %q", edgeType),
 		})
 	}
 	for _, domain := range projectionDomains(factKinds) {
@@ -201,6 +236,7 @@ func reducerDrainDetail(dr DepthRequirements) string {
 //
 //   - collector:<name>        -> baseline + fault (every collector boundary),
 //   - retractable_node:<L>    -> delta_tombstone (every retractable node type),
+//   - retractable_edge:<T>    -> delta_tombstone (every retractable edge type),
 //   - projection:<domain>     -> cost, plus ordering when the projection is
 //     shared-conflict-key (written by >=2 distinct projection hooks),
 //   - reducer_drain:<surface> -> crash (the reducer drain path).
@@ -216,6 +252,8 @@ func DeriveRequirements(supported []SupportedSurface, dr DepthRequirements, fact
 		case s.Registry == RegistrySurfaceInventory && strings.HasPrefix(s.Key, "collector:"):
 			reqs = append(reqs, ScenarioRequirement{Surface: s.Key, ScenarioTypes: []DepthScenarioType{ScenarioTypeBaseline, ScenarioTypeFault}})
 		case s.Registry == RegistryRetractableType:
+			reqs = append(reqs, ScenarioRequirement{Surface: s.Key, ScenarioTypes: []DepthScenarioType{ScenarioTypeDeltaTombstone}})
+		case s.Registry == RegistryRetractableEdgeType:
 			reqs = append(reqs, ScenarioRequirement{Surface: s.Key, ScenarioTypes: []DepthScenarioType{ScenarioTypeDeltaTombstone}})
 		case s.Registry == RegistryProjection:
 			types := []DepthScenarioType{ScenarioTypeCost}
