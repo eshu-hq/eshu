@@ -1,0 +1,50 @@
+{
+  "readTime": "2026-06-25T00:00:00Z",
+  "assets": [
+    {
+      "name": "//orgpolicy.googleapis.com/organizations/987654321/policies/compute.requireOsLogin",
+      "assetType": "orgpolicy.googleapis.com/Policy",
+      "updateTime": "2026-06-24T12:00:00Z",
+      "ancestors": ["organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "organizations/987654321/policies/compute.requireOsLogin",
+          "spec": {
+            "etag": "BwXhwFakeEtag=",
+            "updateTime": "2026-01-15T10:00:00Z",
+            "inheritFromParent": false,
+            "reset": false,
+            "rules": [
+              {"enforce": true}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "//orgpolicy.googleapis.com/projects/123456789/policies/gcp.resourceLocations",
+      "assetType": "orgpolicy.googleapis.com/Policy",
+      "updateTime": "2026-06-24T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/987654321"],
+      "resource": {
+        "data": {
+          "name": "projects/123456789/policies/gcp.resourceLocations",
+          "spec": {
+            "etag": "BwXhwOtherEtag=",
+            "updateTime": "2026-02-20T08:30:00Z",
+            "inheritFromParent": true,
+            "rules": [
+              {"values": {"allowedValues": ["in:us-locations", "in:eu-locations"]}},
+              {"condition": {"expression": "resource.matchTag('123456789/env', 'prod')"}}
+            ]
+          },
+          "dryRunSpec": {
+            "rules": [
+              {"values": {"deniedValues": ["in:asia-locations"]}}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

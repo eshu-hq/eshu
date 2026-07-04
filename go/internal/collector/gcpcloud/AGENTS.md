@@ -440,6 +440,32 @@
    type from the CryptoKey side, mirroring the Custom IAM Role and SSL
    Certificate extractors' inbound-only edge shape; never reads key material,
    IAM policy, or any data-plane content.
+49. `extractor_org_policy.go` - typed-depth extractor for
+   `orgpolicy.googleapis.com/Policy` (Organization Policy / constraint binding:
+   constraint name, spec rule-shape summary — total rule count plus per-kind
+   counts for allow-values/deny-values/allow-all/deny-all/condition-present
+   rules and a count of rules that enforce — spec `inheritFromParent` and
+   `reset` booleans, a fingerprinted spec etag, spec `updateTime`, and
+   dry-run-spec presence with its own bounded rule count). The constraint name
+   and the bound organization/folder/project target are both derived from the
+   Policy's own CAI full resource name
+   (`//orgpolicy.googleapis.com/{organizations|folders|projects}/<id>/policies/<constraint>`
+   per the Cloud Asset Inventory resource-name-format reference), never from
+   `resource.data.name` — untrusted parser input; the derivation fails closed
+   unless the name carries the exact `//orgpolicy.googleapis.com/` prefix and a
+   `<kind>/<id>/policies/<constraint>` shape, so a relative or wrong-service
+   name mints no edge. Emits a single `org_policy_applies_to_resource` edge to
+   the resolved `cloudresourcemanager.googleapis.com/Organization` /
+   `.../Folder` / `.../Project` node, reusing
+   `assetTypeCloudResourceManagerProject` from
+   `extractor_firebase_project.go` (never redeclaring it) and declaring the
+   sibling Organization/Folder asset-type constants here. The rule union's
+   allowed/denied VALUE lists, the condition expression text, and any
+   custom-constraint `parameters` (a `google.protobuf.Struct` that can carry
+   organization-specific identifiers) are decoded only to compute bounded
+   counts and are never persisted or surfaced to any fact — only bounded counts
+   and booleans leave this extractor, mirroring the Custom IAM Role extractor's
+   treatment of its permission list.
 
 ## Invariants
 
