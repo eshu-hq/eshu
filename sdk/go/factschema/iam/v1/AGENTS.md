@@ -19,12 +19,16 @@ independent from Eshu internals.
 
 ## Contract Rules
 
-- Required payload fields are non-pointer, no-`omitempty` struct fields;
-  optional fields are pointers, or slices carrying `omitempty`. Both the
-  schema generator (`../../internal/schemagen`) and the decode seam's
-  required-field check (`../../decode.go`) derive from this shape — keep all
-  three in agreement (`TestRequiredFieldsMatchStructShape` and the
-  `schema_gen_test.go` drift tests enforce it).
+- A field is required exactly when its json tag carries no `omitempty`; by the
+  flat-struct convention required fields are also non-pointer, and optional
+  fields are pointers or slices, carrying `omitempty`. Both the schema
+  generator (`../../internal/schemagen`) and the decode seam's required-field
+  check (`../../decode.go`) derive that set reflectively from the struct's own
+  tags via `../../fields.go`, so there is no hand-maintained key list to keep
+  in sync. `TestDerivedKeySetsMatchGeneratedSchemas` locks the two derivations
+  to the generated schema, `TestPayloadStructShapeConvention` enforces the
+  flat-struct convention, and `TestSchemasHaveNoDrift` keeps every checked-in
+  schema in lockstep with its struct.
 - `ClassificationInputInvalid` is the parent `factschema` package's own
   constant (`decode.go`). A reducer handler receiving it must dead-letter the
   fact rather than proceed with a zero-value struct.

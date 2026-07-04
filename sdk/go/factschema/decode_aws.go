@@ -7,18 +7,6 @@ import (
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
-// init registers the required payload keys for every AWS-family fact kind this
-// file decodes. Each kind's required set is its collector emitter's non-empty
-// identity contract; either-or identity fields (ec2 instance_id|arn,
-// s3 bucket_arn|bucket_name) are optional and therefore absent here.
-func init() {
-	registerRequiredFields(FactKindAWSResource, "account_id", "resource_id", "region", "resource_type")
-	registerRequiredFields(FactKindAWSRelationship, "account_id", "region", "relationship_type", "source_resource_id", "target_resource_id")
-	registerRequiredFields(FactKindAWSSecurityGroupRule, "account_id", "region", "group_id", "direction", "ip_protocol", "source_kind", "source_value")
-	registerRequiredFields(FactKindEC2InstancePosture, "account_id", "region")
-	registerRequiredFields(FactKindS3BucketPosture, "account_id", "region")
-}
-
 // DecodeAWSResource decodes env.Payload into the latest awsv1.Resource struct
 // for the "aws_resource" fact kind, dispatching on env.SchemaVersion major per
 // Contract System v1 §3.2. Callers (reducer handlers) receive either the decoded

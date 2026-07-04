@@ -102,9 +102,12 @@ cd sdk/go/factschema
 go generate ./...
 ```
 
-`schema_gen_test.go` fails the build on drift, and
-`TestRequiredFieldsMatchStructShape` fails if `decode.go`'s `requiredFields`
-map no longer matches a struct's shape.
+`schema_gen_test.go`'s `TestSchemasHaveNoDrift` fails the build on drift. The
+decode seam derives its required-field set reflectively from each struct's
+tags (`../../fields.go`), so there is no separate map to update;
+`TestDerivedKeySetsMatchGeneratedSchemas` fails if that reflective set ever
+diverges from the generated schema, and `TestPayloadStructShapeConvention`
+rejects a field shape that would make "required" ambiguous.
 
 ## Telemetry
 

@@ -120,58 +120,27 @@ func major(schemaVersion string) string {
 	return schemaVersion[:idx]
 }
 
-// requiredFields lists, per fact kind, the JSON payload keys that
-// decodeAndValidate treats as required — the same set the schema generator
-// derives from each struct's pointer/omitempty shape (see aws/v1, iam/v1, and
-// internal/schemagen). Keeping this list beside decodeAndValidate rather than
-// deriving it via reflection keeps the missing-field check independent of any
-// future encoding/json behavior change.
+// decodeAndValidate unmarshals payload into a new T, first checking that every
+// required JSON key T declares is present in payload with a non-null value. The
+// required set is derived reflectively from T's own struct tags by
+// requiredPayloadKeys (fields.go) — the single source of truth, shared with the
+// schema generator's rule so the decode validator and the generated JSON Schema
+// cannot disagree about which fields are required. There is no per-kind map to
+// keep in sync: a new fact kind's required set is exactly what its struct
+// declares.
 //
-// The map is populated per family, not as one central literal: each
-// decode_<family>.go registers its own kinds through registerRequiredFields in
-// an init function. This keeps a new fact kind's registration local to its
-// family file, so the parallel family wave that copies this template adds kinds
-// without editing a shared central map (no merge conflicts on one hot literal).
+// An absent key, or a key present with an explicit JSON null (Go nil in the
+// map), returns a classified *DecodeError naming the field and the zero value
+// of T, never a partially populated struct. A present, non-nil but empty value
+// (for example the empty string) is a valid observed value and decodes
+// normally.
 //
-// Two families of tests keep this map from drifting out of agreement with the
-// structs: TestRequiredFieldsMatchStructShape (decode_test.go) recomputes the
-// required set from each typed struct by reflection and asserts it equals this
-// map's entry, so adding a required struct field without registering it is a test
-// failure rather than a silently unvalidated field; and the schema drift tests
-// (schema_gen_test.go) keep the generated schemas in lockstep with the structs.
-// Struct → this map, and struct → schema, are each independently test-locked.
-//
-// The required set for every kind is grounded in its collector emitter's
-// non-empty validation (the awscloud / secretsiam New*Envelope builders), never
-// in a single reducer handler's defensive skip: a field the emitter always
-// validates non-empty is required, and an either-or identity (instance_id OR
-// arn; bucket_arn OR bucket_name) leaves BOTH sides optional so a fact
-// identified by only one side is not dead-lettered.
-var requiredFields = map[string][]string{}
-
-// registerRequiredFields records the required payload keys for one fact kind. It
-// is called from each decode_<family>.go's init function so a family owns its
-// own registration. It panics on a duplicate registration for the same fact kind
-// because that is a programming error (two files claiming one kind) that must
-// surface at package load, not silently let one registration win.
-func registerRequiredFields(factKind string, fields ...string) {
-	if _, exists := requiredFields[factKind]; exists {
-		panic("factschema: duplicate required-fields registration for fact kind " + strconv.Quote(factKind))
-	}
-	requiredFields[factKind] = fields
-}
-
-// decodeAndValidate unmarshals payload into a new T, first checking that
-// every JSON key requiredFields[factKind] lists is present in payload with a
-// non-null value. An absent key, or a key present with an explicit JSON null
-// (Go nil in the map), returns a classified *DecodeError naming the field and
-// the zero value of T, never a partially populated struct. A present, non-nil
-// but empty value (for example the empty string) is a valid observed value
-// and decodes normally.
+// factKind is used only for error attribution (DecodeError.FactKind); the
+// required set comes from T, not from factKind.
 func decodeAndValidate[T any](factKind string, payload map[string]any) (T, error) {
 	var zero T
 
-	for _, field := range requiredFields[factKind] {
+	for _, field := range requiredPayloadKeys[T]() {
 		// Reject both an absent key and an explicit JSON null (Go nil in
 		// the decoded map): null would otherwise pass a presence-only
 		// check and json.Unmarshal would turn it into a zero value with no
