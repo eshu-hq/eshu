@@ -566,6 +566,33 @@
    (`alternativeNameServerConfig.targetNameServers[].ipv4Address`/
    `.ipv6Address`) are read only to produce a bounded count; no address value
    ever leaves the parser.
+53. `extractor_api_gateway.go` - typed-depth extractor for
+   `apigateway.googleapis.com/Gateway` (API Gateway Gateway: display name,
+   lifecycle state, region derived from the Gateway's own CAI full resource
+   name since the API Gateway v1 Gateway resource carries no separate region
+   field of its own, creation/update time, and a fingerprint of the
+   `defaultHostname` live DNS name — verified against the live API Gateway v1
+   `projects.locations.gateways` REST reference, which reports exactly this
+   field set: `name`, `createTime`, `updateTime`, `labels`, `displayName`,
+   `apiConfig`, `state`, `defaultHostname`, no additional field). Emits
+   `api_gateway_uses_api_config` edge to the resolved
+   `apigateway.googleapis.com/ApiConfig` — itself a separately CAI-inventoried
+   asset type per the live Cloud Asset Inventory supported-asset-types
+   reference, so the reference resolves to a real edge endpoint rather than
+   staying attribute-only, mirroring the Spanner Instance extractor's
+   InstanceConfig edge; the derivation fails closed, mirroring the Org Policy
+   extractor's treatment of its own untrusted resource-name input — an
+   already-absolute `apiConfig` value is kept as-is only when it carries the
+   exact `//apigateway.googleapis.com/` CAI service prefix (a wrong-domain
+   absolute value mints no edge or anchor), and a relative value is prefixed
+   only when it matches the documented
+   `projects/{project}/locations/global/apis/{api}/configs/{apiConfig}` shape
+   (a malformed relative value also mints no edge or anchor). The raw
+   `defaultHostname` DNS name is never persisted, only its deterministic
+   fingerprint, reusing the Pub/Sub Subscription push-endpoint host-fingerprint
+   helper (never redeclaring it); `labels` are not re-declared in typed depth
+   since the collector's shared label path already captures and fingerprints
+   them.
 
 ## Invariants
 
