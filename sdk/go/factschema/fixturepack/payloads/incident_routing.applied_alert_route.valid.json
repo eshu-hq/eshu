@@ -1,0 +1,18 @@
+{
+  "source_class": "applied",
+  "source_kind": "terraform_state",
+  "outcome": "applied",
+  "terraform_state_address": "aws_sns_topic.alerts",
+  "resource_type": "aws_sns_topic",
+  "resource_name": "alerts",
+  "module_address": "",
+  "provider_address": "registry.terraform.io/hashicorp/aws",
+  "scope_id": "scope-1",
+  "state_generation_id": "gen-1",
+  "state_lineage": "lineage-1",
+  "backend_kind": "s3",
+  "locator_hash": "hash-1",
+  "declared_match_state": "not_compared",
+  "redaction_state": "none",
+  "route_type": "sns_topic"
+}

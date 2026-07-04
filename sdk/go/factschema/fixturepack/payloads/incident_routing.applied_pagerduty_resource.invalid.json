@@ -1,0 +1,17 @@
+{
+  "source_class": "applied",
+  "source_kind": "terraform_state",
+  "outcome": "applied",
+  "terraform_state_address": "pagerduty_service.example",
+  "resource_type": "pagerduty_service",
+  "resource_name": "example",
+  "module_address": "",
+  "provider_address": "registry.terraform.io/pagerduty/pagerduty",
+  "scope_id": "scope-1",
+  "state_generation_id": "gen-1",
+  "state_lineage": "lineage-1",
+  "backend_kind": "s3",
+  "locator_hash": "hash-1",
+  "declared_match_state": "not_compared",
+  "redaction_state": "none"
+}

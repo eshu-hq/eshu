@@ -1,0 +1,6 @@
+{
+  "provider": "pagerduty",
+  "provider_change_id": "PCHANGE1",
+  "summary": "deploy v2",
+  "source": "github"
+}

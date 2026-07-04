@@ -1,0 +1,7 @@
+{
+  "provider": "pagerduty",
+  "provider_incident_id": "PINCIDENT1",
+  "service_id": "PSERVICE1",
+  "title": "example incident",
+  "status": "triggered"
+}

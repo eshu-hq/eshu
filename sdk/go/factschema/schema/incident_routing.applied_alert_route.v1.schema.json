@@ -1,0 +1,99 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/incident/v1/applied_alert_route.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "aws_arn": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "backend_kind": {
+      "type": "string"
+    },
+    "declared_match_state": {
+      "type": "string"
+    },
+    "locator_hash": {
+      "type": "string"
+    },
+    "module_address": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "provider_address": {
+      "type": "string"
+    },
+    "redaction_state": {
+      "type": "string"
+    },
+    "resource_name": {
+      "type": "string"
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "route_type": {
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "source_class": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": "string"
+    },
+    "state_generation_id": {
+      "type": "string"
+    },
+    "state_lineage": {
+      "type": "string"
+    },
+    "state_serial": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "target_reference_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_reference_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "terraform_state_address": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_class",
+    "source_kind",
+    "outcome",
+    "terraform_state_address",
+    "resource_type",
+    "resource_name",
+    "module_address",
+    "provider_address",
+    "scope_id",
+    "state_generation_id",
+    "state_lineage",
+    "backend_kind",
+    "locator_hash",
+    "declared_match_state",
+    "redaction_state",
+    "route_type"
+  ],
+  "title": "Eshu incident_routing.applied_alert_route Payload (schema version 1)",
+  "type": "object"
+}

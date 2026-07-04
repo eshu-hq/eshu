@@ -47,6 +47,17 @@ func run() error {
 		{name: "aws_iam_permission.v1.schema.json", generate: schemagen.AWSIAMPermissionSchema},
 		{name: "aws_resource_policy_permission.v1.schema.json", generate: schemagen.AWSResourcePolicyPermissionSchema},
 		{name: "aws_iam_principal.v1.schema.json", generate: schemagen.AWSIAMPrincipalSchema},
+		// The incident family fact kinds are DOTTED (Wave 4a, first dotted
+		// family). The schema filename is the dotted kind plus the version
+		// suffix; a dot in a filename is valid and needs no transform.
+		{name: "incident.record.v1.schema.json", generate: schemagen.IncidentRecordSchema},
+		{name: "incident.lifecycle_event.v1.schema.json", generate: schemagen.IncidentLifecycleEventSchema},
+		{name: "change.record.v1.schema.json", generate: schemagen.ChangeRecordSchema},
+		{name: "incident_routing.applied_pagerduty_resource.v1.schema.json", generate: schemagen.IncidentRoutingAppliedPagerDutyResourceSchema},
+		{name: "incident_routing.applied_alert_route.v1.schema.json", generate: schemagen.IncidentRoutingAppliedAlertRouteSchema},
+		{name: "incident_routing.observed_pagerduty_service.v1.schema.json", generate: schemagen.IncidentRoutingObservedPagerDutyServiceSchema},
+		{name: "incident_routing.observed_pagerduty_integration.v1.schema.json", generate: schemagen.IncidentRoutingObservedPagerDutyIntegrationSchema},
+		{name: "incident_routing.coverage_warning.v1.schema.json", generate: schemagen.IncidentRoutingCoverageWarningSchema},
 	}
 
 	for _, target := range targets {

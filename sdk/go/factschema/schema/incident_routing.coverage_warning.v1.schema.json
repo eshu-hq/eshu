@@ -1,0 +1,121 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/incident/v1/coverage_warning.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "backend_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "declared_match_state": {
+      "type": "string"
+    },
+    "locator_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "module_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_object_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "redaction_state": {
+      "type": "string"
+    },
+    "resource_class": {
+      "type": "string"
+    },
+    "resource_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "source_class": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": "string"
+    },
+    "state_generation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state_lineage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state_serial": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "terraform_state_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "source_class",
+    "source_kind",
+    "outcome",
+    "resource_class",
+    "scope_id",
+    "reason",
+    "redaction_state",
+    "declared_match_state"
+  ],
+  "title": "Eshu incident_routing.coverage_warning Payload (schema version 1)",
+  "type": "object"
+}

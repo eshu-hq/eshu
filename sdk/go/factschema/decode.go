@@ -42,6 +42,35 @@ const (
 	FactKindAWSResourcePolicyPermission = "aws_resource_policy_permission"
 	// FactKindAWSIAMPrincipal is the "aws_iam_principal" fact kind.
 	FactKindAWSIAMPrincipal = "aws_iam_principal"
+
+	// The incident family fact-kind strings are DOTTED, unlike the underscore
+	// aws/iam kinds above. The dots are part of the wire kind the collector
+	// already emits (go/internal/facts.IncidentRecordFactKind and siblings); the
+	// values here MATCH those wire strings byte-for-byte and never invent or
+	// rename the namespace. TestFactSchemaKindsMatchWireFactKinds (reducer side)
+	// asserts each stays byte-equal to its facts.*FactKind counterpart.
+
+	// FactKindIncidentRecord is the "incident.record" fact kind.
+	FactKindIncidentRecord = "incident.record"
+	// FactKindIncidentLifecycleEvent is the "incident.lifecycle_event" fact kind.
+	FactKindIncidentLifecycleEvent = "incident.lifecycle_event"
+	// FactKindChangeRecord is the "change.record" fact kind.
+	FactKindChangeRecord = "change.record"
+	// FactKindIncidentRoutingAppliedPagerDutyResource is the
+	// "incident_routing.applied_pagerduty_resource" fact kind.
+	FactKindIncidentRoutingAppliedPagerDutyResource = "incident_routing.applied_pagerduty_resource"
+	// FactKindIncidentRoutingAppliedAlertRoute is the
+	// "incident_routing.applied_alert_route" fact kind.
+	FactKindIncidentRoutingAppliedAlertRoute = "incident_routing.applied_alert_route"
+	// FactKindIncidentRoutingObservedPagerDutyService is the
+	// "incident_routing.observed_pagerduty_service" fact kind.
+	FactKindIncidentRoutingObservedPagerDutyService = "incident_routing.observed_pagerduty_service"
+	// FactKindIncidentRoutingObservedPagerDutyIntegration is the
+	// "incident_routing.observed_pagerduty_integration" fact kind.
+	FactKindIncidentRoutingObservedPagerDutyIntegration = "incident_routing.observed_pagerduty_integration"
+	// FactKindIncidentRoutingCoverageWarning is the
+	// "incident_routing.coverage_warning" fact kind.
+	FactKindIncidentRoutingCoverageWarning = "incident_routing.coverage_warning"
 )
 
 // Classification values a DecodeError carries. These are this module's own

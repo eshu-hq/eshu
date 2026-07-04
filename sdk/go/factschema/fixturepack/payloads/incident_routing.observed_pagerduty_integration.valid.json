@@ -1,0 +1,13 @@
+{
+  "provider": "pagerduty",
+  "source_class": "observed",
+  "source_kind": "pagerduty_api",
+  "outcome": "observed",
+  "resource_class": "service_integration",
+  "provider_object_id": "PINTEGRATION1",
+  "scope_id": "scope-1",
+  "declared_match_state": "not_compared",
+  "redaction_state": "none",
+  "integration_id": "PINTEGRATION1",
+  "service_reference": "PSERVICE1"
+}

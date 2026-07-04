@@ -1,0 +1,9 @@
+{
+  "source_class": "observed",
+  "source_kind": "pagerduty_api",
+  "outcome": "partial",
+  "resource_class": "unknown",
+  "scope_id": "scope-1",
+  "redaction_state": "none",
+  "declared_match_state": "not_compared"
+}
