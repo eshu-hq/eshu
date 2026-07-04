@@ -100,6 +100,9 @@ membership as trust.
 
 ## Postgres
 
+For sizing and operator diagnostics, see
+[Postgres Tuning](postgres-tuning.md).
+
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
 | `ESHU_FACT_STORE_DSN` | unset | Go runtimes | Primary DSN for fact store and queues. |

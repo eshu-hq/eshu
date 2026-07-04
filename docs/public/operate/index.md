@@ -15,6 +15,7 @@ queued work.
 | Check process health, readiness, and completeness | [Health Checks](health-checks.md) |
 | Choose metrics, traces, logs, or admin/status | [Telemetry](telemetry.md) |
 | Tune slow indexing, stale answers, graph timeouts, or memory pressure | [Tuning Playbook](tuning-playbook.md) |
+| Tune Postgres pools, queues, hot tables, or search-index write pressure | [Postgres Tuning](../reference/postgres-tuning.md) |
 | Work through common symptoms | [Troubleshooting](troubleshooting.md) |
 | Move from remote Compose proof to hosted Kubernetes operations | [Hosted Operations Runbook](hosted-operations-runbook.md) |
 | Check hosted governance posture before onboarding a team | [Hosted Governance Posture](hosted-governance.md) |

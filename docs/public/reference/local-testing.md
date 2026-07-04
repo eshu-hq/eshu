@@ -201,6 +201,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Normal package, Compose, graph, Terraform-state, webhook, and docs gates | [Verification gates](local-testing/verification-gates.md) |
 | Discovery report loop for noisy repositories | [Discovery advisory playbook](local-testing/discovery-advisory.md) |
 | Worker knobs, pprof, and phase CPU profile capture | [Profiling and concurrency](local-testing/profiling-and-concurrency.md) |
+| Postgres pool, queue, hot-table, or search-index write pressure | [Postgres tuning](postgres-tuning.md) |
 
 ## Quick Verification Matrix
 
