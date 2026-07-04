@@ -21,4 +21,12 @@
 // CyclomaticComplexity is the shared McCabe complexity walker. It counts
 // decision points from a BranchNodeSet so every tree-sitter language computes
 // real complexity from data tables rather than per-language traversal code.
+//
+// ReadSource is the single physical-read chokepoint every child parser package
+// calls. PrimeSource/ClearSource let Engine.ParsePath cache one file's bytes
+// for the duration of a single call so the dispatched language parser and the
+// engine's post-parse content-metadata inference share one os.ReadFile instead
+// of each reading independently. Callers of PrimeSource MUST pair it with
+// ClearSource (typically via defer) so the cache never observes stale content
+// on a later parse of the same path.
 package shared

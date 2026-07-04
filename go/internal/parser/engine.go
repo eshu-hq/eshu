@@ -5,11 +5,12 @@ package parser
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // Engine owns native parser dispatch.
@@ -53,6 +54,19 @@ func (e *Engine) ParsePath(
 	definition, ok := e.registry.LookupByPath(resolvedPath)
 	if !ok {
 		return nil, fmt.Errorf("no parser registered for %q", resolvedPath)
+	}
+
+	// Prime the shared single-read cache so every internal consumer of this
+	// path's bytes during this call — the language parser dispatched by
+	// parseDefinition (via shared.ReadSource or the local readSource) and the
+	// content-metadata inference below — reuses one physical disk read instead
+	// of each reading the file independently. If the read fails here, nothing
+	// is primed and both call sites fall back to their normal independent
+	// read-and-fail behavior, so error handling is unchanged.
+	primedSource, primeErr := readSource(resolvedPath)
+	if primeErr == nil {
+		primeSource(resolvedPath, primedSource)
+		defer clearSource(resolvedPath)
 	}
 
 	payload, err := e.parseDefinition(resolvedRepoRoot, definition, resolvedPath, isDependency, options)
@@ -378,10 +392,27 @@ func (e *Engine) parseDefinition(
 	}
 }
 
+// readSource reads one parser input file, reusing any bytes primeSource
+// cached for this exact path during the current ParsePath call instead of
+// issuing a second physical read. It delegates to shared.ReadSource, the same
+// single-read-cache-aware helper every language sub-package under
+// go/internal/parser calls, so engine-local readers (nuget_project, raw_text)
+// and language parsers observe one physical disk read per ParsePath call.
 func readSource(path string) ([]byte, error) {
-	body, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository source file at a path derived from the scan target
-	if err != nil {
-		return nil, fmt.Errorf("read source %q: %w", path, err)
-	}
-	return body, nil
+	return shared.ReadSource(path)
+}
+
+// primeSource stores path's already-read bytes so every readSource and
+// shared.ReadSource call for this exact path during the current ParsePath
+// call reuses them instead of reading the file again.
+func primeSource(path string, body []byte) {
+	shared.PrimeSource(path, body)
+}
+
+// clearSource removes any cache entry primeSource stored for path. Callers
+// MUST defer this immediately after priming so the cache never leaks into an
+// unrelated ParsePath call or observes stale content on a later parse of the
+// same path.
+func clearSource(path string) {
+	shared.ClearSource(path)
 }

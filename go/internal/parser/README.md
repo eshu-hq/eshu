@@ -519,6 +519,47 @@ instrument (metric: `eshu_dp_file_parse_duration_seconds`). Parse
 errors are surfaced in `collector snapshot stage completed` logs with
 `stage=parse`.
 
+## Single physical read per `ParsePath` call
+
+`Engine.ParsePath` used to read one file's bytes twice: once inside the
+dispatched language parser (`parseDefinition` → `shared.ReadSource`, or the
+engine-local `readSource` for `nuget_project`/`raw_text`), then again for
+`inferContentMetadata`. `ParsePath` now reads the file once up front and primes
+a call-scoped cache (`shared.PrimeSource`/`shared.ClearSource`, keyed by
+absolute path) that both `shared.ReadSource` and the engine-local `readSource`
+consult before touching disk; the cache entry is cleared via `defer` before
+`ParsePath` returns so it never leaks into a later parse of the same path. No
+sub-package `Parse` signature changed, so every language's payload is served
+the identical bytes it would have read itself — just from the cache instead of
+a second `os.ReadFile`. If the priming read fails, nothing is cached and both
+call sites fall back to their normal independent read-and-fail behavior, so
+error handling is unchanged.
+
+Benchmark Evidence: `go test -run '^$' -bench BenchmarkParsePath -benchmem
+./internal/parser` on the same machine (darwin/arm64, Apple M5 Max), before
+(origin/main) vs after, `-count=5` on `c`, `go`, and `sql` (representative of
+tree-sitter, heaviest-payload, and lexical-adapter parse shapes): `c` B/op
+26.94Mi → 26.73Mi (-0.79%, p=0.008), `go` B/op 587.9Mi → 587.7Mi (-0.03%,
+p=0.008), `sql` B/op 21.49Mi → 21.23Mi (-1.24%, p=0.008); `sec/op` for `c`
+147.9ms → 142.8ms (-3.44%, p=0.016). The B/op reduction is small in percentage
+because tree-sitter parse allocations dominate a ~10K-LOC input, but it is
+statistically significant (`benchstat`, n=5) and consistent with removing one
+duplicate ~200-280KB file read per `ParsePath` call; `allocs/op` did not move
+measurably because `os.ReadFile` contributes a handful of allocations against
+hundreds of thousands from tree-sitter parsing. `raw_text` and `nuget_project`
+(no tree-sitter parse) are the languages where the eliminated read is
+proportionally largest; both dropped from reading the same file's bytes via
+`readSource` twice to once per `ParsePath` call, confirmed by
+`TestParsePathReadsRawTextSourceExactlyOnce` and
+`TestParsePathReadsNuGetProjectSourceExactlyOnce`.
+
+No-Observability-Change: this adds no metric, span, structured log, status
+field, queue, graph write, worker, lease, batch, or runtime knob. Operators
+still diagnose parse behavior through the existing collector
+`telemetry.FileParseDuration` instrument and `collector snapshot stage
+completed` logs; the read-count change is internal to `ParsePath` and does not
+alter what those signals report.
+
 ## Operational notes
 
 - `DefaultRegistry()` panics if the built-in `defaultDefinitions()` list

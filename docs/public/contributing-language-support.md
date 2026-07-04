@@ -29,6 +29,13 @@ Every parser claim needs three anchors:
 - parser-level and integration tests that prove the emitted rows and query
   surface
 
+Read a file's bytes through `shared.ReadSource` (or the engine-local
+`readSource`), never a raw `os.ReadFile`. `Engine.ParsePath` reads the file once
+up front and primes a call-scoped cache keyed by absolute path, so a parser that
+reads through `shared.ReadSource` reuses that single physical read instead of
+issuing its own; a parser that bypasses it forces a redundant second read of the
+same file.
+
 Parse-only behavior is not supported query behavior. A parser can recognize a
 syntax shape and still be unsupported for language-query, entity context,
 story, relationship, or dead-code answers until those read paths have focused

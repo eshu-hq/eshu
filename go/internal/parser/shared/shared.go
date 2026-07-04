@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -79,13 +80,79 @@ func BasePayload(path string, lang string, isDependency bool) map[string]any {
 	}
 }
 
+// sourceCache holds bytes primed by PrimeSource for the duration of one
+// Engine.ParsePath call, keyed by absolute path. It lets the language parser
+// invoked through parseDefinition and the engine's post-parse content-metadata
+// inference share one physical disk read instead of each reading the file
+// independently. Entries are removed by ClearSource immediately after the
+// owning ParsePath call finishes, so the cache never observes stale content
+// across separate parses of the same path (e.g. a file edited between calls).
+var sourceCache sync.Map
+
+// readSourceHook, when non-nil, observes every physical disk read performed by
+// ReadSource. It exists only so tests can count real os.ReadFile calls without
+// changing ReadSource's signature; production code never sets it. Guarded by
+// readSourceHookMu so -race sees no data race between a test installing the
+// hook and ReadSource invoking it.
+var (
+	readSourceHookMu sync.Mutex
+	readSourceHook   func(path string)
+)
+
+// PrimeSource stores pre-read bytes for path so the next ReadSource(path) call
+// on this goroutine's call stack returns them without touching disk. Callers
+// MUST pair this with ClearSource once the parse that needed the shared read
+// completes, so the cache does not leak across unrelated calls or observe
+// stale content on a later parse of the same path.
+func PrimeSource(path string, body []byte) {
+	sourceCache.Store(path, body)
+}
+
+// ClearSource removes any primed cache entry for path. Safe to call even when
+// no entry was primed.
+func ClearSource(path string) {
+	sourceCache.Delete(path)
+}
+
 // ReadSource reads one parser input file and wraps the path into read errors.
+// When PrimeSource already cached this exact path's bytes, ReadSource returns
+// the cached slice instead of issuing a second os.ReadFile, so a single
+// ParsePath call reads a file's contents from disk at most once regardless of
+// how many internal consumers (the language parser plus content-metadata
+// inference) need the bytes.
 func ReadSource(path string) ([]byte, error) {
+	if cached, ok := sourceCache.Load(path); ok {
+		return cached.([]byte), nil
+	}
+	readSourceHookMu.Lock()
+	hook := readSourceHook
+	readSourceHookMu.Unlock()
+	if hook != nil {
+		hook(path)
+	}
 	body, err := os.ReadFile(path) // #nosec G304 -- reads an indexed repository source file at a path derived from the scan target
 	if err != nil {
 		return nil, fmt.Errorf("read source %q: %w", path, err)
 	}
 	return body, nil
+}
+
+// SetReadSourceHookForTest installs a hook invoked on every physical
+// os.ReadFile performed by ReadSource (cache hits are not observed), and
+// returns a restore function that must be deferred to reset the hook.
+// Test-only: production code never calls this. Callers must not run this
+// test in parallel with any other test that also installs the hook, since
+// the hook is process-global.
+func SetReadSourceHookForTest(hook func(path string)) func() {
+	readSourceHookMu.Lock()
+	previous := readSourceHook
+	readSourceHook = hook
+	readSourceHookMu.Unlock()
+	return func() {
+		readSourceHookMu.Lock()
+		readSourceHook = previous
+		readSourceHookMu.Unlock()
+	}
 }
 
 // WalkNamed visits a node and every named descendant in source order.
