@@ -168,6 +168,76 @@ func TestExtractComposerEnvironmentDefaultServiceAccountSentinelNotFingerprinted
 	}
 }
 
+// TestExtractComposerEnvironmentWrongDomainKMSKeyEmitsNoEdge proves the CMEK
+// resolution fails closed on an already-absolute, wrong-domain CAI full
+// resource name. Cloud Asset Inventory never reports a non-Cloud-KMS name in
+// this field, so a malformed or mistyped value must never poison the CMEK
+// edge/anchor with a foreign endpoint.
+func TestExtractComposerEnvironmentWrongDomainKMSKeyEmitsNoEdge(t *testing.T) {
+	const data = `{
+		"config": {
+			"encryptionConfig": {"kmsKeyName": "//storage.googleapis.com/projects/_/buckets/evil-bucket"}
+		}
+	}`
+	got, err := extractComposerEnvironment(composerEnvironmentContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeComposerEnvironmentEncryptedByKMSKey {
+			t.Fatalf("expected no CMEK edge for a wrong-domain absolute name, got %#v", rel)
+		}
+	}
+	for _, a := range got.CorrelationAnchors {
+		if a == "//storage.googleapis.com/projects/_/buckets/evil-bucket" {
+			t.Fatalf("expected the wrong-domain name never to be anchored, got %#v", got.CorrelationAnchors)
+		}
+	}
+	if _, has := got.Attributes["customer_managed_encryption"]; !has {
+		t.Errorf("expected customer_managed_encryption=true still set from the non-blank kmsKeyName field, got %#v", got.Attributes)
+	}
+}
+
+// TestExtractComposerEnvironmentNonGsSchemeDagPrefixFallsBackToStorageConfig
+// proves that a dagGcsPrefix value without the "gs://" scheme is rejected
+// rather than mis-parsed into a bogus bucket name, and that the extractor
+// falls back to storageConfig.bucket when present.
+func TestExtractComposerEnvironmentNonGsSchemeDagPrefixFallsBackToStorageConfig(t *testing.T) {
+	const data = `{
+		"config": {"dagGcsPrefix": "not-a-gs-uri/dags"},
+		"storageConfig": {"bucket": "fallback-bucket"}
+	}`
+	got, err := extractComposerEnvironment(composerEnvironmentContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesDAGBucket,
+		"//storage.googleapis.com/projects/_/buckets/fallback-bucket", assetTypeStorageBucket)
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeComposerEnvironmentUsesDAGBucket &&
+			rel.TargetFullResourceName != "//storage.googleapis.com/projects/_/buckets/fallback-bucket" {
+			t.Fatalf("expected the non-gs:// dagGcsPrefix to be rejected rather than mis-parsed, got %#v", rel)
+		}
+	}
+}
+
+// TestExtractComposerEnvironmentNonGsSchemeDagPrefixNoFallbackEmitsNoBucketEdge
+// proves that a non-gs:// dagGcsPrefix with no storageConfig.bucket fallback
+// emits no DAG bucket edge at all, rather than a bucket derived from a
+// mis-parsed non-gs:// value.
+func TestExtractComposerEnvironmentNonGsSchemeDagPrefixNoFallbackEmitsNoBucketEdge(t *testing.T) {
+	const data = `{"config": {"dagGcsPrefix": "not-a-gs-uri/dags"}}`
+	got, err := extractComposerEnvironment(composerEnvironmentContext(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, rel := range got.Relationships {
+		if rel.RelationshipType == relationshipTypeComposerEnvironmentUsesDAGBucket {
+			t.Fatalf("expected no DAG bucket edge for a non-gs:// dagGcsPrefix with no fallback, got %#v", rel)
+		}
+	}
+}
+
 func TestExtractComposerEnvironmentNoLeakageOfSensitiveValues(t *testing.T) {
 	const data = `{
 		"config": {

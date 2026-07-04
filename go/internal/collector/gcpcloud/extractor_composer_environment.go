@@ -15,9 +15,10 @@ import (
 // Cloud Composer environment. Its edge targets reuse asset-type constants and
 // helpers already declared elsewhere in this package: assetTypeGKECluster (GKE
 // Cluster extractor), assetTypeComputeNetwork / assetTypeComputeSubnetwork and
-// computeFullResourceNameFromSelfLink (Compute extractors), assetTypeStorageBucket
-// and storageBucketResourceNamePrefixFmt (BigQuery Table extractor), and
-// assetTypeKMSCryptoKey / cloudKMSResourceNamePrefix (BigQuery Table extractor).
+// computeFullResourceNameFromSelfLink (Compute extractors), assetTypeStorageBucket,
+// storageBucketResourceNamePrefixFmt, and gcsBucketFromURI (BigQuery Table
+// extractor), and assetTypeKMSCryptoKey and the strict-domain
+// cmekKeyFullResourceName (extractor_helpers.go).
 const assetTypeComposerEnvironment = "composer.googleapis.com/Environment"
 
 // Bounded provider relationship types for Composer Environment edges. Each is
@@ -134,7 +135,7 @@ func extractComposerEnvironment(ctx ExtractContext) (AttributeExtraction, error)
 			}
 		}
 		if enc := cfg.EncryptionConfig; enc != nil {
-			if kms := composerKMSKeyFullName(enc.KMSKeyName); kms != "" {
+			if kms := cmekKeyFullResourceName(enc.KMSKeyName); kms != "" {
 				anchors = append(anchors, kms)
 				rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
 			}
@@ -273,33 +274,19 @@ func composerSubnetworkFullName(ref, projectID string) string {
 	return computeFullResourceNameFromSelfLink(trimmed, projectID)
 }
 
-// composerKMSKeyFullName builds the CAI CryptoKey full resource name from a
-// relative KMS key name. An already-normalized CAI full resource name is
-// returned unchanged. It returns "" for a blank reference.
-func composerKMSKeyFullName(kmsKeyName string) string {
-	trimmed := strings.TrimSpace(kmsKeyName)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return cloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
-}
-
 // composerDAGBucketName resolves the environment's DAG/data Cloud Storage
 // bucket name. config.dagGcsPrefix ("gs://{bucket}/dags", present across all
 // Composer generations) takes precedence when present; storageConfig.bucket
-// (no gs:// prefix, Composer 3+ only) is used as a fallback. It returns "" when
-// neither field carries a usable bucket name.
+// (no gs:// prefix, Composer 3+ only) is used as a fallback. A dagGcsPrefix
+// value without the "gs://" scheme is rejected outright rather than
+// mis-parsed into a bogus bucket name, mirroring the BigQuery Table
+// extractor's gcsBucketFromURI scheme guard; it falls through to the
+// storageConfig.bucket fallback exactly as if dagGcsPrefix were blank. It
+// returns "" when neither field carries a usable bucket name.
 func composerDAGBucketName(data composerEnvironmentData) string {
 	if data.Config != nil {
-		if prefix := strings.TrimSpace(data.Config.DagGcsPrefix); prefix != "" {
-			rest := strings.TrimPrefix(prefix, "gs://")
-			bucket, _, _ := strings.Cut(rest, "/")
-			if bucket = strings.TrimSpace(bucket); bucket != "" {
-				return bucket
-			}
+		if bucket := gcsBucketFromURI(data.Config.DagGcsPrefix); bucket != "" {
+			return bucket
 		}
 	}
 	if data.StorageConfig != nil {
