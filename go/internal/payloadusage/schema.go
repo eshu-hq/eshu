@@ -45,6 +45,11 @@ var factKindSchemaFile = map[string]string{
 	// Azure family: only the two wired cloud kinds the reducer decodes.
 	"FactKindAzureCloudResource":     "azure_cloud_resource.v1.schema.json",
 	"FactKindAzureCloudRelationship": "azure_cloud_relationship.v1.schema.json",
+	// Kubernetes live family: all three kinds are wired through the reducer's
+	// typed decode seam (factschema_decode_kuberneteslive.go).
+	"FactKindKubernetesLivePodTemplate":  "kubernetes_live.pod_template.v1.schema.json",
+	"FactKindKubernetesLiveRelationship": "kubernetes_live.relationship.v1.schema.json",
+	"FactKindKubernetesLiveWarning":      "kubernetes_live.warning.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema
