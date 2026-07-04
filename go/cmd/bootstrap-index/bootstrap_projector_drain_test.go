@@ -69,8 +69,9 @@ func TestDrainProjectorSequentialFallback(t *testing.T) {
 
 // TestDrainProjectorIsolatesItemFailures verifies the #4464 fix: a per-item
 // projection failure is routed to the queue Fail path and does NOT abort the
-// run or cancel sibling workers. drainProjector returns nil, every item is
-// handled (acked on success, failed otherwise), and none is left orphaned.
+// run or cancel sibling workers. drainProjector returns a non-nil incomplete
+// drain error after every item is handled (acked on success, failed otherwise),
+// so none is left orphaned and bootstrap does not claim clean completion.
 // (Previously this asserted the buggy fail-fast behavior where one slow/timed-out
 // canonical write canceled the shared context and crashed the whole run.)
 func TestDrainProjectorIsolatesItemFailures(t *testing.T) {

@@ -326,14 +326,21 @@ type slowSource struct {
 	generations []collector.CollectedGeneration
 	index       int
 	delay       time.Duration
+	finished    time.Time
 }
 
 func (f *slowSource) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	if f.index >= len(f.generations) {
+		if f.finished.IsZero() {
+			f.finished = time.Now()
+		}
+		f.mu.Unlock()
 		return collector.CollectedGeneration{}, false, nil
 	}
+	gen := f.generations[f.index]
+	f.index++
+	f.mu.Unlock()
 
 	select {
 	case <-ctx.Done():
@@ -341,9 +348,13 @@ func (f *slowSource) Next(ctx context.Context) (collector.CollectedGeneration, b
 	case <-time.After(f.delay):
 	}
 
-	gen := f.generations[f.index]
-	f.index++
 	return gen, true, nil
+}
+
+func (f *slowSource) collectionFinishedTime() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.finished
 }
 
 type failingSource struct {

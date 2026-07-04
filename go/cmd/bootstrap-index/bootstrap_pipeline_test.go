@@ -71,6 +71,13 @@ func TestPipelinedBootstrapProjectsDuringCollection(t *testing.T) {
 	if firstProjection.IsZero() {
 		t.Fatal("no projections were recorded")
 	}
+	collectionDone := source.collectionFinishedTime()
+	if collectionDone.IsZero() {
+		t.Fatal("collection completion was not recorded")
+	}
+	if !firstProjection.Before(collectionDone) {
+		t.Fatalf("first projection at %s, want before collection completed at %s", firstProjection, collectionDone)
+	}
 }
 
 func TestPipelinedBootstrapDrainsQueueAfterCollectorExits(t *testing.T) {
