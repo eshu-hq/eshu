@@ -63,6 +63,10 @@ func run() error {
 		{name: "gcp_collection_warning.v1.schema.json", generate: schemagen.GCPCollectionWarningSchema},
 		{name: "gcp_dns_record.v1.schema.json", generate: schemagen.GCPDNSRecordSchema},
 		{name: "gcp_iam_policy_observation.v1.schema.json", generate: schemagen.GCPIAMPolicyObservationSchema},
+		{name: "azure_cloud_resource.v1.schema.json", generate: schemagen.AzureCloudResourceSchema},
+		{name: "azure_cloud_relationship.v1.schema.json", generate: schemagen.AzureCloudRelationshipSchema},
+		{name: "azure_dns_record.v1.schema.json", generate: schemagen.AzureDNSRecordSchema},
+		{name: "azure_collection_warning.v1.schema.json", generate: schemagen.AzureCollectionWarningSchema},
 	}
 
 	for _, target := range targets {

@@ -1,0 +1,45 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/azure/v1/cloud_resource.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "arm_resource_id": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "normalized_resource_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "subscription_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "arm_resource_id",
+    "resource_type",
+    "subscription_id",
+    "location"
+  ],
+  "title": "Eshu azure_cloud_resource Payload (schema version 1)",
+  "type": "object"
+}

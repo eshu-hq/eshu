@@ -48,6 +48,12 @@ type AzureRelationshipMaterializationHandler struct {
 	ReadinessLookup      GraphProjectionReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
 	Tracer               trace.Tracer
+	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
+	// for a per-fact quarantined azure_cloud_resource/azure_cloud_relationship
+	// decode failure. A nil Instruments only skips the counter increment; the
+	// quarantine and structured error log still happen via
+	// recordQuarantinedFacts.
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one Azure relationship materialization intent.
@@ -95,7 +101,18 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	resourceEnvelopes, relationshipEnvelopes := splitAzureFactEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally := ExtractAzureRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	rows, tally, quarantined, err := ExtractAzureRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed azure_cloud_resource or
+	// azure_cloud_relationship fact is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while every valid fact
+	// still materializes its edge below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAzureRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -146,6 +163,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 			tally.skippedCount(),
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

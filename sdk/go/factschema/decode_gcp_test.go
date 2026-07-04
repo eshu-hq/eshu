@@ -84,3 +84,25 @@ func TestDecodeGCPIAMPolicyObservation_FullPayloadDecodes(t *testing.T) {
 		t.Fatalf("Members[0] = %v, want the fingerprinted member preserved", got.Members[0])
 	}
 }
+
+// requiredCollectionKey identifies one intentionally-required slice/map field
+// by its fact kind and json key name.
+type requiredCollectionKey struct {
+	factKind string
+	jsonName string
+}
+
+// intentionalRequiredCollections is the explicit allow-list of slice/map fields
+// that are REQUIRED (no omitempty) on purpose. A required collection is correct
+// only when the emitter unconditionally writes the key, so each entry documents
+// which emitter invariant justifies it. Everything else must stay optional
+// (omitempty) so a nil/absent collection never dead-letters a valid fact.
+// TestPayloadStructShapeConvention (decode_test.go) reads this allow-list.
+var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
+	// gcp_iam_policy_observation.members: gcpcloud.NewIAMPolicyObservationEnvelope
+	// (iam_policy_observation.go:84-86) rejects an observation with zero
+	// fingerprinted members before the envelope is built, so members is the
+	// binding's unconditional principal evidence — an absent members key must
+	// dead-letter, not decode to a struct with no principal.
+	{FactKindGCPIAMPolicyObservation, "members"}: {},
+}

@@ -1,0 +1,9 @@
+{
+  "arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm-demo",
+  "resource_type": "microsoft.compute/virtualmachines",
+  "subscription_id": "00000000-0000-0000-0000-000000000000",
+  "location": "eastus",
+  "normalized_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg-demo/providers/microsoft.compute/virtualmachines/vm-demo",
+  "resource_name": "vm-demo",
+  "provider_namespace": "microsoft.compute"
+}

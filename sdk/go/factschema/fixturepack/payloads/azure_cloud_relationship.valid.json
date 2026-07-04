@@ -1,0 +1,9 @@
+{
+  "relationship_type": "managed_by",
+  "source_arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.Compute/virtualMachines/vm-demo",
+  "target_arm_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-demo/providers/Microsoft.Network/networkInterfaces/nic-demo",
+  "source_normalized_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg-demo/providers/microsoft.compute/virtualmachines/vm-demo",
+  "target_normalized_resource_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg-demo/providers/microsoft.network/networkinterfaces/nic-demo",
+  "target_resource_type": "microsoft.network/networkinterfaces",
+  "support_state": "supported"
+}

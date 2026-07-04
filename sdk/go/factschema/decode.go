@@ -82,6 +82,16 @@ const (
 	// FactKindGCPIAMPolicyObservation is the "gcp_iam_policy_observation"
 	// fact kind.
 	FactKindGCPIAMPolicyObservation = "gcp_iam_policy_observation"
+	// FactKindAzureCloudResource is the "azure_cloud_resource" fact kind.
+	FactKindAzureCloudResource = "azure_cloud_resource"
+	// FactKindAzureCloudRelationship is the "azure_cloud_relationship" fact
+	// kind.
+	FactKindAzureCloudRelationship = "azure_cloud_relationship"
+	// FactKindAzureDNSRecord is the "azure_dns_record" fact kind.
+	FactKindAzureDNSRecord = "azure_dns_record"
+	// FactKindAzureCollectionWarning is the "azure_collection_warning" fact
+	// kind.
+	FactKindAzureCollectionWarning = "azure_collection_warning"
 )
 
 // Classification values a DecodeError carries. These are this module's own

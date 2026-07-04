@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -81,6 +82,49 @@ func ParseDecodeSeams(path string) ([]DecodeSeam, error) {
 
 	sort.Slice(seams, func(i, j int) bool { return seams[i].FuncName < seams[j].FuncName })
 	return seams, nil
+}
+
+// ParseDecodeSeamsGlob parses every file matching glob (expected to be
+// go/internal/reducer/factschema_decode*.go) and returns the merged set of
+// decode<Kind> seams across all of them, sorted by FuncName for deterministic
+// output. Each cloud family keeps its decode wrappers in its own
+// factschema_decode_<family>.go file, so the manifest must scan the whole
+// per-family set rather than the single base factschema_decode.go.
+//
+// A glob matching no files, or matching files that declare no seams, returns
+// an empty slice with no error; Load treats an empty result as a fail-closed
+// configuration error so a broken glob cannot silently disable the gate. A
+// FuncName collision across two matched files is a fail-closed error: two
+// decode functions with the same name are a real duplication bug the gate
+// must surface rather than silently deduplicate.
+func ParseDecodeSeamsGlob(glob string) ([]DecodeSeam, error) {
+	matches, err := filepath.Glob(glob)
+	if err != nil {
+		return nil, fmt.Errorf("payload-usage-manifest: glob %s: %w", glob, err)
+	}
+	sort.Strings(matches)
+
+	var merged []DecodeSeam
+	seen := map[string]string{} // FuncName -> file that declared it
+	for _, path := range matches {
+		seams, err := ParseDecodeSeams(path)
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range seams {
+			if prior, dup := seen[s.FuncName]; dup {
+				return nil, fmt.Errorf(
+					"payload-usage-manifest: decode seam %q declared in both %s and %s; a decode function name must be unique across the factschema_decode*.go files",
+					s.FuncName, prior, path,
+				)
+			}
+			seen[s.FuncName] = path
+			merged = append(merged, s)
+		}
+	}
+
+	sort.Slice(merged, func(i, j int) bool { return merged[i].FuncName < merged[j].FuncName })
+	return merged, nil
 }
 
 // decodeFuncReturnType reports whether fn's signature is

@@ -16,6 +16,7 @@ import (
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
@@ -291,6 +292,10 @@ var payloadContracts = []struct {
 	{FactKindGCPCollectionWarning, "gcp_collection_warning.v1.schema.json", reflect.TypeOf(gcpv1.CollectionWarning{})},
 	{FactKindGCPDNSRecord, "gcp_dns_record.v1.schema.json", reflect.TypeOf(gcpv1.DNSRecord{})},
 	{FactKindGCPIAMPolicyObservation, "gcp_iam_policy_observation.v1.schema.json", reflect.TypeOf(gcpv1.IAMPolicyObservation{})},
+	{FactKindAzureCloudResource, "azure_cloud_resource.v1.schema.json", reflect.TypeOf(azurev1.CloudResource{})},
+	{FactKindAzureCloudRelationship, "azure_cloud_relationship.v1.schema.json", reflect.TypeOf(azurev1.CloudRelationship{})},
+	{FactKindAzureDNSRecord, "azure_dns_record.v1.schema.json", reflect.TypeOf(azurev1.DNSRecord{})},
+	{FactKindAzureCollectionWarning, "azure_collection_warning.v1.schema.json", reflect.TypeOf(azurev1.CollectionWarning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry
@@ -395,27 +400,6 @@ func TestDerivedKeySetsMatchGeneratedSchemas(t *testing.T) {
 // `json:"x,omitempty"` would be. Banning the pointer and scalar shapes means
 // the schema generator's "no omitempty ⇒ required" rule and the intuition
 // "pointer/slice/map ⇒ optional" can never disagree.
-// requiredCollectionKey identifies one intentionally-required slice/map field
-// by its fact kind and json key name.
-type requiredCollectionKey struct {
-	factKind string
-	jsonName string
-}
-
-// intentionalRequiredCollections is the explicit allow-list of slice/map fields
-// that are REQUIRED (no omitempty) on purpose. A required collection is correct
-// only when the emitter unconditionally writes the key, so each entry documents
-// which emitter invariant justifies it. Everything else must stay optional
-// (omitempty) so a nil/absent collection never dead-letters a valid fact.
-var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
-	// gcp_iam_policy_observation.members: gcpcloud.NewIAMPolicyObservationEnvelope
-	// (iam_policy_observation.go:84-86) rejects an observation with zero
-	// fingerprinted members before the envelope is built, so members is the
-	// binding's unconditional principal evidence — an absent members key must
-	// dead-letter, not decode to a struct with no principal.
-	{FactKindGCPIAMPolicyObservation, "members"}: {},
-}
-
 func TestPayloadStructShapeConvention(t *testing.T) {
 	t.Parallel()
 

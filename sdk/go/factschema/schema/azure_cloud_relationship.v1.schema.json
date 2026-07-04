@@ -1,0 +1,47 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/azure/v1/cloud_relationship.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "relationship_type": {
+      "type": "string"
+    },
+    "source_arm_resource_id": {
+      "type": "string"
+    },
+    "source_normalized_resource_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "support_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_arm_resource_id": {
+      "type": "string"
+    },
+    "target_normalized_resource_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_resource_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "relationship_type",
+    "source_arm_resource_id",
+    "target_arm_resource_id"
+  ],
+  "title": "Eshu azure_cloud_relationship Payload (schema version 1)",
+  "type": "object"
+}

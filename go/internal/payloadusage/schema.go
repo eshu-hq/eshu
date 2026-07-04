@@ -42,6 +42,9 @@ var factKindSchemaFile = map[string]string{
 	// GCP family: only the two wired cloud kinds the reducer decodes.
 	"FactKindGCPCloudResource":                        "gcp_cloud_resource.v1.schema.json",
 	"FactKindGCPCloudRelationship":                    "gcp_cloud_relationship.v1.schema.json",
+	// Azure family: only the two wired cloud kinds the reducer decodes.
+	"FactKindAzureCloudResource":                      "azure_cloud_resource.v1.schema.json",
+	"FactKindAzureCloudRelationship":                  "azure_cloud_relationship.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

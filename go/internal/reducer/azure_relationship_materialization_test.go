@@ -121,6 +121,8 @@ func TestAzureRelationshipMaterializationSkipMatrixDoesNotFabricateEdges(t *test
 		{
 			name: "cross_subscription_target",
 			envelopes: []facts.Envelope{azureVMResource(), azureRelationshipEnvelope(map[string]any{
+				"source_arm_resource_id":        azureVMID,
+				"target_arm_resource_id":        "/subscriptions/sub-2/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/nic",
 				"source_normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 				"target_normalized_resource_id": "/subscriptions/sub-2/resourcegroups/rg/providers/microsoft.network/networkinterfaces/nic",
 				"relationship_type":             "managed_by",
@@ -142,6 +144,8 @@ func TestAzureRelationshipMaterializationSkipMatrixDoesNotFabricateEdges(t *test
 		{
 			name: "invalid_type",
 			envelopes: []facts.Envelope{azureVMResource(), azureNICResource(), azureRelationshipEnvelope(map[string]any{
+				"source_arm_resource_id":        azureVMID,
+				"target_arm_resource_id":        azureNICID,
 				"source_normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 				"target_normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.network/networkinterfaces/nic",
 				"relationship_type":             "bad type`)//",
@@ -152,6 +156,8 @@ func TestAzureRelationshipMaterializationSkipMatrixDoesNotFabricateEdges(t *test
 		{
 			name: "unsupported_type",
 			envelopes: []facts.Envelope{azureVMResource(), azureNICResource(), azureRelationshipEnvelope(map[string]any{
+				"source_arm_resource_id":        azureVMID,
+				"target_arm_resource_id":        azureNICID,
 				"source_normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 				"target_normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.network/networkinterfaces/nic",
 				"relationship_type":             "depends_on",
@@ -162,6 +168,8 @@ func TestAzureRelationshipMaterializationSkipMatrixDoesNotFabricateEdges(t *test
 		{
 			name: "self_loop",
 			envelopes: []facts.Envelope{azureVMResource(), azureRelationshipEnvelope(map[string]any{
+				"source_arm_resource_id":        azureVMID,
+				"target_arm_resource_id":        azureVMID,
 				"source_normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 				"target_normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 				"relationship_type":             "managed_by",

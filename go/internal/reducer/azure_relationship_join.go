@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 const (
@@ -37,25 +38,38 @@ type azureCloudResourceJoinIndex struct {
 	byResourceID map[string]string
 }
 
-func buildAzureCloudResourceJoinIndex(envelopes []facts.Envelope) azureCloudResourceJoinIndex {
+// buildAzureCloudResourceJoinIndex decodes each azure_cloud_resource fact
+// through the contracts seam and indexes it by its normalized/ARM resource id
+// for relationship endpoint resolution. A fact missing a required identity
+// field is routed through partitionDecodeFailures into the returned
+// quarantine list rather than silently joining under an empty-string key; any
+// other decode error is returned fatally.
+func buildAzureCloudResourceJoinIndex(envelopes []facts.Envelope) (azureCloudResourceJoinIndex, []quarantinedFact, error) {
 	index := azureCloudResourceJoinIndex{byResourceID: make(map[string]string, len(envelopes))}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AzureCloudResourceFactKind || env.IsTombstone {
 			continue
 		}
-		_, uid, ok := azureCloudResourceNodeRow(env)
-		if !ok {
+		_, uid, resourceID, ok, err := azureCloudResourceNodeRow(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return azureCloudResourceJoinIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
 			continue
 		}
-		resourceID := azureNormalizedResourceID(env.Payload)
-		if resourceID == "" {
+		if !ok || resourceID == "" {
 			continue
 		}
 		if _, exists := index.byResourceID[resourceID]; !exists {
 			index.byResourceID[resourceID] = uid
 		}
 	}
-	return index
+	return index, quarantined, nil
 }
 
 func (i azureCloudResourceJoinIndex) resolve(resourceID string) (string, bool) {
@@ -125,17 +139,24 @@ func azureRelationshipTypeSupported(value string) bool {
 // ExtractAzureRelationshipEdgeRows builds canonical Azure relationship edge
 // rows by resolving both azure_cloud_relationship endpoints against the
 // generation's materializable Azure CloudResource facts by exact normalized ARM
-// resource id. It never derives nodes from relationship facts alone.
+// resource id. It never derives nodes from relationship facts alone. Every
+// resource and relationship fact decodes through the contracts seam; a fact
+// missing a required identity field is quarantined into the returned list
+// rather than joining or projecting under an empty-string identity segment,
+// and any other decode error is returned fatally.
 func ExtractAzureRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) ([]map[string]any, azureRelationshipEdgeTally) {
+) ([]map[string]any, azureRelationshipEdgeTally, []quarantinedFact, error) {
 	tally := newAzureRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
-		return nil, tally
+		return nil, tally, nil, nil
 	}
 
-	index := buildAzureCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := buildAzureCloudResourceJoinIndex(resourceEnvelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
 	type edgeKey struct {
 		source           string
 		relationshipType string
@@ -148,12 +169,23 @@ func ExtractAzureRelationshipEdgeRows(
 		if env.FactKind != facts.AzureCloudRelationshipFactKind || env.IsTombstone {
 			continue
 		}
-		relationshipType := payloadString(env.Payload, "relationship_type")
+		relationship, err := decodeAzureCloudRelationship(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		relationshipType := relationship.RelationshipType
 		if relationshipType == "" {
 			tally.record(azureMetricRelationshipTypeEmpty, azureJoinModeEmptyType)
 			continue
 		}
-		targetType := payloadString(env.Payload, "target_resource_type")
+		targetType := derefString(relationship.TargetResourceType)
 		if targetType == "" {
 			targetType = "unknown"
 		}
@@ -165,7 +197,7 @@ func ExtractAzureRelationshipEdgeRows(
 			tally.record(relationshipType, azureJoinModeUnsupported)
 			continue
 		}
-		switch payloadString(env.Payload, "support_state") {
+		switch derefString(relationship.SupportState) {
 		case azureRelationshipSupportUnsupported:
 			tally.record(relationshipType, azureJoinModeUnsupported)
 			continue
@@ -178,13 +210,13 @@ func ExtractAzureRelationshipEdgeRows(
 			continue
 		}
 
-		sourceUID, sourceOK := index.resolve(azureRelationshipSourceID(env.Payload))
+		sourceUID, sourceOK := index.resolve(azureRelationshipSourceID(relationship))
 		if !sourceOK {
 			tally.unresolvedSource[targetType]++
 			tally.record(relationshipType, azureJoinModeUnresolved)
 			continue
 		}
-		targetUID, targetOK := index.resolve(azureRelationshipTargetID(env.Payload))
+		targetUID, targetOK := index.resolve(azureRelationshipTargetID(relationship))
 		if !targetOK {
 			tally.unresolved[targetType]++
 			tally.record(relationshipType, azureJoinModeUnresolved)
@@ -211,26 +243,32 @@ func ExtractAzureRelationshipEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 	sort.Slice(rows, func(a, b int) bool {
 		left := anyToString(rows[a]["relationship_type"]) + ":" + anyToString(rows[a]["source_uid"]) + "->" + anyToString(rows[a]["target_uid"])
 		right := anyToString(rows[b]["relationship_type"]) + ":" + anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["target_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
 }
 
-func azureRelationshipSourceID(payload map[string]any) string {
-	if normalized := payloadString(payload, "source_normalized_resource_id"); normalized != "" {
+// azureRelationshipSourceID returns the preferred join identity for a decoded
+// relationship's source endpoint: SourceNormalizedResourceID when present,
+// falling back to the required SourceARMResourceID otherwise.
+func azureRelationshipSourceID(relationship azurev1.CloudRelationship) string {
+	if normalized := derefString(relationship.SourceNormalizedResourceID); normalized != "" {
 		return normalized
 	}
-	return payloadString(payload, "source_arm_resource_id")
+	return relationship.SourceARMResourceID
 }
 
-func azureRelationshipTargetID(payload map[string]any) string {
-	if normalized := payloadString(payload, "target_normalized_resource_id"); normalized != "" {
+// azureRelationshipTargetID returns the preferred join identity for a decoded
+// relationship's target endpoint: TargetNormalizedResourceID when present,
+// falling back to the required TargetARMResourceID otherwise.
+func azureRelationshipTargetID(relationship azurev1.CloudRelationship) string {
+	if normalized := derefString(relationship.TargetNormalizedResourceID); normalized != "" {
 		return normalized
 	}
-	return payloadString(payload, "target_arm_resource_id")
+	return relationship.TargetARMResourceID
 }

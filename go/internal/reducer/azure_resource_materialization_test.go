@@ -35,7 +35,7 @@ func TestExtractAzureCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 	t.Parallel()
 
 	const armID = "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"
-	rows := ExtractAzureCloudResourceNodeRows([]facts.Envelope{
+	rows, quarantined, err := ExtractAzureCloudResourceNodeRows([]facts.Envelope{
 		azureResourceEnvelope(map[string]any{
 			"arm_resource_id":        armID,
 			"normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
@@ -46,6 +46,12 @@ func TestExtractAzureCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 			"kind":                   "linux",
 		}),
 	})
+	if err != nil {
+		t.Fatalf("ExtractAzureCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %v, want none", quarantined)
+	}
 
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
