@@ -198,14 +198,20 @@ operational lessons that future storage changes still need to respect.
   `freshness_key`, claims queued rows with `FOR UPDATE SKIP LOCKED`, and records
   handed-off or failed rows after the workflow coordinator authorizes a
   configured collector `scope_id`.
-- `FactStore.LoadIncidentRoutingEvidence` builds reducer-ready PagerDuty
-  incident-routing packets for the graph materialization domain. It loads
-  `incident.record` anchors and same-generation `incident_routing.*` facts for
-  the claimed scope/generation, skips tombstones, filters applied evidence to
-  PagerDuty service resources, and then reads Terraform-source
-  `PagerDutyDeclaration` content rows through a lowercased service-name
-  allowlist. Routing facts without an incident anchor do not trigger a
-  cross-scope graph mutation.
+- `FactStore.LoadIncidentRoutingRawEvidence` returns the RAW PagerDuty
+  incident-routing evidence for the graph materialization domain: the
+  `incident.record` and same-generation `incident_routing.*` fact envelopes
+  undecoded, plus the Terraform-source `PagerDutyDeclaration` content rows
+  read through a lowercased service-name allowlist derived from the incident
+  facts' service summaries. It no longer decodes fact payloads or filters
+  applied evidence by resource class — the reducer decodes each fact through
+  the typed `sdk/go/factschema` seam, so a malformed required field
+  dead-letters as a per-fact input_invalid quarantine instead of a silent
+  empty read here. The service-name allowlist is only a query bound (never
+  authoritative correlation truth), so reading it raw carries no accuracy
+  hazard. The declared `content_entities` metadata read stays storage-decoded
+  because it is entity metadata, not a fact payload. Routing facts without an
+  incident anchor do not trigger a cross-scope graph mutation.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.

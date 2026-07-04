@@ -7,6 +7,10 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 type recordingIncidentRoutingEvidenceWriter struct {
@@ -48,15 +52,19 @@ func (w *recordingIncidentRoutingEvidenceWriter) RetractIncidentRoutingEvidence(
 }
 
 type stubIncidentRoutingEvidenceLoader struct {
-	inputs []IncidentRoutingEvidenceInput
+	raw IncidentRoutingRawEvidence
+	err error
 }
 
-func (l stubIncidentRoutingEvidenceLoader) LoadIncidentRoutingEvidence(
+func (l stubIncidentRoutingEvidenceLoader) LoadIncidentRoutingRawEvidence(
 	context.Context,
 	string,
 	string,
-) ([]IncidentRoutingEvidenceInput, error) {
-	return l.inputs, nil
+) (IncidentRoutingRawEvidence, error) {
+	if l.err != nil {
+		return IncidentRoutingRawEvidence{}, l.err
+	}
+	return l.raw, nil
 }
 
 func incidentRoutingMaterializationIntent() Intent {
@@ -121,6 +129,93 @@ func exactIncidentRoutingInput() IncidentRoutingEvidenceInput {
 			RedactionState:            "redacted",
 		}},
 	}
+}
+
+// exactIncidentRoutingRawEvidence builds the raw fact envelopes (encoded through
+// the typed contracts seam) plus declared evidence that decode back into the
+// exactIncidentRoutingInput scenario, so the handler test exercises the real
+// load -> decode -> extract path rather than a hand-built typed input. The
+// service_id/service and provider fields are set so the decoded incident carries
+// the same ServiceName and ServiceID the pre-typing loader produced.
+func exactIncidentRoutingRawEvidence(t *testing.T) IncidentRoutingRawEvidence {
+	t.Helper()
+
+	incidentPayload, err := factschema.EncodeIncidentRecord(incidentv1.IncidentRecord{
+		Provider:           "pagerduty",
+		ProviderIncidentID: "PINCIDENT1",
+		ServiceID:          stringPtr("PSERVICE1"),
+		Service: &incidentv1.ServiceReference{
+			ID:      stringPtr("PSERVICE1"),
+			Summary: stringPtr("Checkout API"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("EncodeIncidentRecord: %v", err)
+	}
+	appliedPayload, err := factschema.EncodeIncidentRoutingAppliedPagerDutyResource(incidentv1.AppliedPagerDutyResource{
+		SourceClass:           "applied",
+		SourceKind:            "terraform_state",
+		Outcome:               "exact",
+		ResourceClass:         "service",
+		TerraformStateAddress: "pagerduty_service.checkout",
+		ResourceType:          "pagerduty_service",
+		ResourceName:          "checkout",
+		ModuleAddress:         "module.pagerduty",
+		ProviderAddress:       "registry.terraform.io/pagerduty/pagerduty",
+		ScopeID:               "scope-pagerduty",
+		StateGenerationID:     "tfstate-gen-1",
+		StateLineage:          "lineage-1",
+		BackendKind:           "s3",
+		LocatorHash:           "hash-1",
+		DeclaredMatchState:    "matched",
+		RedactionState:        "redacted",
+		ProviderObjectID:      stringPtr("PSERVICE1"),
+	})
+	if err != nil {
+		t.Fatalf("EncodeIncidentRoutingAppliedPagerDutyResource: %v", err)
+	}
+	observedPayload, err := factschema.EncodeIncidentRoutingObservedPagerDutyService(incidentv1.ObservedPagerDutyService{
+		Provider:                  "pagerduty",
+		SourceClass:               "observed",
+		SourceKind:                "pagerduty_api",
+		Outcome:                   "exact",
+		ResourceClass:             "service",
+		ProviderObjectID:          "PSERVICE1",
+		ScopeID:                   "scope-pagerduty",
+		DeclaredMatchState:        "matched",
+		RedactionState:            "redacted",
+		ServiceID:                 "PSERVICE1",
+		Status:                    stringPtr("active"),
+		EscalationPolicyReference: stringPtr("PEP1"),
+	})
+	if err != nil {
+		t.Fatalf("EncodeIncidentRoutingObservedPagerDutyService: %v", err)
+	}
+
+	return IncidentRoutingRawEvidence{
+		Facts: []facts.Envelope{
+			{FactID: "incident-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRecordFactKind, SchemaVersion: "1.0.0", Payload: incidentPayload},
+			{FactID: "applied-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingAppliedPagerDutyResourceFactKind, SchemaVersion: "1.0.0", Payload: appliedPayload},
+			{FactID: "observed-fact-1", ScopeID: "scope-pagerduty", FactKind: facts.IncidentRoutingObservedPagerDutyServiceFactKind, SchemaVersion: "1.0.0", Payload: observedPayload},
+		},
+		Declared: []IncidentRoutingDeclaredEvidence{{
+			EntityID:              "declared-entity-1",
+			RepoID:                "repo-observability",
+			RelativePath:          "pagerduty/main.tf",
+			DeclarationKind:       "pagerduty_service",
+			SourceClass:           "declared",
+			Outcome:               "exact",
+			ServiceName:           "Checkout API",
+			ServiceNameResolution: "literal",
+			Environment:           "prod",
+			Workspace:             "prod",
+			RedactionState:        "redacted",
+		}},
+	}
+}
+
+func stringPtr(value string) *string {
+	return &value
 }
 
 func TestExtractIncidentRoutingEvidenceRowsProjectsExactSlots(t *testing.T) {
@@ -318,7 +413,7 @@ func TestIncidentRoutingMaterializationHandlerWritesAndRetracts(t *testing.T) {
 
 	writer := &recordingIncidentRoutingEvidenceWriter{}
 	handler := IncidentRoutingMaterializationHandler{
-		Loader:               stubIncidentRoutingEvidenceLoader{inputs: []IncidentRoutingEvidenceInput{exactIncidentRoutingInput()}},
+		Loader:               stubIncidentRoutingEvidenceLoader{raw: exactIncidentRoutingRawEvidence(t)},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
@@ -326,6 +421,9 @@ func TestIncidentRoutingMaterializationHandlerWritesAndRetracts(t *testing.T) {
 	result, err := handler.Handle(context.Background(), incidentRoutingMaterializationIntent())
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
+	}
+	if result.SubSignals["input_invalid_facts"] != 0 {
+		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 0 for all-valid facts", result.SubSignals["input_invalid_facts"])
 	}
 	if result.Status != ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)

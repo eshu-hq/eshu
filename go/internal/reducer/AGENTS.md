@@ -548,6 +548,48 @@ queue, worker, lease, batch, runtime knob, metric instrument, metric label key,
 span, route, status field, or log key; operators still inspect the existing
 code-call intent rows and materialization completion logs.
 
+No-Regression Evidence (Wave 4a incident typed-payload decode): the
+incident-routing materialization handler now decodes incident.record and
+incident_routing.* fact payloads through the `sdk/go/factschema` seam
+(`buildIncidentRoutingEvidenceInputs`) instead of the storage layer's raw
+`payloadString`/`payloadBool` map lookups. The `IncidentRoutingEvidenceLoader`
+seam was shrunk to return raw `[]facts.Envelope`
+(`FactStore.LoadIncidentRoutingRawEvidence`); the four `*FromEnvelope` mappers
+moved into the reducer as typed decodes routed through `partitionDecodeFailures`.
+This is a cold, once-per-scope-generation projection path (not a hot per-edge
+loop), so the typed-decode cost is measured for a no-regression bound rather than
+a tight microbench. Measured with `go test ./internal/reducer -run '^$' -bench
+'BenchmarkBuildIncidentRoutingEvidenceInputs' -benchmem -count=3` (darwin/arm64;
+input: 500 incidents x {incident, applied, observed, warning} = 2000 fact
+envelopes): 2.42-2.57 ms/op, 1.89 MB/op, 14047 allocs/op — roughly 1.2 µs and 7
+allocs per fact through the marshal-free reflection decoder (`decode_map.go`),
+which is well inside the diagnostic-rigor band for a per-scope-generation
+materialization pass. The residual cost buys the accuracy guarantee: an
+incident_routing.applied_pagerduty_resource fact missing its required
+resource_class key (or an incident.record missing provider_incident_id)
+dead-letters as a per-fact input_invalid quarantine
+(`TestIncidentRoutingMaterializationQuarantinesMissingRequiredField`) instead of
+being silently dropped by the pre-typing `payloadString(...) != "service"`
+compare. Valid facts produce byte-identical graph rows
+(`TestIncidentRoutingMaterializationHandlerWritesAndRetracts` still writes 3
+rows), so only malformed→dead-letter is new behavior. Result class: correctness
+win with a bounded, measured cold-path cost.
+
+No-Observability-Change (Wave 4a incident typed-payload decode): the migration
+adds no route, graph query shape, queue table, worker, lease, or runtime knob. A
+malformed incident/routing fact surfaces through the EXISTING per-fact
+input_invalid apparatus the AWS/IAM family established —
+`recordQuarantinedFacts` -> the `eshu_dp_reducer_input_invalid_facts_total`
+counter (existing instrument; the `domain` label gains the
+`incident_routing_materialization` value and the `fact_kind` label gains the
+incident kinds, both existing label keys) plus one structured error log per
+quarantined fact and the `input_invalid_facts` count on the existing
+per-intent `Result.SubSignals` and completion log. The decode error
+self-classifies via the existing `FailureClass()`/`Retryable()` reducer error
+interface. Operators still diagnose the path through the existing incident
+routing materialization completion log, reducer run spans, and reducer execution
+counters.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

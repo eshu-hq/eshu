@@ -36,14 +36,19 @@ func incidentRoutingMaterializationDomainDefinition() DomainDefinition {
 
 const incidentRoutingEvidenceSource = "reducer/incident-routing"
 
-// IncidentRoutingEvidenceLoader loads reducer-ready incident-routing evidence
-// packets for one scope generation.
+// IncidentRoutingEvidenceLoader loads the RAW incident-routing evidence for one
+// scope generation: the incident-context and incident-routing fact envelopes
+// (payloads undecoded) plus the declared PagerDuty routing evidence from
+// content_entities metadata. The reducer decodes the fact payloads through the
+// typed contracts seam itself (buildIncidentRoutingEvidenceInputs), so a
+// malformed fact dead-letters as a per-fact input_invalid quarantine rather than
+// silently reading an empty-string field in the storage layer.
 type IncidentRoutingEvidenceLoader interface {
-	LoadIncidentRoutingEvidence(
+	LoadIncidentRoutingRawEvidence(
 		ctx context.Context,
 		scopeID string,
 		generationID string,
-	) ([]IncidentRoutingEvidenceInput, error)
+	) (IncidentRoutingRawEvidence, error)
 }
 
 // IncidentRoutingEvidenceWriter writes and retracts reducer-owned
@@ -79,11 +84,20 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 	}
 
 	loadStart := time.Now()
-	inputs, err := h.Loader.LoadIncidentRoutingEvidence(ctx, intent.ScopeID, intent.GenerationID)
+	raw, err := h.Loader.LoadIncidentRoutingRawEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load incident routing evidence: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
+
+	// Decode the raw fact payloads through the typed contracts seam. A fact
+	// missing a required field is quarantined per-fact as input_invalid and
+	// skipped while every valid fact still projects; any other decode error is
+	// fatal and aborts the intent for durable triage.
+	inputs, quarantined, err := buildIncidentRoutingEvidenceInputs(raw)
+	if err != nil {
+		return Result{}, fmt.Errorf("decode incident routing evidence: %w", err)
+	}
 
 	extractStart := time.Now()
 	rows, tally := extractIncidentRoutingRowsForInputs(inputs)
@@ -123,12 +137,18 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 	}
 
 	h.recordEvidenceCounter(ctx, rows, tally)
+	// Emit the visible per-fact dead-letter for every quarantined malformed fact
+	// (metric + structured log), and surface the count on the per-intent signal.
+	inputInvalidCount := recordQuarantinedFacts(
+		ctx, h.Instruments, DomainIncidentRoutingMaterialization, intent.ScopeID, intent.GenerationID, quarantined,
+	)
 	slog.Info(
 		"incident routing materialization completed",
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
 		"incident_count", len(inputs),
 		"graph_rows", len(rows),
+		"input_invalid_facts", inputInvalidCount,
 		"materialized", tally.materialized,
 		"skipped", tally.skipped,
 		"skip_retract", skipRetract,
@@ -145,6 +165,7 @@ func (h IncidentRoutingMaterializationHandler) Handle(ctx context.Context, inten
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("materialized %d incident-routing graph evidence row(s) from %d incident packet(s)", len(rows), len(inputs)),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

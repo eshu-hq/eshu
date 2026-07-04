@@ -21,7 +21,7 @@ reducer/query adapter.
 
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
-  `LoadActiveCodeCallSymbolDefinitionFacts`, `LoadIncidentRoutingEvidence`,
+  `LoadActiveCodeCallSymbolDefinitionFacts`, `LoadIncidentRoutingRawEvidence`,
   `ListActiveRepositoryFacts`, `ListActivePackageOwnershipFacts`, `CountFacts`,
   `ListOSPackageAdvisoryTargets`, and `ListSBOMComponentAdvisoryTargets`
 - `ServiceIncidentEvidenceLoader` / `NewServiceIncidentEvidenceLoader` —
