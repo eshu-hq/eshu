@@ -176,9 +176,12 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 
 // terraformStateSnapshot decodes the first terraform_state_snapshot envelope
 // (if any) through the typed factschema seam. Snapshot has no required field
-// (see tfstatev1.Snapshot), so a decode error here can only be an unsupported
-// schema major — never a missing identity field — which the caller drops as
-// fatal-but-unreachable, matching every other terraform_state decode site. It
+// (see tfstatev1.Snapshot), so a decode error here is never a missing-identity
+// input_invalid; it is either a payload-shape/type-mismatch input_invalid
+// (quarantined per-fact, like every other kind) or an unsupported schema major
+// (fatal, unreachable past the projector's schema-version admission). The
+// caller routes it through partitionProjectorDecodeFailures with the real fact
+// identity, matching every other terraform_state decode site. It
 // returns the matched envelope alongside the error so the caller can route the
 // error through partitionProjectorDecodeFailures with the real fact identity.
 // The zero-value snapshot context (and a zero-value envelope, nil error) is

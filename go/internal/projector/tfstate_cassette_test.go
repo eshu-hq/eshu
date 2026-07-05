@@ -5,6 +5,7 @@ package projector
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -137,5 +138,5 @@ func loadTerraformStateCassetteEnvelopes(t *testing.T) []facts.Envelope {
 // cassette fact so a quarantine message can name the offending fact
 // deterministically.
 func terraformStateCassetteFactID(factKind string, index int) string {
-	return "cassette:" + factKind + ":" + string(rune('0'+index))
+	return fmt.Sprintf("cassette:%s:%d", factKind, index)
 }
