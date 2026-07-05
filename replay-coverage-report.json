@@ -1,13 +1,13 @@
 {
-  "schema_version": "replay-coverage-report.v3",
+  "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
     "total": 389,
-    "covered": 206,
-    "uncovered": 174,
+    "covered": 207,
+    "uncovered": 173,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 55.27
+    "percent_satisfied": 55.53
   },
   "registry_summaries": [
     {
@@ -85,11 +85,11 @@
     {
       "registry": "retractable_edge_type",
       "total": 52,
-      "covered": 0,
-      "uncovered": 52,
+      "covered": 1,
+      "uncovered": 51,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 0
+      "percent_satisfied": 1.92
     },
     {
       "registry": "retractable_type",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 140,
-      "covered": 2,
-      "uncovered": 138,
+      "covered": 3,
+      "uncovered": 137,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 1.43
+      "percent_satisfied": 2.14
     },
     {
       "scenario_type": "fault",
@@ -2312,8 +2312,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:CONTAINS",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_edge_type",
@@ -3554,7 +3557,6 @@
     "retractable_edge:CAN_ASSUME|delta_tombstone",
     "retractable_edge:CAN_ESCALATE_TO|delta_tombstone",
     "retractable_edge:CAN_PERFORM|delta_tombstone",
-    "retractable_edge:CONTAINS|delta_tombstone",
     "retractable_edge:CORRELATES_DEPLOYABLE_UNIT|delta_tombstone",
     "retractable_edge:DEFINES_JOB|delta_tombstone",
     "retractable_edge:DEPENDS_ON|delta_tombstone",
@@ -3689,8 +3691,9 @@
   "language_scoreboard": {
     "total": 32,
     "exempt": 11,
-    "uncovered": 21,
-    "percent_satisfied": 34.38,
+    "fixture": 1,
+    "uncovered": 20,
+    "percent_satisfied": 37.5,
     "languages": [
       {
         "language": "argocd",
@@ -3708,7 +3711,8 @@
       },
       {
         "language": "cloudformation",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "cpp",

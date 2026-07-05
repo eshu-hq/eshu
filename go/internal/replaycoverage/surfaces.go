@@ -19,6 +19,10 @@ import (
 type Registry string
 
 const (
+	// ParserSurfacePrefix is the canonical coverage-key prefix for parser-backed
+	// surfaces declared in the manifest.
+	ParserSurfacePrefix = "parser:"
+
 	// RegistrySurfaceInventory is specs/surface-inventory.v1.yaml: the
 	// implemented-lane collectors are the required cassette-replay targets.
 	RegistrySurfaceInventory Registry = "surface_inventory"
@@ -152,7 +156,7 @@ func EnumerateSupported(
 	for _, p := range ledger.Parsers {
 		out = append(out, SupportedSurface{
 			Registry: RegistryParserLedger,
-			Key:      "parser:" + p.Parser,
+			Key:      ParserSurfacePrefix + p.Parser,
 			Detail:   fmt.Sprintf("parser %q", p.Parser),
 		})
 	}

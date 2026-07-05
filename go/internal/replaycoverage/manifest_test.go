@@ -6,6 +6,7 @@ package replaycoverage
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -297,6 +298,7 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 	// scoreboard must enumerate all 32 — no language silently absent, no stale
 	// exemption. This binds the manifest to the ledger in CI.
 	specs := repoSpecsDir(t)
+	repoRoot := filepath.Dir(specs)
 	m, err := LoadManifest(filepath.Join(specs, ManifestFileName))
 	if err != nil {
 		t.Fatalf("LoadManifest(real): %v", err)
@@ -305,15 +307,71 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadLanguageLedger(real): %v", err)
 	}
-	board := BuildLanguageScoreboard(ledger, m.LanguageExemptions)
+	parserLedger, err := LoadParserLedger(filepath.Join(specs, ParserLedgerFileName))
+	if err != nil {
+		t.Fatalf("LoadParserLedger(real): %v", err)
+	}
+	parserNames := map[string]struct{}{}
+	for _, parser := range parserLedger.Parsers {
+		parserNames[parser.Parser] = struct{}{}
+	}
+	for _, entry := range m.Coverage {
+		if entry.Scenario != ScenarioParserFixture || entry.ScenarioType != ScenarioTypeBaseline {
+			continue
+		}
+		name, ok := strings.CutPrefix(entry.Surface, ParserSurfacePrefix)
+		if !ok || name == "" {
+			t.Fatalf("parser fixture coverage entry has non-parser surface %q", entry.Surface)
+		}
+		if _, ok := parserNames[name]; !ok {
+			t.Fatalf("parser fixture %q is not in the parser-backing ledger", entry.Surface)
+		}
+	}
+	var supportedParsers []SupportedSurface
+	for _, parser := range parserLedger.Parsers {
+		supportedParsers = append(supportedParsers, SupportedSurface{
+			Registry: RegistryParserLedger,
+			Key:      ParserSurfacePrefix + parser.Parser,
+			Detail:   "parser backing ledger entry",
+		})
+	}
+	cov := Reconcile(supportedParsers, m, ArtifactResolver{RepoRoot: repoRoot})
+	board := BuildLanguageScoreboard(ledger, m.LanguageExemptions, cov.Surfaces)
 	if len(board.StaleExemptions) != 0 {
 		t.Fatalf("committed manifest has stale language exemptions: %v", board.StaleExemptions)
 	}
-	if board.Total != len(ledger.Languages) || board.Total != board.Exempt+board.Uncovered {
+	if board.Total != len(ledger.Languages) || board.Total != board.Exempt+board.Fixture+board.Uncovered {
 		t.Fatalf("scoreboard does not account for every ledger language: %+v", board)
 	}
 	if board.Exempt != len(m.LanguageExemptions) {
 		t.Fatalf("exempt count %d != committed exemptions %d", board.Exempt, len(m.LanguageExemptions))
+	}
+	ledgerLanguages := map[string]struct{}{}
+	for _, lang := range ledger.Languages {
+		ledgerLanguages[lang.Language] = struct{}{}
+	}
+	fixtures := 0
+	parserOnlyFixtures := 0
+	for _, sc := range cov.Surfaces {
+		if sc.Status != StatusCovered || sc.Scenario == nil ||
+			sc.Scenario.Scenario != ScenarioParserFixture || surfaceCoverageScenarioType(sc) != ScenarioTypeBaseline {
+			continue
+		}
+		name, ok := strings.CutPrefix(sc.Surface.Key, ParserSurfacePrefix)
+		if !ok {
+			t.Fatalf("parser coverage surface has non-parser key %q", sc.Surface.Key)
+		}
+		if _, inLedger := ledgerLanguages[name]; inLedger {
+			fixtures++
+		} else {
+			parserOnlyFixtures++
+		}
+	}
+	if board.Fixture != fixtures {
+		t.Fatalf("fixture count %d != committed exact parser-language fixtures %d", board.Fixture, fixtures)
+	}
+	if fixtures+parserOnlyFixtures != len(parserLedger.Parsers) {
+		t.Fatalf("resolved parser fixtures exact=%d parser-only=%d; want parser ledger count %d", fixtures, parserOnlyFixtures, len(parserLedger.Parsers))
 	}
 }
 

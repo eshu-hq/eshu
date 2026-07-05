@@ -96,12 +96,13 @@
 // (LoadLanguageLedger), so no language Eshu claims to parse is silently absent
 // from the coverage count. Each language is exempt when it is exercised
 // end-to-end by the golden-corpus corpus (declared in the manifest's
-// language_exemptions list) or uncovered — the C-12 (#4365) parser-fixture
-// backfill worklist. The scoreboard is deliberately kept out of EnumerateSupported
-// and Findings: tree-sitter languages can have a fixture, so they are honest
-// uncovered gaps rather than exemptions, and listing those gaps must not fail the
-// blocking gate. It is rendered into the coverage report and the C-7 dashboard
-// only.
+// language_exemptions list), fixture-covered when the manifest maps the exact
+// parser:<language> surface to a baseline parser_fixture row, or uncovered — the
+// C-12 (#4365) parser-fixture backfill worklist. The scoreboard is deliberately
+// kept out of EnumerateSupported and Findings: tree-sitter languages can have a
+// fixture, so they are honest uncovered gaps rather than exemptions, and listing
+// those gaps must not fail the blocking gate. It is rendered into the coverage
+// report and the C-7 dashboard only.
 //
 // # Advisory to blocking
 //

@@ -115,12 +115,16 @@ separate, **visibility-only** artifact that does *not* gate. Its denominator is
 every language in `specs/language-feature-parity-ledger.v1.yaml` (loaded by
 `LoadLanguageLedger`, 32 languages today), so no language Eshu claims to parse is
 silently absent from the coverage count. `BuildLanguageScoreboard` classifies
-each language against the manifest's `language_exemptions` list:
+each language against the manifest's `language_exemptions` list and exact
+`parser:<language>` baseline `parser_fixture` coverage rows:
 
 - **exempt** — the language is exercised end-to-end by the golden-corpus 20-repo
   corpus (its files flow `sync -> discover -> parse -> emit`), the same
   structural reason as the `collector:git` exemption, so a dedicated parser
   fixture would re-record a path the corpus already replays;
+- **fixture** — `specs/replay-coverage-manifest.v1.yaml` maps the matching
+  `parser:<language>` surface to a committed parser-fixture scenario proven by
+  `parserfixture-tests`;
 - **uncovered** — no parser-fixture replay scenario yet: the C-12
   ([#4365](https://github.com/eshu-hq/eshu/issues/4365)) fixture-backfill
   worklist.
@@ -131,7 +135,8 @@ languages genuinely *can* have a fixture (that is C-12's job), so they are hones
 blocking gate red. The single `Blocking` knob stays the only severity control;
 the scoreboard is rendered into the JSON report and the C-7 dashboard's
 "Language parser coverage" section, and `TestLoadRealManifestLanguageExemptionsMatchLedger`
-binds every committed exemption to a real ledger language.
+binds every committed exemption and exact parser fixture to real ledger
+languages.
 
 ## Advisory → blocking
 

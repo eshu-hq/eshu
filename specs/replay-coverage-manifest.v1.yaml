@@ -389,9 +389,10 @@ exemptions:
 # exercised end-to-end by the golden-corpus 20-repo corpus (sync -> discover ->
 # parse -> emit), the same structural reason as the collector:git exemption, so a
 # dedicated parser fixture would re-record a path the corpus already replays.
-# Every ledger language NOT listed here is rendered as uncovered on the
-# scoreboard — the C-12 (#4365) parser-fixture backfill worklist. Add a language
-# only when its files genuinely appear in the staged corpus
+# Every ledger language NOT listed here and NOT covered by an exact
+# parser:<language> baseline parser_fixture manifest row is rendered as uncovered
+# on the scoreboard — the C-12 (#4365) parser-fixture backfill worklist. Add a
+# language exemption only when its files genuinely appear in the staged corpus
 # (scripts/verify-golden-corpus-gate.sh corpus_fixtures), never to silence a gap.
 language_exemptions:
   - surface: language:argocd

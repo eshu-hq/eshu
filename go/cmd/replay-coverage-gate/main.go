@@ -211,8 +211,8 @@ func writeCoverageSummary(w io.Writer, report replaycoverage.CoverageReport) {
 		"TOTAL", report.Totals.Covered+report.Totals.Exempt, report.Totals.Total,
 		report.Totals.PercentSatisfied, len(report.Gaps), len(report.Stale))
 	if board := report.LanguageScoreboard; board.Total > 0 {
-		_, _ = fmt.Fprintf(w, "  %-22s %3d/%-3d corpus-exercised (%.2f%%)  uncovered=%d (C-12 #4365 worklist)\n",
-			"language-parsers", board.Exempt, board.Total, board.PercentSatisfied, board.Uncovered)
+		_, _ = fmt.Fprintf(w, "  %-22s %3d/%-3d satisfied (%.2f%%)  corpus=%d fixture=%d uncovered=%d (C-12 #4365 worklist)\n",
+			"language-parsers", board.Exempt+board.Fixture, board.Total, board.PercentSatisfied, board.Exempt, board.Fixture, board.Uncovered)
 	}
 }
 

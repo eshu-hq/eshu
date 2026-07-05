@@ -36,14 +36,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 
 ## Language parser coverage
 
-Visibility-only scoreboard (C-11, [#4364](https://github.com/eshu-hq/eshu/issues/4364)) over every language in `specs/language-feature-parity-ledger.v1.yaml`. A language is *exempt* when it is exercised end-to-end by the golden-corpus 20-repo corpus; the rest are *uncovered* — the C-12 ([#4365](https://github.com/eshu-hq/eshu/issues/4365)) fixture-backfill worklist. This scoreboard does not gate the build.
+Visibility-only scoreboard (C-11, [#4364](https://github.com/eshu-hq/eshu/issues/4364)) over every language in `specs/language-feature-parity-ledger.v1.yaml`. A language is satisfied when it is *exempt* because the golden-corpus 20-repo corpus exercises it end-to-end, or *fixture* because `specs/replay-coverage-manifest.v1.yaml` maps the matching `parser:<language>` surface to a committed parser-fixture scenario. The rest are *uncovered* — the C-12 ([#4365](https://github.com/eshu-hq/eshu/issues/4365)) fixture-backfill worklist. This scoreboard does not gate the build.
 
-**11/32 languages exercised by the corpus (34.38%); 21 uncovered.**
+**12/32 languages satisfied (37.50%); 11 corpus-exercised, 1 parser-fixture, 20 uncovered.**
 
-Uncovered (21) — needs a parser-fixture replay scenario:
+Uncovered (20) — needs a parser-fixture replay scenario:
 
 - `c`
-- `cloudformation`
 - `cpp`
 - `crossplane`
 - `csharp`
