@@ -60,6 +60,7 @@ func ledgerCases() []fixtureCase {
 func languageFixtureCases() []fixtureCase {
 	return []fixtureCase{
 		{parser: "json", treeDir: "json", language: "json", signatureArray: "variables"},
+		{parser: "sql", treeDir: "sql", language: "sql", signatureArray: "sql_tables"},
 	}
 }
 

@@ -3693,9 +3693,9 @@
   "language_scoreboard": {
     "total": 32,
     "exempt": 11,
-    "fixture": 2,
-    "uncovered": 19,
-    "percent_satisfied": 40.63,
+    "fixture": 3,
+    "uncovered": 18,
+    "percent_satisfied": 43.75,
     "languages": [
       {
         "language": "argocd",
@@ -3814,7 +3814,8 @@
       },
       {
         "language": "sql",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/sql.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "swift",

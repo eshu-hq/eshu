@@ -103,9 +103,9 @@ replay-coverage manifest's `parser:<name>` surfaces, taking parser coverage to
 The package can also carry C-12 language-scoreboard fixtures whose
 `parser:<language>` surface names an exact language from
 `specs/language-feature-parity-ledger.v1.yaml` without expanding the blocking
-parser-backing-ledger denominator. The JSON fixture is the first of these:
-`testdata/fixtures/json.fixture.json` is recorded from `testdata/trees/json/`
-and satisfies the visibility-only `json` row in the language parser scoreboard.
+parser-backing-ledger denominator. `json.fixture.json` and `sql.fixture.json`
+are recorded from their matching package-local trees and satisfy the
+visibility-only `json` and `sql` rows in the language parser scoreboard.
 
 `committed_fixtures_test.go` is the proof gate (`proof_gate: parserfixture-tests`
 in the manifest):
@@ -151,11 +151,11 @@ loading the fixture; it holds no shared mutable state beyond a single drained
 flag advanced single-threaded per `collector.Service`. The record→replay
 round-trip reproduces identical envelopes including provenance for every
 parser-backing-ledger parser (cloudformation, dockerfile, hcl, yaml), the C-12
-JSON language fixture, and the Go demo; a changed or dropped `SourceURI` is
-caught by the round-trip and loader gates (proven failing-capable by a
-false-green probe), and the portability seam is proven the inverse of itself
-with a mutation check. Re-record is byte-identical (canonical determinism), and
-committed fixtures carry no machine-specific checkout path. Verified by
+language fixtures, and the Go demo; a changed or dropped `SourceURI` is caught
+by the round-trip and loader gates (proven failing-capable by a false-green
+probe), and the portability seam is proven the inverse of itself with a mutation
+check. Re-record is byte-identical (canonical determinism), and committed
+fixtures carry no machine-specific checkout path. Verified by
 `go test ./internal/replay/parserfixture/... -count=1`.
 
 ## No-Observability-Change
