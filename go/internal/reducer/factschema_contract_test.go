@@ -69,6 +69,7 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 		{"ci.trigger_edge", factschema.FactKindCICDTriggerEdge, facts.CICDTriggerEdgeFactKind},
 		{"ci.step", factschema.FactKindCICDStep, facts.CICDStepFactKind},
 		{"ci.workflow_image_evidence", factschema.FactKindCICDWorkflowImageEvidence, facts.CICDWorkflowImageEvidenceFactKind},
+		{"security_alert.repository_alert", factschema.FactKindSecurityAlertRepositoryAlert, facts.SecurityAlertRepositoryAlertFactKind},
 	}
 
 	for _, tc := range cases {

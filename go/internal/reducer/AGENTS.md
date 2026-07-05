@@ -1386,6 +1386,131 @@ seams the gate covers and adds no new gate mechanism. The `decode_map.go`
 `*int`-shaped field; it adds no telemetry surface of its own and is invisible
 to every existing operator-facing signal.
 
+No-Regression Evidence (Wave 4e, security_alert family typed-payload decode,
+Contract System v1 #4566/#4582): the SINGLE decode site for the
+`security_alert.repository_alert` kind (`extractProviderSecurityAlerts`,
+`security_alert_reconciliation.go`) now decodes through the `sdk/go/factschema`
+seam (`decodeSecurityAlertRepositoryAlert` in
+`factschema_decode_securityalert.go`, converting the typed
+`securityalertv1.RepositoryAlert` into `providerSecurityAlert` via
+`providerSecurityAlertFromDecoded`) instead of raw `payloadStr`/`payloadStrings`/
+`securityAlertMap`/`securityAlertStringMap`/`securityAlertStringMapSlice`/
+`securityAlertInt64` map lookups (all of which were DELETED). This kind is
+delicate because its ONE decode site feeds TWO consumers:
+`BuildSecurityAlertReconciliations` (the reconciliation read surface) and
+`appendSecurityAlertImpactFindings` (the `supply_chain_impact` seeder, a
+CanonicalWrites path). Both were converted in lockstep — a malformed fact is
+quarantined per-fact on BOTH via `partitionDecodeFailures`/
+`recordQuarantinedFacts`, and `SupplyChainImpactHandler.Handle` merges the
+security-alert quarantines with its existing vulnerability quarantines so a
+poisoned security_alert fact never aborts the supply_chain_impact generation.
+`repository_id` is the only required field (the repository/provider anchor both
+consumers key on; `securityAlertCanSeedImpact` already required it non-empty for
+impact seeding). The typed struct mirrors the wire payload EXACTLY (no field
+added/renamed/narrowed/widened), and the reducer re-applies the same trim/
+drop-empty container normalization after decode, so valid facts produce
+byte-identical reconciliation decisions AND byte-identical impact findings — no
+supply_chain_impact node/edge/finding changes for any fact that decodes; only a
+`repository_id`-less fact's outcome changes, from a silent blank-repository row/
+finding to a visible input_invalid dead-letter.
+`TestBuildSecurityAlertReconciliationsQuarantinesMissingRepositoryID` and
+`TestSecurityAlertReconciliationHandlerQuarantinesMissingRepositoryID` (new)
+failed before the conversion (quarantine count 0, the malformed fact silently
+accepted with an empty RepositoryID), then passed after; the supply_chain_impact
+equivalence + isolation is locked by
+`TestSupplyChainImpactSecurityAlertSeededFindingsUnchangedByTypedDecode` (valid
+→ byte-identical finding) and
+`TestSupplyChainImpactQuarantinesMalformedSecurityAlertWithoutPoisoningGeneration`
+(malformed → per-fact quarantine, findings reflect.DeepEqual the baseline, no
+empty-identity finding, generation still succeeds), and replay purity by
+`TestSecurityAlertReconciliationQuarantineReplayIsIdempotent`.
+
+First benchmark pass (`BenchmarkExtractProviderSecurityAlerts`, 5,000-alert
+corpus carrying the full Dependabot field set including a `cwes`
+`[]map[string]string` list and `epss` `map[string]string` object) measured a
+regression far exceeding the diagnostic-rigor ~10% band: BEFORE (raw map)
+~14.3ms/25.6MB/210,014 allocs -> naive typed decode ~25ms/32.9MB/325,028 allocs
+(roughly +75% time, +55% allocs). Root-caused via CPU + alloc profile to
+`sdk/go/factschema/decode_map.go`'s `assignField` having NO fast path for a
+`[]map[string]string` field — every prior migrated family's slice fields are
+`[]string` or `[]Struct`, so `security_alert.repository_alert`'s `CWEs
+[]map[string]string` (shared shape with `gcpv1.IAMPolicyObservation.Members`)
+became the first slice-of-map field decoded through this seam and every element
+fell through to the `default: jsonRoundTripValue` marshal/unmarshal branch —
+the exact gap class the kubernetes_live (`map[string]string`) and vulnerability
+(`float64`) waves closed for their own first-occurrence shapes. Applied the fix
+as a genuine shared decode-path improvement, not a security-alert-local
+workaround: `decode_map.go` gained a `[]map[string]string` fast path
+(`anyToStringMapSlice`, reached from the new `reflect.Map` case in the
+`reflect.Slice` switch), mirroring the existing `map[string]string` map fast
+path, so every family decoding a slice-of-string-map field benefits (gcp
+Members included). `TestDecodeMapInto_StringMapSliceFastPath` (new,
+`sdk/go/factschema/decode_map_test.go`) locks its accept/reject/equivalence
+contract. A second alloc profile then showed the EPSS/CWEs string maps were
+double-allocated (decode allocates the map, then the normalizer cloned it), so
+the reducer normalizers (`normalizeSecurityAlertStringMap`/
+`normalizeSecurityAlertStringMapSlice`) now trim/drop-empty IN PLACE on the
+solely-owned decode result (`normalizeSecurityAlertStringMapInPlace`, re-keying
+a padded key after the range to stay iteration-safe;
+`TestNormalizeSecurityAlertStringMapInPlace` locks the contract). After both
+fixes: ~27.0MB/225,017 allocs versus the raw-map baseline's 25.6MB/210,014 —
++5.5% bytes, +7.1% allocs, within the diagnostic-rigor ~10% band (allocations/
+bytes are the load-independent proxy; wall-clock ns/op tracked the same ratio
+when measured un-contended, ~17ms typed vs ~14ms raw floor). This is a COLD
+per-scope-generation reconciliation projection path (once per reconciliation
+intent over the loaded alert facts, not a per-edge hot loop), and the residual
+buys the accuracy guarantee (a `repository_id`-less alert dead-letters instead
+of seeding a blank-repository reconciliation row or empty-identity impact
+finding). Result class: Correctness win with a bounded, measured handler cost
+(the real perf gap — the `[]map[string]string` fallback — found and fixed; the
+double-alloc removed).
+
+Review fixes (Wave 4e, PR #4735): (1) the shared `decode_map.go`
+`anyToStringMap`/`anyToStringMapSlice` fast paths now defensively CLONE their
+already-typed `map[string]string` / `[]map[string]string` input branches, not
+just the JSONB `map[string]any` / `[]any` branches, so a decode result is always
+a fresh owned value. The reducer normalizes epss/cwes in place, so aliasing an
+in-memory caller's `env.Payload` would have mutated the original payload; the
+JSONB decode path always allocated (that branch is not hit in production), so the
+clone is free in prod and keeps the decode side-effect-free for every input shape
+(`TestDecodeMapInto_TypedMapInputNotMutated` locks non-mutation of an
+already-typed input). (2) `extractProviderSecurityAlerts` — the LENIENT
+pre-filter/scoping wrapper — no longer drops a `repository_id`-less alert; it
+reconstructs it best-effort from the raw payload
+(`providerSecurityAlertFromRawPayload`) so the security-alert evidence-scoping
+fence (`supplyChainImpactUsesSecurityAlertScope` /
+`scopeSupplyChainImpactEvidenceToSecurityAlerts`) still narrows by the alert's
+package/ecosystem identity when every alert in a security-alert-triggered
+`supply_chain_impact` intent is malformed, exactly as pre-typing. Without this,
+all-malformed alerts skipped scoping and unrelated active dependency/vulnerability
+facts (loaded earlier from the malformed alert's package/CVE hints) could publish
+unscoped impact findings. The DURABLE reconciliation and impact-seeding paths keep
+using the strict `extractProviderSecurityAlertsWithQuarantine`, so the malformed
+fact still dead-letters as `input_invalid`; only the non-durable scoping signal is
+preserved (`TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts`).
+
+No-Observability-Change (Wave 4e, security_alert family): the typed-decode
+migration and the shared `decode_map.go` `[]map[string]string` fast-path
+addition add no route, graph query shape, queue table, worker, lease, runtime
+knob, metric instrument, or metric label. A malformed
+`security_alert.repository_alert` fact surfaces through the EXISTING dead-letter
+path — `partitionDecodeFailures` -> `recordQuarantinedFacts` ->
+`eshu_dp_reducer_input_invalid_facts_total` (labeled `domain` =
+`security_alert_reconciliation` on the reconciliation handler and
+`supply_chain_impact` on the impact handler, both existing label values;
+`fact_kind` gains `security_alert.repository_alert`) plus the existing
+structured "reducer input_invalid fact quarantined" error log and
+`Result.SubSignals["input_invalid_facts"]` — the same instruments and log key
+every prior family wired. `SecurityAlertReconciliationHandler` and
+`SupplyChainImpactHandler` already carried an `Instruments
+*telemetry.Instruments` field before this wave; no new wiring was needed. The
+`payload-usage-manifest` gate (`go/internal/payloadusage`) required an
+additive-only extension: one new `factKindSchemaFile` entry
+(`FactKindSecurityAlertRepositoryAlert`) and a new `SecurityAlertStructDir`
+(`sdk/go/factschema/securityalert/v1`) parsed alongside the existing struct
+dirs; this only widens which decode seams the gate covers and adds no new gate
+mechanism.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

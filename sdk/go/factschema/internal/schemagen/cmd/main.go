@@ -172,6 +172,12 @@ func run() error {
 		{name: "work_item.workflow_metadata.v1.schema.json", generate: schemagen.WorkItemWorkflowMetadataSchema},
 		{name: "work_item.field_metadata.v1.schema.json", generate: schemagen.WorkItemFieldMetadataSchema},
 		{name: "work_item.metadata_warning.v1.schema.json", generate: schemagen.WorkItemMetadataWarningSchema},
+		// The security_alert family has one DOTTED fact kind (like the incident
+		// family). Its single decode site (extractProviderSecurityAlerts) feeds
+		// both the reconciliation read surface and the supply-chain-impact
+		// seeder, so the typed struct mirrors the existing payload exactly
+		// (Contract System v1 Wave 4e, #4566/#4582).
+		{name: "security_alert.repository_alert.v1.schema.json", generate: schemagen.SecurityAlertRepositoryAlertSchema},
 	}
 
 	for _, target := range targets {

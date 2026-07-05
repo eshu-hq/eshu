@@ -271,6 +271,24 @@ func assignField(field reflect.Value, raw any) error {
 				return err
 			}
 			return jsonRoundTripValue(field, raw)
+		case reflect.Map:
+			// A slice of map[string]string (for example securityalertv1.
+			// RepositoryAlert.CWEs — a list of {cwe_id, name} objects — or
+			// gcpv1.IAMPolicyObservation.Members) takes a fast
+			// type-assert/coerce path per element rather than the
+			// marshal/unmarshal fallback the default branch would use. This
+			// mirrors the map[string]string map fast path below and is the same
+			// gap class the map[string]string (Wave 4b) and float64 (Wave 4c)
+			// fast paths closed for their own first-occurrence field shapes: the
+			// first []map[string]string field decoded through this seam otherwise
+			// round-tripped every element through encoding/json.
+			if field.Type().Elem() == reflect.TypeOf(map[string]string{}) {
+				if s, ok := anyToStringMapSlice(raw); ok {
+					field.Set(reflect.ValueOf(s))
+					return nil
+				}
+			}
+			return jsonRoundTripValue(field, raw)
 		default:
 			return jsonRoundTripValue(field, raw)
 		}
@@ -307,10 +325,23 @@ func assignField(field reflect.Value, raw any) error {
 // raw is not one of those two shapes, or when a map[string]any value is not a
 // string — the caller falls back to jsonRoundTripValue for those rare cases so
 // correctness is never sacrificed for the fast path.
+//
+// The result is ALWAYS a freshly allocated map that does not alias raw, even
+// on the already-typed map[string]string branch: a decode result is a fresh
+// owned value the caller may mutate (some reducer consumers normalize the
+// decoded map in place), so aliasing an in-memory caller's env.Payload map
+// would let that normalization mutate the original payload. The JSONB path
+// already allocates; cloning the already-typed path costs nothing in
+// production (that branch is not hit on the Postgres decode path) and keeps
+// the decode side-effect-free for every input shape.
 func anyToStringMap(raw any) (map[string]string, bool) {
 	switch v := raw.(type) {
 	case map[string]string:
-		return v, true
+		out := make(map[string]string, len(v))
+		for key, value := range v {
+			out[key] = value
+		}
+		return out, true
 	case map[string]any:
 		out := make(map[string]string, len(v))
 		for key, value := range v {
@@ -319,6 +350,58 @@ func anyToStringMap(raw any) (map[string]string, bool) {
 				return nil, false
 			}
 			out[key] = s
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+// anyToStringMapSlice coerces a JSONB-native []any of string-valued object maps
+// (or an already-typed []map[string]string / []map[string]any) into
+// []map[string]string. ok is false when raw is not one of those shapes, or when
+// any element is not a string-valued object map — the caller falls back to
+// jsonRoundTripValue for those rare cases so correctness is never sacrificed for
+// the fast path. It preserves every element and every key/value verbatim (no
+// trimming or empty-dropping); shape normalization is the caller's concern, so
+// the coercion stays a faithful decode of the wire payload.
+//
+// The result is ALWAYS a fresh slice of freshly cloned element maps that does
+// not alias raw, even on the already-typed []map[string]string branch, for the
+// same reason anyToStringMap clones: a decode result is a fresh owned value a
+// reducer consumer may normalize in place, so aliasing an in-memory caller's
+// env.Payload slice/maps would mutate the original payload. Cloning costs
+// nothing on the Postgres decode path (which is []any, not []map[string]string).
+func anyToStringMapSlice(raw any) ([]map[string]string, bool) {
+	switch v := raw.(type) {
+	case []map[string]string:
+		out := make([]map[string]string, 0, len(v))
+		for _, item := range v {
+			cloned := make(map[string]string, len(item))
+			for key, value := range item {
+				cloned[key] = value
+			}
+			out = append(out, cloned)
+		}
+		return out, true
+	case []map[string]any:
+		out := make([]map[string]string, 0, len(v))
+		for _, item := range v {
+			m, ok := anyToStringMap(item)
+			if !ok {
+				return nil, false
+			}
+			out = append(out, m)
+		}
+		return out, true
+	case []any:
+		out := make([]map[string]string, 0, len(v))
+		for _, item := range v {
+			m, ok := anyToStringMap(item)
+			if !ok {
+				return nil, false
+			}
+			out = append(out, m)
 		}
 		return out, true
 	default:

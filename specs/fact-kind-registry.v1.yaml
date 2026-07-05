@@ -261,6 +261,8 @@ families:
     read_surface: "GET /api/v0/supply-chain/security-alerts/reconciliations"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      security_alert.repository_alert: "sdk/go/factschema/schema/security_alert.repository_alert.v1.schema.json"
     kinds: [security_alert.repository_alert]
   semantic:
     lifecycle_owner: go/internal/facts

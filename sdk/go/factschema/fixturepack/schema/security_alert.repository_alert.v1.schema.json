@@ -1,0 +1,231 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/securityalert/v1/repository_alert.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collection_coverage_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collection_incomplete_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "collection_pages_fetched": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "collection_state_filter": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collection_truncated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "created_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cve_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cve_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "cvss": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "cwes": {
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "dependency_scope": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dismissed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "epss": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "fixed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ghsa_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ghsa_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "manifest_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "patched_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_alert_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_alert_number": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "provider_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relationship": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": "string"
+    },
+    "repository_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "severity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_freshness": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "updated_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vulnerable_range": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "repository_id"
+  ],
+  "title": "Eshu security_alert.repository_alert Payload (schema version 1)",
+  "type": "object"
+}

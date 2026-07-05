@@ -69,8 +69,37 @@ type SecurityAlertReconciliationDecision struct {
 // BuildSecurityAlertReconciliations compares provider-reported repository
 // alerts to active Eshu dependency and impact facts without changing
 // supply-chain impact admission.
+//
+// It keeps its pre-typing signature (no error, no quarantine count) because it
+// is the entry point the security_alert_reconciliation table tests exercise
+// directly. A security_alert.repository_alert fact missing its required
+// repository_id is excluded from the alert set (matching the pre-typing
+// behavior of dropping a fact with a blank required string), while the reducer
+// intent path calls the quarantine-aware
+// BuildSecurityAlertReconciliationsWithQuarantine so a malformed fact still
+// surfaces as a visible input_invalid dead-letter. A non-input_invalid decode
+// error (unsupported schema major, undecodable shape) is dropped here too and
+// re-surfaced fatally by the WithQuarantine variant.
 func BuildSecurityAlertReconciliations(envelopes []facts.Envelope) []SecurityAlertReconciliationDecision {
-	alerts := extractProviderSecurityAlerts(envelopes)
+	decisions, _, _ := BuildSecurityAlertReconciliationsWithQuarantine(envelopes)
+	return decisions
+}
+
+// BuildSecurityAlertReconciliationsWithQuarantine is the quarantine-aware
+// counterpart BuildSecurityAlertReconciliations delegates to and
+// SecurityAlertReconciliationHandler.Handle calls directly, so the reducer
+// intent path can report each malformed security_alert.repository_alert fact as
+// a visible input_invalid dead-letter via recordQuarantinedFacts. A non-decode
+// error (a fatal condition partitionDecodeFailures did not quarantine) is
+// returned so the caller fails the whole intent for durable triage. The
+// classification logic itself is unchanged from the pre-typing build.
+func BuildSecurityAlertReconciliationsWithQuarantine(
+	envelopes []facts.Envelope,
+) ([]SecurityAlertReconciliationDecision, []quarantinedFact, error) {
+	alerts, quarantined, err := extractProviderSecurityAlertsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
 	consumptions := extractSecurityAlertConsumptions(envelopes)
 	consumptions = append(consumptions, extractSecurityAlertManifestConsumptions(alerts, envelopes)...)
 	impacts := extractSecurityAlertImpacts(envelopes)
@@ -88,82 +117,7 @@ func BuildSecurityAlertReconciliations(envelopes []facts.Envelope) []SecurityAle
 		}
 		return decisions[i].ProviderAlertNumber < decisions[j].ProviderAlertNumber
 	})
-	return decisions
-}
-
-func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurityAlert {
-	alerts := make([]providerSecurityAlert, 0)
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
-			continue
-		}
-		providerRepositoryID := payloadStr(envelope.Payload, "repository_id")
-		updatedAt := payloadStr(envelope.Payload, "updated_at")
-		alerts = append(alerts, providerSecurityAlert{
-			SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{
-				ProviderAlertFactID:       envelope.FactID,
-				ProviderAlertScopeID:      envelope.ScopeID,
-				ProviderAlertGenerationID: envelope.GenerationID,
-				Provider:                  payloadStr(envelope.Payload, "provider"),
-				ProviderAlertID:           payloadStr(envelope.Payload, "provider_alert_id"),
-				ProviderAlertNumber:       securityAlertInt64(envelope.Payload, "provider_alert_number"),
-				ProviderState:             strings.ToLower(payloadStr(envelope.Payload, "provider_state")),
-				RepositoryID:              providerRepositoryID,
-				ProviderRepositoryID:      providerRepositoryID,
-				RepositoryName: firstNonBlank(
-					payloadStr(envelope.Payload, "repository_name"),
-					securityAlertRepositoryNameFromID(providerRepositoryID),
-				),
-				PackageID:       payloadStr(envelope.Payload, "package_id"),
-				Ecosystem:       payloadStr(envelope.Payload, "ecosystem"),
-				PackageName:     payloadStr(envelope.Payload, "package_name"),
-				ManifestPath:    payloadStr(envelope.Payload, "manifest_path"),
-				DependencyScope: payloadStr(envelope.Payload, "dependency_scope"),
-				Relationship:    payloadStr(envelope.Payload, "relationship"),
-				GHSAIDs:         payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids"),
-				CVEIDs:          payloadStrings(envelope.Payload, "cve_id", "cve_ids"),
-				VulnerableRange: payloadStr(envelope.Payload, "vulnerable_range"),
-				PatchedVersion:  payloadStr(envelope.Payload, "patched_version"),
-				Severity:        payloadStr(envelope.Payload, "severity"),
-				CVSS:            securityAlertMap(envelope.Payload, "cvss"),
-				EPSS:            securityAlertStringMap(envelope.Payload, "epss"),
-				CWEs:            securityAlertStringMapSlice(envelope.Payload, "cwes"),
-				Summary:         payloadStr(envelope.Payload, "summary"),
-				SourceURL:       payloadStr(envelope.Payload, "source_url"),
-				CreatedAt:       payloadStr(envelope.Payload, "created_at"),
-				UpdatedAt:       updatedAt,
-				FixedAt:         payloadStr(envelope.Payload, "fixed_at"),
-				DismissedAt:     payloadStr(envelope.Payload, "dismissed_at"),
-				SourceFreshness: securityAlertSourceFreshness(envelope.Payload),
-				CollectionCoverageState: payloadStr(
-					envelope.Payload,
-					"collection_coverage_state",
-				),
-				CollectionTruncated:    payloadBool(envelope.Payload, "collection_truncated"),
-				CollectionPagesFetched: securityAlertInt64(envelope.Payload, "collection_pages_fetched"),
-				CollectionStateFilter:  payloadStr(envelope.Payload, "collection_state_filter"),
-				CollectionIncompleteReasons: payloadStrings(
-					envelope.Payload,
-					"",
-					"collection_incomplete_reasons",
-				),
-				CanonicalWrites: 0,
-				EvidenceFactIDs: compactStringSlice(envelope.FactID),
-			},
-			updatedAtTime: parseSecurityAlertTime(updatedAt),
-		})
-	}
-	return alerts
-}
-
-func securityAlertSourceFreshness(payload map[string]any) string {
-	if freshness := payloadStr(payload, "source_freshness"); freshness != "" {
-		return freshness
-	}
-	if payloadStr(payload, "collection_coverage_state") == "incomplete" {
-		return "partial"
-	}
-	return "active"
+	return decisions, quarantined, nil
 }
 
 func extractSecurityAlertConsumptions(envelopes []facts.Envelope) []securityAlertConsumption {

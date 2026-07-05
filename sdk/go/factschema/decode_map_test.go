@@ -264,3 +264,145 @@ func TestDecodeMapInto_IntFastPath(t *testing.T) {
 		}
 	})
 }
+
+// TestDecodeMapInto_StringMapSliceFastPath proves decodeMapInto's
+// []map[string]string fast path (added for the security_alert wave's
+// security_alert.repository_alert CWEs field, and shared with gcp's
+// IAMPolicyObservation.Members) decodes a JSONB-native []any of string-valued
+// object maps directly via type assertion, rather than falling through to the
+// jsonRoundTripValue marshal/unmarshal path — the same gap class the
+// kubernetes_live (map[string]string) and vulnerability (float64) waves closed.
+// A slice whose elements are not string-valued object maps must still fall back
+// to jsonRoundTripValue (which fails closed) rather than silently coercing.
+func TestDecodeMapInto_StringMapSliceFastPath(t *testing.T) {
+	t.Parallel()
+
+	type cweHolder struct {
+		CWEs []map[string]string `json:"cwes,omitempty"`
+	}
+
+	t.Run("JSONB-native []any of object maps", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"cwes": []any{
+				map[string]any{"cwe_id": "CWE-400", "name": "Uncontrolled Resource Consumption"},
+				map[string]any{"cwe_id": "CWE-770", "name": "Allocation Without Limits"},
+			},
+		}
+		var out cweHolder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		want := []map[string]string{
+			{"cwe_id": "CWE-400", "name": "Uncontrolled Resource Consumption"},
+			{"cwe_id": "CWE-770", "name": "Allocation Without Limits"},
+		}
+		if !reflect.DeepEqual(out.CWEs, want) {
+			t.Fatalf("CWEs = %v, want %v", out.CWEs, want)
+		}
+	})
+
+	t.Run("already-typed []map[string]string", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"cwes": []map[string]string{{"cwe_id": "CWE-79"}},
+		}
+		var out cweHolder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		want := []map[string]string{{"cwe_id": "CWE-79"}}
+		if !reflect.DeepEqual(out.CWEs, want) {
+			t.Fatalf("CWEs = %v, want %v", out.CWEs, want)
+		}
+	})
+
+	t.Run("empty slice stays empty non-nil", func(t *testing.T) {
+		t.Parallel()
+		var out cweHolder
+		if err := decodeMapInto(map[string]any{"cwes": []any{}}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.CWEs == nil || len(out.CWEs) != 0 {
+			t.Fatalf("CWEs = %v, want empty non-nil slice", out.CWEs)
+		}
+	})
+
+	t.Run("non-string-valued object map falls back and fails closed", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"cwes": []any{map[string]any{"cwe_id": 400}},
+		}
+		var out cweHolder
+		// A non-string value can't coerce to map[string]string; the fast path
+		// returns ok=false and jsonRoundTripValue takes over, which unmarshals
+		// the JSON number 400 into the string field's slot — encoding/json
+		// rejects that with a type error rather than silently coercing.
+		if err := decodeMapInto(payload, &out); err == nil {
+			t.Fatal("decodeMapInto() error = nil, want an error for a non-string CWE value")
+		}
+	})
+}
+
+// TestDecodeMapInto_TypedMapInputNotMutated proves the decode-map fast paths
+// return a fresh, non-aliasing copy for already-typed map[string]string and
+// []map[string]string inputs, so a downstream consumer that normalizes the
+// decoded value in place (as the security_alert reducer does for epss/cwes)
+// cannot mutate the caller's original env.Payload maps. This is the Copilot
+// decode_map.go:345 / :358 and codex :249 finding: the JSONB path always
+// allocates, but an in-memory caller supplying typed maps would otherwise be
+// aliased.
+func TestDecodeMapInto_TypedMapInputNotMutated(t *testing.T) {
+	t.Parallel()
+
+	t.Run("map[string]string input is copied", func(t *testing.T) {
+		t.Parallel()
+		type holder struct {
+			EPSS map[string]string `json:"epss,omitempty"`
+		}
+		original := map[string]string{"percentage": "0.0123", "  padded  ": "  x  "}
+		payload := map[string]any{"epss": original}
+
+		var out holder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		// Mutating the decoded map must not touch the original payload map.
+		for key := range out.EPSS {
+			delete(out.EPSS, key)
+		}
+		out.EPSS["mutated"] = "yes"
+		if _, aliased := original["mutated"]; aliased {
+			t.Fatal("decoded map aliases the original payload map; mutation leaked back")
+		}
+		if len(original) != 2 {
+			t.Fatalf("original payload map was mutated: len = %d, want 2", len(original))
+		}
+	})
+
+	t.Run("[]map[string]string input is copied", func(t *testing.T) {
+		t.Parallel()
+		type holder struct {
+			CWEs []map[string]string `json:"cwes,omitempty"`
+		}
+		originalElem := map[string]string{"cwe_id": "CWE-400", "name": "DoS"}
+		original := []map[string]string{originalElem}
+		payload := map[string]any{"cwes": original}
+
+		var out holder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		// Mutating a decoded element map must not touch the original element.
+		for key := range out.CWEs[0] {
+			delete(out.CWEs[0], key)
+		}
+		out.CWEs[0]["mutated"] = "yes"
+		if _, aliased := originalElem["mutated"]; aliased {
+			t.Fatal("decoded slice element aliases the original payload element map; mutation leaked back")
+		}
+		if len(originalElem) != 2 {
+			t.Fatalf("original element map was mutated: len = %d, want 2", len(originalElem))
+		}
+	})
+}
