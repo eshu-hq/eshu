@@ -449,7 +449,7 @@ RETURN count(d)`,
 
 // cleanupDeltaScope removes all nodes for the delta tombstone scenario so
 // re-runs are deterministic.
-func cleanupDeltaScope(ctx context.Context, t *testing.T, exec liveExecutor) {
+func cleanupDeltaScope(ctx context.Context, t *testing.T, exec deltaCleanupExecutor) {
 	t.Helper()
 	if err := exec.Execute(ctx, cypher.Statement{
 		Cypher:     `MATCH (j:GitlabJob {repo_id: $repo_id}) DETACH DELETE j`,
@@ -462,6 +462,14 @@ func cleanupDeltaScope(ctx context.Context, t *testing.T, exec liveExecutor) {
 		Parameters: map[string]any{"repo_id": deltaRepoID},
 	}); err != nil {
 		t.Fatalf("cleanup delta GitlabPipeline nodes: %v", err)
+	}
+	if err := exec.Execute(ctx, cypher.Statement{
+		Cypher: `MATCH (f:File)
+WHERE f.repo_id = $repo_id OR f.path STARTS WITH $repo_path_prefix
+DETACH DELETE f`,
+		Parameters: map[string]any{"repo_id": deltaRepoID, "repo_path_prefix": deltaRepoPath + "/"},
+	}); err != nil {
+		t.Fatalf("cleanup delta File nodes: %v", err)
 	}
 	if err := exec.Execute(ctx, cypher.Statement{
 		Cypher:     `MATCH (d:Directory {repo_id: $repo_id}) DETACH DELETE d`,
