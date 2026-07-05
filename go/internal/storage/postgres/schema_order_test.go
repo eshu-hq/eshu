@@ -62,4 +62,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"gcp_freshness_triggers",
 	"search_vector_build_materialization",
 	"aws_gcp_freshness_claim_lease",
+	"deferred_backfill_partition_memo",
 }

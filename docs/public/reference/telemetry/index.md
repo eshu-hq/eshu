@@ -467,6 +467,33 @@ graph write, or queue behavior is introduced. Verified by
 `go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
 (2678 tests, all passing).
 
+## Deferred backfill partition memo gate (#3624 Track 1)
+
+The corpus-wide deferred relationship pass now skips re-loading a partition whose
+`(scope_id, generation_id)` already committed backward evidence under an unchanged
+catalog fingerprint (the partition memo). Two counters expose the gate's decision:
+
+- `eshu_dp_deferred_backfill_partitions_skipped_total` — partitions skipped this
+  pass, labeled `reason` (currently `catalog_unchanged`). This is the primary
+  steady-state signal: a skip ratio near the partition count means the memo is
+  eliminating redundant re-loads on no-change drains.
+- `eshu_dp_deferred_backfill_partitions_loaded_total` — partitions loaded despite
+  the memo lookup, labeled `reason` (`memo_miss`: no memo row, or the catalog
+  fingerprint changed). ArgoCD-bearing partitions are excluded from the memo on
+  the write side and so surface here as `memo_miss` reloads.
+
+Read `skipped / (skipped + loaded)` for the memo hit rate. A hit rate that
+collapses to zero against a stable corpus points to catalog churn (every repo
+onboard/rename/remove flips the fingerprint and reloads all partitions) or a
+memo-write regression. The gate also logs
+`deferred_backfill_partition_memo_gate_completed` with candidate/skipped/loaded
+counts for a single-line per-pass summary.
+
+Observability Evidence: the two counters register via the `telemetry.Instruments`
+contract; the gate is otherwise a single indexed `deferred_backfill_partition_memo`
+lookup with no payload scan. Verified against a disposable Postgres 18 by the
+`TestDeferredBackfillPartitionMemo*` suite in `go/internal/storage/postgres`.
+
 ## Graph-Write Permit Pool Split By Class (#4448)
 
 Before this change every reducer graph write — canonical, handler-edge,

@@ -81,6 +81,7 @@ func TestWriteDeferredBackfillSkipsReadinessWhenGenerationAdvanced(t *testing.T)
 				context.Background(),
 				map[string][]relationships.EvidenceFact{},
 				tc.snapshot,
+				"",
 				nil,
 			)
 			if err != nil {

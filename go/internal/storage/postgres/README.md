@@ -1051,6 +1051,62 @@ span, or log shape is introduced; a falling `DeferredBackfillPartitionLoadDurati
 against the same partition shape is the operator-visible signal this fix is
 effective.
 
+### Deferred pass partition memoization (#3624 Track 1 / B')
+
+`RunDeferredRelationshipMaintenance` fires the full corpus-wide deferred pass
+after every batch drain that commits a generation (`AfterBatchDrained`), with no
+per-partition freshness gate: a steady-state ingester re-ran the whole
+~907-partition fact load plus `DiscoverEvidence` for zero new evidence on any
+no-change drain. `applyDeferredPartitionMemoGate`
+(`ingestion_backfill_partition_memo_gate.go`) skips re-loading a partition whose
+`(scope_id, generation_id)` already committed backward evidence under the current
+catalog fingerprint (`deferredCatalogFingerprint` — a stable sorted hash of the
+shared `$1`/`$2` query params), persisted in `deferred_backfill_partition_memo`
+(migration `042`). Correctness is by determinism, not predicate-narrowing: a
+`(scope, generation)` partition's fact set is immutable (fact_id globally unique,
+one generation per fact, one generation per scope with retention dropping old
+generations), so identical inputs re-derive byte-identical evidence that is
+already committed idempotently; any repo onboard, rename, or removal flips the
+fingerprint and reloads every partition.
+
+ArgoCD carve-out: an ApplicationSet in repo A resolves config files from repo B,
+so A's cross-repo evidence can change when B changes even though A's own
+generation is unchanged. ArgoCD-bearing partitions are excluded from the memo on
+the WRITE side (`writeDeferredBackfillPartitionMemos`) so they always reload; the
+read gate therefore needs no ArgoCD probe and stays a single indexed memo lookup.
+The carve-out uses a PRECISE signal (`argoproj.io`, a non-empty parsed
+`argocd_applicationsets`/`argocd_applications` array, or `artifact_type=argocd`),
+NOT the broad `argoCDOverSelectAnchors`: those anchors include the substrings
+`argocd_applications`/`argocd_applicationsets`, which are empty struct keys
+`parsed_file_data` serializes into every parsed file's payload, so a substring
+scan over them flags every partition (measured 869 of 869) and defeats the memo.
+
+Performance Evidence: live `eshufull` corpus (Postgres 18, 4.09M fact_records,
+869 fact-bearing partitions). The precise ArgoCD signal flags 23 partitions
+(the broad `argocd_applications` empty-struct-key marker flagged all 869), so a
+no-change drain skips 846 of 869 partitions (97.4%) — the full ~188s fact load
+plus `DiscoverEvidence` CPU replaced by one indexed
+`deferred_backfill_partition_memo` lookup, with the 23 always-reload ArgoCD
+partitions. The read gate performs NO payload scan; the earlier read-side ArgoCD
+probe (removed) would have re-serialized `payload::text` over every skip
+candidate (measured ~59s per pass). Accuracy is pinned by
+`TestDeferredBackfillPartitionMemoNoChangeRerunSkipsAndIsIdentical` (pass 2 skips
+every partition and leaves the evidence edge set byte-identical to a full
+reload — 0/0), `...CatalogChangeInvalidatesAll`,
+`...GenerationChangeReloadsOnlyThatPartition`, `...ArgoCDCarveOutAlwaysReloads`,
+`...BootstrapUnchangedFullLoad`, and
+`TestArgoCDBearingSignalIgnoresEmptyParsedStructKeys` (the empty-struct-key
+regression guard), all against a disposable Postgres 18. Bootstrap wall time is
+unchanged (an empty memo loads every partition).
+
+Observability Evidence: `eshu_dp_deferred_backfill_partitions_skipped_total`
+(reason=`catalog_unchanged`) and `eshu_dp_deferred_backfill_partitions_loaded_total`
+(reason=`memo_miss`) via the `telemetry.Instruments` contract, plus a
+`deferred_backfill_partition_memo_gate_completed` structured log with
+candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
+the operator-visible signal the memo is effective; a skip ratio that collapses to
+zero signals a catalog churn or a memo-write regression.
+
 ## Platform-Graph Conflict-Domain Partition (#3672)
 
 ### Conflict-Domain Map
