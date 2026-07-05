@@ -65,6 +65,13 @@ Not claimed today:
   view, routine, and trigger shapes is bounded.
 - dbt lineage intentionally reports unresolved references, opaque templated
   expressions, complex macros, and some derived expressions instead of guessing.
+- A single SQL statement segment larger than 256 KiB has its dollar-quoted
+  routine body elided (or, if still oversized, its parse skipped) before
+  tree-sitter runs, to bound a superlinear/aborting parse on very large routine
+  bodies (#4422). The routine's signature entity is still extracted;
+  `READS_FROM` mentions sourced from inside the elided body are not. The bound
+  is recorded in `payload["sql_parse_bounded"]` and logged, never silently
+  dropped.
 
 ## Related Docs
 

@@ -5,12 +5,28 @@ package sql
 
 import (
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+// sqlParseSegmentTimeout bounds one tree-sitter parse call so an unforeseen
+// pathological segment cannot hang the collector. Tests must rely on the
+// maxSQLSegmentBytes size cap for determinism; this timeout is defense in
+// depth only, not the primary bound.
+//
+// tree-sitter's context-cancellation entry point (Parser.ParseCtx) is
+// deprecated and crashes on a parser that has never had a cancellation flag
+// set (ts_parser_cancellation_flag returns NULL, so the cancel goroutine
+// dereferences a nil *uintptr) -- observed directly on this branch. The
+// supported replacement is Parser.ParseWithOptions with a ProgressCallback,
+// which tree-sitter polls periodically during parsing and which can cancel
+// by returning true; that path is used here instead.
+const sqlParseSegmentTimeout = 15 * time.Second
 
 // Parse extracts SQL schema objects, relationships, and migration metadata from
 // one source file using a tree-sitter SQL grammar.
@@ -21,6 +37,12 @@ import (
 // by a bounded rewrite to CREATE FUNCTION before parsing. All entity, column,
 // routine, trigger, index, and relationship extraction walks the resulting
 // abstract syntax tree; no SQL DDL regular expressions are used.
+//
+// A segment larger than maxSQLSegmentBytes is bounded before it reaches
+// tree-sitter: its dollar-quoted bodies are elided, or, if still oversized,
+// its tree-sitter parse is skipped entirely. Either bound is recorded in the
+// returned payload's "sql_parse_bounded" bucket and logged, so a dropped
+// routine body is observable rather than silently missing.
 func Parse(
 	path string,
 	isDependency bool,
@@ -42,6 +64,7 @@ func Parse(
 		"sql_indexes":       []map[string]any{},
 		"sql_relationships": []map[string]any{},
 		"sql_migrations":    []map[string]any{},
+		"sql_parse_bounded": []map[string]any{},
 		"is_dependency":     isDependency,
 		"lang":              "sql",
 	}
@@ -63,7 +86,7 @@ func Parse(
 	}
 
 	for _, segment := range splitSQLStatements(string(source)) {
-		extractor.parseSegment(segment, parser)
+		extractor.parseSegment(segment, parser, path)
 	}
 
 	payload["sql_migrations"] = buildSQLMigrationEntries(path, extractor.lineIndex, payload, extractor.tableMentions)
@@ -87,8 +110,35 @@ func Parse(
 // segment offset is recorded so node positions map back to original source line
 // numbers. CREATE PROCEDURE segments are rewritten to CREATE FUNCTION so the
 // grammar can parse them, and the recovered routine is flagged as a procedure.
-func (x *sqlExtractor) parseSegment(segment sqlSegment, parser *tree_sitter.Parser) {
-	text, isProcedure, edits := rewriteProcedureSegment(segment.text)
+//
+// A segment larger than maxSQLSegmentBytes is bounded before it reaches
+// tree-sitter (#4422): an opaque dollar-quoted routine body of that size
+// parses superlinearly and can hard-crash the process via a tree-sitter
+// error-recovery assertion. The interior of every dollar-quoted body in the
+// segment is elided first, which preserves the routine signature for
+// extraction; if the segment is still oversized afterward (a pathological
+// non-dollar-quoted statement), the tree-sitter parse is skipped entirely for
+// it. Either bound is recorded in payload["sql_parse_bounded"] and logged so
+// the dropped facts are observable, never silent. A parse deadline
+// (sqlParseSegmentTimeout) is defense in depth for any segment that reaches
+// tree-sitter despite the size bound.
+func (x *sqlExtractor) parseSegment(segment sqlSegment, parser *tree_sitter.Parser, path string) {
+	segmentText := segment.text
+	if len(segmentText) > maxSQLSegmentBytes {
+		// Over cap: try eliding dollar-quoted body interiors. Record exactly one
+		// action — body_elided only when the elided form is actually parseable
+		// (fits the cap), otherwise segment_skipped (no dollar body to elide, or
+		// still oversized after elision).
+		if bounded, edited := elideOversizedDollarQuotedBodies(segmentText); edited && len(bounded) <= maxSQLSegmentBytes {
+			x.recordBoundedSegment(path, segment, "body_elided")
+			segmentText = bounded
+		} else {
+			x.recordBoundedSegment(path, segment, "segment_skipped")
+			return
+		}
+	}
+
+	text, isProcedure, edits := rewriteProcedureSegment(segmentText)
 
 	x.segmentOffset = segment.offset
 	x.procedure = isProcedure
@@ -96,8 +146,23 @@ func (x *sqlExtractor) parseSegment(segment sqlSegment, parser *tree_sitter.Pars
 	x.segmentEdits = edits
 
 	parsed := []byte(text)
-	tree := parser.Parse(parsed, nil)
+	deadline := time.Now().Add(sqlParseSegmentTimeout)
+	tree := parser.ParseWithOptions(func(offset int, _ tree_sitter.Point) []byte {
+		if offset < len(parsed) {
+			return parsed[offset:]
+		}
+		return nil
+	}, nil, &tree_sitter.ParseOptions{
+		ProgressCallback: func(tree_sitter.ParseState) bool {
+			return time.Now().After(deadline)
+		},
+	})
 	if tree == nil {
+		// A cancelled/timed-out ParseWithOptions leaves the parser positioned to
+		// resume the aborted parse on its next call; Parse reuses this parser for
+		// every segment in the file, so reset it to keep a later segment's parse
+		// clean (go-tree-sitter Parser.Reset).
+		parser.Reset()
 		return
 	}
 	defer tree.Close()
@@ -111,6 +176,26 @@ func (x *sqlExtractor) parseSegment(segment sqlSegment, parser *tree_sitter.Pars
 		mention.offset = x.segmentOffset + mention.offset
 		x.tableMentions = append(x.tableMentions, mention)
 	}
+}
+
+// recordBoundedSegment appends a sql_parse_bounded payload row for one
+// bounded segment and emits a matching structured log line so a dropped
+// routine body or skipped segment is observable rather than silent.
+func (x *sqlExtractor) recordBoundedSegment(path string, segment sqlSegment, action string) {
+	event := sqlBoundedSegmentEvent{
+		path:          path,
+		segmentOffset: segment.offset,
+		originalBytes: len(segment.text),
+		action:        action,
+	}
+	appendBucket(x.payload, "sql_parse_bounded", event.row())
+	slog.Warn("sql parse segment bounded",
+		"component", "parser.sql",
+		"path", event.path,
+		"segment_offset", event.segmentOffset,
+		"original_bytes", event.originalBytes,
+		"action", event.action,
+	)
 }
 
 // visitStatementConstructs invokes visit for every statement construct node in

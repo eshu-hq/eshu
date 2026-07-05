@@ -15,4 +15,12 @@
 // and by deduplicating entity and relationship keys before returning.
 // Constraint clauses are scanned for bounded table references without being
 // reported as column definitions.
+//
+// A statement segment larger than maxSQLSegmentBytes is bounded before it
+// reaches tree-sitter: an opaque dollar-quoted routine body of that size
+// parses superlinearly and can hard-crash the process. The segment's
+// dollar-quoted bodies are elided first (preserving the routine signature);
+// if it is still oversized, the tree-sitter parse is skipped for that segment
+// entirely. Either bound is recorded in payload["sql_parse_bounded"] and
+// logged, never silently dropped.
 package sql
