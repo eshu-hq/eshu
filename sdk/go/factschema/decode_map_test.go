@@ -264,3 +264,82 @@ func TestDecodeMapInto_IntFastPath(t *testing.T) {
 		}
 	})
 }
+
+// TestDecodeMapInto_StringMapSliceFastPath proves decodeMapInto's
+// []map[string]string fast path (added for the security_alert wave's
+// security_alert.repository_alert CWEs field, and shared with gcp's
+// IAMPolicyObservation.Members) decodes a JSONB-native []any of string-valued
+// object maps directly via type assertion, rather than falling through to the
+// jsonRoundTripValue marshal/unmarshal path — the same gap class the
+// kubernetes_live (map[string]string) and vulnerability (float64) waves closed.
+// A slice whose elements are not string-valued object maps must still fall back
+// to jsonRoundTripValue (which fails closed) rather than silently coercing.
+func TestDecodeMapInto_StringMapSliceFastPath(t *testing.T) {
+	t.Parallel()
+
+	type cweHolder struct {
+		CWEs []map[string]string `json:"cwes,omitempty"`
+	}
+
+	t.Run("JSONB-native []any of object maps", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"cwes": []any{
+				map[string]any{"cwe_id": "CWE-400", "name": "Uncontrolled Resource Consumption"},
+				map[string]any{"cwe_id": "CWE-770", "name": "Allocation Without Limits"},
+			},
+		}
+		var out cweHolder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		want := []map[string]string{
+			{"cwe_id": "CWE-400", "name": "Uncontrolled Resource Consumption"},
+			{"cwe_id": "CWE-770", "name": "Allocation Without Limits"},
+		}
+		if !reflect.DeepEqual(out.CWEs, want) {
+			t.Fatalf("CWEs = %v, want %v", out.CWEs, want)
+		}
+	})
+
+	t.Run("already-typed []map[string]string", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"cwes": []map[string]string{{"cwe_id": "CWE-79"}},
+		}
+		var out cweHolder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		want := []map[string]string{{"cwe_id": "CWE-79"}}
+		if !reflect.DeepEqual(out.CWEs, want) {
+			t.Fatalf("CWEs = %v, want %v", out.CWEs, want)
+		}
+	})
+
+	t.Run("empty slice stays empty non-nil", func(t *testing.T) {
+		t.Parallel()
+		var out cweHolder
+		if err := decodeMapInto(map[string]any{"cwes": []any{}}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.CWEs == nil || len(out.CWEs) != 0 {
+			t.Fatalf("CWEs = %v, want empty non-nil slice", out.CWEs)
+		}
+	})
+
+	t.Run("non-string-valued object map falls back and fails closed", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"cwes": []any{map[string]any{"cwe_id": 400}},
+		}
+		var out cweHolder
+		// A non-string value can't coerce to map[string]string; the fast path
+		// returns ok=false and jsonRoundTripValue takes over, which unmarshals
+		// the JSON number 400 into the string field's slot — encoding/json
+		// rejects that with a type error rather than silently coercing.
+		if err := decodeMapInto(payload, &out); err == nil {
+			t.Fatal("decodeMapInto() error = nil, want an error for a non-string CWE value")
+		}
+	})
+}

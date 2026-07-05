@@ -381,6 +381,9 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindWorkItemMetadataWarning:
 		_, err := DecodeWorkItemMetadataWarning(env)
 		return err
+	case FactKindSecurityAlertRepositoryAlert:
+		_, err := DecodeSecurityAlertRepositoryAlert(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -482,6 +485,7 @@ var allDecodedKinds = []string{
 	FactKindWorkItemWorkflowMetadata,
 	FactKindWorkItemFieldMetadata,
 	FactKindWorkItemMetadataWarning,
+	FactKindSecurityAlertRepositoryAlert,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -766,6 +770,8 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeWorkItemFieldMetadata(env)
 			case FactKindWorkItemMetadataWarning:
 				_, err = DecodeWorkItemMetadataWarning(env)
+			case FactKindSecurityAlertRepositoryAlert:
+				_, err = DecodeSecurityAlertRepositoryAlert(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

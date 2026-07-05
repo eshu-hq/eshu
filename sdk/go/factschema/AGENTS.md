@@ -54,11 +54,16 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
   `incident_routing.observed_pagerduty_integration`,
   `incident_routing.coverage_warning`), and (among others added by later
   waves — see `gcp/v1`, `azure/v1`, `kuberneteslive/v1`, `ociregistry/v1`,
-  `terraformstate/v1` READMEs) the sbom_attestation family (`sbom.document`,
+  `terraformstate/v1`, `packageregistry/v1`, `vulnerability/v1`, `cicdrun/v1`,
+  `secretsiam/v1`, `workitem/v1`, `securityalert/v1` READMEs) the
+  sbom_attestation family (`sbom.document`,
   `sbom.component`, `sbom.dependency_relationship`, `sbom.external_reference`,
   `sbom.warning`, `attestation.statement`,
   `attestation.signature_verification`, `attestation.slsa_provenance` — see
-  `sbom/v1/README.md` for which are wired versus typed-but-deferred). When you
+  `sbom/v1/README.md` for which are wired versus typed-but-deferred), and the
+  security_alert family (`security_alert.repository_alert` — one kind, see
+  `securityalert/v1/README.md`; its single reducer decode site feeds both the
+  reconciliation read surface and the supply_chain_impact seeder). When you
   add a new kind, add its typed
   struct under `<family>/v1` (its required set is whatever the struct's own json
   tags declare — there is no separate registration step), its

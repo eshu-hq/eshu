@@ -80,7 +80,18 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 	envelopes = append(envelopes, manifestDependencies...)
 	envelopes = dedupeSecurityAlertReconciliationEnvelopes(envelopes)
 
-	decisions := BuildSecurityAlertReconciliations(envelopes)
+	decisions, quarantined, err := BuildSecurityAlertReconciliationsWithQuarantine(envelopes)
+	if err != nil {
+		// A non-decode error (a fatal condition partitionDecodeFailures did NOT
+		// quarantine, such as an unsupported schema major) fails the whole intent
+		// so the durable queue triages it correctly.
+		return Result{}, fmt.Errorf("build security alert reconciliations: %w", err)
+	}
+	// Per-fact isolation: a malformed security_alert.repository_alert fact (one
+	// missing its required repository_id identity anchor) is quarantined as a
+	// visible input_invalid dead-letter — counter + structured error log — while
+	// every valid sibling alert still produces its reconciliation decision.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityAlertReconciliation, intent.ScopeID, intent.GenerationID, quarantined)
 	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
 		return Result{}, retryableSecurityAlertReconciliationEvidenceError{
 			packageID: firstUnmatchedPackageWithDependency(decisions),
@@ -104,6 +115,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: securityAlertReconciliationSummary(decisions, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

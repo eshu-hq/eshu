@@ -24,6 +24,7 @@ import (
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
@@ -371,6 +372,7 @@ var payloadContracts = []struct {
 	{FactKindWorkItemWorkflowMetadata, "work_item.workflow_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemWorkflowMetadata{})},
 	{FactKindWorkItemFieldMetadata, "work_item.field_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemFieldMetadata{})},
 	{FactKindWorkItemMetadataWarning, "work_item.metadata_warning.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemMetadataWarning{})},
+	{FactKindSecurityAlertRepositoryAlert, "security_alert.repository_alert.v1.schema.json", reflect.TypeOf(securityalertv1.RepositoryAlert{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

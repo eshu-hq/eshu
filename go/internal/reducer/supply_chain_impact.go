@@ -329,7 +329,16 @@ func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([
 			continue
 		}
 	}
-	findings = appendSecurityAlertImpactFindings(findings, envelopes, index)
+	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Merge the security-alert decode quarantines with the vulnerability
+	// quarantines so SupplyChainImpactHandler.Handle records every malformed
+	// fact of either family as a per-fact input_invalid dead-letter through the
+	// same recordQuarantinedFacts path, and a poisoned security_alert fact never
+	// aborts the whole supply_chain_impact generation.
+	quarantined = append(quarantined, securityAlertQuarantined...)
 	sort.SliceStable(findings, func(i, j int) bool {
 		if findings[i].CVEID != findings[j].CVEID {
 			return findings[i].CVEID < findings[j].CVEID

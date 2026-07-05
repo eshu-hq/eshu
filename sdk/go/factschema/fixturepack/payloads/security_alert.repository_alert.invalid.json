@@ -1,0 +1,12 @@
+{
+  "provider": "github_dependabot",
+  "provider_alert_id": "github_dependabot:repo://github/eshu-hq/eshu:42",
+  "provider_alert_number": 42,
+  "provider_state": "open",
+  "package_id": "npm://registry.npmjs.org/left-pad",
+  "ecosystem": "npm",
+  "package_name": "left-pad",
+  "ghsa_ids": ["GHSA-abcd-1234-efgh"],
+  "cve_ids": ["CVE-2026-0001"],
+  "severity": "high"
+}

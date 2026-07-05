@@ -10,14 +10,32 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// appendSecurityAlertImpactFindings seeds supply-chain-impact findings from
+// provider security alerts, decoding the security_alert.repository_alert facts
+// through the same typed contracts seam the reconciliation read surface uses.
+//
+// It returns the []quarantinedFact for any alert whose payload was missing its
+// required repository_id identity anchor, and a fatal error for a non-decode
+// failure, so SupplyChainImpactHandler.Handle applies the SAME per-fact
+// isolation to a malformed security alert that it already applies to a
+// malformed vulnerability fact: the poisoned alert is skipped and recorded as a
+// visible input_invalid dead-letter while every valid sibling still seeds its
+// finding and the whole supply_chain_impact generation still publishes. A
+// malformed alert therefore can no longer produce an empty-identity impact
+// finding (securityAlertCanSeedImpact already required a non-empty RepositoryID,
+// so a repository_id-less alert never seeded a finding — but the pre-typing
+// path dropped it silently; it now dead-letters visibly).
 func appendSecurityAlertImpactFindings(
 	findings []SupplyChainImpactFinding,
 	envelopes []facts.Envelope,
 	index supplyChainImpactIndex,
-) []SupplyChainImpactFinding {
-	alerts := extractProviderSecurityAlerts(envelopes)
+) ([]SupplyChainImpactFinding, []quarantinedFact, error) {
+	alerts, quarantined, err := extractProviderSecurityAlertsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(alerts) == 0 {
-		return findings
+		return findings, quarantined, nil
 	}
 	consumptions := extractSecurityAlertConsumptions(envelopes)
 	consumptions = append(consumptions, extractSecurityAlertManifestConsumptions(alerts, envelopes)...)
@@ -28,7 +46,7 @@ func appendSecurityAlertImpactFindings(
 		}
 		findings = appendSupplyChainImpactFinding(findings, finding)
 	}
-	return findings
+	return findings, quarantined, nil
 }
 
 func buildSecurityAlertImpactFinding(

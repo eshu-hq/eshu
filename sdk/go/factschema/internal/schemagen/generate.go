@@ -19,6 +19,7 @@ import (
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
@@ -1073,4 +1074,14 @@ const WorkItemMetadataWarningSchemaID = schemaBaseID + "workitem/v1/metadata_war
 // workitemv1.WorkItemMetadataWarning.
 func WorkItemMetadataWarningSchema() ([]byte, error) {
 	return reflectSchema(WorkItemMetadataWarningSchemaID, "Eshu work_item.metadata_warning Payload (schema version 1)", &workitemv1.WorkItemMetadataWarning{})
+}
+
+// SecurityAlertRepositoryAlertSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "security_alert.repository_alert" payload.
+const SecurityAlertRepositoryAlertSchemaID = schemaBaseID + "securityalert/v1/repository_alert.schema.json"
+
+// SecurityAlertRepositoryAlertSchema returns the JSON Schema bytes for
+// securityalertv1.RepositoryAlert.
+func SecurityAlertRepositoryAlertSchema() ([]byte, error) {
+	return reflectSchema(SecurityAlertRepositoryAlertSchemaID, "Eshu security_alert.repository_alert Payload (schema version 1)", &securityalertv1.RepositoryAlert{})
 }
