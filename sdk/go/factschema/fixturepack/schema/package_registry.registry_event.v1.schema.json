@@ -1,0 +1,88 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/packageregistry/v1/registry_event.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "actor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifact_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_key": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string"
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "occurred_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "event_key",
+    "event_type"
+  ],
+  "title": "Eshu package_registry.registry_event Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,6 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "provider": "artifactory",
+  "registry": "registry.example.com",
+  "repository_type": "local"
+}

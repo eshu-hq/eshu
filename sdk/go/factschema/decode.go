@@ -160,6 +160,50 @@ const (
 	// FactKindTerraformStateWarning is the "terraform_state_warning" fact kind.
 	// Typed but not yet consumed (terraformstate/v1/doc.go).
 	FactKindTerraformStateWarning = "terraform_state_warning"
+
+	// The package_registry family fact-kind strings are DOTTED, like the
+	// incident/oci_registry families. The dots are part of the wire kind the
+	// collector already emits (go/internal/facts.PackageRegistry*FactKind and
+	// siblings); the values here MATCH those wire strings byte-for-byte and
+	// never invent or rename the namespace. TestFactSchemaKindsMatchWireFactKinds
+	// (reducer side) asserts each stays byte-equal to its facts.*FactKind
+	// counterpart.
+
+	// FactKindPackageRegistryPackage is the "package_registry.package" fact
+	// kind.
+	FactKindPackageRegistryPackage = "package_registry.package"
+	// FactKindPackageRegistryPackageVersion is the
+	// "package_registry.package_version" fact kind.
+	FactKindPackageRegistryPackageVersion = "package_registry.package_version"
+	// FactKindPackageRegistryPackageDependency is the
+	// "package_registry.package_dependency" fact kind.
+	FactKindPackageRegistryPackageDependency = "package_registry.package_dependency"
+	// FactKindPackageRegistrySourceHint is the "package_registry.source_hint"
+	// fact kind. Typed but not yet consumed through this module's decode seam
+	// (packageregistry/v1/doc.go); read today only by the reducer's
+	// package_source_correlation domain via raw payload access.
+	FactKindPackageRegistrySourceHint = "package_registry.source_hint"
+	// FactKindPackageRegistryPackageArtifact is the
+	// "package_registry.package_artifact" fact kind. Typed but not yet
+	// consumed.
+	FactKindPackageRegistryPackageArtifact = "package_registry.package_artifact"
+	// FactKindPackageRegistryVulnerabilityHint is the
+	// "package_registry.vulnerability_hint" fact kind. Typed but not yet
+	// consumed through the decode seam; its package_id field is read by a
+	// raw-SQL-JSONB loader (packageregistry/v1/doc.go).
+	FactKindPackageRegistryVulnerabilityHint = "package_registry.vulnerability_hint"
+	// FactKindPackageRegistryRegistryEvent is the
+	// "package_registry.registry_event" fact kind. Typed but not yet consumed.
+	FactKindPackageRegistryRegistryEvent = "package_registry.registry_event"
+	// FactKindPackageRegistryRepositoryHosting is the
+	// "package_registry.repository_hosting" fact kind. Typed but not yet
+	// consumed.
+	FactKindPackageRegistryRepositoryHosting = "package_registry.repository_hosting"
+	// FactKindPackageRegistryWarning is the "package_registry.warning" fact
+	// kind. Typed but not yet consumed through the decode seam; its ecosystem
+	// and warning_code fields are read by a raw-SQL-JSONB loader
+	// (packageregistry/v1/doc.go).
+	FactKindPackageRegistryWarning = "package_registry.warning"
 )
 
 // Classification values a DecodeError carries. These are this module's own

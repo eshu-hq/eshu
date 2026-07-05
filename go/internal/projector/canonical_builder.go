@@ -22,9 +22,9 @@ import (
 // and not projected, while every valid fact still materializes, so one
 // malformed fact never fails the whole repository generation's projection. The
 // caller records them as visible input_invalid dead-letters
-// (recordProjectorQuarantinedFacts). The terraform_state and OCI registry
-// extractors are typed today; future typed families append to the same
-// slice.
+// (recordProjectorQuarantinedFacts). The terraform_state, OCI registry, and
+// package_registry extractors are typed today; future typed families append to
+// the same slice.
 func buildCanonicalMaterialization(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
@@ -79,7 +79,7 @@ func buildCanonicalMaterialization(
 	extractRelationships(inputFacts, &mat)
 	quarantined := extractTerraformStateRows(&mat, inputFacts)
 	quarantined = append(quarantined, extractOCIRegistryRows(&mat, inputFacts)...)
-	extractPackageRegistryRows(&mat, inputFacts)
+	quarantined = append(quarantined, extractPackageRegistryRows(&mat, inputFacts)...)
 
 	return mat, quarantined
 }

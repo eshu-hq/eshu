@@ -145,6 +145,16 @@ families:
     read_surface: "GET /api/v0/package-registry/packages"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      package_registry.package: "sdk/go/factschema/schema/package_registry.package.v1.schema.json"
+      package_registry.package_version: "sdk/go/factschema/schema/package_registry.package_version.v1.schema.json"
+      package_registry.package_dependency: "sdk/go/factschema/schema/package_registry.package_dependency.v1.schema.json"
+      package_registry.source_hint: "sdk/go/factschema/schema/package_registry.source_hint.v1.schema.json"
+      package_registry.package_artifact: "sdk/go/factschema/schema/package_registry.package_artifact.v1.schema.json"
+      package_registry.vulnerability_hint: "sdk/go/factschema/schema/package_registry.vulnerability_hint.v1.schema.json"
+      package_registry.registry_event: "sdk/go/factschema/schema/package_registry.registry_event.v1.schema.json"
+      package_registry.repository_hosting: "sdk/go/factschema/schema/package_registry.repository_hosting.v1.schema.json"
+      package_registry.warning: "sdk/go/factschema/schema/package_registry.warning.v1.schema.json"
     kinds: [package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning]
   rds_posture:
     lifecycle_owner: go/internal/facts

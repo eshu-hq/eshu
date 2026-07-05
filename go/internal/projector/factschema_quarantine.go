@@ -221,7 +221,7 @@ func groupQuarantinedFactsByStage(quarantined []quarantinedFact) map[string][]qu
 	if len(quarantined) == 0 {
 		return nil
 	}
-	grouped := make(map[string][]quarantinedFact, 2)
+	grouped := make(map[string][]quarantinedFact, 3)
 	for _, q := range quarantined {
 		stage := quarantinedFactStage(q.factKind)
 		grouped[stage] = append(grouped[stage], q)
@@ -229,14 +229,47 @@ func groupQuarantinedFactsByStage(quarantined []quarantinedFact) map[string][]qu
 	return grouped
 }
 
+// unknownCanonicalStage is the bounded fallback telemetry stage label
+// quarantinedFactStage returns when a fact kind matches no known prefix. It is
+// a deliberate, distinct label rather than borrowing any one family's stage:
+// an unrecognized kind reaching the quarantine path means a NEW typed family
+// was wired into buildCanonicalMaterialization without a matching
+// quarantinedFactStagePrefixes entry, and attributing its dead-letters to an
+// unrelated family (oci_registry, say) would mislead an operator. The label is
+// bounded (one constant), so it does not inflate metric cardinality.
+const unknownCanonicalStage = "unknown_canonical"
+
+// stagePrefix pairs a fact-kind PREFIX with the bounded telemetry stage label
+// of the canonical extractor that decodes it.
+type stagePrefix struct {
+	prefix string
+	stage  string
+}
+
+// quarantinedFactStagePrefixes is the ORDERED (longest-prefix-first)
+// prefix→stage table quarantinedFactStage matches against. Order is explicit
+// rather than relying on Go map iteration (which is randomized): the three
+// prefixes are mutually exclusive today, but a randomized map made the routing
+// non-deterministic against a future overlapping prefix, so the ordered slice
+// removes that latent hazard entirely. Longest-prefix-first means a more
+// specific prefix always wins over a shorter one that is its proper prefix. A
+// new typed family adds one entry here instead of another if/else branch.
+var quarantinedFactStagePrefixes = []stagePrefix{
+	{prefix: "package_registry.", stage: packageRegistryCanonicalStage},
+	{prefix: "terraform_state", stage: terraformStateCanonicalStage},
+	{prefix: "oci_registry.", stage: ociRegistryCanonicalStage},
+}
+
 // quarantinedFactStage returns the bounded telemetry stage label for the
-// canonical extractor that owns factKind. Every terraform_state_* kind routes
-// to terraformStateCanonicalStage; every other kind (today, only oci_registry.*)
-// routes to ociRegistryCanonicalStage, the projector's original (and, until
-// terraform_state's typed migration, only) typed family.
+// canonical extractor that owns factKind, matching quarantinedFactStagePrefixes
+// in order. An unrecognized kind returns unknownCanonicalStage — a distinct,
+// operator-honest label — rather than silently borrowing another family's
+// stage.
 func quarantinedFactStage(factKind string) string {
-	if strings.HasPrefix(factKind, "terraform_state") {
-		return terraformStateCanonicalStage
+	for _, entry := range quarantinedFactStagePrefixes {
+		if strings.HasPrefix(factKind, entry.prefix) {
+			return entry.stage
+		}
 	}
-	return ociRegistryCanonicalStage
+	return unknownCanonicalStage
 }

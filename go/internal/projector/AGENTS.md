@@ -63,7 +63,21 @@
   consumption truth in the projector.
   `package_source_correlation_intents.go` may enqueue the reducer classifier,
   but that intent is counter-only until reducer admission grows stronger
-  provenance.
+  provenance. The three consumed kinds (`package`, `.package_version`,
+  `.package_dependency`) decode through the `sdk/go/factschema` seam
+  (`factschema_decode_packageregistry.go`), NOT raw `payloadString`/
+  `payloadBoolPtr`/`payloadStringSlice`, reusing the family-neutral quarantine
+  apparatus `oci_registry`/`terraform_state` introduced: a fact missing a
+  required identity field (`package_id`, `version_id`, `version`,
+  `dependency_package_id`) is quarantined per-fact via
+  `partitionProjectorDecodeFailures` and recorded as a visible `input_invalid`
+  dead-letter (`eshu_dp_projector_input_invalid_facts_total` under the
+  `package_registry_canonical` stage). The six typed-but-not-yet-consumed kinds
+  (`.source_hint`, `.package_artifact`, `.vulnerability_hint`,
+  `.registry_event`, `.repository_hosting`, `.warning`) have no projector
+  decode site; `.source_hint`'s payload is read only by the reducer's
+  `package_source_correlation` domain via raw map access, a separate reducer
+  family this projector wave did not convert.
 - **AWS runtime drift stays reducer-owned** —
   `aws_cloud_runtime_drift_intents.go` may enqueue one reducer intent when an
   AWS generation contains `aws_resource` facts, but the projector must not join
@@ -282,3 +296,96 @@ on the operator dashboard's "Projector input_invalid Facts (rate)" panel. The
 migration adds no route, graph query shape, queue table, worker, lease, or
 runtime knob; it reuses the existing projector build path and per-fact
 isolation model.
+
+No-Regression Evidence (Wave 4c, package_registry projector typed-payload
+decode): `extractPackageRegistryRows` and its three row builders
+(`packageRegistryPackageRow`, `packageRegistryVersionRow`,
+`packageRegistryDependencyRow`) now decode `package_registry.package`,
+`.package_version`, and `.package_dependency` fact payloads through the
+`sdk/go/factschema` seam (`factschema_decode_packageregistry.go`) instead of
+raw `payloadString`/`payloadBoolPtr`/`payloadStringSlice` map lookups. This is
+a cold, once-per-scope-generation projection path (not a hot per-edge loop). A
+fact missing a required identity field (`package_id`/`version_id`/`version`/
+`dependency_package_id`) is quarantined per-fact via
+`partitionProjectorDecodeFailures` rather than silently producing a row under
+an empty-string identity, or (for the dependency edge) failing only its own
+`StableFactKey`-derived uid gate. `go test ./internal/projector -run
+'TestExtractPackageRegistryRowsQuarantinesMissingPackageID|TestExtractPackageRegistryRowsPresentButEmptyPackageIDIsDroppedNotQuarantined|TestExtractPackageRegistryRowsWhitespacePackageIDIsDroppedNotMaterialized|TestExtractPackageRegistryRowsQuarantinesMissingDependencyJoinKey'
+-count=1 -v` failed to even COMPILE against the pre-conversion code at
+HEAD~ (the old `extractPackageRegistryRows` had a `void` signature — no
+`[]quarantinedFact` return existed for the test to assert on, proving the
+per-fact quarantine contract is genuinely new behavior, not a pre-existing
+capability the test merely exercises), then passed after: the malformed fact
+is recorded on the quarantine slice and the valid sibling package/version still
+materializes its identity-keyed row, with no uid ever computed from an
+empty-string or whitespace-only identity segment. Every existing
+package_registry valid-path test
+(`TestBuildCanonicalMaterializationExtractsPackageRegistryRows`,
+`TestBuildCanonicalMaterializationExtractsPackageRegistryDependencies`,
+`TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryDependency`,
+`TestBuildCanonicalMaterializationKeepsPackageSourceHintsProvenanceOnly`,
+`TestRuntimeProjectRejectsUnknownPackageRegistrySchemaVersion`,
+`TestRuntimeProjectLocksPackageRegistryIdentitiesAroundCanonicalWrite`,
+`TestRuntimeProjectSkipsPackageRegistryIdentityLockWithoutPackageRows`, and
+`TestBuildProjectionQueuesSecurityAlertReconciliationForPackageRegistryPackage`)
+stays green unchanged, so valid facts produce byte-identical graph rows and
+only malformed→dead-letter is new behavior. Measured with `go test
+./internal/projector -run '^$' -bench 'BenchmarkExtractPackageRegistryRows'
+-benchmem -count=6 -benchtime=200x` (darwin/arm64, Apple M1 Max; input: 1,000
+synthetic packages × 3 package_registry fact kinds = 3,000 facts), each side
+measured in a quiesced window after this machine's concurrent-agent load
+average settled (an initial noisy sample under load average ~48 showed BEFORE
+apparently slower than AFTER — a measurement artifact from system contention,
+not a real signal; re-measuring after load settled reversed and stabilized the
+comparison). BEFORE (raw `payloadString`/`payloadBoolPtr`/`payloadStringSlice`
+map reads, pre-conversion at HEAD~2, measured in a throwaway detached
+worktree) -> AFTER (typed decode): ~1.66 ms/op, 4.10 MB/op, 9,036 allocs/op ->
+~3.4 ms/op, 5.28 MB/op, 32,036 allocs/op — approximately 1130 ns/fact typed
+vs. 553 ns/fact raw-map, a ~580 ns/fact delta. (The status-flag fields
+is_yanked/is_unlisted/is_deprecated/is_retracted on a version and
+optional/excluded on a dependency are typed as OPTIONAL `*bool` — descriptive
+flags, not required identity keys, so a persisted or older fact that omits them
+still projects rather than quarantines — which adds ~6,000 pointer-box allocs
+over the earlier required-non-pointer-bool draft; the per-fact cost stays flat.)
+This is within the same accuracy-guarantee cost band the OCI (~1.5 µs/fact) and
+terraform_state (~1.5 µs/fact) waves already accepted; package_registry's
+~1.13 µs/fact typed cost is in fact lower than both precedents. A cold,
+once-per-scope-generation
+projection path: a real package-registry repository generation carries a
+handful to low hundreds of packages, not the 1,000-package stress bound this
+benchmark uses, so the per-generation wall-clock cost stays in the
+low-single-digit-millisecond range. CPU and heap profiling
+(`go tool pprof -top -alloc_objects`) attributed the added allocations to
+`factschema.assignField`'s already-existing marshal-free fast path for
+`*string`/`*bool`/`[]string`/`map[string]string` fields (each optional pointer
+field heap-allocates its target via `reflect.ValueOf(&v)`) — no
+`jsonRoundTripValue` fallback appears in the profile for any package_registry
+field, so none of the three consumed structs' shapes trip the
+`decode_map.go` json-round-trip perf trap the kubernetes_live wave hit (+59%
+regression); the cost is the same reflection field-plan walk plus per-fact
+struct allocations the incident/OCI/terraform_state waves already measured and
+accepted. Result class: Correctness win with a bounded, measured cold-path
+cost, no root-cause action required.
+
+Observability Evidence (Wave 4c, package_registry projector typed-payload
+decode): the migration routes a malformed `package_registry.package`,
+`.package_version`, or `.package_dependency` fact through the same per-fact
+`eshu_dp_projector_input_invalid_facts_total` counter the oci_registry and
+terraform_state migrations introduced, under a new `stage`=
+`package_registry_canonical` label value. `quarantinedFactStage`
+(`factschema_quarantine.go`) is generalized from a 2-way
+`terraform_state`-vs-`oci_registry` prefix check into an ORDERED
+(longest-prefix-first) `quarantinedFactStagePrefixes` slice so a third (and any
+future) typed family adds one entry instead of another `if`/`else` branch, and
+so routing is deterministic rather than dependent on Go map iteration order. An
+unmatched fact kind returns a distinct `unknown_canonical` stage — not another
+family's label — so a NEW typed family wired into
+`buildCanonicalMaterialization` without a matching prefix entry surfaces its
+dead-letters honestly instead of misattributing them to `oci_registry`. An
+operator sees the package_registry dead-letter rate distinctly from the oci and
+terraform_state ones on the same "Projector input_invalid Facts (rate)" panel. The `factschema_decode_packageregistry.go` decode wrappers emit no
+metric of their own; they surface a decode failure through
+`recordProjectorQuarantinedFacts` (the counter plus the structured
+`projector input_invalid fact quarantined` error log carrying `fact_id` +
+`missing_field`). The migration adds no route, graph query shape, queue table,
+worker, lease, or runtime knob.

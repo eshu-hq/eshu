@@ -1,0 +1,27 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "ecosystem": "npm",
+  "registry": "https://registry.npmjs.org",
+  "package_id": "package://npm/registry.npmjs.org/@scope/pkg",
+  "version_id": "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+  "version": "1.2.3",
+  "dependency_package_id": "package://npm/registry.npmjs.org/left-pad",
+  "dependency_ecosystem": "npm",
+  "dependency_registry": "https://registry.npmjs.org",
+  "dependency_namespace": "",
+  "dependency_normalized": "left-pad",
+  "dependency_purl": "pkg:npm/left-pad",
+  "dependency_bom_ref": "pkg:npm/left-pad",
+  "dependency_manager": "npm",
+  "dependency_range": "^1.3.0",
+  "dependency_type": "runtime",
+  "target_framework": "node18",
+  "marker": "optional peer fallback",
+  "optional": true,
+  "excluded": false,
+  "correlation_anchors": [
+    "package://npm/registry.npmjs.org/@scope/pkg",
+    "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+    "package://npm/registry.npmjs.org/left-pad"
+  ]
+}

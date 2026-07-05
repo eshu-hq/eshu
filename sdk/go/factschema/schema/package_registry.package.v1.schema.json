@@ -1,0 +1,102 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/packageregistry/v1/package.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "bom_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "classifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "normalized_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "package_manager": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "purl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "raw_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_specific_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "package_id"
+  ],
+  "title": "Eshu package_registry.package Payload (schema version 1)",
+  "type": "object"
+}

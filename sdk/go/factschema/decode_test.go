@@ -21,6 +21,7 @@ import (
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
+	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
@@ -317,6 +318,15 @@ var payloadContracts = []struct {
 	{FactKindTerraformStateCandidate, "terraform_state_candidate.v1.schema.json", reflect.TypeOf(tfstatev1.Candidate{})},
 	{FactKindTerraformStateProviderBinding, "terraform_state_provider_binding.v1.schema.json", reflect.TypeOf(tfstatev1.ProviderBinding{})},
 	{FactKindTerraformStateWarning, "terraform_state_warning.v1.schema.json", reflect.TypeOf(tfstatev1.Warning{})},
+	{FactKindPackageRegistryPackage, "package_registry.package.v1.schema.json", reflect.TypeOf(packageregistryv1.Package{})},
+	{FactKindPackageRegistryPackageVersion, "package_registry.package_version.v1.schema.json", reflect.TypeOf(packageregistryv1.PackageVersion{})},
+	{FactKindPackageRegistryPackageDependency, "package_registry.package_dependency.v1.schema.json", reflect.TypeOf(packageregistryv1.PackageDependency{})},
+	{FactKindPackageRegistrySourceHint, "package_registry.source_hint.v1.schema.json", reflect.TypeOf(packageregistryv1.SourceHint{})},
+	{FactKindPackageRegistryPackageArtifact, "package_registry.package_artifact.v1.schema.json", reflect.TypeOf(packageregistryv1.PackageArtifact{})},
+	{FactKindPackageRegistryVulnerabilityHint, "package_registry.vulnerability_hint.v1.schema.json", reflect.TypeOf(packageregistryv1.VulnerabilityHint{})},
+	{FactKindPackageRegistryRegistryEvent, "package_registry.registry_event.v1.schema.json", reflect.TypeOf(packageregistryv1.RegistryEvent{})},
+	{FactKindPackageRegistryRepositoryHosting, "package_registry.repository_hosting.v1.schema.json", reflect.TypeOf(packageregistryv1.RepositoryHosting{})},
+	{FactKindPackageRegistryWarning, "package_registry.warning.v1.schema.json", reflect.TypeOf(packageregistryv1.Warning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

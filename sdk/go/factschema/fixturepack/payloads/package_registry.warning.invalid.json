@@ -1,0 +1,6 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "severity": "warning",
+  "message": "registry did not return metadata for this package",
+  "ecosystem": "npm"
+}

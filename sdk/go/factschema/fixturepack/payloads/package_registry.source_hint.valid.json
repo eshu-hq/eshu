@@ -1,0 +1,13 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "ecosystem": "npm",
+  "registry": "https://registry.npmjs.org",
+  "package_id": "package://npm/registry.npmjs.org/@scope/pkg",
+  "version_id": "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+  "version": "1.2.3",
+  "hint_kind": "repository",
+  "raw_url": "https://github.com/example/pkg",
+  "normalized_url": "https://github.com/example/pkg",
+  "confidence_reason": "package metadata repository field",
+  "correlation_anchors": ["package://npm/registry.npmjs.org/@scope/pkg"]
+}

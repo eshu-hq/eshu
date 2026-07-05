@@ -71,6 +71,16 @@ var factKindSchemaFile = map[string]string{
 	"FactKindTerraformStateModule":         "terraform_state_module.v1.schema.json",
 	"FactKindTerraformStateOutput":         "terraform_state_output.v1.schema.json",
 	"FactKindTerraformStateTagObservation": "terraform_state_tag_observation.v1.schema.json",
+	// package_registry family: only the three kinds the projector's canonical
+	// extractor decodes (factschema_decode_packageregistry.go). The six
+	// typed-but-not-yet-consumed kinds (source_hint, package_artifact,
+	// vulnerability_hint, registry_event, repository_hosting, warning) carry a
+	// schema but no decode-seam call from the reducer or projector, so they are
+	// intentionally absent here — mapping them would assert a gate contract for
+	// a kind no decode site reads.
+	"FactKindPackageRegistryPackage":           "package_registry.package.v1.schema.json",
+	"FactKindPackageRegistryPackageVersion":    "package_registry.package_version.v1.schema.json",
+	"FactKindPackageRegistryPackageDependency": "package_registry.package_dependency.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

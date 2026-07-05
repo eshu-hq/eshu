@@ -1,0 +1,116 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/packageregistry/v1/package_version.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "artifact_urls": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "bom_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "checksums": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_deprecated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_retracted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_unlisted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_yanked": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "package_manager": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "published_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "purl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": "string"
+    },
+    "version_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "package_id",
+    "version_id",
+    "version"
+  ],
+  "title": "Eshu package_registry.package_version Payload (schema version 1)",
+  "type": "object"
+}
