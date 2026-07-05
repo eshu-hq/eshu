@@ -42,8 +42,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if len(manifest.Kinds) != 25 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 25 (8 aws/iam + 4 wired incident + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live reducer kinds + 6 projector oci_registry kinds via the reducer and projector factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
+	if len(manifest.Kinds) != 30 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 30 (8 aws/iam + 4 wired incident + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live reducer kinds + 6 projector oci_registry kinds + 5 projector terraform_state kinds via the reducer and projector factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
 	}
 
 	var awsResource *KindManifest
@@ -141,8 +141,8 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 	if len(violations) != 0 {
 		t.Fatalf("Gate() found %d violation(s) against the real repository state, want 0:\n%s", len(violations), violationsString(violations))
 	}
-	if len(manifest.Kinds) != 25 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 25", len(manifest.Kinds))
+	if len(manifest.Kinds) != 30 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 30", len(manifest.Kinds))
 	}
 }
 

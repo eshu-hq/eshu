@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -206,3 +207,36 @@ func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
 // fact kind is at schema major 1 today; the Decode seam dispatches on the major
 // component only.
 const projectorDefaultSchemaMajorVersion = "1.0.0"
+
+// groupQuarantinedFactsByStage partitions a MERGED quarantinedFact slice — as
+// buildCanonicalMaterialization returns, appending across every typed
+// canonical extractor — by each fact's own originating stage label
+// (quarantinedFactStage), so a caller recording the visible input_invalid
+// dead-letter attributes each fact to the extractor that actually quarantined
+// it rather than a single hardcoded stage borrowed from whichever family
+// happened to be migrated first. Grouping (rather than tagging quarantinedFact
+// with a stage field) keeps the fact-kind-to-stage mapping in one place instead
+// of every extractor call site.
+func groupQuarantinedFactsByStage(quarantined []quarantinedFact) map[string][]quarantinedFact {
+	if len(quarantined) == 0 {
+		return nil
+	}
+	grouped := make(map[string][]quarantinedFact, 2)
+	for _, q := range quarantined {
+		stage := quarantinedFactStage(q.factKind)
+		grouped[stage] = append(grouped[stage], q)
+	}
+	return grouped
+}
+
+// quarantinedFactStage returns the bounded telemetry stage label for the
+// canonical extractor that owns factKind. Every terraform_state_* kind routes
+// to terraformStateCanonicalStage; every other kind (today, only oci_registry.*)
+// routes to ociRegistryCanonicalStage, the projector's original (and, until
+// terraform_state's typed migration, only) typed family.
+func quarantinedFactStage(factKind string) string {
+	if strings.HasPrefix(factKind, "terraform_state") {
+		return terraformStateCanonicalStage
+	}
+	return ociRegistryCanonicalStage
+}

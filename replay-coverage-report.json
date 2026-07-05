@@ -1,0 +1,3836 @@
+{
+  "schema_version": "replay-coverage-report.v3",
+  "blocking": true,
+  "totals": {
+    "total": 389,
+    "covered": 206,
+    "uncovered": 174,
+    "unresolved": 0,
+    "exempt": 9,
+    "percent_satisfied": 55.27
+  },
+  "registry_summaries": [
+    {
+      "registry": "authorization_catalog",
+      "total": 22,
+      "covered": 22,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 100
+    },
+    {
+      "registry": "capability_matrix",
+      "total": 130,
+      "covered": 130,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 100
+    },
+    {
+      "registry": "cli_read_surface",
+      "total": 7,
+      "covered": 7,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 100
+    },
+    {
+      "registry": "fact_kind_registry",
+      "total": 17,
+      "covered": 16,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 1,
+      "percent_satisfied": 100
+    },
+    {
+      "registry": "parser_backing_ledger",
+      "total": 4,
+      "covered": 4,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 100
+    },
+    {
+      "registry": "product_claim_ledger",
+      "total": 11,
+      "covered": 11,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 100
+    },
+    {
+      "registry": "projection",
+      "total": 24,
+      "covered": 0,
+      "uncovered": 24,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 0
+    },
+    {
+      "registry": "reducer_drain",
+      "total": 1,
+      "covered": 1,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 100
+    },
+    {
+      "registry": "retractable_edge_type",
+      "total": 52,
+      "covered": 0,
+      "uncovered": 52,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 0
+    },
+    {
+      "registry": "retractable_type",
+      "total": 87,
+      "covered": 1,
+      "uncovered": 86,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 1.15
+    },
+    {
+      "registry": "surface_inventory",
+      "total": 34,
+      "covered": 14,
+      "uncovered": 12,
+      "unresolved": 0,
+      "exempt": 8,
+      "percent_satisfied": 64.71
+    }
+  ],
+  "scenario_type_summaries": [
+    {
+      "scenario_type": "baseline",
+      "total": 204,
+      "covered": 199,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 5,
+      "percent_satisfied": 100
+    },
+    {
+      "scenario_type": "cost",
+      "total": 23,
+      "covered": 1,
+      "uncovered": 22,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 4.35
+    },
+    {
+      "scenario_type": "crash",
+      "total": 2,
+      "covered": 2,
+      "uncovered": 0,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 100
+    },
+    {
+      "scenario_type": "delta_tombstone",
+      "total": 140,
+      "covered": 2,
+      "uncovered": 138,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 1.43
+    },
+    {
+      "scenario_type": "fault",
+      "total": 17,
+      "covered": 1,
+      "uncovered": 12,
+      "unresolved": 0,
+      "exempt": 4,
+      "percent_satisfied": 29.41
+    },
+    {
+      "scenario_type": "ordering",
+      "total": 3,
+      "covered": 1,
+      "uncovered": 2,
+      "unresolved": 0,
+      "exempt": 0,
+      "percent_satisfied": 33.33
+    }
+  ],
+  "surfaces": [
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:admin_recovery:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "admin_recovery:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"admin_recovery\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/component-extensions"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:admin_recovery:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "admin_recovery:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"admin_recovery\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/component-extensions"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:ask_search:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "ask_search:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"ask_search\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers POST /api/v0/ask"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:ask_search:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "ask_search:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"ask_search\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers POST /api/v0/ask"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:audit_export:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "audit_export:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"audit_export\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/work-items/evidence"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:audit_export:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "audit_export:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"audit_export\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/work-items/evidence"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:cloud_iac:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "cloud_iac:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"cloud_iac\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/iac/resources"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:cloud_iac:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "cloud_iac:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"cloud_iac\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/iac/resources"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:docs_semantic:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "docs_semantic:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"docs_semantic\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/documentation/findings"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:docs_semantic:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "docs_semantic:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"docs_semantic\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/documentation/findings"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:operations_status:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "operations_status:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"operations_status\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/status/governance"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:operations_status:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "operations_status:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"operations_status\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/status/governance"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:repository_content:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "repository_content:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"repository_content\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers POST /api/v0/code/search"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:repository_content:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "repository_content:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"repository_content\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers POST /api/v0/code/search"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:roles_grants:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "roles_grants:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"roles_grants\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/capabilities"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:roles_grants:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "roles_grants:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"roles_grants\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/capabilities"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:secrets_iam:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "secrets_iam:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"secrets_iam\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/secrets-iam/posture-summary"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:secrets_iam:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "secrets_iam:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"secrets_iam\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/secrets-iam/posture-summary"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:service_runtime:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "service_runtime:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"service_runtime\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/services/payments/story"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:service_runtime:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "service_runtime:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"service_runtime\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/services/payments/story"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:supply_chain:in_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "supply_chain:in_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"supply_chain\" in_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/supply-chain/impact/findings"
+    },
+    {
+      "registry": "authorization_catalog",
+      "key": "authz_family:supply_chain:out_of_grant",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "authz_scoped_route",
+      "ref": "supply_chain:out_of_grant",
+      "proof_gate": "authz-scoped-route-tests",
+      "detail": "authorization family \"supply_chain\" out_of_grant proof TestAuthorizationReplayCoverageContractRouteSamplesAllowScopedTokens in go/internal/query/authz_replay_coverage_contract_test.go covers GET /api/v0/supply-chain/impact/findings"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:admission_decisions.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "admission_decisions.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"admission_decisions.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:answer_narration.status",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "answer_narration.status",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"answer_narration.status\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:ask.natural_language_answer",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "ask.natural_language_answer",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"ask.natural_language_answer\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:aws_runtime_drift.findings.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "aws_runtime_drift.findings.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"aws_runtime_drift.findings.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.call_chain_path",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.direct_callees",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.direct_callers",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.metrics",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.relationship_story",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.route_to_caller",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-8",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-8\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.transitive_callees",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.transitive_callers",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:capability_catalog.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "capability_catalog.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"capability_catalog.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:ci_cd.run_correlations.aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "ci_cd.run_correlations.aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"ci_cd.run_correlations.aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:ci_cd.run_correlations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "ci_cd.run_correlations.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"ci_cd.run_correlations.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:cloud_inventory.readback.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "cloud_inventory.readback.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"cloud_inventory.readback.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:cloud_runtime_drift.readback.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "cloud_runtime_drift.readback.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"cloud_runtime_drift.readback.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_flow.cfg_summary",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_flow.cfg_summary",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_flow.cfg_summary\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_flow.pdg_summary",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_flow.pdg_summary",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_flow.pdg_summary\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_flow.reaching_def",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_flow.reaching_def",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_flow.reaching_def\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_flow.taint_path",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_flow.taint_path",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_flow.taint_path\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_inventory.structural",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_inventory.structural",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_inventory.structural\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_quality.complexity",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_quality.complexity",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_quality.complexity\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_quality.dead_code",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "POST /api/v0/code/dead-code/cross-repo",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"POST /api/v0/code/dead-code/cross-repo\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_quality.refactoring",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_quality.refactoring",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_quality.refactoring\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_search.content_search",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_search.content_search",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_search.content_search\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_search.content_search",
+      "scenario_type": "cost",
+      "status": "covered",
+      "scenario": "proof_artifact",
+      "ref": "specs/capability-budget-proof.v1.yaml",
+      "proof_gate": "capability-budget-proof",
+      "detail": "artifact present: specs/capability-budget-proof.v1.yaml"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_search.exact_symbol",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_search.exact_symbol",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_search.exact_symbol\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_search.fuzzy_symbol",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_search.fuzzy_symbol",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_search.fuzzy_symbol\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_search.symbol_lookup",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_search.symbol_lookup",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_search.symbol_lookup\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_search.topic_investigation",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_search.topic_investigation",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_search.topic_investigation\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_search.variable_lookup",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_search.variable_lookup",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_search.variable_lookup\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_to_cloud.trace_exposure_path",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_to_cloud.trace_exposure_path",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_to_cloud.trace_exposure_path\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:collector_extraction_readiness.family",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "collector_extraction_readiness.family",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"collector_extraction_readiness.family\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:collector_extraction_readiness.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "collector_extraction_readiness.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"collector_extraction_readiness.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:component_extensions.diagnostics",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "component_extensions.diagnostics",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"component_extensions.diagnostics\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:component_extensions.inventory",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "component_extensions.inventory",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"component_extensions.inventory\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:dependencies.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-9",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-9\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:documentation_evidence_packet.freshness",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "documentation_evidence_packet.freshness",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"documentation_evidence_packet.freshness\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:documentation_evidence_packet.read",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "documentation_evidence_packet.read",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"documentation_evidence_packet.read\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:documentation_facts.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "documentation_facts.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"documentation_facts.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:documentation_findings.aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "documentation_findings.aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"documentation_findings.aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:documentation_findings.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "documentation_findings.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"documentation_findings.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:evidence_citation.packet",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "evidence_citation.packet",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"evidence_citation.packet\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:fact_schema_version.detail",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "fact_schema_version.detail",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"fact_schema_version.detail\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:fact_schema_version.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "fact_schema_version.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"fact_schema_version.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:freshness.changed_since",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "freshness.changed_since",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"freshness.changed_since\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:freshness.changed_since",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:freshness.generation_lifecycle",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "freshness.generation_lifecycle",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"freshness.generation_lifecycle\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:freshness.service_changed_since",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "freshness.service_changed_since",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"freshness.service_changed_since\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:graph_query.read_only_cypher",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "graph_query.read_only_cypher",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"graph_query.read_only_cypher\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:hosted_governance.status",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "hosted_governance.status",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"hosted_governance.status\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:iac_inventory.resources.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "iac_inventory.resources.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"iac_inventory.resources.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:iac_management.explain_status",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "iac_management.explain_status",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"iac_management.explain_status\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:iac_management.find_unmanaged_resources",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "iac_management.find_unmanaged_resources",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"iac_management.find_unmanaged_resources\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:iac_management.get_status",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "iac_management.get_status",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"iac_management.get_status\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:iac_management.propose_terraform_import_plan",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "iac_management.propose_terraform_import_plan",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"iac_management.propose_terraform_import_plan\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:iac_quality.dead_iac",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "iac_quality.dead_iac",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"iac_quality.dead_iac\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:incident.context.read",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "incident.context.read",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"incident.context.read\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:kubernetes.correlations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-4",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-4\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:observability.coverage.correlations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "observability.coverage.correlations.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"observability.coverage.correlations.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:package_registry.correlations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-9",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-9\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:package_registry.dependencies.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-25",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-25\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:package_registry.dependency_chains.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-9",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-9\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:package_registry.packages.aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "package_registry.packages.aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"package_registry.packages.aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:package_registry.packages.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "package_registry.packages.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"package_registry.packages.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:package_registry.versions.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "package_registry.versions.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"package_registry.versions.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.blast_radius",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.blast_radius",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.blast_radius\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.catalog",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.catalog",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.catalog\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.change_surface",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.change_surface",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.change_surface\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.cloud_resource_list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.cloud_resource_list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.cloud_resource_list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.container_image_list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.container_image_list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.container_image_list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.context_overview",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.context_overview",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.context_overview\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.contract_impact",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.contract_impact",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.contract_impact\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.dependency_path",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-3",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-3\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.deployment_chain",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-19",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-19\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.deployment_config_influence",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.deployment_config_influence",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.deployment_config_influence\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.developer_change_plan",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.developer_change_plan",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.developer_change_plan\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.entity_map",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.entity_map",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.entity_map\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.environment_compare",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.environment_compare",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.environment_compare\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.graph_summary_packet",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.graph_summary_packet",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.graph_summary_packet\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.infra_resource_aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.infra_resource_aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.infra_resource_aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.pre_change",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.pre_change",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.pre_change\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.relationships_catalog",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-11",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.relationships_catalog",
+      "scenario_type": "ordering",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/schedulereplay/scenario_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/schedulereplay/scenario_test.go"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.relationships_catalog",
+      "scenario_type": "crash",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/crashreplay/scenario_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/crashreplay/scenario_test.go"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.resource_investigation",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.resource_investigation",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.resource_investigation\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.resource_to_code",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.resource_to_code",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.resource_to_code\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_metrics.timeseries",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_metrics.timeseries",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_metrics.timeseries\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:query.investigation_workflows",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "query.investigation_workflows",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"query.investigation_workflows\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:query.playbooks",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "query.playbooks",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"query.playbooks\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:reachability.go.govulncheck",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "reachability.go.govulncheck",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"reachability.go.govulncheck\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:reachability.jvm.bounded",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "reachability.jvm.bounded",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"reachability.jvm.bounded\" matrix profile proofs present (supported=2 refusal=2)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:relationship_evidence.drilldown",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-21",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-21\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:replatforming.ownership.candidates",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "replatforming.ownership.candidates",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"replatforming.ownership.candidates\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:replatforming.plan.readiness",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "replatforming.plan.readiness",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"replatforming.plan.readiness\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:replatforming.rollups.readiness",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "replatforming.rollups.readiness",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"replatforming.rollups.readiness\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:secrets_iam.identity_trust_chains.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "secrets_iam.identity_trust_chains.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"secrets_iam.identity_trust_chains.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:secrets_iam.posture_gaps.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "secrets_iam.posture_gaps.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"secrets_iam.posture_gaps.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:secrets_iam.posture_summary.read",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "secrets_iam.posture_summary.read",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"secrets_iam.posture_summary.read\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:secrets_iam.privilege_posture_observations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "secrets_iam.privilege_posture_observations.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"secrets_iam.privilege_posture_observations.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:secrets_iam.secret_access_paths.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "secrets_iam.secret_access_paths.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"secrets_iam.secret_access_paths.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:security.hardcoded_secrets",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "security.hardcoded_secrets",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"security.hardcoded_secrets\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:semantic_evidence.code_hints.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "semantic_evidence.code_hints.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"semantic_evidence.code_hints.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:semantic_evidence.documentation_observations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "semantic_evidence.documentation_observations.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"semantic_evidence.documentation_observations.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:semantic_extraction.status",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "semantic_extraction.status",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"semantic_extraction.status\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:semantic_search.curated_retrieval",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "semantic_search.curated_retrieval",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"semantic_search.curated_retrieval\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:service_catalog.correlations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-1",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-1\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.advisory_catalog.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.advisory_catalog.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.advisory_catalog.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.advisory_evidence.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.advisory_evidence.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.advisory_evidence.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.container_image_identities.aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.container_image_identities.aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.container_image_identities.aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.container_image_identities.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.container_image_identities.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.container_image_identities.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.impact_explanation.read",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.impact_explanation.read",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.impact_explanation.read\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.impact_findings.aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.impact_findings.aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.impact_findings.aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.impact_findings.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.impact_findings.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.impact_findings.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.sbom_attestation_attachments.aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.sbom_attestation_attachments.aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.sbom_attestation_attachments.aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.sbom_attestation_attachments.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.sbom_attestation_attachments.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.sbom_attestation_attachments.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.security_alert_reconciliations.aggregate",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.security_alert_reconciliations.aggregate",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.security_alert_reconciliations.aggregate\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.security_alert_reconciliations.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.security_alert_reconciliations.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.security_alert_reconciliations.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:supply_chain.vulnerability_scanner.contract.read",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "supply_chain.vulnerability_scanner.contract.read",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"supply_chain.vulnerability_scanner.contract.read\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:surface_inventory.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "surface_inventory.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"surface_inventory.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:symbol_graph.argument_names",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "symbol_graph.argument_names",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"symbol_graph.argument_names\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:symbol_graph.class_methods",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "symbol_graph.class_methods",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"symbol_graph.class_methods\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:symbol_graph.decorators",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "symbol_graph.decorators",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"symbol_graph.decorators\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:symbol_graph.import_dependencies",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "symbol_graph.import_dependencies",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"symbol_graph.import_dependencies\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:symbol_graph.imports",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "symbol_graph.imports",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"symbol_graph.imports\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:symbol_graph.inheritance",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-12",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-12\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:visualization.graph_query",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "visualization.graph_query",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"visualization.graph_query\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:visualization.packet_derivation",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "visualization.packet_derivation",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"visualization.packet_derivation\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:work_item.evidence.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "work_item.evidence.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"work_item.evidence.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "cli_read_surface",
+      "key": "cli_surface:eshu component inventory --json",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cli_golden",
+      "ref": "eshu component inventory --json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot CLI query shape \"eshu component inventory --json\""
+    },
+    {
+      "registry": "cli_read_surface",
+      "key": "cli_surface:eshu hosted-onboard --json",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cli_golden",
+      "ref": "eshu hosted-onboard --json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot CLI query shape \"eshu hosted-onboard --json\""
+    },
+    {
+      "registry": "cli_read_surface",
+      "key": "cli_surface:eshu index-status",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cli_golden",
+      "ref": "eshu index-status",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot CLI query shape \"eshu index-status\""
+    },
+    {
+      "registry": "cli_read_surface",
+      "key": "cli_surface:eshu list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cli_golden",
+      "ref": "eshu list",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot CLI query shape \"eshu list\""
+    },
+    {
+      "registry": "cli_read_surface",
+      "key": "cli_surface:eshu playbooks list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cli_golden",
+      "ref": "eshu playbooks list",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot CLI query shape \"eshu playbooks list\""
+    },
+    {
+      "registry": "cli_read_surface",
+      "key": "cli_surface:eshu trace service --json",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cli_golden",
+      "ref": "eshu trace service --json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot CLI query shape \"eshu trace service --json\""
+    },
+    {
+      "registry": "cli_read_surface",
+      "key": "cli_surface:eshu vuln-scan repo --json",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cli_golden",
+      "ref": "eshu vuln-scan repo --json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot CLI query shape \"eshu vuln-scan repo --json\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/ci-cd/run-correlations",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/ci-cd/run-correlations?limit=50\u0026scope_id=supply-chain-demo",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/ci-cd/run-correlations?limit=50\u0026scope_id=supply-chain-demo\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/cloud/inventory",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/cloud/inventory",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/cloud/inventory\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/cloud/resources",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/cloud/resources",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/cloud/resources\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/documentation/facts",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/documentation/facts?fact_kind=source",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/documentation/facts?fact_kind=source\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/iac/resources",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/iac/resources?limit=50",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/iac/resources?limit=50\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/images",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/images",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/images\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/incidents/{incident_id}/context",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/incidents/PSCD1/context",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/incidents/PSCD1/context\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/observability/coverage/correlations",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/observability/coverage/correlations?provider=tempo\u0026limit=50",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/observability/coverage/correlations?provider=tempo\u0026limit=50\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/package-registry/packages",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/package-registry/packages?ecosystem=go\u0026limit=50",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/package-registry/packages?ecosystem=go\u0026limit=50\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/secrets-iam/posture-summary",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/semantic/code-hints",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default\u0026limit=25",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default\u0026limit=25\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/semantic/documentation-observations",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default\u0026limit=25",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default\u0026limit=25\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/service-catalog/correlations",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/service-catalog/correlations?limit=50\u0026scope_id=supply-chain-demo",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/service-catalog/correlations?limit=50\u0026scope_id=supply-chain-demo\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/supply-chain/impact/findings",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/supply-chain/impact/findings?limit=50\u0026cve_id=CVE-2026-00000",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/supply-chain/impact/findings?limit=50\u0026cve_id=CVE-2026-00000\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50\u0026document_id=scd-sbom",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50\u0026document_id=scd-sbom\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations",
+      "scenario_type": "baseline",
+      "status": "exempt",
+      "detail": "Truth-ceiling: the security_alert_reconciliations.list capability is unsupported in the golden-corpus gate's local_full_stack query profile (the route returns the profile-required refusal, HTTP 404), so the gate cannot assert a green response for it. The refusal is correct behavior under the capability matrix; covering it would require a profile that enables the provider security-alert reconciliation read model."
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/work-items/evidence",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/work-items/evidence?limit=50\u0026scope_id=jira:supply-chain-demo:SCD",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/work-items/evidence?limit=50\u0026scope_id=jira:supply-chain-demo:SCD\""
+    },
+    {
+      "registry": "parser_backing_ledger",
+      "key": "parser:cloudformation",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "parser_fixture",
+      "ref": "go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json",
+      "proof_gate": "parserfixture-tests",
+      "detail": "artifact present: go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json"
+    },
+    {
+      "registry": "parser_backing_ledger",
+      "key": "parser:dockerfile",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "parser_fixture",
+      "ref": "go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json",
+      "proof_gate": "parserfixture-tests",
+      "detail": "artifact present: go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json"
+    },
+    {
+      "registry": "parser_backing_ledger",
+      "key": "parser:hcl",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "parser_fixture",
+      "ref": "go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json",
+      "proof_gate": "parserfixture-tests",
+      "detail": "artifact present: go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json"
+    },
+    {
+      "registry": "parser_backing_ledger",
+      "key": "parser:yaml",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "parser_fixture",
+      "ref": "go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json",
+      "proof_gate": "parserfixture-tests",
+      "detail": "artifact present: go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:docs.capability-catalog.auditable-source",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "docs.capability-catalog.auditable-source",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"docs.capability-catalog.auditable-source\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:docs.capability-catalog.surface-parity",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "docs.capability-catalog.surface-parity",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"docs.capability-catalog.surface-parity\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:docs.mcp-tool-contract.capability-catalog-read",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "docs.mcp-tool-contract.capability-catalog-read",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"docs.mcp-tool-contract.capability-catalog-read\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.change-risk.blast-radius",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.change-risk.blast-radius",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.change-risk.blast-radius\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.code-intelligence.language-breadth",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.code-intelligence.language-breadth",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.code-intelligence.language-breadth\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.code-to-cloud.evidence-continuity",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.code-to-cloud.evidence-continuity",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.code-to-cloud.evidence-continuity\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.mcp-tool-count.indexed-truth",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.mcp-tool-count.indexed-truth",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.mcp-tool-count.indexed-truth\" deterministic proof present (capabilities=1 signals=1 counts=1)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.operations-visibility.freshness",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.operations-visibility.freshness",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.operations-visibility.freshness\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.replatforming.plan-readiness",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.replatforming.plan-readiness",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.replatforming.plan-readiness\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.security-iam.evidence-backed-findings",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.security-iam.evidence-backed-findings",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.security-iam.evidence-backed-findings\" deterministic proof present (capabilities=2 signals=2 counts=0)"
+    },
+    {
+      "registry": "product_claim_ledger",
+      "key": "product_claim:readme.supply-chain.default-gated",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "product_claim",
+      "ref": "readme.supply-chain.default-gated",
+      "proof_gate": "capability-inventory-docs",
+      "detail": "product claim \"readme.supply-chain.default-gated\" deterministic proof present (capabilities=1 signals=1 counts=0)"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:aws_cloud_runtime_drift",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:azure_resource_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:ci_cd_run_correlation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:config_state_drift",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:container_image_identity",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:documentation_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:ec2_instance_node_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:gcp_resource_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:incident_repository_correlation",
+      "scenario_type": "ordering",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type ordering"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:incident_repository_correlation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:incident_routing_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:kubernetes_correlation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:observability_coverage_correlation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:package_source_correlation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:rds_posture_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:s3_external_principal_grant_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:s3_internet_exposure_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:sbom_attestation_attachment",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:secrets_iam_trust_chain",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:security_alert_reconciliation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:semantic_entity_materialization",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:service_catalog_correlation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:supply_chain_impact",
+      "scenario_type": "ordering",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type ordering"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:supply_chain_impact",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "reducer_drain",
+      "key": "reducer_drain:reducer-projection-drain",
+      "scenario_type": "crash",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/crashreplay/scenario_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/crashreplay/scenario_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:ALIASES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:ALLOWS_EGRESS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:ALLOWS_INGRESS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:ATLANTIS_DEPENDS_ON",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:CALLS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:CAN_ASSUME",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:CAN_ESCALATE_TO",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:CAN_PERFORM",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:CONTAINS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:CORRELATES_DEPLOYABLE_UNIT",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:DEFINES_JOB",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:DEPENDS_ON",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:DEPLOYS_FROM",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:DISCOVERS_CONFIG_IN",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:DOCUMENTS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:EXECUTES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:EXECUTES_SHELL",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:EXPLAINS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:GRANTS_ACCESS_TO",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:HANDLES_ROUTE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:HAS_COLUMN",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:HAS_DEPLOYMENT_EVIDENCE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:HAS_ROLE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:HELM_VALUE_REFERENCE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:IMPLEMENTS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:IMPORTS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:INHERITS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:INSTANTIATES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:INVOKES_CLOUD_ACTION",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:LOGS_TO",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:MANAGES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:NEEDS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:OVERRIDES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:PROVISIONS_DEPENDENCY_FOR",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:QUERIES_TABLE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:READS_CONFIG_FROM",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:REFERENCES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:REFERENCES_TABLE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:RUNS_IMAGE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:RUNS_IN",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:RUNS_ON",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:TAINT_FLOWS_TO",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:TARGETS_ENVIRONMENT",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:TO",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:TRIGGERS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:USES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:USES_METACLASS",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:USES_MODULE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:USES_PROFILE",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:USES_WORKFLOW",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:AnalyticsModel",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Annotation",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ArgoCDApplication",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ArgoCDApplicationSet",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:AtlantisProject",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:AtlantisWorkflow",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Class",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:CloudFormationOutput",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:CloudFormationParameter",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:CloudFormationResource",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Component",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ContainerImage",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ContainerImageDescriptor",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ContainerImageIndex",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ContainerImageTagObservation",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:CrossplaneClaim",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:CrossplaneComposition",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:CrossplaneXRD",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:DashboardAsset",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:DataAsset",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:DataColumn",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:DataContract",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:DataOwner",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:DataQualityCheck",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Directory",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Enum",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:File",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Function",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:GitlabJob",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:GitlabPipeline",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:HelmChart",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:HelmTemplateValueUsage",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:HelmValueDefinition",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:HelmValues",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ImplBlock",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Interface",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:K8sResource",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:KustomizeOverlay",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Macro",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:OciImageDescriptor",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:OciImageIndex",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:OciImageManifest",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:OciImageReferrer",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:OciImageTagObservation",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:OciRegistryRepository",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Package",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:PackageDependency",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:PackageRegistryPackage",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:PackageRegistryPackageDependency",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:PackageRegistryPackageVersion",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:PackageVersion",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Property",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Protocol",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ProtocolImplementation",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:QueryExecution",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Record",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:ShellCommand",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SqlColumn",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SqlFunction",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SqlIndex",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SqlTable",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SqlTrigger",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SqlView",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Struct",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformBackend",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformCheck",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformDataSource",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformImport",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformLocal",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformLockProvider",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformModule",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformMovedBlock",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformOutput",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformProvider",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformRemovedBlock",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformResource",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformVariable",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerragruntConfig",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerragruntDependency",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerragruntInput",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerragruntLocal",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Trait",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TypeAlias",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TypeAnnotation",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Typedef",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Union",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:Variable",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:aws",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/awscloud/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/awscloud/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:aws",
+      "scenario_type": "fault",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_timeout_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_timeout_test.go"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:documentation",
+      "scenario_type": "baseline",
+      "status": "exempt",
+      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ documentationexport), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:documentation",
+      "scenario_type": "fault",
+      "status": "exempt",
+      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ documentationexport), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:git",
+      "scenario_type": "baseline",
+      "status": "exempt",
+      "detail": "Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -\u003e discover -\u003e parse -\u003e emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario."
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:git",
+      "scenario_type": "fault",
+      "status": "exempt",
+      "detail": "Filesystem-native collector, not a credentialed upstream API. Git is already exercised end-to-end by the golden-corpus gate's 20-repo bootstrap-index corpus (sync -\u003e discover -\u003e parse -\u003e emit), so a supply-chain-demo cassette would re-record a path the gate already replays from real fixtures. The fixture corpus is its replay scenario."
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:grafana",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/grafana/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/grafana/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:grafana",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:jira",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/jira/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/jira/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:jira",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:loki",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/loki/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/loki/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:loki",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:oci_registry",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/ociregistry/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/ociregistry/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:oci_registry",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:package_registry",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/packageregistry/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/packageregistry/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:package_registry",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:pagerduty",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/pagerduty/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/pagerduty/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:pagerduty",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:prometheus_mimir",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/prometheusmimir/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/prometheusmimir/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:prometheus_mimir",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:sbom_attestation",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/sbomattestation/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/sbomattestation/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:sbom_attestation",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:scanner_worker",
+      "scenario_type": "baseline",
+      "status": "exempt",
+      "detail": "Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply."
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:scanner_worker",
+      "scenario_type": "fault",
+      "status": "exempt",
+      "detail": "Internal hosted worker with no external upstream. scanner-worker consumes coordinator work items (image refs, rootfs, SBOM targets) and emits analysis facts; it has no credentialed source to record, so a cassette of the supply-chain-demo kind does not apply."
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:security_alert",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/securityalerts/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/securityalerts/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:security_alert",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:tempo",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/tempo/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/tempo/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:tempo",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:terraform_state",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/terraformstate/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/terraformstate/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:terraform_state",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:vulnerability_intelligence",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "artifact present: testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:vulnerability_intelligence",
+      "scenario_type": "fault",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type fault"
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:webhook",
+      "scenario_type": "baseline",
+      "status": "exempt",
+      "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
+    },
+    {
+      "registry": "surface_inventory",
+      "key": "collector:webhook",
+      "scenario_type": "fault",
+      "status": "exempt",
+      "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
+    }
+  ],
+  "gaps": [
+    "collector:grafana|fault",
+    "collector:jira|fault",
+    "collector:loki|fault",
+    "collector:oci_registry|fault",
+    "collector:package_registry|fault",
+    "collector:pagerduty|fault",
+    "collector:prometheus_mimir|fault",
+    "collector:sbom_attestation|fault",
+    "collector:security_alert|fault",
+    "collector:tempo|fault",
+    "collector:terraform_state|fault",
+    "collector:vulnerability_intelligence|fault",
+    "projection:aws_cloud_runtime_drift|cost",
+    "projection:azure_resource_materialization|cost",
+    "projection:ci_cd_run_correlation|cost",
+    "projection:config_state_drift|cost",
+    "projection:container_image_identity|cost",
+    "projection:documentation_materialization|cost",
+    "projection:ec2_instance_node_materialization|cost",
+    "projection:gcp_resource_materialization|cost",
+    "projection:incident_repository_correlation|cost",
+    "projection:incident_repository_correlation|ordering",
+    "projection:incident_routing_materialization|cost",
+    "projection:kubernetes_correlation|cost",
+    "projection:observability_coverage_correlation|cost",
+    "projection:package_source_correlation|cost",
+    "projection:rds_posture_materialization|cost",
+    "projection:s3_external_principal_grant_materialization|cost",
+    "projection:s3_internet_exposure_materialization|cost",
+    "projection:sbom_attestation_attachment|cost",
+    "projection:secrets_iam_trust_chain|cost",
+    "projection:security_alert_reconciliation|cost",
+    "projection:semantic_entity_materialization|cost",
+    "projection:service_catalog_correlation|cost",
+    "projection:supply_chain_impact|cost",
+    "projection:supply_chain_impact|ordering",
+    "retractable_edge:ALIASES|delta_tombstone",
+    "retractable_edge:ALLOWS_EGRESS|delta_tombstone",
+    "retractable_edge:ALLOWS_INGRESS|delta_tombstone",
+    "retractable_edge:ATLANTIS_DEPENDS_ON|delta_tombstone",
+    "retractable_edge:CALLS|delta_tombstone",
+    "retractable_edge:CAN_ASSUME|delta_tombstone",
+    "retractable_edge:CAN_ESCALATE_TO|delta_tombstone",
+    "retractable_edge:CAN_PERFORM|delta_tombstone",
+    "retractable_edge:CONTAINS|delta_tombstone",
+    "retractable_edge:CORRELATES_DEPLOYABLE_UNIT|delta_tombstone",
+    "retractable_edge:DEFINES_JOB|delta_tombstone",
+    "retractable_edge:DEPENDS_ON|delta_tombstone",
+    "retractable_edge:DEPLOYS_FROM|delta_tombstone",
+    "retractable_edge:DISCOVERS_CONFIG_IN|delta_tombstone",
+    "retractable_edge:DOCUMENTS|delta_tombstone",
+    "retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP|delta_tombstone",
+    "retractable_edge:EXECUTES_SHELL|delta_tombstone",
+    "retractable_edge:EXECUTES|delta_tombstone",
+    "retractable_edge:EXPLAINS|delta_tombstone",
+    "retractable_edge:GRANTS_ACCESS_TO|delta_tombstone",
+    "retractable_edge:HANDLES_ROUTE|delta_tombstone",
+    "retractable_edge:HAS_COLUMN|delta_tombstone",
+    "retractable_edge:HAS_DEPLOYMENT_EVIDENCE|delta_tombstone",
+    "retractable_edge:HAS_ROLE|delta_tombstone",
+    "retractable_edge:HELM_VALUE_REFERENCE|delta_tombstone",
+    "retractable_edge:IMPLEMENTS|delta_tombstone",
+    "retractable_edge:IMPORTS|delta_tombstone",
+    "retractable_edge:INHERITS|delta_tombstone",
+    "retractable_edge:INSTANTIATES|delta_tombstone",
+    "retractable_edge:INVOKES_CLOUD_ACTION|delta_tombstone",
+    "retractable_edge:LOGS_TO|delta_tombstone",
+    "retractable_edge:MANAGES|delta_tombstone",
+    "retractable_edge:NEEDS|delta_tombstone",
+    "retractable_edge:OVERRIDES|delta_tombstone",
+    "retractable_edge:PROVISIONS_DEPENDENCY_FOR|delta_tombstone",
+    "retractable_edge:QUERIES_TABLE|delta_tombstone",
+    "retractable_edge:READS_CONFIG_FROM|delta_tombstone",
+    "retractable_edge:REFERENCES_TABLE|delta_tombstone",
+    "retractable_edge:REFERENCES|delta_tombstone",
+    "retractable_edge:RUNS_IMAGE|delta_tombstone",
+    "retractable_edge:RUNS_IN|delta_tombstone",
+    "retractable_edge:RUNS_ON|delta_tombstone",
+    "retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT|delta_tombstone",
+    "retractable_edge:TAINT_FLOWS_TO|delta_tombstone",
+    "retractable_edge:TARGETS_ENVIRONMENT|delta_tombstone",
+    "retractable_edge:TO|delta_tombstone",
+    "retractable_edge:TRIGGERS|delta_tombstone",
+    "retractable_edge:USES_METACLASS|delta_tombstone",
+    "retractable_edge:USES_MODULE|delta_tombstone",
+    "retractable_edge:USES_PROFILE|delta_tombstone",
+    "retractable_edge:USES_WORKFLOW|delta_tombstone",
+    "retractable_edge:USES|delta_tombstone",
+    "retractable_node:AnalyticsModel|delta_tombstone",
+    "retractable_node:Annotation|delta_tombstone",
+    "retractable_node:ArgoCDApplicationSet|delta_tombstone",
+    "retractable_node:ArgoCDApplication|delta_tombstone",
+    "retractable_node:AtlantisProject|delta_tombstone",
+    "retractable_node:AtlantisWorkflow|delta_tombstone",
+    "retractable_node:Class|delta_tombstone",
+    "retractable_node:CloudFormationOutput|delta_tombstone",
+    "retractable_node:CloudFormationParameter|delta_tombstone",
+    "retractable_node:CloudFormationResource|delta_tombstone",
+    "retractable_node:Component|delta_tombstone",
+    "retractable_node:ContainerImageDescriptor|delta_tombstone",
+    "retractable_node:ContainerImageIndex|delta_tombstone",
+    "retractable_node:ContainerImageTagObservation|delta_tombstone",
+    "retractable_node:ContainerImage|delta_tombstone",
+    "retractable_node:CrossplaneClaim|delta_tombstone",
+    "retractable_node:CrossplaneComposition|delta_tombstone",
+    "retractable_node:CrossplaneXRD|delta_tombstone",
+    "retractable_node:DashboardAsset|delta_tombstone",
+    "retractable_node:DataAsset|delta_tombstone",
+    "retractable_node:DataColumn|delta_tombstone",
+    "retractable_node:DataContract|delta_tombstone",
+    "retractable_node:DataOwner|delta_tombstone",
+    "retractable_node:DataQualityCheck|delta_tombstone",
+    "retractable_node:Enum|delta_tombstone",
+    "retractable_node:File|delta_tombstone",
+    "retractable_node:Function|delta_tombstone",
+    "retractable_node:GitlabJob|delta_tombstone",
+    "retractable_node:GitlabPipeline|delta_tombstone",
+    "retractable_node:HelmChart|delta_tombstone",
+    "retractable_node:HelmTemplateValueUsage|delta_tombstone",
+    "retractable_node:HelmValueDefinition|delta_tombstone",
+    "retractable_node:HelmValues|delta_tombstone",
+    "retractable_node:ImplBlock|delta_tombstone",
+    "retractable_node:Interface|delta_tombstone",
+    "retractable_node:K8sResource|delta_tombstone",
+    "retractable_node:KustomizeOverlay|delta_tombstone",
+    "retractable_node:Macro|delta_tombstone",
+    "retractable_node:OciImageDescriptor|delta_tombstone",
+    "retractable_node:OciImageIndex|delta_tombstone",
+    "retractable_node:OciImageManifest|delta_tombstone",
+    "retractable_node:OciImageReferrer|delta_tombstone",
+    "retractable_node:OciImageTagObservation|delta_tombstone",
+    "retractable_node:OciRegistryRepository|delta_tombstone",
+    "retractable_node:PackageDependency|delta_tombstone",
+    "retractable_node:PackageRegistryPackageDependency|delta_tombstone",
+    "retractable_node:PackageRegistryPackageVersion|delta_tombstone",
+    "retractable_node:PackageRegistryPackage|delta_tombstone",
+    "retractable_node:PackageVersion|delta_tombstone",
+    "retractable_node:Package|delta_tombstone",
+    "retractable_node:Property|delta_tombstone",
+    "retractable_node:ProtocolImplementation|delta_tombstone",
+    "retractable_node:Protocol|delta_tombstone",
+    "retractable_node:QueryExecution|delta_tombstone",
+    "retractable_node:Record|delta_tombstone",
+    "retractable_node:ShellCommand|delta_tombstone",
+    "retractable_node:SqlColumn|delta_tombstone",
+    "retractable_node:SqlFunction|delta_tombstone",
+    "retractable_node:SqlIndex|delta_tombstone",
+    "retractable_node:SqlTable|delta_tombstone",
+    "retractable_node:SqlTrigger|delta_tombstone",
+    "retractable_node:SqlView|delta_tombstone",
+    "retractable_node:Struct|delta_tombstone",
+    "retractable_node:TerraformBackend|delta_tombstone",
+    "retractable_node:TerraformCheck|delta_tombstone",
+    "retractable_node:TerraformDataSource|delta_tombstone",
+    "retractable_node:TerraformImport|delta_tombstone",
+    "retractable_node:TerraformLocal|delta_tombstone",
+    "retractable_node:TerraformLockProvider|delta_tombstone",
+    "retractable_node:TerraformModule|delta_tombstone",
+    "retractable_node:TerraformMovedBlock|delta_tombstone",
+    "retractable_node:TerraformOutput|delta_tombstone",
+    "retractable_node:TerraformProvider|delta_tombstone",
+    "retractable_node:TerraformRemovedBlock|delta_tombstone",
+    "retractable_node:TerraformResource|delta_tombstone",
+    "retractable_node:TerraformVariable|delta_tombstone",
+    "retractable_node:TerragruntConfig|delta_tombstone",
+    "retractable_node:TerragruntDependency|delta_tombstone",
+    "retractable_node:TerragruntInput|delta_tombstone",
+    "retractable_node:TerragruntLocal|delta_tombstone",
+    "retractable_node:Trait|delta_tombstone",
+    "retractable_node:TypeAlias|delta_tombstone",
+    "retractable_node:TypeAnnotation|delta_tombstone",
+    "retractable_node:Typedef|delta_tombstone",
+    "retractable_node:Union|delta_tombstone",
+    "retractable_node:Variable|delta_tombstone"
+  ],
+  "stale_manifest_surfaces": null,
+  "language_scoreboard": {
+    "total": 32,
+    "exempt": 11,
+    "uncovered": 21,
+    "percent_satisfied": 34.38,
+    "languages": [
+      {
+        "language": "argocd",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: the helm_argocd_platform fixture carries an Argo CD `kind: Application` (argoproj.io) manifest that flows sync -\u003e discover -\u003e parse -\u003e emit. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "atlantis",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: terraform_comprehensive carries an atlantis.yaml that the gate parses into AtlantisProject/AtlantisWorkflow nodes and requires rc-5 (MANAGES) and rc-6 (DEPENDS_ON) over. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "c",
+        "status": "uncovered"
+      },
+      {
+        "language": "cloudformation",
+        "status": "uncovered"
+      },
+      {
+        "language": "cpp",
+        "status": "uncovered"
+      },
+      {
+        "language": "crossplane",
+        "status": "uncovered"
+      },
+      {
+        "language": "csharp",
+        "status": "uncovered"
+      },
+      {
+        "language": "dart",
+        "status": "uncovered"
+      },
+      {
+        "language": "elixir",
+        "status": "uncovered"
+      },
+      {
+        "language": "gitlab-ci",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: terraform_comprehensive carries a depth-0 .gitlab-ci.yml that the gate parses into GitlabPipeline/GitlabJob nodes and requires rc-27 (DEFINES_JOB) and rc-28 (NEEDS) over. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "go",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: go_comprehensive, lib-common, orders-api, and deployable-source contribute Go sources parsed and emitted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "groovy",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: the jenkins-ci-pipelines fixture's Jenkinsfile is discovered as Groovy and its JENKINS_GITHUB_REPOSITORY evidence path is asserted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "haskell",
+        "status": "uncovered"
+      },
+      {
+        "language": "helm",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: helm_argocd_platform, helm-umbrella-chart, and helm-template-chart contribute Chart.yaml/values parsed and emitted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "java",
+        "status": "uncovered"
+      },
+      {
+        "language": "javascript",
+        "status": "uncovered"
+      },
+      {
+        "language": "json",
+        "status": "uncovered"
+      },
+      {
+        "language": "kotlin",
+        "status": "uncovered"
+      },
+      {
+        "language": "kubernetes",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: kubernetes_comprehensive and deployable-config contribute Kubernetes manifests parsed and emitted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "kustomize",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: the kustomize-deployable-overlay fixture contributes kustomization overlays parsed and emitted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "perl",
+        "status": "uncovered"
+      },
+      {
+        "language": "php",
+        "status": "uncovered"
+      },
+      {
+        "language": "python",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: python_comprehensive and api-svc contribute Python sources parsed and emitted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "ruby",
+        "status": "uncovered"
+      },
+      {
+        "language": "rust",
+        "status": "uncovered"
+      },
+      {
+        "language": "scala",
+        "status": "uncovered"
+      },
+      {
+        "language": "sql",
+        "status": "uncovered"
+      },
+      {
+        "language": "swift",
+        "status": "uncovered"
+      },
+      {
+        "language": "terraform",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: terraform_comprehensive contributes Terraform HCL parsed and emitted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "terragrunt",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: terragrunt_comprehensive contributes Terragrunt HCL (include/dependency chains) parsed and emitted by the gate. The fixture corpus is its replay scenario."
+      },
+      {
+        "language": "typescript",
+        "status": "uncovered"
+      },
+      {
+        "language": "typescriptjsx",
+        "status": "uncovered"
+      }
+    ]
+  }
+}

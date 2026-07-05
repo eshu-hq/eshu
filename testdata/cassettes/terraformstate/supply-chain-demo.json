@@ -9,61 +9,127 @@
       "collector_kind": "terraform_state",
       "partition_key": "terraform_state:s3:supply-chain-demo-tfstate:supply-chain-demo/terraform.tfstate",
       "metadata": {
-        "backend": "s3",
-        "bucket": "supply-chain-demo-tfstate",
-        "key": "supply-chain-demo/terraform.tfstate",
-        "workspace": "default"
+        "backend_kind": "s3",
+        "locator_hash": "supply-chain-demo-tfstate/supply-chain-demo/terraform.tfstate"
       },
       "generation_id": "cassette-tfstate-scd-gen1",
       "observed_at": "2026-06-25T00:00:00Z",
       "trigger_kind": "snapshot",
       "facts": [
         {
-          "fact_kind": "terraform_state.resource",
-          "stable_fact_key": "terraform_state:s3:supply-chain-demo-tfstate:aws_ecs_cluster:supply-chain-demo",
+          "fact_kind": "terraform_state_snapshot",
+          "stable_fact_key": "terraform_state_snapshot:snapshot",
           "schema_version": "1.0.0",
           "collector_kind": "terraform_state",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
-            "backend": "s3",
-            "bucket": "supply-chain-demo-tfstate",
-            "resource_type": "aws_ecs_cluster",
-            "resource_name": "supply-chain-demo",
-            "provider": "registry.terraform.io/hashicorp/aws",
-            "module": "",
-            "attributes": {
-              "arn": "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo",
-              "name": "supply-chain-demo"
-            },
+            "format_version": "1.9",
+            "terraform_version": "1.9.8",
+            "serial": 4,
+            "lineage": "supply-chain-demo-lineage",
+            "backend_kind": "s3",
+            "locator_hash": "supply-chain-demo-tfstate/supply-chain-demo/terraform.tfstate",
+            "source_size_bytes": 4096
+          }
+        },
+        {
+          "fact_kind": "terraform_state_resource",
+          "stable_fact_key": "terraform_state_resource:resource:module.ecs.aws_ecs_cluster.supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "address": "module.ecs.aws_ecs_cluster.supply-chain-demo",
+            "mode": "managed",
+            "type": "aws_ecs_cluster",
+            "name": "supply-chain-demo",
+            "module": "module.ecs",
+            "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
             "correlation_anchors": [
-              "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo"
+              {
+                "anchor_kind": "arn",
+                "value_hash": "anchor-hash-ecs-cluster"
+              },
+              {
+                "anchor_kind": "name",
+                "value_hash": "anchor-hash-ecs-cluster-name"
+              }
             ]
           }
         },
         {
-          "fact_kind": "terraform_state.resource",
-          "stable_fact_key": "terraform_state:s3:supply-chain-demo-tfstate:aws_ecs_service:supply-chain-demo",
+          "fact_kind": "terraform_state_resource",
+          "stable_fact_key": "terraform_state_resource:resource:module.ecs.aws_ecs_service.supply-chain-demo",
           "schema_version": "1.0.0",
           "collector_kind": "terraform_state",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
-            "backend": "s3",
-            "bucket": "supply-chain-demo-tfstate",
-            "resource_type": "aws_ecs_service",
-            "resource_name": "supply-chain-demo",
-            "provider": "registry.terraform.io/hashicorp/aws",
-            "module": "",
-            "attributes": {
-              "arn": "arn:aws:ecs:us-east-1:123456789012:service/supply-chain-demo/supply-chain-demo",
-              "cluster": "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo",
-              "desired_count": 2,
-              "name": "supply-chain-demo"
-            },
+            "address": "module.ecs.aws_ecs_service.supply-chain-demo",
+            "mode": "managed",
+            "type": "aws_ecs_service",
+            "name": "supply-chain-demo",
+            "module": "module.ecs",
+            "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
             "correlation_anchors": [
-              "arn:aws:ecs:us-east-1:123456789012:service/supply-chain-demo/supply-chain-demo"
+              {
+                "anchor_kind": "arn",
+                "value_hash": "anchor-hash-ecs-service"
+              }
             ]
+          }
+        },
+        {
+          "fact_kind": "terraform_state_module",
+          "stable_fact_key": "terraform_state_module:module:module.ecs:resource:module.ecs.aws_ecs_cluster.supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "module_address": "module.ecs",
+            "resource_count": 1
+          }
+        },
+        {
+          "fact_kind": "terraform_state_module",
+          "stable_fact_key": "terraform_state_module:module:module.ecs:resource:module.ecs.aws_ecs_service.supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "module_address": "module.ecs",
+            "resource_count": 1
+          }
+        },
+        {
+          "fact_kind": "terraform_state_tag_observation",
+          "stable_fact_key": "terraform_state_tag_observation:tag_observation:module.ecs.aws_ecs_cluster.supply-chain-demo:tags:tag-key-hash-env",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "resource_address": "module.ecs.aws_ecs_cluster.supply-chain-demo",
+            "tag_source": "tags",
+            "tag_key_hash": "tag-key-hash-env"
+          }
+        },
+        {
+          "fact_kind": "terraform_state_output",
+          "stable_fact_key": "terraform_state_output:output:ecs_cluster_arn",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "name": "ecs_cluster_arn",
+            "sensitive": false,
+            "value_shape": "scalar",
+            "value": "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo"
           }
         }
       ]

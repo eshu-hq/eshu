@@ -67,6 +67,8 @@ type Paths struct {
 	KubernetesLiveStructDir string
 	// OCIRegistryStructDir is sdk/go/factschema/ociregistry/v1.
 	OCIRegistryStructDir string
+	// TerraformStateStructDir is sdk/go/factschema/terraformstate/v1.
+	TerraformStateStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -123,6 +125,9 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.OCIRegistryStructDir) == "" {
 		resolved.OCIRegistryStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "ociregistry", "v1")
+	}
+	if strings.TrimSpace(resolved.TerraformStateStructDir) == "" {
+		resolved.TerraformStateStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "terraformstate", "v1")
 	}
 	if strings.TrimSpace(resolved.ProjectorDir) == "" {
 		resolved.ProjectorDir = filepath.Join(resolved.RepoRoot, "go", "internal", "projector")
@@ -279,9 +284,10 @@ func mergeUsage(a, b map[string][]FieldUsage) map[string][]FieldUsage {
 
 // Load runs the full derivation pipeline against p (auto-resolving empty
 // fields via ResolvePaths): parse the reducer and projector decode seams, parse
-// the aws/v1, iam/v1, incident/v1, gcp/v1, azure/v1, kuberneteslive/v1, and
-// ociregistry/v1 typed struct shapes, scan the reducer and projector
-// directories' files for field usage, and join the three into a Manifest.
+// the aws/v1, iam/v1, incident/v1, gcp/v1, azure/v1, kuberneteslive/v1,
+// ociregistry/v1, and terraformstate/v1 typed struct shapes, scan the reducer
+// and projector directories' files for field usage, and join the three into a
+// Manifest.
 //
 // It returns an error if any seam's fact kind has no schema-file mapping
 // (UnmappedSeamFactKinds) or if any seam's struct type was not found in the
@@ -353,7 +359,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes))
+	terraformStateShapes, err := ParseStructShapes(resolved.TerraformStateStructDir, "tfstatev1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes)+len(terraformStateShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
@@ -373,6 +383,9 @@ func Load(p Paths) (Manifest, error) {
 		shapes[k] = v
 	}
 	for k, v := range ociShapes {
+		shapes[k] = v
+	}
+	for k, v := range terraformStateShapes {
 		shapes[k] = v
 	}
 
