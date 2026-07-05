@@ -1,0 +1,8 @@
+{
+  "workflow_path": ".github/workflows/build.yml",
+  "command_kind": "run",
+  "evidence_class": "workflow_image_ref",
+  "job_name": "build",
+  "step_name": "Build image",
+  "image_ref": "registry.example.com/team/example-app:prod"
+}

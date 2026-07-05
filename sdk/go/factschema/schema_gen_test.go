@@ -83,6 +83,12 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "vulnerability.known_exploited.v1.schema.json", generate: schemagen.VulnerabilityKnownExploitedSchema},
 		{file: "vulnerability.go_module_evidence.v1.schema.json", generate: schemagen.VulnerabilityGoModuleEvidenceSchema},
 		{file: "vulnerability.go_call_reachability.v1.schema.json", generate: schemagen.VulnerabilityGoCallReachabilitySchema},
+		{file: "ci.run.v1.schema.json", generate: schemagen.CICDRunSchema},
+		{file: "ci.artifact.v1.schema.json", generate: schemagen.CICDArtifactSchema},
+		{file: "ci.environment_observation.v1.schema.json", generate: schemagen.CICDEnvironmentObservationSchema},
+		{file: "ci.trigger_edge.v1.schema.json", generate: schemagen.CICDTriggerEdgeSchema},
+		{file: "ci.step.v1.schema.json", generate: schemagen.CICDStepSchema},
+		{file: "ci.workflow_image_evidence.v1.schema.json", generate: schemagen.CICDWorkflowImageEvidenceSchema},
 	}
 
 	for _, tc := range cases {
@@ -180,6 +186,12 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"vulnerability.known_exploited.v1.schema.json",
 		"vulnerability.go_module_evidence.v1.schema.json",
 		"vulnerability.go_call_reachability.v1.schema.json",
+		"ci.run.v1.schema.json",
+		"ci.artifact.v1.schema.json",
+		"ci.environment_observation.v1.schema.json",
+		"ci.trigger_edge.v1.schema.json",
+		"ci.step.v1.schema.json",
+		"ci.workflow_image_evidence.v1.schema.json",
 	}
 
 	for _, file := range files {

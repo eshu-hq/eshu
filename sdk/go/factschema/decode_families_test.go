@@ -312,6 +312,24 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindVulnerabilityGoCallReachability:
 		_, err := DecodeVulnerabilityGoCallReachability(env)
 		return err
+	case FactKindCICDRun:
+		_, err := DecodeCICDRun(env)
+		return err
+	case FactKindCICDArtifact:
+		_, err := DecodeCICDArtifact(env)
+		return err
+	case FactKindCICDEnvironmentObservation:
+		_, err := DecodeCICDEnvironmentObservation(env)
+		return err
+	case FactKindCICDTriggerEdge:
+		_, err := DecodeCICDTriggerEdge(env)
+		return err
+	case FactKindCICDStep:
+		_, err := DecodeCICDStep(env)
+		return err
+	case FactKindCICDWorkflowImageEvidence:
+		_, err := DecodeCICDWorkflowImageEvidence(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -390,6 +408,12 @@ var allDecodedKinds = []string{
 	FactKindVulnerabilityKnownExploited,
 	FactKindVulnerabilityGoModuleEvidence,
 	FactKindVulnerabilityGoCallReachability,
+	FactKindCICDRun,
+	FactKindCICDArtifact,
+	FactKindCICDEnvironmentObservation,
+	FactKindCICDTriggerEdge,
+	FactKindCICDStep,
+	FactKindCICDWorkflowImageEvidence,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -628,6 +652,18 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeVulnerabilityGoModuleEvidence(env)
 			case FactKindVulnerabilityGoCallReachability:
 				_, err = DecodeVulnerabilityGoCallReachability(env)
+			case FactKindCICDRun:
+				_, err = DecodeCICDRun(env)
+			case FactKindCICDArtifact:
+				_, err = DecodeCICDArtifact(env)
+			case FactKindCICDEnvironmentObservation:
+				_, err = DecodeCICDEnvironmentObservation(env)
+			case FactKindCICDTriggerEdge:
+				_, err = DecodeCICDTriggerEdge(env)
+			case FactKindCICDStep:
+				_, err = DecodeCICDStep(env)
+			case FactKindCICDWorkflowImageEvidence:
+				_, err = DecodeCICDWorkflowImageEvidence(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

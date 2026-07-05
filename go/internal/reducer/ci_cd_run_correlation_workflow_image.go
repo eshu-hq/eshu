@@ -3,19 +3,33 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
-
-func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages []facts.Envelope) {
+// attachWorkflowImagesToRuns joins each already-decoded
+// ci.workflow_image_evidence (decodedCICDWorkflowImage, decoded once during
+// the build phase and never re-decoded here) to every run sharing the same
+// repository_id. A malformed workflow-image fact was already quarantined (or
+// fatally failed the intent) during that build-phase decode, so only
+// valid evidence reaches this function. A run whose own decoded RepositoryID
+// is empty (RepositoryID is optional on cicdrunv1.Run) never matches any
+// workflow image, matching pre-typing behavior where an empty repository_id
+// segment could not equal another empty segment because the comparison
+// already required a non-empty workflow-image repositoryID.
+func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages []*decodedCICDWorkflowImage) {
 	if len(workflowImages) == 0 {
 		return
 	}
 	for _, workflowImage := range workflowImages {
-		repositoryID := payloadString(workflowImage.Payload, "repository_id")
+		// The evidence was decoded once during the build phase; read the
+		// cached typed value rather than re-decoding the envelope here.
+		// Trim both the workflow-image repository_id and the run's own
+		// repository_id before comparing, so the join matches byte-for-byte
+		// with the pre-migration payloadString path (both sides were trimmed
+		// there). A padded repository_id on either side must not miss the join.
+		repositoryID := trimmedCICDField(workflowImage.evidence.RepositoryID)
 		if repositoryID == "" {
 			continue
 		}
 		for _, ev := range runs {
-			if payloadString(ev.run.Payload, "repository_id") != repositoryID {
+			if trimmedCICDPtr(ev.runDecoded.RepositoryID) != repositoryID {
 				continue
 			}
 			ev.workflowImages = append(ev.workflowImages, workflowImage)
@@ -25,19 +39,22 @@ func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages
 
 func classifyCICDWorkflowImageEvidence(
 	decision CICDRunCorrelationDecision,
-	workflowImages []facts.Envelope,
+	workflowImages []*decodedCICDWorkflowImage,
 	imageIndex map[string][]cicdImageIdentity,
 ) (CICDRunCorrelationDecision, bool) {
 	for _, workflowImage := range workflowImages {
-		if payloadString(workflowImage.Payload, "evidence_class") != "workflow_image_ref" {
+		// Read the once-decoded typed value cached on decodedCICDWorkflowImage
+		// rather than re-decoding the envelope for every run in the repo.
+		evidence := workflowImage.evidence
+		if trimmedCICDPtr(evidence.EvidenceClass) != "workflow_image_ref" {
 			continue
 		}
-		imageRef := payloadString(workflowImage.Payload, "image_ref")
+		imageRef := trimmedCICDPtr(evidence.ImageRef)
 		if imageRef == "" {
 			continue
 		}
 		decision.ImageRef = imageRef
-		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, workflowImage.FactID)
+		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, workflowImage.envelope.FactID)
 		matches := cicdImageIdentityMatchesByRef(imageIndex, imageRef)
 		if repoMatches := cicdImageMatchesForRepository(matches, decision.RepositoryID); len(repoMatches) > 0 {
 			matches = repoMatches

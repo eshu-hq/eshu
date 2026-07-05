@@ -136,6 +136,18 @@ func run() error {
 		{name: "vulnerability.known_exploited.v1.schema.json", generate: schemagen.VulnerabilityKnownExploitedSchema},
 		{name: "vulnerability.go_module_evidence.v1.schema.json", generate: schemagen.VulnerabilityGoModuleEvidenceSchema},
 		{name: "vulnerability.go_call_reachability.v1.schema.json", generate: schemagen.VulnerabilityGoCallReachabilitySchema},
+		// The ci_cd_run family fact kinds are DOTTED (like the incident
+		// family). The schema filename is the dotted kind plus the version
+		// suffix; a dot in a filename is valid and needs no transform.
+		// ci.job, ci.pipeline_definition, and ci.warning are emitted but have
+		// no reducer decode call today, so they are NOT typed (cicdrun/v1
+		// AGENTS.md).
+		{name: "ci.run.v1.schema.json", generate: schemagen.CICDRunSchema},
+		{name: "ci.artifact.v1.schema.json", generate: schemagen.CICDArtifactSchema},
+		{name: "ci.environment_observation.v1.schema.json", generate: schemagen.CICDEnvironmentObservationSchema},
+		{name: "ci.trigger_edge.v1.schema.json", generate: schemagen.CICDTriggerEdgeSchema},
+		{name: "ci.step.v1.schema.json", generate: schemagen.CICDStepSchema},
+		{name: "ci.workflow_image_evidence.v1.schema.json", generate: schemagen.CICDWorkflowImageEvidenceSchema},
 	}
 
 	for _, target := range targets {

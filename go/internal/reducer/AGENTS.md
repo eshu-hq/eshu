@@ -1088,6 +1088,145 @@ unchanged; its `vendor_advisory_source`/`distro`/`name`/`installed_version_raw`/
 lockstep test, so a future contracts change that drops one of those fields
 fails this build instead of silently breaking the SQL read.
 
+No-Regression Evidence (Wave 4d, ci_cd_run family typed-payload decode,
+Contract System v1 #4566): the ci_cd_run reducer handler
+(`ci_cd_run_correlation.go`, `ci_cd_run_correlation_decode.go`,
+`ci_cd_run_correlation_workflow_image.go` — the decode/quarantine-building
+core was split into its own file to keep `ci_cd_run_correlation.go` under the
+500-line cap) now decodes `ci.run`/`ci.artifact`/`ci.environment_observation`/
+`ci.trigger_edge`/`ci.step`/`ci.workflow_image_evidence` fact payloads through the
+`sdk/go/factschema` seam (`decodeCICDRun`/`decodeCICDArtifact`/
+`decodeCICDEnvironmentObservation`/`decodeCICDTriggerEdge`/`decodeCICDStep`/
+`decodeCICDWorkflowImageEvidence` in `factschema_decode_cicdrun.go`) instead
+of raw `payloadString(env.Payload, "key")` map lookups, mirroring the
+sbom_attestation and vulnerability_intelligence Wave 4c migrations.
+`BuildCICDRunCorrelationDecisions` keeps its existing error-free signature
+(`[]facts.Envelope -> []CICDRunCorrelationDecision`) and delegates to a new
+quarantine-aware `buildCICDRunCorrelationDecisionsWithQuarantine` that
+`CICDRunCorrelationHandler.Handle` calls directly, so the reducer intent path
+reports quarantines without changing the pure classifier's signature the
+existing table tests assert against (mirroring the kubernetes_live Wave 4b
+pattern). A fact missing its required run-join-key field (`provider`/`run_id`
+for the five run-scoped kinds) or `repository_id` (for
+`ci.workflow_image_evidence`, the sole join key `attachWorkflowImagesToRuns`
+uses) is quarantined per-fact via `partitionDecodeFailures` rather than
+silently joining under an empty-string key, while every valid fact in the
+same batch still projects.
+`TestCICDRunCorrelationHandlerQuarantinesRunMissingRunID` and
+`TestCICDRunCorrelationHandlerQuarantinesWorkflowImageEvidenceMissingRepositoryID`
+(new regression tests mirroring
+`TestSBOMAttestationAttachmentQuarantinesMissingDocumentID`) failed before the
+conversion (the old `payloadString` lookup returned `""` for the absent key
+and the pre-typing code silently either joined the fact onto an empty-string
+run key or attached it to zero runs with no operator signal —
+`SubSignals["input_invalid_facts"]` stayed unset/`0`), then passed after: the
+malformed fact is recorded on `input_invalid_facts` and the valid sibling
+still produces its correlation decision.
+`TestCICDRunCorrelationHandlerQuarantineReplayIsIdempotent` proves replaying
+the same batch (including the quarantined fact) converges on the same
+quarantine count and decision each time. The pre-existing table tests
+(`TestBuildCICDRunCorrelationDecisions*`, `TestPostgresCICDRunCorrelationWriter*`,
+`TestCICDRunCorrelationHandlerLoadsActiveImageIdentityFacts`,
+`TestCICDRunCorrelationFactIDIsStableAcrossOutcomeChanges`,
+`TestWriteCICDRunCorrelationsBoundedExecCount`) stay green with byte-identical
+outcomes (the five correlation outcomes — exact/derived/ambiguous/unresolved/
+rejected — are unchanged for every valid-fact fixture), and
+`go test ./internal/query -run 'CICD' -count=1` (the HTTP/MCP read-surface
+tests) stays green with no query-shape drift. `cicdRunKey(payload
+map[string]any)` is UNCHANGED and stays raw-payload: it is shared with the
+SEPARATE `container_image_identity` reducer domain
+(`container_image_identity_evidence.go`, `DomainContainerImageIdentity`),
+which also reads `ci.run`/`ci.artifact`/`ci.workflow_image_evidence` payloads
+but is OUT OF SCOPE for this migration (a distinct reducer domain, not part of
+`ci_cd_run_correlation`); a new `cicdRunKeyFromParts` builds the same join key
+from typed decoded fields for this file's own use. Measured with a realistic
+5,000-run corpus (run + artifact + environment + trigger + step +
+workflow-image-evidence per run — 30,000 facts total; darwin/arm64, Apple M1
+Max, `-count=3`): `go test ./internal/reducer -run '^$' -bench
+'BenchmarkBuildCICDRunCorrelationDecisions' -benchmem`. BEFORE (raw map,
+commit 93eb0582f) -> AFTER (typed decode): ~2.85-2.97s/25,160,180 allocs ->
+~0.52-1.42s/265,068 allocs (roughly 2-5x FASTER, ~95x fewer allocations) —
+the OLD code's `attachWorkflowImagesToRuns` ran an O(runs × workflow_images)
+nested loop calling `payloadString` (a `map[string]any` lookup) on every pair;
+the typed path decodes each workflow-image envelope once and compares against
+a cached `*string` dereference (`ev.runDecoded.RepositoryID`) inside the inner
+loop, removing the map-lookup cost from the hot O(n²) path. Unlike every
+other Contract System v1 wave, this migration is a measured PERFORMANCE WIN,
+not a bounded cost — the typed path is faster while also adding the accuracy
+guarantee. Result class: correctness win with a measured performance
+improvement (no regression to budget against).
+
+No-Observability-Change (Wave 4d, ci_cd_run family): the typed-decode
+migration adds no route, graph query shape, queue table, worker, lease,
+runtime knob, metric instrument, or metric label. A malformed `ci.run`/
+`ci.artifact`/`ci.environment_observation`/`ci.trigger_edge`/`ci.step`/
+`ci.workflow_image_evidence` fact surfaces through the EXISTING dead-letter
+path — `partitionDecodeFailures` -> `recordQuarantinedFacts` ->
+`eshu_dp_reducer_input_invalid_facts_total` (labeled `domain` =
+`ci_cd_run_correlation`, `fact_kind` = the six migrated kinds, both existing
+label keys) plus the existing structured `reducer input_invalid fact
+quarantined` error log and `Result.SubSignals["input_invalid_facts"]` — the
+same instruments and log key every prior wave already wired. The #4573
+payload-usage-manifest gate required an additive-only extension: six new
+`factKindSchemaFile` entries (`FactKindCICDRun`, `FactKindCICDArtifact`,
+`FactKindCICDEnvironmentObservation`, `FactKindCICDTriggerEdge`,
+`FactKindCICDStep`, `FactKindCICDWorkflowImageEvidence`) and a new
+`CICDRunStructDir` (`sdk/go/factschema/cicdrun/v1`) parsed alongside the
+existing struct dirs in `Load`; this only widens which decode seams the gate
+covers and adds no new gate mechanism. `ci.job`, `ci.pipeline_definition`,
+and `ci.warning` are emitted by the collector but have no reducer decode call
+today, so they are intentionally NOT typed this wave (cicdrun/v1 AGENTS.md),
+matching how prior waves left an emitted-but-unread kind typed only when its
+consumer lands.
+
+No-Regression Evidence (Wave 4d, ci_cd_run family — PR #4724 review fixes):
+two review findings were addressed. (1) codex P2 accuracy regression: the
+pre-migration reducer read every ci.* payload field through `payloadString`,
+which did `strings.TrimSpace(fmt.Sprint(value))` on every read
+(`package_correlation_writer.go`). The typed decode seam preserves the raw
+collector string, so a `ci.run` with `commit_sha:"   "` no longer trimmed to
+`""` (skipping the unresolved-anchor check) and `run_id:" run-1 "` joined under
+a padded key instead of the clean `run-1` — a byte-drift for padded/whitespace
+inputs the clean-fixture tests missed. Fixed by trimming every ci.* identity/
+anchor field at the point of use in the correlation logic via `trimmedCICDField`
+(required non-pointer fields) / `trimmedCICDPtr` (optional pointer fields) in
+`ci_cd_run_correlation_decode.go`, applied in `cicdRunKeyFromParts`,
+`classifyCICDRunEvidence` (provider/run_id/run_attempt/repository_id/commit_sha/
+environment/artifact_digest), `ciArtifactDigests`, `ciWorkflowImageRefs`, the
+step `deployment_hint_source` compare, and `attachWorkflowImagesToRuns`/
+`classifyCICDWorkflowImageEvidence` (repository_id/evidence_class/image_ref) —
+the typed structs still carry the raw collector value; only the correlation
+logic trims. `TestBuildCICDRunCorrelationDecisionsTrimsIdentityFieldsLikePayloadString`
+and `TestBuildCICDRunCorrelationDecisionsTrimsArtifactAndWorkflowImageEvidence`
+(new) failed on the raw-typed HEAD (padded provider/environment surfaced
+untrimmed, a padded artifact_digest/evidence_class produced `derived` instead
+of `exact`, a whitespace-only commit_sha was not `unresolved`), then passed
+after the trim restore. (2) copilot perf: `classifyCICDWorkflowImageEvidence`
+re-decoded each `ci.workflow_image_evidence` envelope once per run in a repo
+(O(runs x workflow_images) typed decodes, since `attachWorkflowImagesToRuns`
+fans the same evidence to every run). Fixed by decoding each workflow-image
+envelope exactly once during the build phase (`decodedCICDWorkflowImage` pairs
+the envelope with its decoded typed value) and having both attach and classify
+read the cached struct through a `*decodedCICDWorkflowImage` (pointer so the
+attach fan-out copies a pointer, not the fat decoded value). Proven with a new
+shared-repo benchmark (`BenchmarkBuildCICDRunCorrelationDecisionsSharedRepoWorkflowImages`,
+500 runs x 50 shared workflow images — the copilot scenario the original
+unique-repo-per-run benchmark did not exercise; darwin/arm64, `-count=3`):
+BEFORE (re-decode per run) ~4.35 ms/op, 19.67 MB/op, 11,427 allocs/op ->
+AFTER (once-decode pointer cache) ~1.39 ms/op, 1.21 MB/op, 9,274 allocs/op
+(~3.1x faster, ~16x less memory). The original unique-repo benchmark stayed
+flat (~557-568 ms/op, 230,064 allocs/op, no regression). `go test
+./internal/reducer -run CICD -count=1` and the golden-corpus gate stay green
+(valid-fact correlation output byte-identical), so the trim restore only
+corrects padded/whitespace drift and the decode cache is output-preserving.
+
+No-Observability-Change (Wave 4d, ci_cd_run — PR #4724 review fixes): the trim
+restore and the workflow-image decode cache change no route, graph query shape,
+queue table, worker, lease, runtime knob, metric instrument, metric label, or
+log key; both are pure in-process correlation-logic changes diagnosed through
+the same existing reducer run spans, execution counters, and
+`eshu_dp_reducer_input_invalid_facts_total` the migration already wired.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

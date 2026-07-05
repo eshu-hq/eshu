@@ -1,0 +1,79 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/cicdrun/v1/step.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "action_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deployment_hint_source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "job_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "result": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run_attempt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "step_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "step_number": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "run_id"
+  ],
+  "title": "Eshu ci.step Payload (schema version 1)",
+  "type": "object"
+}
