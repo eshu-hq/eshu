@@ -1018,6 +1018,18 @@ type Instruments struct {
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter
 
+	// Deferred backfill partition memo gate metrics (issue #3624 Track 1 / B').
+	// DeferredBackfillPartitionsSkipped counts partitions the memo gate skipped
+	// (memo hit under an unchanged catalog fingerprint, not ArgoCD-bearing).
+	// DeferredBackfillPartitionsLoaded counts partitions that loaded, labeled
+	// reason=memo_miss (no memo row, or the catalog fingerprint changed).
+	// ArgoCD-bearing partitions are excluded from the memo on the write side, so
+	// they surface here as memo_miss reloads rather than a distinct label.
+	// Together they let an operator watch the memo gate's skip rate rise once the
+	// corpus reaches steady state.
+	DeferredBackfillPartitionsSkipped metric.Int64Counter
+	DeferredBackfillPartitionsLoaded  metric.Int64Counter
+
 	// Cross-repo resolution metrics
 	CrossRepoResolutionDuration metric.Float64Histogram
 	CrossRepoEvidenceLoaded     metric.Int64Counter
@@ -3798,6 +3810,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillPartitionLoadDuration histogram: %w", err)
+	}
+
+	inst.DeferredBackfillPartitionsSkipped, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_partitions_skipped_total",
+		metric.WithDescription("Total deferred backfill partitions skipped by the partition memo gate: a matching-fingerprint memo row exists and the partition is not ArgoCD-bearing (issue #3624 Track 1 / B'). A rising skip count with a stable catalog is the operator-visible steady-state signal."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillPartitionsSkipped counter: %w", err)
+	}
+
+	inst.DeferredBackfillPartitionsLoaded, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_partitions_loaded_total",
+		metric.WithDescription("Total deferred backfill partitions loaded despite a partition memo lookup, labeled by reason=memo_miss (no memo row, or the catalog fingerprint changed). ArgoCD-bearing partitions are excluded from the memo on the write side, so they surface here as memo_miss reloads (issue #3624 Track 1 / B')."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillPartitionsLoaded counter: %w", err)
 	}
 
 	inst.DeploymentMappingReopened, err = meter.Int64Counter(

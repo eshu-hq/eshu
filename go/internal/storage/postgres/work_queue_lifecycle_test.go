@@ -189,6 +189,26 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{rows: f.deferredFactsByScope[scopeID]}, nil
 	}
 
+	// The partition memo gate's batched lookup (issue #3624 Track 1 / B') always
+	// resolves to "no memo rows" here, independent of FIFO order: existing
+	// deferred-backfill fixtures model a fresh/bootstrap corpus with no prior
+	// memo state, so every candidate partition is correctly a memo MISS and the
+	// legacy full-load path this fake exercises is unaffected. A test that wants
+	// to exercise a memo HIT constructs its own queryer instead of this shared
+	// fake.
+	if query == lookupDeferredBackfillPartitionMemosQuery {
+		return &queueFakeRows{}, nil
+	}
+
+	// The partition memo write's ArgoCD-bearing check (issue #3624 Track 1 / B')
+	// always resolves to "no ArgoCD-bearing partitions" here, independent of
+	// FIFO order: none of the shared fixture's facts carry an ArgoCD marker, so
+	// every memo candidate is correctly non-ArgoCD-bearing and gets a memo row.
+	// A test exercising the ArgoCD carve-out constructs its own queryer instead.
+	if query == listArgoCDBearingPartitionsQuery {
+		return &queueFakeRows{}, nil
+	}
+
 	if len(f.queryResponses) == 0 {
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil

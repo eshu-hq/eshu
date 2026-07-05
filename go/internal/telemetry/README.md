@@ -114,6 +114,8 @@ when the reducer has a graph orphan observer.
 | `WorkflowClaimFactsEmitted` | `eshu_dp_workflow_claim_facts_emitted_total` (labels: `collector_kind`, `source_system`) |
 | `DeferredBackfillEvidence` | `eshu_dp_deferred_backfill_evidence_total` |
 | `DeferredBackfillBatchesCompleted` | `eshu_dp_deferred_backfill_batches_completed_total` |
+| `DeferredBackfillPartitionsSkipped` | `eshu_dp_deferred_backfill_partitions_skipped_total` (labels: `reason`) |
+| `DeferredBackfillPartitionsLoaded` | `eshu_dp_deferred_backfill_partitions_loaded_total` (labels: `reason`) |
 | `DeploymentMappingReopened` | `eshu_dp_deployment_mapping_reopened_total` |
 | `IaCReachabilityRows` | `eshu_dp_iac_reachability_rows_total` |
 | `TerraformStateSnapshotsObserved` | `eshu_dp_tfstate_snapshots_observed_total` |

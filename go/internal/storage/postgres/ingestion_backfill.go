@@ -15,7 +15,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -99,7 +98,18 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 		totalEvidence++
 	}
 
-	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, snapshotGenerations, instruments)
+	// The catalog fingerprint (issue #3624 Track 1 / B') is derived from the
+	// SAME $1/$2 query parameters buildDeferredScopedFactQueryParams already
+	// computed for the fact load above, so the memo written at commit time
+	// records the exact catalog shape this pass's evidence was derived against.
+	// An empty/unbuildable params (buildDeferredScopedFactQueryParams's ok=false
+	// case) still yields a stable, deterministic fingerprint via
+	// deferredCatalogFingerprint's zero-value handling, so a no-anchor catalog
+	// never produces an empty or colliding fingerprint.
+	fingerprintParams, _ := buildDeferredScopedFactQueryParams(catalog)
+	catalogFingerprint := deferredCatalogFingerprint(fingerprintParams)
+
+	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, instruments)
 	if err != nil {
 		return err
 	}
@@ -126,6 +136,7 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 	ctx context.Context,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
+	catalogFingerprint string,
 	instruments *telemetry.Instruments,
 ) (int, error) {
 	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
@@ -172,7 +183,7 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		workers = len(bounds)
 	}
 
-	return s.runDeferredBackfillBatches(ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments)
+	return s.runDeferredBackfillBatches(ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, instruments)
 }
 
 // writeDeferredBackfillBatch processes one bounded batch of source repositories
@@ -187,6 +198,7 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 	batchRepoIDs []string,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
+	catalogFingerprint string,
 ) (int, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
@@ -214,6 +226,7 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 
 	relationshipStore := NewRelationshipStore(tx)
 	phaseRows := make([]reducer.GraphProjectionPhaseState, 0, len(batchRepoIDs))
+	memoCandidates := make([]scopeGenerationPartition, 0, len(batchRepoIDs))
 	now := s.now()
 	for _, repoID := range batchRepoIDs {
 		repoGeneration, ok := currentGenerations[repoID]
@@ -265,9 +278,32 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 			CommittedAt: now,
 			UpdatedAt:   now,
 		})
+		memoCandidates = append(memoCandidates, scopeGenerationPartition{
+			ScopeID:      repoGeneration.ScopeID,
+			GenerationID: repoGeneration.GenerationID,
+		})
 	}
 	if err := NewGraphProjectionPhaseStateStore(tx).PublishGraphProjectionPhases(ctx, phaseRows); err != nil {
 		return 0, fmt.Errorf("publish backward evidence readiness: %w", err)
+	}
+	// Partition memo write (issue #3624 Track 1 / B'), committed in the SAME
+	// transaction as the phase rows above so a memo row never exists without its
+	// evidence and phase publication (atomic: a rollback here rolls back both).
+	// ArgoCD-bearing partitions (see listArgoCDBearingPartitionsQuery) are
+	// deliberately EXCLUDED from the memo write, not merely gated at read time:
+	// their cross-repo evidence can change when a DIFFERENT repo (the external
+	// ArgoCD config repo) changes, so writing a memo row for them would still be
+	// safe today (the read-side gate always reloads ArgoCD-bearing partitions
+	// regardless of memo state) but would misleadingly claim "this partition's
+	// evidence is fully determined by its own catalog fingerprint," which is
+	// false for the ArgoCD carve-out. Omitting the write keeps that invariant
+	// visible in the durable memo state itself, not only in the gate's logic.
+	// A snapshot-guard skip (a repo whose generation advanced) also leaves no
+	// phase row and so is naturally excluded here via the same batchRepoIDs loop.
+	if catalogFingerprint != "" && len(memoCandidates) > 0 {
+		if err := writeDeferredBackfillPartitionMemos(ctx, tx, memoCandidates, catalogFingerprint, now); err != nil {
+			return 0, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit deferred backfill batch transaction: %w", err)
@@ -374,98 +410,6 @@ func (s IngestionStore) ReopenDeploymentMappingWorkItems(
 	log.Printf("deployment_mapping_reopened count=%d", len(workItemIDs))
 
 	return nil
-}
-
-func (s IngestionStore) shouldSkipUnchangedGeneration(
-	ctx context.Context,
-	scopeID string,
-	freshnessHint string,
-) (bool, error) {
-	if s.db == nil {
-		return false, nil
-	}
-	if strings.TrimSpace(scopeID) == "" || strings.TrimSpace(freshnessHint) == "" {
-		return false, nil
-	}
-
-	rows, err := s.db.QueryContext(ctx, activeGenerationFreshnessQuery, scopeID)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-
-	var generationID string
-	var activeFreshnessHint string
-	if err := rows.Scan(&generationID, &activeFreshnessHint); err != nil {
-		return false, err
-	}
-	if err := rows.Err(); err != nil {
-		return false, err
-	}
-
-	return strings.TrimSpace(activeFreshnessHint) == strings.TrimSpace(freshnessHint), nil
-}
-
-// validateGenerationInput checks scope/generation preconditions before
-// opening a transaction. Per-fact validation (scope_id, generation_id match)
-// happens inside upsertStreamingFacts as facts arrive from the channel.
-func validateGenerationInput(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-) error {
-	if err := generation.ValidateForScope(scopeValue); err != nil {
-		return err
-	}
-	if generation.IsTerminal() {
-		return fmt.Errorf("generation %q must not be terminal before projection", generation.GenerationID)
-	}
-
-	return nil
-}
-
-type repositoryGenerationIdentity struct {
-	RepoID       string
-	ScopeID      string
-	GenerationID string
-}
-
-func loadActiveRepositoryGenerations(
-	ctx context.Context,
-	queryer Queryer,
-) (map[string]repositoryGenerationIdentity, error) {
-	if queryer == nil {
-		return nil, nil
-	}
-
-	rows, err := queryer.QueryContext(ctx, activeRepositoryGenerationsQuery)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	result := make(map[string]repositoryGenerationIdentity)
-	for rows.Next() {
-		var identity repositoryGenerationIdentity
-		if err := rows.Scan(&identity.RepoID, &identity.ScopeID, &identity.GenerationID); err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(identity.RepoID) == "" {
-			continue
-		}
-		result[identity.RepoID] = identity
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return result, nil
 }
 
 func listSucceededDeploymentMappingWorkItemIDs(

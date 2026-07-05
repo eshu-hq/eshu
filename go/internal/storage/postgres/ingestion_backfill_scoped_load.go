@@ -203,7 +203,29 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 	partitions []scopeGenerationPartition,
 	instruments *telemetry.Instruments,
 ) ([]facts.Envelope, error) {
-	tasks := buildDeferredScopedFactLoadTasks(partitions, params)
+	// Partition memo gate (issue #3624 Track 1 / B'): skip re-loading and
+	// re-deriving evidence for a partition whose backward evidence already
+	// committed under the CURRENT catalog fingerprint. ArgoCD-bearing partitions
+	// are excluded on the WRITE side (they never get a memo row), so they never
+	// match here and always reload — the read gate is a single indexed memo
+	// lookup with no payload scan (see applyDeferredPartitionMemoGate). A gate
+	// error degrades to "load everything" — the legacy full-load behavior —
+	// rather than aborting the pass, because the gate is a performance
+	// optimization, never a correctness dependency: the fact load it guards is
+	// idempotent and safe to re-run.
+	loadPartitions := partitions
+	if s.db != nil {
+		memoStore := newDeferredBackfillPartitionMemoStore(s.db)
+		fingerprint := deferredCatalogFingerprint(params)
+		gateResult, err := applyDeferredPartitionMemoGate(ctx, memoStore, partitions, fingerprint, instruments)
+		if err != nil {
+			log.Printf("deferred_backfill_partition_memo_gate_failed error=%q partitions=%d falling_back=true", err, len(partitions))
+		} else {
+			loadPartitions = gateResult.ToLoad
+		}
+	}
+
+	tasks := buildDeferredScopedFactLoadTasks(loadPartitions, params)
 	if len(tasks) == 0 {
 		return nil, nil
 	}
@@ -320,8 +342,8 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 		return merged[i].ObservedAt.Before(merged[j].ObservedAt)
 	})
 	log.Printf(
-		"deferred_backfill_fact_load_completed partitions=%d query_tasks=%d workers=%d loaded_facts=%d",
-		len(partitions), len(tasks), workers, len(merged),
+		"deferred_backfill_fact_load_completed partitions=%d loaded_partitions=%d query_tasks=%d workers=%d loaded_facts=%d",
+		len(partitions), len(loadPartitions), len(tasks), workers, len(merged),
 	)
 	return merged, nil
 }
