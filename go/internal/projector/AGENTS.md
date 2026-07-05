@@ -40,6 +40,22 @@
 - **OCI digest identity stays source-local** — `oci_registry_canonical.go`
   projects committed OCI registry facts into digest-keyed image rows. Tags are
   mutable weak evidence and must not become the canonical image key.
+- **Typed-payload decode with per-fact quarantine** — the OCI canonical
+  extractor (`oci_registry_canonical.go`) decodes each fact through the
+  `sdk/go/factschema` seam (`oci_registry_factschema.go`), NOT raw
+  `payloadString`. A fact missing a required identity field is QUARANTINED
+  per-fact via `partitionOCIDecodeFailures` (`factschema_quarantine.go`) and
+  recorded as a visible `input_invalid` dead-letter
+  (`eshu_dp_projector_input_invalid_facts_total` + a structured error log) by
+  `recordProjectorQuarantinedFacts`, while every valid fact — OCI and non-OCI —
+  still projects and the whole-repo build never fails. This is the FIRST
+  factschema decode seam in the projector; the quarantine apparatus is generic
+  (family-neutral) so the terraform_state extractor reuses it verbatim. NEVER
+  make a malformed fact fail the whole `buildCanonicalMaterialization` — that
+  would drop every valid file/entity/package for the repo. NEVER emit a
+  zero-value row. A present-but-empty required field is a VALID decode the row
+  builder's own identity gate still drops (byte-identical to pre-typing);
+  only an ABSENT/null required key dead-letters.
 - **Package identity stays source-local** — `package_registry_canonical.go`
   projects committed package, package-version, and package-dependency facts into
   package identity rows and package-native dependency rows. Source hints are
@@ -160,3 +176,68 @@
   renames require coordinated graph migration; see
   `docs/public/reference/cypher-performance.md` for
   write-order constraints.
+
+## Evidence notes
+
+No-Regression Evidence (Wave 4b, oci_registry projector typed-payload decode):
+the OCI canonical extractor (`extractOCIRegistryRows` and its six row builders)
+now decodes `oci_registry.repository`, `.image_manifest`, `.image_index`,
+`.image_descriptor`, `.image_tag_observation`, and `.image_referrer` fact
+payloads through the `sdk/go/factschema` seam
+(`oci_registry_factschema.go`) instead of raw `payloadString`/`payloadInt`/
+`payloadBoolPtr` map lookups. This is a cold, once-per-scope-generation
+projection path (not a hot per-edge loop). A fact missing a required identity
+field (`repository_id`/`digest`/`tag`/`resolved_digest`/`subject_digest`/
+`referrer_digest`) is quarantined per-fact via `partitionOCIDecodeFailures`
+rather than silently producing a row under an empty-string descriptor uid.
+`go test ./internal/projector -run
+'TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest|TestExtractOCIRegistryRowsPresentButEmptyDigestIsDroppedNotQuarantined'
+-count=1 -v` failed before the conversion (the API returned no quarantined
+facts; a missing-digest manifest silently produced no row with no operator
+signal), then passed after: the malformed fact is recorded on the quarantine
+slice and the valid sibling manifest still materializes its digest-keyed row,
+with no uid ever computed from the empty-string identity segment. Every existing
+OCI valid-path test (`TestBuildCanonicalMaterializationExtractsOCIRegistryRows`,
+`TestBuildCanonicalMaterializationSkipsTagOnlyOCIIdentity`,
+`TestRuntimeProjectRejectsUnknownOCIRegistrySchemaVersion`, and the OCI
+container-image-identity / SBOM / supply-chain intent tests) stays green
+unchanged, so valid facts produce byte-identical graph rows and only
+malformed→dead-letter is new behavior. Measured with `go test
+./internal/projector -run '^$' -bench 'BenchmarkExtractOCIRegistryRows'
+-benchmem -count=4 -benchtime=100x` (darwin/arm64, Apple M-series; input: 1,000
+synthetic repositories × 6 OCI fact kinds = 6,000 facts). BEFORE (raw
+`payloadString` map reads, pre-conversion at HEAD~2, measured in a throwaway
+detached worktree) -> AFTER (typed decode): ~6.6 ms/op, 9.37 MB/op, 70,083
+allocs/op -> ~9.0 ms/op, 10.79 MB/op, 101,086 allocs/op. This is a cold,
+once-per-scope-generation projection path (not a hot per-edge loop): a real OCI
+repository generation carries a handful of manifests, so the per-generation
+cost is microseconds; the 6,000-fact corpus is a stress bound. The residual
+cost is the typed-struct decode (reflection field-plan walk + per-fact struct
+allocations) over raw map lookups — the same accuracy-guarantee cost the
+incident wave accepted at ~1.2 µs/fact; here it is ~1.5 µs/fact. The nested
+descriptor fields (manifest `config`/`layers`, index `manifests`) were an
+avoidable first-pass regression — decoded through the `sdk/go/factschema`
+`decode_map.go` json round-trip fallback — until `assignField` gained a
+marshal-free fast path for pointer-to-struct, slice-of-struct, and
+`map[string]string` fields (an additive shared-decoder improvement that also
+speeds `awsv1.EC2InstancePosture`'s `[]BlockDevice`, with the existing
+`BenchmarkDecodeAWSResource` at ~1180 ns/17 allocs and
+`BenchmarkExtractCloudResourceNodeRows` at ~16.4 ms unchanged, proving no
+existing-family regression). Result class: Correctness win with a bounded,
+measured cold-path cost.
+
+Observability Evidence (Wave 4b, oci_registry projector typed-payload decode):
+the migration introduces the projector's FIRST per-fact input_invalid signal,
+`eshu_dp_projector_input_invalid_facts_total` (labeled `stage`=
+`oci_registry_canonical`, `fact_kind`), the projector-side counterpart to the
+reducer's `eshu_dp_reducer_input_invalid_facts_total`. A malformed OCI fact
+surfaces through `recordProjectorQuarantinedFacts` — the counter plus the
+structured `projector input_invalid fact quarantined` error log carrying
+`fact_id` + `missing_field` — instead of the pre-typing silent drop. The new
+instrument is registered in `go/internal/telemetry/instruments.go`, documented
+in the X1 contract doc (`docs/public/observability/telemetry-coverage.md`) and
+the operator reference (`docs/public/reference/telemetry/index.md`), and charted
+on the operator dashboard's "Projector input_invalid Facts (rate)" panel. The
+migration adds no route, graph query shape, queue table, worker, lease, or
+runtime knob; it reuses the existing projector build path and per-fact
+isolation model.

@@ -358,6 +358,27 @@
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Projector input_invalid Facts (rate)",
+      "description": "Rate of facts a projector canonical extractor quarantined because their payload was missing a required identity field (input_invalid). Non-zero means the graph is under-projecting for that stage/fact_kind until the collector defect is fixed; a sustained spike is an accuracy alarm. The projector-side counterpart to the reducer panel above.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 31},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(rate(eshu_dp_projector_input_invalid_facts_total[5m])) by (stage, fact_kind)",
+          "legendFormat": "{{stage}} / {{fact_kind}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
       "id": 14,
       "type": "row",
       "title": "API Request Latency and Errors",

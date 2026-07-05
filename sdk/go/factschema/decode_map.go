@@ -141,6 +141,22 @@ func assignField(field reflect.Value, raw any) error {
 		field.SetString(s)
 		return nil
 
+	case reflect.Int64:
+		n, err := jsonNumberToInt64(raw)
+		if err != nil {
+			return err
+		}
+		field.SetInt(n)
+		return nil
+
+	case reflect.Bool:
+		b, ok := raw.(bool)
+		if !ok {
+			return fmt.Errorf("want bool, got %T", raw)
+		}
+		field.SetBool(b)
+		return nil
+
 	case reflect.Ptr:
 		switch field.Type().Elem().Kind() {
 		case reflect.String:
@@ -164,6 +180,13 @@ func assignField(field reflect.Value, raw any) error {
 			}
 			field.Set(reflect.ValueOf(&n))
 			return nil
+		case reflect.Int64:
+			n, err := jsonNumberToInt64(raw)
+			if err != nil {
+				return err
+			}
+			field.Set(reflect.ValueOf(&n))
+			return nil
 		case reflect.Map:
 			if field.Type().Elem() == reflect.TypeOf(map[string]string{}) {
 				m, ok := anyToStringMap(raw)
@@ -174,20 +197,51 @@ func assignField(field reflect.Value, raw any) error {
 				return nil
 			}
 			return jsonRoundTripValue(field, raw)
+		case reflect.Struct:
+			// A pointer to a nested payload struct (for example ImageManifest's
+			// *Descriptor config) decodes through the same marshal-free
+			// decodeMapInto recursion, so a single nested object never triggers a
+			// json round trip. Already-typed (non-map) values fall back so a
+			// caller passing the concrete struct still decodes correctly.
+			m, ok := asObjectMap(raw)
+			if !ok {
+				return jsonRoundTripValue(field, raw)
+			}
+			nested := reflect.New(field.Type().Elem())
+			if err := decodeMapInto(m, nested.Interface()); err != nil {
+				return err
+			}
+			field.Set(nested)
+			return nil
 		default:
 			return jsonRoundTripValue(field, raw)
 		}
 
 	case reflect.Slice:
-		if field.Type().Elem().Kind() == reflect.String {
+		switch field.Type().Elem().Kind() {
+		case reflect.String:
 			strs, err := anyToStringSlice(raw)
 			if err != nil {
 				return err
 			}
 			field.Set(reflect.ValueOf(strs))
 			return nil
+		case reflect.Struct:
+			// A slice of nested payload structs (for example ImageManifest's
+			// []Descriptor layers, ImageIndex's []Descriptor manifests, or
+			// awsv1.EC2InstancePosture's []BlockDevice) decodes element-by-element
+			// through decodeMapInto when every element is an object map, so a
+			// many-element list stays off the json round-trip path. A slice whose
+			// elements are not object maps (an already-typed []Struct, or a scalar
+			// element) falls back to the json round trip so correctness is never
+			// sacrificed for the fast path.
+			if slice, ok := assignStructSlice(field, raw); ok {
+				return slice
+			}
+			return jsonRoundTripValue(field, raw)
+		default:
+			return jsonRoundTripValue(field, raw)
 		}
-		return jsonRoundTripValue(field, raw)
 
 	case reflect.Map:
 		// A map[string]any field (other than Attributes, handled by the caller)
@@ -196,12 +250,13 @@ func assignField(field reflect.Value, raw any) error {
 			field.Set(reflect.ValueOf(m))
 			return nil
 		}
-		// A map[string]string field (for example a pod-template label selector)
-		// takes a fast type-assert/coerce path rather than the marshal/unmarshal
-		// fallback: measured 15x faster on the same shape (Benchmark
-		// No-Regression Evidence, kubernetes_live wave), with identical output for
-		// every value the JSONB decode path can produce (a string-valued
-		// map[string]any, or an already-typed map[string]string).
+		// A map[string]string field (for example a pod-template label selector, a
+		// descriptor's annotations, or a manifest's config_labels) takes a fast
+		// type-assert/coerce path rather than the marshal/unmarshal fallback:
+		// measured 15x faster on the same shape (Benchmark No-Regression Evidence,
+		// kubernetes_live wave), with identical output for every value the JSONB
+		// decode path can produce (a string-valued map[string]any, or an
+		// already-typed map[string]string).
 		if field.Type() == reflect.TypeOf(map[string]string{}) {
 			if m, ok := anyToStringMap(raw); ok {
 				field.Set(reflect.ValueOf(m))
@@ -236,6 +291,69 @@ func anyToStringMap(raw any) (map[string]string, bool) {
 		return out, true
 	default:
 		return nil, false
+	}
+}
+
+// asObjectMap returns raw as a map[string]any when it is one, coercing the
+// JSONB-native map[string]any shape a Postgres payload carries. It reports false
+// for any other shape (a scalar, an already-typed struct value) so the caller
+// can fall back to the json round trip.
+func asObjectMap(raw any) (map[string]any, bool) {
+	m, ok := raw.(map[string]any)
+	return m, ok
+}
+
+// assignStructSlice decodes a slice of object maps into a slice of nested
+// payload structs, decoding each element through the marshal-free decodeMapInto.
+// It accepts both the JSONB-native []any-of-map shape a Postgres payload carries
+// and the []map[string]any shape in-memory callers build. It returns ok=false
+// (without touching field) when raw is not a slice, or when any element is not
+// an object map, so the caller falls back to the json round trip for an
+// already-typed or scalar-element slice — correctness is never sacrificed for
+// the fast path. When ok is true the returned error is the decode result.
+func assignStructSlice(field reflect.Value, raw any) (error, bool) {
+	rv := reflect.ValueOf(raw)
+	if rv.Kind() != reflect.Slice {
+		return nil, false
+	}
+	out := reflect.MakeSlice(field.Type(), 0, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		m, ok := asObjectMap(rv.Index(i).Interface())
+		if !ok {
+			return nil, false
+		}
+		elem := reflect.New(field.Type().Elem())
+		if err := decodeMapInto(m, elem.Interface()); err != nil {
+			return err, true
+		}
+		out = reflect.Append(out, elem.Elem())
+	}
+	field.Set(out)
+	return nil, true
+}
+
+// jsonNumberToInt64 coerces a JSONB-native number (float64 from encoding/json,
+// or an in-memory int/int32/int64) into an int64, matching how the previous
+// json.Unmarshal path filled int64 / *int64 size fields. It fails closed on a
+// non-integral or out-of-range value, mirroring encoding/json.
+func jsonNumberToInt64(raw any) (int64, error) {
+	switch n := raw.(type) {
+	case float64:
+		if math.Trunc(n) != n {
+			return 0, fmt.Errorf("want integer, got non-integral number %v", n)
+		}
+		if n < math.MinInt64 || n >= math.MaxInt64 {
+			return 0, fmt.Errorf("number %v out of int64 range", n)
+		}
+		return int64(n), nil
+	case int:
+		return int64(n), nil
+	case int32:
+		return int64(n), nil
+	case int64:
+		return n, nil
+	default:
+		return 0, fmt.Errorf("want number, got %T", raw)
 	}
 }
 

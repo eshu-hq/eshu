@@ -29,6 +29,14 @@ CROSS_REPO_FENCED='eshu_dp_cross_repo_activation_fenced_total'
 # defect is fixed. A sustained spike is an accuracy alarm, not routine noise.
 REDUCER_INPUT_INVALID_FACTS='eshu_dp_reducer_input_invalid_facts_total'
 
+# Projector-side typed-payload decode accuracy. Same accuracy signal as the
+# reducer counter above, but for the projector's canonical extractors (stage
+# label, e.g. oci_registry_canonical): a non-zero rate means a canonical
+# extractor skipped a fact whose payload was missing a required identity field,
+# so the graph is under-projecting for that stage/fact_kind until the collector
+# defect is fixed.
+PROJECTOR_INPUT_INVALID_FACTS='eshu_dp_projector_input_invalid_facts_total'
+
 # Extraction-provenance drift.
 EDGES_BY_SOURCE_TOOL='eshu_dp_edges_by_source_tool'
 FILES_BY_LANGUAGE='eshu_dp_files_by_language'

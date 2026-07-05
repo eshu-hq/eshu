@@ -22,7 +22,7 @@ func TestBuildCanonicalMaterializationCanonicalizesDuplicateCodeEntityIdentity(t
 		duplicateEntityFact("class-2", "legacy-class-id-2", "Class", "Server", "src/server.py", 9, "python"),
 	}
 
-	result := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
 	if got, want := len(result.Entities), 2; got != want {
 		t.Fatalf("len(Entities) = %d, want %d", got, want)
 	}

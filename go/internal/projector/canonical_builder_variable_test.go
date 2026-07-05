@@ -56,7 +56,7 @@ func TestCanonicalMaterializationSkipsPlainVariableEntities(t *testing.T) {
 		},
 	}
 
-	result := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
 
 	var labels []string
 	for _, entity := range result.Entities {

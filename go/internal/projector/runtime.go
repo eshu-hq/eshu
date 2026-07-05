@@ -103,6 +103,15 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 	if err != nil {
 		return Result{}, err
 	}
+	// Record any facts a typed canonical extractor quarantined during decode as
+	// visible input_invalid dead-letters (a per-fact metric + structured error
+	// log). The facts are already skipped from projection; this makes each one
+	// operator-diagnosable rather than a silent drop. Recording never fails the
+	// projection — a malformed fact must not stall the whole generation.
+	recordProjectorQuarantinedFacts(
+		ctx, r.Instruments, ociRegistryCanonicalStage,
+		scopeValue.ScopeID, generation.GenerationID, projection.quarantinedFacts,
+	)
 	if r.Instruments != nil {
 		r.Instruments.ProjectorStageDuration.Record(ctx, time.Since(buildStart).Seconds(), metric.WithAttributes(
 			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
@@ -192,6 +201,10 @@ type projection struct {
 	canonical              CanonicalMaterialization
 	contentMaterialization content.Materialization
 	reducerIntents         []ReducerIntent
+	// quarantinedFacts are the facts a typed canonical extractor skipped during
+	// decode because a required identity field was missing or null. Project
+	// records them as visible input_invalid dead-letters; they are not projected.
+	quarantinedFacts []quarantinedFact
 }
 
 func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (projection, error) {
@@ -247,12 +260,13 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	})
 
 	// Build canonical materialization for Neo4j graph writes.
-	canonical := buildCanonicalMaterialization(scopeValue, generation, inputFacts)
+	canonical, quarantined := buildCanonicalMaterialization(scopeValue, generation, inputFacts)
 
 	return projection{
 		canonical:              canonical,
 		contentMaterialization: contentMaterialization,
 		reducerIntents:         intents,
+		quarantinedFacts:       quarantined,
 	}, nil
 }
 

@@ -18,7 +18,7 @@ func TestBuildCanonicalMaterializationExtractsTerraformStateRows(t *testing.T) {
 
 	sc := terraformStateScope()
 	gen := terraformStateGeneration()
-	result := buildCanonicalMaterialization(sc, gen, terraformStateFacts())
+	result, _ := buildCanonicalMaterialization(sc, gen, terraformStateFacts())
 
 	if got, want := len(result.TerraformStateResources), 1; got != want {
 		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
@@ -108,7 +108,7 @@ func TestBuildCanonicalMaterializationAggregatesTerraformStateModuleObservations
 		},
 	})
 
-	result := buildCanonicalMaterialization(sc, gen, input)
+	result, _ := buildCanonicalMaterialization(sc, gen, input)
 
 	if got, want := len(result.TerraformStateModules), 1; got != want {
 		t.Fatalf("len(TerraformStateModules) = %d, want %d", got, want)

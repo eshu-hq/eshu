@@ -5,7 +5,6 @@ package projector
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -132,57 +131,109 @@ type OCIImageReferrerRow struct {
 	ObservedAt        time.Time
 }
 
-func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) {
+// ociRegistryCanonicalStage is the bounded telemetry stage label the projector's
+// OCI canonical extractor reports on eshu_dp_projector_input_invalid_facts_total.
+const ociRegistryCanonicalStage = "oci_registry_canonical"
+
+// extractOCIRegistryRows projects committed OCI registry fact envelopes into
+// digest-keyed canonical image rows on mat, decoding each fact through the typed
+// factschema seam. A fact missing a required identity field is QUARANTINED
+// per-fact (returned in the []quarantinedFact slice) rather than producing a
+// graph identity from an empty-string segment: that one fact is skipped while
+// every valid fact — OCI and non-OCI — still projects. The caller
+// (buildCanonicalMaterialization) records the quarantined facts as visible
+// input_invalid dead-letters via recordProjectorQuarantinedFacts. A
+// present-but-empty identity field is a valid decode that the row builders' own
+// identity gate still drops, byte-identical to the pre-typing behavior.
+//
+// oci_registry.warning is intentionally not consumed here (design §3.4,
+// typed-but-deferred), so no case handles it.
+func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []quarantinedFact {
 	if mat == nil || len(envelopes) == 0 {
-		return
+		return nil
 	}
+	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
+		var err error
 		switch envelope.FactKind {
 		case facts.OCIRegistryRepositoryFactKind:
-			if row, ok := ociRegistryRepositoryRow(envelope); ok {
+			if row, ok, rowErr := ociRegistryRepositoryRow(envelope); ok {
 				mat.OCIRegistryRepository = &row
+			} else {
+				err = rowErr
 			}
 		case facts.OCIImageManifestFactKind:
-			if row, ok := ociImageManifestRow(envelope); ok {
+			if row, ok, rowErr := ociImageManifestRow(envelope); ok {
 				mat.OCIImageManifests = append(mat.OCIImageManifests, row)
+			} else {
+				err = rowErr
 			}
 		case facts.OCIImageIndexFactKind:
-			if row, ok := ociImageIndexRow(envelope); ok {
+			if row, ok, rowErr := ociImageIndexRow(envelope); ok {
 				mat.OCIImageIndexes = append(mat.OCIImageIndexes, row)
+			} else {
+				err = rowErr
 			}
 		case facts.OCIImageDescriptorFactKind:
-			if row, ok := ociImageDescriptorRow(envelope); ok {
+			if row, ok, rowErr := ociImageDescriptorRow(envelope); ok {
 				mat.OCIImageDescriptors = append(mat.OCIImageDescriptors, row)
+			} else {
+				err = rowErr
 			}
 		case facts.OCIImageTagObservationFactKind:
-			if row, ok := ociImageTagObservationRow(envelope); ok {
+			if row, ok, rowErr := ociImageTagObservationRow(envelope); ok {
 				mat.OCIImageTagObservations = append(mat.OCIImageTagObservations, row)
+			} else {
+				err = rowErr
 			}
 		case facts.OCIImageReferrerFactKind:
-			if row, ok := ociImageReferrerRow(envelope); ok {
+			if row, ok, rowErr := ociImageReferrerRow(envelope); ok {
 				mat.OCIImageReferrers = append(mat.OCIImageReferrers, row)
+			} else {
+				err = rowErr
 			}
+		default:
+			continue
+		}
+		if err == nil {
+			continue
+		}
+		q, isQuarantine, fatal := partitionOCIDecodeFailures(envelope, err)
+		if fatal != nil {
+			// The only fatal decode error is an unsupported schema major, which
+			// the projector's schema-version admission (validateFactSchemaVersion
+			// in runtime.go) already rejects for the whole work item BEFORE this
+			// extractor runs, so a fatal here is unreachable on the production
+			// path. Dropping it matches the pre-typing extractor's behavior for a
+			// fact it could not read, and never fails the whole repository
+			// projection over one fact.
+			continue
+		}
+		if isQuarantine {
+			quarantined = append(quarantined, q)
 		}
 	}
+	return quarantined
 }
 
-func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow, bool) {
-	repositoryID, _ := payloadString(envelope.Payload, "repository_id")
-	if repositoryID == "" {
-		return OCIRegistryRepositoryRow{}, false
+func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow, bool, error) {
+	repository, err := decodeOCIRegistryRepository(envelope)
+	if err != nil {
+		return OCIRegistryRepositoryRow{}, false, err
 	}
-	provider, _ := payloadString(envelope.Payload, "provider")
-	registry, _ := payloadString(envelope.Payload, "registry")
-	repository, _ := payloadString(envelope.Payload, "repository")
-	visibility, _ := payloadString(envelope.Payload, "visibility")
-	authMode, _ := payloadString(envelope.Payload, "auth_mode")
+	repositoryID := repository.RepositoryID
+	if repositoryID == "" {
+		// Present-but-empty repository_id is a valid decode, distinct from an
+		// absent required key (which the decode seam already dead-lettered).
+		return OCIRegistryRepositoryRow{}, false, nil
+	}
 	return OCIRegistryRepositoryRow{
 		UID:              repositoryID,
-		Provider:         provider,
-		Registry:         registry,
-		Repository:       repository,
-		Visibility:       visibility,
-		AuthMode:         authMode,
+		Provider:         ociDerefString(repository.Provider),
+		Registry:         ociDerefString(repository.Registry),
+		Repository:       ociDerefString(repository.Repository),
+		Visibility:       ociDerefString(repository.Visibility),
+		AuthMode:         ociDerefString(repository.AuthMode),
 		SourceFactID:     envelope.FactID,
 		StableFactKey:    envelope.StableFactKey,
 		SourceSystem:     ociRegistrySourceSystem(envelope),
@@ -190,75 +241,87 @@ func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow
 		SourceConfidence: envelope.SourceConfidence,
 		CollectorKind:    envelope.CollectorKind,
 		ObservedAt:       envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func ociImageManifestRow(envelope facts.Envelope) (OCIImageManifestRow, bool) {
-	descriptor := ociDescriptorFields(envelope)
-	if descriptor.uid == "" || descriptor.digest == "" || descriptor.repositoryID == "" {
-		return OCIImageManifestRow{}, false
+func ociImageManifestRow(envelope facts.Envelope) (OCIImageManifestRow, bool, error) {
+	manifest, err := decodeOCIImageManifest(envelope)
+	if err != nil {
+		return OCIImageManifestRow{}, false, err
 	}
-	sourceTag, _ := payloadString(envelope.Payload, "source_tag")
-	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
+	uid := ociResolvedDescriptorUID(manifest.RepositoryID, manifest.Digest, ociDerefString(manifest.DescriptorID))
+	if uid == "" || manifest.Digest == "" || manifest.RepositoryID == "" {
+		// Present-but-empty identity is a valid decode, distinct from an absent
+		// required key (already dead-lettered by the decode seam).
+		return OCIImageManifestRow{}, false, nil
+	}
 	return OCIImageManifestRow{
-		UID:                  descriptor.uid,
-		RepositoryID:         descriptor.repositoryID,
-		Digest:               descriptor.digest,
-		MediaType:            descriptor.mediaType,
-		SizeBytes:            descriptor.sizeBytes,
-		ArtifactType:         descriptor.artifactType,
-		SourceTag:            sourceTag,
-		ConfigDigest:         ociDescriptorMapDigest(envelope.Payload, "config"),
-		LayerDigests:         ociDescriptorListDigests(envelope.Payload, "layers"),
+		UID:                  uid,
+		RepositoryID:         manifest.RepositoryID,
+		Digest:               manifest.Digest,
+		MediaType:            ociDerefString(manifest.MediaType),
+		SizeBytes:            ociDerefInt64(manifest.SizeBytes),
+		ArtifactType:         ociDerefString(manifest.ArtifactType),
+		SourceTag:            ociDerefString(manifest.SourceTag),
+		ConfigDigest:         ociDescriptorDigest(manifest.Config),
+		LayerDigests:         ociDescriptorSliceDigests(manifest.Layers),
 		SourceFactID:         envelope.FactID,
 		StableFactKey:        envelope.StableFactKey,
 		SourceSystem:         ociRegistrySourceSystem(envelope),
 		SourceRecordID:       envelope.SourceRef.SourceRecordID,
 		SourceConfidence:     envelope.SourceConfidence,
 		CollectorKind:        envelope.CollectorKind,
-		CorrelationAnchors:   ociCorrelationAnchors(envelope.Payload),
-		CollectorInstanceID:  collectorInstanceID,
-		ResolvedDescriptorID: descriptor.uid,
+		CorrelationAnchors:   ociUniqueSortedAnchors(manifest.CorrelationAnchors),
+		CollectorInstanceID:  ociDerefString(manifest.CollectorInstanceID),
+		ResolvedDescriptorID: uid,
 		ObservedAt:           envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func ociImageIndexRow(envelope facts.Envelope) (OCIImageIndexRow, bool) {
-	descriptor := ociDescriptorFields(envelope)
-	if descriptor.uid == "" || descriptor.digest == "" || descriptor.repositoryID == "" {
-		return OCIImageIndexRow{}, false
+func ociImageIndexRow(envelope facts.Envelope) (OCIImageIndexRow, bool, error) {
+	index, err := decodeOCIImageIndex(envelope)
+	if err != nil {
+		return OCIImageIndexRow{}, false, err
+	}
+	uid := ociResolvedDescriptorUID(index.RepositoryID, index.Digest, ociDerefString(index.DescriptorID))
+	if uid == "" || index.Digest == "" || index.RepositoryID == "" {
+		return OCIImageIndexRow{}, false, nil
 	}
 	return OCIImageIndexRow{
-		UID:                descriptor.uid,
-		RepositoryID:       descriptor.repositoryID,
-		Digest:             descriptor.digest,
-		MediaType:          descriptor.mediaType,
-		SizeBytes:          descriptor.sizeBytes,
-		ArtifactType:       descriptor.artifactType,
-		ManifestDigests:    ociDescriptorListDigests(envelope.Payload, "manifests"),
+		UID:                uid,
+		RepositoryID:       index.RepositoryID,
+		Digest:             index.Digest,
+		MediaType:          ociDerefString(index.MediaType),
+		SizeBytes:          ociDerefInt64(index.SizeBytes),
+		ArtifactType:       ociDerefString(index.ArtifactType),
+		ManifestDigests:    ociDescriptorSliceDigests(index.Manifests),
 		SourceFactID:       envelope.FactID,
 		StableFactKey:      envelope.StableFactKey,
 		SourceSystem:       ociRegistrySourceSystem(envelope),
 		SourceRecordID:     envelope.SourceRef.SourceRecordID,
 		SourceConfidence:   envelope.SourceConfidence,
 		CollectorKind:      envelope.CollectorKind,
-		CorrelationAnchors: ociCorrelationAnchors(envelope.Payload),
+		CorrelationAnchors: ociUniqueSortedAnchors(index.CorrelationAnchors),
 		ObservedAt:         envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func ociImageDescriptorRow(envelope facts.Envelope) (OCIImageDescriptorRow, bool) {
-	descriptor := ociDescriptorFields(envelope)
-	if descriptor.uid == "" || descriptor.digest == "" || descriptor.repositoryID == "" {
-		return OCIImageDescriptorRow{}, false
+func ociImageDescriptorRow(envelope facts.Envelope) (OCIImageDescriptorRow, bool, error) {
+	descriptor, err := decodeOCIImageDescriptor(envelope)
+	if err != nil {
+		return OCIImageDescriptorRow{}, false, err
+	}
+	uid := ociResolvedDescriptorUID(descriptor.RepositoryID, descriptor.Digest, ociDerefString(descriptor.DescriptorID))
+	if uid == "" || descriptor.Digest == "" || descriptor.RepositoryID == "" {
+		return OCIImageDescriptorRow{}, false, nil
 	}
 	return OCIImageDescriptorRow{
-		UID:              descriptor.uid,
-		RepositoryID:     descriptor.repositoryID,
-		Digest:           descriptor.digest,
-		MediaType:        descriptor.mediaType,
-		SizeBytes:        descriptor.sizeBytes,
-		ArtifactType:     descriptor.artifactType,
+		UID:              uid,
+		RepositoryID:     descriptor.RepositoryID,
+		Digest:           descriptor.Digest,
+		MediaType:        ociDerefString(descriptor.MediaType),
+		SizeBytes:        ociDerefInt64(descriptor.SizeBytes),
+		ArtifactType:     ociDerefString(descriptor.ArtifactType),
 		SourceFactID:     envelope.FactID,
 		StableFactKey:    envelope.StableFactKey,
 		SourceSystem:     ociRegistrySourceSystem(envelope),
@@ -266,25 +329,23 @@ func ociImageDescriptorRow(envelope facts.Envelope) (OCIImageDescriptorRow, bool
 		SourceConfidence: envelope.SourceConfidence,
 		CollectorKind:    envelope.CollectorKind,
 		ObservedAt:       envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationRow, bool) {
-	repositoryID, _ := payloadString(envelope.Payload, "repository_id")
-	tag, _ := payloadString(envelope.Payload, "tag")
-	resolvedDigest, _ := payloadString(envelope.Payload, "resolved_digest")
-	if repositoryID == "" || tag == "" || resolvedDigest == "" {
-		return OCIImageTagObservationRow{}, false
+func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationRow, bool, error) {
+	observation, err := decodeOCIImageTagObservation(envelope)
+	if err != nil {
+		return OCIImageTagObservationRow{}, false, err
 	}
-	mediaType, _ := payloadString(envelope.Payload, "media_type")
-	previousDigest, _ := payloadString(envelope.Payload, "previous_digest")
-	identityStrength, _ := payloadString(envelope.Payload, "identity_strength")
+	repositoryID := observation.RepositoryID
+	tag := observation.Tag
+	resolvedDigest := observation.ResolvedDigest
+	if repositoryID == "" || tag == "" || resolvedDigest == "" {
+		return OCIImageTagObservationRow{}, false, nil
+	}
+	identityStrength := ociDerefString(observation.IdentityStrength)
 	if identityStrength == "" {
 		identityStrength = "weak_tag"
-	}
-	mutated := false
-	if ptr := payloadBoolPtr(envelope.Payload, "mutated"); ptr != nil {
-		mutated = *ptr
 	}
 	return OCIImageTagObservationRow{
 		UID:                   ociRegistryUID("tag_observation", repositoryID, tag, resolvedDigest),
@@ -293,9 +354,9 @@ func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationR
 		Tag:                   tag,
 		ResolvedDigest:        resolvedDigest,
 		ResolvedDescriptorUID: ociDescriptorUID(repositoryID, resolvedDigest),
-		MediaType:             mediaType,
-		PreviousDigest:        previousDigest,
-		Mutated:               mutated,
+		MediaType:             ociDerefString(observation.MediaType),
+		PreviousDigest:        ociDerefString(observation.PreviousDigest),
+		Mutated:               ociDerefBool(observation.Mutated),
 		IdentityStrength:      identityStrength,
 		SourceFactID:          envelope.FactID,
 		StableFactKey:         envelope.StableFactKey,
@@ -304,31 +365,30 @@ func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationR
 		SourceConfidence:      envelope.SourceConfidence,
 		CollectorKind:         envelope.CollectorKind,
 		ObservedAt:            envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func ociImageReferrerRow(envelope facts.Envelope) (OCIImageReferrerRow, bool) {
-	repositoryID, _ := payloadString(envelope.Payload, "repository_id")
-	subjectDigest, _ := payloadString(envelope.Payload, "subject_digest")
-	referrerDigest, _ := payloadString(envelope.Payload, "referrer_digest")
-	if repositoryID == "" || subjectDigest == "" || referrerDigest == "" {
-		return OCIImageReferrerRow{}, false
+func ociImageReferrerRow(envelope facts.Envelope) (OCIImageReferrerRow, bool, error) {
+	referrer, err := decodeOCIImageReferrer(envelope)
+	if err != nil {
+		return OCIImageReferrerRow{}, false, err
 	}
-	subjectMediaType, _ := payloadString(envelope.Payload, "subject_media_type")
-	referrerMediaType, _ := payloadString(envelope.Payload, "referrer_media_type")
-	artifactType, _ := payloadString(envelope.Payload, "artifact_type")
-	sourceAPIPath, _ := payloadString(envelope.Payload, "source_api_path")
-	sizeBytes, _ := payloadInt(envelope.Payload, "size_bytes")
+	repositoryID := referrer.RepositoryID
+	subjectDigest := referrer.SubjectDigest
+	referrerDigest := referrer.ReferrerDigest
+	if repositoryID == "" || subjectDigest == "" || referrerDigest == "" {
+		return OCIImageReferrerRow{}, false, nil
+	}
 	return OCIImageReferrerRow{
 		UID:               ociRegistryUID("referrer", repositoryID, subjectDigest, referrerDigest),
 		RepositoryID:      repositoryID,
 		SubjectDigest:     subjectDigest,
-		SubjectMediaType:  subjectMediaType,
+		SubjectMediaType:  ociDerefString(referrer.SubjectMediaType),
 		ReferrerDigest:    referrerDigest,
-		ReferrerMediaType: referrerMediaType,
-		ArtifactType:      artifactType,
-		SizeBytes:         int64(sizeBytes),
-		SourceAPIPath:     sourceAPIPath,
+		ReferrerMediaType: ociDerefString(referrer.ReferrerMediaType),
+		ArtifactType:      ociDerefString(referrer.ArtifactType),
+		SizeBytes:         ociDerefInt64(referrer.SizeBytes),
+		SourceAPIPath:     ociDerefString(referrer.SourceAPIPath),
 		SourceFactID:      envelope.FactID,
 		StableFactKey:     envelope.StableFactKey,
 		SourceSystem:      ociRegistrySourceSystem(envelope),
@@ -336,96 +396,21 @@ func ociImageReferrerRow(envelope facts.Envelope) (OCIImageReferrerRow, bool) {
 		SourceConfidence:  envelope.SourceConfidence,
 		CollectorKind:     envelope.CollectorKind,
 		ObservedAt:        envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-type ociDescriptorPayload struct {
-	uid          string
-	repositoryID string
-	digest       string
-	mediaType    string
-	sizeBytes    int64
-	artifactType string
-}
-
-func ociDescriptorFields(envelope facts.Envelope) ociDescriptorPayload {
-	repositoryID, _ := payloadString(envelope.Payload, "repository_id")
-	descriptorID, _ := payloadString(envelope.Payload, "descriptor_id")
-	digest, _ := payloadString(envelope.Payload, "digest")
-	mediaType, _ := payloadString(envelope.Payload, "media_type")
-	sizeBytes, _ := payloadInt(envelope.Payload, "size_bytes")
-	artifactType, _ := payloadString(envelope.Payload, "artifact_type")
-	if descriptorID == "" && repositoryID != "" && digest != "" {
-		descriptorID = ociDescriptorUID(repositoryID, digest)
+// ociResolvedDescriptorUID returns the collector-supplied descriptor UID when
+// present, else synthesizes it from (repositoryID, digest), matching the
+// pre-typing ociDescriptorFields fallback. An empty result means the identity is
+// incomplete (no digest), so the row is dropped.
+func ociResolvedDescriptorUID(repositoryID, digest, descriptorID string) string {
+	if descriptorID != "" {
+		return descriptorID
 	}
-	return ociDescriptorPayload{
-		uid:          descriptorID,
-		repositoryID: repositoryID,
-		digest:       digest,
-		mediaType:    mediaType,
-		sizeBytes:    int64(sizeBytes),
-		artifactType: artifactType,
+	if repositoryID != "" && digest != "" {
+		return ociDescriptorUID(repositoryID, digest)
 	}
-}
-
-func ociDescriptorMapDigest(payload map[string]any, key string) string {
-	raw, ok := payload[key].(map[string]any)
-	if !ok {
-		return ""
-	}
-	digest, _ := payloadString(raw, "digest")
-	return digest
-}
-
-func ociDescriptorListDigests(payload map[string]any, key string) []string {
-	raw, ok := payload[key].([]any)
-	if !ok || len(raw) == 0 {
-		return nil
-	}
-	digests := make([]string, 0, len(raw))
-	seen := map[string]struct{}{}
-	for _, item := range raw {
-		entry, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		digest, _ := payloadString(entry, "digest")
-		if digest == "" {
-			continue
-		}
-		if _, ok := seen[digest]; ok {
-			continue
-		}
-		seen[digest] = struct{}{}
-		digests = append(digests, digest)
-	}
-	sort.Strings(digests)
-	if len(digests) == 0 {
-		return nil
-	}
-	return digests
-}
-
-func ociCorrelationAnchors(payload map[string]any) []string {
-	raw, ok := payload["correlation_anchors"].([]any)
-	if !ok || len(raw) == 0 {
-		return nil
-	}
-	anchors := make([]string, 0, len(raw))
-	for _, item := range raw {
-		text, ok := item.(string)
-		if !ok {
-			continue
-		}
-		if trimmed := strings.TrimSpace(text); trimmed != "" {
-			anchors = append(anchors, trimmed)
-		}
-	}
-	sort.Strings(anchors)
-	if len(anchors) == 0 {
-		return nil
-	}
-	return anchors
+	return ""
 }
 
 func ociRegistrySourceSystem(envelope facts.Envelope) string {
