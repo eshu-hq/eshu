@@ -87,9 +87,13 @@ is a Postgres read, claim, lock, or completion statement.
 - Use TDD for SQL or schema behavior changes.
 - Add focused storage tests for predicate/lifecycle fixes.
 - Add integration or fixture-plan evidence for query-plan/index changes.
-- `AS MATERIALIZED` is load-bearing for COST when a CTE is referenced more than
-  once (Postgres otherwise re-inlines and re-evaluates it per reference). Assert
-  its presence in a query-shape test so a future edit cannot silently drop it.
+- `AS MATERIALIZED` is load-bearing only when measured query shape shows an
+  inlinable CTE would duplicate expensive work or otherwise change the intended
+  plan. In PostgreSQL 12 and newer, side-effect-free CTEs referenced more than
+  once are materialized by default; single-reference side-effect-free CTEs are
+  normally folded unless explicitly marked materialized. Assert explicit
+  materialization in a query-shape test only when the measured shape makes that
+  marker part of the contract.
 - Freeze a differential's expected query by DERIVING it from the shipped query
   constant (truncate at a stable boundary marker, append a read-only tail), never
   by hand-copying — a hand-frozen copy drifts and goes false-green. Add a hermetic
