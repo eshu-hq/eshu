@@ -131,6 +131,25 @@ families:
     read_surface: "GET /api/v0/observability/coverage/correlations"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      observability.declared_folder: "sdk/go/factschema/schema/observability.declared_folder.v1.schema.json"
+      observability.declared_dashboard: "sdk/go/factschema/schema/observability.declared_dashboard.v1.schema.json"
+      observability.declared_datasource: "sdk/go/factschema/schema/observability.declared_datasource.v1.schema.json"
+      observability.declared_alert_rule: "sdk/go/factschema/schema/observability.declared_alert_rule.v1.schema.json"
+      observability.declared_scrape_config: "sdk/go/factschema/schema/observability.declared_scrape_config.v1.schema.json"
+      observability.declared_metric_rule: "sdk/go/factschema/schema/observability.declared_metric_rule.v1.schema.json"
+      observability.declared_metric_route: "sdk/go/factschema/schema/observability.declared_metric_route.v1.schema.json"
+      observability.declared_log_route: "sdk/go/factschema/schema/observability.declared_log_route.v1.schema.json"
+      observability.declared_trace_route: "sdk/go/factschema/schema/observability.declared_trace_route.v1.schema.json"
+      observability.applied_resource: "sdk/go/factschema/schema/observability.applied_resource.v1.schema.json"
+      observability.applied_sync_state: "sdk/go/factschema/schema/observability.applied_sync_state.v1.schema.json"
+      observability.observed_dashboard: "sdk/go/factschema/schema/observability.observed_dashboard.v1.schema.json"
+      observability.observed_target: "sdk/go/factschema/schema/observability.observed_target.v1.schema.json"
+      observability.observed_rule: "sdk/go/factschema/schema/observability.observed_rule.v1.schema.json"
+      observability.observed_log_signal: "sdk/go/factschema/schema/observability.observed_log_signal.v1.schema.json"
+      observability.observed_trace_signal: "sdk/go/factschema/schema/observability.observed_trace_signal.v1.schema.json"
+      observability.coverage_warning: "sdk/go/factschema/schema/observability.coverage_warning.v1.schema.json"
+      observability.source_instance: "sdk/go/factschema/schema/observability.source_instance.v1.schema.json"
     kinds: [observability.applied_resource, observability.applied_sync_state, observability.coverage_warning, observability.declared_alert_rule, observability.declared_dashboard, observability.declared_datasource, observability.declared_folder, observability.declared_log_route, observability.declared_metric_route, observability.declared_metric_rule, observability.declared_scrape_config, observability.declared_trace_route, observability.observed_dashboard, observability.observed_log_signal, observability.observed_rule, observability.observed_target, observability.observed_trace_signal, observability.source_instance]
   oci_registry:
     lifecycle_owner: go/internal/facts

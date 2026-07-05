@@ -1,0 +1,7 @@
+{
+  "source_class": "observed",
+  "source_kind": "grafana",
+  "provider": "grafana",
+  "outcome": "observed",
+  "freshness_state": "current"
+}

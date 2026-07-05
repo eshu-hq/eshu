@@ -1,0 +1,11 @@
+{
+  "source_instance_id": "tempo:prod",
+  "source_class": "observed",
+  "source_kind": "tempo",
+  "provider": "tempo",
+  "provider_object_uid": "tag:service.name",
+  "resource_class": "trace_signal",
+  "tag_name": "service.name",
+  "outcome": "observed",
+  "freshness_state": "current"
+}

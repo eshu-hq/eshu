@@ -24,16 +24,33 @@
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
-            "endpoint": "https://prometheus.supply-chain-demo.internal",
-            "job": "supply-chain-demo",
-            "instance": "supply-chain-demo:3000",
-            "health": "up",
-            "labels": {
-              "app": "supply-chain-demo",
-              "namespace": "default",
-              "cluster": "supply-chain-demo"
+            "collector_instance_id": "prometheus-mimir-collector",
+            "provider": "prometheus",
+            "source_class": "observed",
+            "source_kind": "prometheus",
+            "source_instance_id": "prometheus_mimir:supply-chain-demo-metrics",
+            "scope_id": "supply-chain-demo",
+            "generation_id": "gen-1",
+            "observed_at": "2026-07-01T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "prometheus",
+              "source_instance_id": "prometheus_mimir:supply-chain-demo-metrics",
+              "scope_id": "supply-chain-demo"
             },
-            "scrape_interval": "15s"
+            "resource_class": "target",
+            "provider_object_uid": "supply-chain-demo/supply-chain-demo:3000",
+            "scrape_pool": "supply-chain-demo",
+            "health": "up",
+            "declared_match_state": "not_compared",
+            "label_keys": [
+              "app",
+              "cluster",
+              "namespace"
+            ],
+            "redaction_state": "none"
           }
         },
         {
@@ -44,13 +61,33 @@
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
-            "endpoint": "https://prometheus.supply-chain-demo.internal",
-            "group_name": "supply_chain_demo_rules",
+            "collector_instance_id": "prometheus-mimir-collector",
+            "provider": "prometheus",
+            "source_class": "observed",
+            "source_kind": "prometheus",
+            "source_instance_id": "prometheus_mimir:supply-chain-demo-metrics",
+            "scope_id": "supply-chain-demo",
+            "generation_id": "gen-1",
+            "observed_at": "2026-07-01T00:00:00Z",
+            "freshness_state": "current",
+            "redaction_version": "observability-live-prometheus-mimir-v1",
+            "outcome": "observed",
+            "provenance": {
+              "provider": "prometheus",
+              "source_instance_id": "prometheus_mimir:supply-chain-demo-metrics",
+              "scope_id": "supply-chain-demo"
+            },
+            "resource_class": "rule",
+            "provider_object_uid": "supply_chain_demo_rules:supply_chain_demo:http_requests_total:rate5m",
+            "rule_group": "supply_chain_demo_rules",
             "rule_name": "supply_chain_demo:http_requests_total:rate5m",
-            "expr": "rate(http_requests_total{job=\"supply-chain-demo\"}[5m])",
-            "labels": {
-              "app": "supply-chain-demo"
-            }
+            "rule_type": "recording",
+            "declared_match_state": "not_compared",
+            "label_keys": [
+              "app"
+            ],
+            "query_redacted": true,
+            "redaction_state": "applied"
           }
         }
       ]

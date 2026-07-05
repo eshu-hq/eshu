@@ -1,0 +1,11 @@
+{
+  "source_instance_id": "grafana:prod",
+  "source_class": "observed",
+  "source_kind": "grafana",
+  "provider": "grafana",
+  "provider_object_uid": "checkout-latency",
+  "resource_class": "dashboard",
+  "declared_match_state": "matched_declared",
+  "outcome": "observed",
+  "freshness_state": "current"
+}

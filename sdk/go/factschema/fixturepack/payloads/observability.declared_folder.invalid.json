@@ -1,0 +1,8 @@
+{
+  "source_class": "declared",
+  "source_kind": "git",
+  "provider": "grafana",
+  "folder_uid": "platform",
+  "outcome": "exact",
+  "freshness_state": "current"
+}

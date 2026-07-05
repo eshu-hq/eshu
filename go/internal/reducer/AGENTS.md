@@ -1510,6 +1510,69 @@ additive-only extension: one new `factKindSchemaFile` entry
 (`sdk/go/factschema/securityalert/v1`) parsed alongside the existing struct
 dirs; this only widens which decode seams the gate covers and adds no new gate
 mechanism.
+No-Regression Evidence (Wave 4e, observability family typed-payload decode,
+Contract System v1 #4566/#4582): the observability coverage-metadata classifier
+(`observability_coverage_metadata.go`, `observabilityMetadataEvidenceFromEnvelope`)
+now decodes the seventeen declared/applied/observed observability fact kinds
+through the `sdk/go/factschema` seam (`decodeObservabilityMetadataView` in
+`observability_coverage_metadata_decode.go`, per-kind `decode<Kind>` wrappers in
+`factschema_decode_observability.go`) instead of raw
+`payloadString(env.Payload, "…")` map lookups. `source_instance_id` is required
+on every kind (the one identity field every collector injects in both lanes);
+`provider_object_uid` is additionally required on the four observed kinds whose
+sole emitter always writes it (`observed_dashboard`/`observed_target`/
+`observed_log_signal`/`observed_trace_signal`), and stays optional on
+`observed_rule` (the Grafana emitter uses `alert_rule_uid`). Decode failures
+route through the shared `partitionDecodeFailures` classifier, threaded up
+through `classifyObservabilityMetadataEvidence` ->
+`BuildObservabilityCoverageDecisions` to both the correlation and materialization
+handlers, so a fact missing `source_instance_id` is a per-fact input_invalid
+quarantine (counter + structured error log + `Result.SubSignals`), skipped while
+every valid sibling still classifies.
+`TestObservabilityCoverageMetadataQuarantinesMissingSourceInstanceID` (new
+regression test) failed before the conversion — a missing anchor read `""` and
+still produced a source-less coverage decision keyed on the StableFactKey
+fallback (a silent projection) — then passed after: the malformed fact
+quarantines input_invalid (quarantine count 0 -> 1) and produces no decision,
+while the valid sibling still projects. This is a COLD, once-per-scope-generation
+projection path (the correlation/materialization handlers each call
+`BuildObservabilityCoverageDecisions` once per intent, not a hot per-edge loop),
+so the typed-decode cost is measured for a no-regression bound rather than a
+tight microbench. Measured with `go test ./internal/reducer -run '^$' -bench
+'BenchmarkObservabilityMetadata(TypedDecode|RawMap)$' -benchmem -benchtime=2s
+-count=5` (darwin/arm64; batch: 17 kinds x 64 = 1088 facts): best-of typed
+~1.60ms/op, 1.50MB/op, 12114 allocs/op vs raw-map baseline ~1.12ms/op, 1.16MB/op,
+10195 allocs/op — roughly +0.5us and +2 allocs per fact through the marshal-free
+reflection decoder (`decode_map.go`) plus the typed metadata view. The residual
+per-scope-generation cost buys the accuracy guarantee (a missing
+`source_instance_id` dead-letters instead of projecting a source-less
+correlation row) and is a bounded, measured cold-path cost of the same class the
+Wave 4a incident family recorded, not a hot-path regression. Valid facts produce
+byte-identical coverage/drift correlation output (the object-ref 20-key fallback
+chain and StableFactKey terminal fallback are preserved field-for-field via the
+typed view). Result class: correctness win with a bounded, measured cold-path
+cost.
+
+No-Observability-Change (Wave 4e, observability family): the typed-decode
+migration adds no route, graph query shape, queue table, worker, lease, or
+runtime knob. A malformed observability fact surfaces through the EXISTING
+per-fact input_invalid apparatus every prior wave established —
+`recordQuarantinedFacts` -> the `eshu_dp_reducer_input_invalid_facts_total`
+counter (existing instrument; the `domain` label gains the
+`observability_coverage_correlation`/`observability_coverage_materialization`
+values and the `fact_kind` label gains the observability kinds, both existing
+label keys) plus one structured error log per quarantined fact and the
+`input_invalid_facts` count on the existing per-intent `Result.SubSignals` and
+completion log. The `ObservabilityCoverageCorrelationHandler` and
+`ObservabilityCoverageMaterializationHandler` already carried an
+`Instruments *telemetry.Instruments` field before this wave; no new wiring was
+needed. The `payload-usage-manifest` gate required an additive-only extension:
+seventeen new `factKindSchemaFile` entries and a new `ObservabilityStructDir`
+(`sdk/go/factschema/observability/v1`) parsed alongside the existing struct dirs
+in `Load` (`observability.source_instance` is intentionally absent — the
+classifier skips that kind, so it has no reducer decode seam, mirroring how the
+sbom family leaves its unconsumed kinds unmapped); this only widens which decode
+seams the gate covers and adds no new gate mechanism.
 
 ## Anti-patterns
 

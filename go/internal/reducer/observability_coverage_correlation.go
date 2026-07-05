@@ -216,7 +216,12 @@ func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) ([]Observab
 		return nil, nil, err
 	}
 	decisions := classifyObservabilityCoverage(index)
-	decisions = append(decisions, classifyObservabilityMetadataEvidence(envelopes)...)
+	metadataDecisions, metadataQuarantined, err := classifyObservabilityMetadataEvidence(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	decisions = append(decisions, metadataDecisions...)
+	quarantined = append(quarantined, metadataQuarantined...)
 	sortObservabilityCoverageDecisions(decisions)
 	return decisions, quarantined, nil
 }

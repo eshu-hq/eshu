@@ -348,4 +348,69 @@ const (
 	// FactKindSecurityAlertRepositoryAlert is the
 	// "security_alert.repository_alert" fact kind.
 	FactKindSecurityAlertRepositoryAlert = "security_alert.repository_alert"
+
+	// The observability family fact-kind strings are DOTTED, matching the
+	// incident/kubernetes_live/oci_registry/package_registry/sbom_attestation/
+	// work_item convention above. The dots are part of the wire kind the
+	// collectors already emit (go/internal/facts.Observability*FactKind and
+	// siblings); the values here MATCH those wire strings byte-for-byte and never
+	// invent or rename the namespace. TestFactSchemaKindsMatchWireFactKinds
+	// (reducer side) asserts each stays byte-equal to its facts.*FactKind
+	// counterpart. All eighteen kinds are consumed by the reducer's
+	// observability_coverage_correlation domain (observability/v1/doc.go).
+
+	// FactKindObservabilityDeclaredFolder is the "observability.declared_folder"
+	// fact kind.
+	FactKindObservabilityDeclaredFolder = "observability.declared_folder"
+	// FactKindObservabilityDeclaredDashboard is the
+	// "observability.declared_dashboard" fact kind.
+	FactKindObservabilityDeclaredDashboard = "observability.declared_dashboard"
+	// FactKindObservabilityDeclaredDatasource is the
+	// "observability.declared_datasource" fact kind.
+	FactKindObservabilityDeclaredDatasource = "observability.declared_datasource"
+	// FactKindObservabilityDeclaredAlertRule is the
+	// "observability.declared_alert_rule" fact kind.
+	FactKindObservabilityDeclaredAlertRule = "observability.declared_alert_rule"
+	// FactKindObservabilityDeclaredScrapeConfig is the
+	// "observability.declared_scrape_config" fact kind.
+	FactKindObservabilityDeclaredScrapeConfig = "observability.declared_scrape_config"
+	// FactKindObservabilityDeclaredMetricRule is the
+	// "observability.declared_metric_rule" fact kind.
+	FactKindObservabilityDeclaredMetricRule = "observability.declared_metric_rule"
+	// FactKindObservabilityDeclaredMetricRoute is the
+	// "observability.declared_metric_route" fact kind.
+	FactKindObservabilityDeclaredMetricRoute = "observability.declared_metric_route"
+	// FactKindObservabilityDeclaredLogRoute is the
+	// "observability.declared_log_route" fact kind.
+	FactKindObservabilityDeclaredLogRoute = "observability.declared_log_route"
+	// FactKindObservabilityDeclaredTraceRoute is the
+	// "observability.declared_trace_route" fact kind.
+	FactKindObservabilityDeclaredTraceRoute = "observability.declared_trace_route"
+	// FactKindObservabilityAppliedResource is the
+	// "observability.applied_resource" fact kind.
+	FactKindObservabilityAppliedResource = "observability.applied_resource"
+	// FactKindObservabilityAppliedSyncState is the
+	// "observability.applied_sync_state" fact kind.
+	FactKindObservabilityAppliedSyncState = "observability.applied_sync_state"
+	// FactKindObservabilityObservedDashboard is the
+	// "observability.observed_dashboard" fact kind.
+	FactKindObservabilityObservedDashboard = "observability.observed_dashboard"
+	// FactKindObservabilityObservedTarget is the
+	// "observability.observed_target" fact kind.
+	FactKindObservabilityObservedTarget = "observability.observed_target"
+	// FactKindObservabilityObservedRule is the "observability.observed_rule"
+	// fact kind.
+	FactKindObservabilityObservedRule = "observability.observed_rule"
+	// FactKindObservabilityObservedLogSignal is the
+	// "observability.observed_log_signal" fact kind.
+	FactKindObservabilityObservedLogSignal = "observability.observed_log_signal"
+	// FactKindObservabilityObservedTraceSignal is the
+	// "observability.observed_trace_signal" fact kind.
+	FactKindObservabilityObservedTraceSignal = "observability.observed_trace_signal"
+	// FactKindObservabilityCoverageWarning is the
+	// "observability.coverage_warning" fact kind.
+	FactKindObservabilityCoverageWarning = "observability.coverage_warning"
+	// FactKindObservabilitySourceInstance is the
+	// "observability.source_instance" fact kind.
+	FactKindObservabilitySourceInstance = "observability.source_instance"
 )

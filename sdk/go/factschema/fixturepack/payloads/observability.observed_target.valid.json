@@ -1,0 +1,10 @@
+{
+  "source_instance_id": "prometheus:prod",
+  "source_class": "observed",
+  "source_kind": "prometheus",
+  "provider": "prometheus",
+  "provider_object_uid": "checkout-service:9090",
+  "resource_class": "target",
+  "outcome": "observed",
+  "freshness_state": "current"
+}

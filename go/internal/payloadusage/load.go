@@ -223,6 +223,7 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 		{resolved.SecretsIAMStructDir, "secretsiamv1"},
 		{resolved.WorkItemStructDir, "workitemv1"},
 		{resolved.SecurityAlertStructDir, "securityalertv1"},
+		{resolved.ObservabilityStructDir, "observabilityv1"},
 	}
 	shapes := make(map[string]StructShape)
 	for _, family := range families {

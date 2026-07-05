@@ -1,0 +1,8 @@
+{
+  "source_class": "declared",
+  "source_kind": "git",
+  "pipeline_name": "traces/main",
+  "route_destination_fingerprint": "778899aabbccddee",
+  "outcome": "exact",
+  "freshness_state": "current"
+}

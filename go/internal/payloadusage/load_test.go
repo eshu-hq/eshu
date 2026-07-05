@@ -42,8 +42,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if len(manifest.Kinds) != 69 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 69 (8 aws/iam + 4 wired incident + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live + 8 wired vulnerability + 5 wired sbom_attestation + 6 wired ci_cd_run + 8 wired secrets_iam vault/k8s reducer kinds + 1 wired security_alert reducer kind + 6 projector oci_registry kinds + 5 projector terraform_state kinds + 3 projector package_registry kinds + 8 wired work_item query kinds via the reducer, projector, and query factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
+	if len(manifest.Kinds) != 86 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 86 (8 aws/iam + 4 wired incident + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live + 8 wired vulnerability + 5 wired sbom_attestation + 6 wired ci_cd_run + 8 wired secrets_iam vault/k8s reducer kinds + 1 wired security_alert reducer kind + 17 wired observability reducer kinds (source_instance is typed but has no reducer decode wrapper, so it is intentionally excluded) + 6 projector oci_registry kinds + 5 projector terraform_state kinds + 3 projector package_registry kinds + 8 wired work_item query kinds via the reducer, projector, and query factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
 	}
 
 	var awsResource *KindManifest
@@ -141,8 +141,8 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 	if len(violations) != 0 {
 		t.Fatalf("Gate() found %d violation(s) against the real repository state, want 0:\n%s", len(violations), violationsString(violations))
 	}
-	if len(manifest.Kinds) != 69 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 69", len(manifest.Kinds))
+	if len(manifest.Kinds) != 86 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 86", len(manifest.Kinds))
 	}
 }
 

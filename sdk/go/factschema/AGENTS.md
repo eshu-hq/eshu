@@ -63,7 +63,14 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
   `sbom/v1/README.md` for which are wired versus typed-but-deferred), and the
   security_alert family (`security_alert.repository_alert` — one kind, see
   `securityalert/v1/README.md`; its single reducer decode site feeds both the
-  reconciliation read surface and the supply_chain_impact seeder). When you
+  reconciliation read surface and the supply_chain_impact seeder), and the
+  observability family (`observability.declared_*` ×9,
+  `observability.applied_resource`, `observability.applied_sync_state`,
+  `observability.observed_*` ×5, `observability.coverage_warning`,
+  `observability.source_instance` — eighteen kinds across a git-declared lane
+  and a live observed/applied lane, all sharing `source_instance_id` as the
+  required identity anchor; see `observability/v1/README.md` for the
+  per-kind required set). When you
   add a new kind, add its typed
   struct under `<family>/v1` (its required set is whatever the struct's own json
   tags declare — there is no separate registration step), its

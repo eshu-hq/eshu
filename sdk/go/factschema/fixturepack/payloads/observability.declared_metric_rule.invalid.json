@@ -1,0 +1,9 @@
+{
+  "source_class": "declared",
+  "source_kind": "git",
+  "backend_kind": "prometheus",
+  "rule_group": "checkout.rules",
+  "alert_rule_name_fingerprint": "1122334455667788",
+  "outcome": "exact",
+  "freshness_state": "current"
+}
