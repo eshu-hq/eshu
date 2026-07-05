@@ -251,12 +251,19 @@ func cicdRunCorrelationCanonicalWrites(decisions []CICDRunCorrelationDecision) i
 
 func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdImageIdentity) CICDRunCorrelationDecision {
 	run := ev.runDecoded
+	// Every identity/anchor field is trimmed to preserve byte-parity with the
+	// pre-migration payloadString read path (see trimmedCICDField/
+	// trimmedCICDPtr in ci_cd_run_correlation_decode.go). RepositoryID and
+	// CommitSHA feed the unresolved-anchor emptiness check below, so a
+	// whitespace-only value must count as empty exactly as the old trimmed
+	// path did; Provider/RunID/RunAttempt are the persisted decision identity
+	// and must match the trimmed join key.
 	decision := CICDRunCorrelationDecision{
-		Provider:         run.Provider,
-		RunID:            run.RunID,
+		Provider:         trimmedCICDField(run.Provider),
+		RunID:            trimmedCICDField(run.RunID),
 		RunAttempt:       defaultCICDRunAttempt(derefString(run.RunAttempt)),
-		RepositoryID:     derefString(run.RepositoryID),
-		CommitSHA:        derefString(run.CommitSHA),
+		RepositoryID:     trimmedCICDPtr(run.RepositoryID),
+		CommitSHA:        trimmedCICDPtr(run.CommitSHA),
 		Outcome:          CICDRunCorrelationDerived,
 		Reason:           "run has provider evidence but no explicit artifact identity anchor",
 		ProvenanceOnly:   true,
@@ -265,7 +272,7 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		EvidenceFactIDs:  []string{ev.run.FactID},
 	}
 	if len(ev.environmentsDecoded) > 0 {
-		decision.Environment = derefString(ev.environmentsDecoded[0].Environment)
+		decision.Environment = trimmedCICDPtr(ev.environmentsDecoded[0].Environment)
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.environments[0].FactID)
 	}
 	for _, trigger := range ev.triggers {
@@ -286,7 +293,7 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		return workflowDecision
 	}
 	for i, artifact := range ev.artifactsDecoded {
-		digest := derefString(artifact.ArtifactDigest)
+		digest := trimmedCICDPtr(artifact.ArtifactDigest)
 		if digest == "" {
 			continue
 		}

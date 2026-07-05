@@ -120,3 +120,70 @@ func BenchmarkBuildCICDRunCorrelationDecisions(b *testing.B) {
 		}
 	}
 }
+
+// benchmarkCICDSharedRepoWorkflowImageCorpus builds runCount ci.run facts that
+// all share ONE repository, plus workflowImageCount ci.workflow_image_evidence
+// facts for that same repository. This is the shape the copilot #4724 review
+// flagged: attachWorkflowImagesToRuns fans every workflow-image envelope out to
+// every run in the repo, so classifyCICDWorkflowImageEvidence re-decodes the
+// same evidence O(runs x workflow_images) times. A per-repo shape (not the
+// unique-repo-per-run shape of benchmarkCICDRunCorrelationCorpus) is required
+// to exercise — and to measure the fix for — that quadratic re-decode.
+func benchmarkCICDSharedRepoWorkflowImageCorpus(runCount, workflowImageCount int) []facts.Envelope {
+	const repositoryID = "github.com/example-org/shared-service"
+	envelopes := make([]facts.Envelope, 0, runCount+workflowImageCount)
+	for i := 0; i < runCount; i++ {
+		runID := fmt.Sprintf("run-%d", i)
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   runID,
+			FactKind: facts.CICDRunFactKind,
+			Payload: map[string]any{
+				"provider":      "github_actions",
+				"run_id":        runID,
+				"run_attempt":   "1",
+				"repository_id": repositoryID,
+				"commit_sha":    fmt.Sprintf("%040x", i),
+				"status":        "completed",
+				"result":        "success",
+			},
+		})
+	}
+	for i := 0; i < workflowImageCount; i++ {
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   fmt.Sprintf("workflow-image-%d", i),
+			FactKind: facts.CICDWorkflowImageEvidenceFactKind,
+			Payload: map[string]any{
+				"repository_id":  repositoryID,
+				"workflow_path":  fmt.Sprintf(".github/workflows/build-%d.yml", i),
+				"evidence_class": "workflow_image_ref",
+				"image_ref":      fmt.Sprintf("registry.example.com/team/shared-service:v%d", i),
+			},
+		})
+	}
+	return envelopes
+}
+
+// BenchmarkBuildCICDRunCorrelationDecisionsSharedRepoWorkflowImages measures
+// the per-run workflow-image decode cost the copilot #4724 review flagged: a
+// single repo with many runs and many shared workflow-image-evidence facts.
+// Before the once-decode cache, classifyCICDWorkflowImageEvidence re-decoded
+// each workflow-image envelope once per run (O(runs x workflow_images) typed
+// decodes). After, each workflow-image envelope is decoded once during the
+// build phase and both attachWorkflowImagesToRuns and
+// classifyCICDWorkflowImageEvidence read the cached typed value.
+func BenchmarkBuildCICDRunCorrelationDecisionsSharedRepoWorkflowImages(b *testing.B) {
+	const (
+		runCount           = 500
+		workflowImageCount = 50
+	)
+	envelopes := benchmarkCICDSharedRepoWorkflowImageCorpus(runCount, workflowImageCount)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		decisions := BuildCICDRunCorrelationDecisions(envelopes)
+		if len(decisions) != runCount {
+			b.Fatalf("len(decisions) = %d, want %d", len(decisions), runCount)
+		}
+	}
+}

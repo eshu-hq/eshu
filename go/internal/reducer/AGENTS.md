@@ -1179,6 +1179,54 @@ today, so they are intentionally NOT typed this wave (cicdrun/v1 AGENTS.md),
 matching how prior waves left an emitted-but-unread kind typed only when its
 consumer lands.
 
+No-Regression Evidence (Wave 4d, ci_cd_run family — PR #4724 review fixes):
+two review findings were addressed. (1) codex P2 accuracy regression: the
+pre-migration reducer read every ci.* payload field through `payloadString`,
+which did `strings.TrimSpace(fmt.Sprint(value))` on every read
+(`package_correlation_writer.go`). The typed decode seam preserves the raw
+collector string, so a `ci.run` with `commit_sha:"   "` no longer trimmed to
+`""` (skipping the unresolved-anchor check) and `run_id:" run-1 "` joined under
+a padded key instead of the clean `run-1` — a byte-drift for padded/whitespace
+inputs the clean-fixture tests missed. Fixed by trimming every ci.* identity/
+anchor field at the point of use in the correlation logic via `trimmedCICDField`
+(required non-pointer fields) / `trimmedCICDPtr` (optional pointer fields) in
+`ci_cd_run_correlation_decode.go`, applied in `cicdRunKeyFromParts`,
+`classifyCICDRunEvidence` (provider/run_id/run_attempt/repository_id/commit_sha/
+environment/artifact_digest), `ciArtifactDigests`, `ciWorkflowImageRefs`, the
+step `deployment_hint_source` compare, and `attachWorkflowImagesToRuns`/
+`classifyCICDWorkflowImageEvidence` (repository_id/evidence_class/image_ref) —
+the typed structs still carry the raw collector value; only the correlation
+logic trims. `TestBuildCICDRunCorrelationDecisionsTrimsIdentityFieldsLikePayloadString`
+and `TestBuildCICDRunCorrelationDecisionsTrimsArtifactAndWorkflowImageEvidence`
+(new) failed on the raw-typed HEAD (padded provider/environment surfaced
+untrimmed, a padded artifact_digest/evidence_class produced `derived` instead
+of `exact`, a whitespace-only commit_sha was not `unresolved`), then passed
+after the trim restore. (2) copilot perf: `classifyCICDWorkflowImageEvidence`
+re-decoded each `ci.workflow_image_evidence` envelope once per run in a repo
+(O(runs x workflow_images) typed decodes, since `attachWorkflowImagesToRuns`
+fans the same evidence to every run). Fixed by decoding each workflow-image
+envelope exactly once during the build phase (`decodedCICDWorkflowImage` pairs
+the envelope with its decoded typed value) and having both attach and classify
+read the cached struct through a `*decodedCICDWorkflowImage` (pointer so the
+attach fan-out copies a pointer, not the fat decoded value). Proven with a new
+shared-repo benchmark (`BenchmarkBuildCICDRunCorrelationDecisionsSharedRepoWorkflowImages`,
+500 runs x 50 shared workflow images — the copilot scenario the original
+unique-repo-per-run benchmark did not exercise; darwin/arm64, `-count=3`):
+BEFORE (re-decode per run) ~4.35 ms/op, 19.67 MB/op, 11,427 allocs/op ->
+AFTER (once-decode pointer cache) ~1.39 ms/op, 1.21 MB/op, 9,274 allocs/op
+(~3.1x faster, ~16x less memory). The original unique-repo benchmark stayed
+flat (~557-568 ms/op, 230,064 allocs/op, no regression). `go test
+./internal/reducer -run CICD -count=1` and the golden-corpus gate stay green
+(valid-fact correlation output byte-identical), so the trim restore only
+corrects padded/whitespace drift and the decode cache is output-preserving.
+
+No-Observability-Change (Wave 4d, ci_cd_run — PR #4724 review fixes): the trim
+restore and the workflow-image decode cache change no route, graph query shape,
+queue table, worker, lease, runtime knob, metric instrument, metric label, or
+log key; both are pure in-process correlation-logic changes diagnosed through
+the same existing reducer run spans, execution counters, and
+`eshu_dp_reducer_input_invalid_facts_total` the migration already wired.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

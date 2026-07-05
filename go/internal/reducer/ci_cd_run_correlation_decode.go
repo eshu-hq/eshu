@@ -5,10 +5,35 @@ package reducer
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
+
+// trimmedCICDField trims a required (non-pointer) ci_cd_run identity/anchor
+// field to preserve byte-parity with the pre-migration read path. The old
+// reducer read every ci.* payload key through payloadString, which did
+// strings.TrimSpace(fmt.Sprint(value)) on every read
+// (go/internal/reducer/package_correlation_writer.go). The typed decode seam
+// preserves the raw collector string, so the correlation key, the anchor
+// emptiness checks, and the `== "workflow_image_ref"`/`== "shell"` compares
+// must trim at the point of use to stay identical: a padded run_id must join
+// under the clean key and a whitespace-only commit_sha must count as empty
+// (unresolved), exactly as the trimmed path did. The typed struct still
+// carries the raw collector value; only the correlation logic trims.
+func trimmedCICDField(value string) string {
+	return strings.TrimSpace(value)
+}
+
+// trimmedCICDPtr trims an optional (pointer) ci_cd_run field, treating a nil
+// pointer as the empty string. It is trimmedCICDField composed with
+// derefString, for the many optional identity/anchor fields the correlation
+// logic consumes (run_attempt, repository_id, commit_sha, environment,
+// artifact_digest, evidence_class, image_ref, deployment_hint_source).
+func trimmedCICDPtr(value *string) string {
+	return strings.TrimSpace(derefString(value))
+}
 
 // buildCICDRunCorrelationDecisionsWithQuarantine is the quarantine-aware core
 // BuildCICDRunCorrelationDecisions and CICDRunCorrelationHandler.Handle both
@@ -23,7 +48,7 @@ import (
 // fatally so the whole intent fails for durable triage.
 func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) ([]CICDRunCorrelationDecision, []quarantinedFact, error) {
 	runs := map[string]*cicdRunEvidence{}
-	var workflowImages []facts.Envelope
+	var workflowImages []*decodedCICDWorkflowImage
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
@@ -88,12 +113,20 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 				quarantined = append(quarantined, q)
 				continue
 			}
-			if derefString(step.DeploymentHintSource) == "shell" {
+			if trimmedCICDPtr(step.DeploymentHintSource) == "shell" {
 				ev := ensureCICDRunEvidence(runs, cicdRunKeyFromParts(step.Provider, step.RunID, step.RunAttempt))
 				ev.shellOnly = append(ev.shellOnly, envelope)
 			}
 		case facts.CICDWorkflowImageEvidenceFactKind:
-			if _, err := decodeCICDWorkflowImageEvidence(envelope); err != nil {
+			// Decode the workflow-image evidence exactly ONCE here (this is
+			// also the quarantine-check decode) and carry the typed value on
+			// decodedCICDWorkflowImage, so attachWorkflowImagesToRuns and
+			// classifyCICDWorkflowImageEvidence read the cached struct instead
+			// of re-decoding the same envelope once per run in the repo (the
+			// O(runs x workflow_images) re-decode the copilot #4724 review
+			// flagged).
+			evidence, err := decodeCICDWorkflowImageEvidence(envelope)
+			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if !ok {
 					return nil, nil, fatal
@@ -101,7 +134,10 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 				quarantined = append(quarantined, q)
 				continue
 			}
-			workflowImages = append(workflowImages, envelope)
+			workflowImages = append(workflowImages, &decodedCICDWorkflowImage{
+				envelope: envelope,
+				evidence: evidence,
+			})
 		}
 	}
 	attachWorkflowImagesToRuns(runs, workflowImages)
@@ -138,7 +174,7 @@ func ciArtifactDigests(envelopes []facts.Envelope) []string {
 		if err != nil {
 			continue
 		}
-		if digest := derefString(artifact.ArtifactDigest); digest != "" {
+		if digest := trimmedCICDPtr(artifact.ArtifactDigest); digest != "" {
 			digests = append(digests, digest)
 		}
 	}
@@ -160,14 +196,25 @@ func ciWorkflowImageRefs(envelopes []facts.Envelope) []string {
 		if err != nil {
 			continue
 		}
-		if derefString(evidence.EvidenceClass) != "workflow_image_ref" {
+		if trimmedCICDPtr(evidence.EvidenceClass) != "workflow_image_ref" {
 			continue
 		}
-		if ref := derefString(evidence.ImageRef); ref != "" {
+		if ref := trimmedCICDPtr(evidence.ImageRef); ref != "" {
 			refs = append(refs, ref)
 		}
 	}
 	return uniqueSortedStrings(refs)
+}
+
+// decodedCICDWorkflowImage pairs a ci.workflow_image_evidence envelope with
+// its once-decoded typed value. attachWorkflowImagesToRuns fans the same
+// evidence out to every run in a repo, and classifyCICDWorkflowImageEvidence
+// then reads it per run; caching the decode here (performed once during the
+// build phase) keeps a repo's workflow-image evidence from re-decoding
+// O(runs x workflow_images) times (copilot #4724 review).
+type decodedCICDWorkflowImage struct {
+	envelope facts.Envelope
+	evidence cicdrunv1.WorkflowImageEvidence
 }
 
 // cicdRunEvidence accumulates every decoded fact joined to one provider run
@@ -182,7 +229,7 @@ type cicdRunEvidence struct {
 	environmentsDecoded []cicdrunv1.EnvironmentObservation
 	triggers            []facts.Envelope
 	shellOnly           []facts.Envelope
-	workflowImages      []facts.Envelope
+	workflowImages      []*decodedCICDWorkflowImage
 }
 
 func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRunEvidence {
@@ -226,11 +273,11 @@ func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdIm
 // identity fields (provider, run_id, run_attempt), mirroring cicdRunKey's raw
 // equivalent (ci_cd_run_correlation.go) but reading from a decoded cicdrunv1
 // struct's already-validated Provider/RunID rather than a raw payload map.
-// Provider and RunID are required fields on every ci_cd_run struct that
-// carries them, so — unlike cicdRunKey — this never needs to guard against an
-// empty segment collapsing two distinct runs onto the same key: a fact
-// reaching this function already decoded successfully, meaning both segments
-// are non-empty.
+// Every segment is trimmed (trimmedCICDField / defaultCICDRunAttempt, which
+// also trims) so the key is byte-identical to the pre-migration cicdRunKey,
+// which read each segment through the whitespace-trimming payloadString: a
+// padded run_id (" run-1 ") must join under the clean "run-1" key rather than
+// splitting a run's evidence across a padded and a clean bucket.
 func cicdRunKeyFromParts(provider, runID string, runAttempt *string) string {
-	return provider + ":" + runID + ":" + defaultCICDRunAttempt(derefString(runAttempt))
+	return trimmedCICDField(provider) + ":" + trimmedCICDField(runID) + ":" + defaultCICDRunAttempt(derefString(runAttempt))
 }
