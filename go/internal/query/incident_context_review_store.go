@@ -294,11 +294,11 @@ func appendIncidentReviewDistinct(values []string, value string) []string {
 // the incident-review evidence list rather than emitting an empty-identity
 // row.
 //
-// URL is read from the deprecated raw "url" payload key (pre-existing drift:
-// the Jira collector never emits an "url" key, only "url_fingerprint" and
-// "url_present" — see the Wave 4d out-of-scope note), so it derefs the typed
-// struct's field of the same name and is byte-identical to the pre-typing
-// StringVal("") result: always empty.
+// URL is read from the raw "url" payload key, which the Jira collector always
+// emits but redacts to the empty string (the key is present, never a raw URL;
+// only "url_fingerprint" and "url_present" carry link identity — see the Wave
+// 4d out-of-scope note), so it derefs the typed struct's field of the same name
+// and is byte-identical to the pre-typing StringVal("") result: always empty.
 func decodeIncidentWorkItemExternalLink(row incidentContextFactRow) (incidentWorkItemExternalLink, bool) {
 	link, err := decodeWorkItemExternalLink(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {

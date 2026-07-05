@@ -91,21 +91,6 @@ func newQueryDecodeError(factKind, factID string, err error) *queryDecodeError {
 	}
 }
 
-// isQueryInputInvalid reports whether err is a *queryDecodeError classified as
-// input_invalid (a missing/null required identity field) rather than an
-// unsupported schema major or an unrelated failure. Callers use this to decide
-// whether a malformed row should be dropped from a list response (the
-// input_invalid case) versus propagated as a hard error (any other case).
-func isQueryInputInvalid(err error) (*queryDecodeError, bool) {
-	var decodeErr *queryDecodeError
-	if errors.As(err, &decodeErr) &&
-		decodeErr.Classification == factschema.ClassificationInputInvalid &&
-		!errors.Is(err, factschema.ErrUnsupportedSchemaMajor) {
-		return decodeErr, true
-	}
-	return nil, false
-}
-
 // workItemSchemaEnvelope adapts one scanned work-item fact row into the
 // contracts-module factschema.Envelope the Decode* seam accepts. An empty
 // schemaVersion is normalized to the current major-1 schema version — every

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"net/url"
 	"slices"
@@ -339,20 +340,27 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 // work-item evidence fact dropped from a list response because its payload
 // failed typed decode. This is a read-path best-effort drop, not a durable
 // dead-letter queue entry (there is no queue on this path), so a debug-level
-// structured log is the visibility contract: an operator can search fact_id
-// and field to find exactly which malformed fact was excluded.
+// structured log is the visibility contract: an operator can search fact_id,
+// fact_kind, and classification to find exactly which malformed fact was
+// excluded and why. EVERY decode drop is a *queryDecodeError, so fact_id and
+// fact_kind are logged for all of them (a missing/null required field via
+// input_invalid AND an unsupported schema major alike); missing_field is added
+// only when the failure is attributable to one field.
 func logWorkItemEvidenceDecodeDrop(err error) {
-	decodeErr, ok := isQueryInputInvalid(err)
-	if !ok {
+	var decodeErr *queryDecodeError
+	if !errors.As(err, &decodeErr) {
 		slog.Debug("work-item evidence fact dropped from list: decode error", slog.String("error", err.Error()))
 		return
 	}
-	slog.Debug(
-		"work-item evidence fact dropped from list: input_invalid",
+	attrs := []any{
 		slog.String("fact_id", decodeErr.FactID),
 		slog.String("fact_kind", decodeErr.FactKind),
-		slog.String("missing_field", decodeErr.Field),
-	)
+		slog.String("classification", decodeErr.Classification),
+	}
+	if decodeErr.Field != "" {
+		attrs = append(attrs, slog.String("missing_field", decodeErr.Field))
+	}
+	slog.Debug("work-item evidence fact dropped from list", attrs...)
 }
 
 func workItemEvidenceState(fact workItemEvidenceFactRow) string {
