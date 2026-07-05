@@ -198,7 +198,7 @@ func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Env
 		if err == nil {
 			continue
 		}
-		q, isQuarantine, fatal := partitionOCIDecodeFailures(envelope, err)
+		q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err)
 		if fatal != nil {
 			// The only fatal decode error is an unsupported schema major, which
 			// the projector's schema-version admission (validateFactSchemaVersion

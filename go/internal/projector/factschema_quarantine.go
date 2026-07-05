@@ -22,7 +22,7 @@ import (
 // §3.2). It introduces the typed-decode seam into the projector's canonical
 // extractors for the first time. It is deliberately NOT oci-specific: the
 // terraform_state canonical extractor (and any future typed projector family)
-// reuses partitionOCIDecodeFailures / recordQuarantinedFacts / factschemaEnvelope
+// reuses partitionProjectorDecodeFailures / recordQuarantinedFacts / factschemaEnvelope
 // verbatim, so the per-fact fault-isolation contract is defined once.
 //
 // Why per-fact quarantine, not a whole-work-item fail: the projector's
@@ -101,11 +101,11 @@ type quarantinedFact struct {
 	field string
 	// classification is the decode classification (always input_invalid for a
 	// quarantined fact; a non-input_invalid error is returned fatally by
-	// partitionOCIDecodeFailures).
+	// partitionProjectorDecodeFailures).
 	classification string
 }
 
-// partitionOCIDecodeFailures is the single classifier every projector canonical
+// partitionProjectorDecodeFailures is the single classifier every projector canonical
 // extractor routes a decode error through. It enforces the projector fault-
 // isolation contract, mirroring the reducer's partitionDecodeFailures:
 //
@@ -124,7 +124,7 @@ type quarantinedFact struct {
 // Routing every decode error through this ONE helper stops a future family
 // migration from inline `if err != nil { skip }` swallowing a real error — the
 // "swallow failures" sin the Life Motto forbids.
-func partitionOCIDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bool, error) {
+func partitionProjectorDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bool, error) {
 	var decodeErr *projectorDecodeError
 	if errors.As(err, &decodeErr) &&
 		decodeErr.err.Classification == factschema.ClassificationInputInvalid &&

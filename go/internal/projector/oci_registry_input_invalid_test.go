@@ -25,7 +25,7 @@ import (
 //
 // After the migration extractOCIRegistryRows decodes each oci fact through
 // factschema.DecodeOCIImageManifest; the malformed fact yields a classified
-// *factschema.DecodeError that partitionOCIDecodeFailures routes to a per-fact
+// *factschema.DecodeError that partitionProjectorDecodeFailures routes to a per-fact
 // quarantine recorded on the materialization. The valid manifest still
 // projects.
 func TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest(t *testing.T) {

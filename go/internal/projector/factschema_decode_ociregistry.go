@@ -15,7 +15,7 @@ import (
 // This file holds the projector-side decode wrappers for the oci_registry fact
 // family. Each wraps the contracts-module Decode* seam and, on a classified
 // *factschema.DecodeError (a missing/null required identity field), returns a
-// *projectorDecodeError so partitionOCIDecodeFailures can quarantine the fact
+// *projectorDecodeError so partitionProjectorDecodeFailures can quarantine the fact
 // per-fact rather than the extractor computing a graph identity from an
 // empty-string segment. Every oci_registry read site in this package decodes
 // through these wrappers — there is no remaining raw payloadString read for a

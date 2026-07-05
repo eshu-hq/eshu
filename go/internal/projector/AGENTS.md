@@ -44,7 +44,7 @@
   extractor (`oci_registry_canonical.go`) decodes each fact through the
   `sdk/go/factschema` seam (`oci_registry_factschema.go`), NOT raw
   `payloadString`. A fact missing a required identity field is QUARANTINED
-  per-fact via `partitionOCIDecodeFailures` (`factschema_quarantine.go`) and
+  per-fact via `partitionProjectorDecodeFailures` (`factschema_quarantine.go`) and
   recorded as a visible `input_invalid` dead-letter
   (`eshu_dp_projector_input_invalid_facts_total` + a structured error log) by
   `recordProjectorQuarantinedFacts`, while every valid fact — OCI and non-OCI —
@@ -188,7 +188,7 @@ payloads through the `sdk/go/factschema` seam
 `payloadBoolPtr` map lookups. This is a cold, once-per-scope-generation
 projection path (not a hot per-edge loop). A fact missing a required identity
 field (`repository_id`/`digest`/`tag`/`resolved_digest`/`subject_digest`/
-`referrer_digest`) is quarantined per-fact via `partitionOCIDecodeFailures`
+`referrer_digest`) is quarantined per-fact via `partitionProjectorDecodeFailures`
 rather than silently producing a row under an empty-string descriptor uid.
 `go test ./internal/projector -run
 'TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest|TestExtractOCIRegistryRowsPresentButEmptyDigestIsDroppedNotQuarantined'
