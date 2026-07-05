@@ -321,16 +321,26 @@ func TestLoadRealManifestCoversDirectoryDeltaTombstone(t *testing.T) {
 	// Directory is the #4186 tombstone class. Its C-14 row must point to the
 	// R-17 multi-generation cassette whose replay-tier live test proves the
 	// tombstoned Directory is removed on the real backend.
+	assertRealManifestDeltaCassette(t, "retractable_node:Directory")
+}
+
+func TestLoadRealManifestCoversContainsDeltaTombstone(t *testing.T) {
+	// CONTAINS is the first C-14 static-edge tombstone class. Its row must point
+	// to the R-17 multi-generation cassette whose replay-tier live test proves
+	// the tombstoned Directory's incoming CONTAINS edge is removed.
+	assertRealManifestDeltaCassette(t, "retractable_edge:CONTAINS")
+}
+
+func assertRealManifestDeltaCassette(t *testing.T, wantSurface string) {
+	t.Helper()
+
 	specs := repoSpecsDir(t)
 	m, err := LoadManifest(filepath.Join(specs, ManifestFileName))
 	if err != nil {
 		t.Fatalf("LoadManifest(real): %v", err)
 	}
 
-	const (
-		wantSurface = "retractable_node:Directory"
-		wantRef     = "testdata/cassettes/replaydelta/multi-generation-tombstone.json"
-	)
+	const wantRef = "testdata/cassettes/replaydelta/multi-generation-tombstone.json"
 	for _, entry := range m.Coverage {
 		if entry.Surface != wantSurface || entry.ScenarioType != ScenarioTypeDeltaTombstone {
 			continue
