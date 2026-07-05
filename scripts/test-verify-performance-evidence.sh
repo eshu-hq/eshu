@@ -52,35 +52,53 @@ expect_fail() {
   fi
 }
 
-# Locate a hard-timeout helper so a hung verifier fails the suite fast instead
-# of blocking forever. Optional: absent it, expect_completes_fail falls back to
-# a plain run (still correct, just unguarded against a hang).
-timeout_bin=""
-for _cand in timeout gtimeout; do
-  if command -v "${_cand}" >/dev/null 2>&1; then
-    timeout_bin="${_cand}"
-    break
-  fi
-done
+# Build a hard-timeout wrapper so a hung verifier fails the suite fast instead
+# of blocking forever. Prefer coreutils timeout/gtimeout; fall back to a
+# portable perl alarm wrapper (perl ships on macOS and Linux). timeout_cmd stays
+# empty only when none of the three exist, in which case expect_completes_fail
+# SKIPS the guard with a message rather than running unguarded — an unguarded
+# run would hang forever on exactly the bash where the here-string bug bites.
+timeout_secs=30
+timeout_cmd=()
+if command -v timeout >/dev/null 2>&1; then
+  timeout_cmd=(timeout -s KILL "${timeout_secs}")
+elif command -v gtimeout >/dev/null 2>&1; then
+  timeout_cmd=(gtimeout -s KILL "${timeout_secs}")
+elif command -v perl >/dev/null 2>&1; then
+  # SIGALRM fires after the timeout and default-terminates the exec'd verifier
+  # (the alarm timer survives exec); a hang then exits 128+14=142.
+  timeout_cmd=(perl -e 'alarm shift; exec @ARGV or exit 127' "${timeout_secs}")
+fi
 
 # expect_completes_fail asserts the verifier both terminates under a hard
-# timeout and fails (hot change needs evidence). It guards the diff-processing
-# loop against reintroducing a `<<<` here-string, which hangs bash 5.3.x on a
-# large diff (see the diff-loop comment in verify-performance-evidence.sh).
+# timeout and fails on its own (hot change needs evidence). It guards the
+# diff-processing loop against reintroducing a `<<<` here-string, which hangs
+# bash 5.3.x on a large diff (see the diff-loop comment in
+# verify-performance-evidence.sh). Exit-code map: 124 (timeout SIGTERM) or any
+# signal kill >=128 (137 SIGKILL, 142 SIGALRM) means the verifier was still
+# running at the deadline — a hang; 125/126/127 means the timeout wrapper itself
+# could not run the command; 0 means the verifier wrongly passed; 1..123 is the
+# verifier's own expected non-zero exit.
 expect_completes_fail() {
   local dir="$1"
-  if [ -z "${timeout_bin}" ]; then
-    expect_fail "${dir}"
+  if [ "${#timeout_cmd[@]}" -eq 0 ]; then
+    printf 'SKIP: no timeout/gtimeout/perl available to guard %s against a hang\n' "${dir}" >&2
     return
   fi
   local rc=0
-  "${timeout_bin}" -s KILL 30 env \
+  "${timeout_cmd[@]}" env \
     ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${dir}" \
     ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
     "${verifier}" >/tmp/eshu-perf-gate.out 2>/tmp/eshu-perf-gate.err || rc=$?
-  if [ "${rc}" -eq 124 ] || [ "${rc}" -eq 137 ]; then
-    printf 'verifier hung on large diff in %s (rc=%s) — diff-loop here-string regression\n' \
-      "${dir}" "${rc}" >&2
+  if [ "${rc}" -eq 124 ] || [ "${rc}" -ge 128 ]; then
+    printf 'verifier did not finish within %ss in %s (rc=%s) — diff-loop here-string hang\n' \
+      "${timeout_secs}" "${dir}" "${rc}" >&2
+    sed -n '1,40p' /tmp/eshu-perf-gate.err >&2
+    exit 1
+  fi
+  if [ "${rc}" -ge 125 ] && [ "${rc}" -le 127 ]; then
+    printf 'timeout wrapper could not run the verifier in %s (rc=%s)\n' "${dir}" "${rc}" >&2
+    sed -n '1,40p' /tmp/eshu-perf-gate.err >&2
     exit 1
   fi
   if [ "${rc}" -eq 0 ]; then
