@@ -10,11 +10,37 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// newIngesterCanonicalGate builds the single in-flight permit pool that bounds
+// the ingester's concurrent canonical NornicDB writes (#4729 / #4456), matching
+// bootstrap-index and the reducer so all three writer processes honor
+// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT (or its canonical-class override
+// ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT) instead of leaving the ingester
+// unbounded. A non-positive ceiling (both env vars unset) yields a nil gate,
+// which graphbackpressure.WrapExecutorWithGate treats as a passthrough.
+//
+// The gate is passed INTO canonicalExecutorForGraphBackend, which wraps the
+// inner GroupExecutor layer beneath the phase-group fan-out — NOT the outer
+// nornicDBPhaseGroupExecutor — so a permit bounds each concurrent inner
+// ExecuteGroup and the phase-group capability survives. This writer is opened
+// once at process startup and shared across every canonical write, so a single
+// gate bounds the whole process.
+func newIngesterCanonicalGate(
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
+) *sourcecypher.BackpressureGate {
+	return graphbackpressure.NewGate(
+		graphbackpressure.ClassMaxInFlight(getenv, graphbackpressure.CanonicalMaxInFlightEnv),
+		instruments,
+		graphbackpressure.CanonicalGateName,
+	)
+}
 
 // openIngesterCanonicalWriter opens the canonical graph writer for the
 // configured backend (Neo4j or NornicDB), applying the backend-specific
@@ -108,21 +134,23 @@ func openIngesterCanonicalWriter(
 			return failAfterDriverOpen(err)
 		}
 	}
+	canonicalExecutor := canonicalExecutorForGraphBackend(
+		rawExecutor,
+		graphBackend,
+		nornicDBCanonicalWriteTimeout(getenv),
+		nornicDBGroupedWrites,
+		phaseGroupStatements,
+		filePhaseStatements,
+		entityPhaseStatements,
+		entityLabelPhaseStatements,
+		entityPhaseConcurrency,
+		retractBatchSize,
+		tracer,
+		instruments,
+		newIngesterCanonicalGate(getenv, instruments),
+	)
 	writer := sourcecypher.NewCanonicalNodeWriter(
-		canonicalExecutorForGraphBackend(
-			rawExecutor,
-			graphBackend,
-			nornicDBCanonicalWriteTimeout(getenv),
-			nornicDBGroupedWrites,
-			phaseGroupStatements,
-			filePhaseStatements,
-			entityPhaseStatements,
-			entityLabelPhaseStatements,
-			entityPhaseConcurrency,
-			retractBatchSize,
-			tracer,
-			instruments,
-		),
+		canonicalExecutor,
 		neo4jBatchSize(getenv),
 		instruments,
 	).WithTracer(tracer)

@@ -28,6 +28,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBPhaseGroupStateme
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 	pge, ok := executor.(nornicDBPhaseGroupExecutor)
 	if !ok {
@@ -55,6 +56,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBFilePhaseStatemen
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 	pge, ok := executor.(nornicDBPhaseGroupExecutor)
 	if !ok {
@@ -80,6 +82,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBEntityPhaseStatem
 		nil,
 		0,
 		defaultNornicDBCanonicalRetractBatchSize,
+		nil,
 		nil,
 		nil,
 	)

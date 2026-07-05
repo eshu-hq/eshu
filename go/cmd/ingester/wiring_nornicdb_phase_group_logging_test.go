@@ -307,6 +307,7 @@ func TestCanonicalExecutorForGraphBackendGroupedWritesUsePhaseGroupNornicDB(t *t
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 	if _, ok := executor.(sourcecypher.GroupExecutor); ok {
 		t.Fatal("grouped-writes NornicDB executor exposes GroupExecutor (whole-materialization atomic drops nested files, #4027); want per-phase only")
@@ -347,6 +348,7 @@ func TestCanonicalExecutorForGraphBackendGroupedFullStackUsesPhaseGroups(t *test
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 	if _, ok := executor.(sourcecypher.GroupExecutor); ok {
 		t.Fatal("grouped-writes NornicDB executor exposes GroupExecutor (#4027); want per-phase only")
@@ -382,6 +384,7 @@ func TestCanonicalExecutorForGraphBackendNornicDBDefaultFullStackUsesPhaseGroups
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 	if _, ok := executor.(sourcecypher.PhaseGroupExecutor); !ok {
 		t.Fatal("NornicDB default executor stack does not implement PhaseGroupExecutor")
@@ -415,6 +418,7 @@ func TestNornicDBBatchedEntityContainmentFullStackUsesCrossFileBatchedEntityRows
 		nil,
 		0,
 		defaultNornicDBCanonicalRetractBatchSize,
+		nil,
 		nil,
 		nil,
 	)

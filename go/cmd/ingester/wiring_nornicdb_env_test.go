@@ -30,6 +30,7 @@ func TestCanonicalExecutorForGraphBackendWrapsNornicDBWithTimeout(t *testing.T) 
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 
 	err := executor.Execute(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1"})
