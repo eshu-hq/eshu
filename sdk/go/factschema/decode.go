@@ -232,6 +232,38 @@ const (
 	// FactKindAttestationSLSAProvenance is the "attestation.slsa_provenance"
 	// fact kind. Typed but not yet consumed or emitted (sbom/v1/doc.go).
 	FactKindAttestationSLSAProvenance = "attestation.slsa_provenance"
+	// The vulnerability family fact-kind strings are DOTTED, like the incident
+	// family. The dots are part of the wire kind the collector already emits
+	// (go/internal/facts.Vulnerability*FactKind); the values here MATCH those
+	// wire strings byte-for-byte and never invent or rename the namespace.
+	// TestFactSchemaKindsMatchWireFactKinds (reducer side) asserts each stays
+	// byte-equal to its facts.*FactKind counterpart. vulnerability.suppression
+	// belongs to the SEPARATE vulnerability_suppression registry family and is
+	// not declared here.
+
+	// FactKindVulnerabilityCVE is the "vulnerability.cve" fact kind.
+	FactKindVulnerabilityCVE = "vulnerability.cve"
+	// FactKindVulnerabilityAffectedPackage is the
+	// "vulnerability.affected_package" fact kind.
+	FactKindVulnerabilityAffectedPackage = "vulnerability.affected_package"
+	// FactKindVulnerabilityAffectedProduct is the
+	// "vulnerability.affected_product" fact kind.
+	FactKindVulnerabilityAffectedProduct = "vulnerability.affected_product"
+	// FactKindVulnerabilityOSPackage is the "vulnerability.os_package" fact
+	// kind.
+	FactKindVulnerabilityOSPackage = "vulnerability.os_package"
+	// FactKindVulnerabilityEPSSScore is the "vulnerability.epss_score" fact
+	// kind.
+	FactKindVulnerabilityEPSSScore = "vulnerability.epss_score"
+	// FactKindVulnerabilityKnownExploited is the
+	// "vulnerability.known_exploited" fact kind.
+	FactKindVulnerabilityKnownExploited = "vulnerability.known_exploited"
+	// FactKindVulnerabilityGoModuleEvidence is the
+	// "vulnerability.go_module_evidence" fact kind.
+	FactKindVulnerabilityGoModuleEvidence = "vulnerability.go_module_evidence"
+	// FactKindVulnerabilityGoCallReachability is the
+	// "vulnerability.go_call_reachability" fact kind.
+	FactKindVulnerabilityGoCallReachability = "vulnerability.go_call_reachability"
 )
 
 // Classification values a DecodeError carries. These are this module's own

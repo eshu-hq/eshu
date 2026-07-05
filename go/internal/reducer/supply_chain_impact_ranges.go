@@ -22,52 +22,14 @@ type supplyChainAffectedRangeEvent struct {
 	limit        string
 }
 
-func supplyChainAffectedRangesFromPayload(payload map[string]any) []supplyChainAffectedRange {
-	rawRanges, ok := payload["affected_ranges"].([]any)
-	if !ok {
-		return nil
-	}
-	ranges := make([]supplyChainAffectedRange, 0, len(rawRanges))
-	for _, rawRange := range rawRanges {
-		rangeMap, ok := rawRange.(map[string]any)
-		if !ok {
-			continue
-		}
-		item := supplyChainAffectedRange{
-			kind:   payloadStr(rangeMap, "type"),
-			events: supplyChainAffectedRangeEvents(rangeMap["events"]),
-		}
-		if item.kind != "" && len(item.events) > 0 {
-			ranges = append(ranges, item)
-		}
-	}
-	return ranges
-}
-
-func supplyChainAffectedRangeEvents(raw any) []supplyChainAffectedRangeEvent {
-	rawEvents, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	events := make([]supplyChainAffectedRangeEvent, 0, len(rawEvents))
-	for _, rawEvent := range rawEvents {
-		eventMap, ok := rawEvent.(map[string]any)
-		if !ok {
-			continue
-		}
-		event := supplyChainAffectedRangeEvent{
-			introduced:   payloadStr(eventMap, "introduced"),
-			fixed:        payloadStr(eventMap, "fixed"),
-			lastAffected: payloadStr(eventMap, "last_affected"),
-			limit:        payloadStr(eventMap, "limit"),
-		}
-		if event.introduced != "" || event.fixed != "" ||
-			event.lastAffected != "" || event.limit != "" {
-			events = append(events, event)
-		}
-	}
-	return events
-}
+// The raw-payload-map range decoders (supplyChainAffectedRangesFromPayload,
+// supplyChainAffectedRangeEvents) were replaced by the typed contracts-seam
+// equivalents supplyChainAffectedRangesFromTyped /
+// supplyChainAffectedRangeEventsFromTyped in
+// supply_chain_impact_typed_decode.go (Contract System v1 vulnerability_intelligence
+// migration); every affected_ranges read now goes through the typed
+// vulnerability.affected_package decode, so the raw-map path has no caller
+// left.
 
 func supplyChainAffectedRangeSummary(pkg supplyChainAffectedPackage) string {
 	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {

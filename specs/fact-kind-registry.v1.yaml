@@ -286,6 +286,20 @@ families:
     read_surface: "GET /api/v0/supply-chain/impact/findings"
     truth_profile: provider_gated
     provider_key_independent: false
+    # payload_schema_overrides covers only the eight kinds a reducer decode
+    # seam actually reads (factschema_decode_vulnerability.go). The three
+    # remaining kinds (reference, source_snapshot, warning) have no reducer
+    # decode call and are intentionally absent — mapping them would assert a
+    # payload contract for a kind no handler reads.
+    payload_schema_overrides:
+      vulnerability.cve: "sdk/go/factschema/schema/vulnerability.cve.v1.schema.json"
+      vulnerability.affected_package: "sdk/go/factschema/schema/vulnerability.affected_package.v1.schema.json"
+      vulnerability.affected_product: "sdk/go/factschema/schema/vulnerability.affected_product.v1.schema.json"
+      vulnerability.os_package: "sdk/go/factschema/schema/vulnerability.os_package.v1.schema.json"
+      vulnerability.epss_score: "sdk/go/factschema/schema/vulnerability.epss_score.v1.schema.json"
+      vulnerability.known_exploited: "sdk/go/factschema/schema/vulnerability.known_exploited.v1.schema.json"
+      vulnerability.go_module_evidence: "sdk/go/factschema/schema/vulnerability.go_module_evidence.v1.schema.json"
+      vulnerability.go_call_reachability: "sdk/go/factschema/schema/vulnerability.go_call_reachability.v1.schema.json"
     kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
   vulnerability_suppression:
     lifecycle_owner: go/internal/facts

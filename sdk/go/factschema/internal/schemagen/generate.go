@@ -19,6 +19,7 @@ import (
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
+	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
 
 // nullType is the JSON Schema type token an optional field accepts in addition
@@ -762,4 +763,84 @@ const AttestationSLSAProvenanceSchemaID = schemaBaseID + "sbom/v1/slsa_provenanc
 // sbomv1.SLSAProvenance.
 func AttestationSLSAProvenanceSchema() ([]byte, error) {
 	return reflectSchema(AttestationSLSAProvenanceSchemaID, "Eshu attestation.slsa_provenance Payload (schema version 1)", &sbomv1.SLSAProvenance{})
+}
+
+// VulnerabilityCVESchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "vulnerability.cve" payload.
+const VulnerabilityCVESchemaID = schemaBaseID + "vulnerability/v1/cve.schema.json"
+
+// VulnerabilityCVESchema returns the JSON Schema bytes for
+// vulnerabilityv1.CVE.
+func VulnerabilityCVESchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityCVESchemaID, "Eshu vulnerability.cve Payload (schema version 1)", &vulnerabilityv1.CVE{})
+}
+
+// VulnerabilityAffectedPackageSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "vulnerability.affected_package" payload.
+const VulnerabilityAffectedPackageSchemaID = schemaBaseID + "vulnerability/v1/affected_package.schema.json"
+
+// VulnerabilityAffectedPackageSchema returns the JSON Schema bytes for
+// vulnerabilityv1.AffectedPackage.
+func VulnerabilityAffectedPackageSchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityAffectedPackageSchemaID, "Eshu vulnerability.affected_package Payload (schema version 1)", &vulnerabilityv1.AffectedPackage{})
+}
+
+// VulnerabilityAffectedProductSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "vulnerability.affected_product" payload.
+const VulnerabilityAffectedProductSchemaID = schemaBaseID + "vulnerability/v1/affected_product.schema.json"
+
+// VulnerabilityAffectedProductSchema returns the JSON Schema bytes for
+// vulnerabilityv1.AffectedProduct.
+func VulnerabilityAffectedProductSchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityAffectedProductSchemaID, "Eshu vulnerability.affected_product Payload (schema version 1)", &vulnerabilityv1.AffectedProduct{})
+}
+
+// VulnerabilityOSPackageSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "vulnerability.os_package" payload.
+const VulnerabilityOSPackageSchemaID = schemaBaseID + "vulnerability/v1/os_package.schema.json"
+
+// VulnerabilityOSPackageSchema returns the JSON Schema bytes for
+// vulnerabilityv1.OSPackage.
+func VulnerabilityOSPackageSchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityOSPackageSchemaID, "Eshu vulnerability.os_package Payload (schema version 1)", &vulnerabilityv1.OSPackage{})
+}
+
+// VulnerabilityEPSSScoreSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "vulnerability.epss_score" payload.
+const VulnerabilityEPSSScoreSchemaID = schemaBaseID + "vulnerability/v1/epss_score.schema.json"
+
+// VulnerabilityEPSSScoreSchema returns the JSON Schema bytes for
+// vulnerabilityv1.EPSSScore.
+func VulnerabilityEPSSScoreSchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityEPSSScoreSchemaID, "Eshu vulnerability.epss_score Payload (schema version 1)", &vulnerabilityv1.EPSSScore{})
+}
+
+// VulnerabilityKnownExploitedSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "vulnerability.known_exploited" payload.
+const VulnerabilityKnownExploitedSchemaID = schemaBaseID + "vulnerability/v1/known_exploited.schema.json"
+
+// VulnerabilityKnownExploitedSchema returns the JSON Schema bytes for
+// vulnerabilityv1.KnownExploited.
+func VulnerabilityKnownExploitedSchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityKnownExploitedSchemaID, "Eshu vulnerability.known_exploited Payload (schema version 1)", &vulnerabilityv1.KnownExploited{})
+}
+
+// VulnerabilityGoModuleEvidenceSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "vulnerability.go_module_evidence" payload.
+const VulnerabilityGoModuleEvidenceSchemaID = schemaBaseID + "vulnerability/v1/go_module_evidence.schema.json"
+
+// VulnerabilityGoModuleEvidenceSchema returns the JSON Schema bytes for
+// vulnerabilityv1.GoModuleEvidence.
+func VulnerabilityGoModuleEvidenceSchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityGoModuleEvidenceSchemaID, "Eshu vulnerability.go_module_evidence Payload (schema version 1)", &vulnerabilityv1.GoModuleEvidence{})
+}
+
+// VulnerabilityGoCallReachabilitySchemaID is the checked-in JSON Schema $id
+// for the schema-version-1 "vulnerability.go_call_reachability" payload.
+const VulnerabilityGoCallReachabilitySchemaID = schemaBaseID + "vulnerability/v1/go_call_reachability.schema.json"
+
+// VulnerabilityGoCallReachabilitySchema returns the JSON Schema bytes for
+// vulnerabilityv1.GoCallReachability.
+func VulnerabilityGoCallReachabilitySchema() ([]byte, error) {
+	return reflectSchema(VulnerabilityGoCallReachabilitySchemaID, "Eshu vulnerability.go_call_reachability Payload (schema version 1)", &vulnerabilityv1.GoCallReachability{})
 }

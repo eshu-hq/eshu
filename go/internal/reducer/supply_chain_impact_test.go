@@ -338,18 +338,30 @@ func unmarshalSupplyChainImpactPayload(t *testing.T, raw any) map[string]any {
 	return payload
 }
 
+// vulnerabilityCVEFact builds a vulnerability.cve fixture. advisory_id is set
+// equal to cveID: every real collector source (OSV, NVD, GitLab Gemnasium)
+// unconditionally sets advisory_id before emission (NVD sets it identical to
+// the CVE id; OSV/GitLab set it to their own advisory id), so a fixture with a
+// cve_id but no advisory_id was never realistic collector output — it
+// silently exercised a payload shape the typed decode seam now correctly
+// rejects as missing its one required field.
 func vulnerabilityCVEFact(factID string, cveID string, cvssScore float64) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
 		FactKind: facts.VulnerabilityCVEFactKind,
 		Payload: map[string]any{
-			"cve_id":     cveID,
-			"cvss_score": cvssScore,
-			"aliases":    []any{cveID},
+			"cve_id":      cveID,
+			"advisory_id": cveID,
+			"cvss_score":  cvssScore,
+			"aliases":     []any{cveID},
 		},
 	}
 }
 
+// vulnerabilityAffectedPackageFact builds a vulnerability.affected_package
+// fixture. advisory_id is set equal to cveID for the same reason as
+// vulnerabilityCVEFact: every real collector source always sets it, so a
+// fixture without it was never realistic collector output.
 func vulnerabilityAffectedPackageFact(
 	factID string,
 	cveID string,
@@ -364,6 +376,7 @@ func vulnerabilityAffectedPackageFact(
 		FactKind: facts.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":            cveID,
+			"advisory_id":       cveID,
 			"package_id":        packageID,
 			"ecosystem":         ecosystem,
 			"package_name":      name,

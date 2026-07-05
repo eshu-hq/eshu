@@ -11,59 +11,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
-func supplyChainCVEFromEnvelope(envelope facts.Envelope) supplyChainImpactCVE {
-	return supplyChainImpactCVE{
-		factID:          envelope.FactID,
-		cveID:           supplyChainCVEID(envelope.Payload),
-		advisoryID:      payloadStr(envelope.Payload, "advisory_id"),
-		source:          payloadStr(envelope.Payload, "source"),
-		cvssScore:       supplyChainFloat(envelope.Payload, "cvss_score"),
-		cvssVector:      payloadStr(envelope.Payload, "cvss_vector"),
-		severityLabel:   payloadStr(envelope.Payload, "severity_label"),
-		publishedAt:     payloadStr(envelope.Payload, "published_at"),
-		sourceUpdatedAt: payloadStr(envelope.Payload, "modified_at"),
-		withdrawnAt:     payloadStr(envelope.Payload, "withdrawn_at"),
-	}
-}
-
-func supplyChainAffectedPackageFromEnvelope(envelope facts.Envelope) supplyChainAffectedPackage {
-	purl := payloadStr(envelope.Payload, "purl")
-	return supplyChainAffectedPackage{
-		factID:           envelope.FactID,
-		cveID:            supplyChainCVEID(envelope.Payload),
-		source:           payloadStr(envelope.Payload, "source"),
-		advisoryID:       payloadStr(envelope.Payload, "advisory_id"),
-		packageID:        canonicalSupplyChainAffectedPackageID(envelope.Payload, purl),
-		ecosystem:        strings.ToLower(payloadStr(envelope.Payload, "ecosystem")),
-		name:             payloadStr(envelope.Payload, "package_name"),
-		purl:             purl,
-		affectedVersions: payloadStrings(envelope.Payload, "affected_version", "affected_versions"),
-		affectedRanges:   supplyChainAffectedRangesFromPayload(envelope.Payload),
-		affectedRangeRaw: payloadStr(envelope.Payload, "affected_range"),
-		fixedVersions:    payloadStrings(envelope.Payload, "fixed_version", "fixed_versions"),
-	}
-}
-
-func canonicalSupplyChainAffectedPackageID(payload map[string]any, purl string) string {
-	if packageID := payloadStr(payload, "package_id"); packageID != "" {
-		return packageID
-	}
-	packageID, err := packageidentity.PackageIDFromPURL(purl)
-	if err != nil {
-		return ""
-	}
-	return packageID
-}
-
-func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) supplyChainAffectedProduct {
-	return supplyChainAffectedProduct{
-		factID:          envelope.FactID,
-		cveID:           supplyChainCVEID(envelope.Payload),
-		criteria:        payloadStr(envelope.Payload, "criteria"),
-		matchCriteriaID: payloadStr(envelope.Payload, "match_criteria_id"),
-		vulnerable:      payloadBool(envelope.Payload, "vulnerable"),
-	}
-}
+// The typed-contracts-seam extraction functions for vulnerability.cve,
+// .affected_package, .affected_product, and .os_package
+// (supplyChainCVEFromEnvelope, supplyChainAffectedPackageFromEnvelope,
+// canonicalSupplyChainAffectedPackageID, supplyChainAffectedProductFromEnvelope,
+// supplyChainAffectedRangesFromTyped, supplyChainAffectedRangeEventsFromTyped,
+// supplyChainOSPackageFromEnvelope) live in supply_chain_impact_typed_decode.go
+// (split out to keep this file under the repo's 500-line cap).
 
 func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPackageConsumption {
 	return supplyChainPackageConsumption{
@@ -113,24 +67,6 @@ func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplyChainSB
 		// components ingested before the collector carried package_id.
 		packageID: firstNonBlank(payloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
 		version:   firstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
-	}
-}
-
-func supplyChainOSPackageFromEnvelope(envelope facts.Envelope) supplyChainOSPackage {
-	purl := payloadStr(envelope.Payload, "purl")
-	return supplyChainOSPackage{
-		factID:               envelope.FactID,
-		scopeID:              envelope.ScopeID,
-		packageID:            packageIDFromPURL(purl),
-		purl:                 purl,
-		distro:               strings.ToLower(payloadStr(envelope.Payload, "distro")),
-		distroVersion:        payloadStr(envelope.Payload, "distro_version"),
-		packageManager:       strings.ToLower(payloadStr(envelope.Payload, "package_manager")),
-		name:                 payloadStr(envelope.Payload, "name"),
-		arch:                 payloadStr(envelope.Payload, "arch"),
-		installedVersion:     payloadStr(envelope.Payload, "installed_version_raw"),
-		repositoryClass:      strings.ToLower(payloadStr(envelope.Payload, "repository_class")),
-		vendorAdvisorySource: strings.ToLower(payloadStr(envelope.Payload, "vendor_advisory_source")),
 	}
 }
 
@@ -463,4 +399,16 @@ func supplyChainInt(payload map[string]any, key string) int {
 	}
 	parsed, _ := strconv.Atoi(value)
 	return parsed
+}
+
+// derefFloat64 returns the pointed-to float64, or 0 for a nil pointer. The
+// vulnerability.cve typed decode carries CVSSScore as *float64 so an absent
+// score stays distinct from an observed 0.0; this mirrors the pre-typing
+// supplyChainFloat's own default-to-zero behavior for callers that only need
+// the value, not the presence.
+func derefFloat64(value *float64) float64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }

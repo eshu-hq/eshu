@@ -288,6 +288,30 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindAttestationSLSAProvenance:
 		_, err := DecodeAttestationSLSAProvenance(env)
 		return err
+	case FactKindVulnerabilityCVE:
+		_, err := DecodeVulnerabilityCVE(env)
+		return err
+	case FactKindVulnerabilityAffectedPackage:
+		_, err := DecodeVulnerabilityAffectedPackage(env)
+		return err
+	case FactKindVulnerabilityAffectedProduct:
+		_, err := DecodeVulnerabilityAffectedProduct(env)
+		return err
+	case FactKindVulnerabilityOSPackage:
+		_, err := DecodeVulnerabilityOSPackage(env)
+		return err
+	case FactKindVulnerabilityEPSSScore:
+		_, err := DecodeVulnerabilityEPSSScore(env)
+		return err
+	case FactKindVulnerabilityKnownExploited:
+		_, err := DecodeVulnerabilityKnownExploited(env)
+		return err
+	case FactKindVulnerabilityGoModuleEvidence:
+		_, err := DecodeVulnerabilityGoModuleEvidence(env)
+		return err
+	case FactKindVulnerabilityGoCallReachability:
+		_, err := DecodeVulnerabilityGoCallReachability(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -358,6 +382,14 @@ var allDecodedKinds = []string{
 	FactKindAttestationStatement,
 	FactKindAttestationSignatureVerification,
 	FactKindAttestationSLSAProvenance,
+	FactKindVulnerabilityCVE,
+	FactKindVulnerabilityAffectedPackage,
+	FactKindVulnerabilityAffectedProduct,
+	FactKindVulnerabilityOSPackage,
+	FactKindVulnerabilityEPSSScore,
+	FactKindVulnerabilityKnownExploited,
+	FactKindVulnerabilityGoModuleEvidence,
+	FactKindVulnerabilityGoCallReachability,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -580,6 +612,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeAttestationSignatureVerification(env)
 			case FactKindAttestationSLSAProvenance:
 				_, err = DecodeAttestationSLSAProvenance(env)
+			case FactKindVulnerabilityCVE:
+				_, err = DecodeVulnerabilityCVE(env)
+			case FactKindVulnerabilityAffectedPackage:
+				_, err = DecodeVulnerabilityAffectedPackage(env)
+			case FactKindVulnerabilityAffectedProduct:
+				_, err = DecodeVulnerabilityAffectedProduct(env)
+			case FactKindVulnerabilityOSPackage:
+				_, err = DecodeVulnerabilityOSPackage(env)
+			case FactKindVulnerabilityEPSSScore:
+				_, err = DecodeVulnerabilityEPSSScore(env)
+			case FactKindVulnerabilityKnownExploited:
+				_, err = DecodeVulnerabilityKnownExploited(env)
+			case FactKindVulnerabilityGoModuleEvidence:
+				_, err = DecodeVulnerabilityGoModuleEvidence(env)
+			case FactKindVulnerabilityGoCallReachability:
+				_, err = DecodeVulnerabilityGoCallReachability(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

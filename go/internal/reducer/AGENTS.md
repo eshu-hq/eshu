@@ -951,6 +951,142 @@ additive-only extension: five new `factKindSchemaFile` entries
 and a new `SBOMStructDir` (`sdk/go/factschema/sbom/v1`) parsed alongside the
 existing struct dirs in `Load`; this only widens which decode seams the gate
 covers and adds no new gate mechanism.
+No-Regression Evidence (Wave 4c, vulnerability_intelligence family typed-payload
+decode, Contract System v1 #4566/#4582): `buildSupplyChainImpactIndexWithQuarantine`
+(supply_chain_impact_index_build.go) now decodes `vulnerability.cve`,
+`.affected_package`, `.affected_product`, `.os_package`, `.epss_score`, and
+`.known_exploited` fact payloads through the `sdk/go/factschema` seam
+(`supplyChainCVEFromEnvelope`, `supplyChainAffectedPackageFromEnvelope`,
+`supplyChainAffectedProductFromEnvelope`, `supplyChainOSPackageFromEnvelope` in
+`supply_chain_impact_typed_decode.go`; `decodeVulnerabilityEPSSScore`/
+`decodeVulnerabilityKnownExploited` inline) instead of raw `payloadStr`/
+`payloadStrings`/`payloadBool` map lookups, mirroring the #4568 AWS migration.
+`vulnerability.go_module_evidence`/`.go_call_reachability` extraction
+(`go_vulnerability_reachability_extract.go`) and `ClassifyGoVulnerabilityReachability`
+convert the same way, gaining `extractGoModuleEvidenceRowsWithQuarantine`/
+`extractGovulncheckReachabilityRowsWithQuarantine`/
+`classifyGoVulnerabilityReachabilityWithQuarantine` counterparts. Only the eight
+WIRED kinds are typed this wave. `vulnerability.reference` and `.source_snapshot`
+have no reducer decode call, but their fields are read by the query layer's
+raw-SQL-JSONB path, so they are typed-but-deferred to #4717 (which types those
+query reads and adds their SQL-schema lockstep tests, mirroring the os_package
+one here). `vulnerability.warning` has no read-side consumer at all and is
+deferred, matching how prior waves left an unconsumed kind untyped.
+`vulnerability.suppression` belongs to the separate `vulnerability_suppression`
+registry family and is untouched.
+
+First benchmark pass (`BenchmarkBuildSupplyChainImpactIndexWithQuarantine`,
+2,000-advisory corpus each emitting one `vulnerability.cve` +
+`vulnerability.affected_package` + `vulnerability.os_package` fact) measured a
+regression exceeding the diagnostic-rigor ~10% band: BEFORE (raw map, commit
+321e4aada1be3d418ab0f0a4d2628e6e68df02c9) 4.98ms/3.53MB/70,095 allocs -> naive
+typed decode 9.7-15.4ms/4.82MB/78,097 allocs (roughly +100-200% time, +11.5%
+allocs). Root-caused to `sdk/go/factschema/decode_map.go`'s `assignField`
+having NO fast path for `float64`/`*float64` fields — every prior migrated
+family (AWS, IAM, incident, GCP, Azure, kubernetes_live) has zero float fields,
+so this gap was invisible until `vulnerability.cve`'s `CVSSScore *float64`
+became the first float field decoded through this seam. Every `*float64` value
+fell through `assignField`'s `Ptr` case to the `default: jsonRoundTripValue`
+branch (a `json.Marshal`+`json.Unmarshal` round trip per field), the exact
+shape of gap the kubernetes_live wave found and fixed for `map[string]string`.
+Proven with a throwaway microbenchmark isolating a single-value JSON round trip
+against a direct `raw.(float64)` type assertion on the same input: ~250x
+speedup (500ns/op, 3 allocs -> ~2ns/op, 0 allocs). Applied the theory as a
+genuine fix rather than a vulnerability-local workaround: `decode_map.go`
+gained a `float64`/`*float64` fast path (`jsonNumberToFloat64`, reached from
+both the plain `Float64` case and the new `Ptr`-to-`Float64` case in
+`assignField`), mirroring the existing `Int32`/`Int64` pointer cases, so every
+family decoding a float field in the future benefits, not only this wave's
+`vulnerability.cve`. Re-measured after the fix (darwin/arm64, Apple M1 Max,
+`-count=5`, alternating with the baseline to control for machine load):
+BEFORE 4.76-5.27ms/3.53MB/70,095 allocs (median ~4.98ms) -> AFTER
+5.6-6.7ms/4.50MB/72,093 allocs (median ~6.3ms) — roughly +27% time, +2.8%
+allocs. `go test ./internal/reducer -run '^$' -bench
+'BenchmarkBuildSupplyChainImpactIndexWithQuarantine' -benchmem -count=5` (this
+branch) versus the same command against commit
+321e4aada1be3d418ab0f0a4d2628e6e68df02c9's `BenchmarkBuildSupplyChainImpactIndex`
+(added identically on that commit for the comparison). The residual +27% is
+NOT a new decode_map.go gap: a follow-up CPU profile (`-cpuprofile`) after the
+fix shows no `jsonRoundTripValue` frame in the top 25 nodes; the remaining cost
+is `assignField`/`decodeAndValidate` reflection dispatch scaling with
+`vulnerability.affected_package`'s ten struct fields (nine named plus
+Attributes-free — this kind has no untyped pass-through) versus the old raw
+string-keyed map lookups, incurred TWICE per Go-ecosystem advisory fact: once
+in the main index loop and once in `extractGoAffectedPackages`
+(`go_vulnerability_reachability_extract.go`), a double-decode structure that
+predates this migration byte-for-byte (the pre-migration `extractGoAffectedPackages`
+already independently re-read the same envelopes' `payloadStr` fields a second
+time for Go-specific filtering). The typed path buys the accuracy guarantee (a
+`vulnerability.cve`/`.affected_package`/`.os_package` fact missing a required
+identity field — `advisory_id` for the first two;
+`distro`/`distro_version`/`package_manager`/`name`/`arch`/`installed_version_raw`
+for `os_package` — dead-letters `input_invalid` via
+`partitionDecodeFailures`/`recordQuarantinedFacts` instead of silently
+producing a blank-identity index row) at a bounded, root-caused, measured cost;
+the pre-existing double-decode of `affected_package` for Go-ecosystem
+filtering is flagged as a follow-up consolidation opportunity, not blocking
+this migration. Result class: Correctness win with a bounded, measured handler
+cost (the real perf gap — the float64 fallback — found and fixed; the residual
+is architectural reflection overhead, not an unmeasured regression).
+`TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersion`
+(new flagship regression test, `vulnerability_input_invalid_test.go`) failed
+before `buildSupplyChainImpactIndexWithQuarantine` routed a
+missing-`installed_version_raw` `vulnerability.os_package` fact through the
+decode seam (the old `payloadStr` lookup returned `""` for the absent key and
+silently produced a row with no operator signal), then passed after: the
+malformed fact is recorded on one `input_invalid` quarantine naming the field,
+and a valid sibling CVE/affected_package/os_package trio in the same batch
+still produces its finding.
+`TestBuildSupplyChainImpactFindingsOSPackagePresentButEmptyVendorAdvisorySourceDecodes`
+proves the absent-vs-empty distinction holds for `vulnerability.os_package`
+specifically: `RepositoryClass`/`VendorAdvisorySource` are optional on the
+typed struct, so a present-but-empty `vendor_advisory_source` (the collector's
+own "ambiguous/unknown vendor origin" fail-closed observation) is a VALID
+decode, not a quarantine — the pre-existing `osPackageMatchesAffectedPackage`
+matcher still simply does not match it, byte-identical to pre-typing
+behavior. `TestDecodeMapInto_Float64FastPath` (new,
+`sdk/go/factschema/decode_map_test.go`) locks the float64 fast path's
+accept/reject contract: a plain `float64` field, a present `*float64` field,
+and an absent `*float64` field (stays nil) all decode correctly, while a
+non-numeric value fails closed with an error rather than silently zeroing the
+field.
+
+`osPackageMatchesAffectedPackage` (supply_chain_impact_match.go) is UNCHANGED
+by this migration: it still decides `vulnerability.os_package` impact purely
+by `RepositoryClass=="vendor"` plus a `VendorAdvisorySource` string match
+against the affected package's classified vendor source
+(`classifyAffectedPackageAdvisorySource`), never by comparing
+`InstalledVersion` (installed_version_raw, preserved verbatim through the
+typed struct) against any upstream/fixed version — the exact vendor-backport
+accuracy contract the migration's caveat exists to protect. No version
+comparison was added or removed anywhere in this diff.
+
+No-Observability-Change (Wave 4c, vulnerability_intelligence family): the
+typed-decode migration and the shared `decode_map.go` float64 fast-path
+addition add no route, graph query shape, queue table, worker, lease, runtime
+knob, metric instrument, or metric label. A malformed `vulnerability.*` fact
+surfaces through the EXISTING dead-letter path —
+`partitionDecodeFailures` -> `recordQuarantinedFacts` ->
+`eshu_dp_reducer_input_invalid_facts_total` (labeled `domain` =
+`supply_chain_impact`, an existing label value, `fact_kind` gains the eight
+vulnerability kinds) plus the existing structured "reducer input_invalid fact
+quarantined" error log and `Result.SubSignals["input_invalid_facts"]`.
+`SupplyChainImpactHandler` already carried an `Instruments
+*telemetry.Instruments` field (wired from `DefaultHandlers.Instruments` in
+`defaults_additive_domains_supply_chain.go`, shared with the security-alert
+reconciliation and observability/kubernetes correlation domains in the same
+file); no new wiring was needed. The `decode_map.go` float64 fast path changes
+only the internal path taken by `assignField` for a `float64`/`*float64`
+field; it adds no telemetry surface of its own and is invisible to every
+existing operator-facing signal. The SQL-JSONB loader
+`installed_advisory_targets.go` (`listOSPackageAdvisoryTargetsQuery`) is
+unchanged; its `vendor_advisory_source`/`distro`/`name`/`installed_version_raw`/
+`package_manager`/`repository_class`/`purl` reads are now locked to the
+`vulnerability.os_package.v1` schema by
+`TestOSPackageAdvisoryTargetsSQLProjectedFieldsAreSchemaDeclared`
+(go/internal/storage/postgres), mirroring the incident family's SQL-schema
+lockstep test, so a future contracts change that drops one of those fields
+fails this build instead of silently breaking the SQL read.
 
 ## Anti-patterns
 

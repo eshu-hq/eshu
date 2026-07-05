@@ -296,6 +296,10 @@ func TestExactManifestDependencyVersionRejectsNonVersionSpecifiers(t *testing.T)
 	}
 }
 
+// vulnerabilityAffectedPackageRangeFact builds a vulnerability.affected_package
+// fixture. advisory_id is set equal to cveID: every real collector source
+// always sets it, so a fixture without it was never realistic collector
+// output.
 func vulnerabilityAffectedPackageRangeFact(
 	factID string,
 	cveID string,
@@ -309,6 +313,7 @@ func vulnerabilityAffectedPackageRangeFact(
 		FactKind: facts.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":       cveID,
+			"advisory_id":  cveID,
 			"package_id":   packageID,
 			"ecosystem":    ecosystem,
 			"package_name": name,

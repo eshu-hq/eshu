@@ -133,6 +133,8 @@ func TestSupplyChainImpactFilterDerivesPackageIDFromPURLOnlyAffectedPackage(t *t
 
 // affectedPackageWithPURLFact builds an affected_package fact that, unlike the
 // simplified helper, sets the versionless package purl the OSV collector emits.
+// advisory_id is set equal to cveID: every real collector source always sets
+// it, so a fixture without it was never realistic collector output.
 func affectedPackageWithPURLFact(
 	factID string,
 	cveID string,
@@ -148,6 +150,7 @@ func affectedPackageWithPURLFact(
 		FactKind: facts.VulnerabilityAffectedPackageFactKind,
 		Payload: map[string]any{
 			"cve_id":            cveID,
+			"advisory_id":       cveID,
 			"package_id":        packageID,
 			"purl":              purl,
 			"ecosystem":         ecosystem,
