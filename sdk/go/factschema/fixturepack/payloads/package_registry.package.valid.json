@@ -1,0 +1,17 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "ecosystem": "npm",
+  "registry": "https://registry.npmjs.org",
+  "raw_name": "@scope/pkg",
+  "normalized_name": "@scope/pkg",
+  "namespace": "scope",
+  "classifier": "library",
+  "package_id": "package://npm/registry.npmjs.org/@scope/pkg",
+  "purl": "pkg:npm/%40scope/pkg",
+  "bom_ref": "pkg:npm/%40scope/pkg",
+  "package_manager": "npm",
+  "source_path": "package.json",
+  "source_specific_id": "npm:@scope/pkg",
+  "visibility": "public",
+  "correlation_anchors": ["package://npm/registry.npmjs.org/@scope/pkg"]
+}

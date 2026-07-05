@@ -1,0 +1,15 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "ecosystem": "npm",
+  "registry": "https://registry.npmjs.org",
+  "package_id": "package://npm/registry.npmjs.org/@scope/pkg",
+  "version_id": "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+  "version": "1.2.3",
+  "event_key": "publish-1.2.3",
+  "event_type": "publish",
+  "artifact_key": "pkg-1.2.3.tgz",
+  "actor": "example-user",
+  "message": "published 1.2.3",
+  "occurred_at": "2026-05-13T14:00:00Z",
+  "correlation_anchors": ["package://npm/registry.npmjs.org/@scope/pkg"]
+}

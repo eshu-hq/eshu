@@ -1,0 +1,22 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "ecosystem": "npm",
+  "registry": "https://registry.npmjs.org",
+  "package_id": "package://npm/registry.npmjs.org/@scope/pkg",
+  "version_id": "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+  "version": "1.2.3",
+  "purl": "pkg:npm/%40scope/pkg@1.2.3",
+  "bom_ref": "pkg:npm/%40scope/pkg@1.2.3",
+  "package_manager": "npm",
+  "published_at": "2026-05-13T13:00:00Z",
+  "is_yanked": false,
+  "is_unlisted": false,
+  "is_deprecated": false,
+  "is_retracted": false,
+  "artifact_urls": ["https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz"],
+  "checksums": {"sha512": "sha512-test"},
+  "correlation_anchors": [
+    "package://npm/registry.npmjs.org/@scope/pkg",
+    "package://npm/registry.npmjs.org/@scope/pkg@1.2.3"
+  ]
+}

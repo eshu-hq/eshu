@@ -58,6 +58,15 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "terraform_state_candidate.v1.schema.json", generate: schemagen.TerraformStateCandidateSchema},
 		{file: "terraform_state_provider_binding.v1.schema.json", generate: schemagen.TerraformStateProviderBindingSchema},
 		{file: "terraform_state_warning.v1.schema.json", generate: schemagen.TerraformStateWarningSchema},
+		{file: "package_registry.package.v1.schema.json", generate: schemagen.PackageRegistryPackageSchema},
+		{file: "package_registry.package_version.v1.schema.json", generate: schemagen.PackageRegistryPackageVersionSchema},
+		{file: "package_registry.package_dependency.v1.schema.json", generate: schemagen.PackageRegistryPackageDependencySchema},
+		{file: "package_registry.source_hint.v1.schema.json", generate: schemagen.PackageRegistrySourceHintSchema},
+		{file: "package_registry.package_artifact.v1.schema.json", generate: schemagen.PackageRegistryPackageArtifactSchema},
+		{file: "package_registry.vulnerability_hint.v1.schema.json", generate: schemagen.PackageRegistryVulnerabilityHintSchema},
+		{file: "package_registry.registry_event.v1.schema.json", generate: schemagen.PackageRegistryRegistryEventSchema},
+		{file: "package_registry.repository_hosting.v1.schema.json", generate: schemagen.PackageRegistryRepositoryHostingSchema},
+		{file: "package_registry.warning.v1.schema.json", generate: schemagen.PackageRegistryWarningSchema},
 	}
 
 	for _, tc := range cases {
@@ -130,6 +139,15 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"terraform_state_candidate.v1.schema.json",
 		"terraform_state_provider_binding.v1.schema.json",
 		"terraform_state_warning.v1.schema.json",
+		"package_registry.package.v1.schema.json",
+		"package_registry.package_version.v1.schema.json",
+		"package_registry.package_dependency.v1.schema.json",
+		"package_registry.source_hint.v1.schema.json",
+		"package_registry.package_artifact.v1.schema.json",
+		"package_registry.vulnerability_hint.v1.schema.json",
+		"package_registry.registry_event.v1.schema.json",
+		"package_registry.repository_hosting.v1.schema.json",
+		"package_registry.warning.v1.schema.json",
 	}
 
 	for _, file := range files {

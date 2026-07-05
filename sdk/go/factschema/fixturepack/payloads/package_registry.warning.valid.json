@@ -1,0 +1,13 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "warning_key": "npm:registry-not-found:@scope/pkg",
+  "warning_code": "registry_not_found",
+  "severity": "warning",
+  "message": "registry did not return metadata for this package",
+  "ecosystem": "npm",
+  "registry": "https://registry.npmjs.org",
+  "package_id": "package://npm/registry.npmjs.org/@scope/pkg",
+  "version": "1.2.3",
+  "version_id": "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
+  "correlation_anchors": ["package://npm/registry.npmjs.org/@scope/pkg"]
+}

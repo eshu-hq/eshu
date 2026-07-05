@@ -1,0 +1,11 @@
+{
+  "collector_instance_id": "package-registry-collector-1",
+  "provider": "artifactory",
+  "registry": "registry.example.com",
+  "repository": "npm-local",
+  "repository_type": "local",
+  "ecosystem": "npm",
+  "upstream_id": "npm-remote",
+  "upstream_url": "https://registry.npmjs.org",
+  "correlation_anchors": ["artifactory://registry.example.com/npm-local"]
+}

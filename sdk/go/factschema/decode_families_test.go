@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package factschema
+package factschema //nolint:filelength // per-family decode-dispatch test registry; one decodeByKind case + one allDecodedKinds row + one unsupported-major case per migrated fact kind, reviewed as a single source-of-truth table (mirrors decode_test.go's payloadContracts exemption). Splitting per-family would fragment the drift guard the per-kind tests below depend on.
 
 import (
 	"errors"
@@ -237,6 +237,33 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindTerraformStateWarning:
 		_, err := DecodeTerraformStateWarning(env)
 		return err
+	case FactKindPackageRegistryPackage:
+		_, err := DecodePackageRegistryPackage(env)
+		return err
+	case FactKindPackageRegistryPackageVersion:
+		_, err := DecodePackageRegistryPackageVersion(env)
+		return err
+	case FactKindPackageRegistryPackageDependency:
+		_, err := DecodePackageRegistryPackageDependency(env)
+		return err
+	case FactKindPackageRegistrySourceHint:
+		_, err := DecodePackageRegistrySourceHint(env)
+		return err
+	case FactKindPackageRegistryPackageArtifact:
+		_, err := DecodePackageRegistryPackageArtifact(env)
+		return err
+	case FactKindPackageRegistryVulnerabilityHint:
+		_, err := DecodePackageRegistryVulnerabilityHint(env)
+		return err
+	case FactKindPackageRegistryRegistryEvent:
+		_, err := DecodePackageRegistryRegistryEvent(env)
+		return err
+	case FactKindPackageRegistryRepositoryHosting:
+		_, err := DecodePackageRegistryRepositoryHosting(env)
+		return err
+	case FactKindPackageRegistryWarning:
+		_, err := DecodePackageRegistryWarning(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -290,6 +317,15 @@ var allDecodedKinds = []string{
 	FactKindTerraformStateCandidate,
 	FactKindTerraformStateProviderBinding,
 	FactKindTerraformStateWarning,
+	FactKindPackageRegistryPackage,
+	FactKindPackageRegistryPackageVersion,
+	FactKindPackageRegistryPackageDependency,
+	FactKindPackageRegistrySourceHint,
+	FactKindPackageRegistryPackageArtifact,
+	FactKindPackageRegistryVulnerabilityHint,
+	FactKindPackageRegistryRegistryEvent,
+	FactKindPackageRegistryRepositoryHosting,
+	FactKindPackageRegistryWarning,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -478,6 +514,24 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeTerraformStateProviderBinding(env)
 			case FactKindTerraformStateWarning:
 				_, err = DecodeTerraformStateWarning(env)
+			case FactKindPackageRegistryPackage:
+				_, err = DecodePackageRegistryPackage(env)
+			case FactKindPackageRegistryPackageVersion:
+				_, err = DecodePackageRegistryPackageVersion(env)
+			case FactKindPackageRegistryPackageDependency:
+				_, err = DecodePackageRegistryPackageDependency(env)
+			case FactKindPackageRegistrySourceHint:
+				_, err = DecodePackageRegistrySourceHint(env)
+			case FactKindPackageRegistryPackageArtifact:
+				_, err = DecodePackageRegistryPackageArtifact(env)
+			case FactKindPackageRegistryVulnerabilityHint:
+				_, err = DecodePackageRegistryVulnerabilityHint(env)
+			case FactKindPackageRegistryRegistryEvent:
+				_, err = DecodePackageRegistryRegistryEvent(env)
+			case FactKindPackageRegistryRepositoryHosting:
+				_, err = DecodePackageRegistryRepositoryHosting(env)
+			case FactKindPackageRegistryWarning:
+				_, err = DecodePackageRegistryWarning(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

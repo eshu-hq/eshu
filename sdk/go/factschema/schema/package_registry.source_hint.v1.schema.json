@@ -1,0 +1,76 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/packageregistry/v1/source_hint.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hint_kind": {
+      "type": "string"
+    },
+    "normalized_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "raw_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "package_id",
+    "hint_kind"
+  ],
+  "title": "Eshu package_registry.source_hint Payload (schema version 1)",
+  "type": "object"
+}

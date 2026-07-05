@@ -94,6 +94,21 @@ func run() error {
 		{name: "terraform_state_candidate.v1.schema.json", generate: schemagen.TerraformStateCandidateSchema},
 		{name: "terraform_state_provider_binding.v1.schema.json", generate: schemagen.TerraformStateProviderBindingSchema},
 		{name: "terraform_state_warning.v1.schema.json", generate: schemagen.TerraformStateWarningSchema},
+		// The package_registry family fact kinds are DOTTED (like the incident
+		// and oci_registry families). Three are consumed by the projector's
+		// source-local canonical extractor; six (source_hint, package_artifact,
+		// vulnerability_hint, registry_event, repository_hosting, warning) are
+		// typed-but-not-yet-consumed through the decode seam
+		// (packageregistry/v1/doc.go) but still ship a checked-in schema.
+		{name: "package_registry.package.v1.schema.json", generate: schemagen.PackageRegistryPackageSchema},
+		{name: "package_registry.package_version.v1.schema.json", generate: schemagen.PackageRegistryPackageVersionSchema},
+		{name: "package_registry.package_dependency.v1.schema.json", generate: schemagen.PackageRegistryPackageDependencySchema},
+		{name: "package_registry.source_hint.v1.schema.json", generate: schemagen.PackageRegistrySourceHintSchema},
+		{name: "package_registry.package_artifact.v1.schema.json", generate: schemagen.PackageRegistryPackageArtifactSchema},
+		{name: "package_registry.vulnerability_hint.v1.schema.json", generate: schemagen.PackageRegistryVulnerabilityHintSchema},
+		{name: "package_registry.registry_event.v1.schema.json", generate: schemagen.PackageRegistryRegistryEventSchema},
+		{name: "package_registry.repository_hosting.v1.schema.json", generate: schemagen.PackageRegistryRepositoryHostingSchema},
+		{name: "package_registry.warning.v1.schema.json", generate: schemagen.PackageRegistryWarningSchema},
 	}
 
 	for _, target := range targets {

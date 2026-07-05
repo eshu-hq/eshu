@@ -1,0 +1,134 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/packageregistry/v1/package_dependency.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "dependency_bom_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_manager": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_normalized": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_package_id": {
+      "type": "string"
+    },
+    "dependency_purl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_range": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "excluded": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "marker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "optional": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "registry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_framework": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "package_id",
+    "version_id",
+    "dependency_package_id"
+  ],
+  "title": "Eshu package_registry.package_dependency Payload (schema version 1)",
+  "type": "object"
+}

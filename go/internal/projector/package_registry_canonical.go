@@ -100,223 +100,277 @@ type PackageRegistryDependencyRow struct {
 	ObservedAt           time.Time
 }
 
-func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) {
+// packageRegistryCanonicalStage is the bounded telemetry stage label the
+// projector's package_registry canonical extractor reports on
+// eshu_dp_projector_input_invalid_facts_total.
+const packageRegistryCanonicalStage = "package_registry_canonical"
+
+// extractPackageRegistryRows projects committed package_registry fact
+// envelopes into canonical package/version/dependency rows on mat, decoding
+// each fact through the typed factschema seam. A fact missing a required
+// identity field is QUARANTINED per-fact (returned in the []quarantinedFact
+// slice) rather than producing a graph identity from an empty-string segment:
+// that one fact is skipped while every valid fact — package_registry and
+// non-package_registry — still projects. The caller
+// (buildCanonicalMaterialization) records the quarantined facts as visible
+// input_invalid dead-letters via recordProjectorQuarantinedFacts. A
+// present-but-empty identity field is a valid decode that the row builders'
+// own identity gate still drops, byte-identical to the pre-typing behavior.
+//
+// package_registry.source_hint, .package_artifact, .vulnerability_hint,
+// .registry_event, .repository_hosting, and .warning are intentionally not
+// consumed here (typed-but-deferred, no projector read site today), so no case
+// handles them.
+func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []quarantinedFact {
 	if mat == nil || len(envelopes) == 0 {
-		return
+		return nil
 	}
+	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
+		var err error
 		switch envelope.FactKind {
 		case facts.PackageRegistryPackageFactKind:
-			if row, ok := packageRegistryPackageRow(envelope); ok {
+			var row PackageRegistryPackageRow
+			var ok bool
+			row, ok, err = packageRegistryPackageRow(envelope)
+			if ok {
 				mat.PackageRegistryPackages = append(mat.PackageRegistryPackages, row)
 			}
 		case facts.PackageRegistryPackageVersionFactKind:
-			if row, ok := packageRegistryVersionRow(envelope); ok {
+			var row PackageRegistryVersionRow
+			var ok bool
+			row, ok, err = packageRegistryVersionRow(envelope)
+			if ok {
 				mat.PackageRegistryVersions = append(mat.PackageRegistryVersions, row)
 			}
 		case facts.PackageRegistryPackageDependencyFactKind:
-			if row, ok := packageRegistryDependencyRow(envelope); ok {
+			var row PackageRegistryDependencyRow
+			var ok bool
+			row, ok, err = packageRegistryDependencyRow(envelope)
+			if ok {
 				mat.PackageRegistryDependencies = append(mat.PackageRegistryDependencies, row)
 			}
+		default:
+			continue
+		}
+		if err == nil {
+			continue
+		}
+		q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err)
+		if fatal != nil {
+			// The only fatal decode error is an unsupported schema major, which
+			// the projector's schema-version admission (validateFactSchemaVersion
+			// in runtime.go) already rejects for the whole work item BEFORE this
+			// extractor runs, so a fatal here is unreachable on the production
+			// path. Dropping it matches the pre-typing extractor's behavior for a
+			// fact it could not read, and never fails the whole repository
+			// projection over one fact.
+			continue
+		}
+		if isQuarantine {
+			quarantined = append(quarantined, q)
 		}
 	}
+	return quarantined
 }
 
-func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageRow, bool) {
+// packageRegistryPackageRow decodes one package_registry.package envelope
+// through the typed factschema seam and builds its canonical row. A missing
+// required package_id dead-letters via the returned error (routed through
+// partitionProjectorDecodeFailures by the caller); a present-but-empty
+// package_id is a valid decode the row builder's own identity gate still
+// drops, matching the pre-typing payloadString("") behavior.
+func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageRow, bool, error) {
 	if envelope.IsTombstone {
-		return PackageRegistryPackageRow{}, false
+		return PackageRegistryPackageRow{}, false, nil
 	}
-	packageID, _ := payloadString(envelope.Payload, "package_id")
+	pkg, err := decodePackageRegistryPackage(envelope)
+	if err != nil {
+		return PackageRegistryPackageRow{}, false, err
+	}
+	packageID := strings.TrimSpace(pkg.PackageID)
 	if packageID == "" {
-		return PackageRegistryPackageRow{}, false
+		// Present-but-empty (or whitespace-only) package_id is a valid decode,
+		// distinct from an absent required key (which the decode seam already
+		// dead-lettered). Trim before the gate so a whitespace-only identity is
+		// dropped as non-materializable exactly as the pre-typing payloadString
+		// path did, never keying a row on an empty-after-trim graph identity.
+		return PackageRegistryPackageRow{}, false, nil
 	}
-	ecosystem, _ := payloadString(envelope.Payload, "ecosystem")
-	registry, _ := payloadString(envelope.Payload, "registry")
-	rawName, _ := payloadString(envelope.Payload, "raw_name")
-	normalizedName, _ := payloadString(envelope.Payload, "normalized_name")
-	namespace, _ := payloadString(envelope.Payload, "namespace")
-	classifier, _ := payloadString(envelope.Payload, "classifier")
-	purl, _ := payloadString(envelope.Payload, "purl")
-	bomRef, _ := payloadString(envelope.Payload, "bom_ref")
-	packageManager, _ := payloadString(envelope.Payload, "package_manager")
-	sourcePath, _ := payloadString(envelope.Payload, "source_path")
-	sourceSpecificID, _ := payloadString(envelope.Payload, "source_specific_id")
-	visibility, _ := payloadString(envelope.Payload, "visibility")
-	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
 	return PackageRegistryPackageRow{
 		UID:                 packageID,
-		Ecosystem:           ecosystem,
-		Registry:            registry,
-		RawName:             rawName,
-		NormalizedName:      normalizedName,
-		Namespace:           namespace,
-		Classifier:          classifier,
-		PURL:                purl,
-		BOMRef:              bomRef,
-		PackageManager:      packageManager,
-		SourcePath:          sourcePath,
-		SourceSpecificID:    sourceSpecificID,
-		Visibility:          visibility,
+		Ecosystem:           packageRegistryDerefString(pkg.Ecosystem),
+		Registry:            packageRegistryDerefString(pkg.Registry),
+		RawName:             packageRegistryDerefString(pkg.RawName),
+		NormalizedName:      packageRegistryDerefString(pkg.NormalizedName),
+		Namespace:           packageRegistryDerefString(pkg.Namespace),
+		Classifier:          packageRegistryDerefString(pkg.Classifier),
+		PURL:                packageRegistryDerefString(pkg.PURL),
+		BOMRef:              packageRegistryDerefString(pkg.BOMRef),
+		PackageManager:      packageRegistryDerefString(pkg.PackageManager),
+		SourcePath:          packageRegistryDerefString(pkg.SourcePath),
+		SourceSpecificID:    packageRegistryDerefString(pkg.SourceSpecificID),
+		Visibility:          packageRegistryDerefString(pkg.Visibility),
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       envelope.StableFactKey,
 		SourceSystem:        packageRegistrySourceSystem(envelope),
 		SourceRecordID:      envelope.SourceRef.SourceRecordID,
 		SourceConfidence:    envelope.SourceConfidence,
 		CollectorKind:       envelope.CollectorKind,
-		CorrelationAnchors:  packageRegistryCorrelationAnchors(envelope.Payload),
-		CollectorInstanceID: collectorInstanceID,
+		CorrelationAnchors:  packageRegistrySortedStrings(pkg.CorrelationAnchors),
+		CollectorInstanceID: packageRegistryDerefString(pkg.CollectorInstanceID),
 		ObservedAt:          envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionRow, bool) {
+// packageRegistryVersionRow decodes one package_registry.package_version
+// envelope through the typed factschema seam and builds its canonical row. A
+// missing required package_id, version_id, or version dead-letters via the
+// returned error; a present-but-empty value for any of them is a valid decode
+// the row builder's own identity gate still drops.
+func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionRow, bool, error) {
 	if envelope.IsTombstone {
-		return PackageRegistryVersionRow{}, false
+		return PackageRegistryVersionRow{}, false, nil
 	}
-	packageID, _ := payloadString(envelope.Payload, "package_id")
-	versionID, _ := payloadString(envelope.Payload, "version_id")
-	version, _ := payloadString(envelope.Payload, "version")
-	if packageID == "" || versionID == "" || version == "" {
-		return PackageRegistryVersionRow{}, false
+	version, err := decodePackageRegistryPackageVersion(envelope)
+	if err != nil {
+		return PackageRegistryVersionRow{}, false, err
 	}
-	ecosystem, _ := payloadString(envelope.Payload, "ecosystem")
-	registry, _ := payloadString(envelope.Payload, "registry")
-	purl, _ := payloadString(envelope.Payload, "purl")
-	bomRef, _ := payloadString(envelope.Payload, "bom_ref")
-	packageManager, _ := payloadString(envelope.Payload, "package_manager")
-	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
-	publishedAt := packageRegistryPublishedAtFromPayload(envelope.Payload)
+	packageID := strings.TrimSpace(version.PackageID)
+	versionID := strings.TrimSpace(version.VersionID)
+	rawVersion := strings.TrimSpace(version.Version)
+	if packageID == "" || versionID == "" || rawVersion == "" {
+		// Present-but-empty (or whitespace-only) identity is a valid decode,
+		// distinct from an absent required key. See packageRegistryPackageRow.
+		return PackageRegistryVersionRow{}, false, nil
+	}
 	return PackageRegistryVersionRow{
 		UID:                 versionID,
 		PackageID:           packageID,
-		Ecosystem:           ecosystem,
-		Registry:            registry,
-		Version:             version,
-		PURL:                purl,
-		BOMRef:              bomRef,
-		PackageManager:      packageManager,
-		PublishedAt:         publishedAt,
-		IsYanked:            packageRegistryPayloadBool(envelope.Payload, "is_yanked"),
-		IsUnlisted:          packageRegistryPayloadBool(envelope.Payload, "is_unlisted"),
-		IsDeprecated:        packageRegistryPayloadBool(envelope.Payload, "is_deprecated"),
-		IsRetracted:         packageRegistryPayloadBool(envelope.Payload, "is_retracted"),
-		ArtifactURLs:        packageRegistryStringSlice(envelope.Payload, "artifact_urls"),
-		Checksums:           packageRegistryStringMap(envelope.Payload, "checksums"),
+		Ecosystem:           packageRegistryDerefString(version.Ecosystem),
+		Registry:            packageRegistryDerefString(version.Registry),
+		Version:             rawVersion,
+		PURL:                packageRegistryDerefString(version.PURL),
+		BOMRef:              packageRegistryDerefString(version.BOMRef),
+		PackageManager:      packageRegistryDerefString(version.PackageManager),
+		PublishedAt:         packageRegistryParsedPublishedAt(version.PublishedAt),
+		IsYanked:            packageRegistryDerefBool(version.IsYanked),
+		IsUnlisted:          packageRegistryDerefBool(version.IsUnlisted),
+		IsDeprecated:        packageRegistryDerefBool(version.IsDeprecated),
+		IsRetracted:         packageRegistryDerefBool(version.IsRetracted),
+		ArtifactURLs:        packageRegistrySortedStrings(version.ArtifactURLs),
+		Checksums:           packageRegistryTrimmedStringMap(version.Checksums),
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       envelope.StableFactKey,
 		SourceSystem:        packageRegistrySourceSystem(envelope),
 		SourceRecordID:      envelope.SourceRef.SourceRecordID,
 		SourceConfidence:    envelope.SourceConfidence,
 		CollectorKind:       envelope.CollectorKind,
-		CorrelationAnchors:  packageRegistryCorrelationAnchors(envelope.Payload),
-		CollectorInstanceID: collectorInstanceID,
+		CorrelationAnchors:  packageRegistrySortedStrings(version.CorrelationAnchors),
+		CollectorInstanceID: packageRegistryDerefString(version.CollectorInstanceID),
 		ObservedAt:          envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDependencyRow, bool) {
+// packageRegistryDependencyRow decodes one
+// package_registry.package_dependency envelope through the typed factschema
+// seam and builds its canonical edge row. A missing required package_id,
+// version_id, or dependency_package_id dead-letters via the returned error; a
+// present-but-empty value for any of them is a valid decode the row builder's
+// own identity gate still drops. A blank StableFactKey drops the row exactly
+// as pre-typing (the edge's own uid), independent of the payload decode.
+func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDependencyRow, bool, error) {
 	if envelope.IsTombstone {
-		return PackageRegistryDependencyRow{}, false
+		return PackageRegistryDependencyRow{}, false, nil
 	}
-	packageID, _ := payloadString(envelope.Payload, "package_id")
-	versionID, _ := payloadString(envelope.Payload, "version_id")
-	dependencyPackageID, _ := payloadString(envelope.Payload, "dependency_package_id")
+	dependency, err := decodePackageRegistryPackageDependency(envelope)
+	if err != nil {
+		return PackageRegistryDependencyRow{}, false, err
+	}
+	packageID := strings.TrimSpace(dependency.PackageID)
+	versionID := strings.TrimSpace(dependency.VersionID)
+	dependencyPackageID := strings.TrimSpace(dependency.DependencyPackageID)
 	if packageID == "" || versionID == "" || dependencyPackageID == "" {
-		return PackageRegistryDependencyRow{}, false
+		// Present-but-empty (or whitespace-only) identity is a valid decode,
+		// distinct from an absent required key. See packageRegistryPackageRow.
+		return PackageRegistryDependencyRow{}, false, nil
 	}
 	stableFactKey := strings.TrimSpace(envelope.StableFactKey)
 	if stableFactKey == "" {
-		return PackageRegistryDependencyRow{}, false
+		return PackageRegistryDependencyRow{}, false, nil
 	}
-	version, _ := payloadString(envelope.Payload, "version")
-	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
 	return PackageRegistryDependencyRow{
 		UID:                  stableFactKey,
 		PackageID:            packageID,
 		VersionID:            versionID,
-		Version:              version,
+		Version:              packageRegistryDerefString(dependency.Version),
 		DependencyPackageID:  dependencyPackageID,
-		DependencyEcosystem:  packageRegistryPayloadString(envelope.Payload, "dependency_ecosystem"),
-		DependencyRegistry:   packageRegistryPayloadString(envelope.Payload, "dependency_registry"),
-		DependencyNamespace:  packageRegistryPayloadString(envelope.Payload, "dependency_namespace"),
-		DependencyNormalized: packageRegistryPayloadString(envelope.Payload, "dependency_normalized"),
-		DependencyPURL:       packageRegistryPayloadString(envelope.Payload, "dependency_purl"),
-		DependencyBOMRef:     packageRegistryPayloadString(envelope.Payload, "dependency_bom_ref"),
-		DependencyManager:    packageRegistryPayloadString(envelope.Payload, "dependency_manager"),
-		DependencyRange:      packageRegistryPayloadString(envelope.Payload, "dependency_range"),
-		DependencyType:       packageRegistryPayloadString(envelope.Payload, "dependency_type"),
-		TargetFramework:      packageRegistryPayloadString(envelope.Payload, "target_framework"),
-		Marker:               packageRegistryPayloadString(envelope.Payload, "marker"),
-		Optional:             packageRegistryPayloadBool(envelope.Payload, "optional"),
-		Excluded:             packageRegistryPayloadBool(envelope.Payload, "excluded"),
+		DependencyEcosystem:  packageRegistryDerefString(dependency.DependencyEcosystem),
+		DependencyRegistry:   packageRegistryDerefString(dependency.DependencyRegistry),
+		DependencyNamespace:  packageRegistryDerefString(dependency.DependencyNamespace),
+		DependencyNormalized: packageRegistryDerefString(dependency.DependencyNormalized),
+		DependencyPURL:       packageRegistryDerefString(dependency.DependencyPURL),
+		DependencyBOMRef:     packageRegistryDerefString(dependency.DependencyBOMRef),
+		DependencyManager:    packageRegistryDerefString(dependency.DependencyManager),
+		DependencyRange:      packageRegistryDerefString(dependency.DependencyRange),
+		DependencyType:       packageRegistryDerefString(dependency.DependencyType),
+		TargetFramework:      packageRegistryDerefString(dependency.TargetFramework),
+		Marker:               packageRegistryDerefString(dependency.Marker),
+		Optional:             packageRegistryDerefBool(dependency.Optional),
+		Excluded:             packageRegistryDerefBool(dependency.Excluded),
 		SourceFactID:         envelope.FactID,
 		StableFactKey:        stableFactKey,
 		SourceSystem:         packageRegistrySourceSystem(envelope),
 		SourceRecordID:       envelope.SourceRef.SourceRecordID,
 		SourceConfidence:     envelope.SourceConfidence,
 		CollectorKind:        envelope.CollectorKind,
-		CorrelationAnchors:   packageRegistryCorrelationAnchors(envelope.Payload),
-		CollectorInstanceID:  collectorInstanceID,
+		CorrelationAnchors:   packageRegistrySortedStrings(dependency.CorrelationAnchors),
+		CollectorInstanceID:  packageRegistryDerefString(dependency.CollectorInstanceID),
 		ObservedAt:           envelope.ObservedAt,
-	}, true
+	}, true, nil
 }
 
-func packageRegistryPayloadString(payload map[string]any, key string) string {
-	value, _ := payloadString(payload, key)
-	return value
-}
-
-func packageRegistryPayloadBool(payload map[string]any, key string) bool {
-	value := false
-	if ptr := payloadBoolPtr(payload, key); ptr != nil {
-		value = *ptr
-	}
-	return value
-}
-
-func packageRegistryPublishedAtFromPayload(payload map[string]any) time.Time {
-	text, ok := payloadString(payload, "published_at")
-	if !ok {
+// packageRegistryParsedPublishedAt parses an RFC 3339 published_at string into
+// a UTC time.Time, matching the pre-typing
+// packageRegistryPublishedAtFromPayload behavior byte-for-byte: an absent or
+// unparseable value yields the zero time.Time rather than an error, because
+// PublishedAt is descriptive metadata, not an identity field.
+func packageRegistryParsedPublishedAt(raw *string) time.Time {
+	if raw == nil {
 		return time.Time{}
 	}
-	parsed, err := time.Parse(time.RFC3339, text)
+	parsed, err := time.Parse(time.RFC3339, *raw)
 	if err != nil {
 		return time.Time{}
 	}
 	return parsed.UTC()
 }
 
-func packageRegistryStringSlice(payload map[string]any, key string) []string {
-	values := payloadStringSlice(payload, key)
+// packageRegistrySortedStrings returns a sorted copy of values, or nil when
+// values is empty, matching the pre-typing packageRegistryStringSlice/
+// packageRegistryCorrelationAnchors behavior for a []string payload field.
+func packageRegistrySortedStrings(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
-	sort.Strings(values)
-	return values
+	sorted := make([]string, len(values))
+	copy(sorted, values)
+	sort.Strings(sorted)
+	return sorted
 }
 
-func packageRegistryStringMap(payload map[string]any, key string) map[string]string {
-	raw, ok := payload[key]
-	if !ok || raw == nil {
+// packageRegistryTrimmedStringMap returns a copy of checksums with each key and
+// value trimmed, dropping any entry whose key is blank after trimming, or nil
+// when the result is empty. This matches the pre-typing
+// packageRegistryStringMap behavior for the checksums payload field.
+func packageRegistryTrimmedStringMap(checksums map[string]string) map[string]string {
+	if len(checksums) == 0 {
 		return nil
 	}
-	out := make(map[string]string)
-	switch typed := raw.(type) {
-	case map[string]string:
-		for key, value := range typed {
-			if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
-				out[trimmedKey] = strings.TrimSpace(value)
-			}
-		}
-	case map[string]any:
-		for key, value := range typed {
-			text, ok := value.(string)
-			if !ok {
-				continue
-			}
-			if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
-				out[trimmedKey] = strings.TrimSpace(text)
-			}
+	out := make(map[string]string, len(checksums))
+	for key, value := range checksums {
+		if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
+			out[trimmedKey] = strings.TrimSpace(value)
 		}
 	}
 	if len(out) == 0 {
@@ -325,15 +379,8 @@ func packageRegistryStringMap(payload map[string]any, key string) map[string]str
 	return out
 }
 
-func packageRegistryCorrelationAnchors(payload map[string]any) []string {
-	anchors := payloadStringSlice(payload, "correlation_anchors")
-	if len(anchors) == 0 {
-		return nil
-	}
-	sort.Strings(anchors)
-	return anchors
-}
-
+// packageRegistrySourceSystem returns the envelope's source system, falling
+// back to its collector kind, matching the pre-typing behavior.
 func packageRegistrySourceSystem(envelope facts.Envelope) string {
 	if sourceSystem := strings.TrimSpace(envelope.SourceRef.SourceSystem); sourceSystem != "" {
 		return sourceSystem
