@@ -74,8 +74,8 @@ func TestPlanRepoWideRetractWorkReIngestStillRetracts(t *testing.T) {
 }
 
 // TestPlanRepoWideRetractWorkSkipsFirstProjectionRetract proves the #3624 fix:
-// a refresh row whose scope has NO prior activated generation is a guaranteed
-// no-op retract, so it is skipped from retractRows while still completing (the
+// a refresh row whose scope has no generation other than the current one is a
+// guaranteed no-op retract, so it is skipped from retractRows while still completing (the
 // fence still opens and per-edge writes still proceed).
 func TestPlanRepoWideRetractWorkSkipsFirstProjectionRetract(t *testing.T) {
 	t.Parallel()

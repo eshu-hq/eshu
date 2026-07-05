@@ -311,10 +311,10 @@ func buildReducerService(
 			// repo-wide-retract fence (#2898/#2910): the intent store records the
 			// per-repo refresh completion the worker holds per-edge writes behind.
 			RefreshFenceLookup: intentStore,
-			// first-projection retract skip (#3624): a scope with no prior
-			// activated generation has zero prior edges, so its whole-scope
-			// retract (a NornicDB full-store scan) is a guaranteed no-op and is
-			// skipped. Nil would leave the retract running, byte-identical.
+			// first-projection retract skip (#3624): a scope whose only
+			// generation is the current one has zero prior edges, so its
+			// whole-scope retract (a NornicDB full-store scan) is a guaranteed
+			// no-op and is skipped. Nil leaves the retract running, byte-identical.
 			FirstProjectionLookup: intentStore,
 			Config:                sharedCfg,
 			Tracer:                tracer,

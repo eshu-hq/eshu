@@ -46,7 +46,7 @@ it never skips when a prior generation exists.) The refresh row still lands in
 `completedRows` so the durable refresh fence opens and per-edge writes proceed
 unchanged; only the retract call is skipped. A nil `FirstProjectionLookup`, an
 empty scope id, or any probe
-result of "prior activated generation exists" leaves the retract running
+result of "a prior generation exists" leaves the retract running
 byte-identically (so every re-ingest still retracts).
 
 ## Performance Evidence:

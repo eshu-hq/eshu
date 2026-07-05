@@ -59,7 +59,14 @@ func (s *SharedIntentStore) ScopeHasPriorGeneration(
 	defer func() { _ = sqlRows.Close() }()
 
 	if !sqlRows.Next() {
-		return false, nil
+		// SELECT EXISTS always returns exactly one row; no row means an
+		// iteration/query error. Returning false here would mislabel the scope a
+		// first projection and skip a needed retract, so surface the error and
+		// leave the retract running.
+		if err := sqlRows.Err(); err != nil {
+			return false, fmt.Errorf("iterate prior generation for scope %s: %w", scopeID, err)
+		}
+		return false, fmt.Errorf("prior generation probe for scope %s returned no row", scopeID)
 	}
 	var exists bool
 	if err := sqlRows.Scan(&exists); err != nil {
