@@ -1572,6 +1572,160 @@ seventeen new `factKindSchemaFile` entries and a new `ObservabilityStructDir`
 in `Load` (`observability.source_instance` is intentionally absent — the
 classifier skips that kind, so it has no reducer decode seam, mirroring how the
 sbom family leaves its unconsumed kinds unmapped); this only widens which decode
+No-Regression Evidence (Wave 4e, documentation family typed-payload decode,
+Contract System v1 #4566/#4582): the documentation edge materialization
+handler (`documentation_edge_materialization.go`,
+`documentation_edge_delta_scope.go`) now decodes `documentation_document` and
+`documentation_entity_mention` fact payloads through the `sdk/go/factschema`
+seam (`decodeDocumentationDocument`/`decodeDocumentationEntityMention` in
+`factschema_decode_documentation.go`) instead of raw
+`semanticPayloadString`/`payloadStr`/`mapSlice`/`sourceMetadataString` map
+lookups, mirroring the AWS/GCP/Azure/kubernetes_live/sbom_attestation
+migrations. Only these two of the family's eight kinds are typed AND wired
+this wave; `documentation_source`, `documentation_section`,
+`documentation_link`, and `documentation_claim_candidate` have no reducer or
+storage-loader field-level read at all (the query read model and
+`go/internal/storage/postgres` filter on them only by `fact_kind` column or
+JSONB containment, never a decoded field), and `documentation_finding`/
+`documentation_evidence_packet` are emitted by `go/internal/doctruth` (a
+different owning package) and read only by the query layer's raw
+`fact_records.payload->>'field'` SQL — out of scope for this migration,
+matching the incident family's SQL-projected-fields precedent
+(`TestDocumentationFindingSQLProjectedFieldsAreSchemaDeclared`,
+`go/internal/query`, locks that those SQL-read fields stay schema-declared
+even though the query layer itself is not converted).
+`documentation_section` carries its OWN schema version
+(`facts.DocumentationSectionFactSchemaVersion`, `"1.1.0"`), preserved via the
+existing `schema_version_overrides: {documentation_section: "1.1.0"}` entry
+in `specs/fact-kind-registry.v1.yaml`; the decode seam still dispatches on
+the schema-version major only (`"1"`), mirroring `gcp_cloud_resource`'s
+identical one-minor-ahead precedent — no reducer or decode-dispatch change
+was needed for this. `ExtractDocumentationEdgeRows`/`buildDocumentationDeltaScope`
+keep their pre-typing error-free signatures (existing table tests exercise
+them directly) and delegate to new quarantine-aware
+`ExtractDocumentationEdgeRowsWithQuarantine`/`buildDocumentationDeltaScopeWithQuarantine`
+functions that `Handle` calls directly, mirroring the kubernetes_live wave's
+`buildKubernetesCorrelationDecisionsWithQuarantine` pattern. A
+`documentation_entity_mention` fact missing its required `document_id`,
+`section_id`, or `resolution_status` field, or a `documentation_document`
+fact missing its required `document_id` field, is quarantined per-fact via
+`partitionDecodeFailures` rather than the pre-typing behavior of silently
+skipping the fact (both helpers returned `""` for an absent key
+indistinguishably from a present-but-empty one, and neither produced any
+operator signal).
+`TestExtractDocumentationEdgeRowsQuarantinesMissingDocumentID` and
+`TestBuildDocumentationDeltaScopeWithQuarantineQuarantinesMissingDocumentID`
+(new, mirroring `TestKubernetesWorkloadMaterializationQuarantinesMissingObjectID`)
+failed before the conversion (a missing `document_id` silently dropped with
+no operator signal, or degraded to an empty-string join key), then passed
+after: the malformed fact is recorded on `input_invalid_facts` and a valid
+sibling fact in the same batch still produces its DOCUMENTS edge or
+contributes to the delta scope.
+`TestDocumentationMaterializationHandlerRecordsQuarantinedMentionInputInvalid`
+proves the full `Handle` path surfaces the quarantine through
+`Result.SubSignals["input_invalid_facts"]`.
+
+Measured with `go test ./internal/reducer -run '^$' -bench
+'BenchmarkExtractDocumentationEdgeRowsWithQuarantine|BenchmarkBuildDocumentationDeltaScopeWithQuarantine'
+-benchmem -count=5` (darwin/arm64, Apple M1 Max; backend: in-memory
+extractor; input: 5,000 synthetic `documentation_entity_mention` facts each
+carrying one candidate ref, and one repository-delta fact plus 5,000 matching
+`documentation_document` facts) against the equivalent pre-typing benchmark
+added identically on commit 8749b7c1d
+(`BenchmarkExtractDocumentationEdgeRows`/`BenchmarkBuildDocumentationDeltaScope`).
+BEFORE (raw map, commit 8749b7c1d) -> AFTER (typed decode):
+`ExtractDocumentationEdgeRows` 3.28-4.31ms/3.71MB/75,064 allocs (median
+~3.66ms) -> `ExtractDocumentationEdgeRowsWithQuarantine` 5.21-7.98ms/4.83MB/
+95,062 allocs (median ~5.34ms), roughly +46% time, +30% allocs;
+`buildDocumentationDeltaScope` 3.15-3.51ms/2.98MB/5,261 allocs (median
+~3.21ms) -> `buildDocumentationDeltaScopeWithQuarantine` 5.77-6.07ms/5.54MB/
+20,261 allocs (median ~5.84ms), roughly +82% time, +285% allocs. Both deltas
+exceed the diagnostic-rigor ~10% band by percentage, so this was investigated
+as a candidate `decode_map.go` fast-path gap the way kubernetes_live's
+`map[string]string` and vulnerability's `float64` gaps were: a CPU profile
+(`-cpuprofile`) of `BenchmarkExtractDocumentationEdgeRowsWithQuarantine` shows
+NO `jsonRoundTripValue` frame in the top 20 nodes — every field shape this
+family's structs use (`*string`, `*bool`, `*ACLSummary` as a pointer-to-struct,
+`[]EvidenceRef`/`[]OwnerRef` as a slice-of-struct, `map[string]string`) already
+has a `decode_map.go` fast path from a prior wave. The cost is `decodeMapInto`
+iterating its full per-type field plan (9 fields for `EntityMention`, versus
+the 4-5 keys the pre-typing code read via direct map indexing) plus one nested
+`assignStructSlice`/`decodeMapInto` recursion per candidate ref — genuine,
+proportional reflection and allocation cost for a richer struct shape, not an
+unhandled gap; profiling shows GC/allocation overhead (`runtime.mallocgc`,
+`runtime.mapassign_faststr`) as the dominant cost alongside `decodeMapInto`
+itself, not a marshal/unmarshal round trip. `DomainDocumentationMaterialization`
+is a per-scope-generation materialization domain (registered like
+`DomainInheritanceMaterialization` in `registry.go`), not a shared-projection
+hot-per-edge-loop domain, so this is a COLD path — the same "measured for a
+no-regression bound rather than a tight microbench" classification the
+incident family's Wave 4a evidence used for its own once-per-scope-generation
+cost (2.42-2.57ms for 500 incidents x 4 fact kinds = 2,000 fact envelopes on
+that wave's benchmark corpus, ~= 1.2 microseconds/fact). This wave's
+benchmark corpus is 5,000 facts per function (matching the kubernetes_live/
+sbom scale), so the fact-normalized cost is directly comparable:
+`ExtractDocumentationEdgeRowsWithQuarantine` costs ~5.34ms / 5,000 facts ~=
+1.07 microseconds/fact, and `buildDocumentationDeltaScopeWithQuarantine`
+costs ~5.84ms / 5,000 facts ~= 1.17 microseconds/fact — both landing within
+the same ~1.1-1.2 microseconds/fact band the incident precedent's own
+2.42ms/2,000-fact corpus already accepted as a cold-path cost, confirming
+the percentage delta (+46%/+82%) is a magnitude artifact of this family's
+faster absolute baseline (this benchmark's raw-map baseline ran in
+3.2-3.7ms, versus incident's un-migrated baseline being a slower starting
+point), not a growing or unbounded per-fact cost.
+
+WASTED-DECODE CHECK (coordinator-directed, before accepting the cold-path
+bound): both functions were audited to confirm the typed decode call sits
+behind the cheapest available pre-filter, not merely after some filter.
+`ExtractDocumentationEdgeRowsWithQuarantine` checks `env.FactKind !=
+facts.DocumentationEntityMentionFactKind || env.IsTombstone` (a struct-field
+read, no decode) BEFORE calling `decodeDocumentationEntityMention`; there is
+no cheaper pre-filter available before checking `ResolutionStatus ==
+"exact"` because `ResolutionStatus` is itself a required struct field that
+does not exist until the payload decodes (the pre-typing code paid the
+identical cost via `payloadStr(env.Payload, "resolution_status")`, a raw map
+lookup of the same key, not a skip). `buildDocumentationDeltaScopeWithQuarantine`
+checks `scope.hasDelta` BEFORE entering the `documentation_document` loop at
+all (no repository delta means zero document facts are decoded), and within
+the loop checks `env.FactKind != facts.DocumentationDocumentFactKind ||
+env.IsTombstone` before calling `decodeDocumentationDocument`; there is no
+cheaper pre-filter for `document_id`/`source_metadata.path` because both are
+struct fields the pre-typing code also had to read via
+`semanticPayloadString`/`sourceMetadataString` for every document fact in
+the batch, an identical per-fact read count to the typed path. Neither
+function decodes a fact whose result is then discarded by a filter that
+could have run first; the ordering is already optimal, so the regression is
+irreducible reflection/allocation cost for this family's field count and
+nested-slice shape, not a wasted-work bug.
+
+The residual cost buys the accuracy guarantee (a fact missing a required
+identity field dead-letters `input_invalid` instead of silently producing an
+empty-identity edge or being dropped from delta scope with no operator
+signal). Result class: Correctness win with a bounded, measured, root-caused
+cold-path cost (no `decode_map.go` gap found, no wasted-decode ordering bug
+found; the higher-than-prior-waves percentage reflects this family's richer
+per-kind field count and nested-slice shape against a fast absolute
+baseline, not a missed fast path or an avoidable extra decode).
+
+No-Observability-Change (Wave 4e, documentation family): the typed-decode
+migration adds no route, graph query shape, queue table, worker, lease,
+runtime knob, metric instrument, or metric label. A malformed
+`documentation_document`/`documentation_entity_mention` fact surfaces through
+the EXISTING dead-letter path — `partitionDecodeFailures` ->
+`recordQuarantinedFacts` -> `eshu_dp_reducer_input_invalid_facts_total`
+(labeled `domain` = `documentation_materialization`, an existing label value,
+`fact_kind` gaining the two documentation kinds) plus the existing structured
+"reducer input_invalid fact quarantined" error log and
+`Result.SubSignals["input_invalid_facts"]` — the same instruments and log key
+every prior family wired. `DocumentationEdgeMaterializationHandler` gained an
+`Instruments *telemetry.Instruments` field (wired from
+`DefaultHandlers.Instruments` in `defaults_domain_catalog.go`, mirroring
+every other migrated handler's field), a new but purely additive wiring
+change. The `payload-usage-manifest` gate (`go/internal/payloadusage`)
+required an additive-only extension: two new `factKindSchemaFile` entries
+(`FactKindDocumentationDocument`, `FactKindDocumentationEntityMention`) and a
+new `DocumentationStructDir` (`sdk/go/factschema/documentation/v1`) parsed
+alongside the existing struct dirs in `Load`; this only widens which decode
 seams the gate covers and adds no new gate mechanism.
 
 ## Anti-patterns

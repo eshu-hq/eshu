@@ -182,6 +182,16 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindObservabilityObservedLogSignal":    "observability.observed_log_signal.v1.schema.json",
 	"FactKindObservabilityObservedTraceSignal":  "observability.observed_trace_signal.v1.schema.json",
 	"FactKindObservabilityCoverageWarning":      "observability.coverage_warning.v1.schema.json",
+	// documentation family (Wave 4e): only the two kinds a reducer decode seam
+	// wrapper actually decodes (factschema_decode_documentation.go) are mapped,
+	// so the gate covers exactly what the reducer reads through the typed
+	// seam. The other six documentation kinds (source, section, link,
+	// claim_candidate, finding, evidence_packet) have no reducer or projector
+	// decode call — finding/evidence_packet are read only by the query
+	// layer's raw SQL, out of scope for this gate — so they are intentionally
+	// absent here (documentation/v1/README.md).
+	"FactKindDocumentationDocument":      "documentation_document.v1.schema.json",
+	"FactKindDocumentationEntityMention": "documentation_entity_mention.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

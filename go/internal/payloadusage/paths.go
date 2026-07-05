@@ -69,6 +69,8 @@ type Paths struct {
 	// ObservabilityStructDir is sdk/go/factschema/observability/v1 (Contract
 	// System v1 Wave 4e).
 	ObservabilityStructDir string
+	// DocumentationStructDir is sdk/go/factschema/documentation/v1.
+	DocumentationStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -144,6 +146,7 @@ func ResolvePaths(p Paths) Paths {
 		{&resolved.WorkItemStructDir, "workitem"},
 		{&resolved.SecurityAlertStructDir, "securityalert"},
 		{&resolved.ObservabilityStructDir, "observability"},
+		{&resolved.DocumentationStructDir, "documentation"},
 	} {
 		if strings.TrimSpace(*family.dir) == "" {
 			*family.dir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", family.name, "v1")

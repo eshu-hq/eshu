@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 )
 
 type documentationDeltaScope struct {
@@ -37,8 +38,39 @@ func loadDocumentationMaterializationFacts(
 	)
 }
 
+// buildDocumentationDeltaScope keeps its pre-typing signature (no quarantine
+// slice, no error) because it is the entry point
+// documentation_edge_materialization_test.go exercises directly; it
+// delegates to buildDocumentationDeltaScopeWithQuarantine and discards the
+// quarantine/error results, mirroring ExtractDocumentationEdgeRows's
+// identical delegation pattern. The reducer intent path (Handle) calls the
+// quarantine-aware function directly so it can report quarantines. A fatal
+// (non-input_invalid) decode error is silently dropped here — Handle never
+// reaches this path because it calls the WithQuarantine function itself, so
+// this wrapper exists solely for the pre-existing direct-call test.
 func buildDocumentationDeltaScope(envelopes []facts.Envelope, scopeID string) documentationDeltaScope {
+	scope, _, _ := buildDocumentationDeltaScopeWithQuarantine(envelopes, scopeID)
+	return scope
+}
+
+// buildDocumentationDeltaScopeWithQuarantine is the typed-decode counterpart
+// of buildDocumentationDeltaScope (Contract System v1 Wave 4e): it decodes
+// each documentation_document envelope through the sdk/go/factschema seam
+// (decodeDocumentationDocument) instead of raw semanticPayloadString map
+// lookups. A document fact missing its required document_id field is
+// quarantined per-fact via partitionDecodeFailures rather than the
+// pre-typing behavior of silently excluding it from delta tracking via the
+// `if documentID == "" { continue }` check (a missing key and a
+// present-but-empty key were indistinguishable, and neither produced any
+// operator signal). A non-input_invalid decode error (an unsupported schema
+// major) is returned as a fatal error, failing the whole intent for durable
+// triage rather than being silently skipped.
+func buildDocumentationDeltaScopeWithQuarantine(
+	envelopes []facts.Envelope,
+	scopeID string,
+) (documentationDeltaScope, []quarantinedFact, error) {
 	scope := documentationDeltaScope{}
+	var quarantined []quarantinedFact
 	changedPathsByRepoID := make(map[string]map[string]struct{})
 	deletedPathsByRepoID := make(map[string]map[string]struct{})
 	changedCandidateDocumentIDs := make(map[string]struct{})
@@ -87,22 +119,33 @@ func buildDocumentationDeltaScope(envelopes []facts.Envelope, scopeID string) do
 		}
 	}
 	if !scope.hasDelta {
-		return documentationDeltaScope{}
+		return documentationDeltaScope{}, nil, nil
 	}
 
 	for _, env := range envelopes {
 		if env.FactKind != facts.DocumentationDocumentFactKind || env.IsTombstone {
 			continue
 		}
-		documentID := semanticPayloadString(env.Payload, "document_id")
+		document, err := decodeDocumentationDocument(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return documentationDeltaScope{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		documentID := document.DocumentID
 		if documentID == "" {
 			continue
 		}
-		relativePath := sourceMetadataString(env.Payload, "path")
+		relativePath := documentSourceMetadataString(document, "path")
 		if relativePath == "" {
 			continue
 		}
-		repositoryID := sourceMetadataString(env.Payload, "repo_id")
+		repositoryID := documentSourceMetadataString(document, "repo_id")
 		if repositoryID != "" {
 			if documentationDeltaPathMatches(changedPathsByRepoID[repositoryID], relativePath) &&
 				strings.HasPrefix(documentID, documentationGitDocumentIDPrefix(repositoryID)) {
@@ -139,7 +182,20 @@ func buildDocumentationDeltaScope(envelopes []facts.Envelope, scopeID string) do
 
 	sort.Strings(scope.documentIDs)
 	sort.Strings(scope.sectionUIDs)
-	return scope
+	return scope, quarantined, nil
+}
+
+// documentSourceMetadataString reads a key out of a decoded
+// documentationv1.Document's optional SourceMetadata map, returning "" for a
+// nil map or an absent key. It mirrors the pre-typing sourceMetadataString
+// helper's behavior over the raw payload map, now reading the typed
+// map[string]string field instead of a map[string]any/map[string]string
+// type-switch.
+func documentSourceMetadataString(document documentationv1.Document, key string) string {
+	if document.SourceMetadata == nil {
+		return ""
+	}
+	return strings.TrimSpace(document.SourceMetadata[key])
 }
 
 func documentationDeltaRelativePaths(payload map[string]any, key string) []string {
@@ -192,21 +248,6 @@ func documentationGitDocumentID(repositoryID string, relativePath string) string
 
 func documentationGitDocumentIDPrefix(repositoryID string) string {
 	return "doc:git:" + repositoryID + ":"
-}
-
-func sourceMetadataString(payload map[string]any, key string) string {
-	if payload == nil {
-		return ""
-	}
-	metadata, ok := payload["source_metadata"].(map[string]any)
-	if ok {
-		return strings.TrimSpace(anyToString(metadata[key]))
-	}
-	typed, ok := payload["source_metadata"].(map[string]string)
-	if ok {
-		return strings.TrimSpace(typed[key])
-	}
-	return ""
 }
 
 func buildDocumentationRetractRows(

@@ -1,0 +1,9 @@
+{
+  "source_id": "fp:doc-source:confluence-eng-space",
+  "source_system": "confluence",
+  "external_id": "ENG",
+  "display_name": "Engineering Space",
+  "base_uri": "https://example.atlassian.net/wiki/spaces/ENG",
+  "source_type": "wiki",
+  "labels": ["platform"]
+}

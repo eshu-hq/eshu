@@ -1,0 +1,12 @@
+{
+  "document_id": "doc:git:repo-123:docs/runbook.md",
+  "revision_id": "rev-1",
+  "section_id": "sect-1",
+  "mention_id": "mention-1",
+  "mention_text": "payments-api",
+  "mention_kind": "service",
+  "resolution_status": "exact",
+  "candidate_refs": [
+    {"kind": "service", "id": "svc-payments-api"}
+  ]
+}

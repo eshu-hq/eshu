@@ -413,4 +413,50 @@ const (
 	// FactKindObservabilitySourceInstance is the
 	// "observability.source_instance" fact kind.
 	FactKindObservabilitySourceInstance = "observability.source_instance"
+	// The documentation family fact-kind strings are UNDERSCORE-separated,
+	// like the aws/gcp/azure/secrets_iam kinds (not dotted, unlike incident/
+	// kubernetes_live/oci_registry/sbom_attestation/vulnerability/ci_cd_run/
+	// work_item). The values here MATCH the wire strings the documentation
+	// collector emits (go/internal/facts.DocumentationSourceFactKind and
+	// siblings) byte-for-byte; the reducer-side drift lock
+	// TestFactSchemaKindsMatchWireFactKinds asserts each stays byte-equal to
+	// its facts.*FactKind counterpart. Only documentation_document and
+	// documentation_entity_mention have a reducer decode site today
+	// (Contract System v1 Wave 4e, #4566/#4582); the remaining six are
+	// typed-but-deferred — see documentation/v1/README.md.
+
+	// FactKindDocumentationSource is the "documentation_source" fact kind.
+	// Typed but not yet consumed (documentation/v1/README.md).
+	FactKindDocumentationSource = "documentation_source"
+	// FactKindDocumentationDocument is the "documentation_document" fact
+	// kind.
+	FactKindDocumentationDocument = "documentation_document"
+	// FactKindDocumentationSection is the "documentation_section" fact kind.
+	// Typed but not yet consumed. Carries its OWN schema version
+	// (DocumentationSectionSchemaVersion, "1.1.0"), distinct from every other
+	// kind in this family ("1.0.0").
+	FactKindDocumentationSection = "documentation_section"
+	// FactKindDocumentationLink is the "documentation_link" fact kind. Typed
+	// but not yet consumed.
+	FactKindDocumentationLink = "documentation_link"
+	// FactKindDocumentationEntityMention is the
+	// "documentation_entity_mention" fact kind.
+	FactKindDocumentationEntityMention = "documentation_entity_mention"
+	// FactKindDocumentationClaimCandidate is the
+	// "documentation_claim_candidate" fact kind. Typed but not yet consumed.
+	FactKindDocumentationClaimCandidate = "documentation_claim_candidate"
+	// FactKindDocumentationFinding is the "documentation_finding" fact kind.
+	// Typed but not yet consumed: emitted by go/internal/doctruth, read only
+	// by the query layer's raw SQL (documentation/v1/README.md).
+	FactKindDocumentationFinding = "documentation_finding"
+	// FactKindDocumentationEvidencePacket is the
+	// "documentation_evidence_packet" fact kind. Typed but not yet consumed:
+	// emitted by go/internal/doctruth, read only by the query layer's raw
+	// SQL (documentation/v1/README.md).
+	FactKindDocumentationEvidencePacket = "documentation_evidence_packet"
+
+	// DocumentationSectionSchemaVersion is the schema-major version
+	// documentation_section carries, distinct from the shared 1.0.0 the rest
+	// of the family uses (go/internal/facts.DocumentationSectionFactSchemaVersion).
+	DocumentationSectionSchemaVersion = "1.1.0"
 )
