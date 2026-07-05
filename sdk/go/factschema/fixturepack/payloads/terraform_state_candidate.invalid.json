@@ -1,0 +1,6 @@
+{
+  "candidate_source": "git",
+  "backend_kind": "local",
+  "repo_id": "repo:example",
+  "relative_path": "terraform/terraform.tfstate"
+}

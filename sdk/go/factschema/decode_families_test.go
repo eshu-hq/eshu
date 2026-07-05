@@ -213,6 +213,30 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindOCIRegistryWarning:
 		_, err := DecodeOCIRegistryWarning(env)
 		return err
+	case FactKindTerraformStateSnapshot:
+		_, err := DecodeTerraformStateSnapshot(env)
+		return err
+	case FactKindTerraformStateResource:
+		_, err := DecodeTerraformStateResource(env)
+		return err
+	case FactKindTerraformStateModule:
+		_, err := DecodeTerraformStateModule(env)
+		return err
+	case FactKindTerraformStateOutput:
+		_, err := DecodeTerraformStateOutput(env)
+		return err
+	case FactKindTerraformStateTagObservation:
+		_, err := DecodeTerraformStateTagObservation(env)
+		return err
+	case FactKindTerraformStateCandidate:
+		_, err := DecodeTerraformStateCandidate(env)
+		return err
+	case FactKindTerraformStateProviderBinding:
+		_, err := DecodeTerraformStateProviderBinding(env)
+		return err
+	case FactKindTerraformStateWarning:
+		_, err := DecodeTerraformStateWarning(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -258,6 +282,14 @@ var allDecodedKinds = []string{
 	FactKindOCIImageTagObservation,
 	FactKindOCIImageReferrer,
 	FactKindOCIRegistryWarning,
+	FactKindTerraformStateSnapshot,
+	FactKindTerraformStateResource,
+	FactKindTerraformStateModule,
+	FactKindTerraformStateOutput,
+	FactKindTerraformStateTagObservation,
+	FactKindTerraformStateCandidate,
+	FactKindTerraformStateProviderBinding,
+	FactKindTerraformStateWarning,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -430,6 +462,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeOCIImageReferrer(env)
 			case FactKindOCIRegistryWarning:
 				_, err = DecodeOCIRegistryWarning(env)
+			case FactKindTerraformStateSnapshot:
+				_, err = DecodeTerraformStateSnapshot(env)
+			case FactKindTerraformStateResource:
+				_, err = DecodeTerraformStateResource(env)
+			case FactKindTerraformStateModule:
+				_, err = DecodeTerraformStateModule(env)
+			case FactKindTerraformStateOutput:
+				_, err = DecodeTerraformStateOutput(env)
+			case FactKindTerraformStateTagObservation:
+				_, err = DecodeTerraformStateTagObservation(env)
+			case FactKindTerraformStateCandidate:
+				_, err = DecodeTerraformStateCandidate(env)
+			case FactKindTerraformStateProviderBinding:
+				_, err = DecodeTerraformStateProviderBinding(env)
+			case FactKindTerraformStateWarning:
+				_, err = DecodeTerraformStateWarning(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

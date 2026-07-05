@@ -1,0 +1,49 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/terraformstate/v1/provider_binding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "provider_address": {
+      "type": "string"
+    },
+    "provider_alias": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_hostname": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_source_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_address": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "resource_address",
+    "provider_address"
+  ],
+  "title": "Eshu terraform_state_provider_binding Payload (schema version 1)",
+  "type": "object"
+}

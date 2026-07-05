@@ -1,0 +1,6 @@
+{
+  "name": "vpc_id",
+  "sensitive": false,
+  "value_shape": "scalar",
+  "value": "vpc-01234567"
+}

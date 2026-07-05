@@ -226,6 +226,47 @@ speeds `awsv1.EC2InstancePosture`'s `[]BlockDevice`, with the existing
 existing-family regression). Result class: Correctness win with a bounded,
 measured cold-path cost.
 
+No-Regression Evidence: Wave 4b, terraform_state projector typed-payload decode.
+`extractTerraformStateRows` now decodes `terraform_state_snapshot`, `_resource`,
+`_module`, `_output`, and `_tag_observation` payloads through the
+`sdk/go/factschema` seam (`factschema_decode_terraformstate.go`) instead of raw
+`payloadString`/`payloadInt` map lookups, on the same cold,
+once-per-scope-generation projection path and reusing the family-neutral
+`partitionProjectorDecodeFailures` apparatus oci_registry introduced. A fact
+missing a required identity key (resource address, module address,
+tag-observation join key) is quarantined per-fact rather than producing a row
+under an empty-string identity; identity fields are trimmed before the empty
+check so a present-but-whitespace-only identity drops as non-materializable,
+matching the pre-typing `payloadString` behavior. `go test ./internal/projector
+-run 'TestExtractTerraformStateRowsQuarantinesMissingResourceAddress|TestExtractTerraformStateRowsWhitespaceAddressIsDroppedNotMaterialized|TestExtractTerraformStateRowsPresentButEmptyAddressIsDroppedNotQuarantined'
+-count=1` failed before the conversion (a missing or blank address silently
+produced no row with no operator signal) and passes after: the malformed fact is
+recorded on the quarantine slice while valid facts still materialize
+byte-identical rows. The B-7 golden-corpus gate is green (406 pass, 0
+required-fail) with no B-12 snapshot change beyond the collector cassette
+reconciliation, so valid facts produce byte-identical graph output and only
+malformed→dead-letter is new. The conversion adds no hot per-edge loop and no
+Cypher shape; the decoder is the same reflection field-plan walk with the
+marshal-free `decode_map.go` fast path oci_registry measured, so the
+per-generation cost stays in the same ~1.5 µs/fact cold-path band as
+oci_registry (extractor shape and decoder are identical to that measured path,
+so no separate benchmark run was warranted). Result class: Correctness win,
+cold-path cost identical to the measured oci_registry path.
+
+Observability Evidence: Wave 4b, terraform_state projector typed-payload decode.
+The terraform_state extractor routes a malformed required field through the same
+per-fact `eshu_dp_projector_input_invalid_facts_total` counter the oci_registry
+migration introduced, under a new `stage`=`terraform_state_canonical` label value
+(`quarantinedFactStage` in `factschema_quarantine.go`) alongside the existing
+`fact_kind` label, so an operator sees the terraform_state dead-letter rate
+distinctly from the oci one on the same "Projector input_invalid Facts (rate)"
+panel. The `factschema_decode_terraformstate.go` decode wrappers emit no metric
+of their own; they surface a decode failure through
+`recordProjectorQuarantinedFacts` (the counter plus the structured
+`projector input_invalid fact quarantined` error log carrying `fact_id` +
+`missing_field`). The migration adds no route, graph query shape, queue table,
+worker, lease, or runtime knob.
+
 Observability Evidence (Wave 4b, oci_registry projector typed-payload decode):
 the migration introduces the projector's FIRST per-fact input_invalid signal,
 `eshu_dp_projector_input_invalid_facts_total` (labeled `stage`=

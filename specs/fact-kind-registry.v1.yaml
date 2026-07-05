@@ -248,6 +248,15 @@ families:
     read_surface: "GET /api/v0/iac/resources"
     truth_profile: deterministic
     provider_key_independent: true
+    payload_schema_overrides:
+      terraform_state_snapshot: "sdk/go/factschema/schema/terraform_state_snapshot.v1.schema.json"
+      terraform_state_resource: "sdk/go/factschema/schema/terraform_state_resource.v1.schema.json"
+      terraform_state_module: "sdk/go/factschema/schema/terraform_state_module.v1.schema.json"
+      terraform_state_output: "sdk/go/factschema/schema/terraform_state_output.v1.schema.json"
+      terraform_state_tag_observation: "sdk/go/factschema/schema/terraform_state_tag_observation.v1.schema.json"
+      terraform_state_candidate: "sdk/go/factschema/schema/terraform_state_candidate.v1.schema.json"
+      terraform_state_provider_binding: "sdk/go/factschema/schema/terraform_state_provider_binding.v1.schema.json"
+      terraform_state_warning: "sdk/go/factschema/schema/terraform_state_warning.v1.schema.json"
     kinds: [terraform_state_candidate, terraform_state_module, terraform_state_output, terraform_state_provider_binding, terraform_state_resource, terraform_state_snapshot, terraform_state_tag_observation, terraform_state_warning]
   vulnerability_intelligence:
     lifecycle_owner: go/internal/facts

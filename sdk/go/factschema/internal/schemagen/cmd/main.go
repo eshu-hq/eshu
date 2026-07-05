@@ -82,6 +82,18 @@ func run() error {
 		{name: "oci_registry.image_tag_observation.v1.schema.json", generate: schemagen.OCIImageTagObservationSchema},
 		{name: "oci_registry.image_referrer.v1.schema.json", generate: schemagen.OCIImageReferrerSchema},
 		{name: "oci_registry.warning.v1.schema.json", generate: schemagen.OCIRegistryWarningSchema},
+		// The terraform_state family fact kinds are UNDERSCORE-separated. Five
+		// are consumed by the projector's source-local canonical extractor; three
+		// (candidate, provider_binding, warning) are typed-but-not-yet-consumed
+		// (terraformstate/v1/doc.go) but still ship a checked-in schema.
+		{name: "terraform_state_snapshot.v1.schema.json", generate: schemagen.TerraformStateSnapshotSchema},
+		{name: "terraform_state_resource.v1.schema.json", generate: schemagen.TerraformStateResourceSchema},
+		{name: "terraform_state_module.v1.schema.json", generate: schemagen.TerraformStateModuleSchema},
+		{name: "terraform_state_output.v1.schema.json", generate: schemagen.TerraformStateOutputSchema},
+		{name: "terraform_state_tag_observation.v1.schema.json", generate: schemagen.TerraformStateTagObservationSchema},
+		{name: "terraform_state_candidate.v1.schema.json", generate: schemagen.TerraformStateCandidateSchema},
+		{name: "terraform_state_provider_binding.v1.schema.json", generate: schemagen.TerraformStateProviderBindingSchema},
+		{name: "terraform_state_warning.v1.schema.json", generate: schemagen.TerraformStateWarningSchema},
 	}
 
 	for _, target := range targets {

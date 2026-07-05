@@ -50,6 +50,14 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "oci_registry.image_tag_observation.v1.schema.json", generate: schemagen.OCIImageTagObservationSchema},
 		{file: "oci_registry.image_referrer.v1.schema.json", generate: schemagen.OCIImageReferrerSchema},
 		{file: "oci_registry.warning.v1.schema.json", generate: schemagen.OCIRegistryWarningSchema},
+		{file: "terraform_state_snapshot.v1.schema.json", generate: schemagen.TerraformStateSnapshotSchema},
+		{file: "terraform_state_resource.v1.schema.json", generate: schemagen.TerraformStateResourceSchema},
+		{file: "terraform_state_module.v1.schema.json", generate: schemagen.TerraformStateModuleSchema},
+		{file: "terraform_state_output.v1.schema.json", generate: schemagen.TerraformStateOutputSchema},
+		{file: "terraform_state_tag_observation.v1.schema.json", generate: schemagen.TerraformStateTagObservationSchema},
+		{file: "terraform_state_candidate.v1.schema.json", generate: schemagen.TerraformStateCandidateSchema},
+		{file: "terraform_state_provider_binding.v1.schema.json", generate: schemagen.TerraformStateProviderBindingSchema},
+		{file: "terraform_state_warning.v1.schema.json", generate: schemagen.TerraformStateWarningSchema},
 	}
 
 	for _, tc := range cases {
@@ -114,6 +122,14 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"oci_registry.image_tag_observation.v1.schema.json",
 		"oci_registry.image_referrer.v1.schema.json",
 		"oci_registry.warning.v1.schema.json",
+		"terraform_state_snapshot.v1.schema.json",
+		"terraform_state_resource.v1.schema.json",
+		"terraform_state_module.v1.schema.json",
+		"terraform_state_output.v1.schema.json",
+		"terraform_state_tag_observation.v1.schema.json",
+		"terraform_state_candidate.v1.schema.json",
+		"terraform_state_provider_binding.v1.schema.json",
+		"terraform_state_warning.v1.schema.json",
 	}
 
 	for _, file := range files {

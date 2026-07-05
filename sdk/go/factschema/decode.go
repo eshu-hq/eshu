@@ -133,6 +133,33 @@ const (
 	FactKindOCIImageReferrer = "oci_registry.image_referrer"
 	// FactKindOCIRegistryWarning is the "oci_registry.warning" fact kind.
 	FactKindOCIRegistryWarning = "oci_registry.warning"
+	// The terraform_state family fact-kind strings are UNDERSCORE-separated,
+	// like the aws/gcp/azure kinds. The values here MATCH the wire strings the
+	// terraform-state collector emits (go/internal/facts.TerraformState*FactKind)
+	// byte-for-byte; the reducer-side drift lock
+	// TestFactSchemaKindsMatchWireFactKinds asserts each stays byte-equal to its
+	// facts.*FactKind counterpart.
+
+	// FactKindTerraformStateSnapshot is the "terraform_state_snapshot" fact kind.
+	FactKindTerraformStateSnapshot = "terraform_state_snapshot"
+	// FactKindTerraformStateResource is the "terraform_state_resource" fact kind.
+	FactKindTerraformStateResource = "terraform_state_resource"
+	// FactKindTerraformStateModule is the "terraform_state_module" fact kind.
+	FactKindTerraformStateModule = "terraform_state_module"
+	// FactKindTerraformStateOutput is the "terraform_state_output" fact kind.
+	FactKindTerraformStateOutput = "terraform_state_output"
+	// FactKindTerraformStateTagObservation is the
+	// "terraform_state_tag_observation" fact kind.
+	FactKindTerraformStateTagObservation = "terraform_state_tag_observation"
+	// FactKindTerraformStateCandidate is the "terraform_state_candidate" fact
+	// kind. Typed but not yet consumed (terraformstate/v1/doc.go).
+	FactKindTerraformStateCandidate = "terraform_state_candidate"
+	// FactKindTerraformStateProviderBinding is the
+	// "terraform_state_provider_binding" fact kind. Typed but not yet consumed.
+	FactKindTerraformStateProviderBinding = "terraform_state_provider_binding"
+	// FactKindTerraformStateWarning is the "terraform_state_warning" fact kind.
+	// Typed but not yet consumed (terraformstate/v1/doc.go).
+	FactKindTerraformStateWarning = "terraform_state_warning"
 )
 
 // Classification values a DecodeError carries. These are this module's own

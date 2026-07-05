@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package factschema
+package factschema //nolint:filelength // per-family payload-contract test registry; one payloadContracts row + per-kind coverage per migrated fact family, reviewed as a single single-source-of-truth table. Splitting per-family fragments the drift guard.
 
 import (
 	"encoding/json"
@@ -21,6 +21,7 @@ import (
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 func testEnvelope(payload map[string]any) Envelope {
@@ -308,6 +309,14 @@ var payloadContracts = []struct {
 	{FactKindOCIImageTagObservation, "oci_registry.image_tag_observation.v1.schema.json", reflect.TypeOf(ociregistryv1.TagObservation{})},
 	{FactKindOCIImageReferrer, "oci_registry.image_referrer.v1.schema.json", reflect.TypeOf(ociregistryv1.ImageReferrer{})},
 	{FactKindOCIRegistryWarning, "oci_registry.warning.v1.schema.json", reflect.TypeOf(ociregistryv1.Warning{})},
+	{FactKindTerraformStateSnapshot, "terraform_state_snapshot.v1.schema.json", reflect.TypeOf(tfstatev1.Snapshot{})},
+	{FactKindTerraformStateResource, "terraform_state_resource.v1.schema.json", reflect.TypeOf(tfstatev1.Resource{})},
+	{FactKindTerraformStateModule, "terraform_state_module.v1.schema.json", reflect.TypeOf(tfstatev1.Module{})},
+	{FactKindTerraformStateOutput, "terraform_state_output.v1.schema.json", reflect.TypeOf(tfstatev1.Output{})},
+	{FactKindTerraformStateTagObservation, "terraform_state_tag_observation.v1.schema.json", reflect.TypeOf(tfstatev1.TagObservation{})},
+	{FactKindTerraformStateCandidate, "terraform_state_candidate.v1.schema.json", reflect.TypeOf(tfstatev1.Candidate{})},
+	{FactKindTerraformStateProviderBinding, "terraform_state_provider_binding.v1.schema.json", reflect.TypeOf(tfstatev1.ProviderBinding{})},
+	{FactKindTerraformStateWarning, "terraform_state_warning.v1.schema.json", reflect.TypeOf(tfstatev1.Warning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

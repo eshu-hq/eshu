@@ -1,0 +1,35 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/terraformstate/v1/warning.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "actionability": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "severity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "type": "string"
+    },
+    "warning_kind": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "warning_kind",
+    "reason",
+    "source"
+  ],
+  "title": "Eshu terraform_state_warning Payload (schema version 1)",
+  "type": "object"
+}

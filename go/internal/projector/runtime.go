@@ -108,10 +108,19 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 	// log). The facts are already skipped from projection; this makes each one
 	// operator-diagnosable rather than a silent drop. Recording never fails the
 	// projection — a malformed fact must not stall the whole generation.
-	recordProjectorQuarantinedFacts(
-		ctx, r.Instruments, ociRegistryCanonicalStage,
-		scopeValue.ScopeID, generation.GenerationID, projection.quarantinedFacts,
-	)
+	//
+	// projection.quarantinedFacts is the MERGED slice across every typed
+	// canonical extractor (terraform_state, oci_registry, ...), so each fact is
+	// grouped by its OWN originating stage (quarantinedFactStage) before
+	// recording — a single hardcoded stage label here would misattribute, for
+	// example, a terraform_state quarantine to the oci_registry_canonical stage
+	// in both the metric and the structured log an operator reads at 3am.
+	for stage, group := range groupQuarantinedFactsByStage(projection.quarantinedFacts) {
+		recordProjectorQuarantinedFacts(
+			ctx, r.Instruments, stage,
+			scopeValue.ScopeID, generation.GenerationID, group,
+		)
+	}
 	if r.Instruments != nil {
 		r.Instruments.ProjectorStageDuration.Record(ctx, time.Since(buildStart).Seconds(), metric.WithAttributes(
 			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),

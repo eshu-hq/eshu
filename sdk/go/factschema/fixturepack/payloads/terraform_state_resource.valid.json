@@ -1,0 +1,16 @@
+{
+  "address": "module.vpc.aws_subnet.public[0]",
+  "mode": "managed",
+  "type": "aws_subnet",
+  "name": "public",
+  "module": "module.vpc",
+  "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+  "correlation_anchors": [
+    {"anchor_kind": "arn", "value_hash": "fp:arn:abc123"}
+  ],
+  "attributes": {
+    "arn": "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-0abc123",
+    "id": "subnet-0abc123",
+    "cidr_block": "10.0.1.0/24"
+  }
+}
