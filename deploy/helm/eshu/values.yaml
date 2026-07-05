@@ -1028,6 +1028,16 @@ env:
   INDEX_VARIABLES: "false"
   ESHU_MAX_CALLS_PER_FILE: "50"
   ESHU_CANONICAL_WRITE_TIMEOUT: "120s"
+  # Bound concurrent in-flight graph writes so a write storm cannot push the
+  # graph backend past its throughput knee and cascade into canonical-write
+  # timeouts and failed projections (issue #4456 / #3624). A measured NornicDB
+  # concurrent-writer sweep showed throughput peaks near 12-16 concurrent
+  # writers then collapses. This is a PER-PROCESS bound read only by the gated
+  # graph-writers (resolution-engine, projector, bootstrap-index); it is inert
+  # on api/mcp/collectors/ingester, which do not consume it, and it does NOT
+  # enforce a global cross-process ceiling. Set to 0 for legacy unbounded
+  # (passthrough); raise on a backend with more write headroom.
+  ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: "8"
   ESHU_SHARED_PROJECTION_PARTITION_COUNT: "8"
   ESHU_SHARED_PROJECTION_WORKERS: "8"
   ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT: "8"

@@ -271,6 +271,9 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `ESHU_GRAPH_BACKEND` | enum | `nornicdb` | Graph database backend. Allowed: `neo4j`, `nornicdb`. |
+| `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | int | — | Per-class in-flight ceiling for canonical (repository/entity/structural-edge) graph writes; overrides ESHU_GRAPH_WRITE_MAX_IN_FLIGHT for this class only (issue #4448). Empty falls back to ESHU_GRAPH_WRITE_MAX_IN_FLIGHT. |
+| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | int | — | Bounds concurrent in-flight graph writes per writer process so a bootstrap+reducer write storm cannot push the graph backend past its throughput knee and cascade into canonical-write timeouts (issue #4456 / #3624). A measured NornicDB concurrent-writer sweep showed write throughput peaks near 12-16 concurrent writers then collapses, with p99 latency climbing to the canonical-write timeout. Empty or non-positive disables the bound (legacy passthrough); the shipped Compose default is 8. Falls back for both per-class ceilings below when neither is set. |
+| `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` | int | — | Per-class in-flight ceiling for semantic-entity graph writes; overrides ESHU_GRAPH_WRITE_MAX_IN_FLIGHT for this class only (issue #4448). Empty falls back to ESHU_GRAPH_WRITE_MAX_IN_FLIGHT. |
 | `ESHU_NEO4J_CONNECTION_ACQUISITION_TIMEOUT` | duration | `1m` | Timeout for acquiring a graph connection from the pool. |
 | `ESHU_NEO4J_DATABASE` | string | — | Graph backend database name; defaults to neo4j for neo4j and nornic for nornicdb. Aliases: `NEO4J_DATABASE`. |
 | `ESHU_NEO4J_MAX_CONNECTION_LIFETIME` | duration | `1h` | Graph connection lifetime before pool recycling. |
