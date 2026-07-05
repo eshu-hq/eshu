@@ -159,12 +159,31 @@ being hit by every worker's write at once. It reuses the existing knobs:
 
 | Variable | Default | Use |
 | --- | --- | --- |
-| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | unset | Shared concurrent-write ceiling. bootstrap-index reads it as the fallback for its canonical class, same as the reducer and projector. Setting this alone to a positive value ENABLES the gate for bootstrap-index's canonical class; it is not a no-op knob. |
+| `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | `8` (shipped Compose/Helm default; code default is unset/passthrough) | Shared concurrent-write ceiling. bootstrap-index reads it as the fallback for its canonical class, same as the reducer and projector. Setting this alone to a positive value ENABLES the gate for bootstrap-index's canonical class; it is not a no-op knob. Set to `0` for legacy unbounded (passthrough). |
 | `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | unset | Canonical-class ceiling; takes precedence over the shared knob for bootstrap-index's single write class. Leaving this unset does NOT by itself disable the gate — it only falls back to the shared knob above. |
 
 The gate is a passthrough (no bound, inner executor unchanged) only when
-**both** knobs are unset or non-positive. That is bootstrap-index's shipped
-default.
+**both** knobs are unset or non-positive (the library-level code default). The
+shipped Compose and Helm deployments set `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=8` so
+the gate is bounded out of the box; set it to `0` to restore the legacy
+unbounded behavior.
+
+**Why 8 (issue #4456 / #3624).** A measured NornicDB concurrent-writer sweep
+(N writers issuing the canonical entity-upsert shape, 8s holds) showed write
+throughput peaks near 12-16 concurrent writers then *collapses* — beyond the
+knee, more concurrency yields less throughput and p99 latency climbs to the
+`ESHU_CANONICAL_WRITE_TIMEOUT`. Unbounded, a concurrent bootstrap+reducer write
+storm blows past the knee: a full 909-repo clean-volume E2E ran 100 failed
+canonical projections and 55 dead-lettered work items with the gate unset,
+versus 13 and 3 at `=8` (bootstrap did not hit the rc=1 catastrophic failure).
+A per-writer ceiling of 8 keeps the two writers that run concurrently in the
+measured E2E (bootstrap-index + reducer) at a combined in-flight ≈ 16 = the top
+of the zero-timeout plateau. This is a **per-process** bound, not a global
+cross-process ceiling — each gated writer (reducer, projector, bootstrap-index)
+independently bounds its own in-flight writes to N; a truly global budget across
+processes is a larger design tracked separately. Operators on a backend with
+more write headroom should raise it; the goal is to sit at the knee, not below
+it.
 
 Bootstrap-index's canonical NornicDB executor
 (`bootstrapNornicDBPhaseGroupExecutor` in `go/cmd/bootstrap-index/nornicdb_wiring.go`)
