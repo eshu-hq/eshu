@@ -5,64 +5,78 @@ package cypher
 
 import "fmt"
 
-const retractSQLFunctionQueriesTableEdgesCypher = `MATCH (source:Function)-[rel:QUERIES_TABLE]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+// The whole-scope retracts UNWIND $repo_ids and anchor the source node with an
+// inline {repo_id: ...} property, and the by-file retracts UNWIND $file_paths
+// with an inline {path: ...} anchor, rather than a `WHERE source.repo_id IN
+// $repo_ids` / `WHERE source.path IN $file_paths` predicate (#4708). On NornicDB
+// a compound `WHERE <node.prop> AND <rel.prop>` is not split, so the start-node
+// property index is not consulted and the delete degrades to a full label scan.
+// For the large indexed source label (`:Function`, which has repo_id/path node
+// indexes) the inline anchor binds via the index and expands from the tiny bound
+// set — ~11s -> ~0.002s. The small SQL entity labels (SqlTable/SqlView/... , all
+// under ~1k nodes here and without a repo_id/path index) still label-scan, but
+// over a tiny population that is already cheap and no worse than the old
+// predicate. Either way the identical edge set is deleted (proven 0/0 on live
+// data).
+
+const retractSQLFunctionQueriesTableEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source:Function {repo_id: repo_id})-[rel:QUERIES_TABLE]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLFunctionQueriesTableEdgesByFileCypher = `MATCH (source:Function)-[rel:QUERIES_TABLE]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractSQLFunctionQueriesTableEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (source:Function {path: file_path})-[rel:QUERIES_TABLE]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLViewReferencesTableEdgesCypher = `MATCH (source:SqlView)-[rel:REFERENCES_TABLE]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+const retractSQLViewReferencesTableEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source:SqlView {repo_id: repo_id})-[rel:REFERENCES_TABLE]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLViewReferencesTableEdgesByFileCypher = `MATCH (source:SqlView)-[rel:REFERENCES_TABLE]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractSQLViewReferencesTableEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (source:SqlView {path: file_path})-[rel:REFERENCES_TABLE]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLFunctionReferencesTableEdgesCypher = `MATCH (source:SqlFunction)-[rel:REFERENCES_TABLE]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+const retractSQLFunctionReferencesTableEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source:SqlFunction {repo_id: repo_id})-[rel:REFERENCES_TABLE]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLFunctionReferencesTableEdgesByFileCypher = `MATCH (source:SqlFunction)-[rel:REFERENCES_TABLE]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractSQLFunctionReferencesTableEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (source:SqlFunction {path: file_path})-[rel:REFERENCES_TABLE]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLTableHasColumnEdgesCypher = `MATCH (source:SqlTable)-[rel:HAS_COLUMN]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+const retractSQLTableHasColumnEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source:SqlTable {repo_id: repo_id})-[rel:HAS_COLUMN]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLTableHasColumnEdgesByFileCypher = `MATCH (source:SqlTable)-[rel:HAS_COLUMN]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractSQLTableHasColumnEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (source:SqlTable {path: file_path})-[rel:HAS_COLUMN]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLTriggerEdgesCypher = `MATCH (source:SqlTrigger)-[rel:TRIGGERS]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+const retractSQLTriggerEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source:SqlTrigger {repo_id: repo_id})-[rel:TRIGGERS]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLTriggerEdgesByFileCypher = `MATCH (source:SqlTrigger)-[rel:TRIGGERS]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractSQLTriggerEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (source:SqlTrigger {path: file_path})-[rel:TRIGGERS]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLTriggerExecutesEdgesCypher = `MATCH (source:SqlTrigger)-[rel:EXECUTES]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
+const retractSQLTriggerExecutesEdgesCypher = `UNWIND $repo_ids AS repo_id
+MATCH (source:SqlTrigger {repo_id: repo_id})-[rel:EXECUTES]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSQLTriggerExecutesEdgesByFileCypher = `MATCH (source:SqlTrigger)-[rel:EXECUTES]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
+const retractSQLTriggerExecutesEdgesByFileCypher = `UNWIND $file_paths AS file_path
+MATCH (source:SqlTrigger {path: file_path})-[rel:EXECUTES]->()
+WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
 var sqlRelationshipEntityLabels = map[string]struct{}{
