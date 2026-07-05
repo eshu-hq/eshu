@@ -21,9 +21,9 @@
       "note": "cassette replay + the fixed GATE_COLLECTOR_SETTLE_SECONDS settle window + facts-landed verification. Dominated by the configured settle constant, not pipeline work, so it is recorded for visibility but not gated."
     },
     "first_drain": {
-      "baseline_seconds": 6,
+      "baseline_seconds": 75,
       "gated": true,
-      "note": "first projector+reducer drain to terminal"
+      "note": "first projector+reducer drain to terminal. Recaptured for #4637: the 6s seed was stale (main's real first_drain had been ~65-68s for some time, tripping the advisory every run). Measured 75s on the golden gate at commit 62147d83e (all three #3624 cold-ingest fixes merged: #4728 graph-write budget, #4732 Helm retract skip, #4734 ingester gate). The +~9s vs the pre-fix ~66s is the #4728 in-flight budget pacing writes on the small 20-repo cassette, which does not saturate the throughput knee — a bounded tradeoff (operator-tunable via ESHU_GRAPH_WRITE_MAX_IN_FLIGHT) that prevents the concurrency-saturation failure cascade at full-corpus scale. Not a masked regression: this is the current legitimate steady-state. The 0.15 band + 5s slack absorb run-to-run laptop jitter."
     },
     "maintenance_drains": {
       "baseline_seconds": 5,
