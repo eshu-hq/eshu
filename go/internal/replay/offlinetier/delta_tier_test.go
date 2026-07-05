@@ -23,6 +23,12 @@ const deltaRepoID = "replay-delta-tombstone"
 // deltaRepoPath is the canonical repository path for the delta tombstone scenario.
 const deltaRepoPath = "/repos/replay-delta-tombstone"
 
+const (
+	deltaGitlabBuildJobUID  = "replay-delta-tombstone:gitlab:job:build"
+	deltaGitlabTestJobUID   = "replay-delta-tombstone:gitlab:job:test"
+	deltaGitlabDeployJobUID = "replay-delta-tombstone:gitlab:job:deploy"
+)
+
 // --- Offline (no-backend) structural checks — run every PR ---
 
 // TestDeltaMaterializationGen1Baseline verifies the gen1 cassette materializes
@@ -190,6 +196,36 @@ func TestDeltaMaterializationMovedChildKeepsNodeAndChangesParent(t *testing.T) {
 	assertDirectoryParentPath(t, dm.Gen2.Directories, childPath, deltaRepoPath+"/edge-parent-b")
 }
 
+// TestDeltaMaterializationGitlabNeedsChangesBetweenSurvivingJobs verifies the
+// replaydelta cassette models direct NEEDS edge retraction, not job deletion:
+// the same test job survives both generations, but gen2 points it at deploy
+// instead of build.
+func TestDeltaMaterializationGitlabNeedsChangesBetweenSurvivingJobs(t *testing.T) {
+	t.Parallel()
+
+	src := loadDeltaCassette(t)
+	gen1, _, err := src.Next(context.Background())
+	if err != nil {
+		t.Fatalf("read gen1: %v", err)
+	}
+	gen2, _, err := src.Next(context.Background())
+	if err != nil {
+		t.Fatalf("read gen2: %v", err)
+	}
+
+	dm, err := offlinetier.DeltaMaterializationFromGenerations(gen1, gen2)
+	if err != nil {
+		t.Fatalf("DeltaMaterializationFromGenerations: %v", err)
+	}
+
+	assertGitlabJobNeeds(t, dm.Gen1.Entities, deltaGitlabTestJobUID, "build")
+	assertGitlabJobNeeds(t, dm.Gen2.Entities, deltaGitlabTestJobUID, "deploy")
+	for _, jobUID := range []string{deltaGitlabBuildJobUID, deltaGitlabTestJobUID, deltaGitlabDeployJobUID} {
+		assertGitlabJobPresent(t, dm.Gen1.Entities, jobUID)
+		assertGitlabJobPresent(t, dm.Gen2.Entities, jobUID)
+	}
+}
+
 // --- helpers ---
 
 // loadDeltaCassette loads the multi-generation tombstone cassette.
@@ -214,6 +250,31 @@ func assertDirectoryParentPath(t *testing.T, dirs []projector.DirectoryRow, chil
 		return
 	}
 	t.Fatalf("missing directory %q", childPath)
+}
+
+func assertGitlabJobNeeds(t *testing.T, entities []projector.EntityRow, uid, wantNeeds string) {
+	t.Helper()
+	for _, entity := range entities {
+		if entity.Label != "GitlabJob" || entity.EntityID != uid {
+			continue
+		}
+		got, _ := entity.Metadata["needs"].(string)
+		if got != wantNeeds {
+			t.Fatalf("GitlabJob %q needs metadata = %q, want %q", uid, got, wantNeeds)
+		}
+		return
+	}
+	t.Fatalf("missing GitlabJob %q", uid)
+}
+
+func assertGitlabJobPresent(t *testing.T, entities []projector.EntityRow, uid string) {
+	t.Helper()
+	for _, entity := range entities {
+		if entity.Label == "GitlabJob" && entity.EntityID == uid {
+			return
+		}
+	}
+	t.Fatalf("missing surviving GitlabJob %q", uid)
 }
 
 func equalStringSlices(got, want []string) bool {

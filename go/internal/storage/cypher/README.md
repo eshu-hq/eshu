@@ -187,6 +187,33 @@ statement metadata, `canonical.write` spans, phase duration metrics, and phase
 failure logs. It adds no metric name, metric label, worker, retry policy, or
 backend-specific branch.
 
+No-Regression Evidence: GitLab `NEEDS` and `DEFINES_JOB` retracts are bounded
+mixed-phase relationship deletes. The red replay-tier baseline on NornicDB
+v1.1.9 (`timothyswt/nornicdb-cpu-bge:v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd`)
+used the two-generation replaydelta cassette with one `.gitlab-ci.yml`, one
+pipeline, and three surviving jobs. Gen1 wrote `test -> build`; gen2 changed
+only the source job's `needs` metadata to `deploy`. Before Drain-marking the
+GitLab relationship retracts and matching production's mixed-phase autocommit
+path in the live replay executor,
+`ESHU_REPLAY_TIER_HTTP_PORT=7574 ESHU_REPLAY_TIER_BOLT_PORT=7787 bash scripts/verify-replay-tier.sh`
+failed with old `test -> build` `NEEDS` count `1`, wanted `0`. After the change,
+the same command passed against real NornicDB in 4 seconds, and
+`TestDeltaTombstoneGraphTruth` read back old `test -> build` count `0` plus new
+`test -> deploy` count `1`. Focused local proof also passed:
+`go test ./internal/storage/cypher -run 'TestGitlabEdgeStatements|TestStatementDrainFieldsAreZeroValueByDefault' -count=1`,
+`go test ./internal/replay/offlinetier -run 'TestDeltaMaterializationGitlabNeedsChangesBetweenSurvivingJobs|TestDeltaTombstoneGraphTruth' -count=1`,
+`go test ./internal/replaycoverage ./cmd/replay-coverage-gate ./internal/replay/offlinetier ./internal/storage/cypher -count=1`,
+and `make pre-pr`, including the graph-write race lane. Terminal graph row
+counts are bounded by the cassette: one pipeline source, three job source UIDs,
+one stale `NEEDS` edge deleted, and one current `NEEDS` edge merged.
+
+No-Observability-Change: GitLab edge retracts still execute through the
+canonical `structural_edges` phase and retain existing statement metadata,
+`canonical.write` spans, phase duration metrics, NornicDB phase-group logs, and
+reconciliation drift recording for autocommit retracts. The change adds no
+metric name, metric label, queue, worker, retry policy, runtime knob, or new
+backend branch.
+
 Code-call shared projection routes `CALLS`, `REFERENCES`, and `USES_METACLASS`
 through label-scoped batched edge statements when endpoint labels are known.
 Each code-call statement carries a bounded route summary with relationship,

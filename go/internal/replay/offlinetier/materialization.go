@@ -40,8 +40,11 @@ func MaterializationFromGeneration(gen collector.CollectedGeneration) (projector
 // the tier owns the fact-kind -> materialization-row mapping here rather than
 // pulling in the full git collector.
 const (
-	factKindRepository = "git.repository"
-	factKindDirectory  = "git.directory"
+	factKindRepository     = "git.repository"
+	factKindDirectory      = "git.directory"
+	factKindFile           = "git.file"
+	factKindGitlabPipeline = "git.gitlab_pipeline"
+	factKindGitlabJob      = "git.gitlab_job"
 )
 
 // materializationFromEnvelopes builds the canonical projection input for one
@@ -83,6 +86,24 @@ func materializationFromEnvelopes(
 				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
 			}
 			mat.Directories = append(mat.Directories, dir)
+		case factKindFile:
+			file, err := fileRowFromPayload(env.Payload)
+			if err != nil {
+				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+			}
+			mat.Files = append(mat.Files, file)
+		case factKindGitlabPipeline:
+			entity, err := gitlabPipelineEntityRowFromPayload(env.Payload)
+			if err != nil {
+				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+			}
+			mat.Entities = append(mat.Entities, entity)
+		case factKindGitlabJob:
+			entity, err := gitlabJobEntityRowFromPayload(env.Payload)
+			if err != nil {
+				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+			}
+			mat.Entities = append(mat.Entities, entity)
 		default:
 			return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d]: unsupported fact_kind %q for offline tier", i, env.FactKind)
 		}
@@ -153,6 +174,110 @@ func directoryRowFromPayload(payload map[string]any) (projector.DirectoryRow, er
 	}, nil
 }
 
+func fileRowFromPayload(payload map[string]any) (projector.FileRow, error) {
+	path, err := requireString(payload, "path")
+	if err != nil {
+		return projector.FileRow{}, err
+	}
+	relativePath, err := requireString(payload, "relative_path")
+	if err != nil {
+		return projector.FileRow{}, err
+	}
+	name, err := requireString(payload, "name")
+	if err != nil {
+		return projector.FileRow{}, err
+	}
+	language, err := requireString(payload, "language")
+	if err != nil {
+		return projector.FileRow{}, err
+	}
+	repoID, err := requireString(payload, "repo_id")
+	if err != nil {
+		return projector.FileRow{}, err
+	}
+	dirPath, err := requireString(payload, "dir_path")
+	if err != nil {
+		return projector.FileRow{}, err
+	}
+	return projector.FileRow{
+		Path:         path,
+		RelativePath: relativePath,
+		Name:         name,
+		Language:     language,
+		RepoID:       repoID,
+		DirPath:      dirPath,
+	}, nil
+}
+
+func gitlabPipelineEntityRowFromPayload(payload map[string]any) (projector.EntityRow, error) {
+	uid, err := requireString(payload, "uid")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	name, err := requireString(payload, "name")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	filePath, err := requireString(payload, "file_path")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	relativePath, err := requireString(payload, "relative_path")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	repoID, err := requireString(payload, "repo_id")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	return projector.EntityRow{
+		EntityID:     uid,
+		Label:        "GitlabPipeline",
+		EntityName:   name,
+		FilePath:     filePath,
+		RelativePath: relativePath,
+		Language:     "gitlab-ci",
+		RepoID:       repoID,
+	}, nil
+}
+
+func gitlabJobEntityRowFromPayload(payload map[string]any) (projector.EntityRow, error) {
+	uid, err := requireString(payload, "uid")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	name, err := requireString(payload, "name")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	filePath, err := requireString(payload, "file_path")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	relativePath, err := requireString(payload, "relative_path")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	repoID, err := requireString(payload, "repo_id")
+	if err != nil {
+		return projector.EntityRow{}, err
+	}
+	metadata := map[string]any{}
+	if needs, ok := optionalString(payload, "needs"); ok {
+		metadata["needs"] = needs
+	}
+	return projector.EntityRow{
+		EntityID:     uid,
+		Label:        "GitlabJob",
+		EntityName:   name,
+		FilePath:     filePath,
+		RelativePath: relativePath,
+		Language:     "gitlab-ci",
+		RepoID:       repoID,
+		Metadata:     metadata,
+	}, nil
+}
+
 // requireString reads a non-empty string payload field or returns an error.
 func requireString(payload map[string]any, key string) (string, error) {
 	raw, ok := payload[key]
@@ -167,6 +292,18 @@ func requireString(payload map[string]any, key string) (string, error) {
 		return "", fmt.Errorf("field %q is empty", key)
 	}
 	return s, nil
+}
+
+func optionalString(payload map[string]any, key string) (string, bool) {
+	raw, ok := payload[key]
+	if !ok {
+		return "", false
+	}
+	s, ok := raw.(string)
+	if !ok || s == "" {
+		return "", false
+	}
+	return s, true
 }
 
 // requireInt reads an integer payload field, accepting the float64 JSON decodes

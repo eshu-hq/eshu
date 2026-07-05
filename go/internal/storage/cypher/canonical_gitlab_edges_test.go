@@ -149,6 +149,9 @@ func TestGitlabEdgeStatementsRetractsStaleEdgesBeforeMerge(t *testing.T) {
 		if rt.Operation != OperationCanonicalRetract {
 			t.Fatalf("statement %d Operation = %q, want %q (retract must precede merge)", i, rt.Operation, OperationCanonicalRetract)
 		}
+		if !rt.Drain {
+			t.Fatalf("statement %d Drain = false, want true so mixed structural_edges relationship retracts run autocommit", i)
+		}
 	}
 
 	// DEFINES_JOB retract: scoped to pipeline source uids, generation-guarded.

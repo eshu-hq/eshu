@@ -94,6 +94,20 @@ func TestDeltaTombstoneGraphTruth(t *testing.T) {
 		0,
 		"gen1 pre-delta: new edge-parent-b CONTAINS edge absent",
 	)
+	assertDeltaGitlabNeedsEdgeCount(
+		ctx, t, exec,
+		deltaGitlabTestJobUID,
+		deltaGitlabBuildJobUID,
+		1,
+		"gen1 pre-delta: test job NEEDS build",
+	)
+	assertDeltaGitlabNeedsEdgeCount(
+		ctx, t, exec,
+		deltaGitlabTestJobUID,
+		deltaGitlabDeployJobUID,
+		0,
+		"gen1 pre-delta: test job does not NEED deploy yet",
+	)
 
 	// Write gen2 (retraction enabled: FirstGeneration=false).
 	if err := writer.Write(ctx, dm.Gen2); err != nil {
@@ -280,6 +294,20 @@ func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor,
 		1,
 		"new edge-parent-b CONTAINS edge must be present after gen2 write",
 	)
+	assertDeltaGitlabNeedsEdgeCount(
+		ctx, t, exec,
+		deltaGitlabTestJobUID,
+		deltaGitlabBuildJobUID,
+		0,
+		"old test->build NEEDS edge must be absent after gen2 write",
+	)
+	assertDeltaGitlabNeedsEdgeCount(
+		ctx, t, exec,
+		deltaGitlabTestJobUID,
+		deltaGitlabDeployJobUID,
+		1,
+		"new test->deploy NEEDS edge must be present after gen2 write",
+	)
 
 	repoNameCount, err := exec.count(
 		ctx,
@@ -423,6 +451,18 @@ RETURN count(d)`,
 // re-runs are deterministic.
 func cleanupDeltaScope(ctx context.Context, t *testing.T, exec liveExecutor) {
 	t.Helper()
+	if err := exec.Execute(ctx, cypher.Statement{
+		Cypher:     `MATCH (j:GitlabJob {repo_id: $repo_id}) DETACH DELETE j`,
+		Parameters: map[string]any{"repo_id": deltaRepoID},
+	}); err != nil {
+		t.Fatalf("cleanup delta GitlabJob nodes: %v", err)
+	}
+	if err := exec.Execute(ctx, cypher.Statement{
+		Cypher:     `MATCH (p:GitlabPipeline {repo_id: $repo_id}) DETACH DELETE p`,
+		Parameters: map[string]any{"repo_id": deltaRepoID},
+	}); err != nil {
+		t.Fatalf("cleanup delta GitlabPipeline nodes: %v", err)
+	}
 	if err := exec.Execute(ctx, cypher.Statement{
 		Cypher:     `MATCH (d:Directory {repo_id: $repo_id}) DETACH DELETE d`,
 		Parameters: map[string]any{"repo_id": deltaRepoID},

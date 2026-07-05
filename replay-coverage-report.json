@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 389,
-    "covered": 207,
-    "uncovered": 173,
+    "covered": 208,
+    "uncovered": 172,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 55.53
+    "percent_satisfied": 55.78
   },
   "registry_summaries": [
     {
@@ -85,11 +85,11 @@
     {
       "registry": "retractable_edge_type",
       "total": 52,
-      "covered": 1,
-      "uncovered": 51,
+      "covered": 2,
+      "uncovered": 50,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 1.92
+      "percent_satisfied": 3.85
     },
     {
       "registry": "retractable_type",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 140,
-      "covered": 3,
-      "uncovered": 137,
+      "covered": 4,
+      "uncovered": 136,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 2.14
+      "percent_satisfied": 2.86
     },
     {
       "scenario_type": "fault",
@@ -2483,8 +2483,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:NEEDS",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_edge_type",
@@ -3580,7 +3583,6 @@
     "retractable_edge:INVOKES_CLOUD_ACTION|delta_tombstone",
     "retractable_edge:LOGS_TO|delta_tombstone",
     "retractable_edge:MANAGES|delta_tombstone",
-    "retractable_edge:NEEDS|delta_tombstone",
     "retractable_edge:OVERRIDES|delta_tombstone",
     "retractable_edge:PROVISIONS_DEPENDENCY_FOR|delta_tombstone",
     "retractable_edge:QUERIES_TABLE|delta_tombstone",
