@@ -325,10 +325,23 @@ func assignField(field reflect.Value, raw any) error {
 // raw is not one of those two shapes, or when a map[string]any value is not a
 // string — the caller falls back to jsonRoundTripValue for those rare cases so
 // correctness is never sacrificed for the fast path.
+//
+// The result is ALWAYS a freshly allocated map that does not alias raw, even
+// on the already-typed map[string]string branch: a decode result is a fresh
+// owned value the caller may mutate (some reducer consumers normalize the
+// decoded map in place), so aliasing an in-memory caller's env.Payload map
+// would let that normalization mutate the original payload. The JSONB path
+// already allocates; cloning the already-typed path costs nothing in
+// production (that branch is not hit on the Postgres decode path) and keeps
+// the decode side-effect-free for every input shape.
 func anyToStringMap(raw any) (map[string]string, bool) {
 	switch v := raw.(type) {
 	case map[string]string:
-		return v, true
+		out := make(map[string]string, len(v))
+		for key, value := range v {
+			out[key] = value
+		}
+		return out, true
 	case map[string]any:
 		out := make(map[string]string, len(v))
 		for key, value := range v {
@@ -352,10 +365,25 @@ func anyToStringMap(raw any) (map[string]string, bool) {
 // the fast path. It preserves every element and every key/value verbatim (no
 // trimming or empty-dropping); shape normalization is the caller's concern, so
 // the coercion stays a faithful decode of the wire payload.
+//
+// The result is ALWAYS a fresh slice of freshly cloned element maps that does
+// not alias raw, even on the already-typed []map[string]string branch, for the
+// same reason anyToStringMap clones: a decode result is a fresh owned value a
+// reducer consumer may normalize in place, so aliasing an in-memory caller's
+// env.Payload slice/maps would mutate the original payload. Cloning costs
+// nothing on the Postgres decode path (which is []any, not []map[string]string).
 func anyToStringMapSlice(raw any) ([]map[string]string, bool) {
 	switch v := raw.(type) {
 	case []map[string]string:
-		return v, true
+		out := make([]map[string]string, 0, len(v))
+		for _, item := range v {
+			cloned := make(map[string]string, len(item))
+			for key, value := range item {
+				cloned[key] = value
+			}
+			out = append(out, cloned)
+		}
+		return out, true
 	case []map[string]any:
 		out := make([]map[string]string, 0, len(v))
 		for _, item := range v {

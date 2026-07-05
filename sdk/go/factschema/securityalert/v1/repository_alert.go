@@ -6,8 +6,19 @@ package v1
 // RepositoryAlert is the schema-version-1 typed payload for the
 // "security_alert.repository_alert" fact kind: one repository-scoped security
 // alert reported by an external provider such as GitHub Dependabot. It is
-// source evidence only — reconciled provider truth, never promoted
-// supply-chain-impact truth.
+// provider source evidence, not graph truth: the alert's own state (open,
+// fixed, dismissed) is never itself promoted as canonical truth.
+//
+// It DOES contribute to two reducer surfaces. It drives the security-alert
+// reconciliation read surface, and it also seeds supply-chain-impact findings
+// (appendSecurityAlertImpactFindings) on the reducer's CanonicalWrites path.
+// The typed decode is output-preserving on both: it mirrors the existing wire
+// payload exactly, so it changes neither which impact findings a valid alert
+// seeds nor what is promoted, and it introduces no field that turns alert
+// state into new supply-chain-impact truth. The only behavior change is that a
+// malformed alert (missing the required RepositoryID) now dead-letters as a
+// per-fact input_invalid quarantine on both surfaces instead of seeding an
+// empty-identity finding or a blank-repository reconciliation row.
 //
 // RepositoryID is the only required field. Both collector paths that emit this
 // kind always set it: the per-repository GitHub Dependabot envelope

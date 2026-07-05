@@ -1465,6 +1465,30 @@ finding). Result class: Correctness win with a bounded, measured handler cost
 (the real perf gap — the `[]map[string]string` fallback — found and fixed; the
 double-alloc removed).
 
+Review fixes (Wave 4e, PR #4735): (1) the shared `decode_map.go`
+`anyToStringMap`/`anyToStringMapSlice` fast paths now defensively CLONE their
+already-typed `map[string]string` / `[]map[string]string` input branches, not
+just the JSONB `map[string]any` / `[]any` branches, so a decode result is always
+a fresh owned value. The reducer normalizes epss/cwes in place, so aliasing an
+in-memory caller's `env.Payload` would have mutated the original payload; the
+JSONB decode path always allocated (that branch is not hit in production), so the
+clone is free in prod and keeps the decode side-effect-free for every input shape
+(`TestDecodeMapInto_TypedMapInputNotMutated` locks non-mutation of an
+already-typed input). (2) `extractProviderSecurityAlerts` — the LENIENT
+pre-filter/scoping wrapper — no longer drops a `repository_id`-less alert; it
+reconstructs it best-effort from the raw payload
+(`providerSecurityAlertFromRawPayload`) so the security-alert evidence-scoping
+fence (`supplyChainImpactUsesSecurityAlertScope` /
+`scopeSupplyChainImpactEvidenceToSecurityAlerts`) still narrows by the alert's
+package/ecosystem identity when every alert in a security-alert-triggered
+`supply_chain_impact` intent is malformed, exactly as pre-typing. Without this,
+all-malformed alerts skipped scoping and unrelated active dependency/vulnerability
+facts (loaded earlier from the malformed alert's package/CVE hints) could publish
+unscoped impact findings. The DURABLE reconciliation and impact-seeding paths keep
+using the strict `extractProviderSecurityAlertsWithQuarantine`, so the malformed
+fact still dead-letters as `input_invalid`; only the non-durable scoping signal is
+preserved (`TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts`).
+
 No-Observability-Change (Wave 4e, security_alert family): the typed-decode
 migration and the shared `decode_map.go` `[]map[string]string` fast-path
 addition add no route, graph query shape, queue table, worker, lease, runtime

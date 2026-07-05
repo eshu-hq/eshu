@@ -343,3 +343,66 @@ func TestDecodeMapInto_StringMapSliceFastPath(t *testing.T) {
 		}
 	})
 }
+
+// TestDecodeMapInto_TypedMapInputNotMutated proves the decode-map fast paths
+// return a fresh, non-aliasing copy for already-typed map[string]string and
+// []map[string]string inputs, so a downstream consumer that normalizes the
+// decoded value in place (as the security_alert reducer does for epss/cwes)
+// cannot mutate the caller's original env.Payload maps. This is the Copilot
+// decode_map.go:345 / :358 and codex :249 finding: the JSONB path always
+// allocates, but an in-memory caller supplying typed maps would otherwise be
+// aliased.
+func TestDecodeMapInto_TypedMapInputNotMutated(t *testing.T) {
+	t.Parallel()
+
+	t.Run("map[string]string input is copied", func(t *testing.T) {
+		t.Parallel()
+		type holder struct {
+			EPSS map[string]string `json:"epss,omitempty"`
+		}
+		original := map[string]string{"percentage": "0.0123", "  padded  ": "  x  "}
+		payload := map[string]any{"epss": original}
+
+		var out holder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		// Mutating the decoded map must not touch the original payload map.
+		for key := range out.EPSS {
+			delete(out.EPSS, key)
+		}
+		out.EPSS["mutated"] = "yes"
+		if _, aliased := original["mutated"]; aliased {
+			t.Fatal("decoded map aliases the original payload map; mutation leaked back")
+		}
+		if len(original) != 2 {
+			t.Fatalf("original payload map was mutated: len = %d, want 2", len(original))
+		}
+	})
+
+	t.Run("[]map[string]string input is copied", func(t *testing.T) {
+		t.Parallel()
+		type holder struct {
+			CWEs []map[string]string `json:"cwes,omitempty"`
+		}
+		originalElem := map[string]string{"cwe_id": "CWE-400", "name": "DoS"}
+		original := []map[string]string{originalElem}
+		payload := map[string]any{"cwes": original}
+
+		var out holder
+		if err := decodeMapInto(payload, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		// Mutating a decoded element map must not touch the original element.
+		for key := range out.CWEs[0] {
+			delete(out.CWEs[0], key)
+		}
+		out.CWEs[0]["mutated"] = "yes"
+		if _, aliased := originalElem["mutated"]; aliased {
+			t.Fatal("decoded slice element aliases the original payload element map; mutation leaked back")
+		}
+		if len(originalElem) != 2 {
+			t.Fatalf("original element map was mutated: len = %d, want 2", len(originalElem))
+		}
+	})
+}

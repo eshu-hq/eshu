@@ -11,8 +11,11 @@ Schema-version-1 typed payload struct for the `security_alert` fact family
 | `security_alert.repository_alert` | `RepositoryAlert` | reducer `security_alert_reconciliation` + `supply_chain_impact` |
 
 `security_alert.repository_alert` is one repository-scoped security alert
-reported by an external provider (GitHub Dependabot today). It is **reconciled
-provider evidence**, not promoted graph truth.
+reported by an external provider (GitHub Dependabot today). It is **provider
+source evidence**: the alert's own state is never itself promoted as canonical
+graph truth. It does drive the reconciliation read surface and seed
+supply-chain-impact findings (see the accuracy boundary below), but the typed
+decode is output-preserving on both.
 
 ## Required field
 

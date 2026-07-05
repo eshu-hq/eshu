@@ -59,20 +59,91 @@ func extractProviderSecurityAlertsWithQuarantine(
 	return alerts, quarantined, nil
 }
 
-// extractProviderSecurityAlerts is the pure, error-free counterpart the
+// extractProviderSecurityAlerts is the LENIENT, error-free counterpart the
 // pre-scan / evidence-scoping call sites use (securityAlertManifestDependencyFilter,
 // supplyChainImpactUsesSecurityAlertScope, scopeSupplyChainImpactEvidenceToSecurityAlerts).
+//
 // It decodes through the same typed seam as
-// extractProviderSecurityAlertsWithQuarantine but drops the quarantine slice and
-// any fatal error: a malformed fact is simply excluded from the returned alerts,
-// matching the pre-typing behavior of these read-only pre-filters, which never
-// formed durable truth. The durable decode site (the reducer Handle path) uses
-// the WithQuarantine variant so a malformed fact surfaces as a visible
-// input_invalid dead-letter there — these pre-filters intentionally do not
-// re-report it, avoiding a double dead-letter for the same fact.
+// extractProviderSecurityAlertsWithQuarantine, but a fact that would dead-letter
+// as input_invalid (missing the required repository_id) is NOT dropped here — it
+// is reconstructed best-effort from its raw payload (with an empty RepositoryID)
+// and still returned, exactly as the pre-typing raw-map extraction did. This
+// preserves the security-alert evidence-scoping fence: a security-alert-triggered
+// supply_chain_impact intent whose alerts are all missing repository_id still
+// carries the alerts' package/ecosystem identity into
+// scopeSupplyChainImpactEvidenceToSecurityAlerts, so unrelated active
+// dependency/vulnerability facts (which supplyChainImpactFilter may already have
+// loaded using the malformed alert's package/CVE hints) cannot publish unscoped
+// impact findings. The DURABLE decode site (the reducer Handle path) uses the
+// strict WithQuarantine variant instead, so the malformed fact still surfaces as
+// a visible input_invalid dead-letter there — these pre-filters intentionally do
+// not re-report it (no double dead-letter) and never form durable truth
+// themselves. A non-input_invalid fatal error (unsupported schema major,
+// undecodable shape) is dropped here, matching the WithQuarantine path's fatal
+// handling that the Handle path surfaces.
 func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurityAlert {
-	alerts, _, _ := extractProviderSecurityAlertsWithQuarantine(envelopes)
+	alerts := make([]providerSecurityAlert, 0)
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
+			continue
+		}
+		decoded, err := decodeSecurityAlertRepositoryAlert(envelope)
+		if err != nil {
+			if _, quarantinable, _ := partitionDecodeFailures(envelope, err); !quarantinable {
+				// A non-input_invalid fatal error is not a malformed-required-field
+				// case; the Handle path fails the whole intent on it, so the lenient
+				// pre-filter simply excludes it (it cannot reconstruct a meaningful
+				// alert from an unsupported-major or structurally undecodable fact).
+				continue
+			}
+			// A missing-required-field fact still carries its package/ecosystem
+			// identity for scoping; reconstruct it best-effort so the fence holds.
+			alerts = append(alerts, providerSecurityAlertFromRawPayload(envelope))
+			continue
+		}
+		alerts = append(alerts, providerSecurityAlertFromDecoded(envelope, decoded))
+	}
 	return alerts
+}
+
+// providerSecurityAlertFromRawPayload reconstructs a providerSecurityAlert
+// directly from a fact's raw payload for the LENIENT scoping/pre-filter path,
+// used only when the typed decode dead-lettered on a missing required field
+// (repository_id). It reproduces the exact pre-typing raw-map reads for the
+// fields the scoping fence consumes (repository_id, package_id, ecosystem,
+// package_name, and the advisory ids / repository name), so a malformed alert
+// participates in evidence scoping identically to before the typed migration.
+// It is never used on the durable reconciliation or impact-seeding path, which
+// quarantines the same fact through extractProviderSecurityAlertsWithQuarantine.
+func providerSecurityAlertFromRawPayload(envelope facts.Envelope) providerSecurityAlert {
+	providerRepositoryID := payloadStr(envelope.Payload, "repository_id")
+	updatedAt := payloadStr(envelope.Payload, "updated_at")
+	return providerSecurityAlert{
+		SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{
+			ProviderAlertFactID:       envelope.FactID,
+			ProviderAlertScopeID:      envelope.ScopeID,
+			ProviderAlertGenerationID: envelope.GenerationID,
+			Provider:                  payloadStr(envelope.Payload, "provider"),
+			ProviderAlertID:           payloadStr(envelope.Payload, "provider_alert_id"),
+			ProviderState:             strings.ToLower(payloadStr(envelope.Payload, "provider_state")),
+			RepositoryID:              providerRepositoryID,
+			ProviderRepositoryID:      providerRepositoryID,
+			RepositoryName: firstNonBlank(
+				payloadStr(envelope.Payload, "repository_name"),
+				securityAlertRepositoryNameFromID(providerRepositoryID),
+			),
+			PackageID:       payloadStr(envelope.Payload, "package_id"),
+			Ecosystem:       payloadStr(envelope.Payload, "ecosystem"),
+			PackageName:     payloadStr(envelope.Payload, "package_name"),
+			ManifestPath:    payloadStr(envelope.Payload, "manifest_path"),
+			DependencyScope: payloadStr(envelope.Payload, "dependency_scope"),
+			Relationship:    payloadStr(envelope.Payload, "relationship"),
+			GHSAIDs:         payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids"),
+			CVEIDs:          payloadStrings(envelope.Payload, "cve_id", "cve_ids"),
+			EvidenceFactIDs: compactStringSlice(envelope.FactID),
+		},
+		updatedAtTime: parseSecurityAlertTime(updatedAt),
+	}
 }
 
 // providerSecurityAlertFromDecoded builds a providerSecurityAlert from one
