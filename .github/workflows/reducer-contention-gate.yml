@@ -71,4 +71,9 @@ jobs:
         working-directory: go
         env:
           ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
-        run: go test ./internal/storage/postgres/ -run '^TestReducerContentionGate' -race -count=1 -timeout 120s -v
+        # TestReducerContentionGate* covers the claim/lease/fencing invariants and
+        # the claim-batch latency guard (#4704); TestClaimBatchRankOnceRewrite runs
+        # the #4703 rank-once candidate-set+order differential (0/0) against real
+        # Postgres so a query-shape or O(N^2) regression on
+        # reducer_queue_batch_query.go fails CI, not only a manual drain.
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite)' -race -count=1 -timeout 180s -v
