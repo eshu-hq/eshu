@@ -89,6 +89,15 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "ci.trigger_edge.v1.schema.json", generate: schemagen.CICDTriggerEdgeSchema},
 		{file: "ci.step.v1.schema.json", generate: schemagen.CICDStepSchema},
 		{file: "ci.workflow_image_evidence.v1.schema.json", generate: schemagen.CICDWorkflowImageEvidenceSchema},
+		{file: "work_item.record.v1.schema.json", generate: schemagen.WorkItemRecordSchema},
+		{file: "work_item.transition.v1.schema.json", generate: schemagen.WorkItemTransitionSchema},
+		{file: "work_item.external_link.v1.schema.json", generate: schemagen.WorkItemExternalLinkSchema},
+		{file: "work_item.project_metadata.v1.schema.json", generate: schemagen.WorkItemProjectMetadataSchema},
+		{file: "work_item.issue_type_metadata.v1.schema.json", generate: schemagen.WorkItemIssueTypeMetadataSchema},
+		{file: "work_item.status_metadata.v1.schema.json", generate: schemagen.WorkItemStatusMetadataSchema},
+		{file: "work_item.workflow_metadata.v1.schema.json", generate: schemagen.WorkItemWorkflowMetadataSchema},
+		{file: "work_item.field_metadata.v1.schema.json", generate: schemagen.WorkItemFieldMetadataSchema},
+		{file: "work_item.metadata_warning.v1.schema.json", generate: schemagen.WorkItemMetadataWarningSchema},
 	}
 
 	for _, tc := range cases {

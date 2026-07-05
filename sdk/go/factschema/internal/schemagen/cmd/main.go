@@ -160,6 +160,18 @@ func run() error {
 		{name: "eks_irsa_annotation.v1.schema.json", generate: schemagen.EKSIRSAAnnotationSchema},
 		{name: "eks_pod_identity_association.v1.schema.json", generate: schemagen.EKSPodIdentityAssociationSchema},
 		{name: "k8s_gcp_workload_identity_binding.v1.schema.json", generate: schemagen.KubernetesGCPWorkloadIdentityBindingSchema},
+		// The work_item family fact kinds are DOTTED (like the incident
+		// family). All nine are emitted by the Jira collector; the decode site
+		// is the query read-model layer, not the reducer (workitem/v1/README.md).
+		{name: "work_item.record.v1.schema.json", generate: schemagen.WorkItemRecordSchema},
+		{name: "work_item.transition.v1.schema.json", generate: schemagen.WorkItemTransitionSchema},
+		{name: "work_item.external_link.v1.schema.json", generate: schemagen.WorkItemExternalLinkSchema},
+		{name: "work_item.project_metadata.v1.schema.json", generate: schemagen.WorkItemProjectMetadataSchema},
+		{name: "work_item.issue_type_metadata.v1.schema.json", generate: schemagen.WorkItemIssueTypeMetadataSchema},
+		{name: "work_item.status_metadata.v1.schema.json", generate: schemagen.WorkItemStatusMetadataSchema},
+		{name: "work_item.workflow_metadata.v1.schema.json", generate: schemagen.WorkItemWorkflowMetadataSchema},
+		{name: "work_item.field_metadata.v1.schema.json", generate: schemagen.WorkItemFieldMetadataSchema},
+		{name: "work_item.metadata_warning.v1.schema.json", generate: schemagen.WorkItemMetadataWarningSchema},
 	}
 
 	for _, target := range targets {

@@ -320,6 +320,41 @@ const (
 	// FactKindKubernetesGCPWorkloadIdentityBinding is the
 	// "k8s_gcp_workload_identity_binding" fact kind.
 	FactKindKubernetesGCPWorkloadIdentityBinding = "k8s_gcp_workload_identity_binding" // #nosec G101 -- fact-kind identifier string, not a credential
+	// The work_item family fact-kind strings are DOTTED, matching the
+	// incident/kubernetes_live/oci_registry/package_registry/sbom_attestation
+	// convention above. The dots are part of the wire kind the collector
+	// already emits (go/internal/facts.WorkItemRecordFactKind and siblings);
+	// the values here MATCH those wire strings byte-for-byte and never invent
+	// or rename the namespace. TestFactSchemaKindsMatchWireFactKinds (reducer
+	// side) asserts each stays byte-equal to its facts.*FactKind counterpart.
+	// Unlike every other family in this module, the decode site for this
+	// family is the QUERY read-model layer (go/internal/query), not the
+	// reducer or projector — see workitem/v1/README.md.
+
+	// FactKindWorkItemRecord is the "work_item.record" fact kind.
+	FactKindWorkItemRecord = "work_item.record"
+	// FactKindWorkItemTransition is the "work_item.transition" fact kind.
+	FactKindWorkItemTransition = "work_item.transition"
+	// FactKindWorkItemExternalLink is the "work_item.external_link" fact kind.
+	FactKindWorkItemExternalLink = "work_item.external_link"
+	// FactKindWorkItemProjectMetadata is the "work_item.project_metadata" fact
+	// kind.
+	FactKindWorkItemProjectMetadata = "work_item.project_metadata"
+	// FactKindWorkItemIssueTypeMetadata is the
+	// "work_item.issue_type_metadata" fact kind.
+	FactKindWorkItemIssueTypeMetadata = "work_item.issue_type_metadata"
+	// FactKindWorkItemStatusMetadata is the "work_item.status_metadata" fact
+	// kind.
+	FactKindWorkItemStatusMetadata = "work_item.status_metadata"
+	// FactKindWorkItemWorkflowMetadata is the "work_item.workflow_metadata"
+	// fact kind.
+	FactKindWorkItemWorkflowMetadata = "work_item.workflow_metadata"
+	// FactKindWorkItemFieldMetadata is the "work_item.field_metadata" fact
+	// kind.
+	FactKindWorkItemFieldMetadata = "work_item.field_metadata"
+	// FactKindWorkItemMetadataWarning is the "work_item.metadata_warning"
+	// fact kind.
+	FactKindWorkItemMetadataWarning = "work_item.metadata_warning"
 )
 
 // Classification values a DecodeError carries. These are this module's own

@@ -1,0 +1,8 @@
+{
+  "provider": "jira_cloud",
+  "provider_changelog_id": "20001",
+  "provider_work_item_id": "10001",
+  "work_item_key": "OPS-123",
+  "field": "status",
+  "value_redacted": true
+}

@@ -12,6 +12,7 @@ SELECT
     COALESCE(fact.source_uri, ''),
     COALESCE(fact.source_record_id, ''),
     fact.observed_at,
+    fact.schema_version,
     fact.payload
 `
 

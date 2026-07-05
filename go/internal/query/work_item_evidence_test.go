@@ -255,9 +255,10 @@ func TestWorkItemEvidenceRowsClassifyStatesWithoutPrivatePayloads(t *testing.T) 
 			ScopeID:      "jira:site:example",
 			GenerationID: "generation-1",
 			Payload: map[string]any{
-				"provider":       "jira_cloud",
-				"work_item_key":  "OPS-124",
-				"evidence_state": WorkItemEvidenceStatePermissionHidden,
+				"provider":              "jira_cloud",
+				"provider_work_item_id": "10124",
+				"work_item_key":         "OPS-124",
+				"evidence_state":        WorkItemEvidenceStatePermissionHidden,
 			},
 		},
 	})

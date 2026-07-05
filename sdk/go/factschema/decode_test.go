@@ -27,6 +27,7 @@ import (
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
+	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
 
 func testEnvelope(payload map[string]any) Envelope {
@@ -361,6 +362,15 @@ var payloadContracts = []struct {
 	{FactKindEKSIRSAAnnotation, "eks_irsa_annotation.v1.schema.json", reflect.TypeOf(secretsiamv1.EKSIRSAAnnotation{})},
 	{FactKindEKSPodIdentityAssociation, "eks_pod_identity_association.v1.schema.json", reflect.TypeOf(secretsiamv1.EKSPodIdentityAssociation{})},
 	{FactKindKubernetesGCPWorkloadIdentityBinding, "k8s_gcp_workload_identity_binding.v1.schema.json", reflect.TypeOf(secretsiamv1.KubernetesGCPWorkloadIdentityBinding{})},
+	{FactKindWorkItemRecord, "work_item.record.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemRecord{})},
+	{FactKindWorkItemTransition, "work_item.transition.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemTransition{})},
+	{FactKindWorkItemExternalLink, "work_item.external_link.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemExternalLink{})},
+	{FactKindWorkItemProjectMetadata, "work_item.project_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemProjectMetadata{})},
+	{FactKindWorkItemIssueTypeMetadata, "work_item.issue_type_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemIssueTypeMetadata{})},
+	{FactKindWorkItemStatusMetadata, "work_item.status_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemStatusMetadata{})},
+	{FactKindWorkItemWorkflowMetadata, "work_item.workflow_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemWorkflowMetadata{})},
+	{FactKindWorkItemFieldMetadata, "work_item.field_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemFieldMetadata{})},
+	{FactKindWorkItemMetadataWarning, "work_item.metadata_warning.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemMetadataWarning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

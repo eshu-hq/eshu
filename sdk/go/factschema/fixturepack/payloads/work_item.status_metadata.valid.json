@@ -1,0 +1,7 @@
+{
+  "provider": "jira_cloud",
+  "status_id": "3",
+  "project_id": "10000",
+  "status_category": "In Progress",
+  "status_category_key": "indeterminate"
+}

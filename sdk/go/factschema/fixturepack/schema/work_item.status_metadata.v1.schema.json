@@ -1,0 +1,91 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/workitem/v1/status_metadata.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "description_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "self_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "self_url_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status_category": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status_category_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status_id": {
+      "type": "string"
+    },
+    "status_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status_name_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "status_id"
+  ],
+  "title": "Eshu work_item.status_metadata Payload (schema version 1)",
+  "type": "object"
+}

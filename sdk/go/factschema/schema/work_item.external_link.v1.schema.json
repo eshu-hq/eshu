@@ -1,0 +1,129 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/workitem/v1/external_link.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "application_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "application_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchor_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "global_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "linked_repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "provider_remote_link_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_support_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_work_item_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relationship": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "summary_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "title_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "url_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "url_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "url_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "work_item_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider"
+  ],
+  "title": "Eshu work_item.external_link Payload (schema version 1)",
+  "type": "object"
+}

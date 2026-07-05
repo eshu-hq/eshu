@@ -62,6 +62,8 @@ type Paths struct {
 	// v1 Wave 4d: the secrets_iam family's VAULT + K8S lanes only; the AWS IAM
 	// lane's structs live in IAMStructDir, and the GCP IAM lane is deferred).
 	SecretsIAMStructDir string
+	// WorkItemStructDir is sdk/go/factschema/workitem/v1.
+	WorkItemStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -74,6 +76,21 @@ type Paths struct {
 	// DecodeFiles); resolveProjectorDecodeFiles fills it by globbing
 	// factschema_decode*.go under ProjectorDir.
 	ProjectorDecodeFiles []string
+	// QueryDir is go/internal/query — the source of the query layer's
+	// decode-seam files (QueryDecodeFiles) and the read-model row-builder files
+	// ScanDecodeUsage walks for the query-side decode sites. The query
+	// read-model layer is the ONLY decode site for the work_item family (no
+	// reducer or projector domain consumes work_item.* payloads; see
+	// sdk/go/factschema/workitem/v1/README.md), so the manifest gate must scan
+	// it alongside ReducerDir and ProjectorDir.
+	QueryDir string
+	// QueryDecodeFiles is the set of query-layer decode-seam files to parse.
+	// When empty, ResolvePaths does NOT default it (same rationale as
+	// ProjectorDecodeFiles); resolveQueryDecodeFiles fills it by globbing
+	// factschema_decode*.go under QueryDir. An empty match is valid (today only
+	// the work_item family is typed at the query layer), mirroring the
+	// projector's non-fail-closed glob.
+	QueryDecodeFiles []string
 }
 
 // ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
@@ -119,6 +136,7 @@ func ResolvePaths(p Paths) Paths {
 		{&resolved.VulnerabilityStructDir, "vulnerability"},
 		{&resolved.CICDRunStructDir, "cicdrun"},
 		{&resolved.SecretsIAMStructDir, "secretsiam"},
+		{&resolved.WorkItemStructDir, "workitem"},
 	} {
 		if strings.TrimSpace(*family.dir) == "" {
 			*family.dir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", family.name, "v1")
@@ -126,6 +144,9 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.ProjectorDir) == "" {
 		resolved.ProjectorDir = filepath.Join(resolved.RepoRoot, "go", "internal", "projector")
+	}
+	if strings.TrimSpace(resolved.QueryDir) == "" {
+		resolved.QueryDir = filepath.Join(resolved.RepoRoot, "go", "internal", "query")
 	}
 	// DecodeFile / DecodeFiles are intentionally NOT defaulted here: the glob
 	// path can fail, and ResolvePaths returns no error. resolveDecodeFiles (from

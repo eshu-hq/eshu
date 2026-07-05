@@ -12,6 +12,8 @@ on:
   pull_request:
     paths:
       - "go/internal/reducer/**"
+      - "go/internal/query/**"
+      - "go/internal/projector/**"
       - "sdk/go/factschema/**"
       - "go/internal/payloadusage/**"
       - "go/cmd/payload-usage-manifest/**"

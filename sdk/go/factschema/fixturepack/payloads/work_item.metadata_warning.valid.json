@@ -1,0 +1,6 @@
+{
+  "provider": "jira_cloud",
+  "metadata_type": "workflow",
+  "reason": "permission_hidden",
+  "failure_class": "permission_hidden"
+}

@@ -20,6 +20,7 @@ SELECT
     fact.generation_id,
     fact.source_confidence,
     fact.observed_at,
+    fact.schema_version,
     fact.payload
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope

@@ -135,6 +135,22 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindEKSIRSAAnnotation":                    "eks_irsa_annotation.v1.schema.json",
 	"FactKindEKSPodIdentityAssociation":            "eks_pod_identity_association.v1.schema.json",
 	"FactKindKubernetesGCPWorkloadIdentityBinding": "k8s_gcp_workload_identity_binding.v1.schema.json",
+	// work_item family (Wave 4d): the eight kinds a QUERY-side decode seam
+	// wrapper actually decodes (go/internal/query/factschema_decode_workitem.go).
+	// work_item is read straight from Postgres by the query evidence read model —
+	// no reducer or projector domain consumes it — so its decode site is the
+	// query layer, gated via QueryDir. work_item.issue_type_metadata is typed in
+	// the contracts module but the read model does not consume it, so it has no
+	// query wrapper and no mapping here (mapping it would assert a gate contract
+	// for a kind no read path decodes).
+	"FactKindWorkItemRecord":           "work_item.record.v1.schema.json",
+	"FactKindWorkItemTransition":       "work_item.transition.v1.schema.json",
+	"FactKindWorkItemExternalLink":     "work_item.external_link.v1.schema.json",
+	"FactKindWorkItemProjectMetadata":  "work_item.project_metadata.v1.schema.json",
+	"FactKindWorkItemStatusMetadata":   "work_item.status_metadata.v1.schema.json",
+	"FactKindWorkItemWorkflowMetadata": "work_item.workflow_metadata.v1.schema.json",
+	"FactKindWorkItemFieldMetadata":    "work_item.field_metadata.v1.schema.json",
+	"FactKindWorkItemMetadataWarning":  "work_item.metadata_warning.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema
