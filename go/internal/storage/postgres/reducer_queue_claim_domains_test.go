@@ -79,12 +79,28 @@ func TestClaimBatchCanFilterByMultipleDomains(t *testing.T) {
 	}
 
 	query := db.queries[0].query
+	if !strings.Contains(query, "domain = ANY($2::text[])") {
+		t.Fatalf("batch claim query missing domain allowlist predicate:\n%s", query)
+	}
+	// Pre-rank-once-rewrite (#3624 Track 2), the domain allowlist was
+	// re-applied at each correlated "same" representative-picker call site
+	// ("same.domain = ANY($2::text[])"). The rewrite applies the allowlist
+	// exactly once in base's WHERE clause; every downstream representative
+	// CTE (reps_ranked, reps) derives from base, and the conflict-key
+	// representative is the reps.same_rn = 1 row selected in the candidate CTE,
+	// so a domain-filtered row can never become a representative in the first
+	// place — re-checking the filter there would be redundant, not a lost
+	// guarantee. Confirm the shapes that make the single base-level filter
+	// binding for the representative: reps_ranked derives from base's
+	// readiness-filtered rows, and the representative is the reps.same_rn = 1
+	// row (no separate correlated same-representative subquery).
 	for _, want := range []string{
-		"domain = ANY($2::text[])",
-		"same.domain = ANY($2::text[])",
+		"reps_ranked AS MATERIALIZED (",
+		"FROM base\n    WHERE readiness_ok",
+		"WHERE reps.same_rn = 1",
 	} {
 		if !strings.Contains(query, want) {
-			t.Fatalf("batch claim query missing domain allowlist predicate %q:\n%s", want, query)
+			t.Fatalf("batch claim query missing rank-once representative %q deriving from the domain-filtered base:\n%s", want, query)
 		}
 	}
 	want := []string{

@@ -94,8 +94,6 @@ func TestReducerQueueBatchClaimSupersedesInactiveGenerationReducerWork(t *testin
 		"AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))",
 		"FROM superseded_stale_reducer_generations AS superseded",
 		"superseded.work_item_id = fact_work_items.work_item_id",
-		"FROM superseded_stale_reducer_generations AS superseded_same",
-		"superseded_same.work_item_id = same.work_item_id",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing inactive-generation supersession %q:\n%s", want, query)
@@ -103,5 +101,29 @@ func TestReducerQueueBatchClaimSupersedesInactiveGenerationReducerWork(t *testin
 	}
 	if strings.Contains(query, "stale.status IN ('pending', 'retrying', 'claimed', 'running'") {
 		t.Fatalf("batch claim query must not silently supersede live claimed/running reducer work:\n%s", query)
+	}
+	// Pre-rank-once-rewrite (#3624 Track 2), the supersede exclusion was
+	// re-applied at the "same" representative-picker call site ("FROM
+	// superseded_stale_reducer_generations AS superseded_same" /
+	// "superseded_same.work_item_id = same.work_item_id"). The rewrite
+	// applies the exclusion exactly once in base's WHERE clause (the
+	// "superseded"-aliased NOT EXISTS asserted above); every downstream
+	// representative CTE (reps_ranked, reps) derives from base, and the
+	// conflict-key representative is the reps.same_rn = 1 row selected in the
+	// candidate CTE, so a superseded row can never become a representative in
+	// the first place — a second, independent exclusion there would be
+	// redundant, not a lost guarantee. Confirm the two shapes that make the
+	// single base-level exclusion binding for the representative: reps_ranked
+	// derives from base's readiness-filtered rows, and the representative is
+	// the reps.same_rn = 1 row (no separate correlated same-representative
+	// subquery, which was the #3624 O(N^2) source that has been removed).
+	for _, want := range []string{
+		"reps_ranked AS MATERIALIZED (",
+		"FROM base\n    WHERE readiness_ok",
+		"WHERE reps.same_rn = 1",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("batch claim query missing rank-once representative %q deriving from the supersede-filtered base:\n%s", want, query)
+		}
 	}
 }

@@ -133,15 +133,40 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		"inflight.work_item_id <> fact_work_items.work_item_id",
 		"inflight.status IN ('claimed', 'running')",
 		"inflight.claim_until > $1",
-		"work_item_id = (",
-		"same.conflict_domain = fact_work_items.conflict_domain",
-		"COALESCE(same.conflict_key, same.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
-		"same.status IN ('pending', 'retrying', 'claimed', 'running')",
-		"CASE WHEN same.domain = 'eshu_search_document' THEN 1 ELSE 0 END ASC",
-		"same.updated_at ASC",
-		"same.work_item_id ASC",
-		"LIMIT 1",
-		"FOR UPDATE SKIP LOCKED",
+		// The pre-rewrite query selected the one representative per conflict key
+		// with a correlated per-candidate-row subquery
+		// (work_item_id = (SELECT same.work_item_id ... ORDER BY ... LIMIT 1)),
+		// which re-scanned and re-gated the candidate set per row — the O(N^2)
+		// cost the #3624 rank-once rewrite eliminates. The representative is now
+		// the reps.same_rn = 1 row: a single row_number() window
+		// (w_same, PARTITION BY conflict_domain, ckey) ranked in the #4137
+		// claimed/running-first order, computed once for the whole batch. This
+		// preserves the identical one-representative-per-conflict-key fence
+		// (the expired-holder-first #4137 order and the single-rep-per-key
+		// guarantee) without any correlated per-row subquery.
+		"reps.same_rn = 1",
+		"row_number() OVER w_same",
+		"w_same     AS (PARTITION BY conflict_domain, ckey",
+		"ORDER BY claimed_running_first ASC, is_search_doc ASC, updated_at ASC, work_item_id ASC),",
+		// The rank-once rewrite (#3624) moves FOR UPDATE SKIP LOCKED to an
+		// outer `locked` CTE that joins back to `candidate` by primary key
+		// (window functions are forbidden at the same query level as FOR
+		// UPDATE SKIP LOCKED, but are legal in the inner CTEs this level
+		// joins against). "FOR UPDATE OF lock_target SKIP LOCKED" is the
+		// same lease-safe skip-locked claim property, expressed with an
+		// explicit lock target instead of an implicit single-relation lock.
+		"FOR UPDATE OF lock_target SKIP LOCKED",
+		// Because the lock now sits on lock_target (joined to the snapshot
+		// candidate set by id) rather than directly on the predicate-bearing
+		// candidate SELECT, the row-self lease/visibility/status predicates MUST
+		// be re-applied on lock_target so PostgreSQL's Read Committed
+		// EvalPlanQual recheck drops a row another worker claimed and committed
+		// between our snapshot and this lock (otherwise its fresh lease is
+		// overwritten — lease theft). See TestClaimBatchLockRecheckDropsConcurrentlyClaimedRow.
+		"WHERE lock_target.stage = 'reducer'",
+		"AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')",
+		"AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)",
+		"AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1)",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing %q:\n%s", want, query)
@@ -153,13 +178,26 @@ func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
 	t.Parallel()
 
 	query := claimReducerWorkBatchQuery
-	searchRank := "CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END"
-	sameSearchRank := "CASE WHEN same.domain = 'eshu_search_document' THEN 1 ELSE 0 END"
+	// The rank-once rewrite (#3624) computes the search-document deprioritization
+	// flag exactly once in the base CTE (is_search_doc) instead of re-deriving a
+	// `CASE WHEN same.domain = ...` at a correlated same-representative call site.
+	searchRank := "CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS is_search_doc"
 	if !strings.Contains(query, searchRank) {
 		t.Fatalf("batch claim query missing search-document deprioritization rank:\n%s", query)
 	}
-	if !strings.Contains(query, sameSearchRank) {
-		t.Fatalf("same-conflict representative query missing search-document deprioritization rank:\n%s", query)
+	// The conflict-key representative (same_rn = 1) must deprioritize search
+	// documents: the w_same window orders by is_search_doc ASC, so a
+	// non-search-document sibling outranks a search document on the same
+	// conflict key and becomes the representative. This is the rank-once
+	// equivalent of the removed `CASE WHEN same.domain = ...` correlated rank.
+	for _, want := range []string{
+		"w_same     AS (PARTITION BY conflict_domain, ckey",
+		"ORDER BY claimed_running_first ASC, is_search_doc ASC, updated_at ASC, work_item_id ASC),",
+		"row_number() OVER w_same     AS same_rn",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("same-conflict representative window missing search-document deprioritization order %q:\n%s", want, query)
+		}
 	}
 	if !strings.Contains(query, "ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC") {
 		t.Fatalf("batch claim query missing domain-priority and fairness ordering:\n%s", query)
@@ -193,9 +231,15 @@ func TestClaimBatchCanReclaimExpiredClaims(t *testing.T) {
 
 	query := db.queries[0].query
 	for _, want := range []string{
+		// Expired claimed/running holders enter the base candidate set...
 		"status IN ('pending', 'retrying', 'claimed', 'running')",
-		"same.status IN ('pending', 'retrying', 'claimed', 'running')",
+		// ...only when their lease is unset or already expired (the reclaim gate)...
 		"claim_until IS NULL OR claim_until <= $1",
+		// ...and the #4137 rank-once representative order keeps the expired holder
+		// the conflict-key representative (same_rn = 1) ahead of any pending sibling.
+		// This replaces the pre-rewrite correlated same.status IN (...) subquery.
+		"CASE WHEN fact_work_items.status IN ('claimed', 'running') THEN 0 ELSE 1 END AS claimed_running_first",
+		"ORDER BY claimed_running_first ASC, is_search_doc ASC, updated_at ASC, work_item_id ASC)",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing expired-claim reclaim predicate %q:\n%s", want, query)
@@ -388,7 +432,7 @@ func TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness(t *tes
 	if !queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase") {
 		t.Fatalf("batch claim query missing AWS relationship payload readiness lookup:\n%s", query)
 	}
-	if !queryHasPayloadReadinessLookup(query, "same", "same_readiness_req", "same_readiness_phase") {
+	if !queryHasRankOnceRepresentativeReadinessGate(query, "fact_work_items", "readiness_req", "readiness_phase") {
 		t.Fatalf("batch claim query missing AWS relationship representative readiness lookup:\n%s", query)
 	}
 }

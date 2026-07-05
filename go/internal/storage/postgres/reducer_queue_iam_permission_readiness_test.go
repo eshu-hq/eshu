@@ -121,7 +121,7 @@ func TestReducerQueueClaimBatchQueriesIncludeIAMPermissionReadinessDomains(t *te
 			t.Fatalf("ClaimBatch() query missing IAM permission readiness requirement for %q:\n%s", domain, query)
 		}
 	}
-	if !queryHasPayloadReadinessLookup(query, "same", "same_readiness_req", "same_readiness_phase") {
+	if !queryHasRankOnceRepresentativeReadinessGate(query, "fact_work_items", "readiness_req", "readiness_phase") {
 		t.Fatalf("ClaimBatch() query missing IAM permission representative readiness lookup:\n%s", query)
 	}
 }
