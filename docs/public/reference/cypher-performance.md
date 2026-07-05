@@ -130,9 +130,10 @@ collectors.
 - Compose success without phase timing or queue evidence
 - index changes without write-amplification discussion
 - worker-count or batch-size serialization used as a concurrency fix
-- `AS MATERIALIZED` omitted on a CTE referenced more than once (Postgres
-  re-inlines and re-evaluates it per reference — a wall-clock regression a
-  small-N `EXPLAIN` can hide)
+- CTE materialization treated as a reference-count rule instead of a measured
+  plan contract (Postgres 12+ materializes side-effect-free CTEs referenced
+  more than once by default, while single-reference side-effect-free CTEs are
+  normally folded)
 - a row-set equivalence differential treated as sufficient for a lock/claim/lease
   rewrite (it drops `FOR UPDATE`; a separate EvalPlanQual/lease-safety proof is
   required)
