@@ -137,7 +137,7 @@ func TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres(t *testing.
 	go func() {
 		_, procErr := reducer.ProcessPartitionOnce(
 			ctx, time.Now().UTC(), cfg, store, reader, edges,
-			lookup, nil, nil, nil, nil, nil,
+			lookup, nil, nil, nil, nil, nil, nil,
 		)
 		processDone <- procErr
 	}()
@@ -241,7 +241,7 @@ func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *
 
 	if _, err := reducer.ProcessPartitionOnce(
 		ctx, time.Now().UTC(), cfg, store, reader, edges,
-		lookup, nil, nil, nil, nil, nil,
+		lookup, nil, nil, nil, nil, nil, nil,
 	); err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
 	}

@@ -225,7 +225,7 @@ func TestProcessPartitionOnceHandlesRouteFenceConverges(t *testing.T) {
 		for p := 0; p < partitionCount; p++ {
 			result, err := ProcessPartitionOnce(
 				context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
-				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store,
+				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 			)
 			if err != nil {
 				t.Fatalf("pass %d partition %d: %v", pass, p, err)
@@ -273,7 +273,7 @@ func TestProcessPartitionOnceHandlesRouteFenceHoldsWritesBeforeRetract(t *testin
 	process := func(p int) PartitionProcessResult {
 		result, procErr := ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
-			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store,
+			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 		)
 		if procErr != nil {
 			t.Fatalf("partition %d: %v", p, procErr)
@@ -338,7 +338,7 @@ func TestProcessPartitionOnceHandlesRouteNilFencePreservesLegacyBehavior(t *test
 	for p := 0; p < partitionCount; p++ {
 		if _, err := ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
-			lease, store, edges, acceptedGen, nil, readiness, nil, nil, nil, // nil fence → legacy path
+			lease, store, edges, acceptedGen, nil, readiness, nil, nil, nil, nil, // nil fence → legacy path
 		); err != nil {
 			t.Fatalf("partition %d: %v", p, err)
 		}
@@ -387,7 +387,7 @@ func TestProcessPartitionOnceHandlesRouteUnmarkedRowsDrainWhenFenceWired(t *test
 	for p := 0; p < partitionCount; p++ {
 		result, err := ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
-			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store,
+			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 		)
 		if err != nil {
 			t.Fatalf("partition %d: %v", p, err)
