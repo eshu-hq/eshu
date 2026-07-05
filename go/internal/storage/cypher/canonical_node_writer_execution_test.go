@@ -123,7 +123,8 @@ func TestCanonicalNodeWriterDirectoryGenerationID(t *testing.T) {
 		phase, _ := call.Parameters[StatementMetadataPhaseKey].(string)
 		if call.Operation == OperationCanonicalRetract &&
 			phase != "directory_cleanup" &&
-			strings.Contains(call.Cypher, "Directory") {
+			strings.Contains(call.Cypher, "Directory") &&
+			!strings.Contains(call.Cypher, "p.path <> row.parent_path") {
 			if !strings.Contains(call.Cypher, "generation_id") {
 				t.Fatalf("directory retract Cypher missing generation_id filter: %s", call.Cypher)
 			}

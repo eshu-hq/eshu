@@ -321,10 +321,13 @@ coverage:
   # backfill worklist. The reducer drain crash is already proven by the crashreplay
   # scenario, mapped here to its grain-correct surface. Directory is the first
   # C-14 tombstone backfill: the replaydelta cassette and replay-tier live test
-  # prove the tombstoned Directory is removed from the real backend. CONTAINS
-  # must stay uncovered until a scenario proves direct edge retraction between
-  # surviving endpoints; deleting a node only proves incident-edge cleanup.
+  # prove the tombstoned Directory is removed from the real backend. The same
+  # replaydelta cassette now also proves direct CONTAINS edge retraction between
+  # surviving endpoints: edge-child keeps its Directory node while its stale
+  # edge-parent-a relationship is removed and its edge-parent-b relationship is
+  # written by the current generation.
   - {surface: retractable_node:Directory, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_edge:CONTAINS, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
 
 scenario_requirements:

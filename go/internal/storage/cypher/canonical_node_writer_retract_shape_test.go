@@ -4,7 +4,9 @@
 package cypher
 
 import (
+	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -191,6 +193,35 @@ MATCH (f:File {path: file_path})
 MATCH (:Directory)-[r:CONTAINS]->(f)
 DELETE r`,
 		},
+		{
+			name:   "delta deleted directory edges",
+			cypher: canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher,
+			want: `UNWIND $directory_paths AS directory_path
+MATCH (d:Directory {path: directory_path})
+WHERE d.repo_id = $repo_id
+  AND d.evidence_source = 'projector/canonical'
+MATCH (d)-[r:CONTAINS]-()
+DELETE r`,
+		},
+		{
+			name:   "delta deleted directories",
+			cypher: canonicalNodeRetractDeltaDeletedDirectoriesCypher,
+			want: `UNWIND $directory_paths AS directory_path
+MATCH (d:Directory {path: directory_path})
+WHERE d.repo_id = $repo_id
+  AND d.evidence_source = 'projector/canonical'
+DETACH DELETE d`,
+		},
+		{
+			name:   "directory parent contains",
+			cypher: canonicalNodeRefreshCurrentDirectoryParentEdgesCypher,
+			want: `UNWIND $rows AS row
+MATCH (p:Directory)-[r:CONTAINS]->(d:Directory {path: row.path})
+WHERE d.repo_id = $repo_id
+  AND d.evidence_source = 'projector/canonical'
+  AND p.path <> row.parent_path
+DELETE r`,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := strings.TrimSpace(tt.cypher)
@@ -199,6 +230,63 @@ DELETE r`,
 				t.Fatalf("Cypher = %q, want indexed file seed shape %q", got, want)
 			}
 		})
+	}
+}
+
+func TestCanonicalNodeRefreshDirectoryParentEdgesUsesCurrentDirectoryPaths(t *testing.T) {
+	t.Parallel()
+
+	exec := &mockExecutor{}
+	writer := NewCanonicalNodeWriter(exec, 500, nil)
+
+	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-2",
+		RepoID:       "repo-1",
+		RepoPath:     "/repos/repo",
+		Repository: &projector.RepositoryRow{
+			RepoID:    "repo-1",
+			Name:      "repo",
+			Path:      "/repos/repo",
+			LocalPath: "/repos/repo",
+		},
+		Directories: []projector.DirectoryRow{
+			{Path: "/repos/repo/parent-a", Name: "parent-a", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
+			{Path: "/repos/repo/parent-b", Name: "parent-b", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
+			{Path: "/repos/repo/parent-a/child", Name: "child", ParentPath: "/repos/repo/parent-b", RepoID: "repo-1", Depth: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	var refresh Statement
+	for _, call := range exec.calls {
+		if strings.Contains(call.Cypher, "UNWIND $rows AS row") &&
+			strings.Contains(call.Cypher, "p.path <> row.parent_path") {
+			refresh = call
+			break
+		}
+	}
+	if refresh.Cypher == "" {
+		t.Fatal("missing current-directory parent CONTAINS refresh statement")
+	}
+	got, ok := refresh.Parameters["rows"].([]map[string]any)
+	if !ok {
+		t.Fatalf("rows type = %T, want []map[string]any", refresh.Parameters["rows"])
+	}
+	want := []map[string]any{{
+		"path":        "/repos/repo/parent-a/child",
+		"parent_path": "/repos/repo/parent-b",
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("rows = %#v, want %#v", got, want)
+	}
+	if _, ok := refresh.Parameters["generation_id"]; ok {
+		t.Fatalf("generation_id parameter present for path-bounded parent refresh: %#v", refresh.Parameters)
+	}
+	if got := refresh.Parameters["repo_id"]; got != "repo-1" {
+		t.Fatalf("repo_id = %v, want repo-1", got)
 	}
 }
 

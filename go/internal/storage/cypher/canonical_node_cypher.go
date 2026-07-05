@@ -22,9 +22,23 @@ MATCH (f:File {path: file_path})
 WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
 DETACH DELETE f`
 
-const canonicalNodeRetractDeltaEmptyDirectoriesCypher = `UNWIND $directory_paths AS directory_path
+const canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher = `UNWIND $directory_paths AS directory_path
 MATCH (d:Directory {path: directory_path})
 WHERE d.repo_id = $repo_id
+  AND d.evidence_source = 'projector/canonical'
+MATCH (d)-[r:CONTAINS]-()
+DELETE r`
+
+const canonicalNodeRetractDeltaDeletedDirectoriesCypher = `UNWIND $directory_paths AS directory_path
+MATCH (d:Directory {path: directory_path})
+WHERE d.repo_id = $repo_id
+  AND d.evidence_source = 'projector/canonical'
+DETACH DELETE d`
+
+const canonicalNodeRetractDeltaEmptyDirectoriesCypher = `UNWIND $directory_paths AS directory_path
+MATCH (d:Directory)
+WHERE d.path = directory_path
+  AND d.repo_id = $repo_id
   AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:File) }
   AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:Directory) }
 DETACH DELETE d`
@@ -51,6 +65,13 @@ DELETE r`
 const canonicalNodeRefreshCurrentDirectoryFileEdgesCypher = `UNWIND $file_paths AS file_path
 MATCH (f:File {path: file_path})
 MATCH (:Directory)-[r:CONTAINS]->(f)
+DELETE r`
+
+const canonicalNodeRefreshCurrentDirectoryParentEdgesCypher = `UNWIND $rows AS row
+MATCH (p:Directory)-[r:CONTAINS]->(d:Directory {path: row.path})
+WHERE d.repo_id = $repo_id
+  AND d.evidence_source = 'projector/canonical'
+  AND p.path <> row.parent_path
 DELETE r`
 
 const canonicalNodeRefreshCurrentEntityContainmentEdgesTemplate = `UNWIND $rows AS row
