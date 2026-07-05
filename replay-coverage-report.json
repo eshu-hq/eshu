@@ -3693,9 +3693,9 @@
   "language_scoreboard": {
     "total": 32,
     "exempt": 11,
-    "fixture": 1,
-    "uncovered": 20,
-    "percent_satisfied": 37.5,
+    "fixture": 2,
+    "uncovered": 19,
+    "percent_satisfied": 40.63,
     "languages": [
       {
         "language": "argocd",
@@ -3770,7 +3770,8 @@
       },
       {
         "language": "json",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/json.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "kotlin",

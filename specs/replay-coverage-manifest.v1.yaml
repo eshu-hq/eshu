@@ -145,6 +145,11 @@ coverage:
   - {surface: "parser:hcl", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json", proof_gate: parserfixture-tests}
   - {surface: "parser:yaml", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/yaml.fixture.json", proof_gate: parserfixture-tests}
 
+  # C-12 (#4365): language-ledger parser fixtures. These exact
+  # parser:<language> rows satisfy the visibility-only language scoreboard
+  # without expanding the blocking parser-backing-ledger denominator.
+  - {surface: "parser:json", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/json.fixture.json", proof_gate: parserfixture-tests}
+
   # C-4 (#4176): correlation-backed capability claims. These map only the
   # capabilities whose claim is directly exercised by a B-12 required
   # correlation already promoted in scripts/verify-golden-corpus-gate.sh. Shared

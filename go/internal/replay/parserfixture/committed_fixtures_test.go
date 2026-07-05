@@ -23,12 +23,10 @@ import (
 // mis-attributes a fact (or its provenance) shows up as a fixture diff in CI.
 var updateFixtures = flag.Bool("update-fixtures", false, "regenerate the committed parser fixtures from the live parser")
 
-// ledgerCase is one parser-backing-ledger parser plus the package-local,
-// parser-focused source tree and committed fixture that exercise it. These are
-// the C-3 (#4175) worklist: every parser in specs/parser-backing-ledger.v1.yaml.
-type ledgerCase struct {
-	// parser is the specs/parser-backing-ledger.v1.yaml parser name (the coverage
-	// key the manifest maps as parser:<parser>).
+// fixtureCase is one committed parser fixture plus the package-local,
+// parser-focused source tree and committed fixture that exercise it.
+type fixtureCase struct {
+	// parser is the coverage key suffix the manifest maps as parser:<parser>.
 	parser string
 	// treeDir is the package-local source tree under testdata/trees/<treeDir>.
 	treeDir string
@@ -44,13 +42,29 @@ type ledgerCase struct {
 // ledgerCases enumerates the four parser-backing-ledger parsers. Keep this in
 // lockstep with specs/parser-backing-ledger.v1.yaml: TestLedgerCasesMatchSpec
 // fails if the spec adds or removes a parser without a fixture here.
-func ledgerCases() []ledgerCase {
-	return []ledgerCase{
+func ledgerCases() []fixtureCase {
+	return []fixtureCase{
 		{parser: "cloudformation", treeDir: "cloudformation", language: "yaml", signatureArray: "cloudformation_resources"},
 		{parser: "dockerfile", treeDir: "dockerfile", language: "dockerfile", signatureArray: "dockerfile_stages"},
 		{parser: "hcl", treeDir: "hcl", language: "hcl", signatureArray: "terraform_resources"},
 		{parser: "yaml", treeDir: "yaml", language: "yaml", signatureArray: "k8s_resources"},
 	}
+}
+
+// languageFixtureCases enumerates C-12 (#4365) language-ledger parser fixtures
+// that are visibility-only on the language scoreboard. They must not be added to
+// specs/parser-backing-ledger.v1.yaml unless they become parser-backing ledger
+// surfaces.
+func languageFixtureCases() []fixtureCase {
+	return []fixtureCase{
+		{parser: "json", treeDir: "json", language: "json", signatureArray: "variables"},
+	}
+}
+
+func committedFixtureCases() []fixtureCase {
+	cases := append([]fixtureCase{}, ledgerCases()...)
+	cases = append(cases, languageFixtureCases()...)
+	return cases
 }
 
 // packageDir is the directory holding this test file (the parserfixture package).
@@ -71,16 +85,16 @@ func repoRoot(t *testing.T) string {
 	return filepath.Clean(filepath.Join(packageDir(t), "..", "..", "..", ".."))
 }
 
-func (tc ledgerCase) treePath(t *testing.T) string {
+func (tc fixtureCase) treePath(t *testing.T) string {
 	return filepath.Join(packageDir(t), "testdata", "trees", tc.treeDir)
 }
 
-func (tc ledgerCase) fixturePath(t *testing.T) string {
+func (tc fixtureCase) fixturePath(t *testing.T) string {
 	return filepath.Join(packageDir(t), "testdata", "fixtures", tc.parser+".fixture.json")
 }
 
-// newLedgerEmitter builds an emitter over the case's package-local tree.
-func (tc ledgerCase) newLedgerEmitter(t *testing.T) *parserfixture.Emitter {
+// newEmitter builds an emitter over the case's package-local tree.
+func (tc fixtureCase) newEmitter(t *testing.T) *parserfixture.Emitter {
 	t.Helper()
 	em, err := parserfixture.NewEmitter(parserfixture.EmitterOptions{
 		ScopeID:  "parser_fixture:" + tc.parser,
@@ -93,19 +107,19 @@ func (tc ledgerCase) newLedgerEmitter(t *testing.T) *parserfixture.Emitter {
 	return em
 }
 
-// TestCommittedParserFixturesAreCurrent is the C-3 golden gate: for every
-// parser-backing-ledger parser, re-recording its tree (portable, repo-root
-// tokenized) must byte-match the committed fixture. A parser change that drops or
-// mis-attributes a fact, or changes its provenance, breaks this — exactly the
-// regression the issue (#4175) targets. `-update-fixtures` regenerates them.
+// TestCommittedParserFixturesAreCurrent is the committed parser-fixture gate:
+// for every C-3 parser-backing fixture and C-12 language fixture, re-recording
+// its tree (portable, repo-root tokenized) must byte-match the committed
+// fixture. A parser change that drops or mis-attributes a fact, or changes its
+// provenance, breaks this. `-update-fixtures` regenerates them.
 func TestCommittedParserFixturesAreCurrent(t *testing.T) {
 	root := repoRoot(t)
-	for _, tc := range ledgerCases() {
+	for _, tc := range committedFixtureCases() {
 		t.Run(tc.parser, func(t *testing.T) {
 			fixturePath := tc.fixturePath(t)
 			tmp := filepath.Join(t.TempDir(), tc.parser+".json")
 			if err := parserfixture.Record(context.Background(), parserfixture.RecordOptions{
-				Emitter:  tc.newLedgerEmitter(t),
+				Emitter:  tc.newEmitter(t),
 				Path:     tmp,
 				RepoRoot: root,
 			}); err != nil {
@@ -144,15 +158,16 @@ func TestCommittedParserFixturesAreCurrent(t *testing.T) {
 }
 
 // TestCommittedParserFixturesReplayGreenWithProvenance is the R-7 replay proof:
-// loading each committed fixture (rehydrated to the local checkout) and replaying
-// it reproduces the live parser's envelopes exactly, including SourceRef
-// provenance, and the recorded facts carry the intended parser's language and a
-// non-empty domain signature — so the fixture proves that specific parser ran.
+// loading each committed fixture (rehydrated to the local checkout) and
+// replaying it reproduces the live parser's envelopes exactly, including
+// SourceRef provenance, and the recorded facts carry the intended parser's
+// language and a non-empty domain signature — so the fixture proves that
+// specific parser ran.
 func TestCommittedParserFixturesReplayGreenWithProvenance(t *testing.T) {
 	root := repoRoot(t)
-	for _, tc := range ledgerCases() {
+	for _, tc := range committedFixtureCases() {
 		t.Run(tc.parser, func(t *testing.T) {
-			live := drainEnvelopes(t, tc.newLedgerEmitter(t))
+			live := drainEnvelopes(t, tc.newEmitter(t))
 			if len(live) == 0 {
 				t.Fatalf("%s: live emitter produced no envelopes", tc.parser)
 			}

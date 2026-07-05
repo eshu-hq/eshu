@@ -5,6 +5,7 @@ package replaycoverage
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -73,9 +74,12 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 		manifest.Requirements = unionRequirements(manifest.Requirements, DeriveRequirements(supported, in.DepthRequirements, in.FactKinds))
 		depthExempt = depthExemptions(in.DepthRequirements)
 	}
-	cov := Reconcile(supported, manifest, in.Resolver)
+	surfaceManifest := manifestForSupportedReconcile(manifest, supported, in.LanguageLedger)
+	cov := Reconcile(supported, surfaceManifest, in.Resolver)
+	var proofGateDetails proofGateValidationDetails
 	if in.ProofGates != nil {
-		cov = applyProofGateValidation(cov, proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates))
+		proofGateDetails = proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates)
+		cov = applyProofGateValidation(cov, proofGateDetails)
 	}
 	cov = applyDepthExemptions(cov, depthExempt)
 	rep := BuildReport(cov, in.Blocking)
@@ -83,12 +87,128 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 	// kept out of the blocking findings below: C-11 (#4364) is visibility-only, so
 	// the uncovered languages (the C-12 #4365 worklist) are listed without failing
 	// the gate, and the single Blocking knob stays the only severity control.
-	rep.LanguageScoreboard = BuildLanguageScoreboard(in.LanguageLedger, in.LanguageExemptions, cov.Surfaces)
+	languageSurfaces := languageFixtureCoverageSurfaces(in.LanguageLedger, manifest, in.Resolver, proofGateDetails)
+	scoreboardSurfaces := appendDistinctSurfaceCoverage(cov.Surfaces, languageSurfaces)
+	rep.LanguageScoreboard = BuildLanguageScoreboard(in.LanguageLedger, in.LanguageExemptions, scoreboardSurfaces)
 	gr := &goldengate.Report{}
 	for _, f := range Findings(cov, in.Blocking) {
 		gr.Add(f)
 	}
 	return cov, rep, gr
+}
+
+func languageFixtureCoverageSurfaces(
+	ledger LanguageLedger,
+	manifest Manifest,
+	resolver Resolver,
+	proofGateDetails proofGateValidationDetails,
+) []SurfaceCoverage {
+	if len(ledger.Languages) == 0 || len(manifest.Coverage) == 0 {
+		return nil
+	}
+	ledgerLanguages := map[string]struct{}{}
+	for _, lang := range ledger.Languages {
+		ledgerLanguages[lang.Language] = struct{}{}
+	}
+	seen := map[string]struct{}{}
+	languageManifest := Manifest{Version: manifest.Version}
+	var supported []SupportedSurface
+	for _, entry := range manifest.Coverage {
+		if entry.Scenario != ScenarioParserFixture || entry.ScenarioType != ScenarioTypeBaseline {
+			continue
+		}
+		name, ok := strings.CutPrefix(entry.Surface, ParserSurfacePrefix)
+		if !ok || name == "" {
+			continue
+		}
+		if _, ok := ledgerLanguages[name]; !ok {
+			continue
+		}
+		if _, ok := seen[entry.Surface]; ok {
+			continue
+		}
+		seen[entry.Surface] = struct{}{}
+		languageManifest.Coverage = append(languageManifest.Coverage, entry)
+		supported = append(supported, SupportedSurface{
+			Registry: RegistryParserLedger,
+			Key:      entry.Surface,
+			Detail:   "language parser fixture",
+		})
+	}
+	if len(supported) == 0 {
+		return nil
+	}
+	cov := Reconcile(supported, languageManifest, resolver)
+	for i := range cov.Surfaces {
+		scenario := cov.Surfaces[i].Scenario
+		if scenario == nil {
+			continue
+		}
+		if detail, invalid := proofGateDetails.byProofGate[scenario.ProofGate]; invalid {
+			cov.Surfaces[i].Status = StatusUnresolved
+			cov.Surfaces[i].Detail = detail
+		}
+	}
+	return cov.Surfaces
+}
+
+func manifestForSupportedReconcile(manifest Manifest, supported []SupportedSurface, languageLedger LanguageLedger) Manifest {
+	if len(manifest.Coverage) == 0 {
+		return manifest
+	}
+	supportedKeys := map[string]struct{}{}
+	for _, surface := range supported {
+		supportedKeys[surface.Key] = struct{}{}
+	}
+	languageNames := map[string]struct{}{}
+	for _, lang := range languageLedger.Languages {
+		languageNames[lang.Language] = struct{}{}
+	}
+	filtered := manifest
+	filtered.Coverage = make([]CoverageEntry, 0, len(manifest.Coverage))
+	for _, entry := range manifest.Coverage {
+		if shouldDeferToLanguageScoreboard(entry, supportedKeys, languageNames) {
+			continue
+		}
+		filtered.Coverage = append(filtered.Coverage, entry)
+	}
+	return filtered
+}
+
+func shouldDeferToLanguageScoreboard(entry CoverageEntry, supportedKeys map[string]struct{}, languageNames map[string]struct{}) bool {
+	if entry.Scenario != ScenarioParserFixture || entry.ScenarioType != ScenarioTypeBaseline {
+		return false
+	}
+	if _, ok := supportedKeys[entry.Surface]; ok {
+		return false
+	}
+	name, ok := strings.CutPrefix(entry.Surface, ParserSurfacePrefix)
+	if !ok || name == "" {
+		return false
+	}
+	_, ok = languageNames[name]
+	return ok
+}
+
+func appendDistinctSurfaceCoverage(base, extra []SurfaceCoverage) []SurfaceCoverage {
+	out := append([]SurfaceCoverage(nil), base...)
+	seen := map[string]struct{}{}
+	for _, sc := range out {
+		seen[surfaceCoverageKey(sc)] = struct{}{}
+	}
+	for _, sc := range extra {
+		key := surfaceCoverageKey(sc)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, sc)
+	}
+	return out
+}
+
+func surfaceCoverageKey(sc SurfaceCoverage) string {
+	return sc.Surface.Key + "\x00" + string(surfaceCoverageScenarioType(sc))
 }
 
 func applyProofGateValidation(cov Coverage, details proofGateValidationDetails) Coverage {
