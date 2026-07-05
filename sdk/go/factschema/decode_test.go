@@ -21,11 +21,12 @@ import (
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
+	observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
-	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
+	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
@@ -373,6 +374,24 @@ var payloadContracts = []struct {
 	{FactKindWorkItemFieldMetadata, "work_item.field_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemFieldMetadata{})},
 	{FactKindWorkItemMetadataWarning, "work_item.metadata_warning.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemMetadataWarning{})},
 	{FactKindSecurityAlertRepositoryAlert, "security_alert.repository_alert.v1.schema.json", reflect.TypeOf(securityalertv1.RepositoryAlert{})},
+	{FactKindObservabilityDeclaredFolder, "observability.declared_folder.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredFolder{})},
+	{FactKindObservabilityDeclaredDashboard, "observability.declared_dashboard.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredDashboard{})},
+	{FactKindObservabilityDeclaredDatasource, "observability.declared_datasource.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredDatasource{})},
+	{FactKindObservabilityDeclaredAlertRule, "observability.declared_alert_rule.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredAlertRule{})},
+	{FactKindObservabilityDeclaredScrapeConfig, "observability.declared_scrape_config.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredScrapeConfig{})},
+	{FactKindObservabilityDeclaredMetricRule, "observability.declared_metric_rule.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredMetricRule{})},
+	{FactKindObservabilityDeclaredMetricRoute, "observability.declared_metric_route.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredMetricRoute{})},
+	{FactKindObservabilityDeclaredLogRoute, "observability.declared_log_route.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredLogRoute{})},
+	{FactKindObservabilityDeclaredTraceRoute, "observability.declared_trace_route.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredTraceRoute{})},
+	{FactKindObservabilityAppliedResource, "observability.applied_resource.v1.schema.json", reflect.TypeOf(observabilityv1.AppliedResource{})},
+	{FactKindObservabilityAppliedSyncState, "observability.applied_sync_state.v1.schema.json", reflect.TypeOf(observabilityv1.AppliedSyncState{})},
+	{FactKindObservabilityObservedDashboard, "observability.observed_dashboard.v1.schema.json", reflect.TypeOf(observabilityv1.ObservedDashboard{})},
+	{FactKindObservabilityObservedTarget, "observability.observed_target.v1.schema.json", reflect.TypeOf(observabilityv1.ObservedTarget{})},
+	{FactKindObservabilityObservedRule, "observability.observed_rule.v1.schema.json", reflect.TypeOf(observabilityv1.ObservedRule{})},
+	{FactKindObservabilityObservedLogSignal, "observability.observed_log_signal.v1.schema.json", reflect.TypeOf(observabilityv1.ObservedLogSignal{})},
+	{FactKindObservabilityObservedTraceSignal, "observability.observed_trace_signal.v1.schema.json", reflect.TypeOf(observabilityv1.ObservedTraceSignal{})},
+	{FactKindObservabilityCoverageWarning, "observability.coverage_warning.v1.schema.json", reflect.TypeOf(observabilityv1.CoverageWarning{})},
+	{FactKindObservabilitySourceInstance, "observability.source_instance.v1.schema.json", reflect.TypeOf(observabilityv1.SourceInstance{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

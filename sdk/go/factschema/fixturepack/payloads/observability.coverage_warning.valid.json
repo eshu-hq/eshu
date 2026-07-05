@@ -1,0 +1,11 @@
+{
+  "source_instance_id": "grafana:prod",
+  "source_class": "observed",
+  "source_kind": "grafana",
+  "provider": "grafana",
+  "warning_kind": "permission_hidden",
+  "resource_class": "dashboard",
+  "provider_object_uid": "hidden:dashboard",
+  "outcome": "permission_hidden",
+  "freshness_state": "permission_hidden"
+}

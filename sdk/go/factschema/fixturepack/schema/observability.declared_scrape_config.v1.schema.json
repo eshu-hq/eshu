@@ -1,0 +1,219 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/observability/v1/declared_scrape_config.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "alert_rule_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "alert_rule_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "app_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "backend_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dashboard_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "datasource_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "declared_match_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "drift_candidate_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "folder_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "freshness_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "label_identity_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observability_resource_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outcome": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pipeline_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_object_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "record_rule_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_identity_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "route_destination_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rule_group": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rule_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "selector_identity_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "series_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service_hints": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_instance_id": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tag_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "trace_tag_identity_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "warning_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "source_instance_id"
+  ],
+  "title": "Eshu observability.declared_scrape_config Payload (schema version 1)",
+  "type": "object"
+}

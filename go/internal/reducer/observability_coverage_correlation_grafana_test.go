@@ -205,6 +205,16 @@ func observabilityFact(factID string, kind string, payload map[string]any) facts
 	if payload["generation_id"] == nil {
 		payload["generation_id"] = "generation-observability"
 	}
+	// source_instance_id is the emitter-guaranteed identity anchor every
+	// observability collector injects on every kind in both lanes (Contract
+	// System v1 Wave 4e), so it is a required decode field. Inject a realistic
+	// default here — mirroring real collector output — so a fixture that does not
+	// deliberately test the missing-anchor dead-letter path decodes cleanly. A
+	// test that needs the anchor absent constructs its envelope directly rather
+	// than through this helper.
+	if payload["source_instance_id"] == nil {
+		payload["source_instance_id"] = "observability-source:" + factID
+	}
 	return facts.Envelope{
 		FactID:        factID,
 		ScopeID:       "scope-observability",

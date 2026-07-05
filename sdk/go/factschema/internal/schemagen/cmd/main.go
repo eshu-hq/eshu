@@ -178,6 +178,27 @@ func run() error {
 		// seeder, so the typed struct mirrors the existing payload exactly
 		// (Contract System v1 Wave 4e, #4566/#4582).
 		{name: "security_alert.repository_alert.v1.schema.json", generate: schemagen.SecurityAlertRepositoryAlertSchema},
+		// The observability family fact kinds are DOTTED (like the incident
+		// family). All eighteen are consumed by the reducer's
+		// observability_coverage_correlation domain (observability/v1/doc.go).
+		{name: "observability.declared_folder.v1.schema.json", generate: schemagen.ObservabilityDeclaredFolderSchema},
+		{name: "observability.declared_dashboard.v1.schema.json", generate: schemagen.ObservabilityDeclaredDashboardSchema},
+		{name: "observability.declared_datasource.v1.schema.json", generate: schemagen.ObservabilityDeclaredDatasourceSchema},
+		{name: "observability.declared_alert_rule.v1.schema.json", generate: schemagen.ObservabilityDeclaredAlertRuleSchema},
+		{name: "observability.declared_scrape_config.v1.schema.json", generate: schemagen.ObservabilityDeclaredScrapeConfigSchema},
+		{name: "observability.declared_metric_rule.v1.schema.json", generate: schemagen.ObservabilityDeclaredMetricRuleSchema},
+		{name: "observability.declared_metric_route.v1.schema.json", generate: schemagen.ObservabilityDeclaredMetricRouteSchema},
+		{name: "observability.declared_log_route.v1.schema.json", generate: schemagen.ObservabilityDeclaredLogRouteSchema},
+		{name: "observability.declared_trace_route.v1.schema.json", generate: schemagen.ObservabilityDeclaredTraceRouteSchema},
+		{name: "observability.applied_resource.v1.schema.json", generate: schemagen.ObservabilityAppliedResourceSchema},
+		{name: "observability.applied_sync_state.v1.schema.json", generate: schemagen.ObservabilityAppliedSyncStateSchema},
+		{name: "observability.observed_dashboard.v1.schema.json", generate: schemagen.ObservabilityObservedDashboardSchema},
+		{name: "observability.observed_target.v1.schema.json", generate: schemagen.ObservabilityObservedTargetSchema},
+		{name: "observability.observed_rule.v1.schema.json", generate: schemagen.ObservabilityObservedRuleSchema},
+		{name: "observability.observed_log_signal.v1.schema.json", generate: schemagen.ObservabilityObservedLogSignalSchema},
+		{name: "observability.observed_trace_signal.v1.schema.json", generate: schemagen.ObservabilityObservedTraceSignalSchema},
+		{name: "observability.coverage_warning.v1.schema.json", generate: schemagen.ObservabilityCoverageWarningSchema},
+		{name: "observability.source_instance.v1.schema.json", generate: schemagen.ObservabilitySourceInstanceSchema},
 	}
 
 	for _, target := range targets {

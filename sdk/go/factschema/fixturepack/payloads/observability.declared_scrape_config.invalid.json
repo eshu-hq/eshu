@@ -1,0 +1,8 @@
+{
+  "source_class": "declared",
+  "source_kind": "git",
+  "backend_kind": "prometheus",
+  "selector_identity_fingerprint": "a1b2c3d4e5f60718",
+  "outcome": "exact",
+  "freshness_state": "current"
+}

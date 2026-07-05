@@ -1,0 +1,9 @@
+{
+  "source_class": "declared",
+  "source_kind": "git",
+  "backend_kind": "prometheus",
+  "pipeline_name": "metrics/main",
+  "route_destination_fingerprint": "99aabbccddeeff00",
+  "outcome": "exact",
+  "freshness_state": "current"
+}

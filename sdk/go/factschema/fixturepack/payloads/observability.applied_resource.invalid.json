@@ -1,0 +1,8 @@
+{
+  "source_class": "applied",
+  "source_kind": "argocd",
+  "observability_resource_class": "scrape_config",
+  "resource_name": "checkout-service",
+  "outcome": "exact",
+  "freshness_state": "current"
+}

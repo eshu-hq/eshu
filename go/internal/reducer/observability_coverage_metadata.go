@@ -23,12 +23,33 @@ type observabilityMetadataEvidence struct {
 	factID         string
 }
 
+// classifyObservabilityMetadataEvidence groups the scope generation's
+// observability declared/applied/observed facts by (provider, coverage_signal,
+// object_ref) and classifies each group into one coverage decision. Each fact is
+// decoded through the typed contracts seam (decodeObservabilityMetadataView): a
+// fact missing its required source_instance_id (or provider_object_uid for the
+// four observed kinds that require it) is quarantined per-fact as an
+// input_invalid dead-letter via partitionDecodeFailures and skipped, while every
+// valid fact in the batch still classifies — the same fault-isolation contract
+// the AWS/GCP/incident families established. A non-input_invalid error is fatal
+// to the intent.
 func classifyObservabilityMetadataEvidence(
 	envelopes []facts.Envelope,
-) []ObservabilityCoverageCorrelationDecision {
+) ([]ObservabilityCoverageCorrelationDecision, []quarantinedFact, error) {
 	groups := make(map[string][]observabilityMetadataEvidence)
+	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		evidence, ok := observabilityMetadataEvidenceFromEnvelope(envelope)
+		evidence, ok, err := observabilityMetadataEvidenceFromEnvelope(envelope)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
 		if !ok {
 			continue
 		}
@@ -41,46 +62,57 @@ func classifyObservabilityMetadataEvidence(
 		decisions = append(decisions, classifyObservabilityMetadataGroup(evidence))
 	}
 	sortObservabilityCoverageDecisions(decisions)
-	return decisions
+	return decisions, quarantined, nil
 }
 
+// observabilityMetadataEvidenceFromEnvelope decodes one observability fact
+// through the typed seam and projects it into the classifier's evidence record.
+// It returns (evidence, true, nil) for a usable metadata fact, (zero, false,
+// nil) for a fact the classifier intentionally skips (the source_instance kind,
+// or a fact whose provider/signal/object-ref could not be derived — today's
+// silent-skip behavior for those, preserved byte-for-byte), and (zero, false,
+// err) when the typed decode fails so the caller can quarantine or fail.
 func observabilityMetadataEvidenceFromEnvelope(
 	envelope facts.Envelope,
-) (observabilityMetadataEvidence, bool) {
+) (observabilityMetadataEvidence, bool, error) {
 	if _, ok := facts.ObservabilitySchemaVersion(envelope.FactKind); !ok ||
 		envelope.FactKind == facts.ObservabilitySourceInstanceFactKind {
-		return observabilityMetadataEvidence{}, false
+		return observabilityMetadataEvidence{}, false, nil
 	}
-	provider := observabilityMetadataProvider(envelope.FactKind, envelope.Payload)
-	signal := observabilityMetadataCoverageSignal(envelope.FactKind, envelope.Payload)
-	objectRef := observabilityMetadataObjectRef(envelope)
+	view, err := decodeObservabilityMetadataView(envelope)
+	if err != nil {
+		return observabilityMetadataEvidence{}, false, err
+	}
+	provider := observabilityMetadataProvider(envelope.FactKind, view)
+	signal := observabilityMetadataCoverageSignal(envelope.FactKind, view)
+	objectRef := observabilityMetadataObjectRef(envelope, view)
 	if provider == "" || signal == "" || objectRef == "" {
-		return observabilityMetadataEvidence{}, false
+		return observabilityMetadataEvidence{}, false, nil
 	}
 	return observabilityMetadataEvidence{
 		provider:       provider,
 		coverageSignal: signal,
 		objectRef:      objectRef,
 		targetService: firstNonBlank(
-			payloadString(envelope.Payload, "service_hints"),
-			payloadString(envelope.Payload, "service_ref"),
+			view.serviceHints,
+			view.serviceRef,
 		),
-		sourceClass:   normalizedObservabilitySourceClass(envelope.FactKind, envelope.Payload),
-		sourceKind:    firstNonBlank(payloadString(envelope.Payload, "source_kind"), provider),
-		sourceOutcome: normalizedObservabilitySourceOutcome(envelope.Payload),
+		sourceClass:   normalizedObservabilitySourceClass(envelope.FactKind, view),
+		sourceKind:    firstNonBlank(view.sourceKind, provider),
+		sourceOutcome: normalizedObservabilitySourceOutcome(view),
 		resourceClass: firstNonBlank(
-			payloadString(envelope.Payload, "resource_class"),
-			payloadString(envelope.Payload, "observability_resource_class"),
+			view.resourceClass,
+			view.observabilityResourceClass,
 			signal,
 		),
-		freshnessState: normalizedObservabilityFreshness(envelope.Payload),
+		freshnessState: normalizedObservabilityFreshness(view),
 		reasonCode: firstNonBlank(
-			payloadString(envelope.Payload, "warning_kind"),
-			payloadString(envelope.Payload, "drift_candidate_reason"),
-			payloadString(envelope.Payload, "declared_match_state"),
+			view.warningKind,
+			view.driftCandidateReason,
+			view.declaredMatchState,
 		),
 		factID: envelope.FactID,
-	}, true
+	}, true, nil
 }
 
 func classifyObservabilityMetadataGroup(
@@ -231,9 +263,9 @@ func observabilityMetadataReason(outcome ObservabilityCoverageCorrelationOutcome
 	}
 }
 
-func observabilityMetadataProvider(factKind string, payload map[string]any) string {
-	if provider := payloadString(payload, "provider"); provider != "" {
-		return provider
+func observabilityMetadataProvider(factKind string, view observabilityMetadataView) string {
+	if view.provider != "" {
+		return view.provider
 	}
 	switch factKind {
 	case facts.ObservabilityDeclaredFolderFactKind,
@@ -249,18 +281,18 @@ func observabilityMetadataProvider(factKind string, payload map[string]any) stri
 		facts.ObservabilityObservedTraceSignalFactKind:
 		return "tempo"
 	case facts.ObservabilityDeclaredMetricRouteFactKind:
-		return firstNonBlank(payloadString(payload, "backend_kind"), "prometheus")
+		return firstNonBlank(view.backendKind, "prometheus")
 	case facts.ObservabilityDeclaredScrapeConfigFactKind,
 		facts.ObservabilityDeclaredMetricRuleFactKind,
 		facts.ObservabilityObservedTargetFactKind,
 		facts.ObservabilityObservedRuleFactKind:
-		return firstNonBlank(payloadString(payload, "backend_kind"), payloadString(payload, "source_kind"), "prometheus")
+		return firstNonBlank(view.backendKind, view.sourceKind, "prometheus")
 	default:
-		return firstNonBlank(payloadString(payload, "backend_kind"), payloadString(payload, "source_kind"))
+		return firstNonBlank(view.backendKind, view.sourceKind)
 	}
 }
 
-func observabilityMetadataCoverageSignal(factKind string, payload map[string]any) string {
+func observabilityMetadataCoverageSignal(factKind string, view observabilityMetadataView) string {
 	switch factKind {
 	case facts.ObservabilityDeclaredFolderFactKind:
 		return "folder"
@@ -271,13 +303,13 @@ func observabilityMetadataCoverageSignal(factKind string, payload map[string]any
 	case facts.ObservabilityDeclaredAlertRuleFactKind:
 		return "alert_rule"
 	case facts.ObservabilityObservedDashboardFactKind:
-		return observabilitySignalFromResourceClass(payloadString(payload, "resource_class"))
+		return observabilitySignalFromResourceClass(view.resourceClass)
 	case facts.ObservabilityDeclaredScrapeConfigFactKind,
 		facts.ObservabilityObservedTargetFactKind:
 		return "scrape_target"
 	case facts.ObservabilityDeclaredMetricRuleFactKind,
 		facts.ObservabilityObservedRuleFactKind:
-		if signal := observabilitySignalFromResourceClass(payloadString(payload, "resource_class")); signal != "" {
+		if signal := observabilitySignalFromResourceClass(view.resourceClass); signal != "" {
 			return signal
 		}
 		return "rule"
@@ -295,15 +327,15 @@ func observabilityMetadataCoverageSignal(factKind string, payload map[string]any
 		facts.ObservabilityAppliedSyncStateFactKind,
 		facts.ObservabilityCoverageWarningFactKind:
 		signal := observabilitySignalFromResourceClass(firstNonBlank(
-			payloadString(payload, "observability_resource_class"),
-			payloadString(payload, "resource_class"),
-			payloadString(payload, "resource_kind"),
+			view.observabilityResourceClass,
+			view.resourceClass,
+			view.resourceKind,
 		))
 		if signal != "" {
 			return signal
 		}
 		if factKind == facts.ObservabilityCoverageWarningFactKind &&
-			observabilityMetadataUnsupported(payload) {
+			observabilityMetadataUnsupported(view) {
 			return "unsupported"
 		}
 		return ""
@@ -339,12 +371,12 @@ func observabilitySignalFromResourceClass(resourceClass string) string {
 	}
 }
 
-func observabilityMetadataUnsupported(payload map[string]any) bool {
-	switch payloadString(payload, "outcome") {
+func observabilityMetadataUnsupported(view observabilityMetadataView) bool {
+	switch view.outcome {
 	case "unsupported", "rejected":
 		return true
 	}
-	switch payloadString(payload, "warning_kind") {
+	switch view.warningKind {
 	case "unsupported_resource_kind", "unsupported", "high_cardinality_rejected":
 		return true
 	default:
@@ -352,39 +384,22 @@ func observabilityMetadataUnsupported(payload map[string]any) bool {
 	}
 }
 
-func observabilityMetadataObjectRef(envelope facts.Envelope) string {
-	payload := envelope.Payload
-	for _, key := range []string{
-		"provider_object_uid",
-		"dashboard_uid",
-		"datasource_uid",
-		"alert_rule_uid",
-		"folder_uid",
-		"resource_identity",
-		"resource_identity_fingerprint",
-		"resource_name",
-		"pipeline_name",
-		"selector_identity_fingerprint",
-		"rule_group",
-		"rule_name",
-		"alert_rule_name_fingerprint",
-		"record_rule_name_fingerprint",
-		"route_destination_fingerprint",
-		"label_identity_fingerprint",
-		"trace_tag_identity_fingerprint",
-		"tag_name",
-		"series_fingerprint",
-		"app_name",
-	} {
-		if value := payloadString(payload, key); value != "" {
+// observabilityMetadataObjectRef returns the first non-empty object-ref
+// candidate in the view's fixed priority order, falling back to the envelope's
+// StableFactKey (an envelope-level identity that is always present) when every
+// candidate is empty — byte-identical to the pre-typing raw-payload fallback
+// chain.
+func observabilityMetadataObjectRef(envelope facts.Envelope, view observabilityMetadataView) string {
+	for _, value := range view.objectRefCandidates() {
+		if value != "" {
 			return value
 		}
 	}
 	return envelope.StableFactKey
 }
 
-func normalizedObservabilitySourceClass(factKind string, payload map[string]any) string {
-	switch value := strings.TrimSpace(payloadString(payload, "source_class")); value {
+func normalizedObservabilitySourceClass(factKind string, view observabilityMetadataView) string {
+	switch value := strings.TrimSpace(view.sourceClass); value {
 	case "declared", "applied", "observed":
 		return value
 	}
@@ -402,8 +417,8 @@ func normalizedObservabilitySourceClass(factKind string, payload map[string]any)
 	}
 }
 
-func normalizedObservabilitySourceOutcome(payload map[string]any) string {
-	switch value := strings.TrimSpace(payloadString(payload, "outcome")); value {
+func normalizedObservabilitySourceOutcome(view observabilityMetadataView) string {
+	switch value := strings.TrimSpace(view.outcome); value {
 	case "":
 		return "derived"
 	default:
@@ -411,8 +426,8 @@ func normalizedObservabilitySourceOutcome(payload map[string]any) string {
 	}
 }
 
-func normalizedObservabilityFreshness(payload map[string]any) string {
-	switch value := strings.TrimSpace(payloadString(payload, "freshness_state")); value {
+func normalizedObservabilityFreshness(view observabilityMetadataView) string {
+	switch value := strings.TrimSpace(view.freshnessState); value {
 	case "":
 		return "unknown"
 	default:

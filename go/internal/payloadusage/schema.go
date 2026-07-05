@@ -158,6 +158,30 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// supply-chain-impact seeder, but both read the same decoded struct, so one
 	// mapping covers the gate for every field either consumer reads.
 	"FactKindSecurityAlertRepositoryAlert": "security_alert.repository_alert.v1.schema.json",
+	// observability family (Wave 4e): the seventeen kinds the coverage-metadata
+	// classifier decodes through the typed view seam
+	// (factschema_decode_observability.go). observability.source_instance carries
+	// no coverage object and is skipped by the classifier, so it has no reducer
+	// decode seam and no row here — mapping it would assert a gate contract for a
+	// kind no reducer read path decodes (the same reason sbom omits its unconsumed
+	// kinds).
+	"FactKindObservabilityDeclaredFolder":       "observability.declared_folder.v1.schema.json",
+	"FactKindObservabilityDeclaredDashboard":    "observability.declared_dashboard.v1.schema.json",
+	"FactKindObservabilityDeclaredDatasource":   "observability.declared_datasource.v1.schema.json",
+	"FactKindObservabilityDeclaredAlertRule":    "observability.declared_alert_rule.v1.schema.json",
+	"FactKindObservabilityDeclaredScrapeConfig": "observability.declared_scrape_config.v1.schema.json",
+	"FactKindObservabilityDeclaredMetricRule":   "observability.declared_metric_rule.v1.schema.json",
+	"FactKindObservabilityDeclaredMetricRoute":  "observability.declared_metric_route.v1.schema.json",
+	"FactKindObservabilityDeclaredLogRoute":     "observability.declared_log_route.v1.schema.json",
+	"FactKindObservabilityDeclaredTraceRoute":   "observability.declared_trace_route.v1.schema.json",
+	"FactKindObservabilityAppliedResource":      "observability.applied_resource.v1.schema.json",
+	"FactKindObservabilityAppliedSyncState":     "observability.applied_sync_state.v1.schema.json",
+	"FactKindObservabilityObservedDashboard":    "observability.observed_dashboard.v1.schema.json",
+	"FactKindObservabilityObservedTarget":       "observability.observed_target.v1.schema.json",
+	"FactKindObservabilityObservedRule":         "observability.observed_rule.v1.schema.json",
+	"FactKindObservabilityObservedLogSignal":    "observability.observed_log_signal.v1.schema.json",
+	"FactKindObservabilityObservedTraceSignal":  "observability.observed_trace_signal.v1.schema.json",
+	"FactKindObservabilityCoverageWarning":      "observability.coverage_warning.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

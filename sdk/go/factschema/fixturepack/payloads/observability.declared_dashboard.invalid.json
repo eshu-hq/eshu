@@ -1,0 +1,9 @@
+{
+  "source_class": "declared",
+  "source_kind": "git",
+  "provider": "grafana",
+  "dashboard_uid": "checkout-latency",
+  "service_hints": "checkout",
+  "outcome": "exact",
+  "freshness_state": "current"
+}

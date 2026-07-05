@@ -1,0 +1,9 @@
+{
+  "source_class": "observed",
+  "source_kind": "grafana",
+  "provider": "grafana",
+  "alert_rule_uid": "checkout-alerts:HighErrorRate",
+  "resource_class": "alert_rule",
+  "outcome": "observed",
+  "freshness_state": "current"
+}

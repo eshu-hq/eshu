@@ -1,0 +1,9 @@
+{
+  "source_instance_id": "acme/observability:grafana/datasources.yaml",
+  "source_class": "declared",
+  "source_kind": "git",
+  "provider": "grafana",
+  "datasource_uid": "prometheus-main",
+  "outcome": "exact",
+  "freshness_state": "current"
+}

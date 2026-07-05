@@ -384,6 +384,60 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindSecurityAlertRepositoryAlert:
 		_, err := DecodeSecurityAlertRepositoryAlert(env)
 		return err
+	case FactKindObservabilityDeclaredFolder:
+		_, err := DecodeObservabilityDeclaredFolder(env)
+		return err
+	case FactKindObservabilityDeclaredDashboard:
+		_, err := DecodeObservabilityDeclaredDashboard(env)
+		return err
+	case FactKindObservabilityDeclaredDatasource:
+		_, err := DecodeObservabilityDeclaredDatasource(env)
+		return err
+	case FactKindObservabilityDeclaredAlertRule:
+		_, err := DecodeObservabilityDeclaredAlertRule(env)
+		return err
+	case FactKindObservabilityDeclaredScrapeConfig:
+		_, err := DecodeObservabilityDeclaredScrapeConfig(env)
+		return err
+	case FactKindObservabilityDeclaredMetricRule:
+		_, err := DecodeObservabilityDeclaredMetricRule(env)
+		return err
+	case FactKindObservabilityDeclaredMetricRoute:
+		_, err := DecodeObservabilityDeclaredMetricRoute(env)
+		return err
+	case FactKindObservabilityDeclaredLogRoute:
+		_, err := DecodeObservabilityDeclaredLogRoute(env)
+		return err
+	case FactKindObservabilityDeclaredTraceRoute:
+		_, err := DecodeObservabilityDeclaredTraceRoute(env)
+		return err
+	case FactKindObservabilityAppliedResource:
+		_, err := DecodeObservabilityAppliedResource(env)
+		return err
+	case FactKindObservabilityAppliedSyncState:
+		_, err := DecodeObservabilityAppliedSyncState(env)
+		return err
+	case FactKindObservabilityObservedDashboard:
+		_, err := DecodeObservabilityObservedDashboard(env)
+		return err
+	case FactKindObservabilityObservedTarget:
+		_, err := DecodeObservabilityObservedTarget(env)
+		return err
+	case FactKindObservabilityObservedRule:
+		_, err := DecodeObservabilityObservedRule(env)
+		return err
+	case FactKindObservabilityObservedLogSignal:
+		_, err := DecodeObservabilityObservedLogSignal(env)
+		return err
+	case FactKindObservabilityObservedTraceSignal:
+		_, err := DecodeObservabilityObservedTraceSignal(env)
+		return err
+	case FactKindObservabilityCoverageWarning:
+		_, err := DecodeObservabilityCoverageWarning(env)
+		return err
+	case FactKindObservabilitySourceInstance:
+		_, err := DecodeObservabilitySourceInstance(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -486,6 +540,24 @@ var allDecodedKinds = []string{
 	FactKindWorkItemFieldMetadata,
 	FactKindWorkItemMetadataWarning,
 	FactKindSecurityAlertRepositoryAlert,
+	FactKindObservabilityDeclaredFolder,
+	FactKindObservabilityDeclaredDashboard,
+	FactKindObservabilityDeclaredDatasource,
+	FactKindObservabilityDeclaredAlertRule,
+	FactKindObservabilityDeclaredScrapeConfig,
+	FactKindObservabilityDeclaredMetricRule,
+	FactKindObservabilityDeclaredMetricRoute,
+	FactKindObservabilityDeclaredLogRoute,
+	FactKindObservabilityDeclaredTraceRoute,
+	FactKindObservabilityAppliedResource,
+	FactKindObservabilityAppliedSyncState,
+	FactKindObservabilityObservedDashboard,
+	FactKindObservabilityObservedTarget,
+	FactKindObservabilityObservedRule,
+	FactKindObservabilityObservedLogSignal,
+	FactKindObservabilityObservedTraceSignal,
+	FactKindObservabilityCoverageWarning,
+	FactKindObservabilitySourceInstance,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -772,6 +844,42 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeWorkItemMetadataWarning(env)
 			case FactKindSecurityAlertRepositoryAlert:
 				_, err = DecodeSecurityAlertRepositoryAlert(env)
+			case FactKindObservabilityDeclaredFolder:
+				_, err = DecodeObservabilityDeclaredFolder(env)
+			case FactKindObservabilityDeclaredDashboard:
+				_, err = DecodeObservabilityDeclaredDashboard(env)
+			case FactKindObservabilityDeclaredDatasource:
+				_, err = DecodeObservabilityDeclaredDatasource(env)
+			case FactKindObservabilityDeclaredAlertRule:
+				_, err = DecodeObservabilityDeclaredAlertRule(env)
+			case FactKindObservabilityDeclaredScrapeConfig:
+				_, err = DecodeObservabilityDeclaredScrapeConfig(env)
+			case FactKindObservabilityDeclaredMetricRule:
+				_, err = DecodeObservabilityDeclaredMetricRule(env)
+			case FactKindObservabilityDeclaredMetricRoute:
+				_, err = DecodeObservabilityDeclaredMetricRoute(env)
+			case FactKindObservabilityDeclaredLogRoute:
+				_, err = DecodeObservabilityDeclaredLogRoute(env)
+			case FactKindObservabilityDeclaredTraceRoute:
+				_, err = DecodeObservabilityDeclaredTraceRoute(env)
+			case FactKindObservabilityAppliedResource:
+				_, err = DecodeObservabilityAppliedResource(env)
+			case FactKindObservabilityAppliedSyncState:
+				_, err = DecodeObservabilityAppliedSyncState(env)
+			case FactKindObservabilityObservedDashboard:
+				_, err = DecodeObservabilityObservedDashboard(env)
+			case FactKindObservabilityObservedTarget:
+				_, err = DecodeObservabilityObservedTarget(env)
+			case FactKindObservabilityObservedRule:
+				_, err = DecodeObservabilityObservedRule(env)
+			case FactKindObservabilityObservedLogSignal:
+				_, err = DecodeObservabilityObservedLogSignal(env)
+			case FactKindObservabilityObservedTraceSignal:
+				_, err = DecodeObservabilityObservedTraceSignal(env)
+			case FactKindObservabilityCoverageWarning:
+				_, err = DecodeObservabilityCoverageWarning(env)
+			case FactKindObservabilitySourceInstance:
+				_, err = DecodeObservabilitySourceInstance(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

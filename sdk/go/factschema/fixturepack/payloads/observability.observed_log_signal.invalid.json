@@ -1,0 +1,10 @@
+{
+  "source_class": "observed",
+  "source_kind": "loki",
+  "provider": "loki",
+  "provider_object_uid": "series:checkout",
+  "resource_class": "log_signal",
+  "series_fingerprint": "aabbccddeeff0011",
+  "outcome": "observed",
+  "freshness_state": "current"
+}

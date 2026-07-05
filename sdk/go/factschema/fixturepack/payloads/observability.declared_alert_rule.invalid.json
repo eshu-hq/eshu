@@ -1,0 +1,8 @@
+{
+  "source_class": "declared",
+  "source_kind": "git",
+  "provider": "grafana",
+  "alert_rule_uid": "checkout-error-rate",
+  "outcome": "exact",
+  "freshness_state": "current"
+}
