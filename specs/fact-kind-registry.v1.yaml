@@ -134,6 +134,7 @@ families:
     read_surface: "GET /api/v0/images"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides: {oci_registry.repository: "sdk/go/factschema/schema/oci_registry.repository.v1.schema.json", oci_registry.image_manifest: "sdk/go/factschema/schema/oci_registry.image_manifest.v1.schema.json", oci_registry.image_index: "sdk/go/factschema/schema/oci_registry.image_index.v1.schema.json", oci_registry.image_descriptor: "sdk/go/factschema/schema/oci_registry.image_descriptor.v1.schema.json", oci_registry.image_tag_observation: "sdk/go/factschema/schema/oci_registry.image_tag_observation.v1.schema.json", oci_registry.image_referrer: "sdk/go/factschema/schema/oci_registry.image_referrer.v1.schema.json", oci_registry.warning: "sdk/go/factschema/schema/oci_registry.warning.v1.schema.json"}
     kinds: [oci_registry.image_descriptor, oci_registry.image_index, oci_registry.image_manifest, oci_registry.image_referrer, oci_registry.image_tag_observation, oci_registry.repository, oci_registry.warning]
   package_registry:
     lifecycle_owner: go/internal/facts

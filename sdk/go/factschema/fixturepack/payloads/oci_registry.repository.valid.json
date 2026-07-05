@@ -1,0 +1,9 @@
+{
+  "repository_id": "oci-registry://registry.example.com/team/api",
+  "provider": "ghcr",
+  "registry": "registry.example.com",
+  "repository": "team/api",
+  "visibility": "private",
+  "auth_mode": "credentialed",
+  "correlation_anchors": ["oci-registry://registry.example.com/team/api"]
+}

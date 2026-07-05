@@ -109,6 +109,30 @@ const (
 	FactKindKubernetesLiveRelationship = "kubernetes_live.relationship"
 	// FactKindKubernetesLiveWarning is the "kubernetes_live.warning" fact kind.
 	FactKindKubernetesLiveWarning = "kubernetes_live.warning"
+
+	// The oci_registry family fact-kind strings are DOTTED, like the incident
+	// family. The dots are part of the wire kind the collector already emits
+	// (go/internal/facts.OCIRegistryRepositoryFactKind and siblings); the
+	// values here MATCH those wire strings byte-for-byte and never invent or
+	// rename the namespace. TestFactSchemaKindsMatchWireFactKinds (reducer side)
+	// asserts each stays byte-equal to its facts.*FactKind counterpart.
+
+	// FactKindOCIRegistryRepository is the "oci_registry.repository" fact kind.
+	FactKindOCIRegistryRepository = "oci_registry.repository"
+	// FactKindOCIImageTagObservation is the
+	// "oci_registry.image_tag_observation" fact kind.
+	FactKindOCIImageTagObservation = "oci_registry.image_tag_observation"
+	// FactKindOCIImageManifest is the "oci_registry.image_manifest" fact kind.
+	FactKindOCIImageManifest = "oci_registry.image_manifest"
+	// FactKindOCIImageIndex is the "oci_registry.image_index" fact kind.
+	FactKindOCIImageIndex = "oci_registry.image_index"
+	// FactKindOCIImageDescriptor is the "oci_registry.image_descriptor" fact
+	// kind.
+	FactKindOCIImageDescriptor = "oci_registry.image_descriptor"
+	// FactKindOCIImageReferrer is the "oci_registry.image_referrer" fact kind.
+	FactKindOCIImageReferrer = "oci_registry.image_referrer"
+	// FactKindOCIRegistryWarning is the "oci_registry.warning" fact kind.
+	FactKindOCIRegistryWarning = "oci_registry.warning"
 )
 
 // Classification values a DecodeError carries. These are this module's own

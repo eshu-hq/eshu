@@ -202,6 +202,35 @@ Evidence: the count path uses static-label, zero-relationship queries with a
 configured per-label limit and no graph mutation; cleanup mutations run in the
 separate `GraphOrphanSweepRunner`.
 
+## Typed-payload decode quarantine counters
+
+Two counters report facts skipped during Contract System v1 typed-payload
+decode because a required identity field was missing or null (`input_invalid`).
+Each increment is a per-fact dead-letter: the malformed fact is skipped and NOT
+projected, while every valid fact in the same batch still materializes, so one
+malformed fact never stalls a scope generation or fails a whole repository
+projection. A non-zero rate means the graph is under-projecting for that
+label set until the collector defect is fixed; treat a sustained spike as an
+accuracy alarm, not routine noise. The paired structured error log
+(`reducer input_invalid fact quarantined` / `projector input_invalid fact
+quarantined`) carries the `fact_id` and `missing_field` so an operator can
+locate the exact fact and the field the collector dropped.
+
+- `eshu_dp_reducer_input_invalid_facts_total` — reducer handler decode
+  quarantine. Labels: `domain` (the reducer domain that consumed the fact),
+  `fact_kind`.
+- `eshu_dp_projector_input_invalid_facts_total` — projector canonical-extractor
+  decode quarantine. Labels: `stage` (the projector extractor, for example
+  `oci_registry_canonical`), `fact_kind`. The projector-side counterpart to the
+  reducer counter; the two are separate instruments so an operator can tell
+  which pipeline stage quarantined a fact.
+
+Both label sets are closed and bounded (a domain/stage name and a fact-kind
+string); repository ids, resource names, and generation ids stay out of
+metrics and live on the structured log instead. The operator dashboard's
+"Reducer input_invalid Facts (rate)" and "Projector input_invalid Facts (rate)"
+panels chart both.
+
 ## Extraction-provenance drift gauges
 
 The reducer publishes two observable gauges that let an operator see how the

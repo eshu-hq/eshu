@@ -1,0 +1,4 @@
+{
+  "repository_id": "oci-registry://registry.example.com/team/api",
+  "subject_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+}

@@ -50,6 +50,16 @@ var factKindSchemaFile = map[string]string{
 	"FactKindKubernetesLivePodTemplate":  "kubernetes_live.pod_template.v1.schema.json",
 	"FactKindKubernetesLiveRelationship": "kubernetes_live.relationship.v1.schema.json",
 	"FactKindKubernetesLiveWarning":      "kubernetes_live.warning.v1.schema.json",
+	// OCI registry family: the six consumed kinds a decode seam references
+	// (the projector canonical extractor decodes all six; the reducer registry
+	// index decodes manifest/index/tag). oci_registry.warning has no decode
+	// seam (typed-but-deferred), so it is intentionally absent here.
+	"FactKindOCIRegistryRepository":  "oci_registry.repository.v1.schema.json",
+	"FactKindOCIImageManifest":       "oci_registry.image_manifest.v1.schema.json",
+	"FactKindOCIImageIndex":          "oci_registry.image_index.v1.schema.json",
+	"FactKindOCIImageDescriptor":     "oci_registry.image_descriptor.v1.schema.json",
+	"FactKindOCIImageTagObservation": "oci_registry.image_tag_observation.v1.schema.json",
+	"FactKindOCIImageReferrer":       "oci_registry.image_referrer.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

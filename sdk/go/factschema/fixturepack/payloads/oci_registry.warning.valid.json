@@ -1,0 +1,8 @@
+{
+  "warning_code": "unsupported_referrers_api",
+  "warning_key": "unsupported_referrers_api",
+  "severity": "warning",
+  "message": "referrers API not supported by registry",
+  "referrers_state": "unsupported",
+  "repository_id": "oci-registry://registry.example.com/team/api"
+}

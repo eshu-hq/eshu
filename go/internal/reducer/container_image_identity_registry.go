@@ -193,8 +193,31 @@ func imageRefFromOCIRepositoryID(repositoryID string, digest string) string {
 	return repository + "@" + strings.TrimSpace(digest)
 }
 
+// ociDigestObservation decodes the digest identity of an
+// oci_registry.image_manifest or oci_registry.image_index fact through the typed
+// factschema seam (never a raw payloadStr read for the digest), then resolves the
+// owning repository id via the shared cross-kind ociRepositoryID helper. A decode
+// failure or an empty digest/repository identity yields ok=false — the projector's
+// canonical extractor already dead-letters a malformed fact, so this secondary
+// consumer skips rather than double-recording.
 func ociDigestObservation(envelope facts.Envelope) (containerImageDigestObservation, bool) {
-	digest := payloadStr(envelope.Payload, "digest")
+	var digest string
+	switch envelope.FactKind {
+	case facts.OCIImageManifestFactKind:
+		manifest, ok := decodeOCIImageManifestForIndex(envelope)
+		if !ok {
+			return containerImageDigestObservation{}, false
+		}
+		digest = manifest.Digest
+	case facts.OCIImageIndexFactKind:
+		index, ok := decodeOCIImageIndexForIndex(envelope)
+		if !ok {
+			return containerImageDigestObservation{}, false
+		}
+		digest = index.Digest
+	default:
+		return containerImageDigestObservation{}, false
+	}
 	repositoryID := ociRepositoryID(envelope.Payload)
 	if digest == "" || repositoryID == "" {
 		return containerImageDigestObservation{}, false
@@ -206,12 +229,23 @@ func ociDigestObservation(envelope facts.Envelope) (containerImageDigestObservat
 	}, true
 }
 
+// ociTagObservation decodes the tag-to-digest identity of an
+// oci_registry.image_tag_observation fact through the typed factschema seam
+// (never a raw payloadStr read for tag/resolved_digest/previous_digest/mutated),
+// then resolves the owning repository id via the shared cross-kind ociRepositoryID
+// helper. A decode failure or an empty digest/tag/repository identity yields
+// ok=false — the projector already dead-letters a malformed fact.
 func ociTagObservation(envelope facts.Envelope) (containerImageTagObservation, bool) {
-	digest := firstNonBlank(
-		payloadStr(envelope.Payload, "resolved_digest"),
-		payloadStr(envelope.Payload, "digest"),
-	)
-	tag := payloadStr(envelope.Payload, "tag")
+	observation, ok := decodeOCIImageTagObservationForIndex(envelope)
+	if !ok {
+		return containerImageTagObservation{}, false
+	}
+	// resolved_digest is the typed required field the tag emitter always sets;
+	// the pre-typing code fell back to a raw "digest" key that the tag payload
+	// never carries (the emitter writes resolved_digest), so reading the typed
+	// field alone preserves the observed behavior.
+	digest := observation.ResolvedDigest
+	tag := observation.Tag
 	repositoryID := ociRepositoryID(envelope.Payload)
 	if digest == "" || tag == "" || repositoryID == "" {
 		return containerImageTagObservation{}, false
@@ -219,9 +253,9 @@ func ociTagObservation(envelope facts.Envelope) (containerImageTagObservation, b
 	return containerImageTagObservation{
 		tag:            tag,
 		digest:         digest,
-		previousDigest: payloadStr(envelope.Payload, "previous_digest"),
+		previousDigest: derefString(observation.PreviousDigest),
 		repositoryID:   repositoryID,
-		mutated:        boolPayload(envelope.Payload, "mutated"),
+		mutated:        derefBool(observation.Mutated),
 		factID:         envelope.FactID,
 	}, true
 }

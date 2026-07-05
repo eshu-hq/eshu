@@ -192,6 +192,27 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindKubernetesLiveWarning:
 		_, err := DecodeKubernetesLiveWarning(env)
 		return err
+	case FactKindOCIRegistryRepository:
+		_, err := DecodeOCIRegistryRepository(env)
+		return err
+	case FactKindOCIImageManifest:
+		_, err := DecodeOCIImageManifest(env)
+		return err
+	case FactKindOCIImageIndex:
+		_, err := DecodeOCIImageIndex(env)
+		return err
+	case FactKindOCIImageDescriptor:
+		_, err := DecodeOCIImageDescriptor(env)
+		return err
+	case FactKindOCIImageTagObservation:
+		_, err := DecodeOCIImageTagObservation(env)
+		return err
+	case FactKindOCIImageReferrer:
+		_, err := DecodeOCIImageReferrer(env)
+		return err
+	case FactKindOCIRegistryWarning:
+		_, err := DecodeOCIRegistryWarning(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -230,6 +251,13 @@ var allDecodedKinds = []string{
 	FactKindKubernetesLivePodTemplate,
 	FactKindKubernetesLiveRelationship,
 	FactKindKubernetesLiveWarning,
+	FactKindOCIRegistryRepository,
+	FactKindOCIImageManifest,
+	FactKindOCIImageIndex,
+	FactKindOCIImageDescriptor,
+	FactKindOCIImageTagObservation,
+	FactKindOCIImageReferrer,
+	FactKindOCIRegistryWarning,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -388,6 +416,20 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeKubernetesLiveRelationship(env)
 			case FactKindKubernetesLiveWarning:
 				_, err = DecodeKubernetesLiveWarning(env)
+			case FactKindOCIRegistryRepository:
+				_, err = DecodeOCIRegistryRepository(env)
+			case FactKindOCIImageManifest:
+				_, err = DecodeOCIImageManifest(env)
+			case FactKindOCIImageIndex:
+				_, err = DecodeOCIImageIndex(env)
+			case FactKindOCIImageDescriptor:
+				_, err = DecodeOCIImageDescriptor(env)
+			case FactKindOCIImageTagObservation:
+				_, err = DecodeOCIImageTagObservation(env)
+			case FactKindOCIImageReferrer:
+				_, err = DecodeOCIImageReferrer(env)
+			case FactKindOCIRegistryWarning:
+				_, err = DecodeOCIRegistryWarning(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

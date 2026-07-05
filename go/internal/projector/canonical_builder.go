@@ -16,11 +16,19 @@ import (
 // from a set of fact envelopes. The returned CanonicalMaterialization carries
 // all node and edge writes needed to project one repository generation into
 // the canonical Neo4j graph.
+//
+// It also returns the facts a typed canonical extractor QUARANTINED during
+// decode (a fact missing a required identity field): those facts are skipped
+// and not projected, while every valid fact still materializes, so one
+// malformed fact never fails the whole repository generation's projection. The
+// caller records them as visible input_invalid dead-letters
+// (recordProjectorQuarantinedFacts). Today only the OCI registry extractor is
+// typed; terraform_state and future typed families append to the same slice.
 func buildCanonicalMaterialization(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	inputFacts []facts.Envelope,
-) CanonicalMaterialization {
+) (CanonicalMaterialization, []quarantinedFact) {
 	mat := CanonicalMaterialization{
 		ScopeID:         scopeValue.ScopeID,
 		GenerationID:    generation.GenerationID,
@@ -30,7 +38,7 @@ func buildCanonicalMaterialization(
 	}
 
 	if len(inputFacts) == 0 {
-		return mat
+		return mat, nil
 	}
 
 	// Extract repository.
@@ -69,10 +77,10 @@ func buildCanonicalMaterialization(
 	// additionally discovered modules into the set above.
 	extractRelationships(inputFacts, &mat)
 	extractTerraformStateRows(&mat, inputFacts)
-	extractOCIRegistryRows(&mat, inputFacts)
+	quarantined := extractOCIRegistryRows(&mat, inputFacts)
 	extractPackageRegistryRows(&mat, inputFacts)
 
-	return mat
+	return mat, quarantined
 }
 
 // extractRepository builds a RepositoryRow from the first RepositoryObserved

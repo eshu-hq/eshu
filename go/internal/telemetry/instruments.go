@@ -503,6 +503,23 @@ type Instruments struct {
 	// retried after a post-decode failure re-quarantines the same facts and may
 	// over-count, which is acceptable for an alerting rate.
 	ReducerInputInvalidFacts metric.Int64Counter
+	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
+	// quarantined during typed payload decode because a required identity field
+	// was missing or null (input_invalid). Labels: stage (the projector
+	// canonical extractor that consumed the fact, e.g.
+	// "oci_registry_canonical"), fact_kind (the malformed fact kind). Each
+	// increment is a per-fact dead-letter: the fact is skipped and NOT
+	// projected, while the batch's valid facts (OCI and non-OCI) still
+	// materialize, so one malformed fact never fails the whole repository
+	// generation's projection. A non-zero rate signals a collector emitting a
+	// fact without its emitter-guaranteed identity fields — a genuine collector
+	// defect an operator can locate through the paired structured error log
+	// (fact_id + field). The count is a rate signal, not exactly-once: a
+	// re-projected generation re-quarantines the same facts and may over-count,
+	// which is acceptable for an alerting rate. This is the projector-side
+	// counterpart to ReducerInputInvalidFacts; the two are separate instruments
+	// so an operator can tell which pipeline stage quarantined a fact.
+	ProjectorInputInvalidFacts metric.Int64Counter
 	// GCPRelationshipEdges counts GCP relationship edge projection outcomes
 	// (issue #2348). Labels: relationship_type, join_mode (full_resource_name /
 	// unresolved / partial / unsupported / invalid_type / empty_type /
@@ -2491,6 +2508,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerInputInvalidFacts counter: %w", err)
+	}
+
+	inst.ProjectorInputInvalidFacts, err = meter.Int64Counter(
+		"eshu_dp_projector_input_invalid_facts_total",
+		metric.WithDescription("Total projector canonical-extractor facts quarantined during typed payload decode for a missing required identity field (input_invalid), by stage and fact_kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorInputInvalidFacts counter: %w", err)
 	}
 
 	inst.GCPRelationshipEdges, err = meter.Int64Counter(

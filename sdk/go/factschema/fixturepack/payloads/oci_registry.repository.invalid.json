@@ -1,0 +1,5 @@
+{
+  "provider": "ghcr",
+  "registry": "registry.example.com",
+  "repository": "team/api"
+}

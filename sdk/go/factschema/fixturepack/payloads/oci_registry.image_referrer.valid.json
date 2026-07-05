@@ -1,0 +1,9 @@
+{
+  "repository_id": "oci-registry://registry.example.com/team/api",
+  "subject_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "referrer_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "subject_media_type": "application/vnd.oci.image.manifest.v1+json",
+  "referrer_media_type": "application/vnd.example.sbom",
+  "artifact_type": "application/vnd.example.sbom",
+  "size_bytes": 512
+}
