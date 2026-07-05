@@ -1,0 +1,25 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/vault_kv_metadata.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "kv_path_fingerprint": {
+      "type": "string"
+    },
+    "mount_join_key": {
+      "type": "string"
+    },
+    "path_depth": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "mount_join_key",
+    "kv_path_fingerprint"
+  ],
+  "title": "Eshu vault_kv_metadata Payload (schema version 1)",
+  "type": "object"
+}

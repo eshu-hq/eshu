@@ -168,3 +168,99 @@ func TestDecodeMapInto_Float64FastPath(t *testing.T) {
 		}
 	})
 }
+
+// TestDecodeMapInto_IntFastPath locks the *int fast path's accept/reject
+// contract (Wave 4d, secrets_iam VAULT/K8S lanes: VaultACLPolicyRule.PathDepth
+// and VaultKVMetadata.PathDepth were the first *int-shaped payload fields any
+// migrated family decoded through this seam): a present *int field and an
+// absent *int field (stays nil) both decode correctly, while a non-numeric
+// value fails closed with an error rather than silently zeroing the field —
+// mirroring TestDecodeMapInto_Float64FastPath's contract for the *float64 fast
+// path Wave 4c added.
+func TestDecodeMapInto_IntFastPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plain int field", func(t *testing.T) {
+		t.Parallel()
+		type depthHolder struct {
+			Depth int `json:"depth"`
+		}
+		var out depthHolder
+		if err := decodeMapInto(map[string]any{"depth": float64(3)}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.Depth != 3 {
+			t.Fatalf("Depth = %v, want 3", out.Depth)
+		}
+	})
+
+	t.Run("optional *int field present", func(t *testing.T) {
+		t.Parallel()
+		type depthHolder struct {
+			Depth *int `json:"depth,omitempty"`
+		}
+		var out depthHolder
+		if err := decodeMapInto(map[string]any{"depth": float64(4)}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.Depth == nil || *out.Depth != 4 {
+			t.Fatalf("Depth = %v, want *4", out.Depth)
+		}
+	})
+
+	t.Run("optional *int field absent stays nil", func(t *testing.T) {
+		t.Parallel()
+		type depthHolder struct {
+			Depth *int `json:"depth,omitempty"`
+		}
+		var out depthHolder
+		if err := decodeMapInto(map[string]any{}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.Depth != nil {
+			t.Fatalf("Depth = %v, want nil for an absent key", out.Depth)
+		}
+	})
+
+	t.Run("non-integral float fails closed, not silently truncated", func(t *testing.T) {
+		t.Parallel()
+		type depthHolder struct {
+			Depth *int `json:"depth,omitempty"`
+		}
+		var out depthHolder
+		err := decodeMapInto(map[string]any{"depth": 3.5}, &out)
+		if err == nil {
+			t.Fatal("decodeMapInto() error = nil, want an error for a non-integral depth value")
+		}
+	})
+
+	t.Run("out-of-range integral float fails closed, not silently wrapped", func(t *testing.T) {
+		t.Parallel()
+		// An integral float64 that exceeds int64 range (math.MaxInt64 is not
+		// exactly representable as float64, so 1e300 is a value encoding/json
+		// would hand jsonNumberToInt as a valid-looking whole number). A bare
+		// int(n) cast on a value like this is implementation-defined and would
+		// silently wrap/truncate a path_depth into a wrong small or negative
+		// number instead of dead-lettering the fact as input_invalid.
+		type depthHolder struct {
+			Depth *int `json:"depth,omitempty"`
+		}
+		var out depthHolder
+		err := decodeMapInto(map[string]any{"depth": 1e300}, &out)
+		if err == nil {
+			t.Fatalf("decodeMapInto() error = nil, want an error for an out-of-range depth value; got Depth = %v", out.Depth)
+		}
+	})
+
+	t.Run("non-numeric value fails closed, not silently zeroed", func(t *testing.T) {
+		t.Parallel()
+		type depthHolder struct {
+			Depth *int `json:"depth,omitempty"`
+		}
+		var out depthHolder
+		err := decodeMapInto(map[string]any{"depth": "not-a-number"}, &out)
+		if err == nil {
+			t.Fatal("decodeMapInto() error = nil, want an error for a non-numeric depth value")
+		}
+	})
+}

@@ -1,0 +1,5 @@
+{
+  "service_account_join_key": "sha256:demo-service-account",
+  "gcp_service_account_email_digest": "sha256:demo-gcp-service-account-email",
+  "gcp_workload_identity_subject_fingerprint": "sha256:demo-gcp-workload-identity-subject"
+}

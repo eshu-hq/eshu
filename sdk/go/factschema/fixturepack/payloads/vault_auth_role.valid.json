@@ -1,0 +1,7 @@
+{
+  "role_join_key": "sha256:demo-vault-role",
+  "mount_join_key": "sha256:demo-vault-mount",
+  "bound_service_account_join_keys": ["sha256:demo-service-account"],
+  "bound_service_account_selector_wildcard": false,
+  "token_policy_join_keys": ["sha256:demo-vault-policy"]
+}

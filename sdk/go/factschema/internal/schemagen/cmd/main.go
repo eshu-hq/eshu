@@ -148,6 +148,18 @@ func run() error {
 		{name: "ci.trigger_edge.v1.schema.json", generate: schemagen.CICDTriggerEdgeSchema},
 		{name: "ci.step.v1.schema.json", generate: schemagen.CICDStepSchema},
 		{name: "ci.workflow_image_evidence.v1.schema.json", generate: schemagen.CICDWorkflowImageEvidenceSchema},
+		// The secrets_iam family (Wave 4d, VAULT + K8S lanes only) fact kinds
+		// are UNDERSCORE-separated, like the aws/gcp/azure kinds. The AWS IAM
+		// lane's schemas live under iam/v1 (already migrated in #4568); the
+		// GCP IAM lane is deferred to a future wave and has no schema here.
+		{name: "vault_auth_role.v1.schema.json", generate: schemagen.VaultAuthRoleSchema},
+		{name: "vault_acl_policy.v1.schema.json", generate: schemagen.VaultACLPolicySchema},
+		{name: "vault_kv_metadata.v1.schema.json", generate: schemagen.VaultKVMetadataSchema},
+		{name: "k8s_service_account.v1.schema.json", generate: schemagen.KubernetesServiceAccountSchema},
+		{name: "k8s_workload_identity_use.v1.schema.json", generate: schemagen.KubernetesWorkloadIdentityUseSchema},
+		{name: "eks_irsa_annotation.v1.schema.json", generate: schemagen.EKSIRSAAnnotationSchema},
+		{name: "eks_pod_identity_association.v1.schema.json", generate: schemagen.EKSPodIdentityAssociationSchema},
+		{name: "k8s_gcp_workload_identity_binding.v1.schema.json", generate: schemagen.KubernetesGCPWorkloadIdentityBindingSchema},
 	}
 
 	for _, target := range targets {

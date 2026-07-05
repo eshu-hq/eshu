@@ -82,9 +82,14 @@ func secretsIAMGCPGrantObservations(index secretsIAMIndex) []SecretsIAMPrivilege
 
 func secretsIAMGCPExactChainsForServiceAccount(
 	serviceAccountKey string,
-	workloads []facts.Envelope,
+	workloads []secretsIAMWorkload,
 	index secretsIAMIndex,
 ) ([]SecretsIAMIdentityTrustChain, []SecretsIAMSecretAccessPath, []SecretsIAMPostureGap) {
+	// index.gcpK8sBindings holds decoded k8s_gcp_workload_identity_binding
+	// facts (secretsIAMGCPBinding): this K8S-lane kind IS in scope for Wave
+	// 4d. Only the downstream join against gcp_iam_trust_policy stays on raw
+	// payloadString reads below -- deferred: gcp_iam lane, Wave 4d types
+	// vault/k8s only.
 	bindings := index.gcpK8sBindings[serviceAccountKey]
 	if len(bindings) == 0 {
 		return nil, nil, nil
@@ -93,8 +98,10 @@ func secretsIAMGCPExactChainsForServiceAccount(
 	var paths []SecretsIAMSecretAccessPath
 	var gaps []SecretsIAMPostureGap
 	for _, binding := range bindings {
-		emailDigest := payloadString(binding.Payload, "gcp_service_account_email_digest")
-		subject := payloadString(binding.Payload, "gcp_workload_identity_subject_fingerprint")
+		emailDigest := binding.decoded.GCPServiceAccountEmailDigest
+		subject := binding.decoded.GCPWorkloadIdentitySubjectFingerprint
+		// exactGCPWorkloadIdentityTrusts reads gcp_iam_trust_policy facts raw.
+		// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 		trusts := exactGCPWorkloadIdentityTrusts(emailDigest, subject, index.gcpTrusts[emailDigest])
 		if len(trusts) == 0 {
 			gaps = append(gaps, secretsIAMGap(
@@ -102,13 +109,14 @@ func secretsIAMGCPExactChainsForServiceAccount(
 				SecretsIAMTrustChainStatePartial,
 				"GCP service-account trust did not carry an exact matching Workload Identity subject",
 				serviceAccountKey,
-				[]string{binding.FactID},
+				[]string{binding.env.FactID},
 				[]string{"gcp_iam_trust_policy"},
 				nil,
 			))
 			continue
 		}
 		for _, trust := range trusts {
+			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 			targetFingerprint := payloadString(trust.Payload, "target_principal_fingerprint")
 			principals := index.gcpPrincipals[targetFingerprint]
 			if len(principals) == 0 {
@@ -117,7 +125,7 @@ func secretsIAMGCPExactChainsForServiceAccount(
 					SecretsIAMTrustChainStateUnresolved,
 					"GCP service-account principal fact is missing",
 					serviceAccountKey,
-					[]string{binding.FactID, trust.FactID},
+					[]string{binding.env.FactID, trust.FactID},
 					[]string{"gcp_iam_principal"},
 					nil,
 				))
@@ -133,6 +141,8 @@ func secretsIAMGCPExactChainsForServiceAccount(
 	return chains, paths, gaps
 }
 
+// exactGCPWorkloadIdentityTrusts reads gcp_iam_trust_policy facts raw.
+// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 func exactGCPWorkloadIdentityTrusts(
 	emailDigest string,
 	subjectFingerprint string,
@@ -162,33 +172,34 @@ func exactGCPWorkloadIdentityTrusts(
 
 func secretsIAMGCPChain(
 	serviceAccountKey string,
-	workload facts.Envelope,
-	binding facts.Envelope,
+	workload secretsIAMWorkload,
+	binding secretsIAMGCPBinding,
 	trust facts.Envelope,
 	principal facts.Envelope,
 ) SecretsIAMIdentityTrustChain {
 	targetFingerprint := payloadString(trust.Payload, "target_principal_fingerprint")
-	evidence := []string{workload.FactID, binding.FactID, trust.FactID, principal.FactID}
+	workloadObjectID := stringOrEmpty(workload.decoded.WorkloadObjectID)
+	evidence := []string{workload.env.FactID, binding.env.FactID, trust.FactID, principal.FactID}
 	return SecretsIAMIdentityTrustChain{
 		ChainID: secretsIAMID(
 			"identity_trust_chain",
 			"gcp",
 			serviceAccountKey,
-			payloadString(workload.Payload, "workload_object_id"),
+			workloadObjectID,
 			targetFingerprint,
 			trust.FactID,
 		),
 		State:                             SecretsIAMTrustChainStateExact,
 		Confidence:                        "exact",
 		ServiceAccountJoinKey:             serviceAccountKey,
-		WorkloadObjectID:                  payloadString(workload.Payload, "workload_object_id"),
-		WorkloadKind:                      payloadString(workload.Payload, "workload_kind"),
+		WorkloadObjectID:                  workloadObjectID,
+		WorkloadKind:                      stringOrEmpty(workload.decoded.WorkloadKind),
 		GCPServiceAccountFingerprint:      targetFingerprint,
 		GCPServiceAccountCloudResourceUID: payloadString(trust.Payload, "target_service_account_cloud_resource_uid"),
 		GCPServiceAccountAssumeMode:       payloadString(trust.Payload, "impersonation_mode"),
 		EvidenceFactIDs:                   uniqueSortedStrings(evidence),
-		SourceScopes:                      uniqueSortedStrings([]string{workload.ScopeID, binding.ScopeID, trust.ScopeID, principal.ScopeID}),
-		SourceGenerations:                 uniqueSortedStrings([]string{workload.GenerationID, binding.GenerationID, trust.GenerationID, principal.GenerationID}),
+		SourceScopes:                      uniqueSortedStrings([]string{workload.env.ScopeID, binding.env.ScopeID, trust.ScopeID, principal.ScopeID}),
+		SourceGenerations:                 uniqueSortedStrings([]string{workload.env.GenerationID, binding.env.GenerationID, trust.GenerationID, principal.GenerationID}),
 	}
 }
 

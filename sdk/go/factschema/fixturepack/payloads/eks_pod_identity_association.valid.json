@@ -1,0 +1,4 @@
+{
+  "service_account_join_key": "sha256:demo-service-account",
+  "role_arn": "arn:aws:iam::000000000000:role/demo-role"
+}

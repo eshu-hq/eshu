@@ -19,7 +19,7 @@ import (
 // file owns (not derived from the fact-kind string via string manipulation
 // alone) so a future schema file rename is a one-line change here rather than
 // a silent lookup miss.
-var factKindSchemaFile = map[string]string{
+var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifier to JSON-schema-filename lookup (e.g. vault_secret_engine_mount, k8s_service_account_token_posture); these are schema file names, not credentials.
 	"FactKindAWSResource":                 "aws_resource.v1.schema.json",
 	"FactKindAWSRelationship":             "aws_relationship.v1.schema.json",
 	"FactKindAWSSecurityGroupRule":        "aws_security_group_rule.v1.schema.json",
@@ -120,6 +120,21 @@ var factKindSchemaFile = map[string]string{
 	"FactKindCICDTriggerEdge":            "ci.trigger_edge.v1.schema.json",
 	"FactKindCICDStep":                   "ci.step.v1.schema.json",
 	"FactKindCICDWorkflowImageEvidence":  "ci.workflow_image_evidence.v1.schema.json",
+	// secrets_iam family (Wave 4d, VAULT + K8S lanes only): every kind a
+	// reducer decode seam wrapper actually decodes
+	// (factschema_decode_secretsiam.go) is mapped. The AWS IAM lane's kinds
+	// (aws_iam_principal and siblings) are already mapped above under their
+	// own FactKind constants. The GCP IAM lane (gcp_iam_principal,
+	// gcp_iam_trust_policy, gcp_iam_permission_policy) has no reducer decode
+	// call this wave, so it is intentionally absent here.
+	"FactKindVaultAuthRole":                        "vault_auth_role.v1.schema.json",
+	"FactKindVaultACLPolicy":                       "vault_acl_policy.v1.schema.json",
+	"FactKindVaultKVMetadata":                      "vault_kv_metadata.v1.schema.json",
+	"FactKindKubernetesServiceAccount":             "k8s_service_account.v1.schema.json",
+	"FactKindKubernetesWorkloadIdentityUse":        "k8s_workload_identity_use.v1.schema.json",
+	"FactKindEKSIRSAAnnotation":                    "eks_irsa_annotation.v1.schema.json",
+	"FactKindEKSPodIdentityAssociation":            "eks_pod_identity_association.v1.schema.json",
+	"FactKindKubernetesGCPWorkloadIdentityBinding": "k8s_gcp_workload_identity_binding.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

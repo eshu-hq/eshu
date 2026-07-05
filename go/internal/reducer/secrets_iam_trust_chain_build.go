@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
+	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
 
 // secretsIAMPrincipal pairs an aws_iam_principal envelope with its decoded typed
@@ -19,23 +20,96 @@ type secretsIAMPrincipal struct {
 	decoded iamv1.Principal
 }
 
+// secretsIAMServiceAccount pairs a k8s_service_account envelope with its
+// decoded typed payload (Wave 4d K8S lane), decoded once at index build time.
+type secretsIAMServiceAccount struct {
+	env     facts.Envelope
+	decoded secretsiamv1.KubernetesServiceAccount
+}
+
+// secretsIAMWorkload pairs a k8s_workload_identity_use envelope with its
+// decoded typed payload (Wave 4d K8S lane), decoded once at index build time.
+type secretsIAMWorkload struct {
+	env     facts.Envelope
+	decoded secretsiamv1.KubernetesWorkloadIdentityUse
+}
+
+// secretsIAMIRSA pairs an eks_irsa_annotation or eks_pod_identity_association
+// envelope with its decoded typed payload (Wave 4d K8S lane), decoded once at
+// index build time. The two kinds share an index (index.irsa) because they are
+// interchangeable identity-provider evidence for the same service account, so
+// this struct carries both decoded shapes flattened to the fields the
+// trust-chain build actually reads (ServiceAccountJoinKey, RoleARN, and the
+// IRSA-only WebIdentitySubjectFingerprint).
+type secretsIAMIRSA struct {
+	env                           facts.Envelope
+	roleARN                       string
+	webIdentitySubjectFingerprint string
+}
+
+// secretsIAMVaultRole pairs a vault_auth_role envelope with its decoded typed
+// payload (Wave 4d VAULT lane), decoded once at index build time.
+type secretsIAMVaultRole struct {
+	env     facts.Envelope
+	decoded secretsiamv1.VaultAuthRole
+}
+
+// secretsIAMVaultPolicy pairs a vault_acl_policy envelope with its decoded
+// typed payload (Wave 4d VAULT lane), decoded once at index build time.
+type secretsIAMVaultPolicy struct {
+	env     facts.Envelope
+	decoded secretsiamv1.VaultACLPolicy
+}
+
+// secretsIAMVaultKV pairs a vault_kv_metadata envelope with its decoded typed
+// payload (Wave 4d VAULT lane), decoded once at index build time.
+type secretsIAMVaultKV struct {
+	env     facts.Envelope
+	decoded secretsiamv1.VaultKVMetadata
+}
+
+// secretsIAMGCPBinding pairs a k8s_gcp_workload_identity_binding envelope with
+// its decoded typed payload (Wave 4d K8S lane), decoded once at index build
+// time. Unlike gcpTrusts/gcpPrincipals/gcpPermissions (the deferred gcp_iam
+// lane, read raw), this K8S-lane kind's OWN fields decode through the typed
+// seam; only its downstream join against the deferred gcp_iam_trust_policy
+// raw envelope stays on payloadString reads (see
+// secretsIAMGCPExactChainsForServiceAccount).
+type secretsIAMGCPBinding struct {
+	env     facts.Envelope
+	decoded secretsiamv1.KubernetesGCPWorkloadIdentityBinding
+}
+
 type secretsIAMIndex struct {
-	serviceAccounts map[string][]facts.Envelope
-	workloads       map[string][]facts.Envelope
-	irsa            map[string][]facts.Envelope
-	vaultRoles      map[string][]facts.Envelope
-	vaultAuthRoles  []facts.Envelope
+	// serviceAccounts, workloads, irsa, and vaultRoles hold only the K8S/VAULT
+	// lane facts that decoded cleanly, keyed by service_account_join_key (or
+	// role_join_key for vaultRoles' bound service accounts). A malformed fact
+	// is quarantined during buildSecretsIAMIndex and never enters the index,
+	// so the trust-chain build reads only valid, pre-decoded evidence.
+	serviceAccounts map[string][]secretsIAMServiceAccount
+	workloads       map[string][]secretsIAMWorkload
+	irsa            map[string][]secretsIAMIRSA
+	vaultRoles      map[string][]secretsIAMVaultRole
+	vaultAuthRoles  []secretsIAMVaultRole
 	// iamPrincipals holds only the aws_iam_principal facts that decoded cleanly,
 	// keyed by principal_arn. A malformed principal is quarantined during
 	// buildSecretsIAMIndex and never enters the index, so the trust-chain build
 	// reads only valid principals.
-	iamPrincipals  map[string][]secretsIAMPrincipal
-	iamTrusts      map[string][]facts.Envelope
-	vaultPolicies  map[string][]facts.Envelope
-	vaultKV        map[string][]facts.Envelope
-	gcpPrincipals  map[string][]facts.Envelope
-	gcpTrusts      map[string][]facts.Envelope
-	gcpK8sBindings map[string][]facts.Envelope
+	iamPrincipals map[string][]secretsIAMPrincipal
+	iamTrusts     map[string][]facts.Envelope
+	vaultPolicies map[string][]secretsIAMVaultPolicy
+	vaultKV       map[string][]secretsIAMVaultKV
+	// gcpPrincipals, gcpTrusts, and gcpPermissions stay on raw envelopes for
+	// the gcp_iam_principal/gcp_iam_trust_policy/gcp_iam_permission_policy
+	// kinds: deferred: gcp_iam lane, Wave 4d types vault/k8s only.
+	gcpPrincipals map[string][]facts.Envelope
+	gcpTrusts     map[string][]facts.Envelope
+	// gcpK8sBindings holds the K8S-lane k8s_gcp_workload_identity_binding
+	// kind decoded through the typed seam (secretsIAMGCPBinding): this kind
+	// IS in scope for Wave 4d. Only its downstream join against the deferred
+	// gcp_iam_trust_policy raw envelope stays on payloadString reads (see
+	// secretsIAMGCPExactChainsForServiceAccount).
+	gcpK8sBindings map[string][]secretsIAMGCPBinding
 	gcpPermissions map[string][]facts.Envelope
 	coverage       []facts.Envelope
 }
@@ -44,14 +118,18 @@ type secretsIAMIndex struct {
 // models from redacted source facts. It is pure so exact, partial, stale, and
 // unsupported behavior can be proven without Postgres, graph, or provider calls.
 //
-// A malformed aws_iam_principal fact whose payload is missing a required
-// identity field (an input_invalid decode failure) is quarantined per-fact and
-// returned in the []quarantinedFact slice: it is skipped so the valid trust
-// chains (including the untouched K8s/GCP/Vault chains, which never decode an
-// aws_iam_principal) still project, matching the per-fact isolation contract
-// every other migrated reducer kind follows. The malformed principal simply
-// never resolves an IAM-role CloudResource uid, so no chain resolves against a
-// zero-value identity.
+// A malformed source fact whose payload is missing a required identity field
+// (an input_invalid decode failure) is quarantined per-fact and returned in the
+// []quarantinedFact slice: it is skipped so the valid trust chains still
+// project, matching the per-fact isolation contract every other migrated
+// reducer kind follows. This applies to the AWS IAM lane (aws_iam_principal,
+// already migrated in #4568), the VAULT lane (vault_auth_role,
+// vault_acl_policy, vault_kv_metadata), and the K8S lane
+// (k8s_service_account, k8s_workload_identity_use, eks_irsa_annotation,
+// eks_pod_identity_association, k8s_gcp_workload_identity_binding) — Wave 4d,
+// Contract System v1 #4566/#4582. The GCP IAM lane
+// (gcp_iam_principal/gcp_iam_trust_policy/gcp_iam_permission_policy) is
+// deferred and still reads raw payloadString/payloadBool.
 //
 // Any OTHER decode error (a non-input_invalid classification the seam may add
 // later, or a non-*factDecodeError) is FATAL and returned as the error: it fails
@@ -89,19 +167,41 @@ func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) (SecretsIAM
 	return models, quarantined, nil
 }
 
+// quarantineOrFatal routes a decode error through partitionDecodeFailures and
+// either appends the resulting quarantinedFact to quarantined (returning
+// ok=true to tell the caller to skip this envelope and continue the loop) or
+// signals a fatal error the caller must return immediately. It centralizes the
+// exact fatal-passthrough contract every decode call site in
+// buildSecretsIAMIndex must follow: a decode error that is NOT classified
+// input_invalid (a future schema-mismatch/unsupported-major class, or a
+// non-*factDecodeError) is terminal and must fail the whole trust-chain work
+// item so the durable queue triages it — swallowing it here would let a
+// malformed fact Ack as success, the "swallow failures" hole the redesign
+// exists to close.
+func quarantineOrFatal(envelope facts.Envelope, err error, quarantined *[]quarantinedFact) (fatal error, skip bool) {
+	q, ok, fatalErr := partitionDecodeFailures(envelope, err)
+	if fatalErr != nil {
+		return fatalErr, false
+	}
+	if ok {
+		*quarantined = append(*quarantined, q)
+	}
+	return nil, true
+}
+
 func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quarantinedFact, error) {
 	index := secretsIAMIndex{
-		serviceAccounts: map[string][]facts.Envelope{},
-		workloads:       map[string][]facts.Envelope{},
-		irsa:            map[string][]facts.Envelope{},
-		vaultRoles:      map[string][]facts.Envelope{},
+		serviceAccounts: map[string][]secretsIAMServiceAccount{},
+		workloads:       map[string][]secretsIAMWorkload{},
+		irsa:            map[string][]secretsIAMIRSA{},
+		vaultRoles:      map[string][]secretsIAMVaultRole{},
 		iamPrincipals:   map[string][]secretsIAMPrincipal{},
 		iamTrusts:       map[string][]facts.Envelope{},
-		vaultPolicies:   map[string][]facts.Envelope{},
-		vaultKV:         map[string][]facts.Envelope{},
+		vaultPolicies:   map[string][]secretsIAMVaultPolicy{},
+		vaultKV:         map[string][]secretsIAMVaultKV{},
 		gcpPrincipals:   map[string][]facts.Envelope{},
 		gcpTrusts:       map[string][]facts.Envelope{},
-		gcpK8sBindings:  map[string][]facts.Envelope{},
+		gcpK8sBindings:  map[string][]secretsIAMGCPBinding{},
 		gcpPermissions:  map[string][]facts.Envelope{},
 	}
 	var quarantined []quarantinedFact
@@ -109,337 +209,209 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) (secretsIAMIndex, []quaran
 		if envelope.IsTombstone {
 			continue
 		}
+		var fatal error
 		switch envelope.FactKind {
 		case facts.KubernetesServiceAccountFactKind:
-			addByKey(index.serviceAccounts, payloadString(envelope.Payload, "service_account_join_key"), envelope)
+			fatal = indexKubernetesServiceAccount(&index, envelope, &quarantined)
 		case facts.KubernetesWorkloadIdentityUseFactKind:
-			addByKey(index.workloads, payloadString(envelope.Payload, "service_account_join_key"), envelope)
-		case facts.EKSIRSAAnnotationFactKind, facts.EKSPodIdentityAssociationFactKind:
-			addByKey(index.irsa, payloadString(envelope.Payload, "service_account_join_key"), envelope)
+			fatal = indexKubernetesWorkloadIdentityUse(&index, envelope, &quarantined)
+		case facts.EKSIRSAAnnotationFactKind:
+			fatal = indexEKSIRSAAnnotation(&index, envelope, &quarantined)
+		case facts.EKSPodIdentityAssociationFactKind:
+			fatal = indexEKSPodIdentityAssociation(&index, envelope, &quarantined)
 		case facts.VaultAuthRoleFactKind:
-			index.vaultAuthRoles = append(index.vaultAuthRoles, envelope)
-			if payloadBool(envelope.Payload, "bound_service_account_selector_wildcard") {
-				continue
-			}
-			for _, key := range payloadStrings(envelope.Payload, "", "bound_service_account_join_keys") {
-				addByKey(index.vaultRoles, key, envelope)
-			}
+			fatal = indexVaultAuthRole(&index, envelope, &quarantined)
 		case facts.AWSIAMPrincipalFactKind:
-			principal, err := decodeAWSIAMPrincipal(envelope)
-			if err != nil {
-				q, ok, fatal := partitionDecodeFailures(envelope, err)
-				if fatal != nil {
-					// MANDATORY fatal passthrough: partitionDecodeFailures returns a
-					// non-nil fatal for any decode error it did NOT classify
-					// input_invalid (a future schema-mismatch/unsupported-major class,
-					// or a non-*factDecodeError). Such an error is terminal but is NOT
-					// a per-fact quarantine — it must fail the whole trust-chain work
-					// item so the durable queue triages it, exactly like the other 29
-					// decode call sites `return ..., fatal`. Swallowing it here (the
-					// old `continue`) would let a malformed principal Ack as success —
-					// the "swallow failures" hole the redesign exists to close.
-					return secretsIAMIndex{}, nil, fatal
-				}
-				if ok {
-					quarantined = append(quarantined, q)
-				}
-				continue
-			}
-			key := strings.TrimSpace(payloadString(envelope.Payload, "principal_arn"))
-			if key == "" {
-				continue
-			}
-			index.iamPrincipals[key] = append(index.iamPrincipals[key], secretsIAMPrincipal{env: envelope, decoded: principal})
+			fatal = indexAWSIAMPrincipal(&index, envelope, &quarantined)
 		case facts.AWSIAMTrustPolicyFactKind:
 			addByKey(index.iamTrusts, payloadString(envelope.Payload, "role_arn"), envelope)
 		case facts.VaultACLPolicyFactKind:
-			addByKey(index.vaultPolicies, payloadString(envelope.Payload, "policy_join_key"), envelope)
+			fatal = indexVaultACLPolicy(&index, envelope, &quarantined)
 		case facts.VaultKVMetadataFactKind:
-			addByKey(index.vaultKV, payloadString(envelope.Payload, "kv_path_fingerprint"), envelope)
+			fatal = indexVaultKVMetadata(&index, envelope, &quarantined)
 		case facts.GCPIAMPrincipalFactKind:
+			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 			addByKey(index.gcpPrincipals, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
 		case facts.GCPIAMTrustPolicyFactKind:
+			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 			addByKey(index.gcpTrusts, payloadString(envelope.Payload, "target_service_account_email_digest"), envelope)
 		case facts.KubernetesGCPWorkloadIdentityBindingFactKind:
-			addByKey(index.gcpK8sBindings, payloadString(envelope.Payload, "service_account_join_key"), envelope)
+			fatal = indexKubernetesGCPWorkloadIdentityBinding(&index, envelope, &quarantined)
 		case facts.GCPIAMPermissionPolicyFactKind:
+			// deferred: gcp_iam lane, Wave 4d types vault/k8s only.
 			addByKey(index.gcpPermissions, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
 		case facts.SecretsIAMCoverageWarningFactKind:
 			index.coverage = append(index.coverage, envelope)
+		}
+		if fatal != nil {
+			return secretsIAMIndex{}, nil, fatal
 		}
 	}
 	return index, quarantined, nil
 }
 
-func secretsIAMExactChains(index secretsIAMIndex) (
-	[]SecretsIAMIdentityTrustChain,
-	[]SecretsIAMSecretAccessPath,
-	[]SecretsIAMPostureGap,
-) {
-	var chains []SecretsIAMIdentityTrustChain
-	var paths []SecretsIAMSecretAccessPath
-	var gaps []SecretsIAMPostureGap
-	for serviceAccountKey, accounts := range index.serviceAccounts {
-		workloads := index.workloads[serviceAccountKey]
-		if len(workloads) == 0 {
-			gaps = append(gaps, secretsIAMGap(
-				"missing_workload_identity_use",
-				SecretsIAMTrustChainStateUnresolved,
-				"service account has no workload identity-use evidence",
-				serviceAccountKey,
-				factIDs(accounts),
-				[]string{"k8s_workload_identity_use"},
-				nil,
-			))
-			continue
-		}
-		gcpChains, gcpPaths, gcpGaps := secretsIAMGCPExactChainsForServiceAccount(serviceAccountKey, workloads, index)
-		chains = append(chains, gcpChains...)
-		paths = append(paths, gcpPaths...)
-		gaps = append(gaps, gcpGaps...)
-		hasGCPBinding := len(index.gcpK8sBindings[serviceAccountKey]) > 0
-		roles := index.irsa[serviceAccountKey]
-		vaultRoles := index.vaultRoles[serviceAccountKey]
-		if len(roles) == 0 || len(vaultRoles) == 0 {
-			if len(gcpChains) > 0 || hasGCPBinding {
-				continue
-			}
-			gaps = append(gaps, secretsIAMGap(
-				"missing_identity_provider_hop",
-				SecretsIAMTrustChainStateUnresolved,
-				"service account is missing IAM role or Vault Kubernetes auth-role evidence",
-				serviceAccountKey,
-				factIDs(accounts),
-				[]string{"eks_irsa_annotation", "vault_auth_role"},
-				nil,
-			))
-			continue
-		}
-		for _, roleEvidence := range roles {
-			roleARN := payloadString(roleEvidence.Payload, "role_arn")
-			principals := index.iamPrincipals[roleARN]
-			if len(principals) == 0 {
-				gaps = append(gaps, secretsIAMGap(
-					"missing_iam_principal",
-					SecretsIAMTrustChainStateUnresolved,
-					"IAM role principal fact is missing",
-					serviceAccountKey,
-					[]string{roleEvidence.FactID},
-					[]string{"aws_iam_principal"},
-					nil,
-				))
-				continue
-			}
-			trust, ok := exactIAMRoleTrust(roleEvidence, index.iamTrusts[roleARN])
-			if !ok {
-				gaps = append(gaps, secretsIAMGap(
-					"missing_exact_iam_trust",
-					SecretsIAMTrustChainStatePartial,
-					"IAM role trust did not carry an exact matching IRSA subject or EKS Pod Identity service principal",
-					serviceAccountKey,
-					[]string{roleEvidence.FactID},
-					[]string{"aws_iam_trust_policy"},
-					nil,
-				))
-				continue
-			}
-			roleUID := secretsIAMRoleCloudResourceUID(roleARN, principals)
-			for _, vaultRole := range vaultRoles {
-				for _, workload := range workloads {
-					chain := secretsIAMChain(serviceAccountKey, workload, roleEvidence, trust, vaultRole, roleUID)
-					chains = append(chains, chain)
-					chainPaths, pathGaps := secretsIAMVaultPaths(chain, vaultRole, index)
-					paths = append(paths, chainPaths...)
-					gaps = append(gaps, pathGaps...)
-				}
-			}
+// indexKubernetesServiceAccount decodes and indexes one k8s_service_account
+// envelope, returning a non-nil error only when the decode failure is FATAL
+// (not classified input_invalid). A quarantinable failure is recorded onto
+// *quarantined and this returns nil so the caller's loop continues normally.
+func indexKubernetesServiceAccount(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeKubernetesServiceAccount(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
 		}
 	}
-	return chains, paths, gaps
+	addServiceAccountByKey(index.serviceAccounts, decoded.ServiceAccountJoinKey, secretsIAMServiceAccount{env: envelope, decoded: decoded})
+	return nil
 }
 
-func exactIAMRoleTrust(roleEvidence facts.Envelope, trusts []facts.Envelope) (facts.Envelope, bool) {
-	if roleEvidence.FactKind == facts.EKSPodIdentityAssociationFactKind {
-		return exactPodIdentityTrust(trusts)
+// indexKubernetesWorkloadIdentityUse mirrors indexKubernetesServiceAccount
+// for k8s_workload_identity_use envelopes.
+func indexKubernetesWorkloadIdentityUse(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeKubernetesWorkloadIdentityUse(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
+		}
 	}
-	return exactWebIdentityTrust(roleEvidence, trusts)
+	addWorkloadByKey(index.workloads, decoded.ServiceAccountJoinKey, secretsIAMWorkload{env: envelope, decoded: decoded})
+	return nil
 }
 
-func exactPodIdentityTrust(trusts []facts.Envelope) (facts.Envelope, bool) {
-	for _, trust := range trusts {
-		if payloadString(trust.Payload, "effect") != "Allow" {
-			continue
-		}
-		if !secretsIAMContainsLower(payloadStrings(trust.Payload, "", "actions"), "sts:assumerole") {
-			continue
-		}
-		if secretsIAMContainsString(payloadStrings(trust.Payload, "", "assume_principals"), "pods.eks.amazonaws.com") {
-			return trust, true
+// indexEKSIRSAAnnotation mirrors indexKubernetesServiceAccount for
+// eks_irsa_annotation envelopes.
+func indexEKSIRSAAnnotation(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeEKSIRSAAnnotation(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
 		}
 	}
-	return facts.Envelope{}, false
+	addIRSAByKey(index.irsa, decoded.ServiceAccountJoinKey, secretsIAMIRSA{
+		env:                           envelope,
+		roleARN:                       decoded.RoleARN,
+		webIdentitySubjectFingerprint: stringOrEmpty(decoded.WebIdentitySubjectFingerprint),
+	})
+	return nil
 }
 
-func exactWebIdentityTrust(roleEvidence facts.Envelope, trusts []facts.Envelope) (facts.Envelope, bool) {
-	subject := payloadString(roleEvidence.Payload, "web_identity_subject_fingerprint")
-	if subject == "" {
-		return facts.Envelope{}, false
-	}
-	for _, trust := range trusts {
-		if payloadBool(trust.Payload, "web_identity_subject_wildcard") {
-			continue
-		}
-		if payloadString(trust.Payload, "effect") != "Allow" {
-			continue
-		}
-		if !secretsIAMContainsLower(payloadStrings(trust.Payload, "", "actions"), "sts:assumerolewithwebidentity") {
-			continue
-		}
-		if secretsIAMContainsString(payloadStrings(trust.Payload, "", "web_identity_subject_fingerprints"), subject) {
-			return trust, true
+// indexEKSPodIdentityAssociation mirrors indexKubernetesServiceAccount for
+// eks_pod_identity_association envelopes. EKS Pod Identity associations carry
+// no web-identity subject; exactPodIdentityTrust never reads
+// webIdentitySubjectFingerprint.
+func indexEKSPodIdentityAssociation(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeEKSPodIdentityAssociation(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
 		}
 	}
-	return facts.Envelope{}, false
+	addIRSAByKey(index.irsa, decoded.ServiceAccountJoinKey, secretsIAMIRSA{
+		env:     envelope,
+		roleARN: decoded.RoleARN,
+	})
+	return nil
 }
 
-func secretsIAMChain(
-	serviceAccountKey string,
-	workload facts.Envelope,
-	roleEvidence facts.Envelope,
-	trust facts.Envelope,
-	vaultRole facts.Envelope,
-	iamRoleCloudResourceUID string,
-) SecretsIAMIdentityTrustChain {
-	roleFingerprint := secretsIAMFingerprint("iam_role", payloadString(roleEvidence.Payload, "role_arn"))
-	policyKeys := payloadStrings(vaultRole.Payload, "", "token_policy_join_keys")
-	evidence := []string{workload.FactID, roleEvidence.FactID, trust.FactID, vaultRole.FactID}
-	return SecretsIAMIdentityTrustChain{
-		ChainID:                 secretsIAMID("identity_trust_chain", serviceAccountKey, payloadString(workload.Payload, "workload_object_id"), roleFingerprint, payloadString(vaultRole.Payload, "role_join_key")),
-		State:                   SecretsIAMTrustChainStateExact,
-		Confidence:              "exact",
-		ServiceAccountJoinKey:   serviceAccountKey,
-		WorkloadObjectID:        payloadString(workload.Payload, "workload_object_id"),
-		WorkloadKind:            payloadString(workload.Payload, "workload_kind"),
-		IAMRoleFingerprint:      roleFingerprint,
-		IAMRoleCloudResourceUID: iamRoleCloudResourceUID,
-		IAMRoleAssumeMode:       secretsIAMRoleAssumeMode(roleEvidence.FactKind),
-		VaultRoleJoinKey:        payloadString(vaultRole.Payload, "role_join_key"),
-		VaultMountJoinKey:       payloadString(vaultRole.Payload, "mount_join_key"),
-		VaultPolicyJoinKeys:     policyKeys,
-		EvidenceFactIDs:         uniqueSortedStrings(evidence),
-		SourceScopes:            uniqueSortedStrings([]string{workload.ScopeID, roleEvidence.ScopeID, trust.ScopeID, vaultRole.ScopeID}),
-		SourceGenerations:       uniqueSortedStrings([]string{workload.GenerationID, roleEvidence.GenerationID, trust.GenerationID, vaultRole.GenerationID}),
-	}
-}
-
-func secretsIAMVaultPaths(
-	chain SecretsIAMIdentityTrustChain,
-	vaultRole facts.Envelope,
-	index secretsIAMIndex,
-) ([]SecretsIAMSecretAccessPath, []SecretsIAMPostureGap) {
-	var paths []SecretsIAMSecretAccessPath
-	var gaps []SecretsIAMPostureGap
-	for _, policyKey := range payloadStrings(vaultRole.Payload, "", "token_policy_join_keys") {
-		policies := index.vaultPolicies[policyKey]
-		if len(policies) == 0 {
-			gaps = append(gaps, secretsIAMGap(
-				"missing_vault_policy",
-				SecretsIAMTrustChainStateUnresolved,
-				"Vault auth role references a policy that was not collected",
-				chain.ServiceAccountJoinKey,
-				[]string{vaultRole.FactID},
-				[]string{"vault_acl_policy"},
-				nil,
-			))
-			continue
-		}
-		for _, policy := range policies {
-			for _, rule := range vaultPolicyRules(policy) {
-				if !secretsIAMContainsLower(rule.capabilities, "read") {
-					continue
-				}
-				kv := index.vaultKV[rule.pathFingerprint]
-				if len(kv) == 0 {
-					gaps = append(gaps, secretsIAMGap(
-						"missing_vault_kv_metadata",
-						SecretsIAMTrustChainStateUnresolved,
-						"Vault ACL policy rule has no matching KV metadata path fingerprint",
-						chain.ServiceAccountJoinKey,
-						[]string{policy.FactID},
-						[]string{"vault_kv_metadata"},
-						nil,
-					))
-					continue
-				}
-				for _, metadata := range kv {
-					paths = append(paths, SecretsIAMSecretAccessPath{
-						PathID:             secretsIAMID("secret_access_path", chain.ChainID, policyKey, rule.pathFingerprint),
-						ChainID:            chain.ChainID,
-						State:              SecretsIAMTrustChainStateExact,
-						Confidence:         "exact",
-						KVPathFingerprint:  rule.pathFingerprint,
-						VaultMountJoinKey:  payloadString(metadata.Payload, "mount_join_key"),
-						VaultPolicyJoinKey: policyKey,
-						Capabilities:       uniqueSortedStrings(rule.capabilities),
-						EvidenceFactIDs:    secretsIAMPathEvidence(chain, vaultRole, policy, metadata),
-					})
-				}
-			}
+// indexVaultAuthRole decodes and indexes one vault_auth_role envelope. It
+// always appends the decoded role to index.vaultAuthRoles (consumed by
+// secretsIAMWildcardVaultAuthRoleObservations regardless of selector shape),
+// then additionally indexes it by each of its bound service-account join keys
+// unless its selector is a wildcard.
+func indexVaultAuthRole(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeVaultAuthRole(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
 		}
 	}
-	return paths, gaps
-}
-
-func secretsIAMPathEvidence(
-	chain SecretsIAMIdentityTrustChain,
-	vaultRole facts.Envelope,
-	policy facts.Envelope,
-	metadata facts.Envelope,
-) []string {
-	evidence := append([]string{}, chain.EvidenceFactIDs...)
-	evidence = append(evidence, vaultRole.FactID, policy.FactID, metadata.FactID)
-	return uniqueSortedStrings(evidence)
-}
-
-func secretsIAMCoverageGaps(envelopes []facts.Envelope) []SecretsIAMPostureGap {
-	gaps := make([]SecretsIAMPostureGap, 0, len(envelopes))
-	for _, envelope := range envelopes {
-		state := secretsIAMStateFromSourceState(payloadString(envelope.Payload, "source_state"))
-		gapType := "partial_source_coverage"
-		if state == SecretsIAMTrustChainStateUnsupported {
-			gapType = "unsupported_policy_layer"
-		}
-		gaps = append(gaps, secretsIAMGap(
-			gapType,
-			state,
-			payloadString(envelope.Payload, "warning_kind"),
-			"",
-			[]string{envelope.FactID},
-			nil,
-			[]string{payloadString(envelope.Payload, "resource_scope")},
-		))
+	role := secretsIAMVaultRole{env: envelope, decoded: decoded}
+	index.vaultAuthRoles = append(index.vaultAuthRoles, role)
+	if boolOrFalse(decoded.BoundServiceAccountSelectorWildcard) {
+		return nil
 	}
-	return gaps
+	for _, key := range decoded.BoundServiceAccountJoinKeys {
+		addVaultRoleByKey(index.vaultRoles, key, role)
+	}
+	return nil
 }
 
-func secretsIAMStaleGenerationGaps(index secretsIAMIndex) []SecretsIAMPostureGap {
-	var gaps []SecretsIAMPostureGap
-	for serviceAccountKey, accounts := range index.serviceAccounts {
-		for _, account := range accounts {
-			for _, workload := range index.workloads[serviceAccountKey] {
-				if account.ScopeID == workload.ScopeID && account.GenerationID != workload.GenerationID {
-					gaps = append(gaps, secretsIAMGap(
-						"stale_generation",
-						SecretsIAMTrustChainStateStale,
-						"ServiceAccount and workload identity-use evidence came from different generations",
-						serviceAccountKey,
-						[]string{account.FactID, workload.FactID},
-						nil,
-						nil,
-					))
-				}
-			}
+// indexAWSIAMPrincipal decodes and indexes one aws_iam_principal envelope
+// (the #4568 AWS IAM lane, unchanged by this wave). MANDATORY fatal
+// passthrough: partitionDecodeFailures returns a non-nil fatal for any decode
+// error it did NOT classify input_invalid (a future schema-mismatch/
+// unsupported-major class, or a non-*factDecodeError). Such an error is
+// terminal but is NOT a per-fact quarantine — it must fail the whole
+// trust-chain work item so the durable queue triages it, exactly like every
+// other decode call site in this file. Swallowing it here (the old
+// `continue`) would let a malformed principal Ack as success — the "swallow
+// failures" hole the redesign exists to close.
+func indexAWSIAMPrincipal(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	principal, err := decodeAWSIAMPrincipal(envelope)
+	if err != nil {
+		q, ok, fatal := partitionDecodeFailures(envelope, err)
+		if fatal != nil {
+			return fatal
+		}
+		if ok {
+			*quarantined = append(*quarantined, q)
+		}
+		return nil
+	}
+	key := strings.TrimSpace(payloadString(envelope.Payload, "principal_arn"))
+	if key == "" {
+		return nil
+	}
+	index.iamPrincipals[key] = append(index.iamPrincipals[key], secretsIAMPrincipal{env: envelope, decoded: principal})
+	return nil
+}
+
+// indexVaultACLPolicy mirrors indexKubernetesServiceAccount for
+// vault_acl_policy envelopes.
+func indexVaultACLPolicy(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeVaultACLPolicy(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
 		}
 	}
-	return gaps
+	addVaultPolicyByKey(index.vaultPolicies, decoded.PolicyJoinKey, secretsIAMVaultPolicy{env: envelope, decoded: decoded})
+	return nil
+}
+
+// indexVaultKVMetadata mirrors indexKubernetesServiceAccount for
+// vault_kv_metadata envelopes.
+func indexVaultKVMetadata(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeVaultKVMetadata(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
+		}
+	}
+	addVaultKVByKey(index.vaultKV, decoded.KVPathFingerprint, secretsIAMVaultKV{env: envelope, decoded: decoded})
+	return nil
+}
+
+// indexKubernetesGCPWorkloadIdentityBinding mirrors
+// indexKubernetesServiceAccount for k8s_gcp_workload_identity_binding
+// envelopes. This K8S-lane kind decodes through the typed seam even though
+// its downstream join partner (gcp_iam_trust_policy) stays raw — deferred:
+// gcp_iam lane, Wave 4d types vault/k8s only.
+func indexKubernetesGCPWorkloadIdentityBinding(index *secretsIAMIndex, envelope facts.Envelope, quarantined *[]quarantinedFact) error {
+	decoded, err := decodeKubernetesGCPWorkloadIdentityBinding(envelope)
+	if err != nil {
+		fatal, skip := quarantineOrFatal(envelope, err, quarantined)
+		if fatal != nil || skip {
+			return fatal
+		}
+	}
+	addGCPBindingByKey(index.gcpK8sBindings, decoded.ServiceAccountJoinKey, secretsIAMGCPBinding{env: envelope, decoded: decoded})
+	return nil
 }

@@ -38,25 +38,25 @@ func secretsIAMWildcardTrustObservations(trusts map[string][]facts.Envelope) []S
 	return observations
 }
 
-func secretsIAMWildcardVaultAuthRoleObservations(envelopes []facts.Envelope) []SecretsIAMPrivilegePostureObservation {
+func secretsIAMWildcardVaultAuthRoleObservations(roles []secretsIAMVaultRole) []SecretsIAMPrivilegePostureObservation {
 	var observations []SecretsIAMPrivilegePostureObservation
-	for _, envelope := range envelopes {
-		if !payloadBool(envelope.Payload, "bound_service_account_selector_wildcard") {
+	for _, role := range roles {
+		if !boolOrFalse(role.decoded.BoundServiceAccountSelectorWildcard) {
 			continue
 		}
-		subject := secretsIAMFingerprint("vault_auth_role", payloadString(envelope.Payload, "role_join_key"))
+		subject := secretsIAMFingerprint("vault_auth_role", role.decoded.RoleJoinKey)
 		if subject == "" {
-			subject = secretsIAMFingerprint("vault_auth_role", envelope.FactID)
+			subject = secretsIAMFingerprint("vault_auth_role", role.env.FactID)
 		}
 		observations = append(observations, SecretsIAMPrivilegePostureObservation{
-			ObservationID:      secretsIAMID("privilege_posture_observation", "wildcard_vault_service_account_selector", subject, envelope.FactID),
+			ObservationID:      secretsIAMID("privilege_posture_observation", "wildcard_vault_service_account_selector", subject, role.env.FactID),
 			RiskType:           "wildcard_vault_service_account_selector",
 			Severity:           "high",
 			State:              SecretsIAMTrustChainStatePartial,
 			Confidence:         "partial",
 			SubjectFingerprint: subject,
 			Reason:             "Vault Kubernetes auth role contains a wildcard service account selector",
-			EvidenceFactIDs:    []string{envelope.FactID},
+			EvidenceFactIDs:    []string{role.env.FactID},
 		})
 	}
 	return observations
@@ -88,31 +88,22 @@ type vaultPolicyRule struct {
 	capabilities    []string
 }
 
-func vaultPolicyRules(policy facts.Envelope) []vaultPolicyRule {
-	raw, ok := policy.Payload["rules"]
-	if !ok {
-		return nil
-	}
-	var out []vaultPolicyRule
-	switch typed := raw.(type) {
-	case []map[string]any:
-		for _, rule := range typed {
-			out = append(out, vaultPolicyRule{
-				pathFingerprint: payloadString(rule, "path_fingerprint"),
-				capabilities:    payloadStrings(rule, "", "capabilities"),
-			})
-		}
-	case []any:
-		for _, item := range typed {
-			rule, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			out = append(out, vaultPolicyRule{
-				pathFingerprint: payloadString(rule, "path_fingerprint"),
-				capabilities:    payloadStrings(rule, "", "capabilities"),
-			})
-		}
+// vaultPolicyRules flattens a decoded vault_acl_policy's typed
+// []secretsiamv1.VaultACLPolicyRule into the reducer's own vaultPolicyRule
+// shape. Every field on the typed nested struct is optional (see
+// secretsiam/v1's VaultACLPolicyRule doc comment), so a rule entry with a nil
+// PathFingerprint or nil Capabilities degrades to an empty string / nil slice
+// here — the same tolerant behavior the pre-typing raw-map parsing had for a
+// missing key on one rule in a heterogeneous array, matching how the
+// secret-access-path resolution already skips a rule whose PathFingerprint
+// does not join to any vault_kv_metadata fact.
+func vaultPolicyRules(policy secretsIAMVaultPolicy) []vaultPolicyRule {
+	out := make([]vaultPolicyRule, 0, len(policy.decoded.Rules))
+	for _, rule := range policy.decoded.Rules {
+		out = append(out, vaultPolicyRule{
+			pathFingerprint: stringOrEmpty(rule.PathFingerprint),
+			capabilities:    rule.Capabilities,
+		})
 	}
 	return out
 }

@@ -24,6 +24,7 @@ import (
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
@@ -352,6 +353,14 @@ var payloadContracts = []struct {
 	{FactKindCICDTriggerEdge, "ci.trigger_edge.v1.schema.json", reflect.TypeOf(cicdrunv1.TriggerEdge{})},
 	{FactKindCICDStep, "ci.step.v1.schema.json", reflect.TypeOf(cicdrunv1.Step{})},
 	{FactKindCICDWorkflowImageEvidence, "ci.workflow_image_evidence.v1.schema.json", reflect.TypeOf(cicdrunv1.WorkflowImageEvidence{})},
+	{FactKindVaultAuthRole, "vault_auth_role.v1.schema.json", reflect.TypeOf(secretsiamv1.VaultAuthRole{})},
+	{FactKindVaultACLPolicy, "vault_acl_policy.v1.schema.json", reflect.TypeOf(secretsiamv1.VaultACLPolicy{})},
+	{FactKindVaultKVMetadata, "vault_kv_metadata.v1.schema.json", reflect.TypeOf(secretsiamv1.VaultKVMetadata{})},
+	{FactKindKubernetesServiceAccount, "k8s_service_account.v1.schema.json", reflect.TypeOf(secretsiamv1.KubernetesServiceAccount{})},
+	{FactKindKubernetesWorkloadIdentityUse, "k8s_workload_identity_use.v1.schema.json", reflect.TypeOf(secretsiamv1.KubernetesWorkloadIdentityUse{})},
+	{FactKindEKSIRSAAnnotation, "eks_irsa_annotation.v1.schema.json", reflect.TypeOf(secretsiamv1.EKSIRSAAnnotation{})},
+	{FactKindEKSPodIdentityAssociation, "eks_pod_identity_association.v1.schema.json", reflect.TypeOf(secretsiamv1.EKSPodIdentityAssociation{})},
+	{FactKindKubernetesGCPWorkloadIdentityBinding, "k8s_gcp_workload_identity_binding.v1.schema.json", reflect.TypeOf(secretsiamv1.KubernetesGCPWorkloadIdentityBinding{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

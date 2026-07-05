@@ -1,0 +1,4 @@
+{
+  "service_account_join_key": "sha256:demo-service-account",
+  "web_identity_subject_fingerprint": "sha256:demo-web-identity-subject"
+}

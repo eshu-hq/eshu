@@ -1,0 +1,45 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/vault_auth_role.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "bound_service_account_join_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "bound_service_account_selector_wildcard": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "mount_join_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role_join_key": {
+      "type": "string"
+    },
+    "token_policy_join_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "role_join_key"
+  ],
+  "title": "Eshu vault_auth_role Payload (schema version 1)",
+  "type": "object"
+}

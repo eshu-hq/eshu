@@ -1,0 +1,4 @@
+{
+  "mount_join_key": "sha256:demo-vault-mount",
+  "path_depth": 3
+}

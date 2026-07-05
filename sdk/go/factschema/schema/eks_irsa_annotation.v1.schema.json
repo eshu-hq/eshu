@@ -1,0 +1,25 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/eks_irsa_annotation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "role_arn": {
+      "type": "string"
+    },
+    "service_account_join_key": {
+      "type": "string"
+    },
+    "web_identity_subject_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "service_account_join_key",
+    "role_arn"
+  ],
+  "title": "Eshu eks_irsa_annotation Payload (schema version 1)",
+  "type": "object"
+}
