@@ -148,7 +148,19 @@ func (h KubernetesCorrelationHandler) Handle(ctx context.Context, intent Intent)
 	}
 	envelopes = append(envelopes, sourceFacts...)
 
-	decisions := BuildKubernetesCorrelationDecisions(envelopes)
+	decisions, quarantined, err := buildKubernetesCorrelationDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed kubernetes_live.* fact (a missing required
+	// identity/edge/reason field) is quarantined as a visible input_invalid
+	// dead-letter — counter + structured error log — while every valid fact
+	// still contributes its correlation decision below, so one bad fact never
+	// stalls the scope generation's correlation pass.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
 	counts := kubernetesCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteKubernetesCorrelations(ctx, KubernetesCorrelationWrite{
 		IntentID:     intent.IntentID,
@@ -167,8 +179,9 @@ func (h KubernetesCorrelationHandler) Handle(ctx context.Context, intent Intent)
 		IntentID:        intent.IntentID,
 		Domain:          DomainKubernetesCorrelation,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: kubernetesCorrelationSummary(len(decisions), counts, writeResult.FactsWritten),
+		EvidenceSummary: kubernetesCorrelationSummary(len(decisions), counts, writeResult.FactsWritten, inputInvalidCount),
 		CanonicalWrites: writeResult.FactsWritten,
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -216,9 +229,34 @@ func (h KubernetesCorrelationHandler) emitCounters(
 // without fabricating exact ownership from a label selector or a digest from a
 // tag coincidence. It is a pure function over fact envelopes (no I/O) so the
 // six-outcome contract is table-test friendly.
+//
+// A kubernetes_live.* fact whose payload is missing a required identity/edge/
+// reason field is excluded from the index (mirroring the pre-typing behavior
+// of dropping a fact with a blank required string), matching this function's
+// fixed, error-free signature that the existing table tests already assert
+// against. Handle (kubernetes_correlation.go) calls the quarantine-aware
+// buildKubernetesCorrelationDecisionsWithQuarantine instead, so the reducer
+// intent path still reports a visible input_invalid dead-letter (counter +
+// structured log) for the malformed fact while this function stays a pure,
+// table-test-friendly classifier with no telemetry side effects.
 func BuildKubernetesCorrelationDecisions(envelopes []facts.Envelope) []KubernetesCorrelationDecision {
-	index := buildKubernetesCorrelationIndex(envelopes)
-	return classifyKubernetesCorrelation(index)
+	decisions, _, _ := buildKubernetesCorrelationDecisionsWithQuarantine(envelopes)
+	return decisions
+}
+
+// buildKubernetesCorrelationDecisionsWithQuarantine is the quarantine-aware
+// counterpart BuildKubernetesCorrelationDecisions delegates to and
+// KubernetesCorrelationHandler.Handle calls directly, so the reducer intent
+// path can report each malformed kubernetes_live.* fact as a visible
+// input_invalid dead-letter via recordQuarantinedFacts. A non-decode error (a
+// fatal condition partitionDecodeFailures did not quarantine) is returned so
+// the caller fails the whole intent for durable triage.
+func buildKubernetesCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) ([]KubernetesCorrelationDecision, []quarantinedFact, error) {
+	index, quarantined, err := buildKubernetesCorrelationIndex(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return classifyKubernetesCorrelation(index), quarantined, nil
 }
 
 func kubernetesCorrelationFactKinds() []string {
@@ -254,9 +292,10 @@ func kubernetesCorrelationSummary(
 	evaluated int,
 	counts map[KubernetesCorrelationOutcome]int,
 	factsWritten int,
+	inputInvalidCount int,
 ) string {
 	return fmt.Sprintf(
-		"kubernetes correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d facts_written=%d",
+		"kubernetes correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d facts_written=%d input_invalid_facts=%d",
 		evaluated,
 		counts[KubernetesCorrelationExact],
 		counts[KubernetesCorrelationDerived],
@@ -265,5 +304,6 @@ func kubernetesCorrelationSummary(
 		counts[KubernetesCorrelationStale],
 		counts[KubernetesCorrelationRejected],
 		factsWritten,
+		inputInvalidCount,
 	)
 }

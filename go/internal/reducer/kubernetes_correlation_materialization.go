@@ -154,7 +154,20 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
-	rows, tally := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	rows, tally, quarantined, err := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	if err != nil {
+		// A FATAL decode error (an unsupported schema major partitionDecodeFailures
+		// did NOT quarantine) fails the whole intent so the durable queue triages
+		// it. This return MUST precede the retract below: retracting on a fatal
+		// error would delete the prior generation's valid edges and then write
+		// nothing — silent edge loss on a transient/version-skew condition.
+		return Result{}, err
+	}
+	// Per-fact isolation: a malformed kubernetes_live.* fact (a missing required
+	// field) is quarantined as a visible input_invalid dead-letter — counter +
+	// structured error log — while every valid decision still projects its edge
+	// below, mirroring the node materialization path.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesCorrelationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -209,12 +222,14 @@ func (h KubernetesCorrelationMaterializationHandler) Handle(
 		Domain:   DomainKubernetesCorrelationMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d RUNS_IMAGE edge(s) from %d fact(s); %d exact decision(s) had no resolvable source node",
+			"materialized %d RUNS_IMAGE edge(s) from %d fact(s); %d exact decision(s) had no resolvable source node; %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
 			tally.totalSkipped(),
+			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

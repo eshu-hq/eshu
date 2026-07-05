@@ -1,0 +1,12 @@
+{
+  "relationship_type": "owner_reference",
+  "from_object_id": "kube-obj:demo-cluster:apps-v1-replicasets:payments:checkout-7f8d9:2b3c4d5e",
+  "to_object_id": "kube-obj:demo-cluster:apps-v1-deployments:payments:checkout:1a2b3c4d",
+  "cluster_id": "demo-cluster",
+  "from_group_version_resource": "apps/v1/replicasets",
+  "to_group_version_resource": "apps/v1/deployments",
+  "correlation_anchors": [
+    "kube-obj:demo-cluster:apps-v1-replicasets:payments:checkout-7f8d9:2b3c4d5e",
+    "kube-obj:demo-cluster:apps-v1-deployments:payments:checkout:1a2b3c4d"
+  ]
+}

@@ -63,6 +63,8 @@ type Paths struct {
 	GCPStructDir string
 	// AzureStructDir is sdk/go/factschema/azure/v1.
 	AzureStructDir string
+	// KubernetesLiveStructDir is sdk/go/factschema/kuberneteslive/v1.
+	KubernetesLiveStructDir string
 }
 
 // ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
@@ -101,6 +103,9 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.AzureStructDir) == "" {
 		resolved.AzureStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "azure", "v1")
+	}
+	if strings.TrimSpace(resolved.KubernetesLiveStructDir) == "" {
+		resolved.KubernetesLiveStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "kuberneteslive", "v1")
 	}
 	// DecodeFile / DecodeFiles are intentionally NOT defaulted here: the glob
 	// path can fail, and ResolvePaths returns no error. resolveDecodeFiles (from
@@ -175,8 +180,9 @@ func parseDecodeSeamsFiles(files []string) ([]DecodeSeam, error) {
 
 // Load runs the full derivation pipeline against p (auto-resolving empty
 // fields via ResolvePaths): parse the decode seams, parse the aws/v1, iam/v1,
-// and gcp/v1 typed struct shapes, scan the reducer directory's handler files
-// for field usage, and join the three into a Manifest.
+// incident/v1, gcp/v1, azure/v1, and kuberneteslive/v1 typed struct shapes,
+// scan the reducer directory's handler files for field usage, and join the
+// three into a Manifest.
 //
 // It returns an error if any seam's fact kind has no schema-file mapping
 // (UnmappedSeamFactKinds) or if any seam's struct type was not found in the
@@ -224,7 +230,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes))
+	kubernetesLiveShapes, err := ParseStructShapes(resolved.KubernetesLiveStructDir, "kuberneteslivev1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
@@ -238,6 +248,9 @@ func Load(p Paths) (Manifest, error) {
 		shapes[k] = v
 	}
 	for k, v := range azureShapes {
+		shapes[k] = v
+	}
+	for k, v := range kubernetesLiveShapes {
 		shapes[k] = v
 	}
 

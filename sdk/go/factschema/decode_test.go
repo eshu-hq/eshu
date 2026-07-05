@@ -19,6 +19,7 @@ import (
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
+	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
 func testEnvelope(payload map[string]any) Envelope {
@@ -296,6 +297,9 @@ var payloadContracts = []struct {
 	{FactKindAzureCloudRelationship, "azure_cloud_relationship.v1.schema.json", reflect.TypeOf(azurev1.CloudRelationship{})},
 	{FactKindAzureDNSRecord, "azure_dns_record.v1.schema.json", reflect.TypeOf(azurev1.DNSRecord{})},
 	{FactKindAzureCollectionWarning, "azure_collection_warning.v1.schema.json", reflect.TypeOf(azurev1.CollectionWarning{})},
+	{FactKindKubernetesLivePodTemplate, "kubernetes_live.pod_template.v1.schema.json", reflect.TypeOf(kuberneteslivev1.PodTemplate{})},
+	{FactKindKubernetesLiveRelationship, "kubernetes_live.relationship.v1.schema.json", reflect.TypeOf(kuberneteslivev1.Relationship{})},
+	{FactKindKubernetesLiveWarning, "kubernetes_live.warning.v1.schema.json", reflect.TypeOf(kuberneteslivev1.Warning{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

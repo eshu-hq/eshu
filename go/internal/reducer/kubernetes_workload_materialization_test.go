@@ -119,8 +119,15 @@ func TestKubernetesWorkloadMaterializationRequiresNodeWriter(t *testing.T) {
 func TestExtractKubernetesWorkloadNodeRowsEmptyInputReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if rows := ExtractKubernetesWorkloadNodeRows(nil); rows != nil {
+	rows, quarantined, err := ExtractKubernetesWorkloadNodeRows(nil)
+	if err != nil {
+		t.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v, want nil", err)
+	}
+	if rows != nil {
 		t.Fatalf("rows = %v, want nil", rows)
+	}
+	if quarantined != nil {
+		t.Fatalf("quarantined = %v, want nil", quarantined)
 	}
 }
 
@@ -131,7 +138,10 @@ func TestExtractKubernetesWorkloadNodeRowsBuildsObjectIDIdentity(t *testing.T) {
 		kubernetesPodTemplateEnvelope(samplePodTemplatePayload("object-a", "checkout")),
 	}
 
-	rows := ExtractKubernetesWorkloadNodeRows(envelopes)
+	rows, _, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
@@ -171,7 +181,10 @@ func TestExtractKubernetesWorkloadNodeRowsSkipsNonPodTemplateFacts(t *testing.T)
 		kubernetesPodTemplateEnvelope(samplePodTemplatePayload("object-a", "checkout")),
 	}
 
-	rows := ExtractKubernetesWorkloadNodeRows(envelopes)
+	rows, _, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (relationship facts must be skipped)", len(rows))
 	}
@@ -181,7 +194,8 @@ func TestExtractKubernetesWorkloadNodeRowsRequiresObjectID(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		// Missing object_id: not a materializable node.
+		// Missing object_id: quarantined as an input_invalid dead-letter, not a
+		// materializable node.
 		kubernetesPodTemplateEnvelope(map[string]any{
 			"cluster_id": "prod-eks",
 			"namespace":  "payments",
@@ -189,8 +203,18 @@ func TestExtractKubernetesWorkloadNodeRowsRequiresObjectID(t *testing.T) {
 		}),
 	}
 
-	if rows := ExtractKubernetesWorkloadNodeRows(envelopes); len(rows) != 0 {
+	rows, quarantined, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v, want nil", err)
+	}
+	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for missing object_id", len(rows))
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1 for missing object_id", len(quarantined))
+	}
+	if quarantined[0].field != "object_id" {
+		t.Fatalf("quarantined[0].field = %q, want %q", quarantined[0].field, "object_id")
 	}
 }
 
@@ -203,7 +227,10 @@ func TestExtractKubernetesWorkloadNodeRowsDeduplicatesByObjectID(t *testing.T) {
 		kubernetesPodTemplateEnvelope(payload),
 	}
 
-	rows := ExtractKubernetesWorkloadNodeRows(envelopes)
+	rows, _, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (duplicate facts must converge on one node)", len(rows))
 	}
@@ -219,7 +246,10 @@ func TestExtractKubernetesWorkloadNodeRowsSkipsTombstone(t *testing.T) {
 		kubernetesPodTemplateEnvelope(samplePodTemplatePayload("object-a", "checkout")),
 	}
 
-	rows := ExtractKubernetesWorkloadNodeRows(envelopes)
+	rows, _, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (a tombstoned workload no longer runs and must not materialize)", len(rows))
 	}
@@ -237,7 +267,10 @@ func TestExtractKubernetesWorkloadNodeRowsSortedByUID(t *testing.T) {
 		kubernetesPodTemplateEnvelope(samplePodTemplatePayload("object-b", "b")),
 	}
 
-	rows := ExtractKubernetesWorkloadNodeRows(envelopes)
+	rows, _, err := ExtractKubernetesWorkloadNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractKubernetesWorkloadNodeRows() error = %v, want nil", err)
+	}
 	if len(rows) != 3 {
 		t.Fatalf("len(rows) = %d, want 3", len(rows))
 	}

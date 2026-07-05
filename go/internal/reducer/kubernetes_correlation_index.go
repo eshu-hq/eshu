@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
 // Kubernetes live relationship types the read model classifies (issue #388).
@@ -85,97 +86,131 @@ type kubernetesCorrelationIndex struct {
 }
 
 // buildKubernetesCorrelationIndex partitions the supplied envelopes into the
-// bounded correlation index. It is a pure function over fact envelopes.
-func buildKubernetesCorrelationIndex(envelopes []facts.Envelope) kubernetesCorrelationIndex {
+// bounded correlation index. Each kubernetes_live.* fact is decoded through the
+// factschema seam, so a payload missing a required identity/edge/reason field
+// is quarantined as a per-fact input_invalid dead-letter (returned in the
+// []quarantinedFact slice) rather than silently contributing a partial
+// workload, edge, or warning — while every valid fact still contributes to the
+// index. A non-decode error (a fatal condition partitionDecodeFailures did not
+// quarantine) is returned so the caller fails the whole intent for durable
+// triage. Mirrors buildGCPCloudResourceJoinIndex (gcp_relationship_join.go).
+func buildKubernetesCorrelationIndex(envelopes []facts.Envelope) (kubernetesCorrelationIndex, []quarantinedFact, error) {
 	index := kubernetesCorrelationIndex{
 		sourceDigests: make(map[string]kubernetesSourceDigest),
 		sourceTags:    make(map[string][]kubernetesSourceTag),
 	}
+	var quarantined []quarantinedFact
 	for _, env := range envelopes {
+		var err error
 		switch env.FactKind {
 		case facts.KubernetesPodTemplateFactKind:
-			index.ingestPodTemplate(env)
+			err = index.ingestPodTemplate(env)
 		case facts.KubernetesRelationshipFactKind:
-			index.ingestRelationship(env)
+			err = index.ingestRelationship(env)
 		case facts.KubernetesWarningFactKind:
-			index.ingestWarning(env)
+			err = index.ingestWarning(env)
 		case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind:
 			index.ingestSourceManifest(env)
 		case facts.OCIImageTagObservationFactKind:
 			index.ingestSourceTag(env)
 		}
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return kubernetesCorrelationIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+		}
 	}
 	index.sort()
-	return index
+	return index, quarantined, nil
 }
 
-func (index *kubernetesCorrelationIndex) ingestPodTemplate(env facts.Envelope) {
+func (index *kubernetesCorrelationIndex) ingestPodTemplate(env facts.Envelope) error {
 	// A tombstoned live workload (a deleted Deployment) is no longer running, so
 	// it produces no correlation decisions; reading it would assert drift against
 	// a workload that no longer exists.
 	if env.IsTombstone {
-		return
+		return nil
 	}
-	objectID := payloadString(env.Payload, "object_id")
+	podTemplate, err := decodeKubernetesLivePodTemplate(env)
+	if err != nil {
+		return err
+	}
+	objectID := podTemplate.ObjectID
 	if objectID == "" {
-		return
+		// Present-but-empty identity is a valid decode, distinct from an absent
+		// required key, which the decode seam already rejected above.
+		return nil
 	}
 	index.workloads = append(index.workloads, kubernetesWorkload{
 		objectID:  objectID,
-		clusterID: payloadString(env.Payload, "cluster_id"),
-		namespace: payloadString(env.Payload, "namespace"),
-		name:      payloadString(env.Payload, "name"),
-		uid:       payloadString(env.Payload, "uid"),
-		imageRefs: workloadImageRefs(env.Payload),
+		clusterID: derefString(podTemplate.ClusterID),
+		namespace: derefString(podTemplate.Namespace),
+		name:      derefString(podTemplate.Name),
+		uid:       derefString(podTemplate.WorkloadUID),
+		imageRefs: workloadImageRefs(podTemplate),
 		factID:    env.FactID,
 	})
+	return nil
 }
 
 // workloadImageRefs returns the workload's declared image references, preferring
 // the redacted image_refs list and falling back to per-container image strings.
-func workloadImageRefs(payload map[string]any) []string {
-	refs := payloadStrings(payload, "", "image_refs")
-	if len(refs) > 0 {
-		return refs
-	}
-	containers, ok := payload["containers"].([]any)
-	if !ok {
-		return nil
+//
+// The image_refs branch is deduplicated and sorted, matching the pre-typing
+// payloadStrings(payload, "", "image_refs") helper (which returns
+// uniqueSortedStrings). The container-fallback branch preserves the pre-typing
+// order-preserving, duplicate-retaining behavior verbatim (the old code returned
+// the raw per-container slice), so the valid correlation path is byte-identical
+// to before the typed-decode migration — only the input source changed from a
+// raw map lookup to the decoded struct.
+func workloadImageRefs(podTemplate kuberneteslivev1.PodTemplate) []string {
+	if len(podTemplate.ImageRefs) > 0 {
+		return uniqueSortedStrings(podTemplate.ImageRefs)
 	}
 	var out []string
-	for _, entry := range containers {
-		container, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		if image := payloadString(container, "image"); image != "" {
+	for _, container := range podTemplate.Containers {
+		if image := strings.TrimSpace(derefString(container.Image)); image != "" {
 			out = append(out, image)
 		}
 	}
 	return out
 }
 
-func (index *kubernetesCorrelationIndex) ingestRelationship(env facts.Envelope) {
-	relationshipType := payloadString(env.Payload, "relationship_type")
-	from := payloadString(env.Payload, "from_object_id")
-	to := payloadString(env.Payload, "to_object_id")
-	if relationshipType == "" || from == "" || to == "" {
-		return
+func (index *kubernetesCorrelationIndex) ingestRelationship(env facts.Envelope) error {
+	relationship, err := decodeKubernetesLiveRelationship(env)
+	if err != nil {
+		return err
+	}
+	if relationship.RelationshipType == "" || relationship.FromObjectID == "" || relationship.ToObjectID == "" {
+		// Present-but-empty identity is a valid decode, distinct from an absent
+		// required key, which the decode seam already rejected above.
+		return nil
 	}
 	index.identityEdges = append(index.identityEdges, kubernetesIdentityEdge{
 		factID:           env.FactID,
-		relationshipType: relationshipType,
-		fromObjectID:     from,
-		toObjectID:       to,
+		relationshipType: relationship.RelationshipType,
+		fromObjectID:     relationship.FromObjectID,
+		toObjectID:       relationship.ToObjectID,
 	})
+	return nil
 }
 
-func (index *kubernetesCorrelationIndex) ingestWarning(env facts.Envelope) {
-	reason := payloadString(env.Payload, "reason")
-	if reason == "" {
-		return
+func (index *kubernetesCorrelationIndex) ingestWarning(env facts.Envelope) error {
+	warning, err := decodeKubernetesLiveWarning(env)
+	if err != nil {
+		return err
 	}
-	index.warnings = append(index.warnings, reason)
+	if warning.Reason == "" {
+		// Present-but-empty identity is a valid decode, distinct from an absent
+		// required key, which the decode seam already rejected above.
+		return nil
+	}
+	index.warnings = append(index.warnings, warning.Reason)
+	return nil
 }
 
 func (index *kubernetesCorrelationIndex) ingestSourceManifest(env facts.Envelope) {

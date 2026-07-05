@@ -52,7 +52,7 @@ func TestExtractKubernetesCorrelationEdgeRowsExactDigestMaterializes(t *testing.
 		k8sSourceManifestWithNode("oci-1", testK8sRegistry, testK8sRepository, testK8sDigest, testCheckoutDescriptorID(), false),
 	}
 
-	rows, tally := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	rows, tally, _, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1 RUNS_IMAGE edge; tally=%+v", len(rows), tally)
 	}
@@ -94,7 +94,7 @@ func TestExtractKubernetesCorrelationEdgeRowsExactOnly(t *testing.T) {
 		podTemplateFact("pod-reject", "reject", "uid-r", []string{rejectedRef}, map[string]string{"app": "r"}, false),
 	}
 
-	rows, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	rows, _, _, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 (only exact digest outcomes promote to edges)", len(rows))
 	}
@@ -112,7 +112,7 @@ func TestExtractKubernetesCorrelationEdgeRowsStaleNoEdge(t *testing.T) {
 		k8sSourceManifestWithNode("oci-1", testK8sRegistry, testK8sRepository, testK8sDigest, testCheckoutDescriptorID(), true),
 	}
 
-	rows, tally := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	rows, tally, _, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 (tombstoned source is stale, never exact)", len(rows))
 	}
@@ -138,7 +138,7 @@ func TestExtractKubernetesCorrelationEdgeRowsExactButDigestUnresolvableSkips(t *
 		k8sSourceTagFact("tag-1", testK8sRegistry, testK8sRepository, "v1", testK8sDigest, "", false),
 	}
 
-	rows, tally := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	rows, tally, _, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 (no resolvable source node = no dangling edge)", len(rows))
 	}
@@ -159,7 +159,7 @@ func TestExtractKubernetesCorrelationEdgeRowsOwnerReferenceNoImageEdge(t *testin
 		k8sRelationshipFact("rel-1", relKubernetesOwnerReference, "checkout", "checkout-pod-abc"),
 	}
 
-	rows, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	rows, _, _, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 (owner_reference is not an image edge in this slice)", len(rows))
 	}
@@ -186,7 +186,7 @@ func TestExtractKubernetesCorrelationEdgeRowsDeduplicatesAndSorts(t *testing.T) 
 		k8sSourceManifestWithNode("oci-b", testK8sRegistry, repoB, digestB, descB, false),
 	}
 
-	rows, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
+	rows, _, _, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
 	if len(rows) != 2 {
 		t.Fatalf("rows = %d, want 2 distinct edges (duplicate B container collapsed)", len(rows))
 	}
@@ -204,7 +204,7 @@ func TestExtractKubernetesCorrelationEdgeRowsDeduplicatesAndSorts(t *testing.T) 
 func TestExtractKubernetesCorrelationEdgeRowsEmpty(t *testing.T) {
 	t.Parallel()
 
-	rows, tally := ExtractKubernetesCorrelationEdgeRows(nil)
+	rows, tally, _, _ := ExtractKubernetesCorrelationEdgeRows(nil)
 	if len(rows) != 0 {
 		t.Fatalf("rows = %d, want 0 for empty input", len(rows))
 	}
