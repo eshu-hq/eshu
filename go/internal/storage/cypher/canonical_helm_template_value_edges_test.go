@@ -19,6 +19,10 @@ func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) 
 
 	mat := projector.CanonicalMaterialization{
 		GenerationID: "gen-1",
+		// Not a first projection: the two retracts precede the MERGE. The
+		// first-generation skip is covered by
+		// TestHelmTemplateValueEdgeStatementsSkipsRetractOnFirstGeneration.
+		FirstGeneration: false,
 		Entities: []projector.EntityRow{
 			{
 				EntityID:   "def-image-repo",
@@ -118,6 +122,53 @@ func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) 
 	}
 	if imageRow["source_tool"] != "helm" {
 		t.Errorf("source_tool = %v, want helm", imageRow["source_tool"])
+	}
+}
+
+// TestHelmTemplateValueEdgeStatementsSkipsRetractOnFirstGeneration proves the
+// #4726 fix: on a scope's first generation the two retracts (the legacy
+// shared-REFERENCES migration and the dedicated-type retract) are skipped
+// because a first-ever projection has no prior Helm edges to retract, leaving
+// only the MERGE upsert. This removes the legacy retract's 30s full-scan of the
+// large shared REFERENCES type from the cold-ingest hot path while staying
+// output-preserving (0 rows deleted whether run or skipped).
+func TestHelmTemplateValueEdgeStatementsSkipsRetractOnFirstGeneration(t *testing.T) {
+	t.Parallel()
+
+	mat := projector.CanonicalMaterialization{
+		GenerationID:    "gen-1",
+		FirstGeneration: true,
+		Entities: []projector.EntityRow{
+			{
+				EntityID:   "def-image-repo",
+				Label:      "HelmValueDefinition",
+				EntityName: "image.repository",
+				FilePath:   "/repo/charts/webapp/values.yaml",
+			},
+			{
+				EntityID:   "use-image-repo",
+				Label:      "HelmTemplateValueUsage",
+				EntityName: "image.repository",
+				FilePath:   "/repo/charts/webapp/templates/deployment.yaml",
+			},
+		},
+	}
+
+	stmts := helmTemplateValueEdgeStatements(mat)
+	if len(stmts) != 1 {
+		t.Fatalf("first-generation statement count = %d, want 1 (MERGE only, both retracts skipped)", len(stmts))
+	}
+	if stmts[0].Operation != OperationCanonicalUpsert {
+		t.Fatalf("stmts[0].Operation = %v, want upsert (the MERGE)", stmts[0].Operation)
+	}
+	if !strings.Contains(stmts[0].Cypher, "MERGE (u)-[r:HELM_VALUE_REFERENCE]->(d)") {
+		t.Fatalf("the only statement must be the MERGE upsert: %s", stmts[0].Cypher)
+	}
+	// No statement may carry the legacy shared-REFERENCES retract on first gen.
+	for i, s := range stmts {
+		if strings.Contains(s.Cypher, "[r:REFERENCES]") {
+			t.Fatalf("stmts[%d] emits the legacy REFERENCES retract on first generation: %s", i, s.Cypher)
+		}
 	}
 }
 

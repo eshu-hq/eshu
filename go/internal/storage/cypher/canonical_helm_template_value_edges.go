@@ -159,38 +159,62 @@ func helmTemplateValueEdgeStatements(mat projector.CanonicalMaterialization) []S
 	// edges of a prior generation. Statement order within a phase is preserved by
 	// the writer, so emitting the retract first guarantees it executes before the
 	// MERGE in the same structural_edges phase.
-	if sourceUIDs := helmTemplateValueSourceUIDs(rows); len(sourceUIDs) > 0 {
-		// One-time upgrade migration: drop any legacy Helm edges written on the
-		// shared REFERENCES type by a pre-#4476 release, before the new-type
-		// retract/MERGE. Drain-marked (autocommit) and emitted first so it runs
-		// before the dedicated-type writes in the same phase; matches nothing
-		// once an installation has converged to HELM_VALUE_REFERENCE.
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    retractLegacyHelmReferenceEdgesCypher,
-			Parameters: map[string]any{
-				"source_uids": sourceUIDs,
-			},
-			Drain: true,
-		})
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    retractHelmTemplateValueReferenceEdgesCypher,
-			Parameters: map[string]any{
-				"source_uids":   sourceUIDs,
-				"generation_id": mat.GenerationID,
-			},
-			// Drain-mark this relationship retract so the NornicDB phase-group
-			// executor runs it as a standalone autocommit statement rather than
-			// inside the grouped structural-edges ExecuteWrite transaction. An
-			// UNWIND relationship DELETE inside an explicit multi-statement
-			// transaction selects and buffers the deletes but they do not survive
-			// COMMIT (a NornicDB transaction-layer limitation, #4476); autocommit
-			// deletes correctly. The dedicated HELM_VALUE_REFERENCE type keeps the
-			// delete-index small, so a single autocommit DELETE is fast and no
-			// LIMIT drain loop is needed for the realistic Helm value edge count.
-			Drain: true,
-		})
+	//
+	// Skip both retracts on the scope's first generation (#4726 / #3624): a
+	// first-ever projection has no prior HELM_VALUE_REFERENCE edges and no
+	// pre-#4476 legacy REFERENCES edges to remove. A legacy edge requires a
+	// prior generation ATTEMPT from an old binary, and any generation that ran
+	// far enough to write edges records a prior-generation marker — so
+	// mat.FirstGeneration is already false for it. Crucially FirstGeneration
+	// keys on ANY prior generation of any status (including failed/superseded,
+	// pre-activation), NOT only prior ACTIVE generations (the #4710 invariant:
+	// these edges write on acceptance, before activation), so the skip cannot
+	// miss legacy edges left by a prior gen that never activated. Both DELETEs
+	// are therefore provable no-ops on a true first generation. The
+	// legacy-type retract in particular MATCHes on the large shared REFERENCES
+	// type (~47k edges at repo scale); on NornicDB the planner does not seed on
+	// the indexed usage uid and full-scans REFERENCES, timing out at 30s on a
+	// cold ingest even though it matches nothing (a #4708-class planner miss that
+	// was the dominant bootstrap canonical-write timeout in a 909-repo E2E).
+	// Skipping on first projection removes that scan from the cold-ingest hot
+	// path while staying output-preserving (0 rows deleted whether run or
+	// skipped); the second generation onward runs the retracts normally. This
+	// mirrors the Atlantis MANAGES edge's first-generation guard in
+	// canonical_atlantis_edges.go.
+	if !mat.FirstGeneration {
+		if sourceUIDs := helmTemplateValueSourceUIDs(rows); len(sourceUIDs) > 0 {
+			// One-time upgrade migration: drop any legacy Helm edges written on the
+			// shared REFERENCES type by a pre-#4476 release, before the new-type
+			// retract/MERGE. Drain-marked (autocommit) and emitted first so it runs
+			// before the dedicated-type writes in the same phase; matches nothing
+			// once an installation has converged to HELM_VALUE_REFERENCE.
+			stmts = append(stmts, Statement{
+				Operation: OperationCanonicalRetract,
+				Cypher:    retractLegacyHelmReferenceEdgesCypher,
+				Parameters: map[string]any{
+					"source_uids": sourceUIDs,
+				},
+				Drain: true,
+			})
+			stmts = append(stmts, Statement{
+				Operation: OperationCanonicalRetract,
+				Cypher:    retractHelmTemplateValueReferenceEdgesCypher,
+				Parameters: map[string]any{
+					"source_uids":   sourceUIDs,
+					"generation_id": mat.GenerationID,
+				},
+				// Drain-mark this relationship retract so the NornicDB phase-group
+				// executor runs it as a standalone autocommit statement rather than
+				// inside the grouped structural-edges ExecuteWrite transaction. An
+				// UNWIND relationship DELETE inside an explicit multi-statement
+				// transaction selects and buffers the deletes but they do not survive
+				// COMMIT (a NornicDB transaction-layer limitation, #4476); autocommit
+				// deletes correctly. The dedicated HELM_VALUE_REFERENCE type keeps the
+				// delete-index small, so a single autocommit DELETE is fast and no
+				// LIMIT drain loop is needed for the realistic Helm value edge count.
+				Drain: true,
+			})
+		}
 	}
 
 	stmts = append(stmts, Statement{
