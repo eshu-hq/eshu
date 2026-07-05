@@ -71,8 +71,13 @@ func TestDeltaTombstoneGraphTruth(t *testing.T) {
 		t.Fatalf("write gen1: %v", err)
 	}
 
-	// Verify gen1 state: gamma must be present before the delta write.
+	// Verify gen1 state: gamma and its incoming CONTAINS edge must be present
+	// before the delta write.
 	assertDeltaDirCount(ctx, t, exec, deltaRepoPath+"/gamma", 1, "gen1 pre-delta: gamma present")
+	assertDeltaIncomingContainsCount(
+		ctx, t, exec, deltaRepoPath+"/gamma", 1,
+		"gen1 pre-delta: gamma CONTAINS edge present",
+	)
 
 	// Write gen2 (retraction enabled: FirstGeneration=false).
 	if err := writer.Write(ctx, dm.Gen2); err != nil {
@@ -226,6 +231,7 @@ func openDeltaLiveBackend(ctx context.Context, t *testing.T) (liveExecutor, *cyp
 
 // assertDeltaGraphTruth reads back the graph after a gen2 delta write and asserts:
 //   - tombstoned directories are GONE (count=0).
+//   - tombstoned directories have no incoming CONTAINS edge (count=0).
 //   - surviving directories are PRESENT (count=1 each).
 //   - repository name == "replay-delta-tombstone-v2" (supersession).
 func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor, dm offlinetier.DeltaMaterialization) {
@@ -233,6 +239,10 @@ func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor,
 
 	for _, tombstonedPath := range dm.TombstonedDirectoryPaths {
 		assertDeltaDirCount(ctx, t, exec, tombstonedPath, 0, "tombstoned directory must be absent after gen2 write")
+		assertDeltaIncomingContainsCount(
+			ctx, t, exec, tombstonedPath, 0,
+			"tombstoned directory CONTAINS edge must be absent after gen2 write",
+		)
 	}
 	for _, d := range dm.Gen2.Directories {
 		assertDeltaDirCount(ctx, t, exec, d.Path, 1, "surviving directory must be present after gen2 write")
@@ -268,6 +278,24 @@ func assertDeltaDirCount(ctx context.Context, t *testing.T, exec liveExecutor, p
 		t.Fatalf("%s: directory %q count = %d, want %d", msg, path, count, want)
 	}
 	t.Logf("directory %q count=%d (want %d) — %s", path, count, want, msg)
+}
+
+// assertDeltaIncomingContainsCount reads back incoming CONTAINS edges for a
+// directory path and fails if it does not match want.
+func assertDeltaIncomingContainsCount(ctx context.Context, t *testing.T, exec liveExecutor, path string, want int64, msg string) {
+	t.Helper()
+	count, err := exec.count(
+		ctx,
+		`MATCH ()-[r:CONTAINS]->(d:Directory {path: $path}) RETURN count(r)`,
+		map[string]any{"path": path},
+	)
+	if err != nil {
+		t.Fatalf("count incoming CONTAINS edge for %q: %v", path, err)
+	}
+	if count != want {
+		t.Fatalf("%s: incoming CONTAINS edge for %q count = %d, want %d", msg, path, count, want)
+	}
+	t.Logf("incoming CONTAINS edge for %q count=%d (want %d) — %s", path, count, want, msg)
 }
 
 // cleanupDeltaScope removes all nodes for the delta tombstone scenario so

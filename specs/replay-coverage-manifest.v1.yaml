@@ -319,10 +319,12 @@ coverage:
   # requirements are ADVISORY (they never fail the blocking breadth gate); the
   # missing surface x scenario_type pairs the gate lists are the C-14 (#4367)
   # backfill worklist. The reducer drain crash is already proven by the crashreplay
-  # scenario, mapped here to its grain-correct surface. The Directory delta row is
-  # the first C-14 tombstone backfill: the replaydelta cassette and replay-tier
-  # live test prove a tombstoned Directory is removed from the real backend.
+  # scenario, mapped here to its grain-correct surface. The Directory and
+  # CONTAINS delta rows are the first C-14 tombstone backfills: the replaydelta
+  # cassette and replay-tier live test prove a tombstoned Directory and its
+  # incoming CONTAINS edge are removed from the real backend.
   - {surface: retractable_node:Directory, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_edge:CONTAINS, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
 
 scenario_requirements:
