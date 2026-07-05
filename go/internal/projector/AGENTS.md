@@ -226,7 +226,7 @@ speeds `awsv1.EC2InstancePosture`'s `[]BlockDevice`, with the existing
 existing-family regression). Result class: Correctness win with a bounded,
 measured cold-path cost.
 
-No-Regression Evidence (Wave 4b, terraform_state projector typed-payload decode):
+No-Regression Evidence: Wave 4b, terraform_state projector typed-payload decode.
 `extractTerraformStateRows` now decodes `terraform_state_snapshot`, `_resource`,
 `_module`, `_output`, and `_tag_observation` payloads through the
 `sdk/go/factschema` seam (`factschema_decode_terraformstate.go`) instead of raw
@@ -252,6 +252,20 @@ per-generation cost stays in the same ~1.5 µs/fact cold-path band as
 oci_registry (extractor shape and decoder are identical to that measured path,
 so no separate benchmark run was warranted). Result class: Correctness win,
 cold-path cost identical to the measured oci_registry path.
+
+Observability Evidence: Wave 4b, terraform_state projector typed-payload decode.
+The terraform_state extractor routes a malformed required field through the same
+per-fact `eshu_dp_projector_input_invalid_facts_total` counter the oci_registry
+migration introduced, under a new `stage`=`terraform_state_canonical` label value
+(`quarantinedFactStage` in `factschema_quarantine.go`) alongside the existing
+`fact_kind` label, so an operator sees the terraform_state dead-letter rate
+distinctly from the oci one on the same "Projector input_invalid Facts (rate)"
+panel. The `factschema_decode_terraformstate.go` decode wrappers emit no metric
+of their own; they surface a decode failure through
+`recordProjectorQuarantinedFacts` (the counter plus the structured
+`projector input_invalid fact quarantined` error log carrying `fact_id` +
+`missing_field`). The migration adds no route, graph query shape, queue table,
+worker, lease, or runtime knob.
 
 Observability Evidence (Wave 4b, oci_registry projector typed-payload decode):
 the migration introduces the projector's FIRST per-fact input_invalid signal,
