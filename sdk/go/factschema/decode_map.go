@@ -235,8 +235,8 @@ func assignField(field reflect.Value, raw any) error {
 			// elements are not object maps (an already-typed []Struct, or a scalar
 			// element) falls back to the json round trip so correctness is never
 			// sacrificed for the fast path.
-			if slice, ok := assignStructSlice(field, raw); ok {
-				return slice
+			if err, handled := assignStructSlice(field, raw); handled {
+				return err
 			}
 			return jsonRoundTripValue(field, raw)
 		default:
@@ -306,12 +306,15 @@ func asObjectMap(raw any) (map[string]any, bool) {
 // assignStructSlice decodes a slice of object maps into a slice of nested
 // payload structs, decoding each element through the marshal-free decodeMapInto.
 // It accepts both the JSONB-native []any-of-map shape a Postgres payload carries
-// and the []map[string]any shape in-memory callers build. It returns ok=false
-// (without touching field) when raw is not a slice, or when any element is not
-// an object map, so the caller falls back to the json round trip for an
-// already-typed or scalar-element slice — correctness is never sacrificed for
-// the fast path. When ok is true the returned error is the decode result.
-func assignStructSlice(field reflect.Value, raw any) (error, bool) {
+// and the []map[string]any shape in-memory callers build.
+//
+// It returns handled=false (without touching field) when raw is not a slice, or
+// when any element is not an object map, so the caller falls back to the json
+// round trip for an already-typed or scalar-element slice — correctness is never
+// sacrificed for the fast path. When handled is true the returned error is the
+// decode result (nil on success). The (error, bool) order mirrors the caller's
+// `if err, handled := …; handled { return err }` fast-path guard.
+func assignStructSlice(field reflect.Value, raw any) (err error, handled bool) {
 	rv := reflect.ValueOf(raw)
 	if rv.Kind() != reflect.Slice {
 		return nil, false
@@ -323,8 +326,8 @@ func assignStructSlice(field reflect.Value, raw any) (error, bool) {
 			return nil, false
 		}
 		elem := reflect.New(field.Type().Elem())
-		if err := decodeMapInto(m, elem.Interface()); err != nil {
-			return err, true
+		if decodeErr := decodeMapInto(m, elem.Interface()); decodeErr != nil {
+			return decodeErr, true
 		}
 		out = reflect.Append(out, elem.Elem())
 	}
