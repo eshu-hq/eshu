@@ -14,7 +14,7 @@ type CanonicalMaterialization struct {
 	GenerationID                string
 	RepoID                      string
 	RepoPath                    string // repository path used as Directory chain root
-	FirstGeneration             bool   // true when the scope has no prior active generation
+	FirstGeneration             bool   // true when the scope has no prior generation of ANY status (activated, failed, or superseded), not just no prior ACTIVE one; retract-skip guards rely on this to not miss edges a pre-activation prior generation wrote (#4710)
 	DeltaProjection             bool   // true when the materialization carries a file-scoped delta
 	ReconciliationProjection    bool   // true when a forced full reconciliation snapshot is being projected
 	DeltaFilePaths              []string
