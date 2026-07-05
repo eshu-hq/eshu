@@ -133,8 +133,18 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesFileScopedGroup(t *testin
 		if strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {
 			t.Fatalf("delta retract cypher = %q, want no repo-wide source filter", stmt.Cypher)
 		}
-		if !strings.Contains(stmt.Cypher, "source.path IN $file_paths") {
-			t.Fatalf("delta retract cypher = %q, want source.path file-scope filter", stmt.Cypher)
+		// #4708: file-scope delta retract UNWINDs $file_paths and anchors the
+		// source via an inline {path: file_path} property (an index seek where the
+		// source label has a path index; a cheap scan over the small SQL entity
+		// labels otherwise). This asserts the query shape, not planner behavior.
+		if !strings.Contains(stmt.Cypher, "UNWIND $file_paths AS file_path") {
+			t.Fatalf("delta retract cypher = %q, want UNWIND of $file_paths", stmt.Cypher)
+		}
+		if !strings.Contains(stmt.Cypher, "{path: file_path})") {
+			t.Fatalf("delta retract cypher = %q, want inline {path: file_path} anchor", stmt.Cypher)
+		}
+		if strings.Contains(stmt.Cypher, "source.path IN") {
+			t.Fatalf("delta retract cypher = %q, still uses the slow source.path IN predicate", stmt.Cypher)
 		}
 		if _, ok := stmt.Parameters["repo_ids"]; ok {
 			t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", stmt.Parameters)
@@ -183,11 +193,20 @@ func assertSQLRetractStatement(
 ) {
 	t.Helper()
 
-	if !strings.Contains(stmt.Cypher, "MATCH (source:"+sourceLabel+")-[rel:"+relationshipType+"]->()") {
-		t.Fatalf("cypher missing scoped match for %s/%s: %s", sourceLabel, relationshipType, stmt.Cypher)
+	// #4708: the whole-scope retract UNWINDs $repo_ids and anchors the source via
+	// an inline {repo_id: repo_id} property (enabling an index seek where the
+	// source label has a repo_id index, e.g. :Function) instead of a
+	// `WHERE source.repo_id IN $repo_ids` predicate, which — being compound with
+	// the rel predicate — defeats NornicDB's start-node index seek and full-scans
+	// the label. This asserts the query shape, not planner behavior.
+	if !strings.Contains(stmt.Cypher, "UNWIND $repo_ids AS repo_id") {
+		t.Fatalf("cypher missing UNWIND of $repo_ids: %s", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {
-		t.Fatalf("cypher missing repo_id predicate: %s", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "MATCH (source:"+sourceLabel+" {repo_id: repo_id})-[rel:"+relationshipType+"]->()") {
+		t.Fatalf("cypher missing inline-anchored scoped match for %s/%s: %s", sourceLabel, relationshipType, stmt.Cypher)
+	}
+	if strings.Contains(stmt.Cypher, "source.repo_id IN") {
+		t.Fatalf("cypher still uses the slow source.repo_id IN predicate: %s", stmt.Cypher)
 	}
 	if !strings.Contains(stmt.Cypher, "rel.evidence_source = $evidence_source") {
 		t.Fatalf("cypher missing evidence_source predicate: %s", stmt.Cypher)
