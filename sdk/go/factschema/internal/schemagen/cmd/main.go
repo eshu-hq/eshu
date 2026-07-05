@@ -123,6 +123,19 @@ func run() error {
 		{name: "attestation.statement.v1.schema.json", generate: schemagen.AttestationStatementSchema},
 		{name: "attestation.signature_verification.v1.schema.json", generate: schemagen.AttestationSignatureVerificationSchema},
 		{name: "attestation.slsa_provenance.v1.schema.json", generate: schemagen.AttestationSLSAProvenanceSchema},
+		// The vulnerability family fact kinds are DOTTED (like the incident
+		// family). The schema filename is the dotted kind plus the version
+		// suffix; a dot in a filename is valid and needs no transform.
+		// vulnerability.suppression belongs to the separate
+		// vulnerability_suppression registry family and is not listed here.
+		{name: "vulnerability.cve.v1.schema.json", generate: schemagen.VulnerabilityCVESchema},
+		{name: "vulnerability.affected_package.v1.schema.json", generate: schemagen.VulnerabilityAffectedPackageSchema},
+		{name: "vulnerability.affected_product.v1.schema.json", generate: schemagen.VulnerabilityAffectedProductSchema},
+		{name: "vulnerability.os_package.v1.schema.json", generate: schemagen.VulnerabilityOSPackageSchema},
+		{name: "vulnerability.epss_score.v1.schema.json", generate: schemagen.VulnerabilityEPSSScoreSchema},
+		{name: "vulnerability.known_exploited.v1.schema.json", generate: schemagen.VulnerabilityKnownExploitedSchema},
+		{name: "vulnerability.go_module_evidence.v1.schema.json", generate: schemagen.VulnerabilityGoModuleEvidenceSchema},
+		{name: "vulnerability.go_call_reachability.v1.schema.json", generate: schemagen.VulnerabilityGoCallReachabilitySchema},
 	}
 
 	for _, target := range targets {

@@ -94,6 +94,22 @@ var factKindSchemaFile = map[string]string{
 	"FactKindSBOMWarning":                      "sbom.warning.v1.schema.json",
 	"FactKindAttestationStatement":             "attestation.statement.v1.schema.json",
 	"FactKindAttestationSignatureVerification": "attestation.signature_verification.v1.schema.json",
+	// vulnerability_intelligence family: the eight kinds a reducer decode seam
+	// wrapper actually decodes (factschema_decode_vulnerability.go). The three
+	// unwired kinds (reference, source_snapshot, warning) carry a schema but no
+	// reducer decode call, so they are intentionally absent here — mapping them
+	// would assert a gate contract for a kind no handler reads.
+	// vulnerability.suppression belongs to the separate
+	// vulnerability_suppression registry family and is untyped; it is not
+	// listed here either.
+	"FactKindVulnerabilityCVE":                "vulnerability.cve.v1.schema.json",
+	"FactKindVulnerabilityAffectedPackage":    "vulnerability.affected_package.v1.schema.json",
+	"FactKindVulnerabilityAffectedProduct":    "vulnerability.affected_product.v1.schema.json",
+	"FactKindVulnerabilityOSPackage":          "vulnerability.os_package.v1.schema.json",
+	"FactKindVulnerabilityEPSSScore":          "vulnerability.epss_score.v1.schema.json",
+	"FactKindVulnerabilityKnownExploited":     "vulnerability.known_exploited.v1.schema.json",
+	"FactKindVulnerabilityGoModuleEvidence":   "vulnerability.go_module_evidence.v1.schema.json",
+	"FactKindVulnerabilityGoCallReachability": "vulnerability.go_call_reachability.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

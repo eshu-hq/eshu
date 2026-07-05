@@ -75,6 +75,14 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "attestation.statement.v1.schema.json", generate: schemagen.AttestationStatementSchema},
 		{file: "attestation.signature_verification.v1.schema.json", generate: schemagen.AttestationSignatureVerificationSchema},
 		{file: "attestation.slsa_provenance.v1.schema.json", generate: schemagen.AttestationSLSAProvenanceSchema},
+		{file: "vulnerability.cve.v1.schema.json", generate: schemagen.VulnerabilityCVESchema},
+		{file: "vulnerability.affected_package.v1.schema.json", generate: schemagen.VulnerabilityAffectedPackageSchema},
+		{file: "vulnerability.affected_product.v1.schema.json", generate: schemagen.VulnerabilityAffectedProductSchema},
+		{file: "vulnerability.os_package.v1.schema.json", generate: schemagen.VulnerabilityOSPackageSchema},
+		{file: "vulnerability.epss_score.v1.schema.json", generate: schemagen.VulnerabilityEPSSScoreSchema},
+		{file: "vulnerability.known_exploited.v1.schema.json", generate: schemagen.VulnerabilityKnownExploitedSchema},
+		{file: "vulnerability.go_module_evidence.v1.schema.json", generate: schemagen.VulnerabilityGoModuleEvidenceSchema},
+		{file: "vulnerability.go_call_reachability.v1.schema.json", generate: schemagen.VulnerabilityGoCallReachabilitySchema},
 	}
 
 	for _, tc := range cases {
@@ -164,6 +172,14 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"attestation.statement.v1.schema.json",
 		"attestation.signature_verification.v1.schema.json",
 		"attestation.slsa_provenance.v1.schema.json",
+		"vulnerability.cve.v1.schema.json",
+		"vulnerability.affected_package.v1.schema.json",
+		"vulnerability.affected_product.v1.schema.json",
+		"vulnerability.os_package.v1.schema.json",
+		"vulnerability.epss_score.v1.schema.json",
+		"vulnerability.known_exploited.v1.schema.json",
+		"vulnerability.go_module_evidence.v1.schema.json",
+		"vulnerability.go_call_reachability.v1.schema.json",
 	}
 
 	for _, file := range files {

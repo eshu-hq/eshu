@@ -64,10 +64,21 @@ func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) Packa
 	}
 }
 
+// supplyChainImpactManifestDependencyPackage is a best-effort filter-hint
+// helper (feeding the follow-up manifest-dependency query filter), not the
+// authoritative decode path — buildSupplyChainImpactIndex is. A
+// vulnerability.affected_package fact that fails typed decode here reports
+// "not usable as a filter hint" (ok=false) rather than quarantining; the
+// authoritative index build still quarantines and reports it as an
+// input_invalid dead-letter.
 func supplyChainImpactManifestDependencyPackage(envelope facts.Envelope) (supplyChainAffectedPackage, bool) {
 	switch envelope.FactKind {
 	case facts.VulnerabilityAffectedPackageFactKind:
-		return supplyChainAffectedPackageFromEnvelope(envelope), true
+		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
+		if err != nil {
+			return supplyChainAffectedPackage{}, false
+		}
+		return pkg, true
 	case facts.SecurityAlertRepositoryAlertFactKind:
 		return supplyChainAffectedPackageFromSecurityAlert(providerSecurityAlert{
 			SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{

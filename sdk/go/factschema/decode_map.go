@@ -149,6 +149,14 @@ func assignField(field reflect.Value, raw any) error {
 		field.SetInt(n)
 		return nil
 
+	case reflect.Float64:
+		n, err := jsonNumberToFloat64(raw)
+		if err != nil {
+			return err
+		}
+		field.SetFloat(n)
+		return nil
+
 	case reflect.Bool:
 		b, ok := raw.(bool)
 		if !ok {
@@ -182,6 +190,17 @@ func assignField(field reflect.Value, raw any) error {
 			return nil
 		case reflect.Int64:
 			n, err := jsonNumberToInt64(raw)
+			if err != nil {
+				return err
+			}
+			field.Set(reflect.ValueOf(&n))
+			return nil
+		case reflect.Float64:
+			// *float64 fast path (for example vulnerability.cve's optional
+			// CVSSScore): a direct type-switch coercion, mirroring the Int32/
+			// Int64 pointer cases above, instead of falling through to the
+			// default branch's jsonRoundTripValue marshal/unmarshal fallback.
+			n, err := jsonNumberToFloat64(raw)
 			if err != nil {
 				return err
 			}
@@ -360,6 +379,30 @@ func jsonNumberToInt64(raw any) (int64, error) {
 		return int64(n), nil
 	case int64:
 		return n, nil
+	default:
+		return 0, fmt.Errorf("want number, got %T", raw)
+	}
+}
+
+// jsonNumberToFloat64 coerces a JSONB-native number (float64 from
+// encoding/json, or an in-memory int/int32/int64) into a float64, matching how
+// the previous json.Unmarshal path filled float64 / *float64 score fields (for
+// example vulnerability.cve's CVSSScore). Unlike jsonNumberToInt64/Int32 this
+// never rejects a non-integral value — a float field's whole point is
+// fractional precision — but it still fails closed on a non-numeric type
+// rather than silently zeroing the field.
+func jsonNumberToFloat64(raw any) (float64, error) {
+	switch n := raw.(type) {
+	case float64:
+		return n, nil
+	case float32:
+		return float64(n), nil
+	case int:
+		return float64(n), nil
+	case int32:
+		return float64(n), nil
+	case int64:
+		return float64(n), nil
 	default:
 		return 0, fmt.Errorf("want number, got %T", raw)
 	}

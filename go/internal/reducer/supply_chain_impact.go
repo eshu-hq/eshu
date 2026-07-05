@@ -176,7 +176,6 @@ type SupplyChainImpactHandler struct {
 // Handle executes one supply-chain impact reducer intent.
 func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
 	totalStarted := time.Now()
-	var timing supplyChainImpactTiming
 
 	if intent.Domain != DomainSupplyChainImpact {
 		return Result{}, fmt.Errorf("supply_chain_impact handler does not accept domain %q", intent.Domain)
@@ -188,77 +187,26 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		return Result{}, fmt.Errorf("supply chain impact writer is required")
 	}
 
+	loaded, timing, err := h.loadSupplyChainImpactEvidence(ctx, intent)
+	if err != nil {
+		return Result{}, err
+	}
+	envelopes := loaded.envelopes
+
 	phaseStarted := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, supplyChainImpactFactKinds())
-	timing.loadScopeFactsDuration = time.Since(phaseStarted)
+	findings, quarantinedVulnerabilityFacts, err := buildSupplyChainImpactFindingsWithQuarantine(envelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("load supply chain impact facts: %w", err)
+		// A non-decode error (transient fact-load or other fatal condition
+		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return Result{}, fmt.Errorf("build supply chain impact findings: %w", err)
 	}
-	scopeFacts := len(envelopes)
-
-	phaseStarted = time.Now()
-	repositories, err := h.loadActiveSupplyChainImpactRepositoryFacts(ctx, envelopes)
-	timing.loadRepositoryFactsDuration = time.Since(phaseStarted)
-	if err != nil {
-		return Result{}, fmt.Errorf("load active supply chain impact repository facts: %w", err)
-	}
-	repositoryFacts := len(repositories)
-	envelopes = append(envelopes, repositories...)
-
-	phaseStarted = time.Now()
-	manifestDependencies, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
-	timing.loadManifestDependenciesDuration = time.Since(phaseStarted)
-	if err != nil {
-		return Result{}, fmt.Errorf("load active package manifest dependency facts: %w", err)
-	}
-	manifestDependencyFacts := len(manifestDependencies)
-	envelopes = append(envelopes, manifestDependencies...)
-
-	activeEvidenceTruncated := false
-	activeEvidenceStartCount := len(envelopes)
-	phaseStarted = time.Now()
-	envelopes, activeEvidenceTruncated, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes)
-	timing.loadActiveEvidenceDuration = time.Since(phaseStarted)
-	if err != nil {
-		return Result{}, fmt.Errorf("load active supply chain impact facts: %w", err)
-	}
-	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
-
-	pythonReachabilityStartCount := len(envelopes)
-	phaseStarted = time.Now()
-	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)
-	timing.loadPythonReachabilityDuration = time.Since(phaseStarted)
-	if err != nil {
-		return Result{}, fmt.Errorf("load Python reachability evidence facts: %w", err)
-	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, pythonReachabilityEvidence...)
-	pythonReachabilityFacts := len(envelopes) - pythonReachabilityStartCount
-
-	jvmReachabilityStartCount := len(envelopes)
-	phaseStarted = time.Now()
-	jvmReachabilityFacts, err := h.loadActiveJVMReachabilityFacts(ctx, envelopes)
-	timing.loadJVMReachabilityDuration = time.Since(phaseStarted)
-	if err != nil {
-		return Result{}, fmt.Errorf("load active JVM reachability facts: %w", err)
-	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, jvmReachabilityFacts...)
-	jvmReachabilityFactCount := len(envelopes) - jvmReachabilityStartCount
-	preSecurityAlertScopeFacts := len(envelopes)
-	phaseStarted = time.Now()
-	securityAlertScopingApplied := supplyChainImpactUsesSecurityAlertScope(intent, envelopes)
-	if securityAlertScopingApplied {
-		envelopes = scopeSupplyChainImpactEvidenceToSecurityAlerts(envelopes)
-	}
-	timing.securityAlertScopingDuration = time.Since(phaseStarted)
-	postSecurityAlertScopeFacts := len(envelopes)
-	securityAlertScopedOutFacts := 0
-	if securityAlertScopingApplied && preSecurityAlertScopeFacts > postSecurityAlertScopeFacts {
-		securityAlertScopedOutFacts = preSecurityAlertScopeFacts - postSecurityAlertScopeFacts
-	}
-
-	phaseStarted = time.Now()
-	findings := BuildSupplyChainImpactFindings(envelopes)
-	if activeEvidenceTruncated {
+	// Per-fact isolation: a malformed vulnerability.* fact (a missing required
+	// identity field) is quarantined as a visible input_invalid dead-letter —
+	// counter + structured error log — while every valid fact still
+	// contributes to the findings computed above.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSupplyChainImpact, intent.ScopeID, intent.GenerationID, quarantinedVulnerabilityFacts)
+	if loaded.activeEvidenceTruncated {
 		findings = markSupplyChainImpactFindingsActiveExpansionTruncated(findings)
 	}
 	timing.buildFindingsDuration = time.Since(phaseStarted)
@@ -294,8 +242,25 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	timing.totalDuration = time.Since(totalStarted)
 
 	evidenceSummary := supplyChainImpactSummary(len(findings), counts, suppressionCounts, writeResult.CanonicalWrites)
-	if activeEvidenceTruncated {
+	if loaded.activeEvidenceTruncated {
 		evidenceSummary += " active_evidence_truncated=true"
+	}
+	subSignals := supplyChainImpactDiagnosticSignals(
+		loaded.scopeFacts,
+		loaded.repositoryFacts,
+		loaded.manifestDependencyFacts,
+		loaded.activeEvidenceFacts,
+		loaded.pythonReachabilityFacts,
+		loaded.jvmReachabilityFactCount,
+		loaded.postSecurityAlertScopeFacts,
+		loaded.securityAlertScopingApplied,
+		loaded.securityAlertScopedOutFacts,
+		len(findings),
+		loaded.activeEvidenceTruncated,
+		writeResult.FactsWritten,
+	)
+	for key, value := range inputInvalidSubSignals(inputInvalidCount) {
+		subSignals[key] = value
 	}
 	return Result{
 		IntentID:        intent.IntentID,
@@ -304,20 +269,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubDurations:    supplyChainImpactSubDurations(timing),
-		SubSignals: supplyChainImpactDiagnosticSignals(
-			scopeFacts,
-			repositoryFacts,
-			manifestDependencyFacts,
-			activeEvidenceFacts,
-			pythonReachabilityFacts,
-			jvmReachabilityFactCount,
-			postSecurityAlertScopeFacts,
-			securityAlertScopingApplied,
-			securityAlertScopedOutFacts,
-			len(findings),
-			activeEvidenceTruncated,
-			writeResult.FactsWritten,
-		),
+		SubSignals:      subSignals,
 	}, nil
 }
 
@@ -328,8 +280,34 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 // identity are consolidated into one finding so callers see a single row per
 // (cve_id, package_id) anchor with full per-source provenance, instead of one
 // row per advisory source overwriting the others at the writer.
+//
+// A vulnerability.* fact whose payload is missing a required identity field is
+// excluded from the index (mirroring the pre-typing behavior of dropping a
+// fact with a blank required string), matching this function's fixed,
+// error-free signature that the existing table tests already assert against.
+// SupplyChainImpactHandler.Handle calls the quarantine-aware
+// buildSupplyChainImpactFindingsWithQuarantine instead, so the reducer intent
+// path still reports a visible input_invalid dead-letter (counter + structured
+// log) for the malformed fact while this function stays a pure,
+// table-test-friendly classifier with no telemetry side effects.
 func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImpactFinding {
-	index := buildSupplyChainImpactIndex(envelopes)
+	findings, _, _ := buildSupplyChainImpactFindingsWithQuarantine(envelopes)
+	return findings
+}
+
+// buildSupplyChainImpactFindingsWithQuarantine is the quarantine-aware
+// counterpart BuildSupplyChainImpactFindings delegates to and
+// SupplyChainImpactHandler.Handle calls directly, so the reducer intent path
+// can report each malformed vulnerability.* fact as a visible input_invalid
+// dead-letter via recordQuarantinedFacts. A non-decode error (a fatal
+// condition partitionDecodeFailures did not quarantine) is returned so the
+// caller fails the whole intent for durable triage. The classification logic
+// itself is unchanged from BuildSupplyChainImpactFindings.
+func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []quarantinedFact, error) {
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
 	cveGroups := groupSupplyChainCVEsByID(index.cves)
 	findings := make([]SupplyChainImpactFinding, 0, len(index.affectedPackages)+len(index.affectedProducts))
 	for _, cveID := range sortedCVEKeys(cveGroups) {
@@ -361,7 +339,7 @@ func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImp
 		}
 		return findings[i].ProductCriteria < findings[j].ProductCriteria
 	})
-	return findings
+	return findings, quarantined, nil
 }
 
 func appendSupplyChainImpactFinding(

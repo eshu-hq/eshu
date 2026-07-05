@@ -24,6 +24,7 @@ import (
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
+	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
 
 func testEnvelope(payload map[string]any) Envelope {
@@ -336,6 +337,14 @@ var payloadContracts = []struct {
 	{FactKindAttestationStatement, "attestation.statement.v1.schema.json", reflect.TypeOf(sbomv1.Statement{})},
 	{FactKindAttestationSignatureVerification, "attestation.signature_verification.v1.schema.json", reflect.TypeOf(sbomv1.SignatureVerification{})},
 	{FactKindAttestationSLSAProvenance, "attestation.slsa_provenance.v1.schema.json", reflect.TypeOf(sbomv1.SLSAProvenance{})},
+	{FactKindVulnerabilityCVE, "vulnerability.cve.v1.schema.json", reflect.TypeOf(vulnerabilityv1.CVE{})},
+	{FactKindVulnerabilityAffectedPackage, "vulnerability.affected_package.v1.schema.json", reflect.TypeOf(vulnerabilityv1.AffectedPackage{})},
+	{FactKindVulnerabilityAffectedProduct, "vulnerability.affected_product.v1.schema.json", reflect.TypeOf(vulnerabilityv1.AffectedProduct{})},
+	{FactKindVulnerabilityOSPackage, "vulnerability.os_package.v1.schema.json", reflect.TypeOf(vulnerabilityv1.OSPackage{})},
+	{FactKindVulnerabilityEPSSScore, "vulnerability.epss_score.v1.schema.json", reflect.TypeOf(vulnerabilityv1.EPSSScore{})},
+	{FactKindVulnerabilityKnownExploited, "vulnerability.known_exploited.v1.schema.json", reflect.TypeOf(vulnerabilityv1.KnownExploited{})},
+	{FactKindVulnerabilityGoModuleEvidence, "vulnerability.go_module_evidence.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoModuleEvidence{})},
+	{FactKindVulnerabilityGoCallReachability, "vulnerability.go_call_reachability.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoCallReachability{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

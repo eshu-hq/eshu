@@ -101,3 +101,70 @@ func TestDecodeMapInto_MapStringStringFastPath(t *testing.T) {
 		t.Fatalf("Selector = %v, want %v", out.Selector, want)
 	}
 }
+
+// TestDecodeMapInto_Float64FastPath proves decodeMapInto's float64/*float64
+// fast path (added for the vulnerability_intelligence wave's
+// vulnerability.cve CVSSScore field) decodes a JSONB-native float64 value
+// directly via type assertion, both for a plain float64 field and a *float64
+// field, rather than falling through to the marshal-free reflection decoder's
+// jsonRoundTripValue path — the same gap the kubernetes_live wave found and
+// fixed for map[string]string. A non-numeric value must still fall back to
+// jsonRoundTripValue (which itself fails closed) rather than silently
+// coercing or zeroing the field.
+func TestDecodeMapInto_Float64FastPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plain float64 field", func(t *testing.T) {
+		t.Parallel()
+		type scoreHolder struct {
+			Score float64 `json:"score"`
+		}
+		var out scoreHolder
+		if err := decodeMapInto(map[string]any{"score": 7.5}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.Score != 7.5 {
+			t.Fatalf("Score = %v, want 7.5", out.Score)
+		}
+	})
+
+	t.Run("optional *float64 field present", func(t *testing.T) {
+		t.Parallel()
+		type scoreHolder struct {
+			Score *float64 `json:"score,omitempty"`
+		}
+		var out scoreHolder
+		if err := decodeMapInto(map[string]any{"score": 9.8}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.Score == nil || *out.Score != 9.8 {
+			t.Fatalf("Score = %v, want *9.8", out.Score)
+		}
+	})
+
+	t.Run("optional *float64 field absent stays nil", func(t *testing.T) {
+		t.Parallel()
+		type scoreHolder struct {
+			Score *float64 `json:"score,omitempty"`
+		}
+		var out scoreHolder
+		if err := decodeMapInto(map[string]any{}, &out); err != nil {
+			t.Fatalf("decodeMapInto() error = %v, want nil", err)
+		}
+		if out.Score != nil {
+			t.Fatalf("Score = %v, want nil for an absent key", out.Score)
+		}
+	})
+
+	t.Run("non-numeric value fails closed, not silently zeroed", func(t *testing.T) {
+		t.Parallel()
+		type scoreHolder struct {
+			Score *float64 `json:"score,omitempty"`
+		}
+		var out scoreHolder
+		err := decodeMapInto(map[string]any{"score": "not-a-number"}, &out)
+		if err == nil {
+			t.Fatal("decodeMapInto() error = nil, want an error for a non-numeric score value")
+		}
+	})
+}

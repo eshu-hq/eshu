@@ -103,7 +103,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case facts.VulnerabilityAffectedPackageFactKind:
 			purl := payloadStr(envelope.Payload, "purl")
-			packageIDs = append(packageIDs, canonicalSupplyChainAffectedPackageID(envelope.Payload, purl))
+			packageIDs = append(packageIDs, canonicalSupplyChainAffectedPackageID(payloadStr(envelope.Payload, "package_id"), purl))
 			purls = append(purls, purl)
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case facts.VulnerabilityAffectedProductFactKind:
@@ -267,6 +267,11 @@ func ociRegistryImageRef(payload map[string]any, tag string) string {
 	return repositoryID + ":" + tag
 }
 
+// npmAffectedPackages is a best-effort filter-hint builder (feeding the
+// follow-up manifest-dependency query filter), not the authoritative decode
+// path — buildSupplyChainImpactIndex is. A fact that fails typed decode here
+// is silently skipped rather than quarantined; the authoritative index build
+// still quarantines and reports it as an input_invalid dead-letter.
 func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[string][]supplyChainAffectedPackage) {
 	byPackageID := map[string]struct{}{}
 	groups := map[string][]supplyChainAffectedPackage{}
@@ -274,7 +279,10 @@ func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[s
 		if envelope.FactKind != facts.VulnerabilityAffectedPackageFactKind {
 			continue
 		}
-		pkg := supplyChainAffectedPackageFromEnvelope(envelope)
+		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
+		if err != nil {
+			continue
+		}
 		if normalizedSupplyChainVersionEcosystem(pkg.ecosystem) != "npm" {
 			continue
 		}
