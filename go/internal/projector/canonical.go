@@ -19,6 +19,7 @@ type CanonicalMaterialization struct {
 	ReconciliationProjection    bool   // true when a forced full reconciliation snapshot is being projected
 	DeltaFilePaths              []string
 	DeltaDeletedFilePaths       []string
+	DeltaDeletedDirectoryPaths  []string
 	Repository                  *RepositoryRow
 	Directories                 []DirectoryRow
 	Files                       []FileRow

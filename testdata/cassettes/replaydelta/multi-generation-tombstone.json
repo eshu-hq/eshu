@@ -73,6 +73,51 @@
             "repo_id": "replay-delta-tombstone",
             "depth": 0
           }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a",
+            "name": "edge-parent-a",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-b",
+            "name": "edge-parent-b",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-child",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a/edge-child",
+            "name": "edge-child",
+            "parent_path": "/repos/replay-delta-tombstone/edge-parent-a",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 1
+          }
         }
       ]
     },
@@ -84,7 +129,7 @@
       "partition_key": "git:repository:replay-delta-tombstone",
       "metadata": {
         "repo_name": "replay-delta-tombstone",
-        "purpose": "R-17 delta/multi-generation/tombstone correctness — generation 2: adds delta, removes gamma (tombstone), supersedes repo name"
+        "purpose": "R-17 delta/multi-generation/tombstone correctness — generation 2: adds delta, removes gamma (tombstone), moves edge-child to edge-parent-b, supersedes repo name"
       },
       "generation_id": "cassette-replay-delta-tombstone-gen2",
       "observed_at": "2026-06-28T01:00:00Z",
@@ -147,6 +192,51 @@
             "parent_path": "/repos/replay-delta-tombstone",
             "repo_id": "replay-delta-tombstone",
             "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a",
+            "name": "edge-parent-a",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-b",
+            "name": "edge-parent-b",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-child",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a/edge-child",
+            "name": "edge-child",
+            "parent_path": "/repos/replay-delta-tombstone/edge-parent-b",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 1
           }
         },
         {

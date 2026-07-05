@@ -27,6 +27,8 @@ import (
 //  3. Reads back and asserts:
 //     - gamma is GONE (count=0): retraction worked.
 //     - alpha, beta, delta are PRESENT (count=1 each).
+//     - edge-child survives while its old edge-parent-a CONTAINS edge is gone
+//     and its new edge-parent-b CONTAINS edge is present.
 //     - repo name == "replay-delta-tombstone-v2" (supersession).
 //  4. Replays gen2 a second time (idempotency): graph is unchanged.
 //
@@ -77,6 +79,20 @@ func TestDeltaTombstoneGraphTruth(t *testing.T) {
 	assertDeltaIncomingContainsCount(
 		ctx, t, exec, deltaRepoPath+"/gamma", 1,
 		"gen1 pre-delta: gamma CONTAINS edge present",
+	)
+	assertDeltaDirectoryContainsEdgeCount(
+		ctx, t, exec,
+		deltaRepoPath+"/edge-parent-a",
+		deltaRepoPath+"/edge-parent-a/edge-child",
+		1,
+		"gen1 pre-delta: old edge-parent-a CONTAINS edge present",
+	)
+	assertDeltaDirectoryContainsEdgeCount(
+		ctx, t, exec,
+		deltaRepoPath+"/edge-parent-b",
+		deltaRepoPath+"/edge-parent-a/edge-child",
+		0,
+		"gen1 pre-delta: new edge-parent-b CONTAINS edge absent",
 	)
 
 	// Write gen2 (retraction enabled: FirstGeneration=false).
@@ -233,6 +249,8 @@ func openDeltaLiveBackend(ctx context.Context, t *testing.T) (liveExecutor, *cyp
 //   - tombstoned directories are GONE (count=0).
 //   - tombstoned directories have no incoming CONTAINS edge (count=0).
 //   - surviving directories are PRESENT (count=1 each).
+//   - moved edge-child keeps its Directory node, loses the old parent edge, and
+//     gains the new parent edge.
 //   - repository name == "replay-delta-tombstone-v2" (supersession).
 func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor, dm offlinetier.DeltaMaterialization) {
 	t.Helper()
@@ -244,9 +262,24 @@ func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor,
 			"tombstoned directory CONTAINS edge must be absent after gen2 write",
 		)
 	}
+	assertNoAnonymousDeltaDirectoryShells(ctx, t, exec)
 	for _, d := range dm.Gen2.Directories {
 		assertDeltaDirCount(ctx, t, exec, d.Path, 1, "surviving directory must be present after gen2 write")
 	}
+	assertDeltaDirectoryContainsEdgeCount(
+		ctx, t, exec,
+		deltaRepoPath+"/edge-parent-a",
+		deltaRepoPath+"/edge-parent-a/edge-child",
+		0,
+		"old edge-parent-a CONTAINS edge must be absent after gen2 write",
+	)
+	assertDeltaDirectoryContainsEdgeCount(
+		ctx, t, exec,
+		deltaRepoPath+"/edge-parent-b",
+		deltaRepoPath+"/edge-parent-a/edge-child",
+		1,
+		"new edge-parent-b CONTAINS edge must be present after gen2 write",
+	)
 
 	repoNameCount, err := exec.count(
 		ctx,
@@ -262,20 +295,88 @@ func assertDeltaGraphTruth(ctx context.Context, t *testing.T, exec liveExecutor,
 	t.Log("supersession: repository name updated to replay-delta-tombstone-v2")
 }
 
+// assertDeltaDirectoryContainsEdgeCount reads back a Directory -> Directory
+// CONTAINS edge by stable endpoint paths and fails if it does not match want.
+func assertDeltaDirectoryContainsEdgeCount(
+	ctx context.Context,
+	t *testing.T,
+	exec liveExecutor,
+	parentPath string,
+	childPath string,
+	want int64,
+	msg string,
+) {
+	t.Helper()
+	var count int64
+	var err error
+	for attempt := 0; attempt < 20; attempt++ {
+		count, err = exec.count(
+			ctx,
+			`MATCH (p:Directory {path: $parent_path})-[r:CONTAINS]->(d:Directory {path: $child_path}) RETURN count(r)`,
+			map[string]any{"parent_path": parentPath, "child_path": childPath},
+		)
+		if err != nil {
+			t.Fatalf("count CONTAINS edge %q -> %q: %v", parentPath, childPath, err)
+		}
+		if count == want || want != 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if count != want {
+		t.Fatalf("%s: CONTAINS edge %q -> %q count = %d, want %d", msg, parentPath, childPath, count, want)
+	}
+	t.Logf("CONTAINS edge %q -> %q count=%d (want %d) — %s", parentPath, childPath, count, want, msg)
+}
+
 // assertDeltaDirCount reads back the directory node count for path and fails if
 // it does not match want.
 func assertDeltaDirCount(ctx context.Context, t *testing.T, exec liveExecutor, path string, want int64, msg string) {
 	t.Helper()
-	count, err := exec.count(
-		ctx,
-		`MATCH (d:Directory {path: $path}) RETURN count(d)`,
-		map[string]any{"path": path},
-	)
-	if err != nil {
-		t.Fatalf("count directory %q: %v", path, err)
+	var count int64
+	var err error
+	for attempt := 0; attempt < 20; attempt++ {
+		count, err = exec.count(
+			ctx,
+			`MATCH (d:Directory {path: $path}) RETURN count(d)`,
+			map[string]any{"path": path},
+		)
+		if err != nil {
+			t.Fatalf("count directory %q: %v", path, err)
+		}
+		if count == want || want != 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	if count != want {
-		t.Fatalf("%s: directory %q count = %d, want %d", msg, path, count, want)
+		matchingCanonical, _ := exec.count(
+			ctx,
+			`MATCH (d:Directory {path: $path})
+WHERE d.repo_id = $repo_id AND d.evidence_source = 'projector/canonical'
+RETURN count(d)`,
+			map[string]any{"path": path, "repo_id": deltaRepoID},
+		)
+		incoming, _ := exec.count(
+			ctx,
+			`MATCH ()-[:CONTAINS]->(d:Directory {path: $path}) RETURN count(d)`,
+			map[string]any{"path": path},
+		)
+		outgoing, _ := exec.count(
+			ctx,
+			`MATCH (d:Directory {path: $path})-[:CONTAINS]->() RETURN count(d)`,
+			map[string]any{"path": path},
+		)
+		t.Fatalf(
+			"%s: directory %q count = %d, want %d (canonical_matches=%d incoming_contains=%d outgoing_contains=%d)",
+			msg,
+			path,
+			count,
+			want,
+			matchingCanonical,
+			incoming,
+			outgoing,
+		)
 	}
 	t.Logf("directory %q count=%d (want %d) — %s", path, count, want, msg)
 }
@@ -296,6 +397,26 @@ func assertDeltaIncomingContainsCount(ctx context.Context, t *testing.T, exec li
 		t.Fatalf("%s: incoming CONTAINS edge for %q count = %d, want %d", msg, path, count, want)
 	}
 	t.Logf("incoming CONTAINS edge for %q count=%d (want %d) — %s", path, count, want, msg)
+}
+
+// assertNoAnonymousDeltaDirectoryShells proves tombstoned directories are
+// deleted, not hidden by clearing identity properties.
+func assertNoAnonymousDeltaDirectoryShells(ctx context.Context, t *testing.T, exec liveExecutor) {
+	t.Helper()
+	count, err := exec.count(
+		ctx,
+		`MATCH (d:Directory)
+WHERE d.repo_id IS NULL
+RETURN count(d)`,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("count anonymous Directory shells: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("anonymous Directory shell count = %d, want 0", count)
+	}
+	t.Log("anonymous Directory shell count=0")
 }
 
 // cleanupDeltaScope removes all nodes for the delta tombstone scenario so

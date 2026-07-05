@@ -324,25 +324,13 @@ func TestLoadRealManifestCoversDirectoryDeltaTombstone(t *testing.T) {
 	assertRealManifestDeltaCassette(t, "retractable_node:Directory")
 }
 
-func TestLoadRealManifestDoesNotClaimContainsViaDirectoryTombstoneCassette(t *testing.T) {
-	// The multi-generation tombstone cassette proves the Directory node is
-	// removed. DETACH DELETE would also remove incident CONTAINS relationships,
-	// so this cassette is not sufficient proof for a direct edge retraction.
-	specs := repoSpecsDir(t)
-	m, err := LoadManifest(filepath.Join(specs, ManifestFileName))
-	if err != nil {
-		t.Fatalf("LoadManifest(real): %v", err)
-	}
-
-	const falseProofRef = "testdata/cassettes/replaydelta/multi-generation-tombstone.json"
-	for _, entry := range m.Coverage {
-		if entry.Surface != "retractable_edge:CONTAINS" || entry.ScenarioType != ScenarioTypeDeltaTombstone {
-			continue
-		}
-		if entry.Ref == falseProofRef {
-			t.Fatalf("%s must not use %s as edge-retract coverage", entry.Surface, falseProofRef)
-		}
-	}
+func TestLoadRealManifestCoversContainsDeltaTombstone(t *testing.T) {
+	// CONTAINS must be covered only by a replay-tier scenario that proves direct
+	// edge retraction between surviving endpoints. The replaydelta cassette now
+	// keeps edge-child alive while moving its parent edge from edge-parent-a to
+	// edge-parent-b; offlinetier's live replay-tier test reads that back from the
+	// real graph backend.
+	assertRealManifestDeltaCassette(t, "retractable_edge:CONTAINS")
 }
 
 func assertRealManifestDeltaCassette(t *testing.T, wantSurface string) {

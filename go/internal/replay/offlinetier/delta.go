@@ -118,6 +118,8 @@ func DeltaMaterializationFromGenerations(
 	// FirstGeneration=true would skip all retraction, which is the broken-retraction
 	// control tested by TestDeltaTombstoneNegativeControlBrokenRetraction.
 	gen2Mat.FirstGeneration = false
+	gen2Mat.DeltaProjection = true
+	gen2Mat.DeltaDeletedDirectoryPaths = append([]string(nil), tombstonedDirPaths...)
 
 	return DeltaMaterialization{
 		Gen1:                     gen1Mat,

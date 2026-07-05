@@ -79,6 +79,7 @@ func directoryRowParams(d projector.DirectoryRow, mat projector.CanonicalMateria
 		"path":          d.Path,
 		"name":          d.Name,
 		"parent_path":   d.ParentPath,
+		"depth":         d.Depth,
 		"repo_id":       d.RepoID,
 		"scope_id":      mat.ScopeID,
 		"generation_id": mat.GenerationID,

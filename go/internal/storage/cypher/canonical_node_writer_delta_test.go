@@ -26,6 +26,9 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 		DeltaProjection:       true,
 		DeltaFilePaths:        []string{"/repos/repo/changed.go", "/repos/repo/old/deleted.go"},
 		DeltaDeletedFilePaths: []string{"/repos/repo/old/deleted.go"},
+		DeltaDeletedDirectoryPaths: []string{
+			"/repos/repo/old/emptydir",
+		},
 		Repository: &projector.RepositoryRow{
 			RepoID:    "repo-1",
 			Name:      "repo",
@@ -40,6 +43,11 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 				Language:     "go",
 				RepoID:       "repo-1",
 			},
+		},
+		Directories: []projector.DirectoryRow{
+			{Path: "/repos/repo/parent-a", Name: "parent-a", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
+			{Path: "/repos/repo/parent-b", Name: "parent-b", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
+			{Path: "/repos/repo/parent-a/child", Name: "child", ParentPath: "/repos/repo/parent-b", RepoID: "repo-1", Depth: 1},
 		},
 		Entities: []projector.EntityRow{
 			{
@@ -61,6 +69,8 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 
 	var sawFileScopedRetract bool
 	var sawDirectoryScopedRetract bool
+	var sawExplicitDirectory bool
+	var sawDirectoryParentRefresh bool
 	var sawEntityScopedRetract bool
 	for _, call := range exec.calls {
 		phase, _ := call.Parameters[StatementMetadataPhaseKey].(string)
@@ -80,13 +90,23 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 				t.Fatalf("file scoped retract paths = %#v, want only deleted paths", got)
 			}
 		}
-		if strings.Contains(call.Cypher, "UNWIND $directory_paths AS directory_path") {
+		if directoryPaths, ok := call.Parameters["directory_paths"].([]string); ok {
 			sawDirectoryScopedRetract = true
-			for _, path := range call.Parameters["directory_paths"].([]string) {
+			for _, path := range directoryPaths {
 				if path == "/repos/repo" {
-					t.Fatalf("directory scoped retract included repo root: %#v", call.Parameters["directory_paths"])
+					t.Fatalf("directory scoped retract included repo root: %#v", directoryPaths)
+				}
+				if path == "/repos/repo/old/emptydir" {
+					sawExplicitDirectory = true
+					if got := call.Parameters["repo_id"]; got != "repo-1" {
+						t.Fatalf("explicit directory tombstone repo_id = %v, want repo-1", got)
+					}
 				}
 			}
+		}
+		if strings.Contains(call.Cypher, "UNWIND $rows AS row") &&
+			strings.Contains(call.Cypher, "p.path <> row.parent_path") {
+			sawDirectoryParentRefresh = true
 		}
 		if phase == "entity_retract" &&
 			strings.Contains(call.Cypher, "n.path IN $file_paths") {
@@ -100,6 +120,12 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 	if !sawDirectoryScopedRetract {
 		t.Fatal("missing directory-path scoped delta empty directory retract")
 	}
+	if !sawExplicitDirectory {
+		t.Fatal("directory scoped retract did not include explicit delta tombstone")
+	}
+	if !sawDirectoryParentRefresh {
+		t.Fatal("missing current-directory parent CONTAINS refresh for delta projection")
+	}
 	if !sawEntityScopedRetract {
 		t.Fatal("missing file-path scoped delta entity retract")
 	}
@@ -112,6 +138,7 @@ func TestDeltaEmptyDirectoryRetractStatementsRunLeafFirst(t *testing.T) {
 		"repo-1",
 		"/repos/repo",
 		[]string{"/repos/repo/service/api/deleted.go"},
+		nil,
 	)
 
 	if got, want := len(statements), 2; got != want {
@@ -122,5 +149,71 @@ func TestDeltaEmptyDirectoryRetractStatementsRunLeafFirst(t *testing.T) {
 	}
 	if got, want := statements[1].Parameters["directory_paths"], []string{"/repos/repo/service"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("second directory_paths = %#v, want %#v", got, want)
+	}
+}
+
+func TestDeltaEmptyDirectoryRetractStatementsIncludeExplicitTombstones(t *testing.T) {
+	t.Parallel()
+
+	statements := buildDeltaEmptyDirectoryRetractStatements(
+		"repo-1",
+		"/repos/repo",
+		[]string{"/repos/repo/service/api/deleted.go"},
+		[]string{"/repos/repo/service/empty", "/outside/repo/ignored", "/repos/repo"},
+	)
+
+	if got, want := len(statements), 2; got != want {
+		t.Fatalf("len(statements) = %d, want %d", got, want)
+	}
+	if got, want := statements[0].Parameters["directory_paths"], []string{
+		"/repos/repo/service/api",
+		"/repos/repo/service/empty",
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("first directory_paths = %#v, want %#v", got, want)
+	}
+	if got, want := statements[1].Parameters["directory_paths"], []string{"/repos/repo/service"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second directory_paths = %#v, want %#v", got, want)
+	}
+}
+
+func TestCanonicalNodeWriterPrunesAncestorsForDirectoryOnlyDeltaTombstones(t *testing.T) {
+	t.Parallel()
+
+	exec := &mockExecutor{}
+	writer := NewCanonicalNodeWriter(exec, 500, nil)
+
+	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+		ScopeID:         "scope-1",
+		GenerationID:    "gen-2",
+		RepoID:          "repo-1",
+		RepoPath:        "/repos/repo",
+		DeltaProjection: true,
+		DeltaDeletedDirectoryPaths: []string{
+			"/repos/repo/service/empty",
+		},
+		Repository: &projector.RepositoryRow{
+			RepoID:    "repo-1",
+			Name:      "repo",
+			Path:      "/repos/repo",
+			LocalPath: "/repos/repo",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	var sawAncestorCleanup bool
+	for _, call := range exec.calls {
+		directoryPaths, ok := call.Parameters["directory_paths"].([]string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(call.Cypher, "NOT EXISTS") &&
+			reflect.DeepEqual(directoryPaths, []string{"/repos/repo/service"}) {
+			sawAncestorCleanup = true
+		}
+	}
+	if !sawAncestorCleanup {
+		t.Fatalf("missing ancestor cleanup for directory-only tombstone; calls=%#v", exec.calls)
 	}
 }
