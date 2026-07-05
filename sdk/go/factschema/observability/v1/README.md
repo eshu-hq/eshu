@@ -13,8 +13,12 @@ structs, validated.
 ## Purpose
 
 Eighteen fact kinds decode through this package, spanning two collection lanes
-that share one reducer domain (`observability_coverage_correlation`). All
-eighteen are consumed by the reducer's coverage-metadata classifier.
+that share one reducer domain (`observability_coverage_correlation`). Seventeen
+of them are consumed by the reducer's coverage-metadata classifier;
+`observability.source_instance` is typed here for a uniform family surface but
+is intentionally not consumed by the reducer — it carries no coverage object, so
+the classifier skips it and it has no reducer decode wrapper (see the boundary
+note under [Required-field rationale](#required-field-rationale) and `doc.go`).
 
 | Fact kind | Struct | Decode function | Required fields |
 | --- | --- | --- | --- |
