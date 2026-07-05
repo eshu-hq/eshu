@@ -21,7 +21,11 @@
 // gcp_cloud_resource/gcp_cloud_relationship kinds. The kubernetes_live family
 // is not a polymorphic generic envelope: each fact kind describes one fixed
 // observation shape (a pod template, a directed object relationship, or a
-// collection warning), so every collector-emitted payload key is named.
+// collection warning). Each struct models the reducer-consumed field set as
+// named fields rather than an opaque map; the generated schema is open
+// (additionalProperties), so boundary and context keys the collector also
+// emits — for example collector_instance_id — are permitted and ignored on
+// decode rather than modeled here.
 //
 // The reducer decodes only the latest struct for each kind. Version shims
 // for an older schema major live in the parent factschema package's decode

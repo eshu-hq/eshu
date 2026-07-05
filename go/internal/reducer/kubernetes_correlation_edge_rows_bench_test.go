@@ -52,7 +52,7 @@ func BenchmarkExtractKubernetesCorrelationEdgeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
+		rows, _, _, _ := ExtractKubernetesCorrelationEdgeRows(envelopes)
 		if len(rows) != workloadCount {
 			b.Fatalf("len(rows) = %d, want %d", len(rows), workloadCount)
 		}

@@ -80,9 +80,13 @@ stay optional rather than mirroring "always emitted" as "always required."
 Unlike `awsv1.Resource`/`gcpv1.Resource`, none of `PodTemplate`,
 `Relationship`, or `Warning` is a polymorphic generic envelope: each fact kind
 in this family describes one fixed observation shape (a pod template, a
-directed object relationship, or a collection warning), so every
-collector-emitted payload key is a named field. None of these structs carries
-an `Attributes map[string]any` catch-all.
+directed object relationship, or a collection warning), so the
+reducer-consumed payload keys are modeled as named fields rather than an opaque
+map. The collector also emits boundary and context keys (for example
+`collector_instance_id`); the generated schemas are open
+(`additionalProperties: true`), so those extra keys are permitted and ignored
+on decode. None of these structs carries an `Attributes map[string]any`
+catch-all.
 
 ## Changing a struct
 

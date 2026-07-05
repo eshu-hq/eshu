@@ -78,13 +78,25 @@ func (t kubernetesCorrelationEdgeTally) totalSkipped() int {
 // Rows are deduplicated by (workload_uid, rel_type, source_uid) and sorted
 // deterministically so the batched MERGE write is byte-stable across retries and
 // reprojections.
+//
+// It decodes through the quarantine-aware classifier
+// (buildKubernetesCorrelationDecisionsWithQuarantine) so the edge path mirrors
+// the node path exactly: a per-fact input_invalid quarantine is returned to the
+// handler (never dropped) and a FATAL decode error (an unsupported schema major)
+// is propagated so the handler fails the whole intent WITHOUT retracting prior
+// edges. Discarding the error here would let a fatal decode yield empty
+// decisions, then the handler would still retract the prior generation's edges
+// and write nothing — silent edge loss.
 func ExtractKubernetesCorrelationEdgeRows(
 	envelopes []facts.Envelope,
-) ([]map[string]any, kubernetesCorrelationEdgeTally) {
+) ([]map[string]any, kubernetesCorrelationEdgeTally, []quarantinedFact, error) {
 	tally := newKubernetesCorrelationEdgeTally()
-	decisions := BuildKubernetesCorrelationDecisions(envelopes)
+	decisions, quarantined, err := buildKubernetesCorrelationDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, tally, nil, err
+	}
 	if len(decisions) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 
 	sourceIndex := BuildSourceImageDigestJoinIndex(envelopes)
@@ -133,7 +145,7 @@ func ExtractKubernetesCorrelationEdgeRows(
 	}
 
 	if len(rows) == 0 {
-		return nil, tally
+		return nil, tally, quarantined, nil
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
@@ -145,7 +157,7 @@ func ExtractKubernetesCorrelationEdgeRows(
 			anyToString(rows[b]["source_uid"])
 		return left < right
 	})
-	return rows, tally
+	return rows, tally, quarantined, nil
 }
 
 // kubernetesDecisionIsImageEdgeEligible reports whether a correlation decision
