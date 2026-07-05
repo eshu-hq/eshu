@@ -1,0 +1,205 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "sql:schema.sql",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "sql",
+          "parsed_file_data": {
+            "iac_relevant": false,
+            "is_dependency": false,
+            "lang": "sql",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/sql/schema.sql",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/sql",
+            "sql_columns": [
+              {
+                "column_name": "id",
+                "data_type": "BIGINT",
+                "line_number": 2,
+                "name": "accounts.id",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "accounts",
+                "type": "content_entity"
+              },
+              {
+                "column_name": "email",
+                "data_type": "TEXT",
+                "line_number": 3,
+                "name": "accounts.email",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "accounts",
+                "type": "content_entity"
+              },
+              {
+                "column_name": "created_at",
+                "data_type": "TIMESTAMP",
+                "line_number": 4,
+                "name": "accounts.created_at",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "accounts",
+                "type": "content_entity"
+              },
+              {
+                "column_name": "id",
+                "data_type": "BIGINT",
+                "line_number": 8,
+                "name": "invoices.id",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "invoices",
+                "type": "content_entity"
+              },
+              {
+                "column_name": "account_id",
+                "data_type": "BIGINT",
+                "line_number": 9,
+                "name": "invoices.account_id",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "invoices",
+                "type": "content_entity"
+              },
+              {
+                "column_name": "total_cents",
+                "data_type": "BIGINT",
+                "line_number": 10,
+                "name": "invoices.total_cents",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "invoices",
+                "type": "content_entity"
+              },
+              {
+                "column_name": "status",
+                "data_type": "TEXT",
+                "line_number": 11,
+                "name": "invoices.status",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "invoices",
+                "type": "content_entity"
+              }
+            ],
+            "sql_functions": [],
+            "sql_indexes": [
+              {
+                "line_number": 14,
+                "name": "idx_invoices_account_id",
+                "sql_entity_type": "SqlIndex",
+                "table_name": "invoices",
+                "type": "content_entity"
+              }
+            ],
+            "sql_migrations": [],
+            "sql_parse_bounded": [],
+            "sql_relationships": [
+              {
+                "line_number": 2,
+                "source_name": "accounts",
+                "target_name": "accounts.id",
+                "type": "HAS_COLUMN"
+              },
+              {
+                "line_number": 3,
+                "source_name": "accounts",
+                "target_name": "accounts.email",
+                "type": "HAS_COLUMN"
+              },
+              {
+                "line_number": 4,
+                "source_name": "accounts",
+                "target_name": "accounts.created_at",
+                "type": "HAS_COLUMN"
+              },
+              {
+                "line_number": 8,
+                "source_name": "invoices",
+                "target_name": "invoices.id",
+                "type": "HAS_COLUMN"
+              },
+              {
+                "line_number": 9,
+                "source_name": "invoices",
+                "target_name": "invoices.account_id",
+                "type": "HAS_COLUMN"
+              },
+              {
+                "line_number": 9,
+                "source_name": "invoices",
+                "target_name": "accounts",
+                "type": "REFERENCES_TABLE"
+              },
+              {
+                "line_number": 10,
+                "source_name": "invoices",
+                "target_name": "invoices.total_cents",
+                "type": "HAS_COLUMN"
+              },
+              {
+                "line_number": 11,
+                "source_name": "invoices",
+                "target_name": "invoices.status",
+                "type": "HAS_COLUMN"
+              },
+              {
+                "line_number": 14,
+                "source_name": "idx_invoices_account_id",
+                "target_name": "invoices",
+                "type": "INDEXES"
+              },
+              {
+                "line_number": 18,
+                "source_name": "open_invoices",
+                "target_name": "invoices",
+                "type": "READS_FROM"
+              }
+            ],
+            "sql_tables": [
+              {
+                "line_number": 1,
+                "name": "accounts",
+                "qualified_name": "accounts",
+                "schema": "",
+                "sql_entity_type": "SqlTable",
+                "type": "content_entity"
+              },
+              {
+                "line_number": 7,
+                "name": "invoices",
+                "qualified_name": "invoices",
+                "schema": "",
+                "sql_entity_type": "SqlTable",
+                "type": "content_entity"
+              }
+            ],
+            "sql_triggers": [],
+            "sql_views": [
+              {
+                "line_number": 16,
+                "name": "open_invoices",
+                "qualified_name": "open_invoices",
+                "schema": "",
+                "sql_entity_type": "SqlView",
+                "type": "content_entity"
+              }
+            ]
+          },
+          "relative_path": "schema.sql",
+          "repo_id": "sql"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/sql/schema.sql",
+        "stable_fact_key": "file:sql:schema.sql"
+      }
+    ],
+    "generation_id": "canonical-generation-6fb110595528f93d",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "sql",
+    "scope_id": "parser_fixture:sql",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}
