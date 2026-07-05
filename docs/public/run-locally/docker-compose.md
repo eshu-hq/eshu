@@ -9,7 +9,7 @@ fast rebuilds without containers.
 
 | Compose file or profile | What it starts | Use it when |
 | --- | --- | --- |
-| `docker-compose.yaml` | Default stack: NornicDB, Postgres, migration, workspace setup, bootstrap indexing, API, MCP, ingester, and reducer. | You want the normal local product stack. |
+| `docker-compose.yaml` | Default stack: NornicDB, Postgres, migration, workspace setup, bootstrap indexing, API, MCP, ingester, reducer, and an always-on projector. | You want the normal local product stack. |
 | `docker-compose.neo4j.yml` | Neo4j compatibility stack. Includes the workflow-coordinator profile but not the default webhook-listener profile. | You need Neo4j compatibility checks. |
 | `docker-compose.telemetry.yml` | Jaeger, OpenTelemetry collector, and OTLP export settings. | You need local traces or metrics export. |
 | `--profile workflow-coordinator` | Adds the workflow coordinator to the default or Neo4j stack. | You are testing collector claims, scheduling, or control-plane behavior. |
@@ -40,6 +40,7 @@ state, facts, queues, status, content, and recovery data.
 | `mcp-server` | MCP HTTP runtime on `localhost:8081`. |
 | `ingester` | Continuous repository sync, discovery, parsing, and fact emission. |
 | `resolution-engine` | Reducer queue drain, graph projection, repair, and shared materialization. |
+| `projector` | Always-on source-local projector, gated only on schema + workspace setup (NOT bootstrap-index). Drains stranded `retrying` projector work items that bootstrap-index leaves behind on a canonical-write failure, so a failed bootstrap cannot permanently wedge convergence (#4727). Matches the Helm ungated-ingester topology. |
 
 ## Semantic Provider Modes
 

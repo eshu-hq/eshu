@@ -519,6 +519,77 @@ services:
       workspace-setup:
         condition: service_completed_successfully
 
+  # Always-on source-local projector (#4727). bootstrap-index projects via the
+  # durable Postgres projector queue and, on a retryable canonical-write failure,
+  # leaves the work item in 'retrying' and exits rc=1. The continuous ingester is
+  # the only other source-local claimer and is gated on bootstrap-index success,
+  # so after a bootstrap failure the stranded retrying item had NO claimer and
+  # its generation stayed 'pending' forever, wedging cross-scope readiness
+  # (inheritance/sql intents that need the failed scope's canonical nodes). This
+  # standalone projector is gated ONLY on db-migrate + workspace-setup (NOT
+  # bootstrap-index), matching the Helm ungated-ingester StatefulSet and the
+  # remote-e2e foundation topology, so a stranded retrying item is always claimed,
+  # re-projected end-to-end, and its generation activated. Its graph-write budget
+  # is bounded lower than the primary writers because it is a tertiary canonical
+  # writer that co-claims with the ingester; keep the combined in-flight total
+  # near the NornicDB throughput knee (#4728).
+  projector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-projector"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${ESHU_PROJECTOR_METRICS_PORT:-19471}:9464"
+    environment:
+      ESHU_GRAPH_BACKEND: nornicdb
+      DEFAULT_DATABASE: nornic
+      ESHU_NEO4J_DATABASE: nornic
+      NEO4J_DATABASE: nornic
+      NEO4J_URI: bolt://nornicdb:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      # Low worker count: the projector is a safety-net claimer that re-drives
+      # stranded source-local items after a bootstrap failure. Its meaningful
+      # write pressure is AFTER bootstrap-index has exited (rc=1) — bootstrap is
+      # then gone, so the canonical writers are only projector + reducer.
+      ESHU_PROJECTOR_WORKERS: ${ESHU_PROJECTOR_WORKERS:-2}
+      ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
+      # Bounded small (2, vs bootstrap/reducer :-8): the projector is a tertiary
+      # canonical writer. Its only concurrent window with a primary writer is a
+      # healthy bootstrap still draining (bootstrap 8 + projector 2 = 10 in the
+      # projector/bootstrap subtotal; the reducer at :-8 can also co-write, so
+      # see the cmd/projector evidence for the full multi-writer accounting,
+      # cleared empirically by a 0-timeout 25-repo run). In the recovery scenario
+      # this service exists for — a FAILED bootstrap — the ingester stays gated
+      # off (depends_on bootstrap success) and bootstrap has exited, so the
+      # projector drains the stranded item as the sole source-local writer. Set 0
+      # for legacy unbounded (passthrough).
+      ESHU_GRAPH_WRITE_MAX_IN_FLIGHT: ${ESHU_GRAPH_WRITE_MAX_IN_FLIGHT:-2}
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+
   webhook-listener:
     profiles:
       - webhook-listener
