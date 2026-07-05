@@ -83,7 +83,7 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 	// kept out of the blocking findings below: C-11 (#4364) is visibility-only, so
 	// the uncovered languages (the C-12 #4365 worklist) are listed without failing
 	// the gate, and the single Blocking knob stays the only severity control.
-	rep.LanguageScoreboard = BuildLanguageScoreboard(in.LanguageLedger, in.LanguageExemptions)
+	rep.LanguageScoreboard = BuildLanguageScoreboard(in.LanguageLedger, in.LanguageExemptions, cov.Surfaces)
 	gr := &goldengate.Report{}
 	for _, f := range Findings(cov, in.Blocking) {
 		gr.Add(f)

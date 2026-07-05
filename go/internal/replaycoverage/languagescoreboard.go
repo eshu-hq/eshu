@@ -22,6 +22,9 @@ const (
 	// golden-corpus corpus (its files flow sync -> discover -> parse -> emit), so
 	// a dedicated parser fixture would re-record a path the corpus already covers.
 	LanguageExempt LanguageCoverageStatus = "exempt"
+	// LanguageFixture means the language has a committed parser-fixture replay
+	// scenario in the machine-readable coverage manifest.
+	LanguageFixture LanguageCoverageStatus = "fixture"
 	// LanguageUncovered means the language has no parser-fixture replay scenario
 	// and is not corpus-exercised: it is the C-12 (#4365) fixture-backfill worklist.
 	LanguageUncovered LanguageCoverageStatus = "uncovered"
@@ -31,26 +34,31 @@ const (
 type LanguageCoverage struct {
 	// Language is the ledger language name.
 	Language string `json:"language"`
-	// Status is the scoreboard outcome (exempt or uncovered).
+	// Status is the scoreboard outcome (exempt, fixture, or uncovered).
 	Status LanguageCoverageStatus `json:"status"`
-	// Reason is the audited exemption reason when Status is exempt; empty otherwise.
+	// Reason explains the satisfied source when Status is exempt or fixture.
 	Reason string `json:"reason,omitempty"`
 }
 
 // LanguageScoreboard is the C-11 (#4364) language-parser coverage scoreboard: the
-// honest count of how many of the languages Eshu claims to parse are exercised by
-// the golden-corpus corpus, plus the explicit uncovered list (the C-12 #4365
-// worklist). It is a visibility-only artifact rendered into the C-7 dashboard and
-// the JSON report; it deliberately does NOT feed the blocking surface reconcile,
-// so the single Blocking severity knob stays the only gate control.
+// honest count of how many of the languages Eshu claims to parse are satisfied
+// either by the golden-corpus corpus or by a committed parser-fixture replay
+// scenario, plus the explicit uncovered list (the C-12 #4365 worklist). It is a
+// visibility-only artifact rendered into the C-7 dashboard and the JSON report;
+// it deliberately does NOT feed the blocking surface reconcile, so the single
+// Blocking severity knob stays the only gate control.
 type LanguageScoreboard struct {
 	// Total is the ledger language count (the denominator).
 	Total int `json:"total"`
 	// Exempt is the count of corpus-exercised languages.
 	Exempt int `json:"exempt"`
+	// Fixture is the count of languages with committed parser-fixture replay
+	// scenarios in the machine-readable manifest.
+	Fixture int `json:"fixture"`
 	// Uncovered is the count of languages with no replay scenario yet.
 	Uncovered int `json:"uncovered"`
-	// PercentSatisfied is exempt/total, two decimals; 100 when the ledger is empty.
+	// PercentSatisfied is (exempt+fixture)/total, two decimals; 100 when the
+	// ledger is empty.
 	PercentSatisfied float64 `json:"percent_satisfied"`
 	// Languages are the per-language rows sorted by language name.
 	Languages []LanguageCoverage `json:"languages"`
@@ -61,15 +69,30 @@ type LanguageScoreboard struct {
 }
 
 // BuildLanguageScoreboard classifies every language in the ledger against the
-// manifest's language exemptions: a language with a matching exemption is exempt
-// (with its audited reason), every other language is uncovered. Exemptions that
-// match no ledger language are collected as stale drift. The output is
-// deterministic: rows and stale entries are sorted.
-func BuildLanguageScoreboard(ledger LanguageLedger, exemptions []Exemption) LanguageScoreboard {
+// manifest's language exemptions and reconciled parser-fixture rows: a language
+// with a matching exemption is exempt, a language with a covered baseline
+// parser_fixture row for parser:<language> is fixture-covered, and every other
+// language is uncovered. Exemptions that match no ledger language are collected
+// as stale drift. The output is deterministic: rows and stale entries are sorted.
+func BuildLanguageScoreboard(ledger LanguageLedger, exemptions []Exemption, surfaces []SurfaceCoverage) LanguageScoreboard {
 	reasonByLanguage := map[string]string{}
 	for _, ex := range exemptions {
 		name := strings.TrimPrefix(ex.Surface, LanguageSurfacePrefix)
 		reasonByLanguage[name] = ex.Reason
+	}
+	fixtureByLanguage := map[string]string{}
+	for _, sc := range surfaces {
+		if sc.Status != StatusCovered || sc.Scenario == nil {
+			continue
+		}
+		if sc.Scenario.Scenario != ScenarioParserFixture || surfaceCoverageScenarioType(sc) != ScenarioTypeBaseline {
+			continue
+		}
+		name, ok := strings.CutPrefix(sc.Surface.Key, ParserSurfacePrefix)
+		if !ok || name == "" {
+			continue
+		}
+		fixtureByLanguage[name] = "parser fixture replay scenario " + sc.Scenario.Ref + " proven by " + sc.Scenario.ProofGate
 	}
 
 	ledgerNames := map[string]struct{}{}
@@ -81,6 +104,10 @@ func BuildLanguageScoreboard(ledger LanguageLedger, exemptions []Exemption) Lang
 			row.Status = LanguageExempt
 			row.Reason = reason
 			board.Exempt++
+		} else if reason, fixture := fixtureByLanguage[lang.Language]; fixture {
+			row.Status = LanguageFixture
+			row.Reason = reason
+			board.Fixture++
 		} else {
 			row.Status = LanguageUncovered
 			board.Uncovered++
@@ -99,11 +126,11 @@ func BuildLanguageScoreboard(ledger LanguageLedger, exemptions []Exemption) Lang
 	}
 	sort.Strings(board.StaleExemptions)
 
-	board.PercentSatisfied = satisfiedPercent(board.Exempt, board.Total)
+	board.PercentSatisfied = satisfiedPercent(board.Exempt+board.Fixture, board.Total)
 	return board
 }
 
-// satisfiedPercent computes exempt-over-total as a two-decimal percentage. An
+// satisfiedPercent computes satisfied-over-total as a two-decimal percentage. An
 // empty ledger reports 100 so the empty scoreboard never renders a false 0.
 func satisfiedPercent(satisfied, total int) float64 {
 	if total == 0 {

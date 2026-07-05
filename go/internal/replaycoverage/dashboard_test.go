@@ -113,13 +113,25 @@ func TestRenderDashboardLanguageScoreboardSection(t *testing.T) {
 	rep.LanguageScoreboard = BuildLanguageScoreboard(
 		LanguageLedger{Languages: []LanguageLedgerEntry{{Language: "go"}, {Language: "rust"}, {Language: "c"}}},
 		[]Exemption{{Surface: "language:go", Reason: "exercised end-to-end by the golden-corpus 20-repo corpus"}},
+		[]SurfaceCoverage{{
+			Surface:      SupportedSurface{Registry: RegistryParserLedger, Key: "parser:rust"},
+			ScenarioType: ScenarioTypeBaseline,
+			Status:       StatusCovered,
+			Scenario: &CoverageEntry{
+				Surface:      "parser:rust",
+				Scenario:     ScenarioParserFixture,
+				ScenarioType: ScenarioTypeBaseline,
+				Ref:          "go/internal/replay/parserfixture/testdata/fixtures/rust.fixture.json",
+				ProofGate:    "parserfixture-tests",
+			},
+		}},
 	)
 	out := string(RenderDashboard(rep))
 	for _, want := range []string{
 		"## Language parser coverage",
-		"1/3 languages exercised by the corpus",
-		"Uncovered (2)",
-		"`rust`",
+		"2/3 languages satisfied",
+		"1 corpus-exercised, 1 parser-fixture, 1 uncovered",
+		"Uncovered (1)",
 		"`c`",
 		"#4365", // the C-12 worklist pointer
 	} {
@@ -130,6 +142,9 @@ func TestRenderDashboardLanguageScoreboardSection(t *testing.T) {
 	// An exempt language is not listed as uncovered.
 	if strings.Contains(out, "- `go`") {
 		t.Error("exempt language go must not appear in the uncovered list")
+	}
+	if strings.Contains(out, "- `rust`") {
+		t.Error("fixture-covered language rust must not appear in the uncovered list")
 	}
 }
 

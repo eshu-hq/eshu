@@ -73,11 +73,11 @@ func RenderDashboard(rep CoverageReport) []byte {
 }
 
 // writeLanguageScoreboard renders the C-11 (#4364) language-parser coverage
-// scoreboard: the honest exempt/uncovered split across every language in the
+// scoreboard: the honest satisfied/uncovered split across every language in the
 // language-feature-parity ledger, plus the explicit uncovered list (the C-12
 // #4365 fixture-backfill worklist). It is visibility-only — these languages do
-// not gate the build — so it is reported separately from the blocking axis
-// table. The section is omitted when no ledger is loaded (e.g. renderer tests).
+// not gate the build — so it is reported separately from the blocking axis table.
+// The section is omitted when no ledger is loaded (e.g. renderer tests).
 func writeLanguageScoreboard(b *strings.Builder, rep CoverageReport) {
 	board := rep.LanguageScoreboard
 	if board.Total == 0 {
@@ -86,12 +86,14 @@ func writeLanguageScoreboard(b *strings.Builder, rep CoverageReport) {
 	b.WriteString("## Language parser coverage\n\n")
 	b.WriteString("Visibility-only scoreboard (C-11, ")
 	b.WriteString("[#4364](https://github.com/eshu-hq/eshu/issues/4364)) over every language in ")
-	b.WriteString("`specs/language-feature-parity-ledger.v1.yaml`. A language is *exempt* when it is ")
-	b.WriteString("exercised end-to-end by the golden-corpus 20-repo corpus; the rest are *uncovered* ")
+	b.WriteString("`specs/language-feature-parity-ledger.v1.yaml`. A language is satisfied when it is ")
+	b.WriteString("*exempt* because the golden-corpus 20-repo corpus exercises it end-to-end, or ")
+	b.WriteString("*fixture* because `specs/replay-coverage-manifest.v1.yaml` maps the matching ")
+	b.WriteString("`parser:<language>` surface to a committed parser-fixture scenario. The rest are *uncovered* ")
 	b.WriteString("— the C-12 ([#4365](https://github.com/eshu-hq/eshu/issues/4365)) fixture-backfill ")
 	b.WriteString("worklist. This scoreboard does not gate the build.\n\n")
-	fmt.Fprintf(b, "**%d/%d languages exercised by the corpus (%.2f%%); %d uncovered.**\n\n",
-		board.Exempt, board.Total, board.PercentSatisfied, board.Uncovered)
+	fmt.Fprintf(b, "**%d/%d languages satisfied (%.2f%%); %d corpus-exercised, %d parser-fixture, %d uncovered.**\n\n",
+		board.Exempt+board.Fixture, board.Total, board.PercentSatisfied, board.Exempt, board.Fixture, board.Uncovered)
 
 	uncovered := make([]string, 0, board.Uncovered)
 	for _, row := range board.Languages {
@@ -106,7 +108,7 @@ func writeLanguageScoreboard(b *strings.Builder, rep CoverageReport) {
 		}
 		b.WriteString("\n")
 	} else {
-		b.WriteString("Every ledger language is corpus-exercised.\n\n")
+		b.WriteString("Every ledger language is satisfied by corpus or parser fixture coverage.\n\n")
 	}
 
 	if len(board.StaleExemptions) > 0 {
