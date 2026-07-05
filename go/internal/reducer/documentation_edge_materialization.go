@@ -136,9 +136,19 @@ func (h DocumentationEdgeMaterializationHandler) shouldSkipDocumentationRetract(
 // (documentation_edge_materialization_test.go) exercise directly; it
 // delegates to ExtractDocumentationEdgeRowsWithQuarantine and discards the
 // quarantine/error results, mirroring the kubernetes_live wave's
-// buildKubernetesCorrelationDecisionsWithQuarantine pattern. The reducer
-// intent path (Handle) calls the quarantine-aware function directly so it
-// can report quarantines.
+// BuildKubernetesCorrelationDecisions pattern.
+//
+// TEST-ONLY SHIM — no production caller. The reducer intent path
+// (DocumentationEdgeMaterializationHandler.Handle) calls
+// ExtractDocumentationEdgeRowsWithQuarantine directly so it can propagate a
+// fatal decode error and record quarantines; this wrapper's discard of both
+// exists solely to serve the pre-existing single-return table tests. Do NOT
+// wire this into a production path: because it drops the error, a fatal
+// decode failure (an unsupported schema major, escalated by
+// partitionDecodeFailures) would surface as silently truncated rows. A
+// production consumer MUST call the WithQuarantine variant and handle its
+// error. TestExtractDocumentationEdgeRowsUnsupportedMajorIsFatal covers the
+// fatal path on the WithQuarantine function.
 func ExtractDocumentationEdgeRows(envelopes []facts.Envelope, scopeID string) []map[string]any {
 	rows, _, _ := ExtractDocumentationEdgeRowsWithQuarantine(envelopes, scopeID)
 	return rows
@@ -154,10 +164,13 @@ func ExtractDocumentationEdgeRows(envelopes []facts.Envelope, scopeID string) []
 // skipping the fact via the old `if targetID == "" || documentID == "" ||
 // sectionID == "" { continue }` check (a missing key and a present-but-empty
 // key were indistinguishable, and neither produced any operator signal).
-// Every valid mention in the same batch still projects. A non-input_invalid
-// decode error (an unsupported schema major) is returned as a fatal error,
-// failing the whole intent for durable triage rather than being silently
-// skipped.
+// Every valid mention in the same batch still projects. An unsupported schema
+// major is classified input_invalid by the contracts module (decodeLatestMajor
+// tags it ClassificationInputInvalid), but partitionDecodeFailures escalates
+// the ErrUnsupportedSchemaMajor sentinel to a FATAL error — isQuarantine=false,
+// non-nil error returned here — so version skew fails the whole intent for
+// durable triage rather than being quarantined per-fact and silently skipped
+// (it can succeed once the reducer supports the major).
 func ExtractDocumentationEdgeRowsWithQuarantine(envelopes []facts.Envelope, scopeID string) ([]map[string]any, []quarantinedFact, error) {
 	rows := make([]map[string]any, 0)
 	var quarantined []quarantinedFact
@@ -186,14 +199,20 @@ func ExtractDocumentationEdgeRowsWithQuarantine(envelopes []facts.Envelope, scop
 		ref := mention.CandidateRefs[0]
 		targetID := strings.TrimSpace(evidenceRefString(ref.ID))
 		targetKind := strings.TrimSpace(evidenceRefString(ref.Kind))
-		documentID := mention.DocumentID
-		sectionID := mention.SectionID
-		// document_id/section_id are REQUIRED on the typed struct, so an
-		// ABSENT key already quarantined above; a PRESENT-but-empty value is
-		// a valid decode (per the absent-vs-empty contract) but still
-		// produces no edge here, preserving the pre-typing behavior where
-		// payloadStr returned "" for either an absent or empty key and the
-		// handler skipped identically either way.
+		// Trim document_id/section_id/mention_kind exactly where the pre-typing
+		// raw path did: payloadStr returned strings.TrimSpace(fmt.Sprint(val))
+		// (candidate_loader.go), so a surrounding-whitespace value was trimmed
+		// before the empty check AND before the value flowed into the section
+		// node uid. Preserving the trim here keeps the projected graph identity
+		// byte-identical to pre-typing — a padded-but-non-empty "  doc1  "
+		// still yields docsection:doc1|... rather than docsection:  doc1  |...,
+		// and a whitespace-only value trims to "" and skips the edge below,
+		// exactly as the raw path did. document_id/section_id are REQUIRED on
+		// the typed struct, so an ABSENT key already quarantined above; a
+		// PRESENT-but-empty (or whitespace-only) value is a valid decode that
+		// still produces no edge here.
+		documentID := strings.TrimSpace(mention.DocumentID)
+		sectionID := strings.TrimSpace(mention.SectionID)
 		if targetID == "" || documentID == "" || sectionID == "" {
 			continue
 		}
@@ -215,7 +234,7 @@ func ExtractDocumentationEdgeRowsWithQuarantine(envelopes []facts.Envelope, scop
 			"section_id":       sectionID,
 			"target_entity_id": targetID,
 			"target_kind":      targetKind,
-			"mention_kind":     evidenceRefString(mention.MentionKind),
+			"mention_kind":     strings.TrimSpace(evidenceRefString(mention.MentionKind)),
 			"action":           IntentActionUpsert,
 		})
 	}

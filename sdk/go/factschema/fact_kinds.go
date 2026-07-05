@@ -455,8 +455,10 @@ const (
 	// SQL (documentation/v1/README.md).
 	FactKindDocumentationEvidencePacket = "documentation_evidence_packet"
 
-	// DocumentationSectionSchemaVersion is the schema-major version
+	// DocumentationSectionSchemaVersion is the full schema version string
 	// documentation_section carries, distinct from the shared 1.0.0 the rest
 	// of the family uses (go/internal/facts.DocumentationSectionFactSchemaVersion).
+	// The decode seam still dispatches on the schema-version MAJOR only ("1"),
+	// so this minor bump does not change decode routing.
 	DocumentationSectionSchemaVersion = "1.1.0"
 )

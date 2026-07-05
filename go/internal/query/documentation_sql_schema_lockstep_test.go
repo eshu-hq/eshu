@@ -71,19 +71,7 @@ func TestDocumentationFindingSQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 		readGoSourceText(t, "documentation_finding_aggregates.go") +
 		readGoSourceText(t, "documentation_packet_read_model.go") +
 		readGoSourceText(t, "documentation_target_read_model.go")
-	fieldRef := regexp.MustCompile(`payload->>?'([a-z_]+)'|addPayloadFilter\("([a-z_]+)"|payload\["([a-z_]+)"\]`)
-	referenced := map[string]bool{}
-	for _, m := range fieldRef.FindAllStringSubmatch(sqlText, -1) {
-		if m[1] != "" {
-			referenced[m[1]] = true
-		}
-		if m[2] != "" {
-			referenced[m[2]] = true
-		}
-		if m[3] != "" {
-			referenced[m[3]] = true
-		}
-	}
+	referenced := documentationSQLReferencedFields(sqlText)
 
 	for _, field := range sourceFields {
 		if !referenced[field] {
@@ -93,6 +81,86 @@ func TestDocumentationFindingSQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 		if !declared[field] {
 			t.Errorf("documentation SQL reads payload field %q but neither documentation_finding.v1.schema.json nor documentation_evidence_packet.v1.schema.json declares it as a property; a dropped/renamed field would silently break the SQL read", field)
 		}
+	}
+}
+
+// documentationSQLReferencedFields extracts every JSONB payload field name the
+// documentation query SQL reads. It catches all four read shapes:
+//
+//   - `payload->>'field'` and `payload->'field'` (top-level, single- or
+//     double-arrow),
+//   - `addPayloadFilter("field", ...)` (the parameterized builder that emits
+//     `payload->>'field'`),
+//   - `payload["field"]` (the Go-map read documentationPayloadMatchesTargetRef
+//     uses),
+//   - a nested chain leaf like `payload->'finding'->>'finding_id'`, whose
+//     leaf `->>'finding_id'` is NOT directly prefixed by `payload`.
+//
+// The `->>?'([a-z_]+)'` pattern (with no required `payload` prefix) is the fix
+// for PR #4738's Copilot false-green finding: the old regex anchored on
+// `payload` and so missed both `payload->'field'` intermediate reads and the
+// nested-chain leaves, meaning a dropped field read through a nested chain
+// could pass the lockstep silently. Matching any `->'field'`/`->>'field'`
+// token closes that gap. It over-captures the intermediate object keys
+// (`permissions`, `states`, `finding`) and their leaves, which is harmless:
+// this map is only the "is this field read by SQL" side of the check; the
+// caller asserts the top-level sourceFields it cares about, and the nested
+// sub-object keys are intentionally not in that list (Finding/EvidencePacket
+// deliberately do not model doctruth's nested sub-objects — see their godoc).
+func documentationSQLReferencedFields(sqlText string) map[string]bool {
+	referenced := map[string]bool{}
+	// Any single- or double-arrow JSONB accessor, regardless of what precedes
+	// it, so a nested-chain leaf (payload->'finding'->>'finding_id') is caught
+	// as well as a top-level payload->>'field'.
+	arrowRef := regexp.MustCompile(`->>?'([a-z_]+)'`)
+	for _, m := range arrowRef.FindAllStringSubmatch(sqlText, -1) {
+		referenced[m[1]] = true
+	}
+	// The parameterized builder and the Go-map read do not use an arrow
+	// accessor literal, so match them separately.
+	otherRef := regexp.MustCompile(`addPayloadFilter\("([a-z_]+)"|payload\["([a-z_]+)"\]`)
+	for _, m := range otherRef.FindAllStringSubmatch(sqlText, -1) {
+		if m[1] != "" {
+			referenced[m[1]] = true
+		}
+		if m[2] != "" {
+			referenced[m[2]] = true
+		}
+	}
+	return referenced
+}
+
+// TestDocumentationSQLReferencedFieldsCatchesNestedChain is the negative test
+// Copilot asked for: it proves the broadened extractor catches a field read
+// only through a nested JSONB chain (payload->'finding'->>'finding_id'), which
+// the old `payload->>?'field'` regex missed. Without this, a lockstep field
+// read exclusively through a nested chain could be dropped from the schema
+// while the guardrail stayed green.
+func TestDocumentationSQLReferencedFieldsCatchesNestedChain(t *testing.T) {
+	t.Parallel()
+
+	sql := `COALESCE(fact_records.payload->>'finding_id', fact_records.payload->'finding'->>'nested_only_field')`
+	referenced := documentationSQLReferencedFields(sql)
+
+	if !referenced["finding_id"] {
+		t.Errorf("top-level payload->>'finding_id' not caught")
+	}
+	if !referenced["nested_only_field"] {
+		t.Errorf("nested-chain leaf payload->'finding'->>'nested_only_field' not caught; the extractor must match arrow accessors that are not directly prefixed by `payload`")
+	}
+	if !referenced["finding"] {
+		t.Errorf("intermediate object key payload->'finding' not caught")
+	}
+
+	// Prove the OLD (anchored) regex would have missed the nested leaf, so this
+	// test is a real regression guard, not a tautology.
+	oldRegex := regexp.MustCompile(`payload->>?'([a-z_]+)'`)
+	oldReferenced := map[string]bool{}
+	for _, m := range oldRegex.FindAllStringSubmatch(sql, -1) {
+		oldReferenced[m[1]] = true
+	}
+	if oldReferenced["nested_only_field"] {
+		t.Errorf("the old anchored regex unexpectedly caught the nested leaf; the test premise is wrong")
 	}
 }
 

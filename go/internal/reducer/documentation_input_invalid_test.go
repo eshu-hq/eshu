@@ -66,6 +66,146 @@ func TestExtractDocumentationEdgeRowsQuarantinesMissingDocumentID(t *testing.T) 
 	}
 }
 
+// TestExtractDocumentationEdgeRowsTrimsDocumentAndSectionIDs proves the typed
+// path trims document_id/section_id/mention_kind before the empty check and
+// before building the section-node UID, exactly as the pre-typing raw path did
+// (payloadStr = strings.TrimSpace(fmt.Sprint(val)), candidate_loader.go). This
+// is the byte-identical guarantee: a padded-but-non-empty document_id must
+// produce the SAME graph identity it produced pre-typing (docsection:doc1|sec1,
+// not docsection: doc1 | sec1 ), and a whitespace-only id must skip the edge
+// the same way payloadStr's trim-then-empty-check skipped it. Codex P2 on
+// PR #4738 (documentation_edge_materialization.go:190).
+func TestExtractDocumentationEdgeRowsTrimsDocumentAndSectionIDs(t *testing.T) {
+	t.Parallel()
+
+	padded := facts.Envelope{
+		FactKind: facts.DocumentationEntityMentionFactKind,
+		FactID:   "fact-mention-padded",
+		Payload: map[string]any{
+			"document_id":       "  doc1  ",
+			"section_id":        "  sec1  ",
+			"mention_kind":      "  code_symbol  ",
+			"resolution_status": facts.DocumentationMentionResolutionExact,
+			"candidate_refs": []any{
+				map[string]any{"kind": "entity", "id": "uid:target"},
+			},
+		},
+	}
+
+	rows, quarantined, err := ExtractDocumentationEdgeRowsWithQuarantine([]facts.Envelope{padded}, "scope-1")
+	if err != nil {
+		t.Fatalf("ExtractDocumentationEdgeRowsWithQuarantine() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want 0; a padded-but-non-empty id is a valid decode", quarantined)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1; a padded id must still project one edge", len(rows))
+	}
+	// The graph identity must match the pre-typing (trimmed) UID, not carry the
+	// surrounding whitespace into the node uid.
+	wantSectionUID := "docsection:doc1|sec1"
+	if got := rows[0]["section_uid"]; got != wantSectionUID {
+		t.Fatalf("section_uid = %q, want %q; document_id/section_id must be trimmed before building the node uid", got, wantSectionUID)
+	}
+	if got := rows[0]["document_id"]; got != "doc1" {
+		t.Fatalf("document_id = %q, want %q; the projected row must carry the trimmed id", got, "doc1")
+	}
+	if got := rows[0]["section_id"]; got != "sec1" {
+		t.Fatalf("section_id = %q, want %q; the projected row must carry the trimmed id", got, "sec1")
+	}
+	if got := rows[0]["mention_kind"]; got != "code_symbol" {
+		t.Fatalf("mention_kind = %q, want %q; mention_kind was trimmed by the pre-typing payloadStr path", got, "code_symbol")
+	}
+}
+
+// TestExtractDocumentationEdgeRowsUnsupportedMajorIsFatal proves the
+// classification behavior the decode-site comment documents: an unsupported
+// schema major is classified input_invalid by the contracts module
+// (decodeLatestMajor), but partitionDecodeFailures escalates the
+// ErrUnsupportedSchemaMajor sentinel to a FATAL error (isQuarantine=false,
+// non-nil error) rather than a per-fact quarantine, because version skew must
+// fail the whole intent for durable triage (it can succeed once the reducer
+// supports the major). This is the Copilot classification question on
+// PR #4738 (documentation_edge_materialization.go:160): the comment is
+// correct, and this test is the evidence.
+func TestExtractDocumentationEdgeRowsUnsupportedMajorIsFatal(t *testing.T) {
+	t.Parallel()
+
+	unsupported := facts.Envelope{
+		FactKind:      facts.DocumentationEntityMentionFactKind,
+		FactID:        "fact-mention-badmajor",
+		SchemaVersion: "2.0.0", // unsupported major
+		Payload: map[string]any{
+			"document_id":       "doc1",
+			"section_id":        "sec1",
+			"mention_kind":      "code_symbol",
+			"resolution_status": facts.DocumentationMentionResolutionExact,
+			"candidate_refs": []any{
+				map[string]any{"kind": "entity", "id": "uid:target"},
+			},
+		},
+	}
+
+	rows, quarantined, err := ExtractDocumentationEdgeRowsWithQuarantine([]facts.Envelope{unsupported}, "scope-1")
+	if err == nil {
+		t.Fatalf("err = nil, want a fatal error; an unsupported schema major must fail the whole intent, not be quarantined per-fact")
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want 0; an unsupported major is fatal, never a per-fact quarantine", quarantined)
+	}
+	if rows != nil {
+		t.Fatalf("rows = %#v, want nil on a fatal error", rows)
+	}
+}
+
+// TestExtractDocumentationEdgeRowsSkipsWhitespaceOnlyIDs proves a
+// whitespace-only document_id or section_id (a valid, present decode) is
+// skipped exactly as the pre-typing path skipped it: payloadStr trimmed the
+// value to "" before the `documentID == "" || sectionID == ""` check, so no
+// edge was projected. The typed path must trim before that same check.
+func TestExtractDocumentationEdgeRowsSkipsWhitespaceOnlyIDs(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		documentID string
+		sectionID  string
+	}{
+		{"whitespace_document_id", "   ", "sec1"},
+		{"whitespace_section_id", "doc1", "   "},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			env := facts.Envelope{
+				FactKind: facts.DocumentationEntityMentionFactKind,
+				FactID:   "fact-mention-ws",
+				Payload: map[string]any{
+					"document_id":       tc.documentID,
+					"section_id":        tc.sectionID,
+					"mention_kind":      "code_symbol",
+					"resolution_status": facts.DocumentationMentionResolutionExact,
+					"candidate_refs": []any{
+						map[string]any{"kind": "entity", "id": "uid:target"},
+					},
+				},
+			}
+			rows, quarantined, err := ExtractDocumentationEdgeRowsWithQuarantine([]facts.Envelope{env}, "scope-1")
+			if err != nil {
+				t.Fatalf("ExtractDocumentationEdgeRowsWithQuarantine() error = %v, want nil", err)
+			}
+			if len(quarantined) != 0 {
+				t.Fatalf("quarantined = %#v, want 0; a whitespace-only id is a valid (present) decode, not input_invalid", quarantined)
+			}
+			if len(rows) != 0 {
+				t.Fatalf("len(rows) = %d, want 0; a whitespace-only id trims to empty and must skip the edge exactly as the pre-typing payloadStr path did", len(rows))
+			}
+		})
+	}
+}
+
 // TestDocumentationMaterializationHandlerRecordsQuarantinedMentionInputInvalid
 // proves the full handler path surfaces a quarantined
 // documentation_entity_mention fact through Result.SubSignals, mirroring

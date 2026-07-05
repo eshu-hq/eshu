@@ -43,11 +43,17 @@ func loadDocumentationMaterializationFacts(
 // documentation_edge_materialization_test.go exercises directly; it
 // delegates to buildDocumentationDeltaScopeWithQuarantine and discards the
 // quarantine/error results, mirroring ExtractDocumentationEdgeRows's
-// identical delegation pattern. The reducer intent path (Handle) calls the
-// quarantine-aware function directly so it can report quarantines. A fatal
-// (non-input_invalid) decode error is silently dropped here — Handle never
-// reaches this path because it calls the WithQuarantine function itself, so
-// this wrapper exists solely for the pre-existing direct-call test.
+// identical delegation pattern.
+//
+// TEST-ONLY SHIM — no production caller (this identifier is unexported and
+// used only by TestBuildDocumentationDeltaScopeIgnoresExternalDocumentPathMetadata).
+// The reducer intent path (DocumentationEdgeMaterializationHandler.Handle)
+// calls buildDocumentationDeltaScopeWithQuarantine directly so it can
+// propagate a fatal decode error and record quarantines. Do NOT wire this
+// into a production path: it drops the error, so a fatal decode failure (an
+// unsupported schema major, escalated by partitionDecodeFailures) would
+// surface as a silently empty delta scope. A production consumer MUST call
+// the WithQuarantine variant and handle its error.
 func buildDocumentationDeltaScope(envelopes []facts.Envelope, scopeID string) documentationDeltaScope {
 	scope, _, _ := buildDocumentationDeltaScopeWithQuarantine(envelopes, scopeID)
 	return scope
@@ -62,9 +68,11 @@ func buildDocumentationDeltaScope(envelopes []facts.Envelope, scopeID string) do
 // pre-typing behavior of silently excluding it from delta tracking via the
 // `if documentID == "" { continue }` check (a missing key and a
 // present-but-empty key were indistinguishable, and neither produced any
-// operator signal). A non-input_invalid decode error (an unsupported schema
-// major) is returned as a fatal error, failing the whole intent for durable
-// triage rather than being silently skipped.
+// operator signal). An unsupported schema major is classified input_invalid
+// by the contracts module (decodeLatestMajor), but partitionDecodeFailures
+// escalates the ErrUnsupportedSchemaMajor sentinel to a FATAL error, so
+// version skew fails the whole intent for durable triage rather than being
+// quarantined per-fact and silently skipped.
 func buildDocumentationDeltaScopeWithQuarantine(
 	envelopes []facts.Envelope,
 	scopeID string,
@@ -137,7 +145,15 @@ func buildDocumentationDeltaScopeWithQuarantine(
 			}
 			continue
 		}
-		documentID := document.DocumentID
+		// Trim document_id exactly where the pre-typing raw path did:
+		// semanticPayloadString returned strings.TrimSpace(str)
+		// (semantic_entity_materialization_helpers.go), so a
+		// surrounding-whitespace document_id was trimmed before the empty
+		// check and before it flowed into the changedDocumentIDs map keys and
+		// the documentationGitDocumentIDPrefix HasPrefix comparisons below.
+		// Preserving the trim keeps delta-scope selection byte-identical to
+		// pre-typing.
+		documentID := strings.TrimSpace(document.DocumentID)
 		if documentID == "" {
 			continue
 		}
