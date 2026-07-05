@@ -24,13 +24,14 @@
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
             "cluster_id": "supply-chain-demo",
             "object_id": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
             "uid": "11111111-2222-3333-4444-555555555555",
             "group_version_resource": "apps/v1/deployments",
             "namespace": "default",
             "name": "supply-chain-demo",
-            "kind": "Deployment",
+            "service_account": "supply-chain-demo",
             "labels": {
               "app": "supply-chain-demo",
               "version": "1.0.0"
@@ -39,55 +40,86 @@
               {
                 "name": "app",
                 "image": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
-                "ports": [{"container_port": 3000, "protocol": "TCP"}],
-                "env_keys": ["NODE_ENV", "VAULT_ADDR", "DATABASE_URL"]
+                "init": false,
+                "ports": [3000],
+                "env_keys": ["DATABASE_URL", "NODE_ENV", "VAULT_ADDR"],
+                "env_from_secret": true
               }
             ],
             "image_refs": [
               "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
             ],
+            "selector": {
+              "app": "supply-chain-demo"
+            },
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
-              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            ],
-            "service_account": "supply-chain-demo",
-            "replicas": 2
+              "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ]
           }
         },
         {
           "fact_kind": "kubernetes_live.pod_template",
-          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:service:default:supply-chain-demo",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:replicaset:default:supply-chain-demo-7f8d9",
           "schema_version": "1.0.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
             "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+            "uid": "22222222-3333-4444-5555-666666666666",
+            "group_version_resource": "apps/v1/replicasets",
             "namespace": "default",
-            "name": "supply-chain-demo",
-            "kind": "Service",
-            "labels": {"app": "supply-chain-demo"},
-            "ports": [{"port": 80, "target_port": 3000, "protocol": "TCP"}],
-            "selector": {"app": "supply-chain-demo"},
-            "type": "ClusterIP"
+            "name": "supply-chain-demo-7f8d9",
+            "service_account": "supply-chain-demo",
+            "labels": {
+              "app": "supply-chain-demo",
+              "pod-template-hash": "7f8d9"
+            },
+            "containers": [
+              {
+                "name": "app",
+                "image": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+                "init": false,
+                "ports": [3000],
+                "env_keys": ["DATABASE_URL", "NODE_ENV", "VAULT_ADDR"],
+                "env_from_secret": true
+              }
+            ],
+            "image_refs": [
+              "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ],
+            "selector": {
+              "app": "supply-chain-demo",
+              "pod-template-hash": "7f8d9"
+            },
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+              "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ]
           }
         },
         {
           "fact_kind": "kubernetes_live.relationship",
-          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:rel:deployment:service:supply-chain-demo",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:rel:owner_reference:replicaset:deployment:supply-chain-demo",
           "schema_version": "1.0.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
             "cluster_id": "supply-chain-demo",
-            "relationship_type": "EXPOSES",
-            "source_kind": "Deployment",
-            "source_namespace": "default",
-            "source_name": "supply-chain-demo",
-            "target_kind": "Service",
-            "target_namespace": "default",
-            "target_name": "supply-chain-demo"
+            "relationship_type": "owner_reference",
+            "from_object_id": "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+            "to_object_id": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+            "from_group_version_resource": "apps/v1/replicasets",
+            "to_group_version_resource": "apps/v1/deployments",
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+              "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo"
+            ]
           }
         }
       ]

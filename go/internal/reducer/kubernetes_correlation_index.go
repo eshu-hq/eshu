@@ -159,6 +159,14 @@ func (index *kubernetesCorrelationIndex) ingestPodTemplate(env facts.Envelope) e
 
 // workloadImageRefs returns the workload's declared image references, preferring
 // the redacted image_refs list and falling back to per-container image strings.
+//
+// The image_refs branch is deduplicated and sorted, matching the pre-typing
+// payloadStrings(payload, "", "image_refs") helper (which returns
+// uniqueSortedStrings). The container-fallback branch preserves the pre-typing
+// order-preserving, duplicate-retaining behavior verbatim (the old code returned
+// the raw per-container slice), so the valid correlation path is byte-identical
+// to before the typed-decode migration — only the input source changed from a
+// raw map lookup to the decoded struct.
 func workloadImageRefs(podTemplate kuberneteslivev1.PodTemplate) []string {
 	if len(podTemplate.ImageRefs) > 0 {
 		return uniqueSortedStrings(podTemplate.ImageRefs)
@@ -169,7 +177,7 @@ func workloadImageRefs(podTemplate kuberneteslivev1.PodTemplate) []string {
 			out = append(out, image)
 		}
 	}
-	return uniqueSortedStrings(out)
+	return out
 }
 
 func (index *kubernetesCorrelationIndex) ingestRelationship(env facts.Envelope) error {
