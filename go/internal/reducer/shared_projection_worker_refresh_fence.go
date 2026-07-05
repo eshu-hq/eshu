@@ -6,7 +6,10 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // repoRefreshIntentType marks a shared-projection intent whose only job is to
@@ -119,6 +122,19 @@ type SharedProjectionRefreshFenceLookup interface {
 	) (bool, error)
 }
 
+// FirstProjectionLookup reports whether a scope has any generation other than
+// the current one (in any status). When it reports false the scope's only
+// generation is the current one — a true first projection — so its whole-scope
+// edge retract is a guaranteed no-op and is skipped (#3624). It deliberately
+// does not key on activation: these domains write edges on acceptance, before a
+// generation activates, so a superseded-while-pending generation can have
+// written edges without ever setting activated_at; "no other generation exists"
+// is the correct zero-prior-edges signal. A nil lookup disables the skip,
+// leaving the retract byte-identical to prior behavior.
+type FirstProjectionLookup interface {
+	ScopeHasPriorGeneration(ctx context.Context, scopeID, currentGenerationID string) (bool, error)
+}
+
 // repoWideRetractPlan is the split of a repo-wide-retract domain's selected batch
 // into the rows that retract, the rows that write, the rows to mark completed,
 // and the count of per-edge rows held by the refresh fence this cycle.
@@ -140,11 +156,24 @@ type repoWideRetractPlan struct {
 // written only after the durable fence reports that refresh completed; otherwise
 // they are deferred (left pending, not written, not completed) and re-selected
 // next cycle. A refresh row never writes (filterUpsertRows drops it).
+//
+// firstProjection additionally lets a refresh row skip its whole-scope retract
+// entirely (#3624): when the row's scope has no prior ACTIVATED generation, this
+// is the scope's first projection, so there are zero prior edges and the retract
+// is a guaranteed no-op. The row still lands in plan.completedRows so the fence
+// opens and per-edge writes proceed; only the (expensive, full-scan-on-NornicDB)
+// retract call is skipped. A nil firstProjection disables the skip, leaving the
+// retract byte-identical to prior behavior. The probe is memoized per scope ID
+// within one call so a batch with many refresh rows for the same scope costs at
+// most one lookup. logger is optional; when set, a skip is logged as an operator
+// signal.
 func planRepoWideRetractWork(
 	ctx context.Context,
 	domain string,
 	rows []SharedProjectionIntentRow,
 	fence SharedProjectionRefreshFenceLookup,
+	firstProjection FirstProjectionLookup,
+	logger *slog.Logger,
 ) (repoWideRetractPlan, error) {
 	plan := repoWideRetractPlan{}
 	refreshReposInBatch := make(map[string]struct{})
@@ -154,10 +183,18 @@ func planRepoWideRetractWork(
 		}
 	}
 
+	firstProjectionMemo := make(map[string]bool)
+
 	for _, row := range rows {
 		if isRepoRefreshRow(row) {
-			plan.retractRows = append(plan.retractRows, row)
 			plan.completedRows = append(plan.completedRows, row)
+			skip, err := skipFirstProjectionRetract(ctx, domain, row, firstProjection, firstProjectionMemo, logger)
+			if err != nil {
+				return repoWideRetractPlan{}, err
+			}
+			if !skip {
+				plan.retractRows = append(plan.retractRows, row)
+			}
 			continue
 		}
 
@@ -193,6 +230,55 @@ func planRepoWideRetractWork(
 	}
 
 	return plan, nil
+}
+
+// skipFirstProjectionRetract reports whether a refresh row's whole-scope
+// retract may be skipped because the scope has no prior ACTIVATED generation
+// (#3624): with zero prior edges, the repo-wide retract is a guaranteed no-op.
+// A nil firstProjection or a row with no scope ID never skips, preserving the
+// pre-#3624 behavior byte-identically. The probe result is memoized in memo
+// (keyed by scope ID) so repeated refresh rows for the same scope within one
+// planRepoWideRetractWork call cost at most one lookup.
+func skipFirstProjectionRetract(
+	ctx context.Context,
+	domain string,
+	row SharedProjectionIntentRow,
+	firstProjection FirstProjectionLookup,
+	memo map[string]bool,
+	logger *slog.Logger,
+) (bool, error) {
+	if firstProjection == nil {
+		return false, nil
+	}
+	scopeID := strings.TrimSpace(row.ScopeID)
+	if scopeID == "" {
+		return false, nil
+	}
+
+	hasPrior, memoized := memo[scopeID]
+	if !memoized {
+		var err error
+		hasPrior, err = firstProjection.ScopeHasPriorGeneration(ctx, scopeID, row.GenerationID)
+		if err != nil {
+			return false, fmt.Errorf("check first projection for scope %s: %w", scopeID, err)
+		}
+		memo[scopeID] = hasPrior
+	}
+	if hasPrior {
+		return false, nil
+	}
+
+	if logger != nil {
+		logger.InfoContext(
+			ctx,
+			"skipped whole-scope retract on first projection",
+			log.Domain(domain),
+			slog.String("repo_id", sharedProjectionRowRepoID(row)),
+			slog.String("scope_id", scopeID),
+			slog.String("generation_id", row.GenerationID),
+		)
+	}
+	return true, nil
 }
 
 // perEdgeRowReady reports whether a per-edge row may write now: true once its

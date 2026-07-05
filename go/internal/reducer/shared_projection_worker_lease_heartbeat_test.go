@@ -78,7 +78,7 @@ func TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil)
+		_, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil)
 		done <- err
 	}()
 
@@ -151,7 +151,7 @@ func TestProcessPartitionOnceReleasesLeaseWithLiveContext(t *testing.T) {
 		BatchLimit:     100,
 	}
 
-	if _, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil); err != nil {
+	if _, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
 	}
 
