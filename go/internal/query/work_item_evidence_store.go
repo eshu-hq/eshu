@@ -73,6 +73,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 		var generationID string
 		var sourceConfidence string
 		var observedAt sql.NullTime
+		var schemaVersion string
 		var payloadBytes []byte
 		if err := rows.Scan(
 			&factID,
@@ -81,6 +82,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 			&generationID,
 			&sourceConfidence,
 			&observedAt,
+			&schemaVersion,
 			&payloadBytes,
 		); err != nil {
 			return nil, fmt.Errorf("scan work-item evidence: %w", err)
@@ -96,6 +98,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 			GenerationID:     generationID,
 			SourceConfidence: sourceConfidence,
 			ObservedAt:       formatNullTime(observedAt),
+			SchemaVersion:    schemaVersion,
 			Payload:          payload,
 		})
 	}

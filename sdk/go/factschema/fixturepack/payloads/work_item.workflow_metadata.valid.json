@@ -1,0 +1,19 @@
+{
+  "provider": "jira_cloud",
+  "workflow_id": "workflow-1",
+  "scope_type": "PROJECT",
+  "project_id": "10000",
+  "version_number": 3,
+  "statuses": [
+    {"status_reference": "todo-ref", "status_id": "10001", "deprecated": false}
+  ],
+  "transitions": [
+    {
+      "transition_id": "41",
+      "transition_type": "DIRECTED",
+      "from_status_references": ["todo-ref"],
+      "to_status_reference": "done-ref",
+      "has_validators": true
+    }
+  ]
+}

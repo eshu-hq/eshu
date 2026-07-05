@@ -32,6 +32,7 @@ func TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceReco
 				"https://example.pagerduty.com/incidents/PABC123",
 				"PABC123",
 				observedAt,
+				"1.0.0",
 				[]byte(`{"provider":"pagerduty","status":"triggered","title":"checkout-api elevated errors"}`),
 			}},
 			requireQueryContains: []string{"fact.source_record_id = $2"},
@@ -87,6 +88,7 @@ func TestPostgresIncidentContextStoreReturnsAmbiguousSourceRecordMatches(t *test
 					"https://example.pagerduty.com/incidents/PABC123",
 					"PABC123",
 					observedAt,
+					"1.0.0",
 					[]byte(`{"provider":"pagerduty","status":"triggered","title":"checkout-api elevated errors"}`),
 				},
 				{
@@ -97,6 +99,7 @@ func TestPostgresIncidentContextStoreReturnsAmbiguousSourceRecordMatches(t *test
 					"https://example.pagerduty.com/incidents/PABC123",
 					"PABC123",
 					observedAt,
+					"1.0.0",
 					[]byte(`{"provider":"pagerduty","status":"triggered","title":"checkout-stage elevated errors"}`),
 				},
 			},
@@ -242,6 +245,7 @@ func incidentContextFactColumns() []string {
 		"source_uri",
 		"source_record_id",
 		"observed_at",
+		"schema_version",
 		"payload",
 	}
 }

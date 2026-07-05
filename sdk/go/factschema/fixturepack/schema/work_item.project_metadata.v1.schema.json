@@ -1,0 +1,117 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/workitem/v1/project_metadata.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "category_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "category_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "category_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "category_name_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "issue_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "last_issue_update_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_name_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "project_type_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "self_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "self_url_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "style": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibility_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider"
+  ],
+  "title": "Eshu work_item.project_metadata Payload (schema version 1)",
+  "type": "object"
+}

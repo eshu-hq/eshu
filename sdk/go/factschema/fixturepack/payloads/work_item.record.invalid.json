@@ -1,0 +1,5 @@
+{
+  "provider": "jira_cloud",
+  "work_item_key": "OPS-123",
+  "status_name": "In Progress"
+}

@@ -41,6 +41,7 @@ type incidentContextFactRow struct {
 	SourceURI        string
 	SourceRecordID   string
 	ObservedAt       time.Time
+	SchemaVersion    string
 	Payload          map[string]any
 }
 
@@ -225,6 +226,7 @@ func (s PostgresIncidentContextStore) queryIncidentContextRows(
 			&row.SourceURI,
 			&row.SourceRecordID,
 			&row.ObservedAt,
+			&row.SchemaVersion,
 			&payloadBytes,
 		); err != nil {
 			return nil, err

@@ -119,7 +119,11 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemLinksByURLs(
 			return nil, fmt.Errorf("list incident work item external links: %w", err)
 		}
 		for _, row := range rows {
-			links = append(links, decodeIncidentWorkItemExternalLink(row))
+			link, ok := decodeIncidentWorkItemExternalLink(row)
+			if !ok {
+				continue
+			}
+			links = append(links, link)
 		}
 	}
 	return links, nil
@@ -141,7 +145,11 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemsByKeys(
 			return nil, fmt.Errorf("list incident work item records: %w", err)
 		}
 		for _, row := range rows {
-			records = append(records, decodeIncidentWorkItemRecord(row))
+			record, ok := decodeIncidentWorkItemRecord(row)
+			if !ok {
+				continue
+			}
+			records = append(records, record)
 		}
 	}
 	return records, nil
@@ -164,7 +172,11 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemProjectMetadata(
 			return nil, fmt.Errorf("list incident work item project metadata: %w", err)
 		}
 		for _, row := range rows {
-			metadata = append(metadata, decodeIncidentWorkItemProjectMetadata(row))
+			decoded, ok := decodeIncidentWorkItemProjectMetadata(row)
+			if !ok {
+				continue
+			}
+			metadata = append(metadata, decoded)
 		}
 	}
 	return metadata, nil
@@ -187,7 +199,11 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemStatusMetadata(
 			return nil, fmt.Errorf("list incident work item status metadata: %w", err)
 		}
 		for _, row := range rows {
-			metadata = append(metadata, decodeIncidentWorkItemStatusMetadata(row))
+			decoded, ok := decodeIncidentWorkItemStatusMetadata(row)
+			if !ok {
+				continue
+			}
+			metadata = append(metadata, decoded)
 		}
 	}
 	return metadata, nil
@@ -271,51 +287,93 @@ func appendIncidentReviewDistinct(values []string, value string) []string {
 	return append(values, value)
 }
 
-func decodeIncidentWorkItemExternalLink(row incidentContextFactRow) incidentWorkItemExternalLink {
+// decodeIncidentWorkItemExternalLink decodes one work_item.external_link fact
+// row through the typed sdk/go/factschema/workitem/v1 seam. ok is false when
+// the fact failed decode (only "provider" is required for this kind, so this
+// rarely fires; see workitem/v1/README.md) — the caller drops the fact from
+// the incident-review evidence list rather than emitting an empty-identity
+// row.
+//
+// URL is read from the deprecated raw "url" payload key (pre-existing drift:
+// the Jira collector never emits an "url" key, only "url_fingerprint" and
+// "url_present" — see the Wave 4d out-of-scope note), so it derefs the typed
+// struct's field of the same name and is byte-identical to the pre-typing
+// StringVal("") result: always empty.
+func decodeIncidentWorkItemExternalLink(row incidentContextFactRow) (incidentWorkItemExternalLink, bool) {
+	link, err := decodeWorkItemExternalLink(row.FactID, row.SchemaVersion, row.Payload)
+	if err != nil {
+		logWorkItemEvidenceDecodeDrop(err)
+		return incidentWorkItemExternalLink{}, false
+	}
 	return incidentWorkItemExternalLink{
 		FactID:      row.FactID,
-		Provider:    StringVal(row.Payload, "provider"),
-		WorkItemID:  StringVal(row.Payload, "provider_work_item_id"),
-		WorkItemKey: StringVal(row.Payload, "work_item_key"),
-		URL:         StringVal(row.Payload, "url"),
-		Title:       StringVal(row.Payload, "title"),
-		AnchorClass: StringVal(row.Payload, "correlation_anchor_class"),
+		Provider:    link.Provider,
+		WorkItemID:  workItemDerefString(link.ProviderWorkItemID),
+		WorkItemKey: workItemDerefString(link.WorkItemKey),
+		URL:         workItemDerefString(link.URL),
+		Title:       workItemDerefString(link.Title),
+		AnchorClass: workItemDerefString(link.AnchorClass),
 		SourceURL:   row.SourceURI,
-	}
+	}, true
 }
 
-func decodeIncidentWorkItemRecord(row incidentContextFactRow) incidentWorkItemRecord {
+// decodeIncidentWorkItemRecord decodes one work_item.record fact row through
+// the typed seam. ok is false when the fact is missing its required identity
+// anchor (provider_work_item_id or work_item_key) — the caller drops it
+// rather than emitting an empty-identity row.
+func decodeIncidentWorkItemRecord(row incidentContextFactRow) (incidentWorkItemRecord, bool) {
+	record, err := decodeWorkItemRecord(row.FactID, row.SchemaVersion, row.Payload)
+	if err != nil {
+		logWorkItemEvidenceDecodeDrop(err)
+		return incidentWorkItemRecord{}, false
+	}
 	return incidentWorkItemRecord{
 		FactID:      row.FactID,
-		Provider:    StringVal(row.Payload, "provider"),
-		WorkItemID:  StringVal(row.Payload, "provider_work_item_id"),
-		WorkItemKey: StringVal(row.Payload, "work_item_key"),
-		Summary:     StringVal(row.Payload, "summary"),
-		StatusID:    StringVal(row.Payload, "status_id"),
-		StatusName:  StringVal(row.Payload, "status_name"),
-		ProjectID:   StringVal(row.Payload, "project_id"),
-		ProjectKey:  StringVal(row.Payload, "project_key"),
-		SourceURL:   StringVal(row.Payload, "source_url"),
-	}
+		Provider:    record.Provider,
+		WorkItemID:  record.ProviderWorkItemID,
+		WorkItemKey: record.WorkItemKey,
+		Summary:     workItemDerefString(record.Summary),
+		StatusID:    workItemDerefString(record.StatusID),
+		StatusName:  workItemDerefString(record.StatusName),
+		ProjectID:   workItemDerefString(record.ProjectID),
+		ProjectKey:  workItemDerefString(record.ProjectKey),
+		SourceURL:   workItemDerefString(record.SourceURL),
+	}, true
 }
 
-func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) incidentWorkItemProjectMetadata {
+// decodeIncidentWorkItemProjectMetadata decodes one
+// work_item.project_metadata fact row through the typed seam. ok is false
+// when the fact failed decode (only "provider" is required for this kind).
+func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) (incidentWorkItemProjectMetadata, bool) {
+	metadata, err := decodeWorkItemProjectMetadata(row.FactID, row.SchemaVersion, row.Payload)
+	if err != nil {
+		logWorkItemEvidenceDecodeDrop(err)
+		return incidentWorkItemProjectMetadata{}, false
+	}
 	return incidentWorkItemProjectMetadata{
 		FactID:          row.FactID,
-		Provider:        StringVal(row.Payload, "provider"),
-		ProjectID:       StringVal(row.Payload, "project_id"),
-		ProjectKey:      StringVal(row.Payload, "project_key"),
-		VisibilityState: StringVal(row.Payload, "visibility_state"),
-	}
+		Provider:        metadata.Provider,
+		ProjectID:       workItemDerefString(metadata.ProjectID),
+		ProjectKey:      workItemDerefString(metadata.ProjectKey),
+		VisibilityState: workItemDerefString(metadata.VisibilityState),
+	}, true
 }
 
-func decodeIncidentWorkItemStatusMetadata(row incidentContextFactRow) incidentWorkItemStatusMetadata {
+// decodeIncidentWorkItemStatusMetadata decodes one work_item.status_metadata
+// fact row through the typed seam. ok is false when the fact is missing its
+// required status_id anchor.
+func decodeIncidentWorkItemStatusMetadata(row incidentContextFactRow) (incidentWorkItemStatusMetadata, bool) {
+	metadata, err := decodeWorkItemStatusMetadata(row.FactID, row.SchemaVersion, row.Payload)
+	if err != nil {
+		logWorkItemEvidenceDecodeDrop(err)
+		return incidentWorkItemStatusMetadata{}, false
+	}
 	return incidentWorkItemStatusMetadata{
 		FactID:            row.FactID,
-		Provider:          StringVal(row.Payload, "provider"),
-		StatusID:          StringVal(row.Payload, "status_id"),
-		ProjectID:         StringVal(row.Payload, "project_id"),
-		StatusCategory:    StringVal(row.Payload, "status_category"),
-		StatusCategoryKey: StringVal(row.Payload, "status_category_key"),
-	}
+		Provider:          metadata.Provider,
+		StatusID:          metadata.StatusID,
+		ProjectID:         workItemDerefString(metadata.ProjectID),
+		StatusCategory:    workItemDerefString(metadata.StatusCategory),
+		StatusCategoryKey: workItemDerefString(metadata.StatusCategoryKey),
+	}, true
 }

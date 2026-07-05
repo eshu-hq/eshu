@@ -354,6 +354,33 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindKubernetesGCPWorkloadIdentityBinding:
 		_, err := DecodeKubernetesGCPWorkloadIdentityBinding(env)
 		return err
+	case FactKindWorkItemRecord:
+		_, err := DecodeWorkItemRecord(env)
+		return err
+	case FactKindWorkItemTransition:
+		_, err := DecodeWorkItemTransition(env)
+		return err
+	case FactKindWorkItemExternalLink:
+		_, err := DecodeWorkItemExternalLink(env)
+		return err
+	case FactKindWorkItemProjectMetadata:
+		_, err := DecodeWorkItemProjectMetadata(env)
+		return err
+	case FactKindWorkItemIssueTypeMetadata:
+		_, err := DecodeWorkItemIssueTypeMetadata(env)
+		return err
+	case FactKindWorkItemStatusMetadata:
+		_, err := DecodeWorkItemStatusMetadata(env)
+		return err
+	case FactKindWorkItemWorkflowMetadata:
+		_, err := DecodeWorkItemWorkflowMetadata(env)
+		return err
+	case FactKindWorkItemFieldMetadata:
+		_, err := DecodeWorkItemFieldMetadata(env)
+		return err
+	case FactKindWorkItemMetadataWarning:
+		_, err := DecodeWorkItemMetadataWarning(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -446,6 +473,15 @@ var allDecodedKinds = []string{
 	FactKindEKSIRSAAnnotation,
 	FactKindEKSPodIdentityAssociation,
 	FactKindKubernetesGCPWorkloadIdentityBinding,
+	FactKindWorkItemRecord,
+	FactKindWorkItemTransition,
+	FactKindWorkItemExternalLink,
+	FactKindWorkItemProjectMetadata,
+	FactKindWorkItemIssueTypeMetadata,
+	FactKindWorkItemStatusMetadata,
+	FactKindWorkItemWorkflowMetadata,
+	FactKindWorkItemFieldMetadata,
+	FactKindWorkItemMetadataWarning,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -712,6 +748,24 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeEKSPodIdentityAssociation(env)
 			case FactKindKubernetesGCPWorkloadIdentityBinding:
 				_, err = DecodeKubernetesGCPWorkloadIdentityBinding(env)
+			case FactKindWorkItemRecord:
+				_, err = DecodeWorkItemRecord(env)
+			case FactKindWorkItemTransition:
+				_, err = DecodeWorkItemTransition(env)
+			case FactKindWorkItemExternalLink:
+				_, err = DecodeWorkItemExternalLink(env)
+			case FactKindWorkItemProjectMetadata:
+				_, err = DecodeWorkItemProjectMetadata(env)
+			case FactKindWorkItemIssueTypeMetadata:
+				_, err = DecodeWorkItemIssueTypeMetadata(env)
+			case FactKindWorkItemStatusMetadata:
+				_, err = DecodeWorkItemStatusMetadata(env)
+			case FactKindWorkItemWorkflowMetadata:
+				_, err = DecodeWorkItemWorkflowMetadata(env)
+			case FactKindWorkItemFieldMetadata:
+				_, err = DecodeWorkItemFieldMetadata(env)
+			case FactKindWorkItemMetadataWarning:
+				_, err = DecodeWorkItemMetadataWarning(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

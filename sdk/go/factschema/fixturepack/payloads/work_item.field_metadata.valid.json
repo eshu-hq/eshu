@@ -1,0 +1,7 @@
+{
+  "provider": "jira_cloud",
+  "field_id_present": true,
+  "field_id_fingerprint": "sha256:example",
+  "schema_type": "array",
+  "custom_id_present": true
+}
