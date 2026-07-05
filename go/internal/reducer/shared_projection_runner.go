@@ -134,8 +134,8 @@ type SharedProjectionRunner struct {
 	// pre-fix per-partition retract behavior.
 	RefreshFenceLookup SharedProjectionRefreshFenceLookup
 	// FirstProjectionLookup lets a repo-wide-retract domain's refresh row skip its
-	// whole-scope retract when the scope has no prior ACTIVATED generation
-	// (#3624): with zero prior edges the retract is a guaranteed no-op, and on
+	// whole-scope retract when the scope has no generation other than the current
+	// one (#3624): with zero prior edges the retract is a guaranteed no-op, and on
 	// NornicDB that retract is a full-scan the cold-corpus long pole pays once per
 	// repo per domain. A nil lookup disables the skip, leaving the retract
 	// byte-identical to pre-#3624 behavior.

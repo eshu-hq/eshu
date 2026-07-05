@@ -158,8 +158,8 @@ type repoWideRetractPlan struct {
 // next cycle. A refresh row never writes (filterUpsertRows drops it).
 //
 // firstProjection additionally lets a refresh row skip its whole-scope retract
-// entirely (#3624): when the row's scope has no prior ACTIVATED generation, this
-// is the scope's first projection, so there are zero prior edges and the retract
+// entirely (#3624): when the row's scope has no generation other than the
+// current one, this is the scope's first projection, so there are zero prior edges and the retract
 // is a guaranteed no-op. The row still lands in plan.completedRows so the fence
 // opens and per-edge writes proceed; only the (expensive, full-scan-on-NornicDB)
 // retract call is skipped. A nil firstProjection disables the skip, leaving the
@@ -233,8 +233,8 @@ func planRepoWideRetractWork(
 }
 
 // skipFirstProjectionRetract reports whether a refresh row's whole-scope
-// retract may be skipped because the scope has no prior ACTIVATED generation
-// (#3624): with zero prior edges, the repo-wide retract is a guaranteed no-op.
+// retract may be skipped because the scope has no generation other than the
+// current one (#3624): with zero prior edges, the repo-wide retract is a guaranteed no-op.
 // A nil firstProjection or a row with no scope ID never skips, preserving the
 // pre-#3624 behavior byte-identically. The probe result is memoized in memo
 // (keyed by scope ID) so repeated refresh rows for the same scope within one
