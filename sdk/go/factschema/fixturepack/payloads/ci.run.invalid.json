@@ -1,0 +1,8 @@
+{
+  "provider": "github_actions",
+  "run_attempt": "1",
+  "repository_id": "github.com/example-org/example-app",
+  "commit_sha": "abc123def456",
+  "status": "completed",
+  "result": "success"
+}

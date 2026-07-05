@@ -1,0 +1,7 @@
+{
+  "provider": "github_actions",
+  "run_attempt": "1",
+  "job_id": "fp-job-501",
+  "environment": "prod",
+  "deployment_status": "success"
+}

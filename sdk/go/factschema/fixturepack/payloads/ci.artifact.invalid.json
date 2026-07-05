@@ -1,0 +1,7 @@
+{
+  "provider": "github_actions",
+  "run_attempt": "1",
+  "artifact_id": "fp-artifact-9001",
+  "artifact_type": "container_image",
+  "artifact_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+}

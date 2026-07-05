@@ -16,6 +16,7 @@ import (
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
+	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
@@ -345,6 +346,12 @@ var payloadContracts = []struct {
 	{FactKindVulnerabilityKnownExploited, "vulnerability.known_exploited.v1.schema.json", reflect.TypeOf(vulnerabilityv1.KnownExploited{})},
 	{FactKindVulnerabilityGoModuleEvidence, "vulnerability.go_module_evidence.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoModuleEvidence{})},
 	{FactKindVulnerabilityGoCallReachability, "vulnerability.go_call_reachability.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoCallReachability{})},
+	{FactKindCICDRun, "ci.run.v1.schema.json", reflect.TypeOf(cicdrunv1.Run{})},
+	{FactKindCICDArtifact, "ci.artifact.v1.schema.json", reflect.TypeOf(cicdrunv1.Artifact{})},
+	{FactKindCICDEnvironmentObservation, "ci.environment_observation.v1.schema.json", reflect.TypeOf(cicdrunv1.EnvironmentObservation{})},
+	{FactKindCICDTriggerEdge, "ci.trigger_edge.v1.schema.json", reflect.TypeOf(cicdrunv1.TriggerEdge{})},
+	{FactKindCICDStep, "ci.step.v1.schema.json", reflect.TypeOf(cicdrunv1.Step{})},
+	{FactKindCICDWorkflowImageEvidence, "ci.workflow_image_evidence.v1.schema.json", reflect.TypeOf(cicdrunv1.WorkflowImageEvidence{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

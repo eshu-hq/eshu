@@ -1,0 +1,43 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/cicdrun/v1/trigger_edge.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "provider": {
+      "type": "string"
+    },
+    "run_attempt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "source_provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_run_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "trigger_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "run_id"
+  ],
+  "title": "Eshu ci.trigger_edge Payload (schema version 1)",
+  "type": "object"
+}

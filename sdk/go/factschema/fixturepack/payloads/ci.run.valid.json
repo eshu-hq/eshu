@@ -1,0 +1,19 @@
+{
+  "provider": "github_actions",
+  "run_id": "fp-run-4021",
+  "run_attempt": "1",
+  "run_number": "142",
+  "workflow_name": "build",
+  "event": "push",
+  "status": "completed",
+  "result": "success",
+  "branch": "main",
+  "commit_sha": "abc123def456",
+  "repository_id": "github.com/example-org/example-app",
+  "repository_url": "https://github.com/example-org/example-app",
+  "actor": "octocat",
+  "started_at": "2026-06-01T12:00:00Z",
+  "updated_at": "2026-06-01T12:05:00Z",
+  "url": "https://github.com/example-org/example-app/actions/runs/4021",
+  "correlation_anchors": ["github.com/example-org/example-app", "abc123def456", "fp-run-4021"]
+}

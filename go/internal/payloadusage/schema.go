@@ -110,6 +110,16 @@ var factKindSchemaFile = map[string]string{
 	"FactKindVulnerabilityKnownExploited":     "vulnerability.known_exploited.v1.schema.json",
 	"FactKindVulnerabilityGoModuleEvidence":   "vulnerability.go_module_evidence.v1.schema.json",
 	"FactKindVulnerabilityGoCallReachability": "vulnerability.go_call_reachability.v1.schema.json",
+	// ci_cd_run family: all six kinds a reducer decode seam wrapper actually
+	// decodes (factschema_decode_cicdrun.go). ci.job, ci.pipeline_definition,
+	// and ci.warning carry no typed struct at all (cicdrun/v1 AGENTS.md), so
+	// they have no row here either.
+	"FactKindCICDRun":                    "ci.run.v1.schema.json",
+	"FactKindCICDArtifact":               "ci.artifact.v1.schema.json",
+	"FactKindCICDEnvironmentObservation": "ci.environment_observation.v1.schema.json",
+	"FactKindCICDTriggerEdge":            "ci.trigger_edge.v1.schema.json",
+	"FactKindCICDStep":                   "ci.step.v1.schema.json",
+	"FactKindCICDWorkflowImageEvidence":  "ci.workflow_image_evidence.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

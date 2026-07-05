@@ -1,0 +1,7 @@
+{
+  "provider": "github_actions",
+  "run_attempt": "1",
+  "trigger_kind": "workflow_call",
+  "source_provider": "github_actions",
+  "source_run_id": "fp-run-4000"
+}

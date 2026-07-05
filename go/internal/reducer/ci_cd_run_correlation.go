@@ -6,7 +6,6 @@ package reducer
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"go.opentelemetry.io/otel/metric"
@@ -112,7 +111,10 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	}
 	envelopes = append(envelopes, active...)
 
-	decisions := BuildCICDRunCorrelationDecisions(envelopes)
+	decisions, quarantined, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("build ci/cd run correlation decisions: %w", err)
+	}
 	counts := cicdRunCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteCICDRunCorrelations(ctx, CICDRunCorrelationWrite{
 		IntentID:     intent.IntentID,
@@ -126,6 +128,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 		return Result{}, fmt.Errorf("write ci/cd run correlations: %w", err)
 	}
 	h.emitCounters(ctx, counts)
+	quarantinedCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCICDRunCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
 
 	return Result{
 		IntentID:        intent.IntentID,
@@ -133,6 +136,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: cicdRunCorrelationSummary(len(decisions), counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
+		SubSignals:      inputInvalidSubSignals(quarantinedCount),
 	}, nil
 }
 
@@ -169,54 +173,29 @@ func (h CICDRunCorrelationHandler) emitCounters(ctx context.Context, counts map[
 
 // BuildCICDRunCorrelationDecisions classifies provider runs without turning
 // CI success or shell text into deployment truth.
+//
+// This keeps its existing error-free signature
+// ([]facts.Envelope -> []CICDRunCorrelationDecision) so every existing
+// table-test caller stays unchanged; it delegates to the quarantine-aware
+// buildCICDRunCorrelationDecisionsWithQuarantine and discards the quarantine
+// list, matching the pattern
+// BuildKubernetesCorrelationDecisions/buildKubernetesCorrelationDecisionsWithQuarantine
+// established (go/internal/reducer/AGENTS.md, Wave 4b). CICDRunCorrelationHandler.Handle
+// calls the quarantine-aware variant directly so the reducer intent path
+// reports quarantines.
 func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorrelationDecision {
-	runs := map[string]*cicdRunEvidence{}
-	var workflowImages []facts.Envelope
-	for _, envelope := range envelopes {
-		switch envelope.FactKind {
-		case facts.CICDRunFactKind:
-			key := cicdRunKey(envelope.Payload)
-			if key == "" {
-				continue
-			}
-			ev := ensureCICDRunEvidence(runs, key)
-			ev.run = envelope
-		case facts.CICDArtifactFactKind:
-			if key := cicdRunKey(envelope.Payload); key != "" {
-				ev := ensureCICDRunEvidence(runs, key)
-				ev.artifacts = append(ev.artifacts, envelope)
-			}
-		case facts.CICDEnvironmentObservationFactKind:
-			if key := cicdRunKey(envelope.Payload); key != "" {
-				ev := ensureCICDRunEvidence(runs, key)
-				ev.environments = append(ev.environments, envelope)
-			}
-		case facts.CICDTriggerEdgeFactKind:
-			if key := cicdRunKey(envelope.Payload); key != "" {
-				ev := ensureCICDRunEvidence(runs, key)
-				ev.triggers = append(ev.triggers, envelope)
-			}
-		case facts.CICDStepFactKind:
-			if key := cicdRunKey(envelope.Payload); key != "" && payloadString(envelope.Payload, "deployment_hint_source") == "shell" {
-				ev := ensureCICDRunEvidence(runs, key)
-				ev.shellOnly = append(ev.shellOnly, envelope)
-			}
-		case facts.CICDWorkflowImageEvidenceFactKind:
-			workflowImages = append(workflowImages, envelope)
-		}
+	decisions, _, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		// A fatal (non-input_invalid) decode error can only occur for an
+		// unsupported schema-version major on the real reducer path, which
+		// Handle already surfaces to the caller; every existing test call
+		// site here passes schema-version-1 (or unset, normalized to major
+		// 1) fixtures, so this branch is unreachable in practice. Returning
+		// an empty decision set (rather than panicking) keeps this pure,
+		// error-free entry point safe for any caller that has not yet
+		// adopted the quarantine-aware signature.
+		return nil
 	}
-	attachWorkflowImagesToRuns(runs, workflowImages)
-	imageIndex := buildCICDImageIdentityIndex(envelopes)
-	decisions := make([]CICDRunCorrelationDecision, 0, len(runs))
-	for _, ev := range runs {
-		if ev.run.FactID == "" {
-			continue
-		}
-		decisions = append(decisions, classifyCICDRunEvidence(ev, imageIndex))
-	}
-	sort.SliceStable(decisions, func(i, j int) bool {
-		return decisions[i].Provider+decisions[i].RunID < decisions[j].Provider+decisions[j].RunID
-	})
 	return decisions
 }
 
@@ -270,82 +249,14 @@ func cicdRunCorrelationCanonicalWrites(decisions []CICDRunCorrelationDecision) i
 	return total
 }
 
-func ciArtifactDigests(envelopes []facts.Envelope) []string {
-	var digests []string
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.CICDArtifactFactKind {
-			continue
-		}
-		digests = append(digests, payloadString(envelope.Payload, "artifact_digest"))
-	}
-	return uniqueSortedStrings(digests)
-}
-
-func ciWorkflowImageRefs(envelopes []facts.Envelope) []string {
-	var refs []string
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.CICDWorkflowImageEvidenceFactKind {
-			continue
-		}
-		if payloadString(envelope.Payload, "evidence_class") != "workflow_image_ref" {
-			continue
-		}
-		refs = append(refs, payloadString(envelope.Payload, "image_ref"))
-	}
-	return uniqueSortedStrings(refs)
-}
-
-type cicdRunEvidence struct {
-	run            facts.Envelope
-	artifacts      []facts.Envelope
-	environments   []facts.Envelope
-	triggers       []facts.Envelope
-	shellOnly      []facts.Envelope
-	workflowImages []facts.Envelope
-}
-
-func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRunEvidence {
-	if runs[key] == nil {
-		runs[key] = &cicdRunEvidence{}
-	}
-	return runs[key]
-}
-
-type cicdImageIdentity struct {
-	factID       string
-	repositoryID string
-	imageRef     string
-	digest       string
-}
-
-func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdImageIdentity {
-	index := map[string][]cicdImageIdentity{}
-	for _, envelope := range envelopes {
-		if envelope.FactKind != containerImageIdentityFactKind {
-			continue
-		}
-		digest := payloadString(envelope.Payload, "digest")
-		if digest == "" {
-			continue
-		}
-		index[digest] = append(index[digest], cicdImageIdentity{
-			factID:       envelope.FactID,
-			repositoryID: payloadString(envelope.Payload, "repository_id"),
-			imageRef:     payloadString(envelope.Payload, "image_ref"),
-			digest:       digest,
-		})
-	}
-	return index
-}
-
 func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdImageIdentity) CICDRunCorrelationDecision {
-	run := ev.run.Payload
+	run := ev.runDecoded
 	decision := CICDRunCorrelationDecision{
-		Provider:         payloadString(run, "provider"),
-		RunID:            payloadString(run, "run_id"),
-		RunAttempt:       defaultCICDRunAttempt(payloadString(run, "run_attempt")),
-		RepositoryID:     payloadString(run, "repository_id"),
-		CommitSHA:        payloadString(run, "commit_sha"),
+		Provider:         run.Provider,
+		RunID:            run.RunID,
+		RunAttempt:       defaultCICDRunAttempt(derefString(run.RunAttempt)),
+		RepositoryID:     derefString(run.RepositoryID),
+		CommitSHA:        derefString(run.CommitSHA),
 		Outcome:          CICDRunCorrelationDerived,
 		Reason:           "run has provider evidence but no explicit artifact identity anchor",
 		ProvenanceOnly:   true,
@@ -353,8 +264,8 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		SourceLayerKinds: []string{"reported"},
 		EvidenceFactIDs:  []string{ev.run.FactID},
 	}
-	if len(ev.environments) > 0 {
-		decision.Environment = payloadString(ev.environments[0].Payload, "environment")
+	if len(ev.environmentsDecoded) > 0 {
+		decision.Environment = derefString(ev.environmentsDecoded[0].Environment)
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.environments[0].FactID)
 	}
 	for _, trigger := range ev.triggers {
@@ -374,13 +285,13 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 	if workflowDecision, ok := classifyCICDWorkflowImageEvidence(decision, ev.workflowImages, imageIndex); ok {
 		return workflowDecision
 	}
-	for _, artifact := range ev.artifacts {
-		digest := payloadString(artifact.Payload, "artifact_digest")
+	for i, artifact := range ev.artifactsDecoded {
+		digest := derefString(artifact.ArtifactDigest)
 		if digest == "" {
 			continue
 		}
 		decision.ArtifactDigest = digest
-		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, artifact.FactID)
+		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.artifacts[i].FactID)
 		matches := imageIndex[digest]
 		if repoMatches := cicdImageMatchesForRepository(matches, decision.RepositoryID); len(repoMatches) > 0 {
 			matches = repoMatches
@@ -425,6 +336,14 @@ func cicdImageMatchesForRepository(matches []cicdImageIdentity, repositoryID str
 	return out
 }
 
+// cicdRunKey is the raw-payload run join key, used ONLY by the SEPARATE
+// container_image_identity reducer domain
+// (go/internal/reducer/container_image_identity_evidence.go), which is out
+// of scope for the ci_cd_run_correlation typed-decode migration (Contract
+// System v1, Wave 4d) and continues to read ci.run/ci.artifact payloads raw.
+// The ci_cd_run_correlation domain itself builds its run join key from typed
+// decoded fields via cicdRunKeyFromParts below; do not reintroduce a raw
+// payload read into this file.
 func cicdRunKey(payload map[string]any) string {
 	provider := payloadString(payload, "provider")
 	runID := payloadString(payload, "run_id")

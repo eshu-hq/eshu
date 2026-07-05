@@ -5,17 +5,32 @@ package reducer
 
 import "github.com/eshu-hq/eshu/go/internal/facts"
 
+// attachWorkflowImagesToRuns joins ci.workflow_image_evidence envelopes to
+// every run sharing the same repository_id, decoding each workflow-image
+// envelope through the typed seam. A workflow-image envelope that fails to
+// decode here is silently skipped: buildCICDRunCorrelationDecisionsWithQuarantine
+// already quarantined it (or fatally failed the intent) during its own
+// ingestion pass over the same envelope before calling this function, so
+// re-quarantining it here would double-count the same malformed fact. A run
+// whose own decoded RepositoryID is empty (RepositoryID is optional on
+// cicdrunv1.Run) never matches any workflow image, matching pre-typing
+// behavior where an empty repository_id segment could not equal another
+// empty segment because the comparison already required a non-empty
+// workflow-image repositoryID.
 func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages []facts.Envelope) {
 	if len(workflowImages) == 0 {
 		return
 	}
 	for _, workflowImage := range workflowImages {
-		repositoryID := payloadString(workflowImage.Payload, "repository_id")
-		if repositoryID == "" {
+		evidence, err := decodeCICDWorkflowImageEvidence(workflowImage)
+		if err != nil {
+			continue
+		}
+		if evidence.RepositoryID == "" {
 			continue
 		}
 		for _, ev := range runs {
-			if payloadString(ev.run.Payload, "repository_id") != repositoryID {
+			if derefString(ev.runDecoded.RepositoryID) != evidence.RepositoryID {
 				continue
 			}
 			ev.workflowImages = append(ev.workflowImages, workflowImage)
@@ -29,10 +44,14 @@ func classifyCICDWorkflowImageEvidence(
 	imageIndex map[string][]cicdImageIdentity,
 ) (CICDRunCorrelationDecision, bool) {
 	for _, workflowImage := range workflowImages {
-		if payloadString(workflowImage.Payload, "evidence_class") != "workflow_image_ref" {
+		evidence, err := decodeCICDWorkflowImageEvidence(workflowImage)
+		if err != nil {
 			continue
 		}
-		imageRef := payloadString(workflowImage.Payload, "image_ref")
+		if derefString(evidence.EvidenceClass) != "workflow_image_ref" {
+			continue
+		}
+		imageRef := derefString(evidence.ImageRef)
 		if imageRef == "" {
 			continue
 		}

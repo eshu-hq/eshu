@@ -1,0 +1,66 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/cicdrun/v1/workflow_image_evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "command_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_refs": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "job_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": "string"
+    },
+    "step_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workflow_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "repository_id"
+  ],
+  "title": "Eshu ci.workflow_image_evidence Payload (schema version 1)",
+  "type": "object"
+}

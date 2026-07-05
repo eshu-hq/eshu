@@ -75,6 +75,8 @@ type Paths struct {
 	SBOMStructDir string
 	// VulnerabilityStructDir is sdk/go/factschema/vulnerability/v1.
 	VulnerabilityStructDir string
+	// CICDRunStructDir is sdk/go/factschema/cicdrun/v1.
+	CICDRunStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -111,38 +113,30 @@ func ResolvePaths(p Paths) Paths {
 	if strings.TrimSpace(resolved.SchemaDir) == "" {
 		resolved.SchemaDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "schema")
 	}
-	if strings.TrimSpace(resolved.AWSStructDir) == "" {
-		resolved.AWSStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "aws", "v1")
-	}
-	if strings.TrimSpace(resolved.IAMStructDir) == "" {
-		resolved.IAMStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "iam", "v1")
-	}
-	if strings.TrimSpace(resolved.IncidentStructDir) == "" {
-		resolved.IncidentStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "incident", "v1")
-	}
-	if strings.TrimSpace(resolved.GCPStructDir) == "" {
-		resolved.GCPStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "gcp", "v1")
-	}
-	if strings.TrimSpace(resolved.AzureStructDir) == "" {
-		resolved.AzureStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "azure", "v1")
-	}
-	if strings.TrimSpace(resolved.KubernetesLiveStructDir) == "" {
-		resolved.KubernetesLiveStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "kuberneteslive", "v1")
-	}
-	if strings.TrimSpace(resolved.OCIRegistryStructDir) == "" {
-		resolved.OCIRegistryStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "ociregistry", "v1")
-	}
-	if strings.TrimSpace(resolved.TerraformStateStructDir) == "" {
-		resolved.TerraformStateStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "terraformstate", "v1")
-	}
-	if strings.TrimSpace(resolved.PackageRegistryStructDir) == "" {
-		resolved.PackageRegistryStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "packageregistry", "v1")
-	}
-	if strings.TrimSpace(resolved.SBOMStructDir) == "" {
-		resolved.SBOMStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "sbom", "v1")
-	}
-	if strings.TrimSpace(resolved.VulnerabilityStructDir) == "" {
-		resolved.VulnerabilityStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "vulnerability", "v1")
+	// Each family's *StructDir defaults to sdk/go/factschema/<family>/v1 when
+	// left empty. A data-driven fill (rather than one repeated 3-line
+	// if-block per family) keeps this function's length proportional to the
+	// number of typed families, not 3x that, as new families are added.
+	for _, family := range []struct {
+		dir  *string
+		name string
+	}{
+		{&resolved.AWSStructDir, "aws"},
+		{&resolved.IAMStructDir, "iam"},
+		{&resolved.IncidentStructDir, "incident"},
+		{&resolved.GCPStructDir, "gcp"},
+		{&resolved.AzureStructDir, "azure"},
+		{&resolved.KubernetesLiveStructDir, "kuberneteslive"},
+		{&resolved.OCIRegistryStructDir, "ociregistry"},
+		{&resolved.TerraformStateStructDir, "terraformstate"},
+		{&resolved.PackageRegistryStructDir, "packageregistry"},
+		{&resolved.SBOMStructDir, "sbom"},
+		{&resolved.VulnerabilityStructDir, "vulnerability"},
+		{&resolved.CICDRunStructDir, "cicdrun"},
+	} {
+		if strings.TrimSpace(*family.dir) == "" {
+			*family.dir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", family.name, "v1")
+		}
 	}
 	if strings.TrimSpace(resolved.ProjectorDir) == "" {
 		resolved.ProjectorDir = filepath.Join(resolved.RepoRoot, "go", "internal", "projector")
@@ -300,10 +294,10 @@ func mergeUsage(a, b map[string][]FieldUsage) map[string][]FieldUsage {
 // Load runs the full derivation pipeline against p (auto-resolving empty
 // fields via ResolvePaths): parse the reducer and projector decode seams, parse
 // the aws/v1, iam/v1, incident/v1, gcp/v1, azure/v1, kuberneteslive/v1,
-// ociregistry/v1, terraformstate/v1, packageregistry/v1, sbom/v1, and
-// vulnerability/v1 typed
-// shapes, scan the reducer and projector directories' files for field usage,
-// and join the three into a Manifest.
+// ociregistry/v1, terraformstate/v1, packageregistry/v1, sbom/v1,
+// vulnerability/v1, and cicdrun/v1 typed shapes, scan the reducer and
+// projector directories' files for field usage, and join the three into a
+// Manifest.
 //
 // It returns an error if any seam's fact kind has no schema-file mapping
 // (UnmappedSeamFactKinds) or if any seam's struct type was not found in the
@@ -391,7 +385,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes)+len(terraformStateShapes)+len(packageRegistryShapes)+len(sbomShapes)+len(vulnerabilityShapes))
+	cicdRunShapes, err := ParseStructShapes(resolved.CICDRunStructDir, "cicdrunv1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes)+len(terraformStateShapes)+len(packageRegistryShapes)+len(sbomShapes)+len(vulnerabilityShapes)+len(cicdRunShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
@@ -423,6 +421,9 @@ func Load(p Paths) (Manifest, error) {
 		shapes[k] = v
 	}
 	for k, v := range vulnerabilityShapes {
+		shapes[k] = v
+	}
+	for k, v := range cicdRunShapes {
 		shapes[k] = v
 	}
 

@@ -264,6 +264,31 @@ const (
 	// FactKindVulnerabilityGoCallReachability is the
 	// "vulnerability.go_call_reachability" fact kind.
 	FactKindVulnerabilityGoCallReachability = "vulnerability.go_call_reachability"
+
+	// The ci_cd_run family fact-kind strings are DOTTED, like the incident
+	// family. The dots are part of the wire kind the collector already emits
+	// (go/internal/facts.CICDRunFactKind and siblings); the values here MATCH
+	// those wire strings byte-for-byte and never invent or rename the
+	// namespace. TestFactSchemaKindsMatchWireFactKinds (reducer side) asserts
+	// each stays byte-equal to its facts.*FactKind counterpart.
+	// ci.job, ci.pipeline_definition, and ci.warning are emitted but have no
+	// reducer decode call today, so they are NOT declared here (cicdrun/v1
+	// AGENTS.md).
+
+	// FactKindCICDRun is the "ci.run" fact kind.
+	FactKindCICDRun = "ci.run"
+	// FactKindCICDArtifact is the "ci.artifact" fact kind.
+	FactKindCICDArtifact = "ci.artifact"
+	// FactKindCICDEnvironmentObservation is the "ci.environment_observation"
+	// fact kind.
+	FactKindCICDEnvironmentObservation = "ci.environment_observation"
+	// FactKindCICDTriggerEdge is the "ci.trigger_edge" fact kind.
+	FactKindCICDTriggerEdge = "ci.trigger_edge"
+	// FactKindCICDStep is the "ci.step" fact kind.
+	FactKindCICDStep = "ci.step"
+	// FactKindCICDWorkflowImageEvidence is the "ci.workflow_image_evidence"
+	// fact kind.
+	FactKindCICDWorkflowImageEvidence = "ci.workflow_image_evidence"
 )
 
 // Classification values a DecodeError carries. These are this module's own
