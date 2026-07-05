@@ -4,9 +4,121 @@
 package sql
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 )
+
+// maxSQLSegmentBytes bounds the size of a single statement segment handed to
+// tree-sitter. Legitimate DDL statements -- even wide CREATE TABLE or
+// CREATE INDEX statements seen in real schemas -- are far under this size.
+// Only an opaque routine body (CREATE FUNCTION/PROCEDURE ... AS $$ ... $$)
+// can exceed it, and tree-sitter parses such an opaque body superlinearly: a
+// ~1MB dollar-quoted plpgsql body measured >90s to parse and can hard-crash
+// the process via a tree-sitter error-recovery assertion
+// (`stack_node_retain`, SIGABRT) (#4422). 256 KiB is generous headroom above
+// any observed legitimate single statement while remaining small enough that
+// even a pathological segment parses in well under a second.
+const maxSQLSegmentBytes = 256 * 1024
+
+// elideOversizedDollarQuotedBodies replaces the interior of every
+// dollar-quoted body in text with an empty string when text exceeds
+// maxSQLSegmentBytes, keeping the opening and closing tag delimiters so the
+// result stays well-formed (`... AS $$$$ LANGUAGE plpgsql;`). This bounds the
+// buffer handed to tree-sitter without losing the routine's signature
+// (name, arguments, RETURNS, LANGUAGE), which all live outside the body. It
+// reports whether any edit was made. Segments at or under the cap are
+// returned unchanged.
+func elideOversizedDollarQuotedBodies(text string) (string, bool) {
+	if len(text) <= maxSQLSegmentBytes {
+		return text, false
+	}
+
+	var out strings.Builder
+	// Grow to the cap, not the full (potentially multi-megabyte) segment size:
+	// the whole point of this path is to bound resource use, and a well-formed
+	// elided segment is at most maxSQLSegmentBytes plus the retained delimiters.
+	out.Grow(maxSQLSegmentBytes)
+	edited := false
+	index := 0
+	length := len(text)
+	for index < length {
+		switch {
+		case strings.HasPrefix(text[index:], "--"):
+			skip := skipLineComment(text[index:])
+			out.WriteString(text[index : index+skip])
+			index += skip
+		case strings.HasPrefix(text[index:], "/*"):
+			skip := skipBlockComment(text[index:])
+			out.WriteString(text[index : index+skip])
+			index += skip
+		case text[index] == '\'':
+			skip := skipQuoted(text[index:], '\'')
+			out.WriteString(text[index : index+skip])
+			index += skip
+		case text[index] == '"':
+			skip := skipQuoted(text[index:], '"')
+			out.WriteString(text[index : index+skip])
+			index += skip
+		case text[index] == '`':
+			skip := skipQuoted(text[index:], '`')
+			out.WriteString(text[index : index+skip])
+			index += skip
+		case text[index] == '$':
+			if tag := sqlDollarQuoteTagAt(text[index:]); tag != "" {
+				skip := skipDollarQuoted(text[index:], tag)
+				body := text[index : index+skip]
+				if len(body) > 2*len(tag) {
+					out.WriteString(tag)
+					out.WriteString(tag)
+					edited = true
+				} else {
+					out.WriteString(body)
+				}
+				index += skip
+				continue
+			}
+			out.WriteByte(text[index])
+			index++
+		default:
+			out.WriteByte(text[index])
+			index++
+		}
+	}
+	return out.String(), edited
+}
+
+// sqlBoundedSegmentEvent records one segment whose size exceeded
+// maxSQLSegmentBytes and required bounding before (or instead of) a
+// tree-sitter parse. action is either "body_elided" (a dollar-quoted body was
+// elided and the bounded segment was still parsed) or "segment_skipped" (the
+// segment remained over the cap after elision and the tree-sitter parse was
+// skipped entirely for it).
+type sqlBoundedSegmentEvent struct {
+	path          string
+	segmentOffset int
+	originalBytes int
+	action        string
+}
+
+// row renders one bounded-segment event as a payload row for
+// payload["sql_parse_bounded"].
+func (e sqlBoundedSegmentEvent) row() map[string]any {
+	return map[string]any{
+		"path":           e.path,
+		"segment_offset": e.segmentOffset,
+		"original_bytes": e.originalBytes,
+		"action":         e.action,
+	}
+}
+
+// String renders a bounded-segment event for structured log output.
+func (e sqlBoundedSegmentEvent) String() string {
+	return "path=" + e.path +
+		" segment_offset=" + strconv.Itoa(e.segmentOffset) +
+		" original_bytes=" + strconv.Itoa(e.originalBytes) +
+		" action=" + e.action
+}
 
 // sqlSegment is one statement-sized slice of the original source with the byte
 // offset where it began. Offsets let the extractor map recovered nodes back to

@@ -27,8 +27,13 @@ storage, projector, query, or reducer code.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Parse timing remains owned by the
-collector snapshot path and parent parser engine.
+This package emits no metrics or spans; parse timing remains owned by the
+collector snapshot path and parent parser engine. It does emit one structured
+`slog.Warn` log line, `"sql parse segment bounded"`, when a statement segment
+exceeds `maxSQLSegmentBytes` and is bounded before (or instead of) a
+tree-sitter parse (#4422). See
+[Large-schema line-number lookup (#4422)](#large-schema-line-number-lookup-4422)
+below for the payload and log field shapes.
 
 ## Extraction strategy
 
@@ -85,6 +90,12 @@ prior regex behavior:
 - Highly dialect-specific statements outside the extracted construct set
   (sequences, types, policies, grants, vendor pragmas) are not extracted, the
   same as before.
+- A statement segment over `maxSQLSegmentBytes` (256 KiB) has its dollar-quoted
+  body elided, or its tree-sitter parse skipped entirely if still oversized
+  after elision (#4422, see below). The routine's own body-level table
+  mentions (`READS_FROM` relationships sourced from inside the elided or
+  skipped body) are lost in that case; the routine's signature entity is not.
+  This is recorded in `payload["sql_parse_bounded"]`, never silently dropped.
 
 ## Gotchas / invariants
 
@@ -152,6 +163,49 @@ Observability Evidence: No-Observability-Change. This package still emits no
 metrics, spans, logs, status fields, or runtime knobs. Operators continue to use
 collector parse-stage timing and `eshu_dp_file_parse_duration_seconds`; the new
 benchmark is the focused local proof for the public-safe large-schema shape.
+
+### Oversized dollar-quoted routine body (#4422)
+
+Root cause: a single `CREATE FUNCTION ... AS $$ <body> $$` statement whose
+dollar-quoted body is large is handed whole to tree-sitter (`parseSegment` in
+`language.go`), because the segmenter treats a dollar-quoted span as one
+un-split unit (`segments.go`). tree-sitter parses that opaque body
+superlinearly and can hard-crash the process via a tree-sitter error-recovery
+assertion (`stack_node_retain`, SIGABRT) on malformed/pathological input. There
+was previously no size cap anywhere in the SQL parser.
+
+Performance Evidence: characterized on this branch with a synthetic
+`CREATE FUNCTION` whose dollar-quoted plpgsql body was built from repeated
+`UPDATE users SET x = x + 1 WHERE id = 5;` lines. At a 1 MB body, parsing
+exceeded a 90-second test bound (a floor, not the true unbounded time) and was
+separately observed to crash the process via the tree-sitter assertion above;
+the corpus outlier this reproduces was reported in #4422 at approximately 1140s
+for one file. After bounding segments over `maxSQLSegmentBytes` (256 KiB) by
+eliding the interior of every dollar-quoted body (keeping the delimiters, so the
+buffer stays well-formed), `TestParseBoundsOversizedDollarQuotedFunctionBody`
+parses the same 1 MB-body shape in about 0.02s (`darwin/arm64`) with no crash --
+from a >90s floor (test-capped) to sub-second. Reproduce with:
+`go test ./internal/parser/sql -run TestParseBoundsOversizedDollarQuotedFunctionBody -v -count=1`.
+
+No-Regression Evidence: `TestParseSmallDollarQuotedFunctionIsUnaffected` proves
+an ordinary, under-cap dollar-quoted function still extracts its signature
+entity and its body table mention (`READS_FROM`) exactly as before, with no
+`sql_parse_bounded` entry. `TestSegmentBoundThresholdElidesOnlyOverCapBodies`
+proves the exact `maxSQLSegmentBytes` boundary: a segment just under the cap is
+untouched, one just over triggers elision.
+`TestParseDoesNotCrashOnPathologicalNonDollarQuotedSegment` proves a
+non-dollar-quoted oversized segment (which elision cannot shrink) still returns
+without panicking or hanging by skipping the tree-sitter parse for that segment
+(`action="segment_skipped"`). `BenchmarkParseComprehensive` remains unaffected
+(all its statements are far under the 256 KiB cap).
+
+Observability Evidence: every bounded segment is recorded in
+`payload["sql_parse_bounded"]` (fields: `path`, `segment_offset`,
+`original_bytes`, `action` = `"body_elided"` or `"segment_skipped"`) and
+logged via `slog.Warn("sql parse segment bounded", ...)` with the same fields
+plus `component="parser.sql"`, so a dropped routine body is observable, never
+silent. This is a genuine observability addition (see Telemetry above), not a
+No-Observability-Change.
 
 ## Related docs
 
