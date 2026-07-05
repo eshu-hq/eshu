@@ -345,6 +345,11 @@ func jsonNumberToInt64(raw any) (int64, error) {
 		if math.Trunc(n) != n {
 			return 0, fmt.Errorf("want integer, got non-integral number %v", n)
 		}
+		// int64 uses >= here (unlike jsonNumberToInt32's >) on purpose:
+		// math.MaxInt64 is not exactly representable as float64, so the constant
+		// rounds up to 2^63 in this comparison. A float64 that reaches 2^63 would
+		// overflow int64(n), so it must be rejected; every representable int64
+		// value below it (at most 2^63-2048 at this magnitude) still passes.
 		if n < math.MinInt64 || n >= math.MaxInt64 {
 			return 0, fmt.Errorf("number %v out of int64 range", n)
 		}

@@ -280,7 +280,7 @@ func ociImageManifestRow(envelope facts.Envelope) (OCIImageManifestRow, bool, er
 		SourceRecordID:       envelope.SourceRef.SourceRecordID,
 		SourceConfidence:     envelope.SourceConfidence,
 		CollectorKind:        envelope.CollectorKind,
-		CorrelationAnchors:   ociUniqueSortedAnchors(manifest.CorrelationAnchors),
+		CorrelationAnchors:   ociSortedTrimmedAnchors(manifest.CorrelationAnchors),
 		CollectorInstanceID:  ociDerefString(manifest.CollectorInstanceID),
 		ResolvedDescriptorID: uid,
 		ObservedAt:           envelope.ObservedAt,
@@ -314,7 +314,7 @@ func ociImageIndexRow(envelope facts.Envelope) (OCIImageIndexRow, bool, error) {
 		SourceRecordID:     envelope.SourceRef.SourceRecordID,
 		SourceConfidence:   envelope.SourceConfidence,
 		CollectorKind:      envelope.CollectorKind,
-		CorrelationAnchors: ociUniqueSortedAnchors(index.CorrelationAnchors),
+		CorrelationAnchors: ociSortedTrimmedAnchors(index.CorrelationAnchors),
 		ObservedAt:         envelope.ObservedAt,
 	}, true, nil
 }

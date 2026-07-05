@@ -32,7 +32,8 @@ import (
 // decodeOCIImageManifestForIndex decodes an oci_registry.image_manifest or
 // oci_registry.image_index envelope's typed fields for the container-image
 // registry index. It returns ok=false on a decode error (the projector already
-// dead-lettered the malformed fact) or when the digest identity is empty.
+// dead-lettered the malformed fact). Digest-identity emptiness is enforced by
+// the caller (ociDigestObservation), not here.
 func decodeOCIImageManifestForIndex(env facts.Envelope) (ociregistryv1.ImageManifest, bool) {
 	manifest, err := factschema.DecodeOCIImageManifest(factschemaEnvelope(env))
 	if err != nil {

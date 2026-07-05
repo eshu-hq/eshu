@@ -153,11 +153,11 @@ func ociDescriptorSliceDigests(descriptors []ociregistryv1.Descriptor) []string 
 	return digests
 }
 
-// ociUniqueSortedAnchors returns the trimmed, non-empty, sorted correlation
+// ociSortedTrimmedAnchors returns the trimmed, non-empty, sorted correlation
 // anchors from a typed []string, preserving the pre-typing ociCorrelationAnchors
 // behavior. It returns nil for an empty result so the row field stays nil,
 // byte-identical to the old raw read.
-func ociUniqueSortedAnchors(anchors []string) []string {
+func ociSortedTrimmedAnchors(anchors []string) []string {
 	if len(anchors) == 0 {
 		return nil
 	}
