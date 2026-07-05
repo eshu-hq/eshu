@@ -48,6 +48,13 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 		{"kubernetes_live.pod_template", factschema.FactKindKubernetesLivePodTemplate, facts.KubernetesPodTemplateFactKind},
 		{"kubernetes_live.relationship", factschema.FactKindKubernetesLiveRelationship, facts.KubernetesRelationshipFactKind},
 		{"kubernetes_live.warning", factschema.FactKindKubernetesLiveWarning, facts.KubernetesWarningFactKind},
+		{"oci_registry.repository", factschema.FactKindOCIRegistryRepository, facts.OCIRegistryRepositoryFactKind},
+		{"oci_registry.image_manifest", factschema.FactKindOCIImageManifest, facts.OCIImageManifestFactKind},
+		{"oci_registry.image_index", factschema.FactKindOCIImageIndex, facts.OCIImageIndexFactKind},
+		{"oci_registry.image_descriptor", factschema.FactKindOCIImageDescriptor, facts.OCIImageDescriptorFactKind},
+		{"oci_registry.image_tag_observation", factschema.FactKindOCIImageTagObservation, facts.OCIImageTagObservationFactKind},
+		{"oci_registry.image_referrer", factschema.FactKindOCIImageReferrer, facts.OCIImageReferrerFactKind},
+		{"oci_registry.warning", factschema.FactKindOCIRegistryWarning, facts.OCIRegistryWarningFactKind},
 	}
 
 	for _, tc := range cases {

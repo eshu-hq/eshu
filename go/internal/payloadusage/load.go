@@ -65,6 +65,20 @@ type Paths struct {
 	AzureStructDir string
 	// KubernetesLiveStructDir is sdk/go/factschema/kuberneteslive/v1.
 	KubernetesLiveStructDir string
+	// OCIRegistryStructDir is sdk/go/factschema/ociregistry/v1.
+	OCIRegistryStructDir string
+	// ProjectorDir is go/internal/projector — the source of the projector's
+	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
+	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
+	// the primary graph-identity producer for the oci_registry family (its
+	// canonical extractor decodes through the same sdk/go/factschema seam the
+	// reducer uses), so the manifest gate must scan it alongside ReducerDir.
+	ProjectorDir string
+	// ProjectorDecodeFiles is the set of projector decode-seam files to parse.
+	// When empty, ResolvePaths does NOT default it (same rationale as
+	// DecodeFiles); resolveProjectorDecodeFiles fills it by globbing
+	// factschema_decode*.go under ProjectorDir.
+	ProjectorDecodeFiles []string
 }
 
 // ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
@@ -106,6 +120,12 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.KubernetesLiveStructDir) == "" {
 		resolved.KubernetesLiveStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "kuberneteslive", "v1")
+	}
+	if strings.TrimSpace(resolved.OCIRegistryStructDir) == "" {
+		resolved.OCIRegistryStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "ociregistry", "v1")
+	}
+	if strings.TrimSpace(resolved.ProjectorDir) == "" {
+		resolved.ProjectorDir = filepath.Join(resolved.RepoRoot, "go", "internal", "projector")
 	}
 	// DecodeFile / DecodeFiles are intentionally NOT defaulted here: the glob
 	// path can fail, and ResolvePaths returns no error. resolveDecodeFiles (from
@@ -151,6 +171,35 @@ func resolveDecodeFiles(p Paths) ([]string, error) {
 	return files, nil
 }
 
+// resolveProjectorDecodeFiles returns the set of projector decode-seam files to
+// parse. When ProjectorDecodeFiles is already set it is returned as-is;
+// otherwise it globs every factschema_decode*.go under ProjectorDir so a
+// projector family whose wrappers live in a split file is covered, mirroring
+// resolveDecodeFiles for the reducer. Unlike the reducer glob, an EMPTY match is
+// NOT an error: the projector has exactly one typed family today (oci_registry),
+// so a repo checkout with no projector decode seam is a valid intermediate
+// state, not a fail-closed misconfiguration. The reducer glob remains
+// fail-closed because the reducer always has at least the AWS decode seam.
+func resolveProjectorDecodeFiles(p Paths) ([]string, error) {
+	if len(p.ProjectorDecodeFiles) > 0 {
+		return p.ProjectorDecodeFiles, nil
+	}
+	pattern := filepath.Join(p.ProjectorDir, "factschema_decode*.go")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("payloadusage: glob projector decode seam files %s: %w", pattern, err)
+	}
+	files := matches[:0]
+	for _, m := range matches {
+		if strings.HasSuffix(m, "_test.go") {
+			continue
+		}
+		files = append(files, m)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
 // parseDecodeSeamsFiles parses every file in files and returns the merged seam
 // set, sorted by FuncName. A function name appearing in more than one file is a
 // programming error (each decode<Kind> wrapper is defined once), reported rather
@@ -178,11 +227,61 @@ func parseDecodeSeamsFiles(files []string) ([]DecodeSeam, error) {
 	return merged, nil
 }
 
+// mergeSeams returns the union of two decode-seam sets, sorted by FuncName. A
+// decode function is defined in exactly one directory (the reducer's registry
+// index uses a distinct *ForIndex name that is not a seam, so it never collides
+// with a projector seam), so a same-FuncName appearing in both is a real
+// duplication bug the caller should never produce; when it happens the later
+// (projector) entry wins deterministically after the sort, and the collision is
+// harmless because both would map the same fact kind to the same struct. The
+// merged set is what the manifest is derived from across both pipeline stages.
+func mergeSeams(a, b []DecodeSeam) []DecodeSeam {
+	byName := make(map[string]DecodeSeam, len(a)+len(b))
+	for _, s := range a {
+		byName[s.FuncName] = s
+	}
+	for _, s := range b {
+		byName[s.FuncName] = s
+	}
+	merged := make([]DecodeSeam, 0, len(byName))
+	for _, s := range byName {
+		merged = append(merged, s)
+	}
+	sort.Slice(merged, func(i, j int) bool { return merged[i].FuncName < merged[j].FuncName })
+	return merged
+}
+
+// mergeUsage returns the union of two decode-func -> field-usage maps (reducer
+// and projector), concatenating the usage slices for a decode func that both
+// stages read (a fact kind decoded in both pipeline stages, e.g. an oci kind the
+// projector projects and the reducer correlates), then re-sorting each merged
+// slice by (File, GoFieldName) so the manifest stays deterministic regardless of
+// scan order.
+func mergeUsage(a, b map[string][]FieldUsage) map[string][]FieldUsage {
+	merged := make(map[string][]FieldUsage, len(a)+len(b))
+	for fn, uses := range a {
+		merged[fn] = append(merged[fn], uses...)
+	}
+	for fn, uses := range b {
+		merged[fn] = append(merged[fn], uses...)
+	}
+	for fn := range merged {
+		sort.Slice(merged[fn], func(i, j int) bool {
+			x, y := merged[fn][i], merged[fn][j]
+			if x.File != y.File {
+				return x.File < y.File
+			}
+			return x.GoFieldName < y.GoFieldName
+		})
+	}
+	return merged
+}
+
 // Load runs the full derivation pipeline against p (auto-resolving empty
-// fields via ResolvePaths): parse the decode seams, parse the aws/v1, iam/v1,
-// incident/v1, gcp/v1, azure/v1, and kuberneteslive/v1 typed struct shapes,
-// scan the reducer directory's handler files for field usage, and join the
-// three into a Manifest.
+// fields via ResolvePaths): parse the reducer and projector decode seams, parse
+// the aws/v1, iam/v1, incident/v1, gcp/v1, azure/v1, kuberneteslive/v1, and
+// ociregistry/v1 typed struct shapes, scan the reducer and projector
+// directories' files for field usage, and join the three into a Manifest.
 //
 // It returns an error if any seam's fact kind has no schema-file mapping
 // (UnmappedSeamFactKinds) or if any seam's struct type was not found in the
@@ -196,13 +295,29 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	seams, err := parseDecodeSeamsFiles(decodeFiles)
+	reducerSeams, err := parseDecodeSeamsFiles(decodeFiles)
 	if err != nil {
 		return Manifest{}, err
 	}
-	if len(seams) == 0 {
+	if len(reducerSeams) == 0 {
 		return Manifest{}, fmt.Errorf("payloadusage: no decode seams found in %s", strings.Join(decodeFiles, ", "))
 	}
+
+	// The projector is the primary graph-identity producer for the oci_registry
+	// family: its canonical extractor decodes through the same sdk/go/factschema
+	// seam the reducer uses. Parse its decode-seam files and merge them so the
+	// manifest gate covers projector decode sites too. An empty projector seam
+	// set is valid (only oci_registry is typed in the projector today).
+	projectorDecodeFiles, err := resolveProjectorDecodeFiles(resolved)
+	if err != nil {
+		return Manifest{}, err
+	}
+	projectorSeams, err := parseDecodeSeamsFiles(projectorDecodeFiles)
+	if err != nil {
+		return Manifest{}, err
+	}
+	seams := mergeSeams(reducerSeams, projectorSeams)
+
 	if missing := UnmappedSeamFactKinds(seams); len(missing) > 0 {
 		return Manifest{}, fmt.Errorf(
 			"payloadusage: %d decode seam(s) have no schema-file mapping in factKindSchemaFile: %s — add the mapping before this kind can be gated",
@@ -234,7 +349,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes))
+	ociShapes, err := ParseStructShapes(resolved.OCIRegistryStructDir, "ociregistryv1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
@@ -253,11 +372,22 @@ func Load(p Paths) (Manifest, error) {
 	for k, v := range kubernetesLiveShapes {
 		shapes[k] = v
 	}
+	for k, v := range ociShapes {
+		shapes[k] = v
+	}
 
-	usage, err := ScanDecodeUsage(resolved.ReducerDir, seams)
+	// Scan BOTH the reducer and the projector directories for field usage
+	// against the merged seam set, so a field a projector canonical extractor
+	// reads off a decoded struct is gated the same as a reducer handler read.
+	reducerUsage, err := ScanDecodeUsage(resolved.ReducerDir, seams)
 	if err != nil {
 		return Manifest{}, err
 	}
+	projectorUsage, err := ScanDecodeUsage(resolved.ProjectorDir, seams)
+	if err != nil {
+		return Manifest{}, err
+	}
+	usage := mergeUsage(reducerUsage, projectorUsage)
 
 	manifest := BuildManifest(seams, shapes, usage)
 	if err := verifyEverySeamProduced(seams, manifest); err != nil {

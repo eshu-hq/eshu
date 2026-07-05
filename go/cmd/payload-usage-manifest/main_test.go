@@ -51,8 +51,8 @@ func TestRunGenerateAgainstRealRepoProducesNonTrivialManifest(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &manifest); err != nil {
 		t.Fatalf("generate output is not valid JSON: %v\noutput:\n%s", err, stdout.String())
 	}
-	if len(manifest.Kinds) != 19 {
-		t.Fatalf("len(Kinds) = %d, want 19 (8 aws/iam + 4 wired incident + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live kinds via the factschema_decode*.go glob)", len(manifest.Kinds))
+	if len(manifest.Kinds) != 25 {
+		t.Fatalf("len(Kinds) = %d, want 25 (8 aws/iam + 4 wired incident + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live reducer kinds + 6 projector oci_registry kinds via the reducer and projector factschema_decode*.go globs)", len(manifest.Kinds))
 	}
 
 	var foundNonTrivial bool
