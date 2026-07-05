@@ -316,3 +316,38 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 		t.Fatalf("exempt count %d != committed exemptions %d", board.Exempt, len(m.LanguageExemptions))
 	}
 }
+
+func TestLoadRealManifestCoversDirectoryDeltaTombstone(t *testing.T) {
+	// Directory is the #4186 tombstone class. Its C-14 row must point to the
+	// R-17 multi-generation cassette whose replay-tier live test proves the
+	// tombstoned Directory is removed on the real backend.
+	specs := repoSpecsDir(t)
+	m, err := LoadManifest(filepath.Join(specs, ManifestFileName))
+	if err != nil {
+		t.Fatalf("LoadManifest(real): %v", err)
+	}
+
+	const (
+		wantSurface = "retractable_node:Directory"
+		wantRef     = "testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+	)
+	for _, entry := range m.Coverage {
+		if entry.Surface != wantSurface || entry.ScenarioType != ScenarioTypeDeltaTombstone {
+			continue
+		}
+		if entry.Scenario != ScenarioCassette {
+			t.Fatalf("%s scenario = %q, want %q", wantSurface, entry.Scenario, ScenarioCassette)
+		}
+		if entry.Ref != wantRef {
+			t.Fatalf("%s ref = %q, want %q", wantSurface, entry.Ref, wantRef)
+		}
+		if entry.ProofGate != "replay-tier" {
+			t.Fatalf("%s proof_gate = %q, want replay-tier", wantSurface, entry.ProofGate)
+		}
+		if ok, detail := (ArtifactResolver{RepoRoot: filepath.Dir(specs)}).Resolve(entry); !ok {
+			t.Fatalf("%s artifact did not resolve: %s", wantSurface, detail)
+		}
+		return
+	}
+	t.Fatalf("committed manifest is missing %s %s coverage", wantSurface, ScenarioTypeDeltaTombstone)
+}
