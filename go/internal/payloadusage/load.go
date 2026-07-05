@@ -71,6 +71,8 @@ type Paths struct {
 	TerraformStateStructDir string
 	// PackageRegistryStructDir is sdk/go/factschema/packageregistry/v1.
 	PackageRegistryStructDir string
+	// SBOMStructDir is sdk/go/factschema/sbom/v1.
+	SBOMStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -133,6 +135,9 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.PackageRegistryStructDir) == "" {
 		resolved.PackageRegistryStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "packageregistry", "v1")
+	}
+	if strings.TrimSpace(resolved.SBOMStructDir) == "" {
+		resolved.SBOMStructDir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", "sbom", "v1")
 	}
 	if strings.TrimSpace(resolved.ProjectorDir) == "" {
 		resolved.ProjectorDir = filepath.Join(resolved.RepoRoot, "go", "internal", "projector")
@@ -290,7 +295,7 @@ func mergeUsage(a, b map[string][]FieldUsage) map[string][]FieldUsage {
 // Load runs the full derivation pipeline against p (auto-resolving empty
 // fields via ResolvePaths): parse the reducer and projector decode seams, parse
 // the aws/v1, iam/v1, incident/v1, gcp/v1, azure/v1, kuberneteslive/v1,
-// ociregistry/v1, terraformstate/v1, and packageregistry/v1 typed struct
+// ociregistry/v1, terraformstate/v1, packageregistry/v1, and sbom/v1 typed
 // shapes, scan the reducer and projector directories' files for field usage,
 // and join the three into a Manifest.
 //
@@ -372,7 +377,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes)+len(terraformStateShapes)+len(packageRegistryShapes))
+	sbomShapes, err := ParseStructShapes(resolved.SBOMStructDir, "sbomv1")
+	if err != nil {
+		return Manifest{}, err
+	}
+	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes)+len(terraformStateShapes)+len(packageRegistryShapes)+len(sbomShapes))
 	for k, v := range awsShapes {
 		shapes[k] = v
 	}
@@ -398,6 +407,9 @@ func Load(p Paths) (Manifest, error) {
 		shapes[k] = v
 	}
 	for k, v := range packageRegistryShapes {
+		shapes[k] = v
+	}
+	for k, v := range sbomShapes {
 		shapes[k] = v
 	}
 

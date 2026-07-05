@@ -1,0 +1,45 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/sbom/v1/signature_verification.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "document_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "statement_id": {
+      "type": "string"
+    },
+    "verification_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_result": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_subject": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "statement_id"
+  ],
+  "title": "Eshu attestation.signature_verification Payload (schema version 1)",
+  "type": "object"
+}

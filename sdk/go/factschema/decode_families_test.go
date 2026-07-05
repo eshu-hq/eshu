@@ -264,6 +264,30 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindPackageRegistryWarning:
 		_, err := DecodePackageRegistryWarning(env)
 		return err
+	case FactKindSBOMDocument:
+		_, err := DecodeSBOMDocument(env)
+		return err
+	case FactKindSBOMComponent:
+		_, err := DecodeSBOMComponent(env)
+		return err
+	case FactKindSBOMDependencyRelationship:
+		_, err := DecodeSBOMDependencyRelationship(env)
+		return err
+	case FactKindSBOMExternalReference:
+		_, err := DecodeSBOMExternalReference(env)
+		return err
+	case FactKindSBOMWarning:
+		_, err := DecodeSBOMWarning(env)
+		return err
+	case FactKindAttestationStatement:
+		_, err := DecodeAttestationStatement(env)
+		return err
+	case FactKindAttestationSignatureVerification:
+		_, err := DecodeAttestationSignatureVerification(env)
+		return err
+	case FactKindAttestationSLSAProvenance:
+		_, err := DecodeAttestationSLSAProvenance(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -326,6 +350,14 @@ var allDecodedKinds = []string{
 	FactKindPackageRegistryRegistryEvent,
 	FactKindPackageRegistryRepositoryHosting,
 	FactKindPackageRegistryWarning,
+	FactKindSBOMDocument,
+	FactKindSBOMComponent,
+	FactKindSBOMDependencyRelationship,
+	FactKindSBOMExternalReference,
+	FactKindSBOMWarning,
+	FactKindAttestationStatement,
+	FactKindAttestationSignatureVerification,
+	FactKindAttestationSLSAProvenance,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -532,6 +564,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodePackageRegistryRepositoryHosting(env)
 			case FactKindPackageRegistryWarning:
 				_, err = DecodePackageRegistryWarning(env)
+			case FactKindSBOMDocument:
+				_, err = DecodeSBOMDocument(env)
+			case FactKindSBOMComponent:
+				_, err = DecodeSBOMComponent(env)
+			case FactKindSBOMDependencyRelationship:
+				_, err = DecodeSBOMDependencyRelationship(env)
+			case FactKindSBOMExternalReference:
+				_, err = DecodeSBOMExternalReference(env)
+			case FactKindSBOMWarning:
+				_, err = DecodeSBOMWarning(env)
+			case FactKindAttestationStatement:
+				_, err = DecodeAttestationStatement(env)
+			case FactKindAttestationSignatureVerification:
+				_, err = DecodeAttestationSignatureVerification(env)
+			case FactKindAttestationSLSAProvenance:
+				_, err = DecodeAttestationSLSAProvenance(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

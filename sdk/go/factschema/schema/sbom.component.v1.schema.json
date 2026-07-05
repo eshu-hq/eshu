@@ -1,0 +1,81 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/sbom/v1/component.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "component_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cpe": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_scope": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "document_id": {
+      "type": "string"
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "extraction_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lockfile_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "purl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "document_id"
+  ],
+  "title": "Eshu sbom.component Payload (schema version 1)",
+  "type": "object"
+}

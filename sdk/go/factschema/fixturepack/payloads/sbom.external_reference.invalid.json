@@ -1,0 +1,5 @@
+{
+  "component_id": "fp:sbom-component:example-lib@2.3.1",
+  "reference_type": "website",
+  "reference_url": "https://example.com/example-lib"
+}

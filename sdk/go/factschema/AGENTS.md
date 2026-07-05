@@ -46,13 +46,20 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
 - This module carries the AWS/IAM/security-group fact family (`aws_resource`,
   `aws_relationship`, `aws_security_group_rule`, `ec2_instance_posture`,
   `s3_bucket_posture`, `aws_iam_permission`, `aws_resource_policy_permission`,
-  `aws_iam_principal`) and the incident family (`incident.record`,
+  `aws_iam_principal`), the incident family (`incident.record`,
   `incident.lifecycle_event`, `change.record`,
   `incident_routing.applied_pagerduty_resource`,
   `incident_routing.applied_alert_route`,
   `incident_routing.observed_pagerduty_service`,
   `incident_routing.observed_pagerduty_integration`,
-  `incident_routing.coverage_warning`). When you add a new kind, add its typed
+  `incident_routing.coverage_warning`), and (among others added by later
+  waves — see `gcp/v1`, `azure/v1`, `kuberneteslive/v1`, `ociregistry/v1`,
+  `terraformstate/v1` READMEs) the sbom_attestation family (`sbom.document`,
+  `sbom.component`, `sbom.dependency_relationship`, `sbom.external_reference`,
+  `sbom.warning`, `attestation.statement`,
+  `attestation.signature_verification`, `attestation.slsa_provenance` — see
+  `sbom/v1/README.md` for which are wired versus typed-but-deferred). When you
+  add a new kind, add its typed
   struct under `<family>/v1` (its required set is whatever the struct's own json
   tags declare — there is no separate registration step), its
   `Decode<Kind>`/`Encode<Kind>` and `FactKind<Kind>` in the family's

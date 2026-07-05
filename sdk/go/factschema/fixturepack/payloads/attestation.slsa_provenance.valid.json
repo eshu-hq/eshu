@@ -1,0 +1,5 @@
+{
+  "statement_id": "fp:attestation-stmt:example-app@1.0.0",
+  "predicate_type": "https://slsa.dev/provenance/v1",
+  "builder_id": "https://example.com/builders/example-ci@v1"
+}

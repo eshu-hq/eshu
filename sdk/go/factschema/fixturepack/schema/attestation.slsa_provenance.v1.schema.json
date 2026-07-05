@@ -1,0 +1,27 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/sbom/v1/slsa_provenance.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "builder_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "predicate_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "statement_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "statement_id"
+  ],
+  "title": "Eshu attestation.slsa_provenance Payload (schema version 1)",
+  "type": "object"
+}
