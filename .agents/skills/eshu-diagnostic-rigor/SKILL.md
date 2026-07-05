@@ -171,3 +171,12 @@ false leads.
   processing, graph write, and completion/ack before tuning workers.
 - NornicDB performance depends on exact Cypher shape, label/index lookup,
   relationship-existence checks, transaction validation, and commit behavior.
+- A shim or `EXPLAIN (ANALYZE, BUFFERS)` proves query SHAPE; only a re-drain of
+  the built binary against the real worst-case backlog proves WALL-CLOCK. A
+  small-N EXPLAIN can pass while the live drain exposes a missing `AS
+  MATERIALIZED` (CTE re-inlined per reference) or a residual correlated subquery
+  (O(N^2) tail). End the proof ladder on the binary, not the EXPLAIN.
+- A row-set equivalence differential (bidirectional `EXCEPT` / set+order 0/0)
+  proves the candidate SET, not locking or lease behavior — it drops `FOR
+  UPDATE`. Any claim/lock/lease/queue rewrite needs a separate concurrency proof
+  (contention / EvalPlanQual recheck / lease-safety).

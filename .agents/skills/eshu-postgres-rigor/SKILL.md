@@ -87,6 +87,13 @@ is a Postgres read, claim, lock, or completion statement.
 - Use TDD for SQL or schema behavior changes.
 - Add focused storage tests for predicate/lifecycle fixes.
 - Add integration or fixture-plan evidence for query-plan/index changes.
+- `AS MATERIALIZED` is load-bearing for COST when a CTE is referenced more than
+  once (Postgres otherwise re-inlines and re-evaluates it per reference). Assert
+  its presence in a query-shape test so a future edit cannot silently drop it.
+- Freeze a differential's expected query by DERIVING it from the shipped query
+  constant (truncate at a stable boundary marker, append a read-only tail), never
+  by hand-copying — a hand-frozen copy drifts and goes false-green. Add a hermetic
+  prefix guard asserting the derived string is a byte-prefix of production.
 - Run affected `go/internal/storage/postgres` tests and `git diff --check`.
 - For hot paths, include `Performance Evidence:` or `No-Regression Evidence:`
   and `Observability Evidence:` or `No-Observability-Change:` in durable docs,

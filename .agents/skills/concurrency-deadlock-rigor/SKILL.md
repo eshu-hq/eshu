@@ -53,6 +53,12 @@ owned dispatch variant, not one representative query or handler. Include:
 - dead-letter replay returning to the intended queue state
 - concurrent workers touching the same conflict domain
 - empty or already-drained queue state
+- a claim/lock/lease rewrite that relocates `FOR UPDATE` off the
+  predicate-bearing SELECT onto an id-join lock CTE: under Read Committed the row
+  lock re-runs only the locking level's quals (EvalPlanQual recheck), so re-apply
+  the row-self lease/status/visibility predicates on the locked relation and prove
+  a row another worker claimed and committed between snapshot and lock is dropped.
+  Row-set equivalence does NOT cover this.
 
 ## Observability
 

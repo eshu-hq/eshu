@@ -304,7 +304,16 @@ Check:
   worker knobs, and full-corpus or no-regression evidence;
 - missing instrumentation or missing `Performance Evidence:`,
   `Benchmark Evidence:`, `No-Regression Evidence:`, `Observability Evidence:`,
-  or `No-Observability-Change:` markers when required.
+  or `No-Observability-Change:` markers when required;
+- for a claim/lock/lease/queue rewrite: a concurrency proof (contention /
+  EvalPlanQual recheck / lease-safety), not only a row-set equivalence
+  differential — the differential drops `FOR UPDATE` and cannot catch lease theft;
+- a wall-clock proof on the BUILT BINARY against the real worst-case backlog, not
+  only a small-N `EXPLAIN` (which can hide a missing `AS MATERIALIZED` re-inline or
+  an O(N^2) residual subquery);
+- a differential whose "expected" query is hand-frozen (drift → false-green)
+  rather than derived from the shipped constant with a hermetic prefix guard, and
+  any DSN-gated proof that SKIPS in CI without a hermetic in-CI structural guard.
 
 ### NornicDB/Cypher Review
 
