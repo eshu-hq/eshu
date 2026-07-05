@@ -19,6 +19,7 @@ import (
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
@@ -901,4 +902,84 @@ const CICDWorkflowImageEvidenceSchemaID = schemaBaseID + "cicdrun/v1/workflow_im
 // cicdrunv1.WorkflowImageEvidence.
 func CICDWorkflowImageEvidenceSchema() ([]byte, error) {
 	return reflectSchema(CICDWorkflowImageEvidenceSchemaID, "Eshu ci.workflow_image_evidence Payload (schema version 1)", &cicdrunv1.WorkflowImageEvidence{})
+}
+
+// VaultAuthRoleSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "vault_auth_role" payload.
+const VaultAuthRoleSchemaID = schemaBaseID + "secretsiam/v1/vault_auth_role.schema.json"
+
+// VaultAuthRoleSchema returns the JSON Schema bytes for
+// secretsiamv1.VaultAuthRole.
+func VaultAuthRoleSchema() ([]byte, error) {
+	return reflectSchema(VaultAuthRoleSchemaID, "Eshu vault_auth_role Payload (schema version 1)", &secretsiamv1.VaultAuthRole{})
+}
+
+// VaultACLPolicySchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "vault_acl_policy" payload.
+const VaultACLPolicySchemaID = schemaBaseID + "secretsiam/v1/vault_acl_policy.schema.json"
+
+// VaultACLPolicySchema returns the JSON Schema bytes for
+// secretsiamv1.VaultACLPolicy.
+func VaultACLPolicySchema() ([]byte, error) {
+	return reflectSchema(VaultACLPolicySchemaID, "Eshu vault_acl_policy Payload (schema version 1)", &secretsiamv1.VaultACLPolicy{})
+}
+
+// VaultKVMetadataSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "vault_kv_metadata" payload.
+const VaultKVMetadataSchemaID = schemaBaseID + "secretsiam/v1/vault_kv_metadata.schema.json"
+
+// VaultKVMetadataSchema returns the JSON Schema bytes for
+// secretsiamv1.VaultKVMetadata.
+func VaultKVMetadataSchema() ([]byte, error) {
+	return reflectSchema(VaultKVMetadataSchemaID, "Eshu vault_kv_metadata Payload (schema version 1)", &secretsiamv1.VaultKVMetadata{})
+}
+
+// KubernetesServiceAccountSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "k8s_service_account" payload.
+const KubernetesServiceAccountSchemaID = schemaBaseID + "secretsiam/v1/k8s_service_account.schema.json"
+
+// KubernetesServiceAccountSchema returns the JSON Schema bytes for
+// secretsiamv1.KubernetesServiceAccount.
+func KubernetesServiceAccountSchema() ([]byte, error) {
+	return reflectSchema(KubernetesServiceAccountSchemaID, "Eshu k8s_service_account Payload (schema version 1)", &secretsiamv1.KubernetesServiceAccount{})
+}
+
+// KubernetesWorkloadIdentityUseSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "k8s_workload_identity_use" payload.
+const KubernetesWorkloadIdentityUseSchemaID = schemaBaseID + "secretsiam/v1/k8s_workload_identity_use.schema.json"
+
+// KubernetesWorkloadIdentityUseSchema returns the JSON Schema bytes for
+// secretsiamv1.KubernetesWorkloadIdentityUse.
+func KubernetesWorkloadIdentityUseSchema() ([]byte, error) {
+	return reflectSchema(KubernetesWorkloadIdentityUseSchemaID, "Eshu k8s_workload_identity_use Payload (schema version 1)", &secretsiamv1.KubernetesWorkloadIdentityUse{})
+}
+
+// EKSIRSAAnnotationSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "eks_irsa_annotation" payload.
+const EKSIRSAAnnotationSchemaID = schemaBaseID + "secretsiam/v1/eks_irsa_annotation.schema.json"
+
+// EKSIRSAAnnotationSchema returns the JSON Schema bytes for
+// secretsiamv1.EKSIRSAAnnotation.
+func EKSIRSAAnnotationSchema() ([]byte, error) {
+	return reflectSchema(EKSIRSAAnnotationSchemaID, "Eshu eks_irsa_annotation Payload (schema version 1)", &secretsiamv1.EKSIRSAAnnotation{})
+}
+
+// EKSPodIdentityAssociationSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "eks_pod_identity_association" payload.
+const EKSPodIdentityAssociationSchemaID = schemaBaseID + "secretsiam/v1/eks_pod_identity_association.schema.json"
+
+// EKSPodIdentityAssociationSchema returns the JSON Schema bytes for
+// secretsiamv1.EKSPodIdentityAssociation.
+func EKSPodIdentityAssociationSchema() ([]byte, error) {
+	return reflectSchema(EKSPodIdentityAssociationSchemaID, "Eshu eks_pod_identity_association Payload (schema version 1)", &secretsiamv1.EKSPodIdentityAssociation{})
+}
+
+// KubernetesGCPWorkloadIdentityBindingSchemaID is the checked-in JSON Schema
+// $id for the schema-version-1 "k8s_gcp_workload_identity_binding" payload.
+const KubernetesGCPWorkloadIdentityBindingSchemaID = schemaBaseID + "secretsiam/v1/k8s_gcp_workload_identity_binding.schema.json"
+
+// KubernetesGCPWorkloadIdentityBindingSchema returns the JSON Schema bytes
+// for secretsiamv1.KubernetesGCPWorkloadIdentityBinding.
+func KubernetesGCPWorkloadIdentityBindingSchema() ([]byte, error) {
+	return reflectSchema(KubernetesGCPWorkloadIdentityBindingSchemaID, "Eshu k8s_gcp_workload_identity_binding Payload (schema version 1)", &secretsiamv1.KubernetesGCPWorkloadIdentityBinding{})
 }

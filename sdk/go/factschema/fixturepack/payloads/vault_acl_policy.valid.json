@@ -1,0 +1,10 @@
+{
+  "policy_join_key": "sha256:demo-vault-policy",
+  "rules": [
+    {
+      "path_fingerprint": "sha256:demo-kv-path",
+      "path_depth": 3,
+      "capabilities": ["read"]
+    }
+  ]
+}

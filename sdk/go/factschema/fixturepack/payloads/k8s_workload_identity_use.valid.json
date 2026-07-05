@@ -1,0 +1,5 @@
+{
+  "service_account_join_key": "sha256:demo-service-account",
+  "workload_object_id": "demo-workload-stable-id",
+  "workload_kind": "deployments"
+}

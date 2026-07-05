@@ -1227,6 +1227,165 @@ log key; both are pure in-process correlation-logic changes diagnosed through
 the same existing reducer run spans, execution counters, and
 `eshu_dp_reducer_input_invalid_facts_total` the migration already wired.
 
+No-Regression Evidence (Wave 4d, secrets_iam family typed-payload decode,
+Contract System v1 #4566/#4582 -- VAULT + K8S lanes only): `buildSecretsIAMIndex`
+(secrets_iam_trust_chain_build.go) now decodes `vault_auth_role`,
+`vault_acl_policy`, `vault_kv_metadata`, `k8s_service_account`,
+`k8s_workload_identity_use`, `eks_irsa_annotation`, and
+`eks_pod_identity_association` fact payloads through the `sdk/go/factschema`
+seam (`decodeVaultAuthRole`/`decodeVaultACLPolicy`/`decodeVaultKVMetadata`/
+`decodeKubernetesServiceAccount`/`decodeKubernetesWorkloadIdentityUse`/
+`decodeEKSIRSAAnnotation`/`decodeEKSPodIdentityAssociation` in
+`factschema_decode_secretsiam.go`) instead of raw `payloadString`/
+`payloadStrings`/`payloadBool` map lookups, mirroring the #4568 AWS IAM
+migration this same file already carries for `aws_iam_principal`. The AWS IAM
+lane (`aws_iam_principal`, `aws_iam_trust_policy`) stays exactly as #4568 left
+it -- untouched by this wave. The GCP IAM lane (`gcp_iam_principal`,
+`gcp_iam_trust_policy`, `gcp_iam_permission_policy`) is explicitly OUT OF
+SCOPE and deferred to its own future wave; every raw read site for those three
+kinds carries a `// deferred: gcp_iam lane, Wave 4d types vault/k8s only`
+comment. `k8s_gcp_workload_identity_binding` is an IN-SCOPE K8S-lane kind:
+`secretsIAMIndex.gcpK8sBindings` now holds it decoded
+(`decodeKubernetesGCPWorkloadIdentityBinding`, the `secretsIAMGCPBinding` pair
+type mirroring every other VAULT/K8S kind's decode-once-at-index-build
+pattern), and `secretsIAMGCPExactChainsForServiceAccount` reads
+`binding.decoded.GCPServiceAccountEmailDigest`/
+`GCPWorkloadIdentitySubjectFingerprint` rather than raw `payloadString`. Only
+the downstream join against the deferred `gcp_iam_trust_policy` raw envelope
+(`exactGCPWorkloadIdentityTrusts`, `index.gcpPrincipals`,
+`index.gcpPermissions`) stays on raw reads -- that half of the join belongs to
+the GCP IAM lane's own future wave, mirroring how #4715 (sbom_attestation)
+left `sbom.component`'s `supply_chain_impact` consumer raw because that
+reducer domain had zero existing quarantine plumbing of its own.
+
+`buildSecretsIAMIndex` now returns a `[]quarantinedFact` alongside the index (as
+it already did for `aws_iam_principal`): a `vault_auth_role` fact missing its
+required `role_join_key`, or a `k8s_service_account`/
+`k8s_workload_identity_use`/`eks_irsa_annotation`/
+`eks_pod_identity_association` fact missing its required
+`service_account_join_key` (or `role_arn` for the two EKS kinds), is quarantined
+per-fact via `partitionDecodeFailures` rather than silently vanishing from
+`index.vaultRoles`/`index.serviceAccounts`/`index.workloads`/`index.irsa`
+under `addByKey`'s pre-typing blank-key guard -- while every valid sibling
+fact's exact chain still resolves. `TestBuildSecretsIAMTrustChainReadModelsQuarantinesVaultAuthRoleMissingRoleJoinKey`
+and `TestBuildSecretsIAMTrustChainReadModelsQuarantinesK8sServiceAccountMissingJoinKey`
+(new, `secrets_iam_input_invalid_test.go`, mirroring
+`TestGCPResourceMaterializationQuarantinesMissingFullResourceName`) failed
+before the conversion (quarantine count 0; the old `payloadString`/
+`payloadStrings` lookups returned `""`/`nil` for the absent key and
+`addByKey`'s blank-key guard silently dropped the fact from the index with no
+operator signal, not even a posture gap), then passed after: the malformed
+fact is recorded on `input_invalid_facts` and the valid sibling workload-to-
+vault-secret chain in the same batch still resolves to `SecretsIAMTrustChainStateExact`
+with its full secret access path.
+
+The VAULT/K8S facts are decoded exactly ONCE at index-build time and the
+decoded struct is stored alongside the source envelope in a small per-kind
+pair type (`secretsIAMServiceAccount`, `secretsIAMWorkload`, `secretsIAMIRSA`,
+`secretsIAMVaultRole`, `secretsIAMVaultPolicy`, `secretsIAMVaultKV`,
+`secretsIAMGCPBinding`), mirroring the existing `secretsIAMPrincipal` pattern
+#4568 established for `aws_iam_principal` -- every downstream trust-chain
+function (`secretsIAMExactChains`, `secretsIAMChain`, `secretsIAMVaultPaths`,
+`exactIAMRoleTrust`, `secretsIAMWildcardVaultAuthRoleObservations`,
+`vaultPolicyRules`) reads the pre-decoded struct fields rather than re-decoding
+the envelope, so there is no double-decode of any VAULT/K8S fact.
+`VaultACLPolicy.Rules` is a fully typed `[]secretsiamv1.VaultACLPolicyRule`
+(not a `map[string]any` pass-through), matching the collector emitter's
+closed `{path_fingerprint, path_depth, capabilities}` shape per rule.
+
+First benchmark pass (`BenchmarkBuildSecretsIAMTrustChainReadModels`, new,
+2,000-service-account corpus, each producing one full exact
+workload-to-vault-secret chain with a 2-rule `vault_acl_policy`) surfaced a CPU
+profile with a small (~2-4% cumulative) but real `jsonRoundTripValue` fallback
+hit, isolated via `go tool pprof -peek` to `assignField`'s `Ptr` case for a
+`*int` field -- `VaultACLPolicyRule.PathDepth` and `VaultKVMetadata.PathDepth`
+were the first `*int`-shaped payload fields any migrated family decoded through
+this seam (every prior family's optional integer fields used `*int32`/
+`*int64`/`*float64`, each already fast-pathed by Wave 4a/4c). This is the same
+gap class the kubernetes_live wave (`map[string]string`) and the
+vulnerability_intelligence wave (`float64`) found and fixed for their own
+first-occurrence field shapes. Proven with a throwaway microbenchmark isolating
+a single `*int` JSON round trip against a direct `float64`/`int` type-switch
+coercion on the same input: ~500x speedup (166ns/op, 2 allocs -> 0.32ns/op, 0
+allocs). Applied the theory as a genuine fix: `decode_map.go` gained a
+`jsonNumberToInt` helper and an `Int` case in `assignField`'s `Ptr` switch,
+mirroring the existing `Int32`/`Int64`/`Float64` pointer cases, so every family
+decoding an optional platform-`int` field in the future benefits, not only this
+wave's `PathDepth` fields. Re-measured after the fix
+(`go test ./internal/reducer -run '^$' -bench
+'BenchmarkBuildSecretsIAMTrustChainReadModels' -benchmem -count=7 -benchtime=2s`,
+darwin/arm64, Apple M1 Max; backend: in-memory extractor; input: 2,000
+synthetic service accounts x {k8s_service_account,
+k8s_workload_identity_use, eks_irsa_annotation, aws_iam_principal,
+aws_iam_trust_policy, vault_auth_role, vault_acl_policy (2 rules),
+vault_kv_metadata} = 16,000 fact envelopes). BEFORE (raw map, commit
+b12a335eb) -> AFTER (typed decode + `*int` fast path), both measured
+alternately on the same machine to control for ambient load: median 29.5ms /
+320,331-320,335 allocs / 32.96MB/op -> median 29.0ms / 314,329-314,332 allocs /
+34.19MB/op (~0% time delta within noise, -1.9% allocs, +3.7% memory). The
+allocation count went DOWN, not up, and the small memory increase is the typed
+struct fields themselves costing more bytes than an untyped `map[string]any`
+entry -- both well inside the diagnostic-rigor ~10% band. The repo's existing
+GATED perfcontract benchmark for this handler,
+`BenchmarkSecretsIAMGCPGrantObservations` (`handler_budget_secrets_iam_gcp_grant_observations`,
+ceiling 8,300,000 ns/op, `testdata/benchmarks/reducer-handler-budgets.txt`),
+builds its index purely from `gcp_iam_principal`/`gcp_iam_permission_policy`
+facts -- the deferred GCP IAM lane this wave leaves untouched -- so it never
+exercises the converted VAULT/K8S switch arms; measured before/after on this
+branch it stayed flat (median ~8.5ms both before and after, allocs unchanged
+at 116,039-116,043), confirming this wave's decode-path change is invisible to
+that specific gated benchmark, as expected. Every prior migrated family's own
+benchmark (`BenchmarkExtractCloudResourceNodeRows`,
+`BenchmarkExtractAWSRelationshipEdgeRows`,
+`BenchmarkExtractGCPCloudResourceNodeRows`,
+`BenchmarkExtractGCPRelationshipEdgeRows`,
+`BenchmarkExtractAzureCloudResourceNodeRows`,
+`BenchmarkExtractAzureRelationshipEdgeRows`,
+`BenchmarkExtractKubernetesWorkloadNodeRows`,
+`BenchmarkBuildIncidentRoutingEvidenceInputs`,
+`BenchmarkBuildSupplyChainImpactIndexWithQuarantine`,
+`BenchmarkBuildSBOMAttestationAttachmentDecisions`) was re-run after the
+shared `decode_map.go` change and stayed within its previously documented
+allocation counts, confirming the new `*int` fast path is additive-only (a new
+accept path only; every other shape still falls through to the identical
+`jsonRoundTripValue` fallback). `TestDecodeMapInto_IntFastPath` (new,
+`sdk/go/factschema/decode_map_test.go`) locks the fast path's accept/reject
+contract: a plain `int` field, a present `*int` field, and an absent `*int`
+field (stays nil) all decode correctly, while a non-integral float and a
+non-numeric value both fail closed with an error rather than silently
+truncating or zeroing the field. Result class: Correctness win with no
+measured handler regression (the real perf gap -- the missing `*int` fast
+path -- found and fixed before it could regress this or any future family).
+
+No-Observability-Change (Wave 4d, secrets_iam family, VAULT + K8S lanes): the
+typed-decode migration and the shared `decode_map.go` `*int` fast-path
+addition add no route, graph query shape, queue table, worker, lease, runtime
+knob, metric instrument, or metric label. A malformed `vault_auth_role`/
+`vault_acl_policy`/`vault_kv_metadata`/`k8s_service_account`/
+`k8s_workload_identity_use`/`eks_irsa_annotation`/
+`eks_pod_identity_association`/`k8s_gcp_workload_identity_binding` fact
+surfaces through the EXISTING dead-letter path -- the same
+`partitionDecodeFailures`/`recordQuarantinedFacts` seam the `aws_iam_principal`
+conversion (#4568) already wired in this same file -- incrementing the
+existing `eshu_dp_reducer_input_invalid_facts_total` counter (labeled `domain`
+= `secrets_iam_trust_chain`, an existing label value, `fact_kind` gaining the
+eight VAULT/K8S kinds) plus the existing structured "reducer
+input_invalid fact quarantined" error log and
+`Result.SubSignals["input_invalid_facts"]`. `SecretsIAMTrustChainHandler`
+already carried an `Instruments *telemetry.Instruments` field before this
+wave; no new wiring was needed. The `payload-usage-manifest` gate
+(`go/internal/payloadusage`) required an additive-only extension: eight new
+`factKindSchemaFile` entries (`FactKindVaultAuthRole`, `FactKindVaultACLPolicy`,
+`FactKindVaultKVMetadata`, `FactKindKubernetesServiceAccount`,
+`FactKindKubernetesWorkloadIdentityUse`, `FactKindEKSIRSAAnnotation`,
+`FactKindEKSPodIdentityAssociation`, `FactKindKubernetesGCPWorkloadIdentityBinding`)
+and a new `SecretsIAMStructDir` (`sdk/go/factschema/secretsiam/v1`) parsed
+alongside the existing struct dirs in `Load`; this only widens which decode
+seams the gate covers and adds no new gate mechanism. The `decode_map.go`
+`*int` fast path changes only the internal path taken by `assignField` for a
+`*int`-shaped field; it adds no telemetry surface of its own and is invisible
+to every existing operator-facing signal.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

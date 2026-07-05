@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "path_fingerprint": "sha256:demo-kv-path",
+      "path_depth": 3,
+      "capabilities": ["read"]
+    }
+  ]
+}

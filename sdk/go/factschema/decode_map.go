@@ -6,7 +6,6 @@ package factschema
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"reflect"
 	"sync"
 )
@@ -127,10 +126,10 @@ func structPlanFor(t reflect.Type) *structPlan {
 
 // assignField coerces one JSONB-native value onto one struct field, mirroring
 // encoding/json's default map decoding for the shapes the fact-payload structs
-// use. It handles string, *string, []string, *bool, *int32, and map[string]any
-// directly, and json-round-trips a single value for any other type (the rare
-// *map[string]string / []struct fields) so correctness is never sacrificed for
-// the fast path.
+// use. It handles string, *string, []string, *bool, *int, *int32, *float64,
+// map[string]string, and map[string]any directly, and json-round-trips a
+// single value for any other type (the rare *map[string]string / []struct
+// fields) so correctness is never sacrificed for the fast path.
 func assignField(field reflect.Value, raw any) error {
 	switch field.Kind() {
 	case reflect.String:
@@ -180,6 +179,20 @@ func assignField(field reflect.Value, raw any) error {
 				return fmt.Errorf("want bool, got %T", raw)
 			}
 			field.Set(reflect.ValueOf(&b))
+			return nil
+		case reflect.Int:
+			// *int fast path (for example secretsiam/v1's VaultACLPolicyRule.
+			// PathDepth and VaultKVMetadata.PathDepth): a direct type-switch
+			// coercion, mirroring the Int32/Int64/Float64 pointer cases below,
+			// instead of falling through to the default branch's
+			// jsonRoundTripValue marshal/unmarshal fallback -- the same gap
+			// class the map[string]string (Wave 4b) and float64 (Wave 4c)
+			// fast paths closed for their own first-occurrence field shapes.
+			n, err := jsonNumberToInt(raw)
+			if err != nil {
+				return err
+			}
+			field.Set(reflect.ValueOf(&n))
 			return nil
 		case reflect.Int32:
 			n, err := jsonNumberToInt32(raw)
@@ -352,97 +365,6 @@ func assignStructSlice(field reflect.Value, raw any) (err error, handled bool) {
 	}
 	field.Set(out)
 	return nil, true
-}
-
-// jsonNumberToInt64 coerces a JSONB-native number (float64 from encoding/json,
-// or an in-memory int/int32/int64) into an int64, matching how the previous
-// json.Unmarshal path filled int64 / *int64 size fields. It fails closed on a
-// non-integral or out-of-range value, mirroring encoding/json.
-func jsonNumberToInt64(raw any) (int64, error) {
-	switch n := raw.(type) {
-	case float64:
-		if math.Trunc(n) != n {
-			return 0, fmt.Errorf("want integer, got non-integral number %v", n)
-		}
-		// int64 uses >= here (unlike jsonNumberToInt32's >) on purpose:
-		// math.MaxInt64 is not exactly representable as float64, so the constant
-		// rounds up to 2^63 in this comparison. A float64 that reaches 2^63 would
-		// overflow int64(n), so it must be rejected; every representable int64
-		// value below it (at most 2^63-2048 at this magnitude) still passes.
-		if n < math.MinInt64 || n >= math.MaxInt64 {
-			return 0, fmt.Errorf("number %v out of int64 range", n)
-		}
-		return int64(n), nil
-	case int:
-		return int64(n), nil
-	case int32:
-		return int64(n), nil
-	case int64:
-		return n, nil
-	default:
-		return 0, fmt.Errorf("want number, got %T", raw)
-	}
-}
-
-// jsonNumberToFloat64 coerces a JSONB-native number (float64 from
-// encoding/json, or an in-memory int/int32/int64) into a float64, matching how
-// the previous json.Unmarshal path filled float64 / *float64 score fields (for
-// example vulnerability.cve's CVSSScore). Unlike jsonNumberToInt64/Int32 this
-// never rejects a non-integral value — a float field's whole point is
-// fractional precision — but it still fails closed on a non-numeric type
-// rather than silently zeroing the field.
-func jsonNumberToFloat64(raw any) (float64, error) {
-	switch n := raw.(type) {
-	case float64:
-		return n, nil
-	case float32:
-		return float64(n), nil
-	case int:
-		return float64(n), nil
-	case int32:
-		return float64(n), nil
-	case int64:
-		return float64(n), nil
-	default:
-		return 0, fmt.Errorf("want number, got %T", raw)
-	}
-}
-
-// jsonNumberToInt32 coerces a JSONB-native number (float64 from encoding/json,
-// or an in-memory int/int32/int64) into an int32, matching how the previous
-// json.Unmarshal path filled *int32 port/hop-limit fields.
-//
-// It fails closed: a non-integral float (for example a port of 8080.5) or a
-// value outside the int32 range is rejected with an error rather than silently
-// truncated or wrapped, so a malformed number dead-letters the fact as
-// input_invalid instead of projecting a wrong port/hop-limit into the graph.
-// This mirrors encoding/json, which returns an UnmarshalTypeError when a JSON
-// number does not fit the target int32.
-func jsonNumberToInt32(raw any) (int32, error) {
-	switch n := raw.(type) {
-	case float64:
-		if math.Trunc(n) != n {
-			return 0, fmt.Errorf("want integer, got non-integral number %v", n)
-		}
-		if n < math.MinInt32 || n > math.MaxInt32 {
-			return 0, fmt.Errorf("number %v out of int32 range", n)
-		}
-		return int32(n), nil
-	case int:
-		if int64(n) < math.MinInt32 || int64(n) > math.MaxInt32 {
-			return 0, fmt.Errorf("number %v out of int32 range", n)
-		}
-		return int32(n), nil
-	case int32:
-		return n, nil
-	case int64:
-		if n < math.MinInt32 || n > math.MaxInt32 {
-			return 0, fmt.Errorf("number %v out of int32 range", n)
-		}
-		return int32(n), nil
-	default:
-		return 0, fmt.Errorf("want number, got %T", raw)
-	}
 }
 
 // anyToStringSlice coerces a JSONB []any of strings (or an already-typed

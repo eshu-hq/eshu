@@ -1,0 +1,23 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/k8s_gcp_workload_identity_binding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "gcp_service_account_email_digest": {
+      "type": "string"
+    },
+    "gcp_workload_identity_subject_fingerprint": {
+      "type": "string"
+    },
+    "service_account_join_key": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "service_account_join_key",
+    "gcp_service_account_email_digest",
+    "gcp_workload_identity_subject_fingerprint"
+  ],
+  "title": "Eshu k8s_gcp_workload_identity_binding Payload (schema version 1)",
+  "type": "object"
+}

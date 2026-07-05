@@ -17,6 +17,21 @@ var (
 	sensitiveQueryPattern = regexp.MustCompile(`(?i)(token|secret|password|credential|api[_-]?key|authorization)`)
 )
 
+// redactionSafePayloadKeys allowlists exact payload field names that trip
+// sensitiveQueryPattern's substring heuristic but are not, in fact, raw
+// credentials: they are redaction-safe join-key fingerprints a collector
+// emits by design to correlate facts (for example a hash of a Vault ACL
+// policy name), never the secret value itself. The allowlist is keyed by
+// EXACT field name, not a broader pattern, so it cannot silently widen the
+// heuristic to cover an actually-sensitive field that happens to share a
+// name; each entry is a deliberate, reviewed exception, not a generic escape
+// hatch. Add an entry here only when the field's own type documents why it
+// is a fingerprint/reference rather than a credential (see
+// secretsiam/v1.VaultAuthRole.TokenPolicyJoinKeys for the motivating case).
+var redactionSafePayloadKeys = map[string]struct{}{
+	"token_policy_join_keys": {},
+}
+
 // Validator validates extension results against the host-declared contract.
 type Validator struct {
 	protocolVersion string
@@ -266,7 +281,7 @@ func validatePayloadKeys(prefix string, value any) error {
 			if prefix != "" {
 				path = prefix + "." + key
 			}
-			if sensitiveQueryPattern.MatchString(key) {
+			if _, safe := redactionSafePayloadKeys[key]; !safe && sensitiveQueryPattern.MatchString(key) {
 				return fmt.Errorf("sensitive-looking key %q must be redacted before emission", path)
 			}
 			if err := validatePayloadKeys(path, child); err != nil {

@@ -289,6 +289,37 @@ const (
 	// FactKindCICDWorkflowImageEvidence is the "ci.workflow_image_evidence"
 	// fact kind.
 	FactKindCICDWorkflowImageEvidence = "ci.workflow_image_evidence"
+	// The secrets_iam family fact-kind strings are UNDERSCORE-separated, like
+	// the aws/gcp/azure kinds. The values here MATCH the wire strings the
+	// secrets_iam posture collector emits (go/internal/facts.VaultAuthRoleFactKind
+	// and siblings) byte-for-byte; the reducer-side drift lock
+	// TestFactSchemaKindsMatchWireFactKinds asserts each stays byte-equal to
+	// its facts.*FactKind counterpart. Only the VAULT and K8S lane kinds are
+	// listed here (Contract System v1 Wave 4d, #4566/#4582): the AWS IAM lane
+	// (aws_iam_principal and siblings) was already migrated in #4568 and its
+	// constants live above; the GCP IAM lane (gcp_iam_principal,
+	// gcp_iam_trust_policy, gcp_iam_permission_policy) is deferred to a future
+	// wave and has no constant here.
+
+	// FactKindVaultAuthRole is the "vault_auth_role" fact kind.
+	FactKindVaultAuthRole = "vault_auth_role"
+	// FactKindVaultACLPolicy is the "vault_acl_policy" fact kind.
+	FactKindVaultACLPolicy = "vault_acl_policy"
+	// FactKindVaultKVMetadata is the "vault_kv_metadata" fact kind.
+	FactKindVaultKVMetadata = "vault_kv_metadata"
+	// FactKindKubernetesServiceAccount is the "k8s_service_account" fact kind.
+	FactKindKubernetesServiceAccount = "k8s_service_account"
+	// FactKindKubernetesWorkloadIdentityUse is the
+	// "k8s_workload_identity_use" fact kind.
+	FactKindKubernetesWorkloadIdentityUse = "k8s_workload_identity_use"
+	// FactKindEKSIRSAAnnotation is the "eks_irsa_annotation" fact kind.
+	FactKindEKSIRSAAnnotation = "eks_irsa_annotation"
+	// FactKindEKSPodIdentityAssociation is the "eks_pod_identity_association"
+	// fact kind.
+	FactKindEKSPodIdentityAssociation = "eks_pod_identity_association"
+	// FactKindKubernetesGCPWorkloadIdentityBinding is the
+	// "k8s_gcp_workload_identity_binding" fact kind.
+	FactKindKubernetesGCPWorkloadIdentityBinding = "k8s_gcp_workload_identity_binding" // #nosec G101 -- fact-kind identifier string, not a credential
 )
 
 // Classification values a DecodeError carries. These are this module's own

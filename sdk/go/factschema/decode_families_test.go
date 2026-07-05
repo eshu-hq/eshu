@@ -330,6 +330,30 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindCICDWorkflowImageEvidence:
 		_, err := DecodeCICDWorkflowImageEvidence(env)
 		return err
+	case FactKindVaultAuthRole:
+		_, err := DecodeVaultAuthRole(env)
+		return err
+	case FactKindVaultACLPolicy:
+		_, err := DecodeVaultACLPolicy(env)
+		return err
+	case FactKindVaultKVMetadata:
+		_, err := DecodeVaultKVMetadata(env)
+		return err
+	case FactKindKubernetesServiceAccount:
+		_, err := DecodeKubernetesServiceAccount(env)
+		return err
+	case FactKindKubernetesWorkloadIdentityUse:
+		_, err := DecodeKubernetesWorkloadIdentityUse(env)
+		return err
+	case FactKindEKSIRSAAnnotation:
+		_, err := DecodeEKSIRSAAnnotation(env)
+		return err
+	case FactKindEKSPodIdentityAssociation:
+		_, err := DecodeEKSPodIdentityAssociation(env)
+		return err
+	case FactKindKubernetesGCPWorkloadIdentityBinding:
+		_, err := DecodeKubernetesGCPWorkloadIdentityBinding(env)
+		return err
 	default:
 		t.Fatalf("decodeByKind: unhandled fact kind %q — add it to the switch", factKind)
 		return nil
@@ -414,6 +438,14 @@ var allDecodedKinds = []string{
 	FactKindCICDTriggerEdge,
 	FactKindCICDStep,
 	FactKindCICDWorkflowImageEvidence,
+	FactKindVaultAuthRole,
+	FactKindVaultACLPolicy,
+	FactKindVaultKVMetadata,
+	FactKindKubernetesServiceAccount,
+	FactKindKubernetesWorkloadIdentityUse,
+	FactKindEKSIRSAAnnotation,
+	FactKindEKSPodIdentityAssociation,
+	FactKindKubernetesGCPWorkloadIdentityBinding,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -664,6 +696,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeCICDStep(env)
 			case FactKindCICDWorkflowImageEvidence:
 				_, err = DecodeCICDWorkflowImageEvidence(env)
+			case FactKindVaultAuthRole:
+				_, err = DecodeVaultAuthRole(env)
+			case FactKindVaultACLPolicy:
+				_, err = DecodeVaultACLPolicy(env)
+			case FactKindVaultKVMetadata:
+				_, err = DecodeVaultKVMetadata(env)
+			case FactKindKubernetesServiceAccount:
+				_, err = DecodeKubernetesServiceAccount(env)
+			case FactKindKubernetesWorkloadIdentityUse:
+				_, err = DecodeKubernetesWorkloadIdentityUse(env)
+			case FactKindEKSIRSAAnnotation:
+				_, err = DecodeEKSIRSAAnnotation(env)
+			case FactKindEKSPodIdentityAssociation:
+				_, err = DecodeEKSPodIdentityAssociation(env)
+			case FactKindKubernetesGCPWorkloadIdentityBinding:
+				_, err = DecodeKubernetesGCPWorkloadIdentityBinding(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

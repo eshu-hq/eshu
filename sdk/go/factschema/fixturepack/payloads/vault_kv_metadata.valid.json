@@ -1,0 +1,5 @@
+{
+  "mount_join_key": "sha256:demo-vault-mount",
+  "kv_path_fingerprint": "sha256:demo-kv-path",
+  "path_depth": 3
+}
