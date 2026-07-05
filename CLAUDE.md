@@ -286,6 +286,10 @@ skills are active.
   long run may be launched without a stated time bound.
 - Queue/concurrency work MUST have contention, retry, idempotency, ordering, and
   dead-letter proof.
+- Performance rewrites that touch a lock/claim/lease/queue path MUST include a
+  concurrency proof (contention, EvalPlanQual recheck, or lease-safety), not only
+  a row-set equivalence differential, and MUST be re-proven on the built binary
+  against the real worst-case backlog, not only a small-N EXPLAIN.
 - Graph truth work MUST have fixture intent, reducer graph truth, and API/query
   truth agreement.
 - Runtime changes MUST have operator-facing metrics, spans, logs, status, or pprof
