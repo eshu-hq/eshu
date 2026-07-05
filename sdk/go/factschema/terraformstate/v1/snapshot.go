@@ -105,4 +105,17 @@ type Resource struct {
 	// resource with no derivable anchors omits the key. Each element is an
 	// object; the projector reads anchor_kind and value_hash from each.
 	CorrelationAnchors []map[string]any `json:"correlation_anchors,omitempty"`
+
+	// Attributes is the collector's classified Terraform resource-attribute
+	// object (arn, id, self_link, and other provider-specific keys). The
+	// collector emits it unconditionally on every terraform_state_resource
+	// fact (go/internal/collector/terraformstate/resources.go emitResourceInstance).
+	// It is UNTYPED because the key set is provider- and resource-type-specific;
+	// it is carried as a pass-through so the contract round-trips it losslessly.
+	// The Postgres drift loaders read arn/id/self_link out of this object to
+	// join Terraform state to observed cloud resources
+	// (go/internal/storage/postgres/*_cloud_runtime_drift_evidence_sql.go), so
+	// dropping it would silently break AWS and multi-cloud drift matching.
+	// Optional: a resource with no classified attributes omits the key.
+	Attributes map[string]any `json:"attributes,omitempty"`
 }

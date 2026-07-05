@@ -56,7 +56,11 @@
                 "anchor_kind": "name",
                 "value_hash": "anchor-hash-ecs-cluster-name"
               }
-            ]
+            ],
+            "attributes": {
+              "arn": "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo",
+              "name": "supply-chain-demo"
+            }
           }
         },
         {
@@ -78,7 +82,13 @@
                 "anchor_kind": "arn",
                 "value_hash": "anchor-hash-ecs-service"
               }
-            ]
+            ],
+            "attributes": {
+              "arn": "arn:aws:ecs:us-east-1:123456789012:service/supply-chain-demo/supply-chain-demo",
+              "cluster": "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo",
+              "desired_count": 2,
+              "name": "supply-chain-demo"
+            }
           }
         },
         {

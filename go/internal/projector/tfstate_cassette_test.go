@@ -80,6 +80,52 @@ func TestTerraformStateCassetteDecodesCleanlyThroughSeam(t *testing.T) {
 	}
 }
 
+// TestTerraformStateCassetteResourcesCarryDriftAttributes locks in that the
+// golden-corpus cassette's terraform_state_resource facts carry the classified
+// attributes object the CURRENT collector emits unconditionally
+// (go/internal/collector/terraformstate/resources.go emitResourceInstance writes
+// payload["attributes"]). The Wave 4b cassette reconciliation once dropped this
+// object; the projector ignores attributes, so no projector test caught the loss.
+// But the Postgres query-time drift loaders join Terraform state to observed
+// cloud resources on payload->'attributes'->>'arn'/'id'/'self_link'
+// (go/internal/storage/postgres/multi_cloud_runtime_drift_evidence_sql.go). A
+// resource fact with no attributes materializes a node but can never participate
+// in AWS/multi-cloud drift matching, so the cassette would silently stop
+// exercising the state/cloud drift path. This asserts every resource fact carries
+// a non-empty attributes object with at least one drift-join key, so a future
+// reconciliation that drops the field fails here rather than silently eroding
+// drift coverage.
+func TestTerraformStateCassetteResourcesCarryDriftAttributes(t *testing.T) {
+	t.Parallel()
+
+	driftJoinKeys := []string{"arn", "id", "self_link"}
+	var sawResource bool
+	for _, envelope := range loadTerraformStateCassetteEnvelopes(t) {
+		if envelope.FactKind != "terraform_state_resource" {
+			continue
+		}
+		sawResource = true
+		attributes, ok := envelope.Payload["attributes"].(map[string]any)
+		if !ok || len(attributes) == 0 {
+			t.Errorf("resource fact %s carries no non-empty attributes object; the Postgres drift loaders join Terraform state to cloud on payload->'attributes'->>'arn'/'id'/'self_link', so this fact can never drift-match — restore the collector-emitted attributes in testdata/cassettes/terraformstate/supply-chain-demo.json", envelope.FactID)
+			continue
+		}
+		var sawJoinKey bool
+		for _, key := range driftJoinKeys {
+			if value, present := attributes[key].(string); present && value != "" {
+				sawJoinKey = true
+				break
+			}
+		}
+		if !sawJoinKey {
+			t.Errorf("resource fact %s attributes carry none of the drift-join keys %v; the cassette no longer exercises the state/cloud drift path", envelope.FactID, driftJoinKeys)
+		}
+	}
+	if !sawResource {
+		t.Fatal("cassette carried no terraform_state_resource facts; the drift-attributes guard exercised nothing")
+	}
+}
+
 // loadTerraformStateCassetteEnvelopes reads the real checked-in terraform_state
 // cassette and converts each recorded fact into a facts.Envelope carrying the
 // fact kind, schema version, and payload the projector's

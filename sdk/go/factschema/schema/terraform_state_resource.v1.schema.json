@@ -6,6 +6,12 @@
     "address": {
       "type": "string"
     },
+    "attributes": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "correlation_anchors": {
       "items": {
         "type": "object"
