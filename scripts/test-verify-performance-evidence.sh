@@ -52,6 +52,62 @@ expect_fail() {
   fi
 }
 
+# Build a hard-timeout wrapper so a hung verifier fails the suite fast instead
+# of blocking forever. Prefer coreutils timeout/gtimeout; fall back to a
+# portable perl alarm wrapper (perl ships on macOS and Linux). timeout_cmd stays
+# empty only when none of the three exist, in which case expect_completes_fail
+# SKIPS the guard with a message rather than running unguarded — an unguarded
+# run would hang forever on exactly the bash where the here-string bug bites.
+timeout_secs=30
+timeout_cmd=()
+if command -v timeout >/dev/null 2>&1; then
+  timeout_cmd=(timeout -s KILL "${timeout_secs}")
+elif command -v gtimeout >/dev/null 2>&1; then
+  timeout_cmd=(gtimeout -s KILL "${timeout_secs}")
+elif command -v perl >/dev/null 2>&1; then
+  # SIGALRM fires after the timeout and default-terminates the exec'd verifier
+  # (the alarm timer survives exec); a hang then exits 128+14=142.
+  timeout_cmd=(perl -e 'alarm shift; exec @ARGV or exit 127' "${timeout_secs}")
+fi
+
+# expect_completes_fail asserts the verifier both terminates under a hard
+# timeout and fails on its own (hot change needs evidence). It guards the
+# diff-processing loop against reintroducing a `<<<` here-string, which hangs
+# bash 5.3.x on a large diff (see the diff-loop comment in
+# verify-performance-evidence.sh). Exit-code map: 124 (timeout SIGTERM) or any
+# signal kill >=128 (137 SIGKILL, 142 SIGALRM) means the verifier was still
+# running at the deadline — a hang; 125/126/127 means the timeout wrapper itself
+# could not run the command; 0 means the verifier wrongly passed; 1..123 is the
+# verifier's own expected non-zero exit.
+expect_completes_fail() {
+  local dir="$1"
+  if [ "${#timeout_cmd[@]}" -eq 0 ]; then
+    printf 'SKIP: no timeout/gtimeout/perl available to guard %s against a hang\n' "${dir}" >&2
+    return
+  fi
+  local rc=0
+  "${timeout_cmd[@]}" env \
+    ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${dir}" \
+    ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
+    "${verifier}" >/tmp/eshu-perf-gate.out 2>/tmp/eshu-perf-gate.err || rc=$?
+  if [ "${rc}" -eq 124 ] || [ "${rc}" -ge 128 ]; then
+    printf 'verifier did not finish within %ss in %s (rc=%s) — diff-loop here-string hang\n' \
+      "${timeout_secs}" "${dir}" "${rc}" >&2
+    sed -n '1,40p' /tmp/eshu-perf-gate.err >&2
+    exit 1
+  fi
+  if [ "${rc}" -ge 125 ] && [ "${rc}" -le 127 ]; then
+    printf 'timeout wrapper could not run the verifier in %s (rc=%s)\n' "${dir}" "${rc}" >&2
+    sed -n '1,40p' /tmp/eshu-perf-gate.err >&2
+    exit 1
+  fi
+  if [ "${rc}" -eq 0 ]; then
+    printf 'expected verifier to fail (hot change needs evidence) in %s\n' "${dir}" >&2
+    sed -n '1,120p' /tmp/eshu-perf-gate.out >&2
+    exit 1
+  fi
+}
+
 plain_repo="$(init_repo plain)"
 printf 'package docs\n' >"${plain_repo}/go/internal/storage/cypher/notes_test.go"
 git -C "${plain_repo}" add .
@@ -226,5 +282,46 @@ git -C "${whitespace_repo}" commit -q -m 'baseline hot-path file'
 git -C "${whitespace_repo}" add .
 git -C "${whitespace_repo}" commit -q -m 'add blank line (whitespace-only)'
 expect_pass "${whitespace_repo}"
+
+# Regression: a large hot-path diff must not hang the diff-processing loop.
+# bash 5.3.x hangs indefinitely when a `<<<` here-string feeds the while-read
+# loop once the cached diff crosses a byte threshold; the loop reads its input
+# via process substitution to stay safe. ~1200 real code lines push the cached
+# diff well past the threshold that hangs the here-string form.
+large_diff_repo="$(init_repo large-diff)"
+{
+  printf 'package cypher\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+  for i in $(seq 1 1200); do
+    printf 'const pad%d = "row %d value padding a wide diff payload"\n' "${i}" "${i}"
+  done
+} >"${large_diff_repo}/go/internal/storage/cypher/writer.go"
+git -C "${large_diff_repo}" add .
+git -C "${large_diff_repo}" commit -q -m 'large hot-path diff'
+expect_completes_fail "${large_diff_repo}"
+
+# Regression: the final line of the cached diff must still be processed. The
+# cached diff is captured via command substitution, which strips the trailing
+# newline, so the loop must restore it (printf '%s\n', not '%s'). Here the only
+# real code change is the last diff line (a new const appended after two
+# comment-only additions); if the loop drops that line the file is misread as
+# comment-only and the gate wrongly passes.
+last_line_repo="$(init_repo last-line)"
+{
+  printf 'package cypher\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${last_line_repo}/go/internal/storage/cypher/writer.go"
+git -C "${last_line_repo}" add .
+git -C "${last_line_repo}" commit -q -m 'baseline hot-path writer'
+{
+  printf '// header comment one\n'
+  printf '// header comment two\n'
+  printf 'package cypher\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+  printf 'const extra = "another real hot-path line"\n'
+} >"${last_line_repo}/go/internal/storage/cypher/writer.go"
+git -C "${last_line_repo}" add .
+git -C "${last_line_repo}" commit -q -m 'append decisive code on last diff line'
+expect_fail "${last_line_repo}"
 
 printf 'verify-performance-evidence tests passed\n'
