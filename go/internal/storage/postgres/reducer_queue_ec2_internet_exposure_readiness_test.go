@@ -92,7 +92,7 @@ func TestReducerQueueBatchClaimQueryGatesEC2InternetExposureOnInstanceNodeReadin
 	) {
 		t.Fatalf("batch claim query missing EC2 internet-exposure readiness requirement:\n%s", claimReducerWorkBatchQuery)
 	}
-	if !queryHasPayloadReadinessLookup(claimReducerWorkBatchQuery, "same", "same_readiness_req", "same_readiness_phase") {
+	if !queryHasRankOnceRepresentativeReadinessGate(claimReducerWorkBatchQuery, "fact_work_items", "readiness_req", "readiness_phase") {
 		t.Fatalf("batch claim query missing EC2 internet-exposure representative readiness lookup:\n%s", claimReducerWorkBatchQuery)
 	}
 }

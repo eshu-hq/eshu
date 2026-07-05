@@ -1562,3 +1562,118 @@ query, or batch size changed. Operators continue to see the active worker count
 in `deferred_backfill_batch_committed ... workers=W`, the whole-pass duration in
 `DeferredBackfillDuration`, and per-partition/load signals from the existing
 deferred-backfill instruments.
+
+## Reducer claim rank-once window rewrite (#3624)
+
+`claimReducerWorkBatchQuery` (`reducer_queue_batch_query.go`) was the measured
+#1 bootstrap 2nd-half cost. On a live ~9,638-item reducer backlog it ran 24s
+per claim call and touched ~20.6M shared Postgres buffers, because
+`reducer_domain_fair_rank` and the same-conflict-key representative
+(`same`/`fair_same`) were each a SELECT-list CORRELATED scalar subquery
+re-executed once PER CANDIDATE ROW — every invocation re-scanned
+`fact_work_items` and re-applied the readiness gate, and the fairness rank's
+`fair_peer` count additionally re-walked every same-domain peer, giving a
+combined cost of O(Sigma_d D_d^2) over the domain backlogs D_d.
+
+The fix computes every shared gate (readiness, projector drain, semantic caps)
+exactly once per row in a `base` CTE, then ranks the conflict-key
+representative and the domain fairness rank with window functions evaluated
+once over the whole candidate set (`reps_ranked`/`reps`), instead of once per
+row. The code comment this replaced ("row_number() forbidden with FOR UPDATE
+SKIP LOCKED") was only true AT THE SAME QUERY LEVEL: window functions are legal
+in inner CTEs, and the claim lock now applies `FOR UPDATE OF lock_target SKIP
+LOCKED` at an outer `locked` CTE that joins back to `candidate` by primary key,
+so the restriction is satisfied without giving up window functions inside.
+Every semantic gate is preserved exactly: the #4137 expired-holder-first
+representative order (`claimed_running_first`, `is_search_doc`, `updated_at`,
+`work_item_id`), one-representative-per-conflict-key, readiness/projector/
+semantic gates, superseded-generation exclusion, and source/domain fairness.
+Full design rationale is in the doc comment on `claimReducerWorkBatchQuery`.
+
+Because the lock now sits on the outer `locked` CTE (joined to the snapshot
+`candidate` set by `work_item_id`) instead of directly on the predicate-bearing
+candidate SELECT, the `locked` CTE re-applies the row-self lease/visibility/
+status predicates on `lock_target`. Under Read Committed, `FOR UPDATE` re-fetches
+the latest committed version of the locked row and re-runs the locking CTE's
+quals against it (EvalPlanQual recheck); without those predicates the only qual
+would be the id join to the snapshot set, so a row another worker claimed and
+committed between our snapshot and this lock would still match and its fresh
+lease would be overwritten (lease theft / duplicate work). Re-applying the
+predicates drops such a row exactly as the pre-rewrite query did when
+`FOR UPDATE SKIP LOCKED` sat on the candidate SELECT. They are a strict subset
+of `base`'s WHERE, so in the uncontended case they are a no-op and the claimed
+set is unchanged — confirmed by the differential below staying 0/0.
+
+Correctness is proven two ways: `TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder`
+(`reducer_queue_batch_rank_once_diff_test.go`) freezes the pre-rewrite candidate
+SELECT as a read-only reference (`reducer_queue_batch_rank_once_fixtures_query_test.go`)
+and diffs its claimed work-item-id set AND order against the rewrite on a
+fixture with multiple pending siblings per conflict key, an expired
+claimed/running holder with an older pending sibling (the #4137
+peer_flag=0 non-member edge), and multi-domain fairness competition — the
+diff is 0/0 (identical set, identical order). `TestClaimReducerWorkBatchQueryUsesWindowFunctionsNotCorrelatedFairRank`
+(`reducer_queue_batch_rank_once_shape_test.go`) asserts the query text contains
+the window constructs and does not contain the eliminated correlated
+`fair_peer` count pattern, so a future edit cannot silently reintroduce the
+O(N^2) shape. The full existing reducer_queue/claim regression suite (fairness,
+conflict fencing, drain order, readiness gating, the 23505 live-lease no-op)
+stays green: several pure-string SQL-shape assertions were re-expressed to
+verify the same properties against the new query shape (for example, "the
+conflict-key representative is readiness-gated" is now checked via
+`base.readiness_ok`, the `reps_ranked`/`reps` CTE chain, and the
+`reps.same_rn = 1` representative fence instead of a second correlated
+`reducerClaimReadinessGateSQL` call site), never weakened or deleted. There is
+no separate `same` CTE and no correlated same-representative subquery: that
+per-candidate re-scan was the O(N^2) source and was removed.
+
+The lease-theft window opened by moving the row lock to the outer `locked` CTE
+is covered by `TestClaimBatchLockRecheckDropsConcurrentlyClaimedRow`
+(`reducer_queue_batch_lock_recheck_test.go`), a failing-then-green regression
+that drives PostgreSQL's EvalPlanQual recheck deterministically (a holder
+connection locks the row, it is claimed+committed while a second connection
+blocks on it, then the blocked locker proceeds): the id-join-only shape locks and
+would overwrite the row (theft reproduced), while the shape that re-applies the
+lease/visibility/status predicates on `lock_target` — byte-identical to the
+shipped `locked` CTE — drops it. A hermetic shape assertion in
+`TestClaimBatchFencesSameConflictCandidates` requires those predicates in the
+shipped query so the fix cannot silently regress.
+
+Performance Evidence: proven at three scales, design shim → package EXPLAIN →
+live re-drain of the compiled binary.
+
+1. Design shim: a live pure-SQL shim of this shape (proven before any Go change
+   landed) measured 56ms vs 23,598ms — a 421x speedup — on the same ~9,638-item
+   backlog, with a bidirectional EXCEPT diff against the pre-rewrite candidate
+   SELECT returning 0/0 rows on both the full backlog and a seeded expired-lease
+   fixture.
+2. Package EXPLAIN: `EXPLAIN (ANALYZE, BUFFERS)` on a 2,000-row synthetic
+   backlog (40 conflict keys, 5 domains) measured `Buffers: shared hit=923317` /
+   458ms for the pre-rewrite candidate SELECT versus `Buffers: shared hit=10574`
+   / 27.5ms for the rewrite — an ~87x buffer reduction at this smaller scale.
+3. Live re-drain: the compiled reducer binary draining the live ~9,638-item
+   backlog end to end measured a claim mean of ~92–101ms/call over 500–1,200
+   calls per sample interval (backlog draining, claim succ:pending advancing),
+   versus the ~24s/call pre-rewrite baseline — an ~250-260x wall-time reduction
+   on the real path, consistent with an O(N^2)-to-O(N) shape change whose gap
+   widens with backlog size.
+
+The live re-drain is load-bearing, not a formality: it caught two perf
+regressions that the 2,000-row EXPLAIN did not expose. (a) The first Go
+translation omitted `AS MATERIALIZED` on the shared CTEs, so Postgres re-inlined
+each CTE per reference and the claim ran ~14.8s; adding `AS MATERIALIZED` to the
+five shared CTEs (`reducer_source_inflight`, `base`, `reps_ranked`, `reps`, and
+`source_heads`) forced single evaluation. (b) A residual correlated
+same-representative subquery in the candidate CTE (a per-candidate
+`ORDER BY ... LIMIT 1` re-scan of the ranked set) left an O(N^2) tail at ~1.07s;
+replacing it with a direct `reps.same_rn = 1` fence closed the gap to ~92ms. The
+0/0 differential (`TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder`)
+held across both fixes, confirming they were pure cost removals with no change to
+the claimed candidate set or order.
+
+Observability Evidence: no new metric was added. The claim call this query
+backs was already wrapped in `eshu_dp_queue_claim_duration_seconds`
+(`Instruments.QueueClaimDuration`, tagged `queue=reducer,mode=batch`) and
+`eshu_dp_reducer_batch_claim_size` (`Instruments.BatchClaimSize`) at the
+existing call site in `internal/reducer/service_batch.go`'s claimer goroutine,
+so a future claim-cost regression on this query remains visible on both
+existing series without any wiring change.

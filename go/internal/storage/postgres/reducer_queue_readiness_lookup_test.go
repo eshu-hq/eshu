@@ -25,6 +25,35 @@ func queryHasScopePrefixReadinessRequirement(query, domain, keyspace, phase, pre
 	return strings.Contains(query, "('"+domain+"', '"+keyspace+"', '"+phase+"', 'scope_prefix', '"+prefix+"')")
 }
 
+// queryHasRankOnceRepresentativeReadinessGate verifies the same property
+// queryHasPayloadReadinessLookup(query, "same", "same_readiness_req",
+// "same_readiness_phase") used to verify for the batch claim query's "same"
+// conflict-key representative — that the representative is readiness-gated —
+// re-expressed for the rank-once window rewrite (#3624 Track 2). Readiness
+// used to be re-evaluated by a second, independent
+// reducerClaimReadinessGateSQL("same", "same_readiness_req",
+// "same_readiness_phase") call inside the per-row "same" representative
+// picker subquery; the rewrite computes readiness exactly once per row as
+// base.readiness_ok (using the single reducerClaimReadinessGateSQL call this
+// helper also checks via queryHasPayloadReadinessLookup). The downstream
+// representative CTEs (reps_ranked, reps) derive from `FROM base WHERE
+// readiness_ok`, and the conflict-key representative is the reps.same_rn = 1
+// row — there is no separate `same` CTE (the rank-once rewrite removed it), so
+// the representative can only ever be a row that already passed the shared
+// readiness gate.
+func queryHasRankOnceRepresentativeReadinessGate(query, workAlias, requirementAlias, phaseAlias string) bool {
+	// The representative is the reps.same_rn = 1 row: the rank-once rewrite has no
+	// separate `same` CTE and no correlated same-representative subquery (those
+	// were the O(N^2) source #3624 removed). Because reps_ranked derives from
+	// `FROM base WHERE readiness_ok`, the representative is readiness-gated once
+	// upstream instead of re-checked per candidate row.
+	return queryHasPayloadReadinessLookup(query, workAlias, requirementAlias, phaseAlias) &&
+		strings.Contains(query, "AS readiness_ok") &&
+		strings.Contains(query, "reps_ranked AS MATERIALIZED (") &&
+		strings.Contains(query, "FROM base\n    WHERE readiness_ok") &&
+		strings.Contains(query, "reps.same_rn = 1")
+}
+
 func TestReducerClaimQueriesUseBoundedReadinessRequirements(t *testing.T) {
 	t.Parallel()
 
