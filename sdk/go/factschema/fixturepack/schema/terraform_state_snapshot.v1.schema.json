@@ -1,0 +1,57 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/terraformstate/v1/snapshot.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "backend_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "etag": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "format_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lineage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "locator_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "serial": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "source_size_bytes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "terraform_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "Eshu terraform_state_snapshot Payload (schema version 1)",
+  "type": "object"
+}

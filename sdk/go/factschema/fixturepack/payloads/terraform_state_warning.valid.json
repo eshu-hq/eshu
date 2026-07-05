@@ -1,0 +1,7 @@
+{
+  "warning_kind": "tag_value_dropped",
+  "reason": "non-scalar tag value dropped from classification",
+  "source": "resources.aws_subnet.public.attributes.tags.key:fp:tagkey:env",
+  "severity": "info",
+  "actionability": "informational"
+}

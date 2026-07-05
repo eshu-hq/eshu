@@ -1,0 +1,27 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/terraformstate/v1/output.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "sensitive": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "value_shape": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "Eshu terraform_state_output Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,8 @@
+{
+  "resource_address": "aws_subnet.public",
+  "provider_address": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+  "provider_source_address": "registry.terraform.io/hashicorp/aws",
+  "provider_hostname": "registry.terraform.io",
+  "provider_namespace": "hashicorp",
+  "provider_type": "aws"
+}

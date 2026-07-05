@@ -1,0 +1,46 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/terraformstate/v1/candidate.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "backend_kind": {
+      "type": "string"
+    },
+    "candidate_source": {
+      "type": "string"
+    },
+    "file_size": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "path_hash": {
+      "type": "string"
+    },
+    "relative_path": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "warning_flags": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "candidate_source",
+    "backend_kind",
+    "repo_id",
+    "relative_path",
+    "path_hash"
+  ],
+  "title": "Eshu terraform_state_candidate Payload (schema version 1)",
+  "type": "object"
+}

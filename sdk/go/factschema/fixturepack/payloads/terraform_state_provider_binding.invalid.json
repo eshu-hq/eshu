@@ -1,0 +1,4 @@
+{
+  "provider_address": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+  "provider_type": "aws"
+}

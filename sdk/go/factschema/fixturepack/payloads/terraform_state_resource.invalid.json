@@ -1,0 +1,5 @@
+{
+  "mode": "managed",
+  "type": "aws_subnet",
+  "name": "public"
+}
