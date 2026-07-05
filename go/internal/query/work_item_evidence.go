@@ -213,7 +213,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 
 	switch fact.FactKind {
 	case "work_item.record":
-		record, err := decodeWorkItemRecord(fact.FactID, fact.SchemaVersion, fact.Payload)
+		record, err := decodeWorkItemRecord(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false
@@ -233,7 +233,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.RedactionPolicyVersion = workItemDerefString(record.RedactionPolicyVersion)
 
 	case "work_item.transition":
-		transition, err := decodeWorkItemTransition(fact.FactID, fact.SchemaVersion, fact.Payload)
+		transition, err := decodeWorkItemTransition(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false
@@ -249,7 +249,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.RedactionPolicyVersion = workItemDerefString(transition.RedactionPolicyVersion)
 
 	case "work_item.external_link":
-		link, err := decodeWorkItemExternalLink(fact.FactID, fact.SchemaVersion, fact.Payload)
+		link, err := decodeWorkItemExternalLink(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false
@@ -273,7 +273,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.LinkedRepositoryID = workItemDerefString(link.LinkedRepositoryID)
 
 	case "work_item.project_metadata":
-		metadata, err := decodeWorkItemProjectMetadata(fact.FactID, fact.SchemaVersion, fact.Payload)
+		metadata, err := decodeWorkItemProjectMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false
@@ -284,7 +284,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.status_metadata":
-		metadata, err := decodeWorkItemStatusMetadata(fact.FactID, fact.SchemaVersion, fact.Payload)
+		metadata, err := decodeWorkItemStatusMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false
@@ -296,7 +296,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.workflow_metadata":
-		metadata, err := decodeWorkItemWorkflowMetadata(fact.FactID, fact.SchemaVersion, fact.Payload)
+		metadata, err := decodeWorkItemWorkflowMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false
@@ -306,7 +306,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.field_metadata":
-		metadata, err := decodeWorkItemFieldMetadata(fact.FactID, fact.SchemaVersion, fact.Payload)
+		metadata, err := decodeWorkItemFieldMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false
@@ -315,7 +315,7 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.metadata_warning":
-		warning, err := decodeWorkItemMetadataWarning(fact.FactID, fact.SchemaVersion, fact.Payload)
+		warning, err := decodeWorkItemMetadataWarning(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
 			return WorkItemEvidenceRow{}, false

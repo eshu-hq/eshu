@@ -130,14 +130,28 @@ func workItemSchemaEnvelope(factKind, schemaVersion string, payload map[string]a
 // on the major component only.
 const queryDefaultSchemaMajorVersion = "1.0.0"
 
+// workItemDecodeInput carries one scanned work-item fact row into a decode
+// wrapper. Bundling the row's identity, schema version, and payload into a
+// single parameter lets each decode wrapper keep the one-argument shape the
+// payload-usage manifest gate's seam parser recognizes (a decode<Kind> func
+// taking one value and returning (workitemv1.<Struct>, error)); a three-arg
+// wrapper would be invisible to the gate, leaving the query decode sites
+// silently ungated. FactID is retained only for operator-facing error
+// attribution, never for decode input.
+type workItemDecodeInput struct {
+	FactID        string
+	SchemaVersion string
+	Payload       map[string]any
+}
+
 // decodeWorkItemRecord decodes one work_item.record fact row into the typed
 // struct through the contracts seam. A missing required field
 // (provider_work_item_id, work_item_key) yields a self-classifying
 // *queryDecodeError.
-func decodeWorkItemRecord(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemRecord, error) {
-	record, err := factschema.DecodeWorkItemRecord(workItemSchemaEnvelope(factschema.FactKindWorkItemRecord, schemaVersion, payload))
+func decodeWorkItemRecord(in workItemDecodeInput) (workitemv1.WorkItemRecord, error) {
+	record, err := factschema.DecodeWorkItemRecord(workItemSchemaEnvelope(factschema.FactKindWorkItemRecord, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemRecord{}, newQueryDecodeError(factschema.FactKindWorkItemRecord, factID, err)
+		return workitemv1.WorkItemRecord{}, newQueryDecodeError(factschema.FactKindWorkItemRecord, in.FactID, err)
 	}
 	return record, nil
 }
@@ -145,10 +159,10 @@ func decodeWorkItemRecord(factID, schemaVersion string, payload map[string]any) 
 // decodeWorkItemTransition decodes one work_item.transition fact row into the
 // typed struct. A missing required field (provider_changelog_id) yields a
 // self-classifying *queryDecodeError.
-func decodeWorkItemTransition(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemTransition, error) {
-	transition, err := factschema.DecodeWorkItemTransition(workItemSchemaEnvelope(factschema.FactKindWorkItemTransition, schemaVersion, payload))
+func decodeWorkItemTransition(in workItemDecodeInput) (workitemv1.WorkItemTransition, error) {
+	transition, err := factschema.DecodeWorkItemTransition(workItemSchemaEnvelope(factschema.FactKindWorkItemTransition, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemTransition{}, newQueryDecodeError(factschema.FactKindWorkItemTransition, factID, err)
+		return workitemv1.WorkItemTransition{}, newQueryDecodeError(factschema.FactKindWorkItemTransition, in.FactID, err)
 	}
 	return transition, nil
 }
@@ -156,20 +170,20 @@ func decodeWorkItemTransition(factID, schemaVersion string, payload map[string]a
 // decodeWorkItemExternalLink decodes one work_item.external_link fact row
 // into the typed struct. Only "provider" is required for this kind (see
 // workitem/v1/README.md), so this rarely dead-letters.
-func decodeWorkItemExternalLink(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemExternalLink, error) {
-	link, err := factschema.DecodeWorkItemExternalLink(workItemSchemaEnvelope(factschema.FactKindWorkItemExternalLink, schemaVersion, payload))
+func decodeWorkItemExternalLink(in workItemDecodeInput) (workitemv1.WorkItemExternalLink, error) {
+	link, err := factschema.DecodeWorkItemExternalLink(workItemSchemaEnvelope(factschema.FactKindWorkItemExternalLink, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemExternalLink{}, newQueryDecodeError(factschema.FactKindWorkItemExternalLink, factID, err)
+		return workitemv1.WorkItemExternalLink{}, newQueryDecodeError(factschema.FactKindWorkItemExternalLink, in.FactID, err)
 	}
 	return link, nil
 }
 
 // decodeWorkItemProjectMetadata decodes one work_item.project_metadata fact
 // row into the typed struct. Only "provider" is required for this kind.
-func decodeWorkItemProjectMetadata(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemProjectMetadata, error) {
-	metadata, err := factschema.DecodeWorkItemProjectMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemProjectMetadata, schemaVersion, payload))
+func decodeWorkItemProjectMetadata(in workItemDecodeInput) (workitemv1.WorkItemProjectMetadata, error) {
+	metadata, err := factschema.DecodeWorkItemProjectMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemProjectMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemProjectMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemProjectMetadata, factID, err)
+		return workitemv1.WorkItemProjectMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemProjectMetadata, in.FactID, err)
 	}
 	return metadata, nil
 }
@@ -184,10 +198,10 @@ func decodeWorkItemProjectMetadata(factID, schemaVersion string, payload map[str
 // decodeWorkItemStatusMetadata decodes one work_item.status_metadata fact row
 // into the typed struct. A missing required field (status_id) yields a
 // self-classifying *queryDecodeError.
-func decodeWorkItemStatusMetadata(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemStatusMetadata, error) {
-	metadata, err := factschema.DecodeWorkItemStatusMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemStatusMetadata, schemaVersion, payload))
+func decodeWorkItemStatusMetadata(in workItemDecodeInput) (workitemv1.WorkItemStatusMetadata, error) {
+	metadata, err := factschema.DecodeWorkItemStatusMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemStatusMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemStatusMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemStatusMetadata, factID, err)
+		return workitemv1.WorkItemStatusMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemStatusMetadata, in.FactID, err)
 	}
 	return metadata, nil
 }
@@ -195,10 +209,10 @@ func decodeWorkItemStatusMetadata(factID, schemaVersion string, payload map[stri
 // decodeWorkItemWorkflowMetadata decodes one work_item.workflow_metadata fact
 // row into the typed struct. A missing required field (workflow_id) yields a
 // self-classifying *queryDecodeError.
-func decodeWorkItemWorkflowMetadata(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemWorkflowMetadata, error) {
-	metadata, err := factschema.DecodeWorkItemWorkflowMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemWorkflowMetadata, schemaVersion, payload))
+func decodeWorkItemWorkflowMetadata(in workItemDecodeInput) (workitemv1.WorkItemWorkflowMetadata, error) {
+	metadata, err := factschema.DecodeWorkItemWorkflowMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemWorkflowMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemWorkflowMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemWorkflowMetadata, factID, err)
+		return workitemv1.WorkItemWorkflowMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemWorkflowMetadata, in.FactID, err)
 	}
 	return metadata, nil
 }
@@ -207,10 +221,10 @@ func decodeWorkItemWorkflowMetadata(factID, schemaVersion string, payload map[st
 // into the typed struct. Only "provider" is required for this kind — the
 // payload's own field_id is always redacted to "" by the collector (see
 // workitem/v1/README.md), so this rarely dead-letters.
-func decodeWorkItemFieldMetadata(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemFieldMetadata, error) {
-	metadata, err := factschema.DecodeWorkItemFieldMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemFieldMetadata, schemaVersion, payload))
+func decodeWorkItemFieldMetadata(in workItemDecodeInput) (workitemv1.WorkItemFieldMetadata, error) {
+	metadata, err := factschema.DecodeWorkItemFieldMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemFieldMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemFieldMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemFieldMetadata, factID, err)
+		return workitemv1.WorkItemFieldMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemFieldMetadata, in.FactID, err)
 	}
 	return metadata, nil
 }
@@ -218,10 +232,10 @@ func decodeWorkItemFieldMetadata(factID, schemaVersion string, payload map[strin
 // decodeWorkItemMetadataWarning decodes one work_item.metadata_warning fact
 // row into the typed struct. A missing required field (metadata_type, reason)
 // yields a self-classifying *queryDecodeError.
-func decodeWorkItemMetadataWarning(factID, schemaVersion string, payload map[string]any) (workitemv1.WorkItemMetadataWarning, error) {
-	warning, err := factschema.DecodeWorkItemMetadataWarning(workItemSchemaEnvelope(factschema.FactKindWorkItemMetadataWarning, schemaVersion, payload))
+func decodeWorkItemMetadataWarning(in workItemDecodeInput) (workitemv1.WorkItemMetadataWarning, error) {
+	warning, err := factschema.DecodeWorkItemMetadataWarning(workItemSchemaEnvelope(factschema.FactKindWorkItemMetadataWarning, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return workitemv1.WorkItemMetadataWarning{}, newQueryDecodeError(factschema.FactKindWorkItemMetadataWarning, factID, err)
+		return workitemv1.WorkItemMetadataWarning{}, newQueryDecodeError(factschema.FactKindWorkItemMetadataWarning, in.FactID, err)
 	}
 	return warning, nil
 }

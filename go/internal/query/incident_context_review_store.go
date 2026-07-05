@@ -300,7 +300,7 @@ func appendIncidentReviewDistinct(values []string, value string) []string {
 // struct's field of the same name and is byte-identical to the pre-typing
 // StringVal("") result: always empty.
 func decodeIncidentWorkItemExternalLink(row incidentContextFactRow) (incidentWorkItemExternalLink, bool) {
-	link, err := decodeWorkItemExternalLink(row.FactID, row.SchemaVersion, row.Payload)
+	link, err := decodeWorkItemExternalLink(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {
 		logWorkItemEvidenceDecodeDrop(err)
 		return incidentWorkItemExternalLink{}, false
@@ -322,7 +322,7 @@ func decodeIncidentWorkItemExternalLink(row incidentContextFactRow) (incidentWor
 // anchor (provider_work_item_id or work_item_key) — the caller drops it
 // rather than emitting an empty-identity row.
 func decodeIncidentWorkItemRecord(row incidentContextFactRow) (incidentWorkItemRecord, bool) {
-	record, err := decodeWorkItemRecord(row.FactID, row.SchemaVersion, row.Payload)
+	record, err := decodeWorkItemRecord(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {
 		logWorkItemEvidenceDecodeDrop(err)
 		return incidentWorkItemRecord{}, false
@@ -345,7 +345,7 @@ func decodeIncidentWorkItemRecord(row incidentContextFactRow) (incidentWorkItemR
 // work_item.project_metadata fact row through the typed seam. ok is false
 // when the fact failed decode (only "provider" is required for this kind).
 func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) (incidentWorkItemProjectMetadata, bool) {
-	metadata, err := decodeWorkItemProjectMetadata(row.FactID, row.SchemaVersion, row.Payload)
+	metadata, err := decodeWorkItemProjectMetadata(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {
 		logWorkItemEvidenceDecodeDrop(err)
 		return incidentWorkItemProjectMetadata{}, false
@@ -363,7 +363,7 @@ func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) (incident
 // fact row through the typed seam. ok is false when the fact is missing its
 // required status_id anchor.
 func decodeIncidentWorkItemStatusMetadata(row incidentContextFactRow) (incidentWorkItemStatusMetadata, bool) {
-	metadata, err := decodeWorkItemStatusMetadata(row.FactID, row.SchemaVersion, row.Payload)
+	metadata, err := decodeWorkItemStatusMetadata(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {
 		logWorkItemEvidenceDecodeDrop(err)
 		return incidentWorkItemStatusMetadata{}, false

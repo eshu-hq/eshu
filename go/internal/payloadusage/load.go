@@ -91,6 +91,34 @@ func resolveProjectorDecodeFiles(p Paths) ([]string, error) {
 	return files, nil
 }
 
+// resolveQueryDecodeFiles returns the set of query-layer decode-seam files to
+// parse. When QueryDecodeFiles is already set it is returned as-is; otherwise it
+// globs every factschema_decode*.go under QueryDir so a query family whose
+// wrappers live in a split file is covered, mirroring resolveProjectorDecodeFiles.
+// Like the projector glob (and unlike the reducer's fail-closed glob), an EMPTY
+// match is NOT an error: the query read model has exactly one typed family today
+// (work_item), so a repo checkout with no query decode seam is a valid
+// intermediate state rather than a fail-closed misconfiguration.
+func resolveQueryDecodeFiles(p Paths) ([]string, error) {
+	if len(p.QueryDecodeFiles) > 0 {
+		return p.QueryDecodeFiles, nil
+	}
+	pattern := filepath.Join(p.QueryDir, "factschema_decode*.go")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("payloadusage: glob query decode seam files %s: %w", pattern, err)
+	}
+	files := matches[:0]
+	for _, m := range matches {
+		if strings.HasSuffix(m, "_test.go") {
+			continue
+		}
+		files = append(files, m)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
 // parseDecodeSeamsFiles parses every file in files and returns the merged seam
 // set, sorted by FuncName. A function name appearing in more than one file is a
 // programming error (each decode<Kind> wrapper is defined once), reported rather
@@ -168,6 +196,46 @@ func mergeUsage(a, b map[string][]FieldUsage) map[string][]FieldUsage {
 	return merged
 }
 
+// parseAllStructShapes parses every typed-struct directory a migrated family
+// declares (aws/v1, iam/v1, ... workitem/v1) and returns their union keyed by
+// qualified struct name, the shape lookup BuildManifest joins each decode seam
+// against. A data-driven family list (rather than one repeated 3-line
+// parse-and-merge block per family) keeps this proportional to the number of
+// typed families as new ones are added. Any family's parse error is returned
+// as a startup-time configuration error, not silently skipped.
+func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
+	families := []struct {
+		dir   string
+		alias string
+	}{
+		{resolved.AWSStructDir, "awsv1"},
+		{resolved.IAMStructDir, "iamv1"},
+		{resolved.IncidentStructDir, "incidentv1"},
+		{resolved.GCPStructDir, "gcpv1"},
+		{resolved.AzureStructDir, "azurev1"},
+		{resolved.KubernetesLiveStructDir, "kuberneteslivev1"},
+		{resolved.OCIRegistryStructDir, "ociregistryv1"},
+		{resolved.TerraformStateStructDir, "tfstatev1"},
+		{resolved.PackageRegistryStructDir, "packageregistryv1"},
+		{resolved.SBOMStructDir, "sbomv1"},
+		{resolved.VulnerabilityStructDir, "vulnerabilityv1"},
+		{resolved.CICDRunStructDir, "cicdrunv1"},
+		{resolved.SecretsIAMStructDir, "secretsiamv1"},
+		{resolved.WorkItemStructDir, "workitemv1"},
+	}
+	shapes := make(map[string]StructShape)
+	for _, family := range families {
+		parsed, err := ParseStructShapes(family.dir, family.alias)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range parsed {
+			shapes[k] = v
+		}
+	}
+	return shapes, nil
+}
+
 // Load runs the full derivation pipeline against p (auto-resolving empty
 // fields via ResolvePaths): parse the reducer and projector decode seams, parse
 // the aws/v1, iam/v1, incident/v1, gcp/v1, azure/v1, kuberneteslive/v1,
@@ -209,7 +277,21 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	seams := mergeSeams(reducerSeams, projectorSeams)
+
+	// The query read model is the ONLY decode site for the work_item family: no
+	// reducer or projector domain consumes work_item.* payloads, so its typed
+	// decode wrappers live in go/internal/query/factschema_decode_workitem.go.
+	// Parse them and merge so the manifest gate covers query decode sites too. An
+	// empty query seam set is valid (only work_item is typed at the query layer).
+	queryDecodeFiles, err := resolveQueryDecodeFiles(resolved)
+	if err != nil {
+		return Manifest{}, err
+	}
+	querySeams, err := parseDecodeSeamsFiles(queryDecodeFiles)
+	if err != nil {
+		return Manifest{}, err
+	}
+	seams := mergeSeams(mergeSeams(reducerSeams, projectorSeams), querySeams)
 
 	if missing := UnmappedSeamFactKinds(seams); len(missing) > 0 {
 		return Manifest{}, fmt.Errorf(
@@ -218,102 +300,15 @@ func Load(p Paths) (Manifest, error) {
 		)
 	}
 
-	awsShapes, err := ParseStructShapes(resolved.AWSStructDir, "awsv1")
+	shapes, err := parseAllStructShapes(resolved)
 	if err != nil {
 		return Manifest{}, err
-	}
-	iamShapes, err := ParseStructShapes(resolved.IAMStructDir, "iamv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	incidentShapes, err := ParseStructShapes(resolved.IncidentStructDir, "incidentv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	gcpShapes, err := ParseStructShapes(resolved.GCPStructDir, "gcpv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	azureShapes, err := ParseStructShapes(resolved.AzureStructDir, "azurev1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	kubernetesLiveShapes, err := ParseStructShapes(resolved.KubernetesLiveStructDir, "kuberneteslivev1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	ociShapes, err := ParseStructShapes(resolved.OCIRegistryStructDir, "ociregistryv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	terraformStateShapes, err := ParseStructShapes(resolved.TerraformStateStructDir, "tfstatev1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	packageRegistryShapes, err := ParseStructShapes(resolved.PackageRegistryStructDir, "packageregistryv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	sbomShapes, err := ParseStructShapes(resolved.SBOMStructDir, "sbomv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	vulnerabilityShapes, err := ParseStructShapes(resolved.VulnerabilityStructDir, "vulnerabilityv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	cicdRunShapes, err := ParseStructShapes(resolved.CICDRunStructDir, "cicdrunv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	secretsIAMShapes, err := ParseStructShapes(resolved.SecretsIAMStructDir, "secretsiamv1")
-	if err != nil {
-		return Manifest{}, err
-	}
-	shapes := make(map[string]StructShape, len(awsShapes)+len(iamShapes)+len(incidentShapes)+len(gcpShapes)+len(azureShapes)+len(kubernetesLiveShapes)+len(ociShapes)+len(terraformStateShapes)+len(packageRegistryShapes)+len(sbomShapes)+len(vulnerabilityShapes)+len(cicdRunShapes)+len(secretsIAMShapes))
-	for k, v := range awsShapes {
-		shapes[k] = v
-	}
-	for k, v := range iamShapes {
-		shapes[k] = v
-	}
-	for k, v := range incidentShapes {
-		shapes[k] = v
-	}
-	for k, v := range gcpShapes {
-		shapes[k] = v
-	}
-	for k, v := range azureShapes {
-		shapes[k] = v
-	}
-	for k, v := range kubernetesLiveShapes {
-		shapes[k] = v
-	}
-	for k, v := range ociShapes {
-		shapes[k] = v
-	}
-	for k, v := range terraformStateShapes {
-		shapes[k] = v
-	}
-	for k, v := range packageRegistryShapes {
-		shapes[k] = v
-	}
-	for k, v := range sbomShapes {
-		shapes[k] = v
-	}
-	for k, v := range vulnerabilityShapes {
-		shapes[k] = v
-	}
-	for k, v := range cicdRunShapes {
-		shapes[k] = v
-	}
-	for k, v := range secretsIAMShapes {
-		shapes[k] = v
 	}
 
-	// Scan BOTH the reducer and the projector directories for field usage
-	// against the merged seam set, so a field a projector canonical extractor
-	// reads off a decoded struct is gated the same as a reducer handler read.
+	// Scan the reducer, projector, AND query directories for field usage against
+	// the merged seam set, so a field a projector canonical extractor or a query
+	// read-model builder reads off a decoded struct is gated the same as a
+	// reducer handler read.
 	reducerUsage, err := ScanDecodeUsage(resolved.ReducerDir, seams)
 	if err != nil {
 		return Manifest{}, err
@@ -322,7 +317,11 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	usage := mergeUsage(reducerUsage, projectorUsage)
+	queryUsage, err := ScanDecodeUsage(resolved.QueryDir, seams)
+	if err != nil {
+		return Manifest{}, err
+	}
+	usage := mergeUsage(mergeUsage(reducerUsage, projectorUsage), queryUsage)
 
 	manifest := BuildManifest(seams, shapes, usage)
 	if err := verifyEverySeamProduced(seams, manifest); err != nil {
