@@ -439,6 +439,7 @@ func TestCanonicalExecutorForGraphBackendKeepsNeo4jGrouped(t *testing.T) {
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 	if _, ok := executor.(sourcecypher.GroupExecutor); !ok {
 		t.Fatal("Neo4j canonical executor does not implement GroupExecutor")
@@ -460,6 +461,7 @@ func TestCanonicalExecutorForGraphBackendUsesNornicDBPhaseGroupsByDefault(t *tes
 		nil,
 		0,
 		defaultNornicDBCanonicalRetractBatchSize,
+		nil,
 		nil,
 		nil,
 	)

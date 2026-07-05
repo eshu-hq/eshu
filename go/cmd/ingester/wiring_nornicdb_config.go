@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -136,6 +137,7 @@ func canonicalExecutorForGraphBackend(
 	nornicDBRetractBatchSize int,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
+	gate *sourcecypher.BackpressureGate,
 ) sourcecypher.Executor {
 	instrumented := &sourcecypher.InstrumentedExecutor{
 		Inner: &sourcecypher.RetryingExecutor{
@@ -147,11 +149,22 @@ func canonicalExecutorForGraphBackend(
 		Instruments: instruments,
 	}
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
-		bounded := sourcecypher.TimeoutExecutor{
+		var bounded sourcecypher.Executor = sourcecypher.TimeoutExecutor{
 			Inner:       instrumented,
 			Timeout:     nornicDBTimeout,
 			TimeoutHint: canonicalWriteTimeoutEnv,
 		}
+		// Bound the graph-write concurrency at the INNER GroupExecutor layer
+		// (#4729 / #4456), NOT the outer nornicDBPhaseGroupExecutor returned
+		// below: ExecutePhaseGroup fans one call into up to
+		// nornicDBEntityPhaseConcurrency concurrent inner ExecuteGroup goroutines,
+		// so gating only the outer call would leave that fan-out unbounded, and
+		// wrapping the PhaseGroupExecutor (which is not a GroupExecutor) would
+		// strip its phase-group capability and silently regress to per-statement
+		// sequential writes. A nil gate (unset ceiling) leaves bounded unchanged.
+		// See go/internal/graphbackpressure/README.md and
+		// bootstrapCanonicalExecutorForGraphBackend for the shared rationale.
+		bounded = graphbackpressure.WrapExecutorWithGate(bounded, gate)
 		// NOTE (#4027): nornicDBGroupedWrites is intentionally NOT routed to the
 		// bare grouped GroupExecutor here. Whole-materialization atomic canonical
 		// writes are unsupported on NornicDB — an UNWIND-driven MATCH does not see a
@@ -177,6 +190,15 @@ func canonicalExecutorForGraphBackend(
 		var dr retractDrainReader
 		if rdr, ok := rawExecutor.(retractDrainReader); ok {
 			dr = rdr
+			// Gate the full-refresh DETACH DELETE drain writes too (#4729): the
+			// drain loop calls drainReader.RunWrite on the raw executor, bypassing
+			// the gated inner GroupExecutor above, so without this the drain path
+			// would run ungated and could exceed ESHU_GRAPH_WRITE_MAX_IN_FLIGHT
+			// under concurrent projector workers. Only wrap when a gate is
+			// configured (nil gate = passthrough, keep the raw reader).
+			if gate != nil {
+				dr = gatedDrainReader{inner: rdr, gate: gate}
+			}
 		}
 		return nornicDBPhaseGroupExecutor{
 			inner:                    bounded,
@@ -190,5 +212,7 @@ func canonicalExecutorForGraphBackend(
 			instruments:              instruments,
 		}
 	}
-	return instrumented
+	// Neo4j has no phase-group fan-out wrapper, so the gate applies directly to
+	// the instrumented GroupExecutor here (nil gate = passthrough).
+	return graphbackpressure.WrapExecutorWithGate(instrumented, gate)
 }

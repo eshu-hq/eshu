@@ -179,9 +179,9 @@ versus 13 and 3 at `=8` (bootstrap did not hit the rc=1 catastrophic failure).
 A per-writer ceiling of 8 keeps the two writers that run concurrently in the
 measured E2E (bootstrap-index + reducer) at a combined in-flight ≈ 16 = the top
 of the zero-timeout plateau. This is a **per-process** bound, not a global
-cross-process ceiling — each gated writer (reducer, projector, bootstrap-index)
-independently bounds its own in-flight writes to N; a truly global budget across
-processes is a larger design tracked separately. Operators on a backend with
+cross-process ceiling — each gated writer (reducer, projector, bootstrap-index,
+and the ingester as of #4729) independently bounds its own in-flight writes to N;
+a truly global budget across processes is a larger design tracked separately. Operators on a backend with
 more write headroom should raise it; the goal is to sit at the knee, not below
 it.
 

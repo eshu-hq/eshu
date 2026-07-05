@@ -254,6 +254,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredEntityPhaseConcurrency(t 
 		defaultNornicDBCanonicalRetractBatchSize,
 		nil,
 		nil,
+		nil,
 	)
 	pge, ok := executor.(nornicDBPhaseGroupExecutor)
 	if !ok {
