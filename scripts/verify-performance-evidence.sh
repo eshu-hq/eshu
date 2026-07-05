@@ -145,7 +145,17 @@ if [ -n "${_perf_diff_cache}" ]; then
         _perf_code_change_map="${_perf_code_change_map}${_perf_cur}"$'\t'"1"$'\n'
         ;;
     esac
-  done <<< "${_perf_diff_cache}"
+  # Feed the loop via process substitution rather than a `<<<` here-string:
+  # bash 5.3.x hangs indefinitely on a here-string that feeds a while-read loop
+  # once the diff crosses a byte threshold (reproduced on Homebrew bash 5.3.15,
+  # Apple Silicon; 0% CPU, never returns). printf restores the trailing newline
+  # that `<<<` would have added, so the final diff line is still read — using
+  # `printf '%s'` (no newline) would drop it because _perf_diff_cache is captured
+  # via command substitution, which strips the trailing newline, and a
+  # last-line-only hot change would then be misread as comment-only. Do not
+  # revert to `<<<` or to `printf '%s'`; see
+  # scripts/test-verify-performance-evidence.sh (large-diff and last-line cases).
+  done < <(printf '%s\n' "${_perf_diff_cache}")
   unset _perf_cur _perf_payload
 fi
 
