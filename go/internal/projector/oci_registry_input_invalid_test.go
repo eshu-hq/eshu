@@ -107,3 +107,54 @@ func TestExtractOCIRegistryRowsPresentButEmptyDigestIsDroppedNotQuarantined(t *t
 		t.Fatalf("len(OCIImageManifests) = %d, want 0; a manifest with an empty digest is incomplete and must be dropped", len(mat.OCIImageManifests))
 	}
 }
+
+// TestExtractOCIRegistryRowsWhitespaceDigestIsDroppedNotMaterialized is the
+// regression for codex's P2 (PR #4699, oci_registry_canonical.go:253): the
+// pre-typing payloadString path TRIMMED whitespace before deciding whether an
+// identity was usable, so a whitespace-only digest ("   ") was treated as empty
+// and the row was DROPPED. The typed row gate must preserve that: it trims the
+// identity fields before the `== ""` check, so a present-but-whitespace-only
+// digest drops the row as non-materializable rather than keying a descriptor row
+// on an empty-after-trim graph identity (the degenerate identity the
+// downstream ociDescriptorUID/ociResolvedDescriptorUID trim would otherwise
+// produce). This is NOT a dead-letter — the decode succeeded, the fact is a
+// valid but non-materializable observation, exactly like present-but-empty.
+//
+// Before the trim fix this test failed: the raw `manifest.Digest == ""` gate let
+// "   " through, and the manifest materialized under an empty-digest uid. After
+// the fix it is dropped, while a valid sibling manifest in the same batch still
+// materializes.
+func TestExtractOCIRegistryRowsWhitespaceDigestIsDroppedNotMaterialized(t *testing.T) {
+	t.Parallel()
+
+	validManifest := ociRegistryFacts()[2] // the fully valid oci-manifest-1 fact
+
+	whitespaceDigest := facts.Envelope{
+		FactID:        "oci-manifest-ws",
+		ScopeID:       "oci-scope-1",
+		GenerationID:  "oci-generation-1",
+		FactKind:      facts.OCIImageManifestFactKind,
+		SchemaVersion: facts.OCIImageManifestSchemaVersion,
+		Payload: map[string]any{
+			"repository_id": "oci-registry://registry.example.com/team/api",
+			"digest":        "   ", // present but whitespace-only
+			"media_type":    "application/vnd.oci.image.manifest.v1+json",
+		},
+	}
+
+	mat := &CanonicalMaterialization{}
+	quarantined := extractOCIRegistryRows(mat, []facts.Envelope{validManifest, whitespaceDigest})
+
+	// A whitespace-only identity is a valid decode, so it must NOT dead-letter.
+	if len(quarantined) != 0 {
+		t.Fatalf("len(quarantined) = %d, want 0; a whitespace-only identity is a valid decode dropped as non-materializable, never a dead-letter", len(quarantined))
+	}
+	// Only the valid manifest may materialize — the whitespace-digest fact must
+	// never key a row on an empty-after-trim graph identity.
+	if len(mat.OCIImageManifests) != 1 {
+		t.Fatalf("len(OCIImageManifests) = %d, want 1; the whitespace-only-digest manifest must be dropped, the valid sibling must still project", len(mat.OCIImageManifests))
+	}
+	if got, want := mat.OCIImageManifests[0].UID, ociManifestDescriptorID(); got != want {
+		t.Fatalf("materialized manifest UID = %q, want the valid sibling's %q (never an empty-digest identity)", got, want)
+	}
+}

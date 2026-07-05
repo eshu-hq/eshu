@@ -221,10 +221,13 @@ func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow
 	if err != nil {
 		return OCIRegistryRepositoryRow{}, false, err
 	}
-	repositoryID := repository.RepositoryID
+	repositoryID := strings.TrimSpace(repository.RepositoryID)
 	if repositoryID == "" {
-		// Present-but-empty repository_id is a valid decode, distinct from an
-		// absent required key (which the decode seam already dead-lettered).
+		// Present-but-empty (or whitespace-only) repository_id is a valid decode,
+		// distinct from an absent required key (which the decode seam already
+		// dead-lettered). Trim before the gate so a whitespace-only identity is
+		// dropped as non-materializable exactly as the pre-typing payloadString
+		// path did, never keying a row on an empty-after-trim graph identity.
 		return OCIRegistryRepositoryRow{}, false, nil
 	}
 	return OCIRegistryRepositoryRow{
@@ -249,16 +252,22 @@ func ociImageManifestRow(envelope facts.Envelope) (OCIImageManifestRow, bool, er
 	if err != nil {
 		return OCIImageManifestRow{}, false, err
 	}
-	uid := ociResolvedDescriptorUID(manifest.RepositoryID, manifest.Digest, ociDerefString(manifest.DescriptorID))
-	if uid == "" || manifest.Digest == "" || manifest.RepositoryID == "" {
-		// Present-but-empty identity is a valid decode, distinct from an absent
-		// required key (already dead-lettered by the decode seam).
+	repositoryID := strings.TrimSpace(manifest.RepositoryID)
+	digest := strings.TrimSpace(manifest.Digest)
+	uid := ociResolvedDescriptorUID(repositoryID, digest, ociDerefString(manifest.DescriptorID))
+	if uid == "" || digest == "" || repositoryID == "" {
+		// Present-but-empty (or whitespace-only) identity is a valid decode,
+		// distinct from an absent required key (already dead-lettered by the
+		// decode seam). Trim the identity keys before the gate so a
+		// whitespace-only digest/repository_id drops the row as non-materializable
+		// exactly as the pre-typing payloadString path did, never keying a
+		// descriptor row on an empty-after-trim graph identity.
 		return OCIImageManifestRow{}, false, nil
 	}
 	return OCIImageManifestRow{
 		UID:                  uid,
-		RepositoryID:         manifest.RepositoryID,
-		Digest:               manifest.Digest,
+		RepositoryID:         repositoryID,
+		Digest:               digest,
 		MediaType:            ociDerefString(manifest.MediaType),
 		SizeBytes:            ociDerefInt64(manifest.SizeBytes),
 		ArtifactType:         ociDerefString(manifest.ArtifactType),
@@ -283,14 +292,18 @@ func ociImageIndexRow(envelope facts.Envelope) (OCIImageIndexRow, bool, error) {
 	if err != nil {
 		return OCIImageIndexRow{}, false, err
 	}
-	uid := ociResolvedDescriptorUID(index.RepositoryID, index.Digest, ociDerefString(index.DescriptorID))
-	if uid == "" || index.Digest == "" || index.RepositoryID == "" {
+	repositoryID := strings.TrimSpace(index.RepositoryID)
+	digest := strings.TrimSpace(index.Digest)
+	uid := ociResolvedDescriptorUID(repositoryID, digest, ociDerefString(index.DescriptorID))
+	if uid == "" || digest == "" || repositoryID == "" {
+		// Whitespace-only identity drops the row as non-materializable, matching
+		// the pre-typing payloadString trim (see ociImageManifestRow).
 		return OCIImageIndexRow{}, false, nil
 	}
 	return OCIImageIndexRow{
 		UID:                uid,
-		RepositoryID:       index.RepositoryID,
-		Digest:             index.Digest,
+		RepositoryID:       repositoryID,
+		Digest:             digest,
 		MediaType:          ociDerefString(index.MediaType),
 		SizeBytes:          ociDerefInt64(index.SizeBytes),
 		ArtifactType:       ociDerefString(index.ArtifactType),
@@ -311,14 +324,18 @@ func ociImageDescriptorRow(envelope facts.Envelope) (OCIImageDescriptorRow, bool
 	if err != nil {
 		return OCIImageDescriptorRow{}, false, err
 	}
-	uid := ociResolvedDescriptorUID(descriptor.RepositoryID, descriptor.Digest, ociDerefString(descriptor.DescriptorID))
-	if uid == "" || descriptor.Digest == "" || descriptor.RepositoryID == "" {
+	repositoryID := strings.TrimSpace(descriptor.RepositoryID)
+	digest := strings.TrimSpace(descriptor.Digest)
+	uid := ociResolvedDescriptorUID(repositoryID, digest, ociDerefString(descriptor.DescriptorID))
+	if uid == "" || digest == "" || repositoryID == "" {
+		// Whitespace-only identity drops the row as non-materializable, matching
+		// the pre-typing payloadString trim (see ociImageManifestRow).
 		return OCIImageDescriptorRow{}, false, nil
 	}
 	return OCIImageDescriptorRow{
 		UID:              uid,
-		RepositoryID:     descriptor.RepositoryID,
-		Digest:           descriptor.Digest,
+		RepositoryID:     repositoryID,
+		Digest:           digest,
 		MediaType:        ociDerefString(descriptor.MediaType),
 		SizeBytes:        ociDerefInt64(descriptor.SizeBytes),
 		ArtifactType:     ociDerefString(descriptor.ArtifactType),
@@ -337,10 +354,12 @@ func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationR
 	if err != nil {
 		return OCIImageTagObservationRow{}, false, err
 	}
-	repositoryID := observation.RepositoryID
-	tag := observation.Tag
-	resolvedDigest := observation.ResolvedDigest
+	repositoryID := strings.TrimSpace(observation.RepositoryID)
+	tag := strings.TrimSpace(observation.Tag)
+	resolvedDigest := strings.TrimSpace(observation.ResolvedDigest)
 	if repositoryID == "" || tag == "" || resolvedDigest == "" {
+		// Whitespace-only identity drops the row as non-materializable, matching
+		// the pre-typing payloadString trim (see ociImageManifestRow).
 		return OCIImageTagObservationRow{}, false, nil
 	}
 	identityStrength := ociDerefString(observation.IdentityStrength)
@@ -373,10 +392,12 @@ func ociImageReferrerRow(envelope facts.Envelope) (OCIImageReferrerRow, bool, er
 	if err != nil {
 		return OCIImageReferrerRow{}, false, err
 	}
-	repositoryID := referrer.RepositoryID
-	subjectDigest := referrer.SubjectDigest
-	referrerDigest := referrer.ReferrerDigest
+	repositoryID := strings.TrimSpace(referrer.RepositoryID)
+	subjectDigest := strings.TrimSpace(referrer.SubjectDigest)
+	referrerDigest := strings.TrimSpace(referrer.ReferrerDigest)
 	if repositoryID == "" || subjectDigest == "" || referrerDigest == "" {
+		// Whitespace-only identity drops the row as non-materializable, matching
+		// the pre-typing payloadString trim (see ociImageManifestRow).
 		return OCIImageReferrerRow{}, false, nil
 	}
 	return OCIImageReferrerRow{
