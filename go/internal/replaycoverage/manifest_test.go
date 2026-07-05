@@ -315,6 +315,10 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 	for _, parser := range parserLedger.Parsers {
 		parserNames[parser.Parser] = struct{}{}
 	}
+	ledgerLanguages := map[string]struct{}{}
+	for _, lang := range ledger.Languages {
+		ledgerLanguages[lang.Language] = struct{}{}
+	}
 	for _, entry := range m.Coverage {
 		if entry.Scenario != ScenarioParserFixture || entry.ScenarioType != ScenarioTypeBaseline {
 			continue
@@ -324,7 +328,9 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 			t.Fatalf("parser fixture coverage entry has non-parser surface %q", entry.Surface)
 		}
 		if _, ok := parserNames[name]; !ok {
-			t.Fatalf("parser fixture %q is not in the parser-backing ledger", entry.Surface)
+			if _, ok := ledgerLanguages[name]; !ok {
+				t.Fatalf("parser fixture %q is not in the parser-backing ledger or language ledger", entry.Surface)
+			}
 		}
 	}
 	var supportedParsers []SupportedSurface
@@ -336,7 +342,9 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 		})
 	}
 	cov := Reconcile(supportedParsers, m, ArtifactResolver{RepoRoot: repoRoot})
-	board := BuildLanguageScoreboard(ledger, m.LanguageExemptions, cov.Surfaces)
+	languageSurfaces := languageFixtureCoverageSurfaces(ledger, m, ArtifactResolver{RepoRoot: repoRoot}, proofGateValidationDetails{})
+	scoreboardSurfaces := appendDistinctSurfaceCoverage(cov.Surfaces, languageSurfaces)
+	board := BuildLanguageScoreboard(ledger, m.LanguageExemptions, scoreboardSurfaces)
 	if len(board.StaleExemptions) != 0 {
 		t.Fatalf("committed manifest has stale language exemptions: %v", board.StaleExemptions)
 	}
@@ -346,13 +354,15 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 	if board.Exempt != len(m.LanguageExemptions) {
 		t.Fatalf("exempt count %d != committed exemptions %d", board.Exempt, len(m.LanguageExemptions))
 	}
-	ledgerLanguages := map[string]struct{}{}
-	for _, lang := range ledger.Languages {
-		ledgerLanguages[lang.Language] = struct{}{}
-	}
 	fixtures := 0
 	parserOnlyFixtures := 0
-	for _, sc := range cov.Surfaces {
+	parserOnlyWant := len(parserLedger.Parsers)
+	for name := range parserNames {
+		if _, ok := ledgerLanguages[name]; ok {
+			parserOnlyWant--
+		}
+	}
+	for _, sc := range scoreboardSurfaces {
 		if sc.Status != StatusCovered || sc.Scenario == nil ||
 			sc.Scenario.Scenario != ScenarioParserFixture || surfaceCoverageScenarioType(sc) != ScenarioTypeBaseline {
 			continue
@@ -370,9 +380,53 @@ func TestLoadRealManifestLanguageExemptionsMatchLedger(t *testing.T) {
 	if board.Fixture != fixtures {
 		t.Fatalf("fixture count %d != committed exact parser-language fixtures %d", board.Fixture, fixtures)
 	}
-	if fixtures+parserOnlyFixtures != len(parserLedger.Parsers) {
-		t.Fatalf("resolved parser fixtures exact=%d parser-only=%d; want parser ledger count %d", fixtures, parserOnlyFixtures, len(parserLedger.Parsers))
+	if parserOnlyFixtures != parserOnlyWant {
+		t.Fatalf("resolved parser-only fixtures=%d; want parser ledger non-language count %d", parserOnlyFixtures, parserOnlyWant)
 	}
+}
+
+func TestLoadRealManifestCoversJSONParserFixture(t *testing.T) {
+	specs := repoSpecsDir(t)
+	repoRoot := filepath.Dir(specs)
+	m, err := LoadManifest(filepath.Join(specs, ManifestFileName))
+	if err != nil {
+		t.Fatalf("LoadManifest(real): %v", err)
+	}
+	ledger, err := LoadLanguageLedger(filepath.Join(specs, LanguageLedgerFileName))
+	if err != nil {
+		t.Fatalf("LoadLanguageLedger(real): %v", err)
+	}
+	parserLedger, err := LoadParserLedger(filepath.Join(specs, ParserLedgerFileName))
+	if err != nil {
+		t.Fatalf("LoadParserLedger(real): %v", err)
+	}
+
+	var supportedParsers []SupportedSurface
+	for _, parser := range parserLedger.Parsers {
+		supportedParsers = append(supportedParsers, SupportedSurface{
+			Registry: RegistryParserLedger,
+			Key:      ParserSurfacePrefix + parser.Parser,
+			Detail:   "parser backing ledger entry",
+		})
+	}
+	supportedParsers = append(supportedParsers, SupportedSurface{
+		Registry: RegistryParserLedger,
+		Key:      ParserSurfacePrefix + "json",
+		Detail:   "language parser fixture",
+	})
+
+	cov := Reconcile(supportedParsers, m, ArtifactResolver{RepoRoot: repoRoot})
+	board := BuildLanguageScoreboard(ledger, m.LanguageExemptions, cov.Surfaces)
+	for _, row := range board.Languages {
+		if row.Language != "json" {
+			continue
+		}
+		if row.Status != LanguageFixture {
+			t.Fatalf("json language row = %+v, want fixture-covered parser:json", row)
+		}
+		return
+	}
+	t.Fatal("language ledger did not include json")
 }
 
 func TestLoadRealManifestCoversDirectoryDeltaTombstone(t *testing.T) {

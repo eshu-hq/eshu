@@ -1,0 +1,15 @@
+{
+  "name": "@example/json-fixture-service",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@example/shared": "^2.1.0",
+    "fastify": "^4.26.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

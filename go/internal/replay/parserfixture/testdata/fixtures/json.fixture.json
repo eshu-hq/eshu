@@ -1,0 +1,133 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "json:package.json",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "json",
+          "parsed_file_data": {
+            "analytics_models": [],
+            "classes": [],
+            "cloudformation_conditions": [],
+            "cloudformation_cross_stack_exports": [],
+            "cloudformation_cross_stack_imports": [],
+            "cloudformation_outputs": [],
+            "cloudformation_parameters": [],
+            "cloudformation_resources": [],
+            "dashboard_assets": [],
+            "data_assets": [],
+            "data_columns": [],
+            "data_contracts": [],
+            "data_governance_annotations": [],
+            "data_intelligence_coverage": {
+              "confidence": 0,
+              "state": "unavailable",
+              "unresolved_references": []
+            },
+            "data_owners": [],
+            "data_quality_checks": [],
+            "data_relationships": [],
+            "function_calls": [],
+            "functions": [
+              {
+                "args": [],
+                "context": "scripts",
+                "context_type": "json",
+                "cyclomatic_complexity": 0,
+                "end_line": 1,
+                "function_kind": "json_script",
+                "lang": "json",
+                "line_number": 1,
+                "name": "build",
+                "source": "tsc -p tsconfig.json"
+              },
+              {
+                "args": [],
+                "context": "scripts",
+                "context_type": "json",
+                "cyclomatic_complexity": 0,
+                "end_line": 2,
+                "function_kind": "json_script",
+                "lang": "json",
+                "line_number": 2,
+                "name": "test",
+                "source": "node --test"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [],
+            "is_dependency": false,
+            "json_metadata": {
+              "top_level_keys": [
+                "name",
+                "version",
+                "scripts",
+                "dependencies",
+                "devDependencies"
+              ]
+            },
+            "lang": "json",
+            "module_inclusions": [],
+            "modules": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/json/package.json",
+            "query_executions": [],
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/json",
+            "variables": [
+              {
+                "config_kind": "dependency",
+                "dependency_scope": "runtime",
+                "development_dependency": false,
+                "lang": "json",
+                "line_number": 1,
+                "name": "@example/shared",
+                "package_manager": "npm",
+                "section": "dependencies",
+                "value": "^2.1.0"
+              },
+              {
+                "config_kind": "dependency",
+                "dependency_scope": "runtime",
+                "development_dependency": false,
+                "lang": "json",
+                "line_number": 2,
+                "name": "fastify",
+                "package_manager": "npm",
+                "section": "dependencies",
+                "value": "^4.26.0"
+              },
+              {
+                "config_kind": "dependency",
+                "dependency_scope": "dev",
+                "development_dependency": true,
+                "lang": "json",
+                "line_number": 1,
+                "name": "typescript",
+                "package_manager": "npm",
+                "section": "devDependencies",
+                "value": "^5.5.0"
+              }
+            ]
+          },
+          "relative_path": "package.json",
+          "repo_id": "json"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/json/package.json",
+        "stable_fact_key": "file:json:package.json"
+      }
+    ],
+    "generation_id": "canonical-generation-452ce6a97c46c043",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "json",
+    "scope_id": "parser_fixture:json",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

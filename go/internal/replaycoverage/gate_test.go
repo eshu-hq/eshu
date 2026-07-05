@@ -43,3 +43,33 @@ func TestRunGateBlockingFailsOnGap(t *testing.T) {
 		t.Error("blocking gate must fail when surfaces are uncovered")
 	}
 }
+
+func TestRunGateCountsLanguageFixtureOnlyInScoreboard(t *testing.T) {
+	in := Inputs{
+		Ledger: ParserLedger{Parsers: []ParserLedgerEntry{{Parser: "hcl"}}},
+		LanguageLedger: LanguageLedger{Languages: []LanguageLedgerEntry{
+			{Language: "hcl"},
+			{Language: "json"},
+		}},
+		Manifest: Manifest{Coverage: []CoverageEntry{
+			{Surface: "parser:hcl", Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "hcl-fixture", ProofGate: "parserfixture-tests"},
+			{Surface: "parser:json", Scenario: ScenarioParserFixture, ScenarioType: ScenarioTypeBaseline, Ref: "json-fixture", ProofGate: "parserfixture-tests"},
+		}},
+		Resolver: stubResolver{present: map[string]bool{
+			"hcl-fixture":  true,
+			"json-fixture": true,
+		}},
+		Blocking: true,
+	}
+
+	_, rep, gr := RunGate(in)
+	if gr.Failed() {
+		t.Fatalf("language-only parser fixture must not create blocking findings")
+	}
+	if rep.Totals.Total != 1 || rep.Totals.Covered != 1 {
+		t.Fatalf("coverage totals = %+v, want only parser-backing hcl counted", rep.Totals)
+	}
+	if rep.LanguageScoreboard.Total != 2 || rep.LanguageScoreboard.Fixture != 2 || rep.LanguageScoreboard.Uncovered != 0 {
+		t.Fatalf("language scoreboard = %+v, want both hcl and json fixture-covered", rep.LanguageScoreboard)
+	}
+}

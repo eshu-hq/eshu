@@ -39,6 +39,11 @@
   `committed_fixtures_test.go`; `TestLedgerCasesMatchSpec` enforces this so C-1
   parser coverage cannot silently drop below 100%. Regenerate fixtures with
   `-update-fixtures` and review the diff — never hand-edit a fixture.
+- Language-scoreboard fixtures. A C-12 fixture may map an exact
+  `parser:<language>` row from `specs/language-feature-parity-ledger.v1.yaml`
+  without adding that parser to `specs/parser-backing-ledger.v1.yaml`. Keep those
+  cases in `languageFixtureCases`; they satisfy the visibility-only language
+  scoreboard and MUST NOT expand the blocking parser-backing-ledger denominator.
 - Fixture format version is `"1"`. Increment with a migration note for breaking
   changes; do not silently change the shape.
 
