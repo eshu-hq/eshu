@@ -1,0 +1,39 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/sbom/v1/warning.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "document_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "occurrence_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "statement_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "Eshu sbom.warning Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,78 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/sbom/v1/statement.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "attestation_format": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "attestation_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parse_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "payload_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "predicate_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "statement_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "statement_id": {
+      "type": "string"
+    },
+    "subject_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject_digests": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "verification_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "statement_id"
+  ],
+  "title": "Eshu attestation.statement Payload (schema version 1)",
+  "type": "object"
+}

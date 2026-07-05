@@ -87,6 +87,19 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPack
 	}
 }
 
+// supplyChainSBOMComponentFromEnvelope reads sbom.component raw
+// (payloadStr), NOT through the sdk/go/factschema typed decode seam
+// (decodeSBOMComponent, factschema_decode_sbom.go): this is the
+// supply_chain_impact domain's own read of the sbom_attestation family's
+// wire kind, and that domain carries zero existing quarantine plumbing
+// across ANY of its many vulnerability/OS-package/deployment-context kinds
+// today. Converting only this one field-read in isolation would be a hollow,
+// half-typed contract rather than a real accuracy fix; it is deferred to the
+// supply_chain_impact family's own future migration (Contract System v1
+// #4566), matching how the GCP wave deferred its shared cross-provider
+// consumers to their own conversion. The WIRED sbom.component consumer that
+// IS typed this wave is sbom_attestation_attachment_index.go's
+// buildSBOMAttachmentIndex.
 func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplyChainSBOMComponent {
 	purl := payloadStr(envelope.Payload, "purl")
 	return supplyChainSBOMComponent{

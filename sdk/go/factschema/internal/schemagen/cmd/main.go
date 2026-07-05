@@ -109,6 +109,20 @@ func run() error {
 		{name: "package_registry.registry_event.v1.schema.json", generate: schemagen.PackageRegistryRegistryEventSchema},
 		{name: "package_registry.repository_hosting.v1.schema.json", generate: schemagen.PackageRegistryRepositoryHostingSchema},
 		{name: "package_registry.warning.v1.schema.json", generate: schemagen.PackageRegistryWarningSchema},
+		// The sbom_attestation family fact kinds are DOTTED (like the incident
+		// family). document/component/warning and statement/signature_verification
+		// are consumed by the reducer's sbom_attestation_attachment domain;
+		// dependency_relationship/external_reference/slsa_provenance are
+		// typed-but-not-yet-consumed (sbom/v1/doc.go) but still ship a checked-in
+		// schema.
+		{name: "sbom.document.v1.schema.json", generate: schemagen.SBOMDocumentSchema},
+		{name: "sbom.component.v1.schema.json", generate: schemagen.SBOMComponentSchema},
+		{name: "sbom.dependency_relationship.v1.schema.json", generate: schemagen.SBOMDependencyRelationshipSchema},
+		{name: "sbom.external_reference.v1.schema.json", generate: schemagen.SBOMExternalReferenceSchema},
+		{name: "sbom.warning.v1.schema.json", generate: schemagen.SBOMWarningSchema},
+		{name: "attestation.statement.v1.schema.json", generate: schemagen.AttestationStatementSchema},
+		{name: "attestation.signature_verification.v1.schema.json", generate: schemagen.AttestationSignatureVerificationSchema},
+		{name: "attestation.slsa_provenance.v1.schema.json", generate: schemagen.AttestationSLSAProvenanceSchema},
 	}
 
 	for _, target := range targets {

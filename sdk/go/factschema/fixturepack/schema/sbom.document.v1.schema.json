@@ -1,0 +1,66 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/sbom/v1/document.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "document_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "document_id": {
+      "type": "string"
+    },
+    "format": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parse_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "spec_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject_digests": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "verification_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "document_id"
+  ],
+  "title": "Eshu sbom.document Payload (schema version 1)",
+  "type": "object"
+}

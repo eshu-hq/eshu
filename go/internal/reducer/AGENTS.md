@@ -818,6 +818,140 @@ internal path taken by `assignField` for a `map[string]string`-shaped field;
 it adds no telemetry surface of its own and is invisible to every existing
 operator-facing signal.
 
+No-Regression Evidence (Wave 4c, sbom_attestation family typed-payload
+decode, Contract System v1 #4566/#4582): `sbom_attestation_attachment_index.go`'s
+`buildSBOMAttachmentIndex` and its document/statement classifiers now decode
+`sbom.document`, `sbom.component`, `sbom.warning`,
+`attestation.statement`, and `attestation.signature_verification` fact
+payloads through the `sdk/go/factschema` seam
+(`decodeSBOMDocument`/`decodeSBOMComponent`/`decodeSBOMWarning`/
+`decodeAttestationStatement`/`decodeAttestationSignatureVerification` in
+`factschema_decode_sbom.go`) instead of raw `payloadString`/`payloadStrings`
+map lookups, mirroring the AWS/GCP/Azure/kubernetes_live migrations. Only the
+five WIRED kinds are typed this wave; `sbom.dependency_relationship`,
+`sbom.external_reference`, and `attestation.slsa_provenance` have no reducer
+or storage read path today (`attestation.slsa_provenance` additionally has no
+collector emitter), so they are typed-but-deferred in
+`sdk/go/factschema/sbom/v1` — matching how prior waves left an unconsumed
+kind's struct in place without a reducer decode call. `buildSBOMAttachmentIndex`
+now returns a `[]quarantinedFact` alongside the index: a `sbom.document`,
+`sbom.component`, `attestation.statement`, or
+`attestation.signature_verification` fact missing its required identity
+field (`document_id` / `statement_id`) is quarantined per-fact via
+`partitionDecodeFailures` rather than being indexed under a wrong or missing
+identity, while every valid sibling fact in the same batch still indexes and
+produces an attachment decision.
+`TestSBOMAttestationAttachmentQuarantinesMissingDocumentID` and
+`TestSBOMAttestationAttachmentComponentQuarantinesMissingDocumentID` (new,
+mirroring `TestGCPResourceMaterializationQuarantinesMissingFullResourceName`)
+failed before the conversion, then passed after. The two prior-behavior paths
+differ: the old `sbom.document`/`attestation.statement` classifiers keyed the
+document by `firstNonBlank(payloadString(document_id|statement_id),
+envelope.FactID)`, so an absent identity fell back to the fact's own id and
+produced a real but WRONG-identity attachment decision — one that could write
+bad graph identity downstream — with no operator signal; while
+`sbom.component`/`sbom.warning`/`attestation.signature_verification` had no
+FactID fallback, so an absent key returned `""` and `index.components[""]` /
+the warning/verification join keys silently collapsed every malformed fact
+into one empty-key slot. Both silent paths now dead-letter: the malformed
+fact is recorded on `input_invalid_facts` and the valid sibling still produces
+its attachment decision, with no decision ever keyed on a wrong or empty
+document identity.
+`sbom.warning`'s typed struct (`sbomv1.Warning`) has ZERO required fields by
+design: the SBOM-document collector path always sets `document_id` and never
+`statement_id`, while the attestation-runtime collector path always sets
+`statement_id` and never `document_id` — the same fact kind, two
+mutually-exclusive identity keys, so neither can be required without
+dead-lettering half of this kind's real traffic; the reducer's
+`firstNonBlank(document_id, statement_id)` fallback is preserved unchanged.
+`sbomAttestationAttachmentFactKind` (`reducer_sbom_attestation_attachment`,
+`sbom_attestation_attachment_writer.go`) is the reducer's OWN re-emitted
+synthetic evidence fact, not one of the eight collector-emitted wire kinds
+this wave types, and stays out of scope; `oci_registry.image_referrer` inside
+this same index is a different family's kind whose reducer decode wrapper
+lives in the projector package, so it also stays on raw `payloadString`
+reads here, matching the scope-discipline precedent of the GCP/Azure waves
+leaving a shared cross-family surface's raw reads alone.
+`supplyChainSBOMComponentFromEnvelope` (`supply_chain_impact_match.go`) also
+reads `sbom.component` raw: it is a different reducer domain
+(`supply_chain_impact`) with zero existing quarantine plumbing of its own
+across ANY of its many vulnerability/OS-package/deployment-context kinds, so
+converting only its `sbom.component` read in isolation would be a hollow,
+half-typed contract rather than a real accuracy fix — this is deferred to
+the `supply_chain_impact` family's own future migration, matching how the
+GCP wave deferred `gcp_image_reference`/`gcp_tag_observation` to their shared
+cross-provider consumer's own conversion.
+`facts_active_sbom_attestation_attachment.go`
+(`go/internal/storage/postgres`) is a bounded index-filter SQL query (a
+`WHERE fact.payload->>'x' = ANY($1)` digest/document-id lookup), not a
+field-projecting loader like the incident family's raw-SQL-JSONB readers; it
+returns full envelopes for the reducer to decode through the normal typed
+seam, so it needs no schema-declared-field lock test.
+`sbomAttachmentActiveKeys` (`sbom_attestation_attachment.go`) is a third,
+pre-existing raw-`payloadString`/`payloadStrings` read site left untyped this
+wave: it only extracts best-effort string keys to widen the bounded active-
+evidence digest/document-id lookup above, never forms identity or feeds the
+attachment-decision math, so a missing/malformed key there degrades to fewer
+query keys (the same tolerant behavior it had pre-typing), not a wrong
+decision — it is not a decode site requiring quarantine.
+Measured with `go test ./internal/reducer -run '^$' -bench
+'BenchmarkBuildSBOMAttestationAttachmentDecisions' -benchmem -count=3`
+(darwin/arm64, Apple M1 Max; backend: in-memory extractor; input: 5,000
+synthetic sbom.document facts, each paired with one sbom.component, one
+sbom.warning, one oci_registry.image_referrer, and one
+attestation.signature_verification fact — 25,000 fact envelopes total).
+BEFORE (raw map, commit bfbdd0a0b) -> AFTER (typed decode): 24.08ms/17.87MB/
+185,248 allocs -> 26.27ms/17.40MB/215,254 allocs (+9.1% time, -2.6% memory,
++16.2% allocs). The time delta is within the diagnostic-rigor ~10% band;
+memory usage actually improved. The residual allocation increase is the
+reflection-based `decodeMapInto` path every prior wave's typed-decode
+migration accepted as the bounded cost of the accuracy guarantee (a fact
+missing a required identity field dead-letters `input_invalid` instead of
+indexing under a wrong-identity FactID fallback for document/statement, or an
+empty-string key for component/warning/verification). No double-decode was
+introduced: `buildSBOMAttachmentIndex` decodes each component/warning/
+verification exactly ONCE and stores the decoded fields in a small
+per-kind evidence struct (`sbomAttachmentComponentEvidence`,
+`sbomAttachmentWarningEvidence`, `sbomAttachmentVerificationEvidence`), so
+`classifySBOMAttachmentDocument`/`componentEvidenceRows`/
+`warningSummaryRollup` consume the pre-decoded evidence rather than
+re-decoding the raw envelope a second time — mirroring the GCP relationship
+join index's row-reuse fix. Result class: Correctness win with a bounded,
+measured handler cost.
+`TestSBOMAttestationAttachmentQuarantineReplayIsIdempotent` (new) proves
+replaying the identical batch (including the quarantined fact) through
+`Handle` twice converges on the same `input_invalid_facts` count, the same
+`CanonicalWrites`, and `ResultStatusSucceeded` both times — the decode
+outcome for a given payload is pure, so the quarantine never becomes
+intermittent or escalates into a whole-intent failure across replays.
+
+No-Observability-Change (Wave 4c, sbom_attestation family): the typed-decode
+migration adds no route, graph query shape, queue table, worker, lease,
+runtime knob, metric instrument, or metric label. A malformed sbom/attestation
+fact surfaces through the EXISTING dead-letter path —
+`partitionDecodeFailures` -> `recordQuarantinedFacts` ->
+`eshu_dp_reducer_input_invalid_facts_total` (labeled `domain` =
+`sbom_attestation_attachment`, an existing label value, `fact_kind` gaining
+the sbom/attestation kinds) plus the existing structured "reducer
+input_invalid fact quarantined" error log and
+`Result.SubSignals["input_invalid_facts"]` — the same instruments and log key
+every prior family wired. `SBOMAttestationAttachmentHandler` already carried
+an `Instruments *telemetry.Instruments` field before this wave; no new
+wiring was needed. `BuildSBOMAttestationAttachmentDecisions` keeps its
+pre-typing public signature (no error return) because it is the entry point
+existing table tests and the black-box `sbom_attestation_runtime_attachment_test.go`
+exercise directly; it delegates to a new quarantine-aware
+`buildSBOMAttestationAttachmentDecisionsWithQuarantine` that `Handle` calls
+directly, mirroring the kubernetes_live wave's
+`buildKubernetesCorrelationDecisionsWithQuarantine` pattern. The
+`payload-usage-manifest` gate (`go/internal/payloadusage`) required an
+additive-only extension: five new `factKindSchemaFile` entries
+(`FactKindSBOMDocument`, `FactKindSBOMComponent`, `FactKindSBOMWarning`,
+`FactKindAttestationStatement`, `FactKindAttestationSignatureVerification`)
+and a new `SBOMStructDir` (`sdk/go/factschema/sbom/v1`) parsed alongside the
+existing struct dirs in `Load`; this only widens which decode seams the gate
+covers and adds no new gate mechanism.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

@@ -1,0 +1,6 @@
+{
+  "document_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "parse_status": "parsed",
+  "format": "cyclonedx",
+  "spec_version": "1.6"
+}

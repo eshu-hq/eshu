@@ -1,0 +1,9 @@
+{
+  "document_id": "fp:sbom-doc:example-app@1.0.0",
+  "component_id": "fp:sbom-component:example-lib@2.3.1",
+  "purl": "pkg:npm/example-lib@2.3.1",
+  "cpe": "",
+  "package_id": "npm:example-lib",
+  "version": "2.3.1",
+  "name": "example-lib"
+}

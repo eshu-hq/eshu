@@ -134,7 +134,19 @@ func (h SBOMAttestationAttachmentHandler) Handle(ctx context.Context, intent Int
 		return Result{}, fmt.Errorf("load active sbom attachment evidence facts: %w", err)
 	}
 
-	decisions := BuildSBOMAttestationAttachmentDecisions(envelopes)
+	decisions, quarantinedFacts, err := buildSBOMAttestationAttachmentDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		// A non-decode error (a fatal condition partitionDecodeFailures did
+		// NOT quarantine) fails the whole intent so the durable queue
+		// triages it correctly.
+		return Result{}, fmt.Errorf("build sbom attestation attachment decisions: %w", err)
+	}
+	// Per-fact isolation: a malformed sbom/attestation fact (a missing
+	// required document_id/statement_id identity field) is quarantined as a
+	// visible input_invalid dead-letter — counter + structured error log —
+	// while every valid document/statement still produces an attachment
+	// decision below.
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSBOMAttestationAttachment, intent.ScopeID, intent.GenerationID, quarantinedFacts)
 	counts := sbomAttestationAttachmentCounts(decisions)
 	writeResult, err := h.Writer.WriteSBOMAttestationAttachments(ctx, SBOMAttestationAttachmentWrite{
 		IntentID:     intent.IntentID,
@@ -155,6 +167,7 @@ func (h SBOMAttestationAttachmentHandler) Handle(ctx context.Context, intent Int
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: sbomAttestationAttachmentSummary(len(decisions), counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -219,8 +232,48 @@ func (h SBOMAttestationAttachmentHandler) emitCounters(
 
 // BuildSBOMAttestationAttachmentDecisions classifies documents without turning
 // parse validity or vulnerability component evidence into trust.
+//
+// This keeps its pre-typing signature (no error, no quarantine count) because
+// it is the public entry point every existing table test and the black-box
+// runtime-attachment test exercise directly. A fact whose required identity
+// field (document_id / statement_id) is absent from the payload is silently
+// excluded from the returned decisions here, matching the pre-typing
+// behavior where such a fact indexed under an empty key and produced no
+// usable decision. Handle calls
+// buildSBOMAttestationAttachmentDecisionsWithQuarantine directly instead of
+// this function so the reducer intent path can report the quarantine as a
+// visible input_invalid dead-letter (counter + structured log +
+// Result.SubSignals) rather than a silent drop.
 func BuildSBOMAttestationAttachmentDecisions(envelopes []facts.Envelope) []SBOMAttestationAttachmentDecision {
-	index := buildSBOMAttachmentIndex(envelopes)
+	decisions, _, err := buildSBOMAttestationAttachmentDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		// A non-decode fatal error here can only originate from a
+		// programming bug in buildSBOMAttachmentIndex's dispatch (every
+		// branch either quarantines or is unconditionally safe); callers of
+		// this pre-typing-compatible entry point have no error return to
+		// propagate it through, so surfacing zero decisions is the
+		// pre-typing-equivalent degrade rather than a panic.
+		return nil
+	}
+	return decisions
+}
+
+// buildSBOMAttestationAttachmentDecisionsWithQuarantine is the
+// quarantine-aware variant Handle calls directly: it returns the same
+// decisions BuildSBOMAttestationAttachmentDecisions does, plus the
+// []quarantinedFact any malformed sbom/attestation fact produced, so the
+// reducer intent path can record each as a visible input_invalid dead-letter.
+// A non-decode fatal error (never expected on the production path — every
+// buildSBOMAttachmentIndex branch either quarantines a classified decode
+// failure or performs no decode) is propagated so the handler fails the whole
+// intent for durable triage rather than silently degrading.
+func buildSBOMAttestationAttachmentDecisionsWithQuarantine(
+	envelopes []facts.Envelope,
+) ([]SBOMAttestationAttachmentDecision, []quarantinedFact, error) {
+	index, quarantined, err := buildSBOMAttachmentIndex(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
 	decisions := make([]SBOMAttestationAttachmentDecision, 0, len(index.documents))
 	for _, doc := range index.documents {
 		decisions = append(decisions, classifySBOMAttachmentDocument(doc, index))
@@ -228,7 +281,7 @@ func BuildSBOMAttestationAttachmentDecisions(envelopes []facts.Envelope) []SBOMA
 	sort.SliceStable(decisions, func(i, j int) bool {
 		return decisions[i].DocumentID < decisions[j].DocumentID
 	})
-	return decisions
+	return decisions, quarantined, nil
 }
 
 func sbomAttestationAttachmentFactKinds() []string {

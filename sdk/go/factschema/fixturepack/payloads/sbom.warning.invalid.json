@@ -1,0 +1,6 @@
+{
+  "document_id": "fp:sbom-doc:example-app@1.0.0",
+  "reason": "missing_purl_identity",
+  "summary": "3 components missing purl and name+version identity",
+  "occurrence_count": "not-a-number"
+}

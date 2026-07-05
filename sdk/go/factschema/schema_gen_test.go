@@ -67,6 +67,14 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "package_registry.registry_event.v1.schema.json", generate: schemagen.PackageRegistryRegistryEventSchema},
 		{file: "package_registry.repository_hosting.v1.schema.json", generate: schemagen.PackageRegistryRepositoryHostingSchema},
 		{file: "package_registry.warning.v1.schema.json", generate: schemagen.PackageRegistryWarningSchema},
+		{file: "sbom.document.v1.schema.json", generate: schemagen.SBOMDocumentSchema},
+		{file: "sbom.component.v1.schema.json", generate: schemagen.SBOMComponentSchema},
+		{file: "sbom.dependency_relationship.v1.schema.json", generate: schemagen.SBOMDependencyRelationshipSchema},
+		{file: "sbom.external_reference.v1.schema.json", generate: schemagen.SBOMExternalReferenceSchema},
+		{file: "sbom.warning.v1.schema.json", generate: schemagen.SBOMWarningSchema},
+		{file: "attestation.statement.v1.schema.json", generate: schemagen.AttestationStatementSchema},
+		{file: "attestation.signature_verification.v1.schema.json", generate: schemagen.AttestationSignatureVerificationSchema},
+		{file: "attestation.slsa_provenance.v1.schema.json", generate: schemagen.AttestationSLSAProvenanceSchema},
 	}
 
 	for _, tc := range cases {
@@ -148,6 +156,14 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"package_registry.registry_event.v1.schema.json",
 		"package_registry.repository_hosting.v1.schema.json",
 		"package_registry.warning.v1.schema.json",
+		"sbom.document.v1.schema.json",
+		"sbom.component.v1.schema.json",
+		"sbom.dependency_relationship.v1.schema.json",
+		"sbom.external_reference.v1.schema.json",
+		"sbom.warning.v1.schema.json",
+		"attestation.statement.v1.schema.json",
+		"attestation.signature_verification.v1.schema.json",
+		"attestation.slsa_provenance.v1.schema.json",
 	}
 
 	for _, file := range files {

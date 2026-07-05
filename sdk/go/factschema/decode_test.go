@@ -22,6 +22,7 @@ import (
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
@@ -327,6 +328,14 @@ var payloadContracts = []struct {
 	{FactKindPackageRegistryRegistryEvent, "package_registry.registry_event.v1.schema.json", reflect.TypeOf(packageregistryv1.RegistryEvent{})},
 	{FactKindPackageRegistryRepositoryHosting, "package_registry.repository_hosting.v1.schema.json", reflect.TypeOf(packageregistryv1.RepositoryHosting{})},
 	{FactKindPackageRegistryWarning, "package_registry.warning.v1.schema.json", reflect.TypeOf(packageregistryv1.Warning{})},
+	{FactKindSBOMDocument, "sbom.document.v1.schema.json", reflect.TypeOf(sbomv1.Document{})},
+	{FactKindSBOMComponent, "sbom.component.v1.schema.json", reflect.TypeOf(sbomv1.Component{})},
+	{FactKindSBOMDependencyRelationship, "sbom.dependency_relationship.v1.schema.json", reflect.TypeOf(sbomv1.DependencyRelationship{})},
+	{FactKindSBOMExternalReference, "sbom.external_reference.v1.schema.json", reflect.TypeOf(sbomv1.ExternalReference{})},
+	{FactKindSBOMWarning, "sbom.warning.v1.schema.json", reflect.TypeOf(sbomv1.Warning{})},
+	{FactKindAttestationStatement, "attestation.statement.v1.schema.json", reflect.TypeOf(sbomv1.Statement{})},
+	{FactKindAttestationSignatureVerification, "attestation.signature_verification.v1.schema.json", reflect.TypeOf(sbomv1.SignatureVerification{})},
+	{FactKindAttestationSLSAProvenance, "attestation.slsa_provenance.v1.schema.json", reflect.TypeOf(sbomv1.SLSAProvenance{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

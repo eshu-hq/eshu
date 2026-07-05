@@ -195,6 +195,15 @@ families:
     read_surface: "GET /api/v0/supply-chain/sbom-attestations/attachments"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      sbom.document: "sdk/go/factschema/schema/sbom.document.v1.schema.json"
+      sbom.component: "sdk/go/factschema/schema/sbom.component.v1.schema.json"
+      sbom.dependency_relationship: "sdk/go/factschema/schema/sbom.dependency_relationship.v1.schema.json"
+      sbom.external_reference: "sdk/go/factschema/schema/sbom.external_reference.v1.schema.json"
+      sbom.warning: "sdk/go/factschema/schema/sbom.warning.v1.schema.json"
+      attestation.statement: "sdk/go/factschema/schema/attestation.statement.v1.schema.json"
+      attestation.signature_verification: "sdk/go/factschema/schema/attestation.signature_verification.v1.schema.json"
+      attestation.slsa_provenance: "sdk/go/factschema/schema/attestation.slsa_provenance.v1.schema.json"
     kinds: [attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning]
   scanner_worker:
     lifecycle_owner: go/internal/facts

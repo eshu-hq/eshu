@@ -81,6 +81,19 @@ var factKindSchemaFile = map[string]string{
 	"FactKindPackageRegistryPackage":           "package_registry.package.v1.schema.json",
 	"FactKindPackageRegistryPackageVersion":    "package_registry.package_version.v1.schema.json",
 	"FactKindPackageRegistryPackageDependency": "package_registry.package_dependency.v1.schema.json",
+	// sbom_attestation family: only the kinds a reducer decode seam wrapper
+	// actually decodes (factschema_decode_sbom.go) are mapped, so the gate
+	// covers exactly what the reducer reads through the typed seam.
+	// sbom.dependency_relationship, sbom.external_reference, and
+	// attestation.slsa_provenance carry a schema but no reducer decode call
+	// (typed-but-not-yet-consumed, sbom/v1/doc.go), so they are intentionally
+	// absent here — mapping them would assert a gate contract for a kind no
+	// handler reads.
+	"FactKindSBOMDocument":                     "sbom.document.v1.schema.json",
+	"FactKindSBOMComponent":                    "sbom.component.v1.schema.json",
+	"FactKindSBOMWarning":                      "sbom.warning.v1.schema.json",
+	"FactKindAttestationStatement":             "attestation.statement.v1.schema.json",
+	"FactKindAttestationSignatureVerification": "attestation.signature_verification.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

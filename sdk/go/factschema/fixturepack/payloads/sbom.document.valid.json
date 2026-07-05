@@ -1,0 +1,10 @@
+{
+  "document_id": "fp:sbom-doc:example-app@1.0.0",
+  "document_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "subject_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "parse_status": "parsed",
+  "verification_status": "not_configured",
+  "verification_policy": "",
+  "format": "cyclonedx",
+  "spec_version": "1.6"
+}

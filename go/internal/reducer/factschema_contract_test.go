@@ -55,6 +55,14 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 		{"oci_registry.image_tag_observation", factschema.FactKindOCIImageTagObservation, facts.OCIImageTagObservationFactKind},
 		{"oci_registry.image_referrer", factschema.FactKindOCIImageReferrer, facts.OCIImageReferrerFactKind},
 		{"oci_registry.warning", factschema.FactKindOCIRegistryWarning, facts.OCIRegistryWarningFactKind},
+		{"sbom.document", factschema.FactKindSBOMDocument, facts.SBOMDocumentFactKind},
+		{"sbom.component", factschema.FactKindSBOMComponent, facts.SBOMComponentFactKind},
+		{"sbom.dependency_relationship", factschema.FactKindSBOMDependencyRelationship, facts.SBOMDependencyRelationshipFactKind},
+		{"sbom.external_reference", factschema.FactKindSBOMExternalReference, facts.SBOMExternalReferenceFactKind},
+		{"sbom.warning", factschema.FactKindSBOMWarning, facts.SBOMWarningFactKind},
+		{"attestation.statement", factschema.FactKindAttestationStatement, facts.AttestationStatementFactKind},
+		{"attestation.signature_verification", factschema.FactKindAttestationSignatureVerification, facts.AttestationSignatureVerificationFactKind},
+		{"attestation.slsa_provenance", factschema.FactKindAttestationSLSAProvenance, facts.AttestationSLSAProvenanceFactKind},
 	}
 
 	for _, tc := range cases {

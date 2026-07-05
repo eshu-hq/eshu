@@ -204,6 +204,34 @@ const (
 	// and warning_code fields are read by a raw-SQL-JSONB loader
 	// (packageregistry/v1/doc.go).
 	FactKindPackageRegistryWarning = "package_registry.warning"
+	// The sbom_attestation family fact-kind strings are DOTTED, matching the
+	// incident/kubernetes_live/oci_registry convention above. The dots are
+	// part of the wire kind the collector already emits
+	// (go/internal/facts.SBOMDocumentFactKind and siblings); the values here
+	// MATCH those wire strings byte-for-byte and never invent or rename the
+	// namespace. TestFactSchemaKindsMatchWireFactKinds (reducer side) asserts
+	// each stays byte-equal to its facts.*FactKind counterpart.
+
+	// FactKindSBOMDocument is the "sbom.document" fact kind.
+	FactKindSBOMDocument = "sbom.document"
+	// FactKindSBOMComponent is the "sbom.component" fact kind.
+	FactKindSBOMComponent = "sbom.component"
+	// FactKindSBOMDependencyRelationship is the "sbom.dependency_relationship"
+	// fact kind. Typed but not yet consumed (sbom/v1/doc.go).
+	FactKindSBOMDependencyRelationship = "sbom.dependency_relationship"
+	// FactKindSBOMExternalReference is the "sbom.external_reference" fact
+	// kind. Typed but not yet consumed (sbom/v1/doc.go).
+	FactKindSBOMExternalReference = "sbom.external_reference"
+	// FactKindSBOMWarning is the "sbom.warning" fact kind.
+	FactKindSBOMWarning = "sbom.warning"
+	// FactKindAttestationStatement is the "attestation.statement" fact kind.
+	FactKindAttestationStatement = "attestation.statement"
+	// FactKindAttestationSignatureVerification is the
+	// "attestation.signature_verification" fact kind.
+	FactKindAttestationSignatureVerification = "attestation.signature_verification"
+	// FactKindAttestationSLSAProvenance is the "attestation.slsa_provenance"
+	// fact kind. Typed but not yet consumed or emitted (sbom/v1/doc.go).
+	FactKindAttestationSLSAProvenance = "attestation.slsa_provenance"
 )
 
 // Classification values a DecodeError carries. These are this module's own

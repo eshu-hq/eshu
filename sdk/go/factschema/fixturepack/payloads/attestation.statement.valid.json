@@ -1,0 +1,13 @@
+{
+  "statement_id": "fp:attestation-stmt:example-app@1.0.0",
+  "statement_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "payload_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "subject_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "subject_digests": ["sha256:2222222222222222222222222222222222222222222222222222222222222222"],
+  "parse_status": "parsed",
+  "verification_status": "",
+  "verification_policy": "",
+  "attestation_format": "in-toto",
+  "attestation_version": "https://in-toto.io/Statement/v1",
+  "predicate_type": "https://slsa.dev/provenance/v1"
+}

@@ -1,0 +1,8 @@
+{
+  "statement_id": "fp:attestation-stmt:example-app@1.0.0",
+  "document_id": "",
+  "verification_result": "passed",
+  "verification_status": "passed",
+  "verification_policy": "policy://prod",
+  "verification_subject": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+}
