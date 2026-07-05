@@ -361,7 +361,7 @@ func drainRationaleInto(
 		for p := 0; p < partitionCount; p++ {
 			result, err := ProcessPartitionOnce(
 				context.Background(), now, rationaleFenceConfig(p, partitionCount),
-				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store,
+				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 			)
 			if err != nil {
 				t.Fatalf("pass %d partition %d: %v", pass, p, err)

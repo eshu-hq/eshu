@@ -133,8 +133,15 @@ type SharedProjectionRunner struct {
 	// (#2898/#2910). A nil lookup leaves those domains byte-identical to their
 	// pre-fix per-partition retract behavior.
 	RefreshFenceLookup SharedProjectionRefreshFenceLookup
-	Config             SharedProjectionRunnerConfig
-	Wait               func(context.Context, time.Duration) error
+	// FirstProjectionLookup lets a repo-wide-retract domain's refresh row skip its
+	// whole-scope retract when the scope has no generation other than the current
+	// one (#3624): with zero prior edges the retract is a guaranteed no-op, and on
+	// NornicDB that retract is a full-scan the cold-corpus long pole pays once per
+	// repo per domain. A nil lookup disables the skip, leaving the retract
+	// byte-identical to pre-#3624 behavior.
+	FirstProjectionLookup FirstProjectionLookup
+	Config                SharedProjectionRunnerConfig
+	Wait                  func(context.Context, time.Duration) error
 
 	// Telemetry fields (optional)
 	Tracer      trace.Tracer
@@ -341,6 +348,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.ReadinessPrefetch,
 		r.EndpointPresenceLookup,
 		r.RefreshFenceLookup,
+		r.FirstProjectionLookup,
 	)
 
 	duration := time.Since(start).Seconds()

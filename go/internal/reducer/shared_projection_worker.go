@@ -270,6 +270,7 @@ func ProcessPartitionOnce(
 	readinessPrefetch GraphProjectionReadinessPrefetch,
 	endpointPresence EndpointPresenceLookup,
 	refreshFence SharedProjectionRefreshFenceLookup,
+	firstProjection FirstProjectionLookup,
 ) (result PartitionProcessResult, retErr error) {
 	leaseStart := time.Now()
 	claimed, err := leaseManager.ClaimPartitionLease(
@@ -375,7 +376,7 @@ func ProcessPartitionOnce(
 	// repo-wide retract that wipes sibling partitions' edges. Other domains and the
 	// nil-fence path keep the retract-then-write-everything behavior byte-identical.
 	if refreshFence != nil && domainHasRepoWideRetract(cfg.Domain) {
-		plan, planErr := planRepoWideRetractWork(ctx, cfg.Domain, batch.LatestRows, refreshFence)
+		plan, planErr := planRepoWideRetractWork(ctx, cfg.Domain, batch.LatestRows, refreshFence, firstProjection, cfg.Logger)
 		if planErr != nil {
 			return PartitionProcessResult{
 				LeaseAcquired:             true,
