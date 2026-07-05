@@ -42,7 +42,7 @@ func testEnv(t *testing.T, manifestBody string) (specsDir, snapshot, manifest, r
 	// node type and the reducer drain. The derived depth requirements are advisory,
 	// so they never change the blocking-gate outcome these tests assert.
 	if err := os.WriteFile(filepath.Join(specsDir, "replay-depth-requirements.v1.yaml"),
-		[]byte("version: \"v1\"\nretractable_node_types:\n  - Function\nreducer_drain:\n  surface: reducer-projection-drain\n  detail: the reducer projection drain\nexemptions: []\n"), 0o600); err != nil {
+		[]byte("version: \"v1\"\nretractable_node_types:\n  - Function\nretractable_edge_types:\n  - CALLS\nreducer_drain:\n  surface: reducer-projection-drain\n  detail: the reducer projection drain\nexemptions: []\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(specsDir, "ci-gates.v1.yaml"), []byte(`version: v1

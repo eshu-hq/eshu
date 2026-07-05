@@ -27,11 +27,13 @@ documentation.
   `scripts/verify-fact-kind-registry.sh`.
 - `replay-depth-requirements.v1.yaml` declares the replay depth-requirement
   taxonomy (C-13, #4366): the retractable graph node types (kept byte-equal to
-  `cypher.RetractableNodeEntityLabels()` by a lockstep test) and the reducer
-  drain. The replay-coverage gate uses it — plus the fact-kind registry
-  projections and the implemented collectors — to require a depth scenario_type
-  per applicable surface (delta/fault/ordering/crash/cost) and list the missing
-  pairs. Consumed by `go/internal/replaycoverage` and
+  `cypher.RetractableNodeEntityLabels()` by a lockstep test), the static
+  retractable graph edge types (kept byte-equal to
+  `cypher.RetractableEdgeTypes()`), and the reducer drain. The replay-coverage
+  gate uses it — plus the fact-kind registry projections and the implemented
+  collectors — to require a depth scenario_type per applicable surface
+  (delta/fault/ordering/crash/cost) and list the missing pairs. Consumed by
+  `go/internal/replaycoverage` and
   `scripts/verify-replay-coverage-gate.sh`.
 - `authorization-catalog.v1.yaml` defines the v1 built-in roles, explicit
   action grants, data classes, permission families, bootstrap-owner posture, and

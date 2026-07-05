@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Command replay-coverage-gate is the C-1/C-8/C-9/C-10 replay coverage manifest
-// + lockstep gate (issues #4173, #4187, #4188, and #4189, epic #4172). It
+// Command replay-coverage-gate is the C-1/C-8/C-9/C-10/C-13 replay coverage manifest
+// + lockstep gate (issues #4173, #4187, #4188, #4189, and #4366, epic #4172). It
 // enumerates every surface Eshu claims to support from the source-of-truth
 // registries and reports any required surface/scenario_type pair lacking a green
 // replay scenario.

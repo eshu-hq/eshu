@@ -23,6 +23,7 @@ func writeDepthSpec(t *testing.T, body string) string {
 func TestLoadDepthRequirementsValid(t *testing.T) {
 	dr, err := LoadDepthRequirements(writeDepthSpec(t, `version: "v1"
 retractable_node_types: [Function, Class]
+retractable_edge_types: [CALLS, REFERENCES]
 reducer_drain: {surface: reducer-projection-drain, detail: the drain}
 exemptions:
   - {surface: "retractable_node:Class", scenario_type: delta_tombstone, reason: structural}
@@ -32,6 +33,9 @@ exemptions:
 	}
 	if got := len(dr.RetractableNodeTypes); got != 2 {
 		t.Fatalf("node types = %d, want 2", got)
+	}
+	if got := len(dr.RetractableEdgeTypes); got != 2 {
+		t.Fatalf("edge types = %d, want 2", got)
 	}
 	if dr.ReducerDrain.Surface != "reducer-projection-drain" {
 		t.Errorf("drain surface = %q", dr.ReducerDrain.Surface)
@@ -43,12 +47,15 @@ exemptions:
 
 func TestLoadDepthRequirementsRejects(t *testing.T) {
 	cases := map[string]string{
-		"blank node type":        "version: \"v1\"\nretractable_node_types: [\"\"]\nreducer_drain: {surface: d}\n",
-		"duplicate node type":    "version: \"v1\"\nretractable_node_types: [Function, Function]\nreducer_drain: {surface: d}\n",
-		"no node types":          "version: \"v1\"\nretractable_node_types: []\nreducer_drain: {surface: d}\n",
-		"blank drain":            "version: \"v1\"\nretractable_node_types: [Function]\nreducer_drain: {surface: \"\"}\n",
-		"bad exemption type":     "version: \"v1\"\nretractable_node_types: [Function]\nreducer_drain: {surface: d}\nexemptions: [{surface: x, scenario_type: bogus, reason: r}]\n",
-		"blank exemption reason": "version: \"v1\"\nretractable_node_types: [Function]\nreducer_drain: {surface: d}\nexemptions: [{surface: x, scenario_type: cost, reason: \"\"}]\n",
+		"blank node type":        "version: \"v1\"\nretractable_node_types: [\"\"]\nretractable_edge_types: [CALLS]\nreducer_drain: {surface: d}\n",
+		"duplicate node type":    "version: \"v1\"\nretractable_node_types: [Function, Function]\nretractable_edge_types: [CALLS]\nreducer_drain: {surface: d}\n",
+		"no node types":          "version: \"v1\"\nretractable_node_types: []\nretractable_edge_types: [CALLS]\nreducer_drain: {surface: d}\n",
+		"blank edge type":        "version: \"v1\"\nretractable_node_types: [Function]\nretractable_edge_types: [\"\"]\nreducer_drain: {surface: d}\n",
+		"duplicate edge type":    "version: \"v1\"\nretractable_node_types: [Function]\nretractable_edge_types: [CALLS, CALLS]\nreducer_drain: {surface: d}\n",
+		"no edge types":          "version: \"v1\"\nretractable_node_types: [Function]\nretractable_edge_types: []\nreducer_drain: {surface: d}\n",
+		"blank drain":            "version: \"v1\"\nretractable_node_types: [Function]\nretractable_edge_types: [CALLS]\nreducer_drain: {surface: \"\"}\n",
+		"bad exemption type":     "version: \"v1\"\nretractable_node_types: [Function]\nretractable_edge_types: [CALLS]\nreducer_drain: {surface: d}\nexemptions: [{surface: x, scenario_type: bogus, reason: r}]\n",
+		"blank exemption reason": "version: \"v1\"\nretractable_node_types: [Function]\nretractable_edge_types: [CALLS]\nreducer_drain: {surface: d}\nexemptions: [{surface: x, scenario_type: cost, reason: \"\"}]\n",
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -95,6 +102,7 @@ func TestSharedConflictKeyProjections(t *testing.T) {
 func TestEnumerateDepthSurfaces(t *testing.T) {
 	dr := DepthRequirements{
 		RetractableNodeTypes: []string{"Function"},
+		RetractableEdgeTypes: []string{"CALLS"},
 		ReducerDrain:         ReducerDrainSurface{Surface: "drain"},
 	}
 	fks := []facts.FactKindRegistryEntry{factKind("dom_a", "h"), factKind("dom_b", "h")}
@@ -104,6 +112,7 @@ func TestEnumerateDepthSurfaces(t *testing.T) {
 	}
 	want := map[string]Registry{
 		"retractable_node:Function": RegistryRetractableType,
+		"retractable_edge:CALLS":    RegistryRetractableEdgeType,
 		"projection:dom_a":          RegistryProjection,
 		"projection:dom_b":          RegistryProjection,
 		"reducer_drain:drain":       RegistryReducerDrain,
@@ -119,7 +128,7 @@ func TestEnumerateDepthSurfaces(t *testing.T) {
 }
 
 func TestDeriveRequirementsPerApplicableSurface(t *testing.T) {
-	dr := DepthRequirements{RetractableNodeTypes: []string{"Function"}, ReducerDrain: ReducerDrainSurface{Surface: "drain"}}
+	dr := DepthRequirements{RetractableNodeTypes: []string{"Function"}, RetractableEdgeTypes: []string{"CALLS"}, ReducerDrain: ReducerDrainSurface{Surface: "drain"}}
 	fks := []facts.FactKindRegistryEntry{
 		factKind("solo", "h1"),
 		factKind("shared", "h1"),
@@ -138,6 +147,7 @@ func TestDeriveRequirementsPerApplicableSurface(t *testing.T) {
 
 	assertTypes(t, got, "collector:aws", ScenarioTypeBaseline, ScenarioTypeFault)
 	assertTypes(t, got, "retractable_node:Function", ScenarioTypeDeltaTombstone)
+	assertTypes(t, got, "retractable_edge:CALLS", ScenarioTypeDeltaTombstone)
 	assertTypes(t, got, "projection:solo", ScenarioTypeCost)
 	assertTypes(t, got, "projection:shared", ScenarioTypeCost, ScenarioTypeOrdering)
 	assertTypes(t, got, "reducer_drain:drain", ScenarioTypeCrash)
@@ -183,7 +193,7 @@ func TestUnionRequirementsMergesTypes(t *testing.T) {
 // adding a retractable node type with no delta scenario must be reported as an
 // uncovered, ADVISORY surface (it never fails the blocking breadth gate).
 func TestNewRetractableNodeReportedUncovered(t *testing.T) {
-	dr := DepthRequirements{RetractableNodeTypes: []string{"BrandNewNode"}, ReducerDrain: ReducerDrainSurface{Surface: "drain"}}
+	dr := DepthRequirements{RetractableNodeTypes: []string{"BrandNewNode"}, RetractableEdgeTypes: []string{"CALLS"}, ReducerDrain: ReducerDrainSurface{Surface: "drain"}}
 	in := Inputs{
 		FactKinds:         []facts.FactKindRegistryEntry{factKind("dom_a", "h")},
 		DepthRequirements: dr,
@@ -211,6 +221,41 @@ func TestNewRetractableNodeReportedUncovered(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("retractable_node:BrandNewNode not enumerated as a required depth surface")
+	}
+}
+
+// TestNewRetractableEdgeReportedUncovered is the #4370 acceptance criterion:
+// adding a retractable edge type with no delta scenario must be reported as an
+// uncovered, advisory surface so C-14 can backfill the exact missing scenario.
+func TestNewRetractableEdgeReportedUncovered(t *testing.T) {
+	dr := DepthRequirements{RetractableNodeTypes: []string{"Function"}, RetractableEdgeTypes: []string{"BRAND_NEW_EDGE"}, ReducerDrain: ReducerDrainSurface{Surface: "drain"}}
+	in := Inputs{
+		FactKinds:         []facts.FactKindRegistryEntry{factKind("dom_a", "h")},
+		DepthRequirements: dr,
+		Manifest:          Manifest{Version: "v1"}, // no coverage entries
+		Resolver:          ArtifactResolver{RepoRoot: t.TempDir()},
+		Blocking:          true, // even blocking: depth gaps must stay advisory
+	}
+	_, _, gate := RunGate(in)
+	if gate.Failed() {
+		t.Fatal("edge depth gaps must be advisory: a missing delta scenario must not fail the blocking gate")
+	}
+
+	cov := Reconcile(appendDepth(in), unionDerived(in), in.Resolver)
+	found := false
+	for _, sc := range cov.Surfaces {
+		if sc.Surface.Key == "retractable_edge:BRAND_NEW_EDGE" {
+			found = true
+			if sc.ScenarioType != ScenarioTypeDeltaTombstone {
+				t.Errorf("scenario_type = %q, want delta_tombstone", sc.ScenarioType)
+			}
+			if sc.Status != StatusUncovered {
+				t.Errorf("status = %q, want uncovered", sc.Status)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("retractable_edge:BRAND_NEW_EDGE not enumerated as a required depth surface")
 	}
 }
 

@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 214/337 surfaces satisfied (63.50%)** — mode: blocking.
+**Overall: 214/389 surfaces satisfied (55.01%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,9 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 0 | 24 | 0.00% | 24 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
+| Retractable edge types (delta) | 0 | 52 | 0.00% | 52 | 0 |
 | Retractable node types (delta) | 0 | 87 | 0.00% | 87 | 0 |
 | Collectors | 22 | 34 | 64.71% | 12 | 8 |
-| **Total** | **214** | **337** | **63.50%** | **123** | **9** |
+| **Total** | **214** | **389** | **55.01%** | **175** | **9** |
 
 ## Coverage by scenario type
 
@@ -29,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 204 | 204 | 100.00% | 0 | 5 |
 | cost | 1 | 23 | 4.35% | 22 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 1 | 88 | 1.14% | 87 | 0 |
+| delta_tombstone | 1 | 140 | 0.71% | 139 | 0 |
 | fault | 5 | 17 | 29.41% | 12 | 4 |
 | ordering | 1 | 3 | 33.33% | 2 | 0 |
 
@@ -65,7 +66,7 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 
 ## Gaps — surfaces still needing a replay scenario
 
-123 surface(s) uncovered or unresolved:
+175 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (24)
 
@@ -93,6 +94,61 @@ Uncovered (21) — needs a parser-fixture replay scenario:
 - `projection:service_catalog_correlation` (cost)
 - `projection:supply_chain_impact` (ordering)
 - `projection:supply_chain_impact` (cost)
+
+### Retractable edge types (delta) (52)
+
+- `retractable_edge:ALIASES` (delta_tombstone)
+- `retractable_edge:ALLOWS_EGRESS` (delta_tombstone)
+- `retractable_edge:ALLOWS_INGRESS` (delta_tombstone)
+- `retractable_edge:ATLANTIS_DEPENDS_ON` (delta_tombstone)
+- `retractable_edge:CALLS` (delta_tombstone)
+- `retractable_edge:CAN_ASSUME` (delta_tombstone)
+- `retractable_edge:CAN_ESCALATE_TO` (delta_tombstone)
+- `retractable_edge:CAN_PERFORM` (delta_tombstone)
+- `retractable_edge:CONTAINS` (delta_tombstone)
+- `retractable_edge:CORRELATES_DEPLOYABLE_UNIT` (delta_tombstone)
+- `retractable_edge:DEFINES_JOB` (delta_tombstone)
+- `retractable_edge:DEPENDS_ON` (delta_tombstone)
+- `retractable_edge:DEPLOYS_FROM` (delta_tombstone)
+- `retractable_edge:DISCOVERS_CONFIG_IN` (delta_tombstone)
+- `retractable_edge:DOCUMENTS` (delta_tombstone)
+- `retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP` (delta_tombstone)
+- `retractable_edge:EXECUTES` (delta_tombstone)
+- `retractable_edge:EXECUTES_SHELL` (delta_tombstone)
+- `retractable_edge:EXPLAINS` (delta_tombstone)
+- `retractable_edge:GRANTS_ACCESS_TO` (delta_tombstone)
+- `retractable_edge:HANDLES_ROUTE` (delta_tombstone)
+- `retractable_edge:HAS_COLUMN` (delta_tombstone)
+- `retractable_edge:HAS_DEPLOYMENT_EVIDENCE` (delta_tombstone)
+- `retractable_edge:HAS_ROLE` (delta_tombstone)
+- `retractable_edge:HELM_VALUE_REFERENCE` (delta_tombstone)
+- `retractable_edge:IMPLEMENTS` (delta_tombstone)
+- `retractable_edge:IMPORTS` (delta_tombstone)
+- `retractable_edge:INHERITS` (delta_tombstone)
+- `retractable_edge:INSTANTIATES` (delta_tombstone)
+- `retractable_edge:INVOKES_CLOUD_ACTION` (delta_tombstone)
+- `retractable_edge:LOGS_TO` (delta_tombstone)
+- `retractable_edge:MANAGES` (delta_tombstone)
+- `retractable_edge:NEEDS` (delta_tombstone)
+- `retractable_edge:OVERRIDES` (delta_tombstone)
+- `retractable_edge:PROVISIONS_DEPENDENCY_FOR` (delta_tombstone)
+- `retractable_edge:QUERIES_TABLE` (delta_tombstone)
+- `retractable_edge:READS_CONFIG_FROM` (delta_tombstone)
+- `retractable_edge:REFERENCES` (delta_tombstone)
+- `retractable_edge:REFERENCES_TABLE` (delta_tombstone)
+- `retractable_edge:RUNS_IMAGE` (delta_tombstone)
+- `retractable_edge:RUNS_IN` (delta_tombstone)
+- `retractable_edge:RUNS_ON` (delta_tombstone)
+- `retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT` (delta_tombstone)
+- `retractable_edge:TAINT_FLOWS_TO` (delta_tombstone)
+- `retractable_edge:TARGETS_ENVIRONMENT` (delta_tombstone)
+- `retractable_edge:TO` (delta_tombstone)
+- `retractable_edge:TRIGGERS` (delta_tombstone)
+- `retractable_edge:USES` (delta_tombstone)
+- `retractable_edge:USES_METACLASS` (delta_tombstone)
+- `retractable_edge:USES_MODULE` (delta_tombstone)
+- `retractable_edge:USES_PROFILE` (delta_tombstone)
+- `retractable_edge:USES_WORKFLOW` (delta_tombstone)
 
 ### Retractable node types (delta) (87)
 
