@@ -10,9 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/parserfixture"
+	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 	"gopkg.in/yaml.v3"
 )
 
@@ -240,4 +242,123 @@ func TestLedgerCasesMatchSpec(t *testing.T) {
 			t.Errorf("fixture case %q is not in the ledger spec; remove it or fix the parser name", p)
 		}
 	}
+}
+
+func TestLanguageFixtureCasesMatchManifest(t *testing.T) {
+	specsDir := filepath.Join(repoRoot(t), "specs")
+	manifest, err := replaycoverage.LoadManifest(filepath.Join(specsDir, replaycoverage.ManifestFileName))
+	if err != nil {
+		t.Fatalf("LoadManifest(real): %v", err)
+	}
+	parserLedger, err := replaycoverage.LoadParserLedger(filepath.Join(specsDir, replaycoverage.ParserLedgerFileName))
+	if err != nil {
+		t.Fatalf("LoadParserLedger(real): %v", err)
+	}
+	languageLedger, err := replaycoverage.LoadLanguageLedger(filepath.Join(specsDir, replaycoverage.LanguageLedgerFileName))
+	if err != nil {
+		t.Fatalf("LoadLanguageLedger(real): %v", err)
+	}
+
+	manifestRefs := manifestLanguageFixtureRefs(t, manifest, parserLedger, languageLedger)
+	caseRefs := languageFixtureCaseRefs(t, parserLedger, languageLedger)
+	for parser, ref := range manifestRefs {
+		if got, ok := caseRefs[parser]; !ok {
+			t.Errorf("manifest language fixture %q ref %q has no parserfixture-tests languageFixtureCases entry", parser, ref)
+		} else if got != ref {
+			t.Errorf("language fixture %q ref mismatch: languageFixtureCases=%q manifest=%q", parser, got, ref)
+		}
+	}
+	for parser, ref := range caseRefs {
+		if got, ok := manifestRefs[parser]; !ok {
+			t.Errorf("languageFixtureCases entry %q ref %q is missing from parserfixture-tests manifest coverage", parser, ref)
+		} else if got != ref {
+			t.Errorf("language fixture %q ref mismatch: manifest=%q languageFixtureCases=%q", parser, got, ref)
+		}
+	}
+}
+
+func manifestLanguageFixtureRefs(
+	t *testing.T,
+	manifest replaycoverage.Manifest,
+	parserLedger replaycoverage.ParserLedger,
+	languageLedger replaycoverage.LanguageLedger,
+) map[string]string {
+	t.Helper()
+	parserBacked := map[string]struct{}{}
+	for _, parser := range parserLedger.Parsers {
+		parserBacked[parser.Parser] = struct{}{}
+	}
+	languageNames := map[string]struct{}{}
+	for _, lang := range languageLedger.Languages {
+		languageNames[lang.Language] = struct{}{}
+	}
+	refs := map[string]string{}
+	for _, entry := range manifest.Coverage {
+		if entry.Scenario != replaycoverage.ScenarioParserFixture ||
+			entry.ScenarioType != replaycoverage.ScenarioTypeBaseline {
+			continue
+		}
+		parser, ok := strings.CutPrefix(entry.Surface, replaycoverage.ParserSurfacePrefix)
+		if !ok || parser == "" {
+			t.Fatalf("parser fixture coverage entry has non-parser surface %q", entry.Surface)
+		}
+		if _, ok := parserBacked[parser]; ok {
+			continue
+		}
+		if _, ok := languageNames[parser]; !ok {
+			t.Fatalf("manifest parser fixture %q is not in the parser-backing ledger or language ledger", entry.Surface)
+		}
+		if entry.ProofGate != "parserfixture-tests" {
+			t.Fatalf("manifest language fixture %q proof_gate=%q, want parserfixture-tests", entry.Surface, entry.ProofGate)
+		}
+		wantRef := parserFixtureRef(parser)
+		if entry.Ref != wantRef {
+			t.Fatalf("manifest language fixture %q ref=%q, want %q", entry.Surface, entry.Ref, wantRef)
+		}
+		refs[parser] = entry.Ref
+	}
+	return refs
+}
+
+func languageFixtureCaseRefs(
+	t *testing.T,
+	parserLedger replaycoverage.ParserLedger,
+	languageLedger replaycoverage.LanguageLedger,
+) map[string]string {
+	t.Helper()
+	parserBacked := map[string]struct{}{}
+	for _, parser := range parserLedger.Parsers {
+		parserBacked[parser.Parser] = struct{}{}
+	}
+	languageNames := map[string]struct{}{}
+	for _, lang := range languageLedger.Languages {
+		languageNames[lang.Language] = struct{}{}
+	}
+	refs := map[string]string{}
+	root := repoRoot(t)
+	for _, tc := range languageFixtureCases() {
+		if _, ok := parserBacked[tc.parser]; ok {
+			t.Fatalf("languageFixtureCases entry %q is parser-backing ledger coverage; keep it in ledgerCases", tc.parser)
+		}
+		if _, ok := languageNames[tc.parser]; !ok {
+			t.Fatalf("languageFixtureCases entry %q is not in the language-feature parity ledger", tc.parser)
+		}
+		fixturePath, err := filepath.Rel(root, tc.fixturePath(t))
+		if err != nil {
+			t.Fatalf("%s: fixture path is not relative to repo root: %v", tc.parser, err)
+		}
+		ref := filepath.ToSlash(fixturePath)
+		if ref != parserFixtureRef(tc.parser) {
+			t.Fatalf("languageFixtureCases entry %q fixture path=%q, want %q", tc.parser, ref, parserFixtureRef(tc.parser))
+		}
+		if prev, dup := refs[tc.parser]; dup {
+			t.Fatalf("duplicate languageFixtureCases entry %q: %q and %q", tc.parser, prev, ref)
+		}
+		refs[tc.parser] = ref
+	}
+	return refs
+}
+
+func parserFixtureRef(parser string) string {
+	return "go/internal/replay/parserfixture/testdata/fixtures/" + parser + ".fixture.json"
 }
