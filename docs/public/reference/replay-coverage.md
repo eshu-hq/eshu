@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 216/389 surfaces satisfied (55.53%)** — mode: blocking.
+**Overall: 217/389 surfaces satisfied (55.78%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 0 | 24 | 0.00% | 24 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 1 | 52 | 1.92% | 51 | 0 |
+| Retractable edge types (delta) | 2 | 52 | 3.85% | 50 | 0 |
 | Retractable node types (delta) | 1 | 87 | 1.15% | 86 | 0 |
 | Collectors | 22 | 34 | 64.71% | 12 | 8 |
-| **Total** | **216** | **389** | **55.53%** | **173** | **9** |
+| **Total** | **217** | **389** | **55.78%** | **172** | **9** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 204 | 204 | 100.00% | 0 | 5 |
 | cost | 1 | 23 | 4.35% | 22 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 3 | 140 | 2.14% | 137 | 0 |
+| delta_tombstone | 4 | 140 | 2.86% | 136 | 0 |
 | fault | 5 | 17 | 29.41% | 12 | 4 |
 | ordering | 1 | 3 | 33.33% | 2 | 0 |
 
@@ -65,7 +65,7 @@ Uncovered (20) — needs a parser-fixture replay scenario:
 
 ## Gaps — surfaces still needing a replay scenario
 
-173 surface(s) uncovered or unresolved:
+172 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (24)
 
@@ -94,7 +94,7 @@ Uncovered (20) — needs a parser-fixture replay scenario:
 - `projection:supply_chain_impact` (ordering)
 - `projection:supply_chain_impact` (cost)
 
-### Retractable edge types (delta) (51)
+### Retractable edge types (delta) (50)
 
 - `retractable_edge:ALIASES` (delta_tombstone)
 - `retractable_edge:ALLOWS_EGRESS` (delta_tombstone)
@@ -127,7 +127,6 @@ Uncovered (20) — needs a parser-fixture replay scenario:
 - `retractable_edge:INVOKES_CLOUD_ACTION` (delta_tombstone)
 - `retractable_edge:LOGS_TO` (delta_tombstone)
 - `retractable_edge:MANAGES` (delta_tombstone)
-- `retractable_edge:NEEDS` (delta_tombstone)
 - `retractable_edge:OVERRIDES` (delta_tombstone)
 - `retractable_edge:PROVISIONS_DEPENDENCY_FOR` (delta_tombstone)
 - `retractable_edge:QUERIES_TABLE` (delta_tombstone)
@@ -252,7 +251,7 @@ Uncovered (20) — needs a parser-fixture replay scenario:
 - `collector:terraform_state` (fault)
 - `collector:vulnerability_intelligence` (fault)
 
-## Covered surfaces (216)
+## Covered surfaces (217)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -449,6 +448,7 @@ Uncovered (20) — needs a parser-fixture replay scenario:
 | `product_claim:readme.supply-chain.default-gated` | baseline | product_claim | capability-inventory-docs | `readme.supply-chain.default-gated` |
 | `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
 | `retractable_edge:CONTAINS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_edge:NEEDS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Directory` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `collector:aws` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:aws` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_timeout_test.go` |

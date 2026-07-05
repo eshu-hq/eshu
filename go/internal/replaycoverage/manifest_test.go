@@ -391,6 +391,15 @@ func TestLoadRealManifestCoversContainsDeltaTombstone(t *testing.T) {
 	assertRealManifestDeltaCassette(t, "retractable_edge:CONTAINS")
 }
 
+func TestLoadRealManifestCoversNeedsDeltaTombstone(t *testing.T) {
+	// NEEDS must be covered only by a replay-tier scenario that proves direct
+	// GitlabJob edge retraction between surviving jobs. The replaydelta cassette
+	// keeps build/test/deploy jobs alive while changing test from NEEDS build to
+	// NEEDS deploy; offlinetier's live test reads the old/new edge truth back
+	// from the real graph backend.
+	assertRealManifestDeltaCassette(t, "retractable_edge:NEEDS")
+}
+
 func assertRealManifestDeltaCassette(t *testing.T, wantSurface string) {
 	t.Helper()
 

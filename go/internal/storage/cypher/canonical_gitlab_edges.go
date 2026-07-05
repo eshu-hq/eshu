@@ -45,7 +45,10 @@ SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_
 // current edge with the current generation_id. The retract is bounded by the
 // pipeline count in one .gitlab-ci.yml (one pipeline per file). It is emitted as
 // its own per-label statement (not a multi-type [r:NEEDS|DEFINES_JOB] match,
-// which is less reliable on the graph backend).
+// which is less reliable on the graph backend). The statement is Drain-marked so
+// the NornicDB phase-group executor runs it as a standalone autocommit
+// relationship DELETE before the sibling MERGE statements; grouped relationship
+// DELETEs can no-op inside the structural_edges ExecuteWrite transaction.
 const retractGitlabDefinesJobEdgesCypher = `UNWIND $source_uids AS uid
 MATCH (p:GitlabPipeline {uid: uid})-[r:DEFINES_JOB]->(:GitlabJob)
 WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
@@ -56,7 +59,9 @@ DELETE r`
 // retractGitlabDefinesJobEdgesCypher. A job whose needs change while both
 // endpoint jobs survive would otherwise keep the old (GitlabJob)-[:NEEDS]->(GitlabJob)
 // edge. Scoped by job source uid and generation-guarded; the MERGE re-writes the
-// current edges. Bounded by the job count in one .gitlab-ci.yml.
+// current edges. Bounded by the job count in one .gitlab-ci.yml and
+// Drain-marked for the same mixed structural_edges autocommit path as
+// DEFINES_JOB.
 const retractGitlabNeedsEdgesCypher = `UNWIND $source_uids AS uid
 MATCH (a:GitlabJob {uid: uid})-[r:NEEDS]->(:GitlabJob)
 WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
@@ -145,6 +150,7 @@ func gitlabEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
 				"source_uids":   pipelineSourceUIDs,
 				"generation_id": mat.GenerationID,
 			},
+			Drain: true,
 		})
 	}
 	if jobSourceUIDs := gitlabJobSourceUIDs(jobs); len(jobSourceUIDs) > 0 {
@@ -155,6 +161,7 @@ func gitlabEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
 				"source_uids":   jobSourceUIDs,
 				"generation_id": mat.GenerationID,
 			},
+			Drain: true,
 		})
 	}
 

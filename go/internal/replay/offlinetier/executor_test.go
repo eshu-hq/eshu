@@ -73,14 +73,15 @@ func (e livePhaseGroupExecutor) Execute(ctx context.Context, stmt cypher.Stateme
 
 // ExecutePhaseGroup runs one canonical write phase. An all-retract phase runs as
 // sequential per-statement auto-commit Execute (mirroring production's
-// executeSequentialRetractPhase); every other phase runs as a single real
-// transaction. It does NOT span phases, which is the production NornicDB contract
-// the #4019 directory phase-split depends on. Every statement is sanitized of
-// `_eshu_*` diagnostic params before it reaches the driver.
+// executeSequentialRetractPhase); a mixed phase first runs any Drain-marked
+// relationship retracts as standalone autocommit statements, then groups the
+// remaining upserts. It does NOT span phases, which is the production NornicDB
+// contract the #4019 directory phase-split depends on. Every statement is
+// sanitized of `_eshu_*` diagnostic params before it reaches the driver.
 func (e livePhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []cypher.Statement) error {
-	// The canonical writer's buildPhases never emits a phase that mixes retract
-	// and upsert statements, so an all-retract check is sufficient to match
-	// production: pure-retract phases run sequentially, everything else groups.
+	// Pure-retract phases run sequentially. Mixed structural phases keep
+	// Drain-marked relationship retracts out of the grouped transaction, matching
+	// production's autocommit retract path, then group the remaining upserts.
 	if cypher.StatementsAllUseOperation(stmts, cypher.OperationCanonicalRetract) {
 		for _, stmt := range stmts {
 			for _, chunk := range cypher.ChunkPositiveStringSliceRetractStatement(
@@ -93,7 +94,18 @@ func (e livePhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []c
 		}
 		return nil
 	}
-	return e.inner.ExecuteGroup(ctx, cypher.SanitizeStatements(stmts))
+
+	remaining := make([]cypher.Statement, 0, len(stmts))
+	for _, stmt := range stmts {
+		if !stmt.Drain {
+			remaining = append(remaining, stmt)
+			continue
+		}
+		if err := e.inner.Execute(ctx, cypher.SanitizeStatement(stmt)); err != nil {
+			return err
+		}
+	}
+	return e.inner.ExecuteGroup(ctx, cypher.SanitizeStatements(remaining))
 }
 
 // Execute runs one write statement in its own auto-commit session.
