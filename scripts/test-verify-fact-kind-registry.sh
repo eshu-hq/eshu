@@ -8,8 +8,13 @@ trap 'rm -rf "$tmp_root"' EXIT
 mkdir -p "$tmp_root/specs"
 cp "$repo_root/specs/fact-kind-registry.v1.yaml" "$tmp_root/specs/fact-kind-registry.v1.yaml"
 mkdir -p "$tmp_root/sdk/go/factschema/schema"
-cp "$repo_root/sdk/go/factschema/schema/aws_resource.v1.schema.json" \
-  "$tmp_root/sdk/go/factschema/schema/aws_resource.v1.schema.json"
+# Copy every checked-in payload schema so the generator can resolve each
+# payload_schema/payload_schema_overrides ref in the registry, not just
+# aws_resource. A family that adds registry payload_schema refs (for example
+# oci_registry) must have its schema files resolvable here; globbing keeps this
+# gate self-maintaining as more families wire their schemas.
+cp "$repo_root/sdk/go/factschema/schema/"*.v1.schema.json \
+  "$tmp_root/sdk/go/factschema/schema/"
 
 ESHU_FACT_KIND_REGISTRY_REPO_ROOT="$tmp_root" \
   ESHU_FACT_KIND_REGISTRY_GO_DIR="${repo_root}/go" \
