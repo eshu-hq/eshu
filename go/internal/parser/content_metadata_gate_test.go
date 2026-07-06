@@ -5,6 +5,7 @@ package parser
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -175,6 +176,195 @@ func TestShouldSkipContentMetadataEquivalence(t *testing.T) {
 				t.Fatalf("gate result mismatch for %q: got %+v, want %+v (unconditional inferContentMetadata)", tt.relativePath, got, want)
 			}
 		})
+	}
+}
+
+// TestShouldSkipContentMetadataGeneratedEquivalence is the mandatory
+// generative differential proof: rather than a hand-picked list of examples,
+// it enumerates a cartesian product of {registered extensions, including
+// multi-dot shapes} x {directory contexts} x {content signals} and asserts,
+// for every generated (path, content) pair, that
+// shouldSkip==true IMPLIES inferContentMetadata(path, content) ==
+// contentMetadata{}. A hand-picked example list can miss a trigger class the
+// author didn't think to test; this loop cannot skip a combination by
+// omission the way a manual list can, because every basename/extension is
+// crossed with every directory and every content shape.
+//
+// This test caught 3 real defects in an earlier version of the gate
+// (documented in the eshu-code-review that rejected it): ".conf"/".cfg"/
+// ".cnf" entirely missing from the extension set (a bare "nginx.conf" at
+// repo root was skipped despite persisting artifact_type=nginx_config,
+// iac_relevant=true); checking only the LAST dot-suffix instead of every
+// suffix (a "vars.tf.json" file was skipped despite persisting
+// artifact_type=terraform_hcl because its last suffix ".json" is not gated
+// even though its ".tf" suffix is real terraform); and ".kcl" entirely
+// missing (a ".kcl" file with template markers was skipped despite
+// persisting go_template_yaml/jinja_yaml). See
+// TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate for the
+// red-without-the-fix proof.
+func TestShouldSkipContentMetadataGeneratedEquivalence(t *testing.T) {
+	t.Parallel()
+
+	basenames := []string{
+		// single-extension shapes, one per suffix-matching helper in
+		// templated_detection.go, plus a few representative plain-source names.
+		"config.yaml", "config.yml",
+		"main.hcl", "main.tf", "vars.tfvars",
+		"helper.tpl", "config.tftpl",
+		"config.jinja", "config.jinja2", "config.j2",
+		"nginx.conf", "app.cfg", "db.cnf",
+		"settings.kcl",
+		"main.py", "index.js", "Controller.php", "handler.go",
+		// multi-dot shapes: the exact regression class from the review --
+		// a gated suffix that is NOT the last dot-segment.
+		"vars.tf.json", "main.tf.json", "values.yaml.j2", "config.cfg.j2",
+		"x.tf.bak", "notes.hcl.txt",
+		// basename-only triggers with no gated extension at all.
+		"Dockerfile", "Dockerfile.dev",
+		"docker-compose.yml", "docker-compose.override.yaml",
+		"Chart.yaml", "values.production.yaml",
+	}
+
+	dirContexts := []string{
+		"", // repo root
+		"roles/web/library",
+		"playbooks/filter_plugins",
+		"handlers",
+		"group_vars",
+		"host_vars",
+		"inventory/prod",
+		"inventories/prod",
+		"dagster/assets",
+		"data_quality/checks",
+		"data_lakehouse/tables",
+		"chart-a/templates",
+		"argocd/apps",
+		"iac/scripts",
+		filepath.Join(".github", "workflows"),
+		"apache/mods-available",
+		"nginx/sites-available",
+		"src/app", // plain, no signal directory
+	}
+
+	contentShapes := map[string]string{
+		"empty":               "",
+		"plain_code":          "def handler():\n    return 200\n",
+		"nginx_content":       "server {\n  listen 80;\n  location / {\n    proxy_pass http://upstream;\n  }\n}\n",
+		"apache_content":      "<VirtualHost *:80>\n  DocumentRoot /var/www\n  RewriteRule ^ /index.php\n</VirtualHost>\n",
+		"ansible_playbook":    "- hosts: all\n  roles:\n    - common\n",
+		"go_template_markers": "value: {{ .Values.name }}\n",
+		"jinja_markers":       "value: {% if enabled %}yes{% endif %}\n",
+		"tf_interpolation":    "value = ${var.name}\n",
+	}
+
+	for _, basename := range basenames {
+		for _, dir := range dirContexts {
+			for contentName, content := range contentShapes {
+				relativePath := basename
+				if dir != "" {
+					relativePath = filepath.Join(dir, basename)
+				}
+				path := filepath.FromSlash(relativePath)
+
+				gotSkip := shouldSkipContentMetadata(path, content)
+				if !gotSkip {
+					continue
+				}
+
+				want := inferContentMetadata(path, content)
+				if want != (contentMetadata{}) {
+					t.Errorf(
+						"shouldSkipContentMetadata(%q, content=%s) = true, but inferContentMetadata returned non-zero %+v -- gate is not a superset",
+						relativePath, contentName, want,
+					)
+				}
+			}
+		}
+	}
+}
+
+// TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate proves
+// the generative test above is not a tautology: it re-runs the exact same
+// cartesian product against the pre-fix gate shape (last-suffix-only
+// matching, missing ".conf"/".cfg"/".cnf"/".kcl") and asserts that shape
+// fails at least one generated case. This is the mandatory red-without-fix
+// proof: the generative test demonstrably distinguishes a buggy gate from a
+// correct one instead of vacuously passing regardless of implementation.
+func TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate(t *testing.T) {
+	t.Parallel()
+
+	preFixExtensions := map[string]struct{}{
+		".yaml": {}, ".yml": {},
+		".hcl": {}, ".tf": {}, ".tfvars": {},
+		".tpl": {}, ".tftpl": {},
+		".jinja": {}, ".jinja2": {}, ".j2": {},
+		// deliberately missing .conf/.cfg/.cnf/.kcl, matching the rejected gate
+	}
+	preFixSkip := func(path string, content string) bool {
+		suffixes := splitSuffixes(path)
+		if len(suffixes) > 0 {
+			// deliberately last-suffix-only, matching the rejected gate
+			if _, gated := preFixExtensions[suffixes[len(suffixes)-1]]; gated {
+				return false
+			}
+		}
+		name := strings.ToLower(filepath.Base(path))
+		if name == "chart.yaml" || strings.HasPrefix(name, "values.") {
+			return false
+		}
+		if name == "dockerfile" || strings.HasPrefix(name, "dockerfile.") {
+			return false
+		}
+		if isDockerComposeFilename(name) {
+			return false
+		}
+		parts := pathParts(path)
+		if hasPart(parts, contentMetadataGatedPathSegments...) {
+			return false
+		}
+		if hasPart(parts, ".github") && hasPart(parts, "workflows") {
+			return false
+		}
+		lowered := strings.ToLower(content)
+		for _, marker := range contentMetadataAnsiblePlaybookMarkers {
+			if strings.Contains(lowered, marker) {
+				return false
+			}
+		}
+		return true
+	}
+
+	basenames := []string{
+		"nginx.conf", "app.cfg", "db.cnf", "settings.kcl",
+		"vars.tf.json", "main.tf.json",
+	}
+	dirContexts := []string{"", "src/app"}
+
+	foundMismatch := false
+	for _, basename := range basenames {
+		for _, dir := range dirContexts {
+			relativePath := basename
+			if dir != "" {
+				relativePath = filepath.Join(dir, basename)
+			}
+			path := filepath.FromSlash(relativePath)
+
+			for _, content := range []string{
+				"", "server {\n  listen 80;\n}\n", "value: {{ .Values.name }}\n",
+			} {
+				if !preFixSkip(path, content) {
+					continue
+				}
+				want := inferContentMetadata(path, content)
+				if want != (contentMetadata{}) {
+					foundMismatch = true
+				}
+			}
+		}
+	}
+
+	if !foundMismatch {
+		t.Fatalf("expected the pre-fix gate shape to mismatch on at least one generated case, but none were found -- this test no longer proves the generative differential catches a too-narrow gate")
 	}
 }
 

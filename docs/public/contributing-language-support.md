@@ -83,11 +83,27 @@ example `ansible_role` or `iac_relevant=true`) and always runs the real
 inference. So does any file whose content contains an Ansible-playbook marker
 substring (`hosts:`, `roles:`, `vars_files:`, or `import_playbook:` at the
 start of a line) regardless of its path or extension, since that
-classification is content-based, not path-based. A gate that ignored path
-segments and skipped by extension alone would silently drop this
-classification -- `content_metadata_gate_test.go` proves the real gate keeps
-every one of these cases and proves that a too-wide, extension-only gate is
-caught as a regression.
+classification is content-based, not path-based. The extension check itself
+must test every dot-suffix a filename carries, not only the last one (a
+`vars.tf.json` file is real `terraform_hcl` via its `.tf` suffix even though
+`.json` is last), and must include `.conf`/`.cfg`/`.cnf` (raw config files
+reclassified to `nginx_config`/`apache_config`/`generic_config`) and `.kcl`
+(which gets template-marker handling identical to YAML).
+
+An earlier version of this gate skipped by last-suffix only and omitted
+`.conf`/`.cfg`/`.cnf`/`.kcl` entirely, silently corrupting persisted
+`artifact_type`/`iac_relevant` for those files -- caught by a hostile
+`eshu-code-review` before merge, not by the equivalence test, because that
+test's hand-picked case list did not happen to include those shapes. The gate
+is now proven, not just asserted, against those trigger classes: in addition
+to the hand-picked equivalence cases, `content_metadata_gate_test.go` runs a
+generative differential (`TestShouldSkipContentMetadataGeneratedEquivalence`)
+over a cartesian product of every gated/plain extension (including multi-dot
+shapes like `vars.tf.json`), every signal/plain directory context, and every
+content signal, asserting `shouldSkip==true => inferContentMetadata(path,
+content) == contentMetadata{}` for every generated combination -- plus two
+tests proving that assertion is not a tautology by showing it fails red
+against a too-wide gate and against the pre-fix gate shape.
 
 Parse-only behavior is not supported query behavior. A parser can recognize a
 syntax shape and still be unsupported for language-query, entity context,

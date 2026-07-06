@@ -65,6 +65,49 @@ func BenchmarkParsePathLargeGatedPHP(b *testing.B) {
 	}
 }
 
+// BenchmarkContentMetadataGatedRawConfigCorrectlyNotSkipped is the
+// post-eshu-code-review correction benchmark: a large ".conf" file (nginx
+// config shape) previously fell through the buggy gate's extension check
+// (".conf"/".cfg"/".cnf" were entirely missing) and was incorrectly skipped,
+// silently corrupting its persisted artifact_type/iac_relevant. The fixed
+// gate correctly declines to skip this file, so this benchmark measures the
+// real cost the fix restores for this class: gate-check overhead plus the
+// full inferContentMetadata call, not the near-zero skip cost. This is the
+// "more files correctly run the real inference now" case the coordinator
+// asked to be re-measured, isolated from the still-correctly-gated PHP case
+// above.
+func BenchmarkContentMetadataGatedRawConfigCorrectlyNotSkipped(b *testing.B) {
+	path := filepath.Join("etc", "nginx", "sites-available", "large.conf")
+	content := generateLargeNginxConfSource(400)
+
+	if shouldSkipContentMetadata(path, content) {
+		b.Fatalf("shouldSkipContentMetadata(%q) = true, want false (a .conf file must never be skipped)", path)
+	}
+
+	b.ResetTimer()
+	for b.Loop() {
+		var metadata contentMetadata
+		if !shouldSkipContentMetadata(path, content) {
+			metadata = inferContentMetadata(path, content)
+		}
+		_ = metadata
+	}
+}
+
+// generateLargeNginxConfSource produces a large synthetic nginx-shaped ".conf"
+// file: real IaC content (server{}/location/ blocks) that must persist
+// artifact_type=nginx_config, iac_relevant=true, and therefore must never be
+// skipped by shouldSkipContentMetadata.
+func generateLargeNginxConfSource(blockCount int) string {
+	var b strings.Builder
+	b.WriteString("user www-data;\nworker_processes auto;\n\n")
+	for i := range blockCount {
+		fmt.Fprintf(&b, "server {\n  listen 80%02d;\n  server_name app%d.internal;\n", i%100, i)
+		fmt.Fprintf(&b, "  location /svc%d/ {\n    proxy_pass http://upstream%d;\n  }\n}\n\n", i, i)
+	}
+	return b.String()
+}
+
 // generateLargeGatedSource produces a large synthetic PHP file with no
 // IaC/template signal in its path or content (no roles/playbooks/dagster/
 // chart/templates/argocd/iac path segment, no ansible-playbook content
