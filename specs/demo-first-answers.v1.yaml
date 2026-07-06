@@ -1,0 +1,250 @@
+version: demo-first-answers/v1
+updated_at: 2026-07-06
+issue: 4741
+parent_issue: 4592
+owners:
+  - runtime
+  - query
+  - answer-narration
+
+purpose: >
+  Pin the five demo-mode questions to concrete, already-shipped read surfaces
+  and to the golden-corpus-gate artifacts that make each answer correct and
+  correlated. This spec is the acceptance oracle for issue #4741: every
+  sibling issue under epic #4592 (the demo command, the guided path, the
+  console overlay) tests against the questions declared here rather than
+  inventing new query capability.
+
+design: >
+  The demo corpus is the same corpus the B-7 golden-corpus gate already proves
+  (scripts/verify-golden-corpus-gate.sh), replayed as the acme org under
+  supply-chain-demo. Reusing it means every demo answer is backed by a fixture
+  and a cassette that CI already runs on every PR — no separate demo-only
+  seed data to keep in sync. The five-question set traces one correlation hop
+  from five evidence domains the golden snapshot proves: code -> deployment,
+  deployment -> cloud resource, incident -> service, cross-repo dependency, and
+  observability -> workload. A demo user sees the platform's core claim — code,
+  infra, and runtime evidence joined into one graph — inside the first five
+  answers. Each question maps to an existing playbook, MCP tool, CLI verb, or
+  HTTP route; none of them introduce a new query capability, and each expected
+  answer was captured live against the golden-corpus-gate stack before this
+  spec was finalized.
+  .
+  Two questions were pinned to the surface the corpus actually populates rather
+  than the first candidate. Q2 (deployment -> cloud resource) uses
+  list_kubernetes_correlations rather than trace_deployment_chain because the
+  live run returned an empty cloud_resources for trace_deployment_chain while
+  list_kubernetes_correlations returned the digest-joined workload -> image
+  correlation (rc-4). Q4 was originally scoped as dependency -> vulnerability,
+  but that correlation does not exist in this corpus: CVE-2026-00000 carries
+  advisory evidence yet produces no CVE-to-component impact finding
+  (explain_supply_chain_impact returns outcome=no_finding; the findings
+  surfaces return ready_zero_findings). Rather than pin an empty or fabricated
+  vulnerability answer, Q4 demonstrates the cross-repo dependency the corpus
+  does prove (orders-api -> github.com/acme/lib-common, rc-3), and its note
+  records the evaluated-and-rejected vulnerability framing plus the #4747 hook
+  where a real impact finding could later be seeded.
+
+questions:
+  - id: q1_code_to_deployment
+    question: >
+      Which workload does the api-svc repository run in, and which functions
+      handle its routes?
+    correlation_kind: code_to_deployment
+    surface:
+      kind: playbook
+      ref: service_story_citation
+      arguments:
+        service_name: api-svc
+        environment: prod
+    notes: >
+      CLI parity is "eshu trace service --json" (command
+      ["trace","service","checkout","--json"], parity_with mcp:get_service_story
+      in the golden snapshot); MCP parity is get_service_story
+      {workload_id: "workload:api-svc"}.
+    expected_answer:
+      # Top-level keys captured live from get_service_story against the
+      # golden-corpus-gate stack (see PR body). get_service_story does NOT
+      # return a top-level "story"/"story_sections" pair; the code->runtime
+      # story lives under code_to_runtime_trace and deployment_* here.
+      required_response_fields:
+        - answer_metadata
+        - answer_packet
+        - api_surface
+        - ci_cd_evidence
+        - code_to_runtime_trace
+        - deployment_evidence
+        - deployment_lanes
+        - deployment_overview
+        - service_identity
+        - service_name
+      demonstrates_correlations:
+        - rc-2
+        - rc-8
+        - rc-14
+    artifacts:
+      cassettes: []
+      repos:
+        - api-svc
+
+  - id: q2_deployment_to_cloud_resource
+    question: >
+      Which cloud-managed image does the api-svc Kubernetes workload run, and
+      what correlated it there?
+    correlation_kind: deployment_to_cloud_resource
+    surface:
+      kind: mcp
+      ref: list_kubernetes_correlations
+      arguments:
+        cluster_id: supply-chain-demo
+    notes: >
+      Pinned to list_kubernetes_correlations rather than trace_deployment_chain.
+      Confirmed live against the golden-corpus-gate stack: the tool returns
+      count 2 with a digest-joined workload -> image correlation
+      (correlations[0].image_ref = ghcr.io/... , source_digest, join_mode
+      digest, outcome exact), which is the read-side evidence for rc-4
+      (KubernetesWorkload RUNS_IMAGE OciImageManifest). trace_deployment_chain
+      {service_name: api-svc} was also captured and its cloud_resources came
+      back empty (null) on this corpus, so list_kubernetes_correlations is the
+      surface that demonstrably shows the correlation. demonstrates_correlations
+      is trimmed to rc-4 (the correlation this surface actually evidences); the
+      broader deployment-source edges rc-19/rc-20/rc-51 are proven by the gate
+      but are not surfaced by this tool. See PR body for the captured response.
+    expected_answer:
+      required_response_fields:
+        - correlations
+        - count
+        - limit
+        - truncated
+      demonstrates_correlations:
+        - rc-4
+    artifacts:
+      cassettes:
+        - kuberneteslive
+        - ociregistry
+        - gcpcloud
+      repos:
+        - deployable-source
+        - deployable-config
+        - kustomize-deployable-overlay
+
+  - id: q3_incident_to_service
+    question: >
+      Which service does incident PSCD1 point to, and what evidence ties them
+      together?
+    correlation_kind: incident_to_service
+    surface:
+      kind: playbook
+      ref: incident_context_evidence_path
+      arguments:
+        incident_id: PSCD1
+    notes: >
+      The incident -> service correlation is a reducer correlation (the
+      pagerduty PSCD1 incident scope, resolved through evidence_path with
+      truth_label exact), proven live by the surface response rather than by a
+      dedicated graph rc-edge: the golden snapshot's required_correlations
+      carry no incident correlation. demonstrates_correlations therefore lists
+      rc-14 (Repository DEFINES Workload), the nearest graph anchor that ties
+      the resolved service (the api-svc workload) into the gate's
+      required_correlations. See PR body for the captured response.
+    expected_answer:
+      required_response_fields:
+        - answer_metadata
+        - answer_packet
+        - evidence_path
+        - incident
+        - related_changes
+        - timeline
+      demonstrates_correlations:
+        - rc-14
+    artifacts:
+      cassettes:
+        - pagerduty
+      repos:
+        - api-svc
+
+  - id: q4_dependency_cross_repo
+    question: >
+      Which repository depends on github.com/acme/lib-common, and how was that
+      dependency declared and resolved?
+    correlation_kind: code/supply-chain dependency (cross-repo, package-registry resolved)
+    surface:
+      kind: mcp
+      ref: list_package_registry_correlations
+      arguments:
+        package_id: github.com/acme/lib-common
+    notes: >
+      This question was originally scoped as dependency -> vulnerability, but
+      that correlation does NOT exist in this corpus: CVE-2026-00000 carries
+      advisory evidence (vulnerability.advisory facts) but no CVE-to-component
+      impact finding. Confirmed live against the golden-corpus-gate stack:
+      explain_supply_chain_impact {cve_id: CVE-2026-00000, package_id: ...}
+      returns outcome=no_finding with missing_evidence=[impact_finding,
+      package_registry_metadata], and both list_supply_chain_impact_findings and
+      GET /api/v0/supply-chain/impact/findings?cve_id=CVE-2026-00000 return
+      readiness_state=ready_zero_findings (count 0). The honest correlation this
+      corpus proves is the cross-repo dependency: orders-api's go.mod declares a
+      dependency on github.com/acme/lib-common, resolved to the in-corpus owner
+      repo via the package-registry source hint (rc-3, the B-13 cross-repo
+      DEPENDS_ON fix). Issue #4747 owns the demo-org coherence profile in the
+      generators; a real CVE-to-component impact finding could be seeded there
+      later, at which point this question could become dependency ->
+      vulnerability. Pinned to list_package_registry_correlations
+      {package_id: github.com/acme/lib-common}, which returns the read-side
+      consumption correlation live (count 2). Confirmed against the golden gate
+      before this spec was finalized (see PR body for the captured response).
+    expected_answer:
+      required_json_paths:
+        - collector_readiness
+        - correlations
+        - count
+        - correlations[].outcome
+        - correlations[].relationship_kind
+      demonstrates_correlations:
+        - rc-3
+    artifacts:
+      cassettes:
+        - packageregistry
+      repos:
+        - orders-api
+        - lib-common
+
+  - id: q5_observability_to_workload
+    question: >
+      Which workload does the tempo trace coverage in the demo org correlate
+      to, and how fresh is that coverage?
+    correlation_kind: observability_to_workload
+    surface:
+      kind: http
+      ref: "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50"
+      arguments:
+        provider: tempo
+        limit: 50
+    notes: >
+      The observability -> workload correlation is a reducer correlation (tempo
+      trace coverage resolved to the demo workload), proven live by the surface
+      response (data.count 2) rather than by a dedicated graph rc-edge: the
+      golden snapshot's required_correlations carry no observability-coverage
+      edge. demonstrates_correlations therefore lists rc-2 (Function RUNS_IN
+      Workload), the nearest graph anchor that ties the covered api-svc workload
+      into the gate's required_correlations. See PR body for the captured
+      response.
+    expected_answer:
+      # Captured live: the observability coverage route returns correlations at
+      # the TOP level (no "data" envelope), so these are top-level response
+      # fields, not data.* JSON paths. count = 2 for provider=tempo.
+      required_response_fields:
+        - correlations
+        - count
+        - limit
+        - truncated
+      demonstrates_correlations:
+        - rc-2
+    artifacts:
+      cassettes:
+        - tempo
+        - prometheusmimir
+        - grafana
+        - loki
+      repos:
+        - api-svc
