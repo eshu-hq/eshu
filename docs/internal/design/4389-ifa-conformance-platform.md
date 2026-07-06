@@ -330,11 +330,12 @@ machinery for either:
   pins a fixture-pack version for payload conformance and runs Odù offline in
   its own CI. Two competing *schema sources* is the rejected outcome; two
   tiers with different granularity is the design.
-- **The demo manifest is an Odù.** `specs/demo-first-answers.v1.yaml` (#4741,
-  first-run epic #4592) — five questions with expected correlated answers — is
-  structurally an Odù expectation set. P1 loads or validates it through the
-  same derivation, so the public demo can never drift from conformance truth:
-  the demo a newcomer sees is a permanently-green conformance case.
+- **The demo manifest is an Odù.** `specs/demo-first-answers.v1.yaml` — five
+  questions with expected correlated answers, in flight under #4741 (first-run
+  epic #4592), not yet in the tree — is structurally an Odù expectation set.
+  Once it lands, P1 loads or validates it through the same derivation, so the
+  public demo can never drift from conformance truth: the demo a newcomer sees
+  is a permanently-green conformance case.
 
 The contract layer is assertion + derivation only. It has no concurrency of its
 own; it defines *what an identical graph means* so the determinism layer can
@@ -646,8 +647,10 @@ Derive expectations from `fact-kind-registry.v1.yaml` and the B-12 snapshot with
 `EvidenceKinds`/`RequiredEdgeProperties` normalization, and validate Odù
 payloads against the #4567 JSON Schemas where they exist (schema absent =
 registry-only derivation, flagged in the report, so P1 does not block on
-epic #4566 completing). Register Odù as fixture-pack entries per #4572 —
-one artifact, not two. Reconcile Odù coverage against a manifest using the
+epic #4566 completing). Odù are scenario-level cases that VALIDATE against the
+kind-level fixture pack's shared schema source (#4572) — two tiers, one schema
+source, per the corrected cross-wiring above. Reconcile Odù coverage against a
+manifest using the
 `replaycoverage` pattern. Evidence: a new fact kind without an Odù reports
 uncovered; false-green case (kustomize vs ArgoCD) correctly fails; a
 schema-invalid payload fails conformance.
