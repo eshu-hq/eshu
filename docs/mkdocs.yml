@@ -30,6 +30,7 @@ nav:
     - Overview: index.md
     - Start Here: start-here.md
     - First Successful Run: getting-started/first-successful-run.md
+    - Your First Five Questions: getting-started/first-five-questions.md
     - Why Eshu: why-eshu.md
     - Use Cases: use-cases.md
   - Run Locally:
