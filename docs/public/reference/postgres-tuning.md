@@ -31,9 +31,11 @@ The main hot tables are:
 Runtimes that open Postgres through `internal/runtime.OpenPostgres` read the
 same pool variables. That includes the write-heavy ingester, reducer,
 projector, bootstrap, workflow, webhook, scanner-worker, and collector
-processes. API and MCP currently open Postgres directly for read surfaces; Helm
-renders the same environment variables for those deployments, but the API/MCP
-binaries do not apply the pool or ping-timeout values yet.
+processes. API and MCP open Postgres directly for read surfaces; Helm renders
+the same environment variables for those deployments. The API/MCP binaries now
+apply the shared pool caps (`ESHU_POSTGRES_MAX_OPEN_CONNS` and the idle/lifetime
+values via `ConfigurePostgresPool`); they do not yet apply the
+`ESHU_POSTGRES_PING_TIMEOUT` value (they ping with the ambient startup context).
 
 | Variable | Default | Tune when |
 | --- | --- | --- |
@@ -42,12 +44,14 @@ binaries do not apply the pool or ping-timeout values yet.
 | `ESHU_POSTGRES_CONN_MAX_LIFETIME` | `30m` | Connections must recycle for network, proxy, or server-side maintenance behavior. Do not lower it to mask slow queries. |
 | `ESHU_POSTGRES_CONN_MAX_IDLE_TIME` | `10m` | Idle connections accumulate after bursty collector or reducer phases. |
 | `ESHU_POSTGRES_PING_TIMEOUT` | `10s` | Startup readiness fails before the database is reachable on slower environments. |
+| `ESHU_PG_MAX_CONNECTIONS` | `640` | Compose Postgres server-side `max_connections`, sized for the largest stack that shares this postgres (the remote-e2e collector fleet). Raise it (and provision RAM) before raising per-process pools or adding pool-holding services beyond the budget below. |
 
 Kubernetes exposes the same knobs under each runtime's
 `connectionTuning.postgres` block. The Helm helper renders them into the
-`ESHU_POSTGRES_*` environment variables across deployments; count only
-`OpenPostgres` callers when sizing effective pool caps until API/MCP adopt the
-shared runtime opener.
+`ESHU_POSTGRES_*` environment variables across deployments. Every runtime that
+opens a pool bounds it to `ESHU_POSTGRES_MAX_OPEN_CONNS` — the API and MCP servers
+apply the shared pool config too, so all pool holders count at the same per-process
+cap when sizing.
 
 Size each process against the server limit, not in isolation. PostgreSQL
 documents `max_connections` as the server-wide concurrent connection cap and
@@ -57,11 +61,17 @@ notes that raising it increases allocated resources, including shared memory:
 Use this sizing check before raising pools:
 
 ```text
-sum(OpenPostgres runtime replicas * ESHU_POSTGRES_MAX_OPEN_CONNS)
-  + migration/bootstrap/admin headroom
-  + operator emergency headroom
+sum(pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS)
+  + reserved/admin headroom (superuser_reserved_connections, psql, admin-status)
   <= Postgres max_connections
 ```
+
+In local Compose this inequality is enforced by
+`TestComposePostgresMaxConnectionsCoversPoolBudget`: the default
+`ESHU_PG_MAX_CONNECTIONS` (640) must cover every pool-holding service at
+`ESHU_POSTGRES_MAX_OPEN_CONNS` (30) plus a 20-connection reserve, so adding a
+pool-holder or raising the per-process pool without lifting the server ceiling
+fails the build.
 
 If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because

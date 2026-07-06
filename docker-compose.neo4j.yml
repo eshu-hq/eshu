@@ -48,6 +48,10 @@ services:
       - "effective_io_concurrency=200"
       - "-c"
       - "random_page_cost=1.1"
+      # Whole-stack connection budget — see the base docker-compose.yaml comment
+      # and TestComposePostgresMaxConnectionsCoversPoolBudget.
+      - "-c"
+      - "max_connections=${ESHU_PG_MAX_CONNECTIONS:-640}"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
