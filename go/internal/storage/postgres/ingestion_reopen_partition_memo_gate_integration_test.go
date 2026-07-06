@@ -167,6 +167,82 @@ func TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence(t *tes
 		"post-gate intents vs unconditional-reopen counterfactual")
 }
 
+// TestRunDeferredRelationshipMaintenanceReopensPartitionProcessedThisPass is the
+// P1 regression proof for the codex finding on issue #4770/PR #4816: a
+// partition that is a memo MISS at the START of a maintenance pass — so
+// BackfillAllRelationshipEvidence reprocesses it and, in the SAME pass, writes
+// a FRESH memo row keyed to the CURRENT catalog fingerprint — must still have
+// its already-succeeded work item reopened by the very same pass's reopen
+// step, because that work item resolved BEFORE this pass's new evidence
+// existed.
+//
+// The pre-fix bug: ReopenDeploymentMappingWorkItems independently recomputed
+// the current fingerprint and RE-READ the memo table AFTER
+// BackfillAllRelationshipEvidence had already written the fresh memo row for
+// this pass, so a partition reprocessed THIS pass read back as a memo HIT to
+// the reopen gate and was wrongly skipped — even though the work item is
+// stale relative to the evidence that just landed. Driving
+// RunDeferredRelationshipMaintenance (the real ingester call sequence: backfill
+// then reopen, both against a partition with NO prior memo row) reproduces
+// this exactly, unlike the sibling equivalence test above, which seeds a
+// memo HIT from a separate first pass before seeding the work item.
+func TestRunDeferredRelationshipMaintenanceReopensPartitionProcessedThisPass(t *testing.T) {
+	dsn := dsnForDeferredPartitionMemoProof(t)
+	ctx := context.Background()
+	db := openDeferredPartitionMemoProofDB(t, dsn)
+	provisionReopenPartitionMemoSchema(t, db)
+
+	base := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+	fixtures := []memoProofFixture{
+		{scopeID: "git:scope-a", genID: "gen-a", repoID: "repo-a", repoName: "alpha-service"},
+		{scopeID: "git:scope-b", genID: "gen-b", repoID: "repo-b", repoName: "beta-service"},
+	}
+	seedMemoProofScopesAndFacts(t, ctx, db, fixtures, map[string]string{
+		"repo-a": "beta-service",
+	}, base)
+
+	// Precondition: scope-a's partition has NO memo row yet — a genuine
+	// memo-MISS at the start of this pass, the cold-start/catalog-changed case
+	// the reopen mechanism exists to handle.
+	if got := countMemoRows(t, ctx, db); got != 0 {
+		t.Fatalf("precondition: memo row count = %d, want 0 (partition must start as a memo miss)", got)
+	}
+
+	// Seed a succeeded deployment_mapping work item for scope-a's partition
+	// BEFORE this pass runs, representing a resolve that happened using
+	// evidence that predates the backward evidence this pass is about to
+	// commit for the first time.
+	seedSucceededReopenWorkItem(t, ctx, db, "work-deployment-mapping-a", "git:scope-a", "gen-a", "deployment_mapping", base)
+
+	adapter := SQLDB{DB: db}
+	store := NewIngestionStore(adapter)
+	store.Now = func() time.Time { return base }
+
+	// Drive the REAL ingester call sequence: BackfillAllRelationshipEvidence
+	// (which discovers evidence for the memo-miss partition and writes a FRESH
+	// memo row for it in the SAME pass) immediately followed by
+	// ReopenDeploymentMappingWorkItems, exactly as
+	// RunDeferredRelationshipMaintenance calls them.
+	if err := store.RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
+		t.Fatalf("RunDeferredRelationshipMaintenance() error = %v", err)
+	}
+
+	// Sanity: this pass really did write a fresh memo row for scope-a (proving
+	// the partition was reprocessed this pass, not skipped).
+	if got := countMemoRows(t, ctx, db); got == 0 {
+		t.Fatal("RunDeferredRelationshipMaintenance wrote no partition memo rows; test precondition violated")
+	}
+
+	// THE ASSERTION: the work item must be reopened (transitioned to
+	// 'pending') because its partition was processed — not skipped — by this
+	// very pass's backfill step. Skipping the reopen here means the new
+	// backward evidence this pass just committed is never consumed by the
+	// reducer, defeating the entire reopen mechanism for the cold-start case.
+	if got, want := workItemStatus(t, ctx, db, "work-deployment-mapping-a"), "pending"; got != want {
+		t.Fatalf("work item status after same-pass reopen = %q, want %q (a partition reprocessed THIS pass must reopen its succeeded work items, not read back as a memo hit against the memo row this SAME pass just wrote)", got, want)
+	}
+}
+
 // TestReopenDeploymentMappingWorkItemsReopensNonMemoHitPartition is the
 // non-memo-hit control for the equivalence proof above: a work item whose
 // partition has NO memo row at all (the common real-world case: a bootstrap

@@ -61,7 +61,7 @@ func TestApplyReopenPartitionMemoGateSkipsMemoHitPartition(t *testing.T) {
 		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, fingerprint, nil)
+	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, fingerprint, nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
 	}
@@ -93,7 +93,7 @@ func TestApplyReopenPartitionMemoGateWithoutFingerprintReopensEverything(t *test
 		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "", nil)
+	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "", nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
 	}
@@ -122,7 +122,7 @@ func TestApplyReopenPartitionMemoGateReopensNonMemoHitPartition(t *testing.T) {
 		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil)
+	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
 	}
@@ -156,7 +156,7 @@ func TestApplyReopenPartitionMemoGateReopensArgoCDBearingPartition(t *testing.T)
 		{WorkItemID: "work-argocd", Partition: scopeGenerationPartition{ScopeID: "scope-argocd", GenerationID: "gen-1"}},
 	}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil)
+	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
 	}
@@ -192,7 +192,7 @@ func TestApplyReopenPartitionMemoGateMixedPartitionsSplitsCorrectly(t *testing.T
 		{WorkItemID: "work-argocd", Partition: scopeGenerationPartition{ScopeID: "scope-argocd", GenerationID: "gen-argocd"}},
 	}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, fingerprint, nil)
+	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, fingerprint, nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
 	}
@@ -226,7 +226,7 @@ func TestApplyReopenPartitionMemoGateBlankPartitionAlwaysReopens(t *testing.T) {
 		{WorkItemID: "work-blank", Partition: scopeGenerationPartition{ScopeID: "", GenerationID: ""}},
 	}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil)
+	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
 	}
@@ -243,7 +243,7 @@ func TestApplyReopenPartitionMemoGateEmptyItemsIsNoop(t *testing.T) {
 	t.Parallel()
 
 	memoStore := newDeferredBackfillPartitionMemoStore(noopExecQueryer{t: t})
-	result, err := applyReopenPartitionMemoGate(context.Background(), memoStore, "deployment_mapping", nil, "sha256:current", nil)
+	result, err := applyReopenPartitionMemoGate(context.Background(), memoStore, "deployment_mapping", nil, "sha256:current", nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate(nil) error = %v, want nil", err)
 	}
@@ -261,7 +261,7 @@ func TestApplyReopenPartitionMemoGateNilMemoStoreFallsBackToReopenAll(t *testing
 	items := []reopenWorkItemRef{
 		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
-	result, err := applyReopenPartitionMemoGate(context.Background(), nil, "deployment_mapping", items, "sha256:current", nil)
+	result, err := applyReopenPartitionMemoGate(context.Background(), nil, "deployment_mapping", items, "sha256:current", nil, nil)
 	if err != nil {
 		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
 	}
@@ -288,7 +288,7 @@ func TestApplyReopenPartitionMemoGateLookupErrorPropagates(t *testing.T) {
 		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
 
-	_, err := applyReopenPartitionMemoGate(context.Background(), memoStore, "deployment_mapping", items, "sha256:current", nil)
+	_, err := applyReopenPartitionMemoGate(context.Background(), memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
 	if err == nil {
 		t.Fatal("applyReopenPartitionMemoGate() error = nil, want lookup error")
 	}

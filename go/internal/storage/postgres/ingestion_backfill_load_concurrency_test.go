@@ -78,7 +78,7 @@ func TestLoadDeferredScopedFactsFanOutRunsConcurrently(t *testing.T) {
 	store.maintenanceWorkers = 6
 
 	partitions := makePartitions(32)
-	_, err := store.loadDeferredScopedFactsAcrossPartitions(
+	_, _, err := store.loadDeferredScopedFactsAcrossPartitions(
 		context.Background(),
 		probe,
 		deferredScopedFactQueryParams{},
@@ -109,7 +109,7 @@ func TestLoadDeferredScopedFactsFanOutSerialWhenWorkerCountOne(t *testing.T) {
 	store := NewIngestionStore(nil)
 	store.maintenanceWorkers = 1
 
-	if _, err := store.loadDeferredScopedFactsAcrossPartitions(
+	if _, _, err := store.loadDeferredScopedFactsAcrossPartitions(
 		context.Background(),
 		probe,
 		deferredScopedFactQueryParams{},
@@ -133,7 +133,7 @@ func TestLoadDeferredScopedFactsFanOutFirstErrorAborts(t *testing.T) {
 	store := NewIngestionStore(nil)
 	store.maintenanceWorkers = 4
 
-	loaded, err := store.loadDeferredScopedFactsAcrossPartitions(
+	loaded, _, err := store.loadDeferredScopedFactsAcrossPartitions(
 		context.Background(),
 		probe,
 		deferredScopedFactQueryParams{},
@@ -241,7 +241,7 @@ func TestLoadDeferredScopedFactsChunksRepoIDArm(t *testing.T) {
 	store := NewIngestionStore(nil)
 	store.maintenanceWorkers = 4
 
-	loaded, err := store.loadDeferredScopedFactsAcrossPartitions(
+	loaded, _, err := store.loadDeferredScopedFactsAcrossPartitions(
 		context.Background(),
 		probe,
 		params,
@@ -302,7 +302,7 @@ func TestLoadDeferredScopedFactsKeepsRepresentativeCorpusSingleTask(t *testing.T
 	store := NewIngestionStore(nil)
 	store.maintenanceWorkers = 4
 
-	loaded, err := store.loadDeferredScopedFactsAcrossPartitions(
+	loaded, _, err := store.loadDeferredScopedFactsAcrossPartitions(
 		context.Background(),
 		probe,
 		params,
@@ -339,7 +339,7 @@ func TestLoadDeferredScopedFactsCanceledContextReturnsError(t *testing.T) {
 	store := NewIngestionStore(nil)
 	store.maintenanceWorkers = 1
 
-	loaded, err := store.loadDeferredScopedFactsAcrossPartitions(
+	loaded, _, err := store.loadDeferredScopedFactsAcrossPartitions(
 		ctx,
 		probe,
 		deferredScopedFactQueryParams{

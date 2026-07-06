@@ -26,10 +26,32 @@ import (
 // the deployment_mapping reopen handles, including the same partition-memo
 // reopen gate (issue #4770) and public-signature stability rationale
 // documented on ReopenDeploymentMappingWorkItems — and is likewise idempotent.
+//
+// This is a thin public wrapper over reopenCodeImportRepoEdgeWorkItemsWithSkipSet
+// with a nil skip-set; see ReopenDeploymentMappingWorkItems's doc comment for
+// why the public signature stays stable and why nil is safe here.
 func (s IngestionStore) ReopenCodeImportRepoEdgeWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
+) error {
+	return s.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(ctx, tracer, instruments, nil)
+}
+
+// reopenCodeImportRepoEdgeWorkItemsWithSkipSet is
+// ReopenCodeImportRepoEdgeWorkItems's implementation, gated by
+// skippedPartitions exactly as reopenDeploymentMappingWorkItemsWithSkipSet is
+// gated (issue #4770 P1 same-pass fix): a non-nil skippedPartitions bypasses
+// the memo-table lookup entirely and gates solely on set membership; a nil
+// skippedPartitions falls back to the legacy
+// computeCurrentReopenCatalogFingerprint + memo-table lookup, safe for a
+// standalone call (e.g. bootstrap-index) where no backfill in this same stack
+// frame just wrote a fresh memo row.
+func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
+	ctx context.Context,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	skippedPartitions map[scopeGenerationPartition]struct{},
 ) error {
 	if s.db == nil {
 		return fmt.Errorf("ingestion store db is required")
@@ -41,10 +63,14 @@ func (s IngestionStore) ReopenCodeImportRepoEdgeWorkItems(
 		defer span.End()
 	}
 
-	currentFingerprint, err := computeCurrentReopenCatalogFingerprint(ctx, s.db)
-	if err != nil {
-		log.Printf("reopen_partition_memo_fingerprint_failed domain=code_import_repo_edge error=%q falling_back=true", err)
-		currentFingerprint = ""
+	var currentFingerprint string
+	if skippedPartitions == nil {
+		var fpErr error
+		currentFingerprint, fpErr = computeCurrentReopenCatalogFingerprint(ctx, s.db)
+		if fpErr != nil {
+			log.Printf("reopen_partition_memo_fingerprint_failed domain=code_import_repo_edge error=%q falling_back=true", fpErr)
+			currentFingerprint = ""
+		}
 	}
 
 	items, err := listSucceededCodeImportRepoEdgeWorkItems(ctx, s.db)
@@ -52,7 +78,7 @@ func (s IngestionStore) ReopenCodeImportRepoEdgeWorkItems(
 		return err
 	}
 	gateResult, err := applyReopenPartitionMemoGate(
-		ctx, newDeferredBackfillPartitionMemoStore(s.db), "code_import_repo_edge", items, currentFingerprint, instruments,
+		ctx, newDeferredBackfillPartitionMemoStore(s.db), "code_import_repo_edge", items, currentFingerprint, skippedPartitions, instruments,
 	)
 	if err != nil {
 		return fmt.Errorf("apply reopen partition memo gate for code_import_repo_edge: %w", err)
