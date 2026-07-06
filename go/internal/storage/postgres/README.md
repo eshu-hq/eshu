@@ -1192,6 +1192,46 @@ restoring the fix to green. Focused suite: `go test
 replay scheduling work; it does not change conflict-domain partitioning,
 worker counts, or batch sizes on the reopen path.
 
+Performance Evidence: remote controlled before/after on the
+eshu-remote-validation host, against a Postgres clone of the persisted
+~896-partition corpus, using built binaries for `main` (OLD) and
+`perf/4770-reopen-fingerprint-gate` (NEW). Two numbers matter and they tell
+different stories, stated honestly rather than blended into one headline:
+
+- The `RunDeferredRelationshipMaintenance` call itself is FLAT: ~45.5s OLD vs
+  ~46.2s NEW. The call is dominated by the shared evidence-backfill scan (Track
+  1), and the reopen `UPDATE fact_work_items` this gate skips is already cheap
+  per row, so cutting the reopen count from 896 to 10 saves close to no
+  wall-clock INSIDE the maintenance call itself.
+- The real win is downstream, in the `deployment_mapping` reducer's
+  re-`Resolve` drain (validated against `platform_materialization.go`'s claim
+  loop, which calls `CrossRepoRelationshipHandler.Resolve` once per
+  `(scope_id, generation_id)` reopened work item): OLD re-resolves all 896
+  reopened partitions in 2.194s, emitting 1577 intents — 886 of which are
+  no-op "no evidence" retracts, since the reopen redundantly reran evidence
+  that had not changed. NEW re-resolves only the 10 partitions that were
+  genuine memo misses, in 0.047s / 91 intents. That is 2.147s saved per
+  maintenance cycle for the `deployment_mapping` drain, and 98.9% (886/896) of
+  redundant re-`Resolve` calls plus their no-op retract intent writes
+  eliminated per cycle (the ingester runs this cycle repeatedly, so the saving
+  compounds).
+
+Classification (`eshu-diagnostic-rigor`): Correctness win + Scheduling/
+redundancy win. The absolute wall-clock saved is MODEST on this corpus — this
+representative corpus carries a low ~2-3 evidence facts per partition, so each
+individual re-`Resolve` call is already cheap — but the PROPORTIONAL
+elimination (98.9% of redundant replay) generalizes and scales with
+per-partition evidence density: a corpus or a partition shape with heavier
+evidence per generation would see a larger absolute saving from the same
+elimination ratio. Unmeasured, stated explicitly rather than implied: the
+`code_import_repo_edge` reopen drain (deeper `FactLoader` + package-ownership
+wiring than this proof exercised, out of this proof's scope) and the NornicDB
+graph re-`MERGE` triggered by the emitted intents (idempotent and known
+cheaper from prior profiling, but not re-measured here). This is a
+modest-absolute, high-proportional redundancy-elimination fix, not a broad
+speedup — the local equivalence proof above is the correctness evidence; this
+adds the remote wall-clock picture on top of it.
+
 `computeCurrentReopenCatalogFingerprint` intentionally diverges from the write
 side on the `buildDeferredScopedFactQueryParams` `ok=false` (empty/unbuildable
 catalog) case: the write side (`BackfillAllRelationshipEvidence`) always
