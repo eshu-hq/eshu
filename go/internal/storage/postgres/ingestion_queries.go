@@ -166,8 +166,19 @@ WHERE generation_id IS NOT NULL
 ORDER BY scope_id, generation_id
 `
 
+// listSucceededDeploymentMappingWorkItemsQuery selects succeeded
+// deployment_mapping reducer work items, including their (scope_id,
+// generation_id) partition columns (issue #4770). fact_work_items already
+// carries both columns directly on the row (see the schema in
+// generation_liveness_integration_helpers_test.go and the INSERT in
+// generation_liveness_sql.go), so no join is required to recover the
+// partition a work item belongs to: the reopen partition-memo gate
+// (applyReopenPartitionMemoGate) uses these to skip reopening a work item
+// whose partition already committed backward evidence under the CURRENT
+// catalog fingerprint, mirroring applyDeferredPartitionMemoGate's read-side
+// logic for the deferred backfill's own fact load.
 const listSucceededDeploymentMappingWorkItemsQuery = `
-SELECT work_item_id
+SELECT work_item_id, scope_id, generation_id
 FROM fact_work_items
 WHERE stage = 'reducer'
   AND domain = 'deployment_mapping'
@@ -176,12 +187,14 @@ ORDER BY updated_at ASC, work_item_id ASC
 `
 
 // listSucceededCodeImportRepoEdgeWorkItemsQuery selects the code-import
-// repo-edge reducer work items that already succeeded. They are replayed after
+// repo-edge reducer work items that already succeeded, including their
+// (scope_id, generation_id) partition columns (issue #4770 — see
+// listSucceededDeploymentMappingWorkItemsQuery). They are replayed after
 // deferred maintenance so the projection re-runs once the cross-scope
 // package-registry ownership facts it joins against are present — the same
 // after-the-fact dependency the deployment_mapping reopen handles.
 const listSucceededCodeImportRepoEdgeWorkItemsQuery = `
-SELECT work_item_id
+SELECT work_item_id, scope_id, generation_id
 FROM fact_work_items
 WHERE stage = 'reducer'
   AND domain = 'code_import_repo_edge'

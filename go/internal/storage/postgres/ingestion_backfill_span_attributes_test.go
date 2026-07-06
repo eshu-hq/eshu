@@ -157,7 +157,7 @@ func TestBackfillDeferredSpanRecordsPartitionLoadFailure(t *testing.T) {
 	ctx, span := tracer.Start(context.Background(), backfillDeferredSpanName)
 
 	partitions := []scopeGenerationPartition{{ScopeID: "scope-x", GenerationID: "gen-x"}}
-	_, err := store.loadDeferredScopedFactsAcrossPartitions(
+	_, _, err := store.loadDeferredScopedFactsAcrossPartitions(
 		ctx, failingPartitionQueryer{err: errBoomPartition}, params, partitions, nil,
 	)
 	span.End()

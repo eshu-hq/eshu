@@ -412,6 +412,18 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (Row
 		// the reopen no-ops in tests that do not stage explicit responses for it.
 		return &queueFakeRows{}, nil
 	}
+	if strings.Contains(query, "domain = 'deployment_mapping'") {
+		// deployment_mapping reopen listing: default to no succeeded items so the
+		// reopen no-ops in tests that do not stage explicit responses for it.
+		return &queueFakeRows{}, nil
+	}
+	if strings.Contains(query, "FROM deferred_backfill_partition_memo") {
+		// Reopen partition-memo gate lookup: default to no memo rows (every
+		// candidate partition is a memo miss and reopens), matching the legacy
+		// unconditional-reopen contract for tests that do not stage explicit memo
+		// rows.
+		return &queueFakeRows{}, nil
+	}
 	return nil, errors.New("unexpected query in transaction")
 }
 

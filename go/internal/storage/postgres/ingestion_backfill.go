@@ -44,11 +44,33 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) error {
+	_, err := s.backfillAllRelationshipEvidence(ctx, tracer, instruments)
+	return err
+}
+
+// backfillAllRelationshipEvidence is the unexported implementation behind
+// BackfillAllRelationshipEvidence. It additionally returns the set of
+// (scope_id, generation_id) partitions this pass's Track-1 memo gate
+// (applyDeferredPartitionMemoGate, via loadDeferredScopedFactsAcrossPartitions)
+// SKIPPED because they were already a memo hit at the START of this pass —
+// i.e. partitions whose backward evidence this pass provably did NOT change.
+//
+// RunDeferredRelationshipMaintenance is the only caller that uses this return
+// value: it is the sole set the deferred reopen gate (issue #4770) may treat as
+// reopen-redundant in the SAME pass. Every other caller of the exported
+// BackfillAllRelationshipEvidence (bootstrap-index's RelationshipMaintenanceCommitter
+// phase, and every direct test call) discards it and gets the legacy
+// error-only contract unchanged.
+func (s IngestionStore) backfillAllRelationshipEvidence(
+	ctx context.Context,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) (map[scopeGenerationPartition]struct{}, error) {
 	if s.db == nil {
-		return fmt.Errorf("ingestion store db is required")
+		return nil, fmt.Errorf("ingestion store db is required")
 	}
 	if s.beginner == nil {
-		return fmt.Errorf("transaction beginner is required for batched deferred backfill")
+		return nil, fmt.Errorf("transaction beginner is required for batched deferred backfill")
 	}
 
 	start := time.Now()
@@ -60,7 +82,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 
 	catalog, err := loadRepositoryCatalog(ctx, s.db)
 	if err != nil {
-		return fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
+		return nil, fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}
 
 	// Scope the corpus-wide source-fact load to the content anchors of the full
@@ -79,9 +101,9 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	// With no usable anchors no fact can resolve a catalog target, so the fact
 	// load short-circuits and the pass still publishes readiness for the active
 	// generations below.
-	activeFacts, snapshotGenerations, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog, instruments)
+	activeFacts, snapshotGenerations, skippedPartitions, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog, instruments)
 	if err != nil {
-		return fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
+		return nil, fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}
 
 	discoveredEvidence := relationships.DedupeEvidenceFacts(
@@ -111,7 +133,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 
 	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, instruments)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dur := time.Since(start).Seconds()
@@ -122,7 +144,7 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 	log.Printf("deferred_backfill_completed evidence_facts=%d readiness_rows=%d duration_s=%.2f batch_size=%d",
 		totalEvidence, readinessRows, dur, deferredMaintenanceRepoBatchSize)
 
-	return nil
+	return skippedPartitions, nil
 }
 
 // writeDeferredBackfillInBatches commits deferred backward-evidence and the
@@ -310,131 +332,4 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 	}
 	committed = true
 	return len(phaseRows), nil
-}
-
-// RunDeferredRelationshipMaintenance runs the ingester's relationship backfill
-// and deployment-mapping reopen. The backfill commits in bounded
-// per-repository-batch transactions that each hold only their own repositories'
-// exclusive maintenance locks, and the reopen runs in its own transaction. No
-// step holds a fleet-wide lock, so a stall on one repository batch blocks only
-// that batch's repositories; generation commits take the matching per-repository
-// shared lock and wait only for maintenance touching their own repository.
-func (s IngestionStore) RunDeferredRelationshipMaintenance(
-	ctx context.Context,
-	tracer trace.Tracer,
-	instruments *telemetry.Instruments,
-) error {
-	if s.beginner == nil {
-		return fmt.Errorf("transaction beginner is required")
-	}
-	if err := s.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
-		return err
-	}
-	// One reopen transaction replays both deployment_mapping and
-	// code_import_repo_edge work items — they share the same after-the-fact
-	// dependency (cross-scope evidence committed by the backfill above).
-	return s.reopenDeploymentMappingWorkItemsInTransaction(ctx, tracer, instruments)
-}
-
-// reopenDeploymentMappingWorkItemsInTransaction runs the corpus-wide
-// deployment-mapping reopen in its own transaction. Reopen is not partitioned by
-// repository, so it takes no per-repository maintenance lock; it commits
-// independently of the per-batch evidence writes. Reopen is idempotent, so a
-// re-run after partial maintenance failure converges to the same queue state.
-func (s IngestionStore) reopenDeploymentMappingWorkItemsInTransaction(
-	ctx context.Context,
-	tracer trace.Tracer,
-	instruments *telemetry.Instruments,
-) error {
-	tx, err := s.beginner.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin deployment mapping reopen transaction: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
-		}
-	}()
-
-	reopenStore := NewIngestionStore(tx)
-	reopenStore.Now = s.Now
-	reopenStore.Logger = s.Logger
-	if err := reopenStore.ReopenDeploymentMappingWorkItems(ctx, tracer, instruments); err != nil {
-		return err
-	}
-	// Replay code_import_repo_edge in the same transaction: it shares the
-	// after-the-fact dependency on cross-scope evidence and must re-run once that
-	// evidence is committed, just like deployment_mapping.
-	if err := reopenStore.ReopenCodeImportRepoEdgeWorkItems(ctx, tracer, instruments); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit deployment mapping reopen transaction: %w", err)
-	}
-	committed = true
-	return nil
-}
-
-// ReopenDeploymentMappingWorkItems replays succeeded deployment_mapping work
-// items after deferred backward evidence is committed.
-func (s IngestionStore) ReopenDeploymentMappingWorkItems(
-	ctx context.Context,
-	tracer trace.Tracer,
-	instruments *telemetry.Instruments,
-) error {
-	if s.db == nil {
-		return fmt.Errorf("ingestion store db is required")
-	}
-
-	if tracer != nil {
-		var span trace.Span
-		ctx, span = tracer.Start(ctx, "bootstrap.reopen_deployment_mapping")
-		defer span.End()
-	}
-
-	workItemIDs, err := listSucceededDeploymentMappingWorkItemIDs(ctx, s.db)
-	if err != nil {
-		return err
-	}
-	queue := ReducerQueue{db: s.db, Now: s.Now}
-	for _, workItemID := range workItemIDs {
-		if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
-			return fmt.Errorf("reopen deployment_mapping work items: %w", err)
-		}
-	}
-
-	if instruments != nil {
-		instruments.DeploymentMappingReopened.Add(ctx, int64(len(workItemIDs)))
-	}
-	log.Printf("deployment_mapping_reopened count=%d", len(workItemIDs))
-
-	return nil
-}
-
-func listSucceededDeploymentMappingWorkItemIDs(
-	ctx context.Context,
-	queryer Queryer,
-) ([]string, error) {
-	rows, err := queryer.QueryContext(ctx, listSucceededDeploymentMappingWorkItemsQuery)
-	if err != nil {
-		return nil, fmt.Errorf("list succeeded deployment_mapping work items: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	workItemIDs := make([]string, 0)
-	for rows.Next() {
-		var workItemID string
-		if err := rows.Scan(&workItemID); err != nil {
-			return nil, fmt.Errorf("scan succeeded deployment_mapping work item: %w", err)
-		}
-		if strings.TrimSpace(workItemID) == "" {
-			continue
-		}
-		workItemIDs = append(workItemIDs, workItemID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list succeeded deployment_mapping work items: %w", err)
-	}
-	return workItemIDs, nil
 }

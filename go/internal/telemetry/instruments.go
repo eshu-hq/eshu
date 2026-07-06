@@ -1050,6 +1050,17 @@ type Instruments struct {
 	DeferredBackfillPartitionsSkipped metric.Int64Counter
 	DeferredBackfillPartitionsLoaded  metric.Int64Counter
 
+	// ReopenSkippedByPartitionMemo counts succeeded deployment_mapping and
+	// code_import_repo_edge reducer work items whose replay was skipped because
+	// their (scope_id, generation_id) partition already committed backward
+	// evidence under the CURRENT catalog fingerprint (issue #4770 / #3624
+	// Track 2). Labeled by domain (deployment_mapping, code_import_repo_edge)
+	// and reason=catalog_unchanged. A rising skip count with a stable catalog is
+	// the operator-visible steady-state signal that the reopen gate is
+	// eliminating redundant reducer replay, mirroring
+	// DeferredBackfillPartitionsSkipped for the fact-load side of the same memo.
+	ReopenSkippedByPartitionMemo metric.Int64Counter
+
 	// Cross-repo resolution metrics
 	CrossRepoResolutionDuration metric.Float64Histogram
 	CrossRepoEvidenceLoaded     metric.Int64Counter
@@ -3885,6 +3896,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CodeImportRepoEdgeReopened counter: %w", err)
+	}
+
+	inst.ReopenSkippedByPartitionMemo, err = meter.Int64Counter(
+		"eshu_dp_reopen_skipped_by_partition_memo_total",
+		metric.WithDescription("Total succeeded deployment_mapping/code_import_repo_edge reducer work items whose reopen was skipped because their partition's backward evidence is already committed under the current catalog fingerprint (issue #4770), labeled by domain and reason=catalog_unchanged."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReopenSkippedByPartitionMemo counter: %w", err)
 	}
 
 	inst.CorrelationReopened, err = meter.Int64Counter(
