@@ -123,6 +123,7 @@ func askToolAnnotations() map[string]Annotation {
 		"list_collectors":                                 {Backend: BackendPostgres, Cost: CostLow},
 		"list_component_extensions":                       {Backend: BackendEmbedded, Cost: CostLow},
 		"list_container_image_identities":                 {Backend: BackendPostgres, Cost: CostModerate},
+		"list_dead_letter_work_items":                     {Backend: BackendPostgres, Cost: CostLow},
 		"list_documentation_facts":                        {Backend: BackendPostgres, Cost: CostModerate},
 		"list_documentation_findings":                     {Backend: BackendPostgres, Cost: CostModerate},
 		"list_fact_schema_versions":                       {Backend: BackendEmbedded, Cost: CostLow},

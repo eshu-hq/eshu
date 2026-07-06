@@ -27,6 +27,32 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		return &route{method: "GET", path: "/api/v0/status/hosted-readiness"}, true, nil
 	case "get_operator_control_plane":
 		return &route{method: "GET", path: "/api/v0/status/operator-control-plane"}, true, nil
+	case "list_dead_letter_work_items":
+		limit := intOr(args, "limit", 0)
+		if limit <= 0 {
+			return nil, true, fmt.Errorf("limit is required")
+		}
+		timeoutMS := intOr(args, "timeout_ms", 0)
+		if timeoutMS <= 0 {
+			return nil, true, fmt.Errorf("timeout_ms is required")
+		}
+		body := map[string]any{
+			"limit":      limit,
+			"timeout_ms": timeoutMS,
+		}
+		for _, key := range []string{
+			"failure_class",
+			"domain",
+			"scope_id",
+			"collector_kind",
+			"updated_after",
+			"updated_before",
+		} {
+			if value := strings.TrimSpace(str(args, key)); value != "" {
+				body[key] = value
+			}
+		}
+		return &route{method: "POST", path: "/api/v0/admin/dead-letters/query", body: body}, true, nil
 	case "get_freshness_causality":
 		return &route{method: "GET", path: "/api/v0/status/freshness-causality"}, true, nil
 	case "get_collector_readiness":

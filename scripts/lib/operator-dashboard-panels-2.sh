@@ -1,5 +1,5 @@
 # operator-dashboard-panels-2.sh — emits the second chunk of the
-# Eshu operator overview Grafana dashboard panels (IDs 14-20:
+# Eshu operator overview Grafana dashboard panels (IDs 14-26:
 # "API Request Latency and Errors" + "Cross-Repo and Collector
 # Pressure" rows). Sourced by scripts/generate-operator-dashboard.sh.
 # The function prints the JSON array elements (without the surrounding
@@ -80,19 +80,46 @@ operator_dashboard_panels_2() {
     },
     {
       "id": 17,
-      "type": "row",
-      "title": "Cross-Repo and Collector Pressure",
-      "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40},
-      "panels": []
+      "type": "timeseries",
+      "title": "Dead-Letter Operator Surface",
+      "description": "Request and 5xx rates for POST /api/v0/admin/dead-letters/query. Use this with the dead-letter list to classify by failure_class before targeted replay.",
+      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 40},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "expr": "sum(rate(${API_REQUEST_DURATION}{route=\"POST /api/v0/admin/dead-letters/query\", le=\"+Inf\"}[5m]))",
+          "legendFormat": "requests",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "expr": "sum(rate(${API_REQUEST_ERRORS}{route=\"POST /api/v0/admin/dead-letters/query\", status_class=~\"5..\"}[5m]))",
+          "legendFormat": "5xx",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
       "id": 18,
+      "type": "row",
+      "title": "Cross-Repo and Collector Pressure",
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 46},
+      "panels": []
+    },
+    {
+      "id": 19,
       "type": "timeseries",
       "title": "Cross-Repo Activation Fenced",
       "description": "Total cross-repo activation fence events per scope_id. Spikes indicate activation ordering conflicts.",
       "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 41},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 47},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
@@ -108,12 +135,12 @@ operator_dashboard_panels_2() {
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
-      "id": 19,
+      "id": 20,
       "type": "timeseries",
       "title": "Collector Backpressure / Retries / Dead-Letter",
       "description": "Per-second rate of collector backpressure, retry, and dead-letter events. Pair with the per-collector dashboards under docs/dashboards/ for family-level detail.",
       "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 41},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 47},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
@@ -141,12 +168,12 @@ operator_dashboard_panels_2() {
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
-      "id": 20,
+      "id": 21,
       "type": "timeseries",
       "title": "Collector Reconciliation (full snapshots / drift / convergence)",
       "description": "Per-second rate of collector reconciliation outcomes. Convergence dominates in a steady state; spikes in drift retraction flag collector disagreement.",
       "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 49},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 55},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
@@ -174,12 +201,12 @@ operator_dashboard_panels_2() {
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
-      "id": 21,
+      "id": 25,
       "type": "timeseries",
       "title": "Edges by Source Tool (current)",
       "description": "Current exact graph edge count by closed source_tool label, summed across the Tier-2 relationship types that carry source_tool (relationship-type-index answered). A series dropping to zero means the corresponding parser or ingester stopped writing that edge type. ESHU_GRAPH_COUNT_LIMIT (default 10 000) caps returned label groups, not the rows counted, so per-tool counts are exact.",
       "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 57},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 63},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
@@ -195,12 +222,12 @@ operator_dashboard_panels_2() {
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
-      "id": 22,
+      "id": 26,
       "type": "timeseries",
       "title": "Files by Language (current)",
       "description": "Current exact File node count by language (File-label-anchored group). A series dropping to zero means the corresponding parser stopped indexing files. ESHU_GRAPH_COUNT_LIMIT (default 10 000) caps returned language groups, not the rows counted, so per-language counts are exact.",
       "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 63},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},

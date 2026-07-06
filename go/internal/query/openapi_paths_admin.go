@@ -87,6 +87,40 @@ const openAPIPathsAdmin = `
         }
       }
     },
+    "/api/v0/admin/dead-letters/query": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Query dead-letter work items",
+        "description": "Returns a bounded deterministic page of durable fact_work_items dead letters. Requires limit and timeout_ms, supports failure_class, domain, scope_id, collector_kind, and updated_at window filters, and returns truncated=true when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["limit", "timeout_ms"],
+                "properties": {
+                  "failure_class": {"type": "string"},
+                  "domain": {"type": "string"},
+                  "scope_id": {"type": "string"},
+                  "collector_kind": {"type": "string"},
+                  "updated_after": {"type": "string", "format": "date-time"},
+                  "updated_before": {"type": "string", "format": "date-time"},
+                  "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+                  "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 30000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Bounded dead-letter page with schema_version, limit, count, truncated, and items"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "504": {"description": "Dead-letter query timed out"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/admin/dead-letter": {
       "post": {
         "tags": ["admin"],

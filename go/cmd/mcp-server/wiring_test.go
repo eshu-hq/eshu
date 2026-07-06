@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -92,8 +93,16 @@ func TestWireAPIReturnsInvalidSemanticPolicyBeforeConnectingDatastores(t *testin
 func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	t.Parallel()
 
+	db, err := sql.Open("pgx", "postgres://example.invalid/eshu")
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
 	router := newMCPQueryRouter(
-		nil,
+		db,
 		nil,
 		nil,
 		staticStatusReader{},
@@ -192,6 +201,15 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	}
 	if router.Freshness.ServiceChangedSince == nil {
 		t.Fatal("newMCPQueryRouter().Freshness.ServiceChangedSince = nil, want service changed-since reader")
+	}
+	if router.Admin != nil {
+		t.Fatal("newMCPQueryRouter().Admin != nil, want MCP server to avoid mutating admin surface")
+	}
+	if router.AdminDeadLetters == nil {
+		t.Fatal("newMCPQueryRouter().AdminDeadLetters = nil, want admin dead-letter query route mounted")
+	}
+	if router.AdminDeadLetters.Store == nil {
+		t.Fatal("newMCPQueryRouter().AdminDeadLetters.Store = nil, want Postgres admin store for dead-letter query")
 	}
 }
 

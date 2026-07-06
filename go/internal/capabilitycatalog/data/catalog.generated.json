@@ -272,7 +272,8 @@
             "action": "service.runtime.read",
             "data_classes": [
               "repository_metadata",
-              "service_runtime"
+              "service_runtime",
+              "status_metadata"
             ],
             "scope_levels": [
               "tenant",
@@ -676,6 +677,27 @@
           "tenant_admin",
           "operator",
           "auditor",
+          "owner"
+        ]
+      },
+      {
+        "family": "operator_dead_letters",
+        "description": "Bounded dead-letter operator triage reads over fact work items, scoped to granted repositories or source scopes.",
+        "capability_prefixes": [
+          "operator.dead_letters."
+        ],
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
           "owner"
         ]
       },
@@ -5246,6 +5268,85 @@
         ],
         "default_roles": [
           "developer",
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.dead_letters.list",
+      "display_name": "Operator Dead Letters List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_dead_letter_work_items",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "failure_class_domain_scope_collector_time_window"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "failure_class_domain_scope_collector_time_window"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "failure_class_domain_scope_collector_time_window"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "failure_class_domain_scope_collector_time_window"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "dead-letter-list-live-seeded-row"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-dead-letter-list"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
           "operator",
           "owner"
         ],

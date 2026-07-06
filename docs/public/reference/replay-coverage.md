@@ -4,14 +4,14 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 219/392 surfaces satisfied (55.87%)** — mode: blocking.
+**Overall: 222/395 surfaces satisfied (56.20%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| authorization_catalog | 22 | 22 | 100.00% | 0 | 0 |
-| Capability claims | 130 | 130 | 100.00% | 0 | 0 |
+| authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
+| Capability claims | 131 | 131 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 19 | 19 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 2 | 52 | 3.85% | 50 | 0 |
 | Retractable node types (delta) | 1 | 87 | 1.15% | 86 | 0 |
 | Collectors | 22 | 34 | 64.71% | 12 | 8 |
-| **Total** | **219** | **392** | **55.87%** | **173** | **9** |
+| **Total** | **222** | **395** | **56.20%** | **173** | **9** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 206 | 206 | 100.00% | 0 | 5 |
+| baseline | 209 | 209 | 100.00% | 0 | 5 |
 | cost | 1 | 24 | 4.17% | 23 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 4 | 140 | 2.86% | 136 | 0 |
@@ -250,7 +250,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 - `collector:terraform_state` (fault)
 - `collector:vulnerability_intelligence` (fault)
 
-## Covered surfaces (219)
+## Covered surfaces (222)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -266,6 +266,8 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 | `authz_family:docs_semantic:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `docs_semantic:out_of_grant` |
 | `authz_family:operations_status:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `operations_status:in_grant` |
 | `authz_family:operations_status:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `operations_status:out_of_grant` |
+| `authz_family:operator_dead_letters:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `operator_dead_letters:in_grant` |
+| `authz_family:operator_dead_letters:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `operator_dead_letters:out_of_grant` |
 | `authz_family:repository_content:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `repository_content:in_grant` |
 | `authz_family:repository_content:out_of_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `repository_content:out_of_grant` |
 | `authz_family:roles_grants:in_grant` | baseline | authz_scoped_route | authz-scoped-route-tests | `roles_grants:in_grant` |
@@ -337,6 +339,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 | `capability:incident.context.read` | baseline | capability_claim | capability-inventory | `incident.context.read` |
 | `capability:kubernetes.correlations.list` | baseline | correlation | golden-corpus-gate | `rc-4` |
 | `capability:observability.coverage.correlations.list` | baseline | capability_claim | capability-inventory | `observability.coverage.correlations.list` |
+| `capability:operator.dead_letters.list` | baseline | capability_claim | capability-inventory | `operator.dead_letters.list` |
 | `capability:package_registry.correlations.list` | baseline | correlation | golden-corpus-gate | `rc-9` |
 | `capability:package_registry.dependencies.list` | baseline | correlation | golden-corpus-gate | `rc-25` |
 | `capability:package_registry.dependency_chains.list` | baseline | correlation | golden-corpus-gate | `rc-9` |

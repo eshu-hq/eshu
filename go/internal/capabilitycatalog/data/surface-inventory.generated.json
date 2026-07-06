@@ -668,6 +668,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/admin/dead-letters/query",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/admin/decisions/query",
       "readiness": "implemented"
     },
@@ -3049,6 +3054,11 @@
     {
       "category": "mcp_tool",
       "name": "list_container_image_identities",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_dead_letter_work_items",
       "readiness": "implemented"
     },
     {

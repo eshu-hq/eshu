@@ -44,34 +44,46 @@ func (s *stubReindexRequester) RequestReindex(_ context.Context, ingester string
 }
 
 type stubAdminStore struct {
-	workItems     []AdminWorkItem
-	workItemsErr  error
-	deadLettered  []AdminWorkItem
-	deadLetterErr error
-	skipped       []AdminWorkItem
-	skipErr       error
-	replayed      []AdminWorkItem
-	replayErr     error
-	replayFilter  ReplayWorkItemFilter
-	claim         ReplayIdempotencyClaim
-	claimErr      error
-	claimKey      string
-	claimCalls    int
-	completeErr   error
-	completedKey  string
-	completed     bool
-	backfillRow   *AdminBackfillRequest
-	backfillErr   error
-	replayEvents  []AdminReplayEvent
-	replayEvtErr  error
-	decisions     []AdminDecisionRow
-	decisionsErr  error
-	evidence      []AdminEvidenceRow
-	evidenceErr   error
+	workItems        []AdminWorkItem
+	workItemsErr     error
+	deadLetterRows   []AdminDeadLetterWorkItem
+	deadLetterFilter DeadLetterListFilter
+	deadLetterCalls  int
+	deadLettered     []AdminWorkItem
+	deadLetterErr    error
+	skipped          []AdminWorkItem
+	skipErr          error
+	replayed         []AdminWorkItem
+	replayErr        error
+	replayFilter     ReplayWorkItemFilter
+	claim            ReplayIdempotencyClaim
+	claimErr         error
+	claimKey         string
+	claimCalls       int
+	completeErr      error
+	completedKey     string
+	completed        bool
+	backfillRow      *AdminBackfillRequest
+	backfillErr      error
+	replayEvents     []AdminReplayEvent
+	replayEvtErr     error
+	decisions        []AdminDecisionRow
+	decisionsErr     error
+	evidence         []AdminEvidenceRow
+	evidenceErr      error
 }
 
 func (s *stubAdminStore) ListWorkItems(_ context.Context, _ WorkItemFilter) ([]AdminWorkItem, error) {
 	return s.workItems, s.workItemsErr
+}
+
+func (s *stubAdminStore) ListDeadLetterWorkItems(
+	_ context.Context,
+	f DeadLetterListFilter,
+) ([]AdminDeadLetterWorkItem, error) {
+	s.deadLetterCalls++
+	s.deadLetterFilter = f
+	return s.deadLetterRows, s.deadLetterErr
 }
 
 func (s *stubAdminStore) DeadLetterWorkItems(_ context.Context, _ DeadLetterFilter) ([]AdminWorkItem, error) {
@@ -267,6 +279,7 @@ func TestAdminHandler_Mount_RegistersAllRoutes(t *testing.T) {
 		{http.MethodPost, "/api/v0/admin/reindex"},
 		{http.MethodPost, "/api/v0/admin/work-items/query"},
 		{http.MethodPost, "/api/v0/admin/decisions/query"},
+		{http.MethodPost, "/api/v0/admin/dead-letters/query"},
 		{http.MethodPost, "/api/v0/admin/dead-letter"},
 		{http.MethodPost, "/api/v0/admin/skip"},
 		{http.MethodPost, "/api/v0/admin/replay"},
