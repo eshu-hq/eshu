@@ -1107,6 +1107,86 @@ candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
 the operator-visible signal the memo is effective; a skip ratio that collapses to
 zero signals a catalog churn or a memo-write regression.
 
+### Reopen partition memoization (#4770 / #3624 Track 2)
+
+`ReopenDeploymentMappingWorkItems` and `ReopenCodeImportRepoEdgeWorkItems`
+(`ingestion_backfill.go`, `ingestion_reopen_code_import.go`) run every
+`RunDeferredRelationshipMaintenance` cycle and, before this change,
+unconditionally replayed EVERY already-succeeded `deployment_mapping`/
+`code_import_repo_edge` reducer work item corpus-wide — the same
+no-freshness-gate shape the Track 1 fact-load memo above fixed, but on the
+reducer-replay side instead of the fact-load side. For a `(scope_id,
+generation_id)` partition whose backward evidence already committed under the
+current catalog fingerprint (a Track 1 memo hit), the deferred backfill pass
+this cycle did NOT re-derive any new evidence for that partition, so replaying
+its succeeded work item is provably redundant: `relationships.DiscoverEvidence`,
+`CrossRepoRelationshipHandler.Resolve`, and `UpsertIntents` are pure functions
+of `(facts, catalog, assertions)` with no read-back of their own prior
+resolved output, and `relationship_evidence_facts` rows are content-addressed
+(`ON CONFLICT DO NOTHING`), so a replay over unchanged evidence recomputes
+byte-identical intents.
+
+`applyReopenPartitionMemoGate` (`ingestion_reopen_partition_memo_gate.go`)
+mirrors `applyDeferredPartitionMemoGate`'s read-side logic exactly: it looks up
+each candidate work item's partition in `deferred_backfill_partition_memo` and
+skips reopening only when the stored fingerprint matches the CURRENT pass's
+fingerprint (`computeCurrentReopenCatalogFingerprint`, the same
+`deferredCatalogFingerprint` derivation the Track 1 gate uses, recomputed
+fresh here rather than threaded as a parameter so both existing callers — the
+ingester's `RunDeferredRelationshipMaintenance` and bootstrap-index's direct
+`RelationshipMaintenanceCommitter` phase calls — keep an unchanged public
+method signature). Schema-shape change: `listSucceededDeploymentMappingWorkItemsQuery`/
+`listSucceededCodeImportRepoEdgeWorkItemsQuery` now select `scope_id,
+generation_id` alongside `work_item_id` — both columns already exist directly
+on `fact_work_items`, so no migration or join is required. The ArgoCD carve-out
+needs no special-casing on the reopen side either: `writeDeferredBackfillPartitionMemos`
+never writes a memo row for an ArgoCD-bearing partition, so its work items are
+always a memo miss and always reopen, by the same invariant Track 1 documents.
+A fingerprint-computation failure or nil memo store degrades to the legacy
+unconditional-reopen contract (never a correctness dependency), matching the
+Track 1 gate's own fail-open behavior.
+
+Performance Evidence: disposable Postgres 16.14 (`postgres:16-alpine`),
+`ESHU_DEFERRED_PARTITION_PROOF_DSN`-gated live proof
+(`ingestion_reopen_partition_memo_gate_integration_test.go`). Running
+`BackfillAllRelationshipEvidence` twice over an unchanged two-repo catalog and
+fact corpus, with a succeeded `deployment_mapping` work item seeded for the
+non-ArgoCD-bearing partition after pass 1, produces a Track 1 memo hit on pass
+2; `ReopenDeploymentMappingWorkItems` then leaves that work item `status =
+'succeeded'` (0 rows reopened) —
+`TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence` asserts
+this AND that the evidence edge set is byte-identical between pass 1 and pass
+2 (0/0), so the skip is proven against unchanged evidence, not merely a row
+count. The identical fixture with a stale (non-matching) memo fingerprint
+reopens (`TestReopenDeploymentMappingWorkItemsReopensNonMemoHitPartition`,
+status transitions to `pending`), and the ArgoCD-bearing control fixture
+(`TestReopenDeploymentMappingWorkItemsAlwaysReopensArgoCDBearingPartition`,
+the same ApplicationSet/git-generator shape as
+`TestDeferredBackfillPartitionMemoArgoCDCarveOutAlwaysReloads`) always reopens
+despite its own partition being unchanged between passes.
+`TestReopenCodeImportRepoEdgeWorkItemsSkipsMemoHitPartition` proves the same
+skip on the `code_import_repo_edge` sibling path. The gate was proven RED
+without the fix: temporarily short-circuiting the memo-hit comparison in
+`applyReopenPartitionMemoGate` made
+`TestApplyReopenPartitionMemoGateSkipsMemoHitPartition` fail with `ToReopen =
+[work-1]`, confirming the assertion is a real guard, not a tautology, before
+restoring the fix to green. Focused suite: `go test
+./internal/storage/postgres/... ./internal/reducer/... ./cmd/reducer
+./cmd/ingester -count=1` — 4271 tests passed. This removes redundant reducer
+replay scheduling work; it does not change conflict-domain partitioning,
+worker counts, or batch sizes on the reopen path.
+
+Observability Evidence: `eshu_dp_reopen_skipped_by_partition_memo_total`
+(labeled `domain` = `deployment_mapping`/`code_import_repo_edge`, `reason` =
+`catalog_unchanged`) via the `telemetry.Instruments` contract, plus a
+`reopen_partition_memo_gate_completed` structured log with
+domain/candidate/skipped/reopened counts and `deployment_mapping_reopened`/
+`code_import_repo_edge_reopened` logs now also reporting `skipped_by_memo`. A
+rising skip count against a stable catalog is the operator-visible signal the
+reopen gate is eliminating redundant replay; a skip count that stays at zero
+against an otherwise-quiet catalog signals a memo-write regression or a
+fingerprint mismatch worth investigating.
+
 ## Platform-Graph Conflict-Domain Partition (#3672)
 
 ### Conflict-Domain Map
