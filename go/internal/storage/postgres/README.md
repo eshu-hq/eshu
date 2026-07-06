@@ -1111,11 +1111,9 @@ zero signals a catalog churn or a memo-write regression.
 
 `ReopenDeploymentMappingWorkItems` and `ReopenCodeImportRepoEdgeWorkItems`
 (`ingestion_reopen_deployment_mapping.go`, `ingestion_reopen_code_import.go`)
-run every `RunDeferredRelationshipMaintenance` cycle and, before this change,
+run after every deferred backfill pass and, before this change entirely,
 unconditionally replayed EVERY already-succeeded `deployment_mapping`/
-`code_import_repo_edge` reducer work item corpus-wide — the same
-no-freshness-gate shape the Track 1 fact-load memo above fixed, but on the
-reducer-replay side instead of the fact-load side. For a `(scope_id,
+`code_import_repo_edge` reducer work item corpus-wide. For a `(scope_id,
 generation_id)` partition whose backward evidence already committed under the
 current catalog fingerprint (a Track 1 memo hit), the deferred backfill pass
 this cycle did NOT re-derive any new evidence for that partition, so replaying
@@ -1128,8 +1126,9 @@ byte-identical intents.
 
 `applyReopenPartitionMemoGate` (`ingestion_reopen_partition_memo_gate.go`)
 decides, for each candidate succeeded work item, whether replaying it this
-pass is redundant. It has two gating paths, selected by whether the caller can
-supply a same-pass skip-set:
+pass is redundant. **The gate applies ONLY on a same-pass skip-set; a nil
+skip-set means reopen every candidate unconditionally — there is no
+memo-table lookup on that path at all:**
 
 - **Same-pass path (the ingester, `RunDeferredRelationshipMaintenance`).**
   `backfillAllRelationshipEvidence` (the unexported implementation behind
@@ -1142,115 +1141,97 @@ supply a same-pass skip-set:
   reopen step in memory (`reopenDeploymentMappingWorkItemsWithSkipSet` /
   `reopenCodeImportRepoEdgeWorkItemsWithSkipSet`), and the gate keys SOLELY on
   set membership — it never touches the memo table in this path.
-- **Standalone path (bootstrap-index's direct `RelationshipMaintenanceCommitter`
+- **Nil skip-set path (bootstrap-index's direct `RelationshipMaintenanceCommitter`
   phase calls, and any other caller with no same-pass skip-set to offer).**
   The public `ReopenDeploymentMappingWorkItems`/`ReopenCodeImportRepoEdgeWorkItems`
-  wrappers pass a `nil` skip-set, and the gate falls back to the legacy
-  `deferred_backfill_partition_memo` table lookup keyed on
-  `computeCurrentReopenCatalogFingerprint` (the same `deferredCatalogFingerprint`
-  derivation the Track 1 gate uses). This keeps both public method signatures
-  unchanged for bootstrap-index's `bootstrapCommitter` interface.
+  wrappers pass a `nil` skip-set, and `applyReopenPartitionMemoGate` reopens
+  every candidate unconditionally — the same behavior `main` had before issue
+  #4770 touched this path at all. There is no fallback memo-table lookup.
 
-**P1 fix (issue #4770/#4816, codex finding):** the reopen gate previously
-ALWAYS re-read the memo table via `computeCurrentReopenCatalogFingerprint`,
-even from `RunDeferredRelationshipMaintenance`. Because
-`BackfillAllRelationshipEvidence` always runs immediately before the reopen
-step in the SAME pass and writes a fresh memo row for every partition it just
-reprocessed, that post-write re-read could no longer distinguish "this
-partition's evidence was already committed before this pass started" from
-"this partition's evidence was JUST committed by this very pass" — a partition
-that was a memo MISS at the start of the pass (so the backfill re-derived and
-committed new backward evidence for it) read back as a memo HIT to the reopen
-gate, and its stale, already-`succeeded` work item was wrongly skipped instead
-of reopened, so the new evidence was never consumed by the reducer. The fix
-threads the backfill's own read-side skip-set (the SAME set the Track 1 gate
-computed BEFORE any write happened this pass) straight into the same-pass
-reopen call, bypassing the memo table entirely on that path. Bootstrap-index's
-standalone calls are unaffected by the bug (its `ReopenDeploymentMappingWorkItems`/
-`ReopenCodeImportRepoEdgeWorkItems` calls happen as separate pipeline phases,
-not immediately after its own fresh backfill commit) and keep the legacy
-memo-table fallback, which remains correct there.
+**P0 fix (issue #4770/#4816, hostile re-review finding on PR #4816):** an
+earlier version of this fix threaded the same-pass skip-set into the
+ingester's `RunDeferredRelationshipMaintenance` path correctly, but left the
+nil-skip-set path falling back to a "legacy" memo-table lookup
+(`computeCurrentReopenCatalogFingerprint` + a fresh `LookupMany`), reasoning
+that no backfill call in that same stack frame had just written a fresh memo
+row. That reasoning does not hold for bootstrap-index:
+`cmd/bootstrap-index/bootstrap_pipeline.go` calls
+`BackfillAllRelationshipEvidence` (Phase 2, which WRITES a fresh memo row for
+every partition it reprocesses) and later the public `Reopen*` methods (Phase
+4, nil skip-set, with `MaterializeIaCReachability` and a projector drain wait
+in between) in the SAME bootstrap run. The legacy re-read could not
+distinguish "this partition's evidence committed before this bootstrap run
+started" from "this partition's evidence was JUST committed by Phase 2 of THIS
+SAME run," so a partition reprocessed by Phase 2 read back as a memo hit in
+Phase 4 and was wrongly skipped — even though the succeeded work item resolved
+before that fresh cross-repo evidence existed. Reproduced against real
+Postgres: seed a succeeded work item for a memo-MISS partition, run
+`BackfillAllRelationshipEvidence` (writes a fresh memo), then call the public
+`ReopenDeploymentMappingWorkItems` with a nil skip-set — pre-fix, the item
+stayed `succeeded` (wrongly skipped); the missing reopen means the fresh
+cross-repo evidence Phase 2 just committed is never consumed by the reducer,
+producing missing `DEPLOYS_FROM`/`DEPENDS_ON` edges after a cold bootstrap.
 
-Schema-shape change: `listSucceededDeploymentMappingWorkItemsQuery`/
+The fix removes the legacy fallback entirely and deletes
+`computeCurrentReopenCatalogFingerprint`: a nil skip-set now always means
+reopen-all, matching `main`'s pre-#4770 behavior for every nil-skip-set
+caller. The only caller-observable distinction that matters is same-pass
+skip-set (optimized, ingester-only) versus everything else (reopen-all,
+correct, matches main).
+
+Schema-shape change (unaffected by the P0 fix above): `listSucceededDeploymentMappingWorkItemsQuery`/
 `listSucceededCodeImportRepoEdgeWorkItemsQuery` select `scope_id,
 generation_id` alongside `work_item_id` — both columns already exist directly
 on `fact_work_items`, so no migration or join is required. The ArgoCD carve-out
-needs no special-casing on the reopen side either, in either gating path:
-`writeDeferredBackfillPartitionMemos` never writes a memo row for an
-ArgoCD-bearing partition, so its work items never land in the same-pass
-skip-set and never match the standalone-path memo lookup — always a miss,
-always reopened, by the same invariant Track 1 documents. A
-fingerprint-computation failure or nil memo store on the standalone path
-degrades to the legacy unconditional-reopen contract (never a correctness
-dependency), matching the Track 1 gate's own fail-open behavior.
+needs no special-casing on the reopen side: `writeDeferredBackfillPartitionMemos`
+never writes a memo row for an ArgoCD-bearing partition, so its work items
+never land in the same-pass skip-set — always a miss, always reopened on the
+same-pass path, and trivially always reopened on the nil path along with every
+other candidate.
 
-Performance Evidence: disposable Postgres 16.14 (`postgres:16-alpine`),
+Performance Evidence (same-pass skip-set path, unaffected by the P0 nil-path
+fix): disposable Postgres 16.14 (`postgres:16-alpine`),
 `ESHU_DEFERRED_PARTITION_PROOF_DSN`-gated live proof
-(`ingestion_reopen_partition_memo_gate_integration_test.go`). Running
-`BackfillAllRelationshipEvidence` twice over an unchanged two-repo catalog and
-fact corpus, with a succeeded `deployment_mapping` work item seeded for the
-non-ArgoCD-bearing partition after pass 1, produces a Track 1 memo hit on pass
-2; `ReopenDeploymentMappingWorkItems` then leaves that work item `status =
-'succeeded'` (0 rows reopened) —
-`TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence` proves
-this against the REAL production resolver, not an analytical assertion: it
-wires `reducer.CrossRepoRelationshipHandler.Resolve` to the real
-Postgres-backed `RelationshipStore` (evidence loader) and `SharedIntentStore`
-(intent writer) — the same ports the reducer claim/drain path uses — runs
-`Resolve` once as the baseline, snapshots `shared_projection_intents`, runs
-`Resolve` a SECOND time over the identical unchanged evidence (the exact
-recomputation an unconditional reopen followed by a reducer re-drive would
-trigger), and asserts the two intent-row snapshots are byte-identical on both
-`intent_id` and `payload` (0/0), not merely a row count. This is the direct
-empirical evidence for the purity claim (`DiscoverEvidence`/`Resolve`/
-`UpsertIntents` are pure functions of `(facts, catalog, assertions)` with no
-read-back of their own prior output, and `evidence_id`/`intent_id` are
-content-addressed) — proven by actually running the resolver twice, not
-asserted. The differential assertion (`assertIntentSnapshotsIdentical`) was
-itself proven RED: injecting a fabricated payload mutation between the two
-`Resolve` runs made the test fail with the exact intent id and a
-before/after payload diff, confirming the check is load-bearing, not a
-tautology, before reverting to green. The identical fixture with a stale
-(non-matching) memo fingerprint reopens
-(`TestReopenDeploymentMappingWorkItemsReopensNonMemoHitPartition`, status
-transitions to `pending`), and the ArgoCD-bearing control fixture
-(`TestReopenDeploymentMappingWorkItemsAlwaysReopensArgoCDBearingPartition`,
-the same ApplicationSet/git-generator shape as
-`TestDeferredBackfillPartitionMemoArgoCDCarveOutAlwaysReloads`) always reopens
-despite its own partition being unchanged between passes.
-`TestReopenCodeImportRepoEdgeWorkItemsSkipsMemoHitPartition` proves the same
-skip on the `code_import_repo_edge` sibling path. The gate itself was also
-proven RED without the fix: temporarily short-circuiting the memo-hit
-comparison in `applyReopenPartitionMemoGate` made
-`TestApplyReopenPartitionMemoGateSkipsMemoHitPartition` fail with `ToReopen =
-[work-1]`, confirming the assertion is a real guard, not a tautology, before
-restoring the fix to green.
-
-The P1 same-pass fix above has its own dedicated RED-then-GREEN proof,
-`TestRunDeferredRelationshipMaintenanceReopensPartitionProcessedThisPass`:
+(`ingestion_reopen_partition_memo_gate_integration_test.go`,
+`TestRunDeferredRelationshipMaintenanceReopensPartitionProcessedThisPass`):
 seeds a partition with NO prior memo row (a genuine memo miss at the start of
 the pass) and a `succeeded` `deployment_mapping` work item for it, then drives
 `RunDeferredRelationshipMaintenance` — the real ingester call sequence,
-backfill immediately followed by reopen — end to end. Pre-fix, this reproduced
-the bug exactly: `reopen_partition_memo_gate_completed
-domain=deployment_mapping candidate_work_items=1 skipped=1 reopened=0` and the
-work item stayed `succeeded`, even though the backfill had just committed
-fresh evidence for that same partition this pass
+backfill immediately followed by reopen — end to end. Pre-P1-fix, this
+reproduced the earlier same-pass bug exactly:
+`reopen_partition_memo_gate_completed domain=deployment_mapping
+candidate_work_items=1 skipped=1 reopened=0` and the work item stayed
+`succeeded`, even though the backfill had just committed fresh evidence for
+that same partition this pass
 (`deferred_backfill_partition_memo_gate_completed candidate_partitions=2
-skipped=0 loaded=2`). Post-fix, the same run produces
-`skipped=0 reopened=1` and the work item transitions to `pending`. The
-existing memo-hit-skip proofs above (`TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence`,
-`TestReopenCodeImportRepoEdgeWorkItemsSkipsMemoHitPartition`) still pass
-unmodified: they call the public `Reopen*` methods standalone, after their own
-prior `BackfillAllRelationshipEvidence` pass has already fully committed, so
-the legacy memo-table fallback path they exercise is unaffected by the fix.
+skipped=0 loaded=2`). Post-fix, the same run produces `skipped=0 reopened=1`
+and the work item transitions to `pending`.
+
+The P0 nil-skip-set fix (this change) has its own dedicated RED-then-GREEN
+proofs against real Postgres:
+`TestReopenDeploymentMappingWorkItemsNilSkipSetAlwaysReopensEvenAfterMemoHit`
+and `TestReopenCodeImportRepoEdgeWorkItemsNilSkipSetAlwaysReopensEvenAfterMemoHit`
+(`ingestion_reopen_partition_memo_gate_integration_test.go`), plus the
+bootstrap-shape reproductions
+`TestReopenDeploymentMappingWorkItemsNilSkipSetReopensPartitionProcessedThisPass`
+and `TestReopenCodeImportRepoEdgeWorkItemsNilSkipSetReopensPartitionProcessedThisPass`
+(`ingestion_reopen_bootstrap_nil_skipset_test.go`): each seeds a succeeded work
+item for a memo-MISS partition, runs `BackfillAllRelationshipEvidence` (which
+writes a fresh memo row for that partition THIS pass), then calls the public,
+nil-skip-set `Reopen*` method directly (bootstrap-index's exact call shape,
+never `RunDeferredRelationshipMaintenance`). Pre-fix, all four failed with the
+work item staying `succeeded` (`reopen_partition_memo_gate_completed ...
+skipped=1 reopened=0`) — the exact hostile re-review reproduction. Post-fix,
+all four pass with the work item transitioning to `pending`
+(`skipped=0 reopened=1`).
 
 Focused suite: `go test ./internal/storage/postgres/... ./internal/reducer/...
-./cmd/reducer/... ./cmd/ingester/... ./cmd/bootstrap-index/... -count=1` —
-3781 tests passed (`-v` run, counted by `^--- PASS` lines), including the
-RED-then-GREEN same-pass proof above. This removes redundant reducer replay
-scheduling work; it does not change conflict-domain partitioning, worker
-counts, or batch sizes on the reopen path.
+./cmd/reducer/... ./cmd/ingester/... ./cmd/bootstrap-index/... -count=1` — all
+tests pass, including the RED-then-GREEN same-pass and nil-skip-set proofs
+above. This removes redundant reducer replay scheduling work on the same-pass
+path and restores correct reopen-all behavior on the nil path; it does not
+change conflict-domain partitioning, worker counts, or batch sizes on the
+reopen path.
 
 Performance Evidence: remote controlled before/after on the
 eshu-remote-validation host, against a Postgres clone of the persisted
@@ -1292,23 +1273,13 @@ modest-absolute, high-proportional redundancy-elimination fix, not a broad
 speedup — the local equivalence proof above is the correctness evidence; this
 adds the remote wall-clock picture on top of it.
 
-`computeCurrentReopenCatalogFingerprint` is exercised only on the standalone
-gating path now (bootstrap-index's direct `RelationshipMaintenanceCommitter`
-phase calls and any other caller with no same-pass skip-set); the ingester's
-`RunDeferredRelationshipMaintenance` never calls it, since it threads the
-same-pass skip-set instead (see the P1 fix note above). It intentionally
-diverges from the write
-side on the `buildDeferredScopedFactQueryParams` `ok=false` (empty/unbuildable
-catalog) case: the write side (`BackfillAllRelationshipEvidence`) always
-hashes the params — including the zero-value case — into
-`deferredCatalogFingerprint`'s fixed non-empty digest, and can commit a real
-memo row under that digest whenever there are active repos to memoize,
-independent of `ok`. The reopen side instead returns `""` on `ok=false`. This
-is safe, not merely convenient: `""` can never equal a stored `sha256:...`
-fingerprint, so the gate's `currentFingerprint == ""` short-circuit always
-forces reopen-all on that path, even on the rare pass where the write side did
-commit a fixed-digest memo row for an empty catalog. The divergence can only
-ever bias toward reopening, never toward an unsafe skip.
+`computeCurrentReopenCatalogFingerprint` and its legacy memo-table re-read no
+longer exist (removed by the P0 fix above): the only correct callers left are
+the same-pass skip-set path (the ingester) and the nil reopen-all path
+(everyone else), and neither needs a catalog fingerprint. `rg
+computeCurrentReopenCatalogFingerprint` across `go/` returns no function
+definitions or call sites — only historical doc-comment references explaining
+why the legacy fallback was removed.
 
 Observability Evidence: `eshu_dp_reopen_skipped_by_partition_memo_total`
 (labeled `domain` = `deployment_mapping`/`code_import_repo_edge`, `reason` =

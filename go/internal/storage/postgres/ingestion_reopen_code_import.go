@@ -29,7 +29,7 @@ import (
 //
 // This is a thin public wrapper over reopenCodeImportRepoEdgeWorkItemsWithSkipSet
 // with a nil skip-set; see ReopenDeploymentMappingWorkItems's doc comment for
-// why the public signature stays stable and why nil is safe here.
+// why the public signature stays stable and why nil means reopen-all here.
 func (s IngestionStore) ReopenCodeImportRepoEdgeWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -41,12 +41,9 @@ func (s IngestionStore) ReopenCodeImportRepoEdgeWorkItems(
 // reopenCodeImportRepoEdgeWorkItemsWithSkipSet is
 // ReopenCodeImportRepoEdgeWorkItems's implementation, gated by
 // skippedPartitions exactly as reopenDeploymentMappingWorkItemsWithSkipSet is
-// gated (issue #4770 P1 same-pass fix): a non-nil skippedPartitions bypasses
-// the memo-table lookup entirely and gates solely on set membership; a nil
-// skippedPartitions falls back to the legacy
-// computeCurrentReopenCatalogFingerprint + memo-table lookup, safe for a
-// standalone call (e.g. bootstrap-index) where no backfill in this same stack
-// frame just wrote a fresh memo row.
+// gated: a non-nil skippedPartitions gates solely on set membership; a nil
+// skippedPartitions reopens every candidate unconditionally, safe for a
+// standalone call (e.g. bootstrap-index) with no same-pass skip-set to offer.
 func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -63,26 +60,11 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 		defer span.End()
 	}
 
-	var currentFingerprint string
-	if skippedPartitions == nil {
-		var fpErr error
-		currentFingerprint, fpErr = computeCurrentReopenCatalogFingerprint(ctx, s.db)
-		if fpErr != nil {
-			log.Printf("reopen_partition_memo_fingerprint_failed domain=code_import_repo_edge error=%q falling_back=true", fpErr)
-			currentFingerprint = ""
-		}
-	}
-
 	items, err := listSucceededCodeImportRepoEdgeWorkItems(ctx, s.db)
 	if err != nil {
 		return err
 	}
-	gateResult, err := applyReopenPartitionMemoGate(
-		ctx, newDeferredBackfillPartitionMemoStore(s.db), "code_import_repo_edge", items, currentFingerprint, skippedPartitions, instruments,
-	)
-	if err != nil {
-		return fmt.Errorf("apply reopen partition memo gate for code_import_repo_edge: %w", err)
-	}
+	gateResult := applyReopenPartitionMemoGate(ctx, "code_import_repo_edge", items, skippedPartitions, instruments)
 
 	queue := ReducerQueue{db: s.db, Now: s.Now}
 	for _, item := range gateResult.ToReopen {

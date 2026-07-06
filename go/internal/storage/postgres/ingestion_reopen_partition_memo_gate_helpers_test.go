@@ -94,27 +94,6 @@ func snapshotSharedProjectionIntents(t *testing.T, ctx context.Context, db *sql.
 	return snapshots
 }
 
-// assertIntentSnapshotsIdentical fails the test unless two intent snapshots
-// are byte-identical in both intent_id set and payload content (a 0/0
-// differential), naming the first divergence found.
-func assertIntentSnapshotsIdentical(t *testing.T, before, after []intentSnapshot, context string) {
-	t.Helper()
-	if len(before) == 0 {
-		t.Fatalf("%s: baseline snapshot is empty; test fixture is not exercising the resolver", context)
-	}
-	if len(before) != len(after) {
-		t.Fatalf("%s: intent row count = %d, want %d (0/0 differential expected)", context, len(after), len(before))
-	}
-	for i := range before {
-		if before[i].intentID != after[i].intentID {
-			t.Fatalf("%s: intent_id[%d] = %q, want %q", context, i, after[i].intentID, before[i].intentID)
-		}
-		if before[i].payload != after[i].payload {
-			t.Fatalf("%s: intent %q payload changed:\nbefore=%s\nafter=%s", context, before[i].intentID, before[i].payload, after[i].payload)
-		}
-	}
-}
-
 // resolveCrossRepoIntents drives the REAL reducer cross-repo resolution
 // handler (reducer.CrossRepoRelationshipHandler.Resolve) for one generation
 // against the REAL Postgres-backed RelationshipStore (evidence loader) and

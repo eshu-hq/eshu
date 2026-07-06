@@ -15,8 +15,7 @@ import (
 // from a strict FIFO queue with no query-text special-casing. It exists
 // because the shared fakeExecQueryer (work_queue_lifecycle_test.go)
 // unconditionally intercepts lookupDeferredBackfillPartitionMemosQuery and
-// always answers "no memo rows" independent of staged responses — exactly the
-// query this file's tests need to stage memo-HIT rows for. Mirrors the
+// always answers "no memo rows" independent of staged responses. Mirrors the
 // dedicated-fake convention noopExecQueryer already uses in
 // deferred_backfill_partition_memo_test.go for the same reason.
 type fifoExecQueryer struct {
@@ -39,261 +38,143 @@ func (f *fifoExecQueryer) QueryContext(_ context.Context, _ string, _ ...any) (R
 	return &rows, nil
 }
 
-// TestApplyReopenPartitionMemoGateSkipsMemoHitPartition is the RED-then-GREEN
-// core proof for issue #4770: a succeeded work item whose (scope_id,
-// generation_id) partition already has a memo row matching the CURRENT
-// catalog fingerprint must be skipped (not reopened). Disabling the gate (by
-// passing an empty currentFingerprint, the same short-circuit the reopen
-// callers use on a fingerprint-computation failure) must make this test fail,
-// proving the assertion is a real guard on the gate, not a tautology.
-func TestApplyReopenPartitionMemoGateSkipsMemoHitPartition(t *testing.T) {
+// TestApplyReopenPartitionMemoGateNilSkipSetReopensEverything is the core
+// proof for the bootstrap-index P0 fix (issue #4770/#4816 hostile re-review):
+// a nil skip-set must reopen every candidate unconditionally, never fall back
+// to a memo-table re-read. This is the exact scenario a standalone caller
+// (bootstrap-index's Reopen* phase, called after its own
+// BackfillAllRelationshipEvidence phase already wrote a fresh memo row) hits.
+func TestApplyReopenPartitionMemoGateNilSkipSetReopensEverything(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	const fingerprint = "sha256:current"
-	memoDB := &fifoExecQueryer{
-		responses: []queueFakeRows{
-			{rows: [][]any{{"scope-a", "gen-a", fingerprint}}},
-		},
+	items := []reopenWorkItemRef{
+		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
+		{WorkItemID: "work-2", Partition: scopeGenerationPartition{ScopeID: "scope-b", GenerationID: "gen-b"}},
 	}
-	memoStore := newDeferredBackfillPartitionMemoStore(memoDB)
+
+	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", items, nil, nil)
+
+	if len(result.Skipped) != 0 {
+		t.Fatalf("Skipped = %v, want empty (nil skip-set must reopen unconditionally)", result.Skipped)
+	}
+	gotReopen := map[string]bool{}
+	for _, item := range result.ToReopen {
+		gotReopen[item.WorkItemID] = true
+	}
+	if !gotReopen["work-1"] || !gotReopen["work-2"] || len(result.ToReopen) != 2 {
+		t.Fatalf("ToReopen = %v, want [work-1 work-2]", result.ToReopen)
+	}
+}
+
+// TestApplyReopenPartitionMemoGateSkipSetSkipsMemberPartition proves the
+// same-pass skip-set path (issue #4770/#4816): a work item whose partition is
+// a member of skippedThisPass is skipped.
+func TestApplyReopenPartitionMemoGateSkipSetSkipsMemberPartition(t *testing.T) {
+	t.Parallel()
+
 	items := []reopenWorkItemRef{
 		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
-
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, fingerprint, nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
+	skipSet := map[scopeGenerationPartition]struct{}{
+		{ScopeID: "scope-a", GenerationID: "gen-a"}: {},
 	}
+
+	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", items, skipSet, nil)
+
 	if len(result.ToReopen) != 0 {
-		t.Fatalf("ToReopen = %v, want empty (memo-hit partition must be skipped)", result.ToReopen)
+		t.Fatalf("ToReopen = %v, want empty (skip-set member must be skipped)", result.ToReopen)
 	}
 	if len(result.Skipped) != 1 || result.Skipped[0].WorkItemID != "work-1" {
 		t.Fatalf("Skipped = %v, want [work-1]", result.Skipped)
 	}
 }
 
-// TestApplyReopenPartitionMemoGateWithoutFingerprintReopensEverything proves
-// the guard in the test above is real: with the SAME memo-hit fixture but an
-// empty currentFingerprint (the gate-disabled path), the work item must
-// reopen instead of being skipped. This is the RED case that would fail if
-// applyReopenPartitionMemoGate's skip logic were removed or short-circuited
-// to always skip.
-func TestApplyReopenPartitionMemoGateWithoutFingerprintReopensEverything(t *testing.T) {
+// TestApplyReopenPartitionMemoGateSkipSetReopensNonMemberPartition proves a
+// work item whose partition is NOT a member of skippedThisPass (the backfill
+// reprocessed it this pass) still reopens.
+func TestApplyReopenPartitionMemoGateSkipSetReopensNonMemberPartition(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	memoDB := &fifoExecQueryer{
-		responses: []queueFakeRows{
-			{rows: [][]any{{"scope-a", "gen-a", "sha256:current"}}},
-		},
-	}
-	memoStore := newDeferredBackfillPartitionMemoStore(memoDB)
 	items := []reopenWorkItemRef{
 		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
+	// Empty-but-non-nil skip-set: every candidate was a memo MISS this pass
+	// (the exact RED scenario for the #4770/#4816 same-pass fix).
+	skipSet := map[scopeGenerationPartition]struct{}{}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "", nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
-	}
+	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", items, skipSet, nil)
+
 	if len(result.ToReopen) != 1 || result.ToReopen[0].WorkItemID != "work-1" {
-		t.Fatalf("ToReopen = %v, want [work-1] when the gate is disabled (empty fingerprint)", result.ToReopen)
+		t.Fatalf("ToReopen = %v, want [work-1] (empty-but-non-nil skip-set must not accidentally skip)", result.ToReopen)
 	}
 	if len(result.Skipped) != 0 {
-		t.Fatalf("Skipped = %v, want empty when the gate is disabled", result.Skipped)
-	}
-}
-
-// TestApplyReopenPartitionMemoGateReopensNonMemoHitPartition proves a
-// partition whose memo fingerprint does NOT match the current pass (catalog
-// changed since it last committed) still reopens.
-func TestApplyReopenPartitionMemoGateReopensNonMemoHitPartition(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	memoDB := &fifoExecQueryer{
-		responses: []queueFakeRows{
-			{rows: [][]any{{"scope-a", "gen-a", "sha256:stale"}}},
-		},
-	}
-	memoStore := newDeferredBackfillPartitionMemoStore(memoDB)
-	items := []reopenWorkItemRef{
-		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
-	}
-
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
-	}
-	if len(result.ToReopen) != 1 || result.ToReopen[0].WorkItemID != "work-1" {
-		t.Fatalf("ToReopen = %v, want [work-1] when the catalog fingerprint changed", result.ToReopen)
-	}
-	if len(result.Skipped) != 0 {
-		t.Fatalf("Skipped = %v, want empty when the catalog fingerprint changed", result.Skipped)
-	}
-}
-
-// TestApplyReopenPartitionMemoGateReopensArgoCDBearingPartition proves the
-// ArgoCD carve-out needs no special-casing in the reopen gate: an
-// ArgoCD-bearing partition NEVER gets a memo row (writeDeferredBackfillPartitionMemos
-// excludes it on the write side), so a work item in that partition is always
-// a memo miss here and always reopens, exactly like any other never-memoized
-// partition.
-func TestApplyReopenPartitionMemoGateReopensArgoCDBearingPartition(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	// No memo rows at all: the ArgoCD-bearing partition (scope-argocd, gen-1) was
-	// deliberately never written by the write-side carve-out.
-	memoDB := &fifoExecQueryer{
-		responses: []queueFakeRows{
-			{rows: [][]any{}},
-		},
-	}
-	memoStore := newDeferredBackfillPartitionMemoStore(memoDB)
-	items := []reopenWorkItemRef{
-		{WorkItemID: "work-argocd", Partition: scopeGenerationPartition{ScopeID: "scope-argocd", GenerationID: "gen-1"}},
-	}
-
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
-	}
-	if len(result.ToReopen) != 1 || result.ToReopen[0].WorkItemID != "work-argocd" {
-		t.Fatalf("ToReopen = %v, want [work-argocd] (ArgoCD-bearing partition never memoized, always reopens)", result.ToReopen)
-	}
-	if len(result.Skipped) != 0 {
-		t.Fatalf("Skipped = %v, want empty for an ArgoCD-bearing partition", result.Skipped)
+		t.Fatalf("Skipped = %v, want empty", result.Skipped)
 	}
 }
 
 // TestApplyReopenPartitionMemoGateMixedPartitionsSplitsCorrectly proves the
-// gate handles a mixed batch: one memo-hit partition skipped, one non-memo-hit
-// (stale fingerprint) partition reopened, and one never-memoized (ArgoCD-like)
-// partition reopened, all in a single pass.
+// skip-set gate handles a mixed batch: one member partition skipped, one
+// non-member partition reopened, in a single pass.
 func TestApplyReopenPartitionMemoGateMixedPartitionsSplitsCorrectly(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	const fingerprint = "sha256:current"
-	memoDB := &fifoExecQueryer{
-		responses: []queueFakeRows{
-			{rows: [][]any{
-				{"scope-hit", "gen-hit", fingerprint},
-				{"scope-stale", "gen-stale", "sha256:old"},
-			}},
-		},
-	}
-	memoStore := newDeferredBackfillPartitionMemoStore(memoDB)
 	items := []reopenWorkItemRef{
 		{WorkItemID: "work-hit", Partition: scopeGenerationPartition{ScopeID: "scope-hit", GenerationID: "gen-hit"}},
-		{WorkItemID: "work-stale", Partition: scopeGenerationPartition{ScopeID: "scope-stale", GenerationID: "gen-stale"}},
-		{WorkItemID: "work-argocd", Partition: scopeGenerationPartition{ScopeID: "scope-argocd", GenerationID: "gen-argocd"}},
+		{WorkItemID: "work-miss", Partition: scopeGenerationPartition{ScopeID: "scope-miss", GenerationID: "gen-miss"}},
+	}
+	skipSet := map[scopeGenerationPartition]struct{}{
+		{ScopeID: "scope-hit", GenerationID: "gen-hit"}: {},
 	}
 
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, fingerprint, nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
-	}
+	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", items, skipSet, nil)
+
 	if len(result.Skipped) != 1 || result.Skipped[0].WorkItemID != "work-hit" {
 		t.Fatalf("Skipped = %v, want [work-hit]", result.Skipped)
 	}
-	gotReopen := map[string]bool{}
-	for _, item := range result.ToReopen {
-		gotReopen[item.WorkItemID] = true
-	}
-	if !gotReopen["work-stale"] || !gotReopen["work-argocd"] || len(result.ToReopen) != 2 {
-		t.Fatalf("ToReopen = %v, want [work-stale work-argocd]", result.ToReopen)
+	if len(result.ToReopen) != 1 || result.ToReopen[0].WorkItemID != "work-miss" {
+		t.Fatalf("ToReopen = %v, want [work-miss]", result.ToReopen)
 	}
 }
 
 // TestApplyReopenPartitionMemoGateBlankPartitionAlwaysReopens proves a work
 // item with a blank scope_id or generation_id (defensive: schema requires
 // NOT NULL, but a legacy row or fixture may leave it empty) always reopens
-// rather than risk an unintended skip on unrecognized shape.
+// rather than risk an unintended skip on unrecognized shape, even when its
+// blank partition would otherwise coincidentally match a skip-set zero value.
 func TestApplyReopenPartitionMemoGateBlankPartitionAlwaysReopens(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	memoDB := &fifoExecQueryer{
-		responses: []queueFakeRows{
-			{rows: [][]any{}},
-		},
-	}
-	memoStore := newDeferredBackfillPartitionMemoStore(memoDB)
 	items := []reopenWorkItemRef{
 		{WorkItemID: "work-blank", Partition: scopeGenerationPartition{ScopeID: "", GenerationID: ""}},
 	}
-
-	result, err := applyReopenPartitionMemoGate(ctx, memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
+	skipSet := map[scopeGenerationPartition]struct{}{
+		{ScopeID: "", GenerationID: ""}: {},
 	}
+
+	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", items, skipSet, nil)
+
 	if len(result.ToReopen) != 1 || result.ToReopen[0].WorkItemID != "work-blank" {
 		t.Fatalf("ToReopen = %v, want [work-blank]", result.ToReopen)
 	}
+	if len(result.Skipped) != 0 {
+		t.Fatalf("Skipped = %v, want empty for a blank partition", result.Skipped)
+	}
 }
 
-// TestApplyReopenPartitionMemoGateEmptyItemsIsNoop proves an empty input never
-// issues a memo lookup query, matching the zero-row short-circuit convention
-// applyDeferredPartitionMemoGate and deferredBackfillPartitionMemoStore.LookupMany
-// already use.
+// TestApplyReopenPartitionMemoGateEmptyItemsIsNoop proves an empty input
+// returns an empty result without panicking, for both the nil and skip-set
+// paths.
 func TestApplyReopenPartitionMemoGateEmptyItemsIsNoop(t *testing.T) {
 	t.Parallel()
 
-	memoStore := newDeferredBackfillPartitionMemoStore(noopExecQueryer{t: t})
-	result, err := applyReopenPartitionMemoGate(context.Background(), memoStore, "deployment_mapping", nil, "sha256:current", nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate(nil) error = %v, want nil", err)
-	}
+	result := applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", nil, nil, nil)
 	if len(result.ToReopen) != 0 || len(result.Skipped) != 0 {
-		t.Fatalf("applyReopenPartitionMemoGate(nil) = %+v, want empty result", result)
-	}
-}
-
-// TestApplyReopenPartitionMemoGateNilMemoStoreFallsBackToReopenAll proves a
-// nil memo store (defensive) degrades to the legacy unconditional-reopen
-// contract rather than panicking or silently skipping everything.
-func TestApplyReopenPartitionMemoGateNilMemoStoreFallsBackToReopenAll(t *testing.T) {
-	t.Parallel()
-
-	items := []reopenWorkItemRef{
-		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
-	}
-	result, err := applyReopenPartitionMemoGate(context.Background(), nil, "deployment_mapping", items, "sha256:current", nil, nil)
-	if err != nil {
-		t.Fatalf("applyReopenPartitionMemoGate() error = %v, want nil", err)
-	}
-	if len(result.ToReopen) != 1 || result.ToReopen[0].WorkItemID != "work-1" {
-		t.Fatalf("ToReopen = %v, want [work-1] with a nil memo store", result.ToReopen)
-	}
-}
-
-// TestApplyReopenPartitionMemoGateLookupErrorPropagates proves a memo lookup
-// failure is surfaced to the caller (not silently swallowed) so
-// ReopenDeploymentMappingWorkItems/ReopenCodeImportRepoEdgeWorkItems can decide
-// how to handle it, matching applyDeferredPartitionMemoGate's own contract of
-// returning lookup errors rather than masking them.
-func TestApplyReopenPartitionMemoGateLookupErrorPropagates(t *testing.T) {
-	t.Parallel()
-
-	memoDB := &fifoExecQueryer{
-		responses: []queueFakeRows{
-			{err: errors.New("lookup boom")},
-		},
-	}
-	memoStore := newDeferredBackfillPartitionMemoStore(memoDB)
-	items := []reopenWorkItemRef{
-		{WorkItemID: "work-1", Partition: scopeGenerationPartition{ScopeID: "scope-a", GenerationID: "gen-a"}},
+		t.Fatalf("applyReopenPartitionMemoGate(nil items, nil skip-set) = %+v, want empty result", result)
 	}
 
-	_, err := applyReopenPartitionMemoGate(context.Background(), memoStore, "deployment_mapping", items, "sha256:current", nil, nil)
-	if err == nil {
-		t.Fatal("applyReopenPartitionMemoGate() error = nil, want lookup error")
-	}
-	if !strings.Contains(err.Error(), "lookup reopen partition memos for deployment_mapping") {
-		t.Fatalf("error = %q, want domain-scoped lookup context", err.Error())
+	result = applyReopenPartitionMemoGate(context.Background(), "deployment_mapping", nil, map[scopeGenerationPartition]struct{}{}, nil)
+	if len(result.ToReopen) != 0 || len(result.Skipped) != 0 {
+		t.Fatalf("applyReopenPartitionMemoGate(nil items, empty skip-set) = %+v, want empty result", result)
 	}
 }
 
@@ -377,76 +258,5 @@ func TestListSucceededCodeImportRepoEdgeWorkItemsScansPartitionColumns(t *testin
 	}
 	if len(items) != 1 || items[0] != want[0] {
 		t.Fatalf("listSucceededCodeImportRepoEdgeWorkItems() = %+v, want %+v", items, want)
-	}
-}
-
-// TestComputeCurrentReopenCatalogFingerprintMatchesDeferredBackfillFingerprint
-// proves computeCurrentReopenCatalogFingerprint derives the SAME fingerprint
-// shape BackfillAllRelationshipEvidence uses to write the memo table, over an
-// identical catalog snapshot — the load-bearing invariant that lets a
-// memo-hit computed by this function actually match a row the backfill pass
-// just wrote.
-func TestComputeCurrentReopenCatalogFingerprintMatchesDeferredBackfillFingerprint(t *testing.T) {
-	t.Parallel()
-
-	catalogPayload := []byte(`{"repo_id":"repo-a","name":"alpha"}`)
-	got, err := computeCurrentReopenCatalogFingerprint(context.Background(), &fifoExecQueryer{
-		responses: []queueFakeRows{{rows: [][]any{{catalogPayload}}}},
-	})
-	if err != nil {
-		t.Fatalf("computeCurrentReopenCatalogFingerprint() error = %v, want nil", err)
-	}
-
-	catalog, err := loadRepositoryCatalog(context.Background(), &fifoExecQueryer{
-		responses: []queueFakeRows{{rows: [][]any{{catalogPayload}}}},
-	})
-	if err != nil {
-		t.Fatalf("loadRepositoryCatalog() error = %v, want nil", err)
-	}
-	params, ok := buildDeferredScopedFactQueryParams(catalog)
-	if !ok {
-		t.Fatal("buildDeferredScopedFactQueryParams() ok = false, want true for a non-empty catalog")
-	}
-	want := deferredCatalogFingerprint(params)
-
-	if got != want {
-		t.Fatalf("computeCurrentReopenCatalogFingerprint() = %q, want %q (must match deferredCatalogFingerprint over the same catalog)", got, want)
-	}
-	if got == "" {
-		t.Fatal("computeCurrentReopenCatalogFingerprint() = empty, want a non-empty fingerprint for a non-empty catalog")
-	}
-}
-
-// TestComputeCurrentReopenCatalogFingerprintEmptyCatalogReturnsEmpty proves an
-// empty/unbuildable catalog (buildDeferredScopedFactQueryParams's ok=false
-// case) returns an empty fingerprint rather than fabricating one, so the
-// reopen gate falls back to the legacy unconditional-reopen contract instead
-// of risking a spurious match against an empty-catalog memo row.
-func TestComputeCurrentReopenCatalogFingerprintEmptyCatalogReturnsEmpty(t *testing.T) {
-	t.Parallel()
-
-	queryer := &fifoExecQueryer{
-		responses: []queueFakeRows{{rows: [][]any{}}},
-	}
-	got, err := computeCurrentReopenCatalogFingerprint(context.Background(), queryer)
-	if err != nil {
-		t.Fatalf("computeCurrentReopenCatalogFingerprint() error = %v, want nil", err)
-	}
-	if got != "" {
-		t.Fatalf("computeCurrentReopenCatalogFingerprint() = %q, want empty for an empty catalog", got)
-	}
-}
-
-// TestComputeCurrentReopenCatalogFingerprintNilQueryerReturnsEmpty proves a
-// nil queryer (defensive) returns an empty fingerprint without error.
-func TestComputeCurrentReopenCatalogFingerprintNilQueryerReturnsEmpty(t *testing.T) {
-	t.Parallel()
-
-	got, err := computeCurrentReopenCatalogFingerprint(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("computeCurrentReopenCatalogFingerprint(nil) error = %v, want nil", err)
-	}
-	if got != "" {
-		t.Fatalf("computeCurrentReopenCatalogFingerprint(nil) = %q, want empty", got)
 	}
 }

@@ -71,8 +71,10 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBa
 	}
 	reopenTx := &fakeTx{
 		queryResponses: []queueFakeRows{
-			// ReopenDeploymentMappingWorkItems: one succeeded work item.
-			{rows: [][]any{{"work-item-1"}}},
+			// ReopenDeploymentMappingWorkItems (same-pass skip-set path, issue
+			// #4770): one succeeded work item, with its scope/generation
+			// partition columns alongside work_item_id.
+			{rows: [][]any{{"work-item-1", "scope-infra", "gen-infra"}}},
 		},
 	}
 	db := &fakeTransactionalDB{
@@ -190,16 +192,13 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
 	}
-	// Reopen transaction: the reopen partition-memo fingerprint gate re-reads the
-	// repository catalog first (computeCurrentReopenCatalogFingerprint, issue
-	// #4770), then lists succeeded deployment_mapping work items (one, with its
-	// scope/generation partition columns), then looks up its partition in the
-	// reopen memo gate (no memo row staged, so it is a memo miss and reopens),
-	// then the code_import_repo_edge listing (none, via fakeTx's default
-	// fallback) and its own memo lookup default.
+	// Reopen transaction (same-pass skip-set path, issue #4770): lists succeeded
+	// deployment_mapping work items (one, with its scope/generation partition
+	// columns), gates on the backfill's same-pass skip-set (no memo-table read),
+	// then the code_import_repo_edge listing falls through to fakeTx's default
+	// empty fallback.
 	reopenTx := &fakeTx{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)}}},
 			{rows: [][]any{{"work-item-1", "scope-infra", "gen-infra"}}},
 		},
 	}
