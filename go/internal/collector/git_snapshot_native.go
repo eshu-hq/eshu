@@ -193,21 +193,33 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		return snapshot, nil
 	}
 
+	// deriveImportsMapFromParse is only safe when this generation's parse
+	// stage covers the exact same file set pre-scan needs. On a delta sync
+	// (FileTargets set), pre-scan still spans the full repo
+	// (parserPreScanFiles(fullParserFiles) above) while parse only visits the
+	// changed targets, so deriving from parse output would silently drop
+	// ImportsMap entries for every unchanged derive-eligible file. See
+	// partitionPreScanFilesForDerive's doc comment.
+	deriveImportsMapFromParse := len(repository.FileTargets) == 0
+	legacyPreScanFiles, deriveEligiblePreScanFiles := partitionPreScanFilesForDerive(
+		preScanFileSet.Files, registry, deriveImportsMapFromParse,
+	)
+
 	preScanStartedAt := time.Now()
 	importsMap, err := engine.PreScanRepositoryPathsWithWorkers(
 		repoPath,
-		preScanFileSet.Files,
+		legacyPreScanFiles,
 		effectiveSnapshotParseWorkers(s.ParseWorkers),
 	)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan repository imports for %q: %w", repoPath, err)
 	}
-	snapshot.ImportsMap = importsMap
 	s.recordSnapshotStage(
 		ctx, repoPath, telemetry.SnapshotStagePreScan, preScanStartedAt,
-		slog.Int("file_count", len(preScanFileSet.Files)),
+		slog.Int("file_count", len(legacyPreScanFiles)),
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
+		slog.Int("derive_from_parse_file_count", len(deriveEligiblePreScanFiles)),
 	)
 	goPackageSemanticPreScanStartedAt := time.Now()
 	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, preScanFileSet.Files)
@@ -255,6 +267,18 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("parse_partition_count", parsePartitionCount),
 		slog.Any("language_parse_summary", languageParseSummary),
 	)
+	if len(deriveEligiblePreScanFiles) > 0 {
+		// Derive-from-parse only covers files the parse stage actually parsed;
+		// a derive-eligible file that parse-skips but would have pre-scanned
+		// cleanly is silently omitted rather than aborting the snapshot — that
+		// is leniency (completed snapshot), not wrong truth, and both stages run
+		// tree-sitter over the same bytes so they fail together in practice.
+		mergeParsedFilesIntoDerivedImportsMap(importsMap, parsedFiles)
+		// Only the derived path needs the final sort; the pure-legacy path's
+		// PreScanRepositoryPathsWithWorkers already sorted each path list.
+		finalizeDerivedPreScanImportsMap(importsMap)
+	}
+	snapshot.ImportsMap = importsMap
 
 	materializeStartedAt := time.Now()
 	materialization, err := shape.Materialize(shape.Input{

@@ -104,6 +104,25 @@ parser-family extension.
 9. Run the focused Go tests, `scripts/verify-parser-relationship-kit.sh`, the
    docs build, and `git diff --check`.
 
+### Import/symbol names: derived from parse for tree-sitter languages
+
+The repository `ImportsMap` (declared name → declaring paths, sent as one fact
+per generation) is built two ways depending on the language:
+
+- **php, javascript, typescript, tsx** derive their `ImportsMap` names from the
+  parse-stage declaration buckets (`functions`/`classes`/`interfaces`/`traits`)
+  during the normal parse pass — they do **not** run a separate pre-scan
+  tree-sitter parse. This avoids parsing every file twice on a full ingest.
+- All other pre-scan languages (json, groovy) keep the dedicated pre-scan pass.
+
+If you add a new language to the derive-from-parse set
+(`parser.IsDerivedPreScanLanguage`), its parse-stage buckets must carry exactly
+the same names its `PreScan` would have collected — prove it output-preserving
+(a 0/0 symmetric-set-difference test against the legacy `PreScan`, as in
+`prescan_derive_test.go`) before removing the second pass. Delta syncs keep the
+legacy pre-scan path regardless, because pre-scan spans the whole repo while
+parse visits only changed targets.
+
 ## Test Path
 
 Start narrow, then prove the read path you claim.
