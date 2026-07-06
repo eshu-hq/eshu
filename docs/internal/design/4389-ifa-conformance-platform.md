@@ -23,7 +23,12 @@ offline tester, replayer, and load tester** that needs no provider
 infrastructure or credentials — a contributor with no Azure, AWS, or GCP access
 can prove conformance, determinism, throughput, and failure behavior locally.
 The name follows the repository's Yoruba naming convention (Eshu, Odù); an
-*Odù* in Ifá is a validated conformance case a contributor drops in.
+*Odù* in Ifá is a validated conformance case a contributor drops in. The
+containment is lore-correct — the Odù are the units of the Ifá system — which
+is why the platform is named for the system, not the diviner. *Orunmila* (the
+orisha who reads the Odù) is deliberately reserved: if the verdict-rendering
+component (the judge/comparator or the `prove` report) ever becomes its own
+named artifact, that name is Orunmila. It is not used for anything today.
 
 Ifá **is**:
 
@@ -312,10 +317,24 @@ machinery for either:
 - Expectation derivation validates Odù payloads against the #4567 JSON
   Schemas in addition to registry + B-12 normalization, so a schema-invalid
   payload fails conformance before it fails a reducer.
-- **An Odù is a fixture-pack entry.** The #4572 fixture packs and the Odù
-  corpus are one artifact, versioned with the contracts module. An external
-  collector repo pins a fixture-pack version and runs the same Odù offline in
-  its own CI. Two competing fixture systems is a rejected outcome.
+- **Two fixture tiers, one schema source — composition, not identity.**
+  **Correction:** an earlier draft said "an Odù is a fixture-pack entry." What
+  #4572 actually landed (`sdk/go/factschema/fixturepack`) is **kind-level**:
+  one valid + one invalid payload per fact kind, proving payload-contract
+  accept/fail-closed. An Odù is **scenario-level**: a replayable pipeline case
+  spanning many kinds (cassette or `LoadFacts` slice) plus derived
+  expectations and graph/query truth. The relationship is composition: an
+  Odù's facts must validate against the fixture pack's schemas, an Odù may use
+  pack payloads as building blocks, and both tiers derive from the single
+  schema source in `sdk/go/factschema/schema/`. An external collector repo
+  pins a fixture-pack version for payload conformance and runs Odù offline in
+  its own CI. Two competing *schema sources* is the rejected outcome; two
+  tiers with different granularity is the design.
+- **The demo manifest is an Odù.** `specs/demo-first-answers.v1.yaml` (#4741,
+  first-run epic #4592) — five questions with expected correlated answers — is
+  structurally an Odù expectation set. P1 loads or validates it through the
+  same derivation, so the public demo can never drift from conformance truth:
+  the demo a newcomer sees is a permanently-green conformance case.
 
 The contract layer is assertion + derivation only. It has no concurrency of its
 own; it defines *what an identical graph means* so the determinism layer can
@@ -350,6 +369,14 @@ Design:
    canonicalization is idempotent and normalizes volatile/derived keys
    (`canonical.go:105-125`,`:180-181`), a difference across N is a real
    concurrency defect, not a timestamp/ordering artifact.
+3a. **Failure-path determinism.** The typed-decode contract (#4566) made
+   malformed-fact -> `input_invalid` dead-letter a designed outcome, so the
+   failure path can race invisibly under a graph-only comparison. At least one
+   Odù is seeded with deliberately-malformed facts, and the matrix asserts the
+   **identical dead-letter set** (same work items, same `failure_class`) across
+   all N, alongside the graph identity. Teeth test: a deliberately racy
+   dead-letter path must be caught, mirroring the schedulereplay divergence
+   test.
 4. **Drain and timing** reuse the B-12 drain assertions
    (`fact_work_items.residual_max:0`) and perfcontract enforcement classes
    (`contract.go:6-19`) so a determinism run also proves the queue fully drained
@@ -364,8 +391,9 @@ Ifá asserts on.
 
 Layer 2 varies worker count to catch race defects; it never varies **load**.
 Layer 3 closes that gap without inventing a taxonomy, because the taxonomy
-already exists: `specs/scale-lab-corpus.v1.yaml` (issue #3170, currently
-`gate_status: proposed`) defines the smoke/small/medium/large/pathological
+already exists: `specs/scale-lab-corpus.v1.yaml` (issue #3170, now CLOSED;
+the spec's own `gate_status: proposed` field is stale and gets reconciled
+when Layer 3 adopts it) defines the smoke/small/medium/large/pathological
 corpus slots and the measurement contract (fact rows/sec, queue-claim p95,
 reducer drain, graph-write p95, API/MCP p95). Ifá **adopts** that spec as its
 load vocabulary; accepting #3170 becomes a Layer 3 dependency, not a parallel
@@ -502,6 +530,19 @@ selected by `scripts/dev/select-gates.sh`) that:
 4. Emits the same kind of deterministic dashboard/report the existing
    coverage/golden gates emit.
 
+Two harness-level policies land with `make prove` (P4):
+
+- **Flake policy — no retry-to-green, ever.** A nondeterministic failure IS a
+  determinism defect, the exact class this platform exists to catch. The
+  response is quarantine-by-issue and root-cause, never an automatic retry
+  that turns a red run green. This is the Serialization-Is-Not-A-Fix doctrine
+  applied to the harness itself.
+- **Prove-latency budget.** The common path of `make prove` carries a measured
+  wall-time budget (set from at least three measured runs at P4,
+  operator-gated per `perfcontract` enforcement classes). Prove-latency
+  regressions are bugs to root-cause, not accepted costs — a slow prove path
+  is how test frameworks rot into being skipped.
+
 `make prove` is the local mirror of the CI gate; CI stays authoritative
 (consistent with `make pre-pr`).
 
@@ -578,10 +619,11 @@ These are hard constraints. Ifá reuses; it does not reimplement.
 9. **Do not invent a second load-testing taxonomy.** Adopt the scale-lab
    corpus slots and measurement contract (`specs/scale-lab-corpus.v1.yaml`,
    #3170). If a slot or metric is missing, amend that spec, not Ifá.
-10. **Do not fork fixture systems.** An Odù is a fixture-pack entry
-    (contract-system epic #4566, fixture packs #4572) — one artifact,
-    versioned with the contracts module, consumed identically in-tree and by
-    external collector repos.
+10. **Do not fork the schema source.** The kind-level fixture pack
+    (`sdk/go/factschema/fixturepack`, #4572) and scenario-level Odù are two
+    tiers by design — but both MUST derive from the single schema source in
+    `sdk/go/factschema/schema/`. An Odù validates against those schemas and
+    may compose pack payloads; it never carries its own divergent schema copy.
 11. **Do not commit recorded provider cassettes to public corpora.** Redaction
     is key-name-only with opaque payloads (`canonical.go:49-83`); the public
     path is synthetic generation. Recorded cassettes are maintainer-private
@@ -619,11 +661,15 @@ Add the git-collector `LoadFacts` replay path (live-only —
 
 **P3 — determinism matrix + timing (determinism coverage generalized).**
 Run each Odù at N ∈ {1,2,4,…} and assert byte-identical canonical graph across
-N; enforce drain and perfcontract class. Evidence: matrix green on a known-good
-Odù; a deliberately non-idempotent write is caught (regression test first).
+N; enforce drain and perfcontract class. Also assert failure-path determinism:
+a malformed-fact Odù produces the identical dead-letter set across all N (step
+3a). Evidence: matrix green on a known-good Odù; a deliberately non-idempotent
+write is caught AND a deliberately racy dead-letter path is caught (regression
+tests first).
 
 **P4 — `make prove`, drop-an-Odù docs, advisory→blocking.**
-Land the `make prove` entry point and the drop-an-Odù checklist (mirroring the
+Land the `make prove` entry point, the flake policy (no retry-to-green), the
+measured prove-latency budget, and the drop-an-Odù checklist (mirroring the
 parser 7-step model). Flip the Ifá gate from advisory to blocking following the
 `replaycoverage` progression. Evidence: `make prove` runs credential-free and
 mirrors CI; docs build gate passes; blocking flip recorded in
