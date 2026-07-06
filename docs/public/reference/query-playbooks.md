@@ -110,6 +110,9 @@ The current catalog is returned by `PlaybookCatalog()`:
 | `query_to_code_topic_context` | 1.0.0 | `query.code_topic_context` | `search_semantic_context` → `investigate_code_topic` → `get_code_relationship_story`. Discover context with reranked search, then rank the code topic and read the relationship story. |
 | `query_to_incident_context` | 1.0.0 | `query.incident_context` | `search_semantic_context` → `get_incident_context` → `build_evidence_citation_packet`. Discover context with reranked search, then resolve the recommended incident into bounded context and cite the evidence. |
 | `query_to_supply_chain_context` | 1.0.0 | `query.supply_chain_context` | `search_semantic_context` → `explain_supply_chain_impact` → `build_evidence_citation_packet`. Discover context with reranked search, then explain the recommended package or image impact and cite the evidence. |
+| `demo_deployment_to_cloud_resource` | 1.0.0 | `demo.deployment_to_cloud_resource` | `list_kubernetes_correlations`. Single bounded call returning the digest-joined Kubernetes workload → OCI image correlations for a cluster (demo Q2). |
+| `demo_dependency_cross_repo` | 1.0.0 | `demo.dependency_cross_repo` | `list_package_registry_correlations`. Single bounded call returning the package consumption correlations that name the repository depending on a package (demo Q4). |
+| `demo_observability_to_workload` | 1.0.0 | `demo.observability_to_workload` | `list_observability_coverage_correlations`. Single bounded call returning the observability coverage correlations for a provider (demo Q5). |
 
 Each catalog playbook declares its own failure modes — for example "service not
 found" recommends `investigate_service`, and "citation packet truncated"
@@ -124,6 +127,12 @@ read-only context discovery (with `rerank: true` so the search step's
 retrieval alone. Each declares the failure modes a caller hits: missing search
 readiness (`semantic_unavailable` / `index_unready`), no hits, stale vectors,
 an ambiguous readback target, and truncation.
+
+The `demo_*` playbooks back the guided demo path in
+[Your First Five Questions](../getting-started/first-five-questions.md). Each is
+a single bounded call over an existing correlation tool, pinned to the
+`specs/demo-first-answers.v1.yaml` acceptance oracle. They wrap tools that
+already ship; they introduce no new query capability.
 
 ## API / MCP / CLI exposure
 
