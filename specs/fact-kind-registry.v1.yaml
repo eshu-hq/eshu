@@ -87,7 +87,14 @@ families:
     reducer_domain: code_graph_projection
     projection_hook: canonical_code_graph
     admission_hook: none
+    # repository fact read truth is the repositories route (repository rows).
+    # file fact read truth is the file listing, which that route does NOT
+    # return; it is served through the MCP file tools. read_surface_overrides
+    # points file at list_repository_files so its coverage exercises file rows
+    # (the golden-corpus gate asserts that tool live), not repository rows.
     read_surface: "GET /api/v0/repositories"
+    read_surface_overrides:
+      file: "list_repository_files"
     truth_profile: deterministic
     provider_key_independent: true
     payload_schema_overrides:
