@@ -136,6 +136,13 @@ func TestAllVersionedKindsStayWithinBaselineMajor(t *testing.T) {
 
 	const baselineMajor = "v1"
 	for _, entry := range facts.FactKindRegistry() {
+		if entry.AdmissionExempt {
+			// Admission-exempt kinds (file, repository) are registered for
+			// their contract metadata only and carry no schema version; they
+			// are not version-admitted, so the major-baseline guard does not
+			// apply to them. See issue #4752.
+			continue
+		}
 		sv := entry.SchemaVersion
 		if !strings.HasPrefix(sv, "v") {
 			sv = "v" + sv

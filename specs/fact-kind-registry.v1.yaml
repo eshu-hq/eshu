@@ -71,6 +71,29 @@ families:
       ci.step: "sdk/go/factschema/schema/ci.step.v1.schema.json"
       ci.workflow_image_evidence: "sdk/go/factschema/schema/ci.workflow_image_evidence.v1.schema.json"
     kinds: [ci.artifact, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
+  # code is an admission-exempt family (registry v1.1, issue #4752). It records
+  # the payload_schema contract for the legacy git code-graph kinds (file,
+  # repository) WITHOUT enrolling them in schema-version admission. These kinds
+  # predate the versioned-admission regime and flow as CompatibilityUnknownKind
+  # today; admission_exempt keeps that runtime behavior identical (no schema
+  # version, no collector stamp, no fixture ripple) while still checking in
+  # their JSON Schema references. This is the reusable pattern for the other
+  # version-less git kinds (code_dataflow_*, taint, interproc, function_summary)
+  # should they later register a payload_schema. See
+  # docs/public/reference/fact-schema-versioning.md.
+  code:
+    lifecycle_owner: go/internal/facts
+    admission_exempt: true
+    reducer_domain: code_graph_projection
+    projection_hook: canonical_code_graph
+    admission_hook: none
+    read_surface: "GET /api/v0/repositories"
+    truth_profile: deterministic
+    provider_key_independent: true
+    payload_schema_overrides:
+      file: "sdk/go/factschema/schema/file.v1.schema.json"
+      repository: "sdk/go/factschema/schema/repository.v1.schema.json"
+    kinds: [file, repository]
   ec2_instance_posture:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"

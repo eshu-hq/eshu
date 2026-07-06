@@ -72,7 +72,13 @@ consume these types as their input or storage shape.
   optional per-kind fields: `PayloadSchema` (repo-relative path to a checked-in
   JSON Schema artifact under `sdk/go/factschema/schema/`), `DeprecatedIn`, and
   `RemovedIn` (semver deprecation markers). They stay blank on entries that
-  have not adopted a typed schema or a deprecation plan. See
+  have not adopted a typed schema or a deprecation plan. `AdmissionExempt`
+  marks a legacy family (the git `file`/`repository` kinds) registered for its
+  `PayloadSchema` and core-name reservation but deliberately kept out of
+  schema-version admission: an exempt kind carries no schema version and
+  classifies as `CompatibilityUnknownKind` exactly as an unregistered kind,
+  so registering it does not change how its envelopes are admitted or
+  projected. See
   [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md).
 - Documentation fact payloads — source-neutral payload structs and stable-ID
   helpers for documentation sources, documents, sections, links, entity

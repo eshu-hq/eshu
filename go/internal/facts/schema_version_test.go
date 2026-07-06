@@ -37,6 +37,11 @@ func TestEveryCoreFactKindHasRegisteredSchemaVersion(t *testing.T) {
 	t.Parallel()
 
 	for _, kind := range CoreFactKinds() {
+		if entry, ok := FactKindRegistryEntryFor(kind); ok && entry.AdmissionExempt {
+			// Admission-exempt kinds are registered for their contract
+			// metadata only and intentionally carry no schema version.
+			continue
+		}
 		version, ok := SchemaVersion(kind)
 		if !ok {
 			t.Fatalf("core fact kind %q has no registered schema version; add its family to schemaVersionFamilies", kind)
