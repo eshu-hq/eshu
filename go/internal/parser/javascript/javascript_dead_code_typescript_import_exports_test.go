@@ -119,8 +119,11 @@ export interface FastifyRequest<RequestType extends FastifyRequestType = Resolve
 			source:       "./type-provider",
 		},
 	}
+	facts := typeScriptPublicSurfaceNodeFacts{
+		declarationMentions: javaScriptTypeScriptPublicDeclarationMentionsByName(root, source),
+	}
 
-	got := javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(root, source, item, bindings)
+	got := javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(item, facts, bindings)
 	if _, ok := got["ResolveFastifyRequestType"]; !ok {
 		t.Fatalf("references = %#v, want ResolveFastifyRequestType", got)
 	}

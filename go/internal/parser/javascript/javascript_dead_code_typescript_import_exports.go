@@ -97,6 +97,7 @@ func stringOr(value any) string {
 
 func javaScriptTypeScriptPublicImportedTypeReferenceNames(
 	repoRoot string,
+	packageRoot string,
 	publicPath string,
 	targetPath string,
 	exportedNames map[string]struct{},
@@ -118,17 +119,17 @@ func javaScriptTypeScriptPublicImportedTypeReferenceNames(
 		}
 		visited[visitKey] = struct{}{}
 
-		root, source, ok := siblingParser.rootForFile(item.path)
-		if !ok {
+		facts := packageSurfaceFacts(packageRoot, item.path, siblingParser)
+		if !facts.ok {
 			continue
 		}
-		targetBindings := javaScriptTypeScriptImportedBindingsForTarget(repoRoot, item.path, targetPath, root, source, exportedNames)
-		for name := range javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(root, source, item, targetBindings) {
+		targetBindings := javaScriptTypeScriptImportedBindingsForTarget(repoRoot, item.path, targetPath, facts, exportedNames)
+		for name := range javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(item, facts, targetBindings) {
 			if binding, ok := targetBindings[name]; ok {
 				references[binding.importedName] = struct{}{}
 			}
 		}
-		for _, reexport := range javaScriptTypeScriptStaticReexportsFromRoot(root, source) {
+		for _, reexport := range facts.reexports {
 			nextNames, nextStar, ok := javaScriptTypeScriptPropagateReexport(item, reexport)
 			if !ok {
 				continue
@@ -150,16 +151,14 @@ func javaScriptTypeScriptImportedBindingsForTarget(
 	repoRoot string,
 	fromPath string,
 	targetPath string,
-	root *tree_sitter.Node,
-	source []byte,
+	facts typeScriptPublicSurfaceNodeFacts,
 	exportedNames map[string]struct{},
 ) map[string]javaScriptTypeScriptImportedBinding {
-	bindings := javaScriptTypeScriptNamedImportsByLocalName(root, source)
-	if len(bindings) == 0 {
+	if len(facts.namedImportsByLocalName) == 0 {
 		return nil
 	}
 	targetBindings := make(map[string]javaScriptTypeScriptImportedBinding)
-	for localName, binding := range bindings {
+	for localName, binding := range facts.namedImportsByLocalName {
 		if _, ok := exportedNames[binding.importedName]; !ok {
 			continue
 		}
@@ -174,23 +173,24 @@ func javaScriptTypeScriptImportedBindingsForTarget(
 }
 
 func javaScriptTypeScriptImportedTypeReferencesFromPublicDeclarations(
-	root *tree_sitter.Node,
-	source []byte,
 	item javaScriptTypeScriptSurfaceWalkItem,
+	facts typeScriptPublicSurfaceNodeFacts,
 	importsByLocalName map[string]javaScriptTypeScriptImportedBinding,
 ) map[string]struct{} {
-	if len(importsByLocalName) == 0 {
-		return nil
-	}
-	declarations := javaScriptTypeScriptPublicDeclarationNodes(root, source, item)
-	if len(declarations) == 0 {
+	if len(importsByLocalName) == 0 || len(facts.declarationMentions) == 0 {
 		return nil
 	}
 	references := make(map[string]struct{})
-	for _, declaration := range declarations {
-		mentioned := javaScriptTypeScriptDeclarationMentionedNames(declaration, source, importsByLocalName)
+	for declarationName, mentioned := range facts.declarationMentions {
+		if !item.star {
+			if _, ok := item.names[declarationName]; !ok {
+				continue
+			}
+		}
 		for localName := range mentioned {
-			references[localName] = struct{}{}
+			if _, ok := importsByLocalName[localName]; ok {
+				references[localName] = struct{}{}
+			}
 		}
 	}
 	return references
@@ -223,41 +223,6 @@ func javaScriptTypeScriptDeclarationMentionedNames(
 		}
 	})
 	return mentioned
-}
-
-// javaScriptTypeScriptPublicDeclarationNodes returns the exported declaration
-// nodes whose names are public for this walk item. A star item exposes every
-// exported interface/type/class/enum declaration; a named item exposes only the
-// declarations matching the carried names.
-func javaScriptTypeScriptPublicDeclarationNodes(
-	root *tree_sitter.Node,
-	source []byte,
-	item javaScriptTypeScriptSurfaceWalkItem,
-) []*tree_sitter.Node {
-	declarations := make([]*tree_sitter.Node, 0)
-	if root == nil {
-		return declarations
-	}
-	parents := buildJavaScriptParentLookup(root)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if !javaScriptIsExported(node, parents) {
-			return
-		}
-		if !javaScriptTypeScriptIsPublicDeclarationKind(node) {
-			return
-		}
-		name := javaScriptTypeScriptDeclarationName(node, source)
-		if name == "" {
-			return
-		}
-		if !item.star {
-			if _, ok := item.names[name]; !ok {
-				return
-			}
-		}
-		declarations = append(declarations, node)
-	})
-	return declarations
 }
 
 // javaScriptTypeScriptIsPublicDeclarationKind reports whether node is an
