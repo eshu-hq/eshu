@@ -63,9 +63,14 @@ questions:
       in the golden snapshot); MCP parity is get_service_story
       {workload_id: "workload:api-svc"}.
     expected_answer:
+      # Top-level keys captured live from get_service_story against the
+      # golden-corpus-gate stack (see PR body). get_service_story does NOT
+      # return a top-level "story"/"story_sections" pair; the code->runtime
+      # story lives under code_to_runtime_trace and deployment_* here.
       required_response_fields:
         - answer_metadata
         - answer_packet
+        - api_surface
         - ci_cd_evidence
         - code_to_runtime_trace
         - deployment_evidence
@@ -73,8 +78,6 @@ questions:
         - deployment_overview
         - service_identity
         - service_name
-        - story
-        - story_sections
       demonstrates_correlations:
         - rc-2
         - rc-8
@@ -227,11 +230,14 @@ questions:
       into the gate's required_correlations. See PR body for the captured
       response.
     expected_answer:
-      required_json_paths:
-        - data.correlations
-        - data.count
-        - data.limit
-        - data.truncated
+      # Captured live: the observability coverage route returns correlations at
+      # the TOP level (no "data" envelope), so these are top-level response
+      # fields, not data.* JSON paths. count = 2 for provider=tempo.
+      required_response_fields:
+        - correlations
+        - count
+        - limit
+        - truncated
       demonstrates_correlations:
         - rc-2
     artifacts:
