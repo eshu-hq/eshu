@@ -1,0 +1,14 @@
+{
+  "graph_kind": "code_taint_evidence",
+  "repo_id": "repo-example",
+  "relative_path": "src/service.go",
+  "function_name": "HandleRequest",
+  "language": "go",
+  "kind": "sql_injection",
+  "sink_kind": "sql_exec",
+  "source_kind": "http_request",
+  "binding": "req.Body",
+  "source_line": 12,
+  "sink_line": 42,
+  "confidence": 0.9
+}

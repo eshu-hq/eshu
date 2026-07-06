@@ -136,6 +136,42 @@ func TestBuildSQLRelationshipRetractRowsKeepsMalformedDeltaScoped(t *testing.T) 
 	}
 }
 
+// TestBuildSQLRelationshipDeltaScopeSkipsWhitespaceOnlyRelativePath is the
+// TDD regression for the Wave 4f S2 (issue #4754) typed-decode conversion of
+// buildSQLRelationshipDeltaScope: before this migration, the delta path
+// collection ran through semanticPayloadStringSlice, which trims each
+// delta_relative_paths entry and drops it if the trimmed result is empty,
+// so a whitespace-only entry never reached qualifySQLRelationshipDeltaFilePath.
+// The migration reuses codeCallDeltaRelativePathsFromRepository (the codegraph
+// decode seam's typed delta-path union), which returns each JSON array
+// element RAW with no trimming — so a whitespace-only entry that would have
+// been silently dropped can leak through path.Clean (which does not trim
+// whitespace) into a bogus "<repoPath>/  "-shaped qualified path if the
+// conversion does not add its own trim-and-skip step. This test proves the
+// conversion added that step: a whitespace-only entry is dropped, and a
+// genuine entry alongside it still qualifies normally.
+func TestBuildSQLRelationshipDeltaScopeSkipsWhitespaceOnlyRelativePath(t *testing.T) {
+	t.Parallel()
+
+	env := facts.Envelope{
+		FactKind: factKindRepository,
+		Payload: map[string]any{
+			"repo_id":              "repo-whitespace",
+			"local_path":           "/repo",
+			"delta_generation":     true,
+			"delta_relative_paths": []any{"   ", "db/real.sql"},
+		},
+	}
+
+	scope := buildSQLRelationshipDeltaScope([]facts.Envelope{env})
+
+	gotPaths := scope.filePathsByRepoID["repo-whitespace"]
+	wantPaths := []string{"/repo/db/real.sql"}
+	if !reflect.DeepEqual(gotPaths, wantPaths) {
+		t.Fatalf("filePathsByRepoID[%q] = %#v, want %#v (whitespace-only entry must be dropped, not qualified into a bogus path)", "repo-whitespace", gotPaths, wantPaths)
+	}
+}
+
 func TestLoadSQLRelationshipMaterializationFactsUsesSingleLegacyFallback(t *testing.T) {
 	t.Parallel()
 

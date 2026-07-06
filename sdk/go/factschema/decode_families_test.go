@@ -328,6 +328,24 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindCodegraphRepository:
 		_, err := DecodeCodegraphRepository(env)
 		return err
+	case FactKindCodeDataflowScanned:
+		_, err := DecodeCodeDataflowScanned(env)
+		return err
+	case FactKindCodeDataflowFunction:
+		_, err := DecodeCodeDataflowFunction(env)
+		return err
+	case FactKindCodeFunctionSummary:
+		_, err := DecodeCodeFunctionSummary(env)
+		return err
+	case FactKindCodeFunctionSource:
+		_, err := DecodeCodeFunctionSource(env)
+		return err
+	case FactKindCodeTaintEvidence:
+		_, err := DecodeCodeTaintEvidence(env)
+		return err
+	case FactKindCodeInterprocEvidence:
+		_, err := DecodeCodeInterprocEvidence(env)
+		return err
 	case FactKindCICDRun:
 		_, err := DecodeCICDRun(env)
 		return err
@@ -558,6 +576,12 @@ var allDecodedKinds = []string{
 	FactKindVulnerabilityGoCallReachability,
 	FactKindCodegraphFile,
 	FactKindCodegraphRepository,
+	FactKindCodeDataflowScanned,
+	FactKindCodeDataflowFunction,
+	FactKindCodeFunctionSummary,
+	FactKindCodeFunctionSource,
+	FactKindCodeTaintEvidence,
+	FactKindCodeInterprocEvidence,
 	FactKindCICDRun,
 	FactKindCICDArtifact,
 	FactKindCICDEnvironmentObservation,
@@ -845,6 +869,18 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeCodegraphFile(env)
 			case FactKindCodegraphRepository:
 				_, err = DecodeCodegraphRepository(env)
+			case FactKindCodeDataflowScanned:
+				_, err = DecodeCodeDataflowScanned(env)
+			case FactKindCodeDataflowFunction:
+				_, err = DecodeCodeDataflowFunction(env)
+			case FactKindCodeFunctionSummary:
+				_, err = DecodeCodeFunctionSummary(env)
+			case FactKindCodeFunctionSource:
+				_, err = DecodeCodeFunctionSource(env)
+			case FactKindCodeTaintEvidence:
+				_, err = DecodeCodeTaintEvidence(env)
+			case FactKindCodeInterprocEvidence:
+				_, err = DecodeCodeInterprocEvidence(env)
 			case FactKindCICDRun:
 				_, err = DecodeCICDRun(env)
 			case FactKindCICDArtifact:

@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 type recordingCodeInterprocEvidenceWriter struct {
@@ -48,12 +50,48 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSourc
 	return nil
 }
 
+// stubCodeInterprocEvidenceLoader satisfies BOTH the fixpoint projector's typed
+// CodeInterprocEvidenceLoader (returning inputs) and the materialization
+// handler's CodeInterprocEvidenceFactLoader (returning envelopes built from the
+// same inputs), so the one stub serves both call contexts.
 type stubCodeInterprocEvidenceLoader struct {
 	inputs []CodeInterprocEvidenceInput
 }
 
 func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]CodeInterprocEvidenceInput, error) {
 	return l.inputs, nil
+}
+
+func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidenceFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	envelopes := make([]facts.Envelope, 0, len(l.inputs))
+	for _, in := range l.inputs {
+		envelopes = append(envelopes, codeInterprocEvidenceEnvelope(in))
+	}
+	return envelopes, nil
+}
+
+// codeInterprocEvidenceEnvelope builds a valid code_interproc_evidence fact
+// envelope carrying the fields a sample CodeInterprocEvidenceInput decodes to.
+func codeInterprocEvidenceEnvelope(in CodeInterprocEvidenceInput) facts.Envelope {
+	payload := map[string]any{
+		"source_function_uid":  in.SourceFunctionUID,
+		"sink_function_uid":    in.SinkFunctionUID,
+		"relative_path":        in.RelativePath,
+		"source_function_name": in.SourceFunctionName,
+		"sink_function_name":   in.SinkFunctionName,
+		"language":             in.Language,
+		"sink_kind":            in.SinkKind,
+		"source_kind":          in.SourceKind,
+		"confidence":           in.Confidence,
+	}
+	if in.Cloud {
+		payload["cloud"] = true
+	}
+	return facts.Envelope{
+		FactID:   "interproc:" + in.SourceFunctionUID + ":" + in.SinkFunctionUID,
+		FactKind: facts.CodeInterprocEvidenceFactKind,
+		Payload:  payload,
+	}
 }
 
 func codeInterprocEvidenceIntent() Intent {

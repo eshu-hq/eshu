@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -38,13 +39,37 @@ func codeInterprocEvidenceDomainDefinition() DomainDefinition {
 }
 
 // CodeInterprocEvidenceLoader loads reducer-ready cross-function findings for one
-// scope generation.
+// scope generation. It is satisfied both by the fixpoint evidence loader
+// (ValueFlowFixpointEvidenceLoader, which SOLVES the cross-repo value-flow
+// program from persisted summaries and therefore has no raw fact to decode)
+// and, historically, by the postgres raw-fact loader. The materialization
+// handler no longer uses this interface for raw facts — it uses
+// CodeInterprocEvidenceFactLoader so it can decode + quarantine — but the
+// fixpoint projector (ValueFlowFixpointEvidenceProjector) still consumes this
+// typed-input interface because its inputs come from an in-memory solve, not
+// a raw decode.
 type CodeInterprocEvidenceLoader interface {
 	LoadCodeInterprocEvidence(
 		ctx context.Context,
 		scopeID string,
 		generationID string,
 	) ([]CodeInterprocEvidenceInput, error)
+}
+
+// CodeInterprocEvidenceFactLoader loads the raw code_interproc_evidence fact
+// envelopes for one scope generation. The materialization handler decodes them
+// through the typed contracts seam (ExtractCodeInterprocEvidenceRowsWithQuarantine)
+// so a malformed fact dead-letters as an input_invalid quarantine rather than
+// being silently dropped by the loader (Contract System v1 Wave 4f S2, issue
+// #4754). This is separate from CodeInterprocEvidenceLoader because the
+// fixpoint projector's loader produces already-typed inputs from an in-memory
+// solve and has no envelopes to hand back.
+type CodeInterprocEvidenceFactLoader interface {
+	LoadCodeInterprocEvidenceFacts(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+	) ([]facts.Envelope, error)
 }
 
 // CodeInterprocEvidenceWriter writes and retracts reducer-owned TAINT_FLOWS_TO
@@ -58,7 +83,7 @@ type CodeInterprocEvidenceWriter interface {
 // CodeInterprocEvidenceMaterializationHandler reduces one cross-function
 // evidence intent into TAINT_FLOWS_TO edge rows.
 type CodeInterprocEvidenceMaterializationHandler struct {
-	Loader               CodeInterprocEvidenceLoader
+	Loader               CodeInterprocEvidenceFactLoader
 	Writer               CodeInterprocEvidenceWriter
 	PriorGenerationCheck PriorGenerationCheck
 	Instruments          *telemetry.Instruments
@@ -78,12 +103,15 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 		return Result{}, fmt.Errorf("code interproc evidence writer is required")
 	}
 
-	inputs, err := h.Loader.LoadCodeInterprocEvidence(ctx, intent.ScopeID, intent.GenerationID)
+	envelopes, err := h.Loader.LoadCodeInterprocEvidenceFacts(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load code interproc evidence: %w", err)
 	}
-	rows := ExtractCodeInterprocEvidenceRows(inputs)
-	unresolvedEndpointCount := unresolvedCodeInterprocEndpointCount(inputs)
+	rows, quarantined, err := ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("decode code interproc evidence: %w", err)
+	}
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCodeInterprocEvidence, intent.ScopeID, intent.GenerationID, quarantined)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
@@ -108,9 +136,9 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 		"code interproc evidence materialization completed",
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
-		"finding_count", len(inputs),
+		"fact_count", len(envelopes),
 		"graph_rows", len(rows),
-		"unresolved_endpoint_count", unresolvedEndpointCount,
+		"input_invalid_facts", inputInvalidCount,
 		"skip_retract", skipRetract,
 	)
 
@@ -119,12 +147,12 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 		Domain:   DomainCodeInterprocEvidence,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d cross-function taint edge(s) from %d finding(s), skipped %d unresolved endpoint finding(s)",
+			"materialized %d cross-function taint edge(s) from %d fact(s)",
 			len(rows),
-			len(inputs),
-			unresolvedEndpointCount,
+			len(envelopes),
 		),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

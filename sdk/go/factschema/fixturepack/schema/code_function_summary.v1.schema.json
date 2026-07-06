@@ -1,0 +1,93 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codedataflow/v1/code_function_summary.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "function_id": {
+      "type": "string"
+    },
+    "graph_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "param_to_call_arg": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "arg": {
+            "type": "integer"
+          },
+          "callee": {
+            "type": "string"
+          },
+          "param": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "callee",
+          "param",
+          "arg"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "param_to_return": {
+      "items": {
+        "type": "integer"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "param_to_sink": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "param": {
+            "type": "integer"
+          },
+          "sink_kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "param",
+          "sink_kind"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "source_to_return": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "function_id"
+  ],
+  "title": "Eshu code_function_summary Payload (schema version 1)",
+  "type": "object"
+}

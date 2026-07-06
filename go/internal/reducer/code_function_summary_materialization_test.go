@@ -8,18 +8,79 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
+// stubCodeFunctionSummaryLoader returns raw code_function_summary envelopes
+// built from its effects/graphIDs fields; the handler decodes them through the
+// typed contracts seam. The graphIDs field lets a test attach a graph_uid to a
+// function id so the graph-id view (which reads the same facts) resolves it.
 type stubCodeFunctionSummaryLoader struct {
-	effects map[summary.FunctionID]summary.Effects
+	effects  map[summary.FunctionID]summary.Effects
+	graphIDs map[summary.FunctionID]string
 }
 
-func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryEffects(
+func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryFacts(
 	context.Context, string, string,
-) (map[summary.FunctionID]summary.Effects, error) {
-	return l.effects, nil
+) ([]facts.Envelope, error) {
+	return l.summaryEnvelopes(), nil
+}
+
+// summaryEnvelopes builds one code_function_summary envelope per FunctionID in
+// effects (union'd with graphIDs so a graph-id-only function still emits a
+// fact), carrying the reconstructed effect lists a real payload would hold.
+func (l stubCodeFunctionSummaryLoader) summaryEnvelopes() []facts.Envelope {
+	ids := make(map[summary.FunctionID]struct{})
+	for id := range l.effects {
+		ids[id] = struct{}{}
+	}
+	for id := range l.graphIDs {
+		ids[id] = struct{}{}
+	}
+	envelopes := make([]facts.Envelope, 0, len(ids))
+	for id := range ids {
+		payload := map[string]any{"function_id": string(id)}
+		if uid, ok := l.graphIDs[id]; ok {
+			payload["graph_uid"] = uid
+		}
+		eff := l.effects[id]
+		if len(eff.ParamToReturn) > 0 {
+			ret := make([]any, 0, len(eff.ParamToReturn))
+			for _, p := range eff.ParamToReturn {
+				ret = append(ret, float64(p))
+			}
+			payload["param_to_return"] = ret
+		}
+		if len(eff.SourceToReturn) > 0 {
+			src := make([]any, 0, len(eff.SourceToReturn))
+			for _, s := range eff.SourceToReturn {
+				src = append(src, s)
+			}
+			payload["source_to_return"] = src
+		}
+		if len(eff.ParamToSink) > 0 {
+			sinks := make([]any, 0, len(eff.ParamToSink))
+			for _, s := range eff.ParamToSink {
+				sinks = append(sinks, map[string]any{"param": float64(s.Param), "sink_kind": s.SinkKind})
+			}
+			payload["param_to_sink"] = sinks
+		}
+		if len(eff.ParamToCallArg) > 0 {
+			flows := make([]any, 0, len(eff.ParamToCallArg))
+			for _, f := range eff.ParamToCallArg {
+				flows = append(flows, map[string]any{"callee": string(f.Callee), "param": float64(f.Param), "arg": float64(f.Arg)})
+			}
+			payload["param_to_call_arg"] = flows
+		}
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   "summary:" + string(id),
+			FactKind: facts.CodeFunctionSummaryFactKind,
+			Payload:  payload,
+		})
+	}
+	return envelopes
 }
 
 type recordingCodeFunctionSummaryWriter struct {
@@ -194,12 +255,27 @@ func TestNewDefaultRegistryAcceptsCodeFunctionSummaryWhenWired(t *testing.T) {
 	}
 }
 
+// stubCodeFunctionSourceLoader returns raw code_function_source envelopes built
+// from its sources slice; the handler decodes them through the typed contracts
+// seam.
 type stubCodeFunctionSourceLoader struct {
 	sources []interproc.Source
 }
 
-func (l stubCodeFunctionSourceLoader) LoadCodeFunctionSources(context.Context, string, string) ([]interproc.Source, error) {
-	return l.sources, nil
+func (l stubCodeFunctionSourceLoader) LoadCodeFunctionSourceFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	envelopes := make([]facts.Envelope, 0, len(l.sources))
+	for _, src := range l.sources {
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   "source:" + string(src.Port.Func),
+			FactKind: facts.CodeFunctionSourceFactKind,
+			Payload: map[string]any{
+				"function_id": string(src.Port.Func),
+				"kind":        src.Kind,
+				"param_index": float64(src.Port.Slot.Index),
+			},
+		})
+	}
+	return envelopes, nil
 }
 
 type recordingCodeFunctionSourceWriter struct {
@@ -281,12 +357,29 @@ func TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired(t *testing.T) {
 	}
 }
 
+// stubCodeFunctionGraphIDLoader returns raw code_function_summary envelopes
+// carrying a graph_uid per FunctionID in ids; the handler derives the
+// FunctionID->uid map from them (the same facts the summary loader reads). An
+// empty-string uid is emitted as a present-but-empty graph_uid so the
+// unresolved-id-clears-stale-mapping behavior is preserved.
 type stubCodeFunctionGraphIDLoader struct {
 	ids map[summary.FunctionID]string
 }
 
-func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDs(context.Context, string, string) (map[summary.FunctionID]string, error) {
-	return l.ids, nil
+func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	envelopes := make([]facts.Envelope, 0, len(l.ids))
+	for id, uid := range l.ids {
+		payload := map[string]any{"function_id": string(id)}
+		if uid != "" {
+			payload["graph_uid"] = uid
+		}
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   "summary:" + string(id),
+			FactKind: facts.CodeFunctionSummaryFactKind,
+			Payload:  payload,
+		})
+	}
+	return envelopes, nil
 }
 
 type recordingCodeFunctionGraphIDWriter struct {

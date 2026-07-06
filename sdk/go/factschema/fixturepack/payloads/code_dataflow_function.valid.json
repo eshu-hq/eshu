@@ -1,0 +1,11 @@
+{
+  "graph_kind": "code_dataflow_function",
+  "repo_id": "repo-example",
+  "relative_path": "src/service.go",
+  "function_name": "HandleRequest",
+  "function_uid": "uid:example-fn",
+  "language": "go",
+  "line_number": 10,
+  "cfg_blocks": [{ "id": 0, "succs": [1] }],
+  "cfg_edges": [{ "from": 0, "to": 1 }]
+}

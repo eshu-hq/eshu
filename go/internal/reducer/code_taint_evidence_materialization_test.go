@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 type recordingCodeTaintEvidenceWriter struct {
@@ -37,12 +39,39 @@ func (w *recordingCodeTaintEvidenceWriter) RetractCodeTaintEvidence(
 	return nil
 }
 
+// stubCodeTaintEvidenceLoader returns raw code_taint_evidence envelopes; the
+// handler decodes them through the typed contracts seam. envelopes are built
+// from sample inputs via codeTaintEvidenceEnvelope so the existing table tests
+// read the same way, plus tests can inject a malformed envelope directly.
 type stubCodeTaintEvidenceLoader struct {
-	inputs []CodeTaintEvidenceInput
+	envelopes []facts.Envelope
 }
 
-func (l stubCodeTaintEvidenceLoader) LoadCodeTaintEvidence(context.Context, string, string) ([]CodeTaintEvidenceInput, error) {
-	return l.inputs, nil
+func (l stubCodeTaintEvidenceLoader) LoadCodeTaintEvidence(context.Context, string, string) ([]facts.Envelope, error) {
+	return l.envelopes, nil
+}
+
+// codeTaintEvidenceEnvelope builds a valid code_taint_evidence fact envelope
+// carrying the fields a sample CodeTaintEvidenceInput would decode to.
+func codeTaintEvidenceEnvelope(in CodeTaintEvidenceInput) facts.Envelope {
+	return facts.Envelope{
+		FactID:   "taint:" + in.FunctionUID,
+		FactKind: facts.CodeTaintEvidenceFactKind,
+		Payload: map[string]any{
+			"function_uid":  in.FunctionUID,
+			"function_name": in.FunctionName,
+			"relative_path": in.RelativePath,
+			"language":      in.Language,
+			"kind":          in.Kind,
+			"sink_kind":     in.SinkKind,
+			"source_kind":   in.SourceKind,
+			"binding":       in.Binding,
+			"source_line":   float64(in.SourceLine),
+			"sink_line":     float64(in.SinkLine),
+			"confidence":    in.Confidence,
+			"guard_reason":  in.GuardReason,
+		},
+	}
 }
 
 func codeTaintEvidenceIntent() Intent {
@@ -69,7 +98,7 @@ func TestCodeTaintEvidenceHandlerRetractsThenWrites(t *testing.T) {
 
 	writer := &recordingCodeTaintEvidenceWriter{}
 	handler := CodeTaintEvidenceMaterializationHandler{
-		Loader:               stubCodeTaintEvidenceLoader{inputs: []CodeTaintEvidenceInput{sampleCodeTaintInput()}},
+		Loader:               stubCodeTaintEvidenceLoader{envelopes: []facts.Envelope{codeTaintEvidenceEnvelope(sampleCodeTaintInput())}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
@@ -102,7 +131,7 @@ func TestCodeTaintEvidenceHandlerSkipsRetractOnFirstGeneration(t *testing.T) {
 
 	writer := &recordingCodeTaintEvidenceWriter{}
 	handler := CodeTaintEvidenceMaterializationHandler{
-		Loader:               stubCodeTaintEvidenceLoader{inputs: []CodeTaintEvidenceInput{sampleCodeTaintInput()}},
+		Loader:               stubCodeTaintEvidenceLoader{envelopes: []facts.Envelope{codeTaintEvidenceEnvelope(sampleCodeTaintInput())}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
 	}

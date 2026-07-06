@@ -1,0 +1,21 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codedataflow/v1/code_dataflow_scanned.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repo_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "Eshu code_dataflow_scanned Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,82 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codedataflow/v1/code_interproc_evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "cloud": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relative_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sink_function_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sink_function_uid": {
+      "type": "string"
+    },
+    "sink_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_function_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_function_uid": {
+      "type": "string"
+    },
+    "source_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "why_trail": {
+      "items": {
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "why_trail_truncated": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "source_function_uid",
+    "sink_function_uid"
+  ],
+  "title": "Eshu code_interproc_evidence Payload (schema version 1)",
+  "type": "object"
+}

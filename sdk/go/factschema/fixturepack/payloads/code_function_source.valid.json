@@ -1,0 +1,8 @@
+{
+  "graph_kind": "code_function_source",
+  "function_id": "repo-example:pkg:HandleRequest",
+  "param_index": 0,
+  "kind": "http_request",
+  "repo_id": "repo-example",
+  "language": "go"
+}

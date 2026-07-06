@@ -118,6 +118,16 @@ func loadShellExecMaterializationFacts(
 // ExtractShellExecRows builds canonical shell execution edge rows from file
 // parser payloads. It records command-construction presence, never raw command
 // text or arguments.
+//
+// "repository" and "file" fact identity (repo_id, parsed_file_data) is decoded
+// through the codegraph contracts seam (decodeCodegraphRepository,
+// decodeCodegraphFile, Contract System v1 Wave 4f S2, issue #4754) rather than
+// raw semanticPayloadString/payloadMap lookups. A fact whose payload is
+// missing a required identity field is skipped, matching this function's
+// pre-existing "skip and continue" shape for an absent/blank repo_id or
+// parsed_file_data (the same "skip, do not join under an empty identity"
+// contract code_import_repo_edge_identity.go's decodeCodegraphFileImportIdentity
+// establishes for the same fact kinds).
 func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	if len(envelopes) == 0 {
 		return nil, nil
@@ -128,7 +138,11 @@ func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]an
 
 	for _, env := range envelopes {
 		if env.FactKind == factKindRepository {
-			if repoID := semanticPayloadString(env.Payload, "repo_id"); repoID != "" {
+			repository, err := decodeCodegraphRepository(env)
+			if err != nil {
+				continue
+			}
+			if repoID := strings.TrimSpace(repository.RepoID); repoID != "" {
 				repoSet[repoID] = struct{}{}
 			}
 			continue
@@ -136,11 +150,24 @@ func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]an
 		if env.FactKind != factKindFile || env.IsTombstone {
 			continue
 		}
-		parsedFileData := payloadMap(env.Payload, "parsed_file_data")
+		file, err := decodeCodegraphFile(env)
+		if err != nil {
+			continue
+		}
+		parsedFileData := file.ParsedFileData
 		if parsedFileData == nil {
 			continue
 		}
-		repoID := semanticPayloadString(env.Payload, "repo_id")
+		repoID := strings.TrimSpace(file.RepoID)
+		// "path" is read raw off the top-level envelope first, then falls
+		// back to parsed_file_data's own "path" key, preserving the exact
+		// pre-Contract-System precedence: "path" is NOT a typed
+		// codegraphv1.File field (fileFactEnvelope never writes it to the
+		// payload in production — it routes the checkout path to
+		// SourceRef.SourceURI, per codegraphv1.Repository's LocalPath
+		// precedent in code_call_materialization_intents.go), so it is read
+		// raw here only to preserve behavior for callers (and fixtures) that
+		// carry the source path under the top-level "path" key.
 		sourcePath := semanticPayloadString(env.Payload, "path")
 		if sourcePath == "" {
 			sourcePath = semanticPayloadString(parsedFileData, "path")

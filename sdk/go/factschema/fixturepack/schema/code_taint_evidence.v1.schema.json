@@ -1,0 +1,99 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codedataflow/v1/code_taint_evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "binding": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "class_context": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "function_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "function_uid": {
+      "type": "string"
+    },
+    "guard_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relative_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sink_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sink_label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sink_line": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "source_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_line": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "function_uid"
+  ],
+  "title": "Eshu code_taint_evidence Payload (schema version 1)",
+  "type": "object"
+}

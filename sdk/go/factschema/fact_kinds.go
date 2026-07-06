@@ -473,4 +473,24 @@ const (
 	FactKindCodegraphFile = "file"
 	// FactKindCodegraphRepository is the "repository" fact kind.
 	FactKindCodegraphRepository = "repository"
+
+	// The codedataflow family's fact-kind strings are also BARE (no family
+	// prefix): they are the git collector's original, pre-Contract-System
+	// literal kinds (go/internal/facts/code_dataflow.go,
+	// code_function_summary.go, code_function_source.go, code_taint.go,
+	// code_interproc.go). TestFactSchemaKindsMatchWireFactKinds (reducer side)
+	// asserts each stays byte-equal to its facts.*FactKind counterpart.
+
+	// FactKindCodeDataflowScanned is the "code_dataflow_scanned" fact kind.
+	FactKindCodeDataflowScanned = "code_dataflow_scanned"
+	// FactKindCodeDataflowFunction is the "code_dataflow_function" fact kind.
+	FactKindCodeDataflowFunction = "code_dataflow_function"
+	// FactKindCodeFunctionSummary is the "code_function_summary" fact kind.
+	FactKindCodeFunctionSummary = "code_function_summary"
+	// FactKindCodeFunctionSource is the "code_function_source" fact kind.
+	FactKindCodeFunctionSource = "code_function_source"
+	// FactKindCodeTaintEvidence is the "code_taint_evidence" fact kind.
+	FactKindCodeTaintEvidence = "code_taint_evidence"
+	// FactKindCodeInterprocEvidence is the "code_interproc_evidence" fact kind.
+	FactKindCodeInterprocEvidence = "code_interproc_evidence"
 )

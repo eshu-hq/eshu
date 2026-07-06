@@ -7,104 +7,33 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
-// LoadCodeFunctionSummaryEffects implements the reducer's function-summary loader
-// by scanning code_function_summary facts for one scope generation and rebuilding
-// each function's summary.Effects from its payload, keyed by the durable
-// FunctionID. JSONB numeric scans yield float64, so the integer fields are
-// coerced here.
-func (s FactStore) LoadCodeFunctionSummaryEffects(
+// LoadCodeFunctionSummaryFacts implements reducer.CodeFunctionSummaryLoader by
+// scanning the raw code_function_summary fact envelopes for one scope
+// generation. The reducer handler decodes them through the typed contracts
+// seam (ExtractCodeFunctionSummaryEffectsWithQuarantine /
+// ExtractCodeFunctionGraphIDsWithQuarantine) so a fact missing its required
+// function_id dead-letters as an input_invalid quarantine instead of being
+// silently dropped (Contract System v1 Wave 4f S2, issue #4754). Tombstones
+// are filtered by the decode seam, not here.
+func (s FactStore) LoadCodeFunctionSummaryFacts(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) (map[summary.FunctionID]summary.Effects, error) {
-	envelopes, err := s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeFunctionSummaryFactKind})
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[summary.FunctionID]summary.Effects, len(envelopes))
-	for _, envelope := range envelopes {
-		if envelope.IsTombstone {
-			continue
-		}
-		id := payloadString(envelope.Payload, "function_id")
-		if id == "" {
-			continue
-		}
-		out[summary.FunctionID(id)] = codeFunctionSummaryEffectsFromPayload(envelope.Payload)
-	}
-	return out, nil
+) ([]facts.Envelope, error) {
+	return s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeFunctionSummaryFactKind})
 }
 
-// codeFunctionSummaryEffectsFromPayload rebuilds summary.Effects from one fact
-// payload, coercing the JSONB float64/any shapes back to the typed effect lists.
-func codeFunctionSummaryEffectsFromPayload(payload map[string]any) summary.Effects {
-	effects := summary.Effects{
-		ParamToReturn:  payloadIntSlice(payload, "param_to_return"),
-		SourceToReturn: payloadStringSlice(payload, "source_to_return"),
-	}
-	for _, raw := range payloadAnySlice(payload, "param_to_sink") {
-		entry, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		effects.ParamToSink = append(effects.ParamToSink, summary.ParamSink{
-			Param:    payloadInt(entry, "param"),
-			SinkKind: payloadString(entry, "sink_kind"),
-		})
-	}
-	for _, raw := range payloadAnySlice(payload, "param_to_call_arg") {
-		entry, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		effects.ParamToCallArg = append(effects.ParamToCallArg, summary.CallArgFlow{
-			Callee: summary.FunctionID(payloadString(entry, "callee")),
-			Param:  payloadInt(entry, "param"),
-			Arg:    payloadInt(entry, "arg"),
-		})
-	}
-	return effects
-}
-
-// payloadAnySlice reads a slice payload field as []any (JSONB arrays scan to []any).
-func payloadAnySlice(payload map[string]any, key string) []any {
-	value, _ := payload[key].([]any)
-	return value
-}
-
-// payloadInt reads an integer payload field, coercing the float64 that a JSONB
-// numeric scan yields.
-func payloadInt(payload map[string]any, key string) int {
-	switch value := payload[key].(type) {
-	case float64:
-		return int(value)
-	case int:
-		return value
-	case int64:
-		return int(value)
-	}
-	return 0
-}
-
-// payloadIntSlice reads an integer slice payload field with JSONB float64 coercion.
-func payloadIntSlice(payload map[string]any, key string) []int {
-	raw := payloadAnySlice(payload, key)
-	if len(raw) == 0 {
-		return nil
-	}
-	out := make([]int, 0, len(raw))
-	for _, v := range raw {
-		switch n := v.(type) {
-		case float64:
-			out = append(out, int(n))
-		case int:
-			out = append(out, n)
-		case int64:
-			out = append(out, int(n))
-		}
-	}
-	return out
+// LoadCodeFunctionGraphIDFacts implements reducer.CodeFunctionGraphIDLoader by
+// scanning the same raw code_function_summary fact envelopes
+// LoadCodeFunctionSummaryFacts returns; the reducer handler derives the
+// FunctionID->graph-uid map from them. It is a distinct method so the graph-id
+// store wiring stays independent of the summary store's.
+func (s FactStore) LoadCodeFunctionGraphIDFacts(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) ([]facts.Envelope, error) {
+	return s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeFunctionSummaryFactKind})
 }
