@@ -20,10 +20,11 @@ version — pinning this module pins the fixture pack too.
 
 ## [Unreleased]
 
-## [0.1.0] - Unreleased
-
-Initial tagged release of the fact-schema contracts module (closes the
-scaffold started in #4567).
+Initial release candidate for the fact-schema contracts module (closes the
+scaffold started in #4567), proposed as `v0.1.0` (see
+[`RELEASING.md`](../../../RELEASING.md) for the exact tag command and
+reasoning). This section stays named `[Unreleased]` — not a dated `[0.1.0]`
+entry — until a maintainer actually cuts the tag, per the convention below.
 
 ### Added
 
