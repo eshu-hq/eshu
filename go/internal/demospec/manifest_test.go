@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 
@@ -88,9 +89,12 @@ func assertSurfaceResolves(t *testing.T, q Question, playbookIDs map[string]stru
 			t.Errorf("question %s: surface ref %q is not a playbook id in query.PlaybookCatalog()", q.ID, q.Surface.Ref)
 		}
 	case SurfaceKindMCP:
-		if _, ok := snapshot.QueryShapes.MCP[q.Surface.Ref]; !ok {
+		shape, ok := snapshot.QueryShapes.MCP[q.Surface.Ref]
+		if !ok {
 			t.Errorf("question %s: surface ref %q is not a key in golden snapshot query_shapes.mcp", q.ID, q.Surface.Ref)
+			return
 		}
+		assertArgumentKeysProven(t, q, shape)
 	case SurfaceKindCLI:
 		if _, ok := snapshot.QueryShapes.CLI[q.Surface.Ref]; !ok {
 			t.Errorf("question %s: surface ref %q is not a key in golden snapshot query_shapes.cli", q.ID, q.Surface.Ref)
@@ -101,6 +105,44 @@ func assertSurfaceResolves(t *testing.T, q Question, playbookIDs map[string]stru
 		}
 	default:
 		t.Errorf("question %s: unhandled surface kind %q", q.ID, q.Surface.Kind)
+	}
+}
+
+// assertArgumentKeysProven fails the test when an mcp question pins a call
+// argument whose key the golden snapshot's query_shape for that tool does not
+// declare. The referential-integrity contract is "no unproven surface"; that
+// must cover the arguments too, not only the tool name — otherwise a manifest
+// could pin a typo'd or unrecognized argument (e.g. `pkg_id` instead of
+// `package_id`) against a real tool and still stay green. The check is
+// key-level, not value-level: it allows a demo question to use a bounded
+// subset of the shape's arguments (or a different value), but rejects an
+// argument key the proven shape has never exercised. When the snapshot shape
+// declares no example arguments, there is nothing to validate against and the
+// check is skipped.
+func assertArgumentKeysProven(t *testing.T, q Question, shape json.RawMessage) {
+	t.Helper()
+	var parsed struct {
+		Arguments map[string]json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal(shape, &parsed); err != nil {
+		t.Errorf("question %s: cannot parse golden snapshot query_shape for %q: %v", q.ID, q.Surface.Ref, err)
+		return
+	}
+	if len(parsed.Arguments) == 0 {
+		return
+	}
+	known := make([]string, 0, len(parsed.Arguments))
+	for k := range parsed.Arguments {
+		known = append(known, k)
+	}
+	sort.Strings(known)
+	for key := range q.Surface.Arguments {
+		if _, ok := parsed.Arguments[key]; !ok {
+			t.Errorf(
+				"question %s: surface %q pins argument %q, which the golden snapshot query_shape for that tool does not declare (known arguments: %v); the manifest must not pin an argument the proven shape has never exercised",
+				q.ID, q.Surface.Ref, key, known,
+			)
+		}
 	}
 }
 
