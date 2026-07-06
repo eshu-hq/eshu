@@ -140,10 +140,22 @@ questions:
       and through which dependency edge?
     correlation_kind: dependency_to_vulnerability
     surface:
-      kind: playbook
-      ref: supply_chain_impact_explanation
+      kind: mcp
+      ref: explain_supply_chain_impact
       arguments:
         cve_id: CVE-2026-00000
+    notes: >
+      Pinned to the explain_supply_chain_impact MCP tool with {cve_id:
+      CVE-2026-00000} because the tool accepts cve_id directly and the golden
+      snapshot proves it live on this corpus, whose vulnerabilityintelligence
+      cassette is built around CVE-2026-00000. The guided-path playbook wrapper
+      is supply_chain_impact_explanation, which is finding_id-keyed; issue
+      #4745 wires that playbook with a real reducer-owned finding_id later, out
+      of scope here. HTTP parity is
+      GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000
+      (mcp:list_supply_chain_impact_findings parity). Confirmed live against
+      the golden-corpus-gate stack before this spec was finalized (see PR body
+      for the captured response).
     expected_answer:
       required_response_fields:
         - advisory
