@@ -228,6 +228,7 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 		{resolved.DocumentationStructDir, "documentationv1"},
 		{resolved.CodegraphStructDir, "codegraphv1"},
 		{resolved.CodedataflowStructDir, "codedataflowv1"},
+		{resolved.ServiceCatalogStructDir, "servicecatalogv1"},
 	}
 	shapes := make(map[string]StructShape)
 	for _, family := range families {
@@ -245,9 +246,9 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 // the aws/v1, iam/v1, incident/v1, gcp/v1, azure/v1, kuberneteslive/v1,
 // ociregistry/v1, terraformstate/v1, packageregistry/v1, sbom/v1,
 // vulnerability/v1, cicdrun/v1, secretsiam/v1, workitem/v1,
-// documentation/v1, and codegraph/v1 typed shapes, scan the reducer and
-// projector directories' files for field usage, and join the three into a
-// Manifest.
+// documentation/v1, codegraph/v1, codedataflow/v1, and servicecatalog/v1 typed
+// shapes, scan the reducer and projector directories' files for field usage,
+// and join the three into a Manifest.
 //
 // It returns an error if any seam's fact kind has no schema-file mapping
 // (UnmappedSeamFactKinds) or if any seam's struct type was not found in the

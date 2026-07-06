@@ -129,6 +129,18 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindCodeFunctionSource":    "code_function_source.v1.schema.json",
 	"FactKindCodeTaintEvidence":     "code_taint_evidence.v1.schema.json",
 	"FactKindCodeInterprocEvidence": "code_interproc_evidence.v1.schema.json",
+	// service_catalog family: the three kinds a reducer decode seam wrapper
+	// actually decodes (factschema_decode_servicecatalog.go), read by the
+	// correlation index. service_catalog.operational_link is typed
+	// (servicecatalogv1.OperationalLink) but has no reducer decode wrapper —
+	// it is read only by a raw-SQL JSONB loader in go/internal/query, which
+	// this reducer-decode-call-only gate cannot see (servicecatalog/v1
+	// README.md) — so it is intentionally absent here. The other five
+	// service_catalog kinds (dependency, api_link, scorecard_definition,
+	// scorecard_result, warning) carry no typed struct at all.
+	"FactKindServiceCatalogEntity":         "service_catalog.entity.v1.schema.json",
+	"FactKindServiceCatalogOwnership":      "service_catalog.ownership.v1.schema.json",
+	"FactKindServiceCatalogRepositoryLink": "service_catalog.repository_link.v1.schema.json",
 	// ci_cd_run family: all six kinds a reducer decode seam wrapper actually
 	// decodes (factschema_decode_cicdrun.go). ci.job, ci.pipeline_definition,
 	// and ci.warning carry no typed struct at all (cicdrun/v1 AGENTS.md), so

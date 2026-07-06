@@ -1,0 +1,39 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/servicecatalog/v1/operational_link.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "entity_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "link_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "Eshu service_catalog.operational_link Payload (schema version 1)",
+  "type": "object"
+}

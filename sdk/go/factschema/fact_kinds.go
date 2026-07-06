@@ -493,4 +493,18 @@ const (
 	FactKindCodeTaintEvidence = "code_taint_evidence"
 	// FactKindCodeInterprocEvidence is the "code_interproc_evidence" fact kind.
 	FactKindCodeInterprocEvidence = "code_interproc_evidence"
+
+	// FactKindServiceCatalogEntity is the "service_catalog.entity" fact kind.
+	FactKindServiceCatalogEntity = "service_catalog.entity"
+	// FactKindServiceCatalogOwnership is the "service_catalog.ownership" fact
+	// kind.
+	FactKindServiceCatalogOwnership = "service_catalog.ownership"
+	// FactKindServiceCatalogRepositoryLink is the
+	// "service_catalog.repository_link" fact kind.
+	FactKindServiceCatalogRepositoryLink = "service_catalog.repository_link"
+	// FactKindServiceCatalogOperationalLink is the
+	// "service_catalog.operational_link" fact kind. No reducer decode call
+	// uses it today; it is read only by a raw-SQL JSONB loader in
+	// go/internal/query (servicecatalog/v1's package doc).
+	FactKindServiceCatalogOperationalLink = "service_catalog.operational_link"
 )

@@ -1,0 +1,7 @@
+{
+  "provider": "backstage",
+  "entity_ref": "component:default/checkout",
+  "link_type": "runbook",
+  "title": "Checkout Runbook",
+  "url": "https://runbooks.internal/checkout"
+}

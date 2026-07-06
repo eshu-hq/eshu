@@ -30,6 +30,7 @@ import (
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
+	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
@@ -411,6 +412,10 @@ var payloadContracts = []struct {
 	{FactKindDocumentationClaimCandidate, "documentation_claim_candidate.v1.schema.json", reflect.TypeOf(documentationv1.ClaimCandidate{})},
 	{FactKindDocumentationFinding, "documentation_finding.v1.schema.json", reflect.TypeOf(documentationv1.Finding{})},
 	{FactKindDocumentationEvidencePacket, "documentation_evidence_packet.v1.schema.json", reflect.TypeOf(documentationv1.EvidencePacket{})},
+	{FactKindServiceCatalogEntity, "service_catalog.entity.v1.schema.json", reflect.TypeOf(servicecatalogv1.Entity{})},
+	{FactKindServiceCatalogOwnership, "service_catalog.ownership.v1.schema.json", reflect.TypeOf(servicecatalogv1.Ownership{})},
+	{FactKindServiceCatalogRepositoryLink, "service_catalog.repository_link.v1.schema.json", reflect.TypeOf(servicecatalogv1.RepositoryLink{})},
+	{FactKindServiceCatalogOperationalLink, "service_catalog.operational_link.v1.schema.json", reflect.TypeOf(servicecatalogv1.OperationalLink{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

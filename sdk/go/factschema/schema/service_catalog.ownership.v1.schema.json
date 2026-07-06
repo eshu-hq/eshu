@@ -1,0 +1,33 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/servicecatalog/v1/ownership.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "entity_ref": {
+      "type": "string"
+    },
+    "owner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "owner_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "entity_ref"
+  ],
+  "title": "Eshu service_catalog.ownership Payload (schema version 1)",
+  "type": "object"
+}
