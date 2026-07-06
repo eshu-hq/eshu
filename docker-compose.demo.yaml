@@ -1,0 +1,15 @@
+# Credential-free demo stack: the same correlated corpus the B-7 golden-corpus
+# gate proves (scripts/verify-golden-corpus-gate.sh), replayed as the acme org
+# under supply-chain-demo, so the five demo-first-answers questions
+# (specs/demo-first-answers.v1.yaml) answer correctly over HTTP with zero
+# credential env.
+#
+# This wrapper is the stable operator entrypoint. Service ownership lives in
+# the included fragments so the demo stack changes stay below the agent line
+# cap. See docs/public/run-locally/docker-compose.md for the full write-up.
+
+name: ${ESHU_DEMO_PROJECT_NAME:-eshu-demo}
+
+include:
+  - docker-compose.demo.corpus.yaml
+  - docker-compose.demo.runtime.yaml

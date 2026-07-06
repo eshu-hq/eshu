@@ -43,7 +43,15 @@ repos:
         # for that file is `mkdocs build --strict`, which loads the custom tags
         # correctly; a plain YAML decode would reject a valid config and force
         # `--no-verify` on any nav edit.
-        exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$|^deploy/helm/eshu/templates/'
+        #
+        # docker-compose.demo.*.yaml are excluded for the same reason: they use
+        # the Compose Spec `!override` merge tag (to replace the base stack's
+        # published-port list with the demo stack's non-colliding ports rather
+        # than append to it), which the generic SafeLoader cannot construct. The
+        # authoritative gate is `docker compose -f docker-compose.demo.yaml
+        # config`, which scripts/verify-demo-compose-answers.sh runs before every
+        # proof; a plain YAML decode would reject a valid Compose file.
+        exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$|^deploy/helm/eshu/templates/|^docker-compose\.demo\.'
       - id: check-added-large-files
         stages: [pre-commit]
         # Catches an accidentally-committed Go build artifact (e.g. a bare

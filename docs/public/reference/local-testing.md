@@ -382,6 +382,38 @@ Use [Discovery advisory](local-testing/discovery-advisory.md) when a repository
 is slow, unexpectedly large, or timeout-heavy. This is diagnostic evidence, not
 a stable API contract.
 
+## Demo Compose Stack Proof
+
+Use `scripts/verify-demo-compose-answers.sh` to prove the credential-free demo
+stack (`docker-compose.demo.yaml`) converges the corpus and answers the five
+`specs/demo-first-answers.v1.yaml` questions over HTTP. It is failing-test-first
+(red before the overlay exists, green after): it boots the stack with zero
+credential env, asserts each question over HTTP with no `Authorization` header,
+then runs `docker compose down -v --remove-orphans` and asserts zero leftover
+containers, volumes, or networks. Two grep gates run before the boot: no
+`:?`-required env var in any demo compose file, and no `*_TOKEN` /
+external-provider `*_API_KEY` / cloud-credential env anywhere in the demo path.
+
+No-Regression Evidence: the demo overlay changes no runtime behavior of the
+existing services. It replays the same fixture corpus, cassette collectors, and
+`bootstrap-index`/reducer/projector binaries the B-7 golden-corpus gate already
+proves on every PR (`scripts/verify-golden-corpus-gate.sh`), on the pinned
+NornicDB backend `timothyswt/nornicdb-cpu-bge:v1.1.9`. Baseline: the golden
+gate's ~900s wall-clock budget over its 20-repo/17-collector corpus. The demo
+runs a smaller manifest-declared subset (6 repos, 9 cassette collectors), and
+the proof script drains every queue to terminal — its final maintenance pass
+asserts zero `fact_work_items` residual and zero `shared_projection_intents`
+non-terminal rows — before asserting the five answers. The concurrency knobs the
+one-shot orchestrator sets (`ESHU_LISTEN_ADDR`/`ESHU_METRICS_ADDR` ephemeral
+ports so its concurrent reducer and projector do not collide, plus a per-drain
+settle) match the golden gate's own settings and affect only the orchestrator
+container; no default-stack behavior changes.
+
+No-Observability-Change: the demo overlay adds no new metrics, spans, or log
+fields. It reuses the existing bootstrap-index, reducer, projector, API, and MCP
+telemetry; orchestrator drain progress is plain stdout, and queue-drain state is
+read from the existing `fact_work_items` and `shared_projection_intents` tables.
+
 ## Process Profiling
 
 Use [Profiling and concurrency](local-testing/profiling-and-concurrency.md)
