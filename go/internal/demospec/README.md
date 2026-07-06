@@ -26,11 +26,19 @@ field/path, at least one demonstrated correlation). It does NOT own:
 
 - `LoadManifest(path string) (Manifest, error)` — reads and validates the
   manifest at `path`.
-- `Manifest`, `Question`, `Surface`, `SurfaceKind`, `ExpectedAnswer`,
-  `Artifacts` — the parsed manifest shape. See `doc.go` for the godoc
-  contract.
+- `Manifest`, `Question`, `Surface`, `SurfaceKind`, `ExecuteTarget`,
+  `ExpectedAnswer`, `Artifacts` — the parsed manifest shape. See `doc.go` for
+  the godoc contract.
 - `ManifestFileName` — `"demo-first-answers.v1.yaml"`, the file's name under
   `specs/`.
+
+Two fields make each question gate-executable by the demo-answers phase of the
+golden-corpus gate (issue #4776): `Surface.Execute` (an `ExecuteTarget` naming
+the underlying mcp tool or http route for a surface the gate cannot call
+directly — a playbook or a cli verb) and `ExpectedAnswer.MinimumResults` (the floor the answer's
+first result array must meet, so a demo answer that regresses to empty turns
+the gate red). `MinimumResults: 0` asserts field presence only, for
+object-shaped answers with no result array.
 
 ## Dependencies
 

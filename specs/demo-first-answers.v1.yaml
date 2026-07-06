@@ -57,6 +57,13 @@ questions:
       arguments:
         service_name: api-svc
         environment: prod
+      # A playbook id is not directly callable; execute names the underlying
+      # MCP tool the demo-answers gate invokes to fetch this question's answer.
+      execute:
+        kind: mcp
+        ref: get_service_story
+        arguments:
+          workload_id: "workload:api-svc"
     notes: >
       CLI parity is "eshu trace service --json" (command
       ["trace","service","checkout","--json"], parity_with mcp:get_service_story
@@ -78,6 +85,9 @@ questions:
         - deployment_overview
         - service_identity
         - service_name
+      # get_service_story returns an object (no result array), so the gate
+      # asserts field presence only, not a row count.
+      minimum_results: 0
       demonstrates_correlations:
         - rc-2
         - rc-8
@@ -116,6 +126,9 @@ questions:
         - count
         - limit
         - truncated
+      # Live count = 2 (two k8s workload->image correlations for this cluster);
+      # the gate fails if the correlations array regresses to empty.
+      minimum_results: 2
       demonstrates_correlations:
         - rc-4
     artifacts:
@@ -138,6 +151,11 @@ questions:
       ref: incident_context_evidence_path
       arguments:
         incident_id: PSCD1
+      # The incident-context HTTP route (PSCD1 in the path) is the gate-callable
+      # form of this playbook question; the demo-answers gate GETs it directly.
+      execute:
+        kind: http
+        ref: "GET /api/v0/incidents/PSCD1/context"
     notes: >
       The incident -> service correlation is a reducer correlation (the
       pagerduty PSCD1 incident scope, resolved through evidence_path with
@@ -155,6 +173,16 @@ questions:
         - incident
         - related_changes
         - timeline
+      # BuildIncidentContextResponse always materializes every evidence_path
+      # slot (a missing one gets truth_label=missing and no value), so array
+      # length alone cannot prove the incident still resolves to a service.
+      # Assert the positive service value instead: the service edge carries
+      # value.service_id ONLY when the incident->service link is present
+      # (missingIncidentContextEdge has no value block), so this path resolves
+      # to empty and fails the gate if that correlation regresses.
+      required_json_paths:
+        - evidence_path[].value.service_id
+      minimum_results: 0
       demonstrates_correlations:
         - rc-14
     artifacts:
@@ -194,12 +222,19 @@ questions:
       consumption correlation live (count 2). Confirmed against the golden gate
       before this spec was finalized (see PR body for the captured response).
     expected_answer:
-      required_json_paths:
+      # correlations is the top-level result array, so it lives in
+      # required_response_fields (the gate counts the first array-valued one);
+      # the per-item paths stay in required_json_paths.
+      required_response_fields:
         - collector_readiness
         - correlations
         - count
+      required_json_paths:
         - correlations[].outcome
         - correlations[].relationship_kind
+      # Live count = 2 (orders-api consumption + lib-common ownership); the gate
+      # fails if the package-registry consumption correlation regresses to empty.
+      minimum_results: 2
       demonstrates_correlations:
         - rc-3
     artifacts:
@@ -238,6 +273,9 @@ questions:
         - count
         - limit
         - truncated
+      # Live count = 2 tempo coverage correlations; require >= 1 so the
+      # observability->workload coverage cannot silently regress to empty.
+      minimum_results: 1
       demonstrates_correlations:
         - rc-2
     artifacts:

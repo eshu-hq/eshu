@@ -481,9 +481,15 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 emit_phase_timings_and_flags
 
 gate_status=0
+# demo-answers (#4776): after graph/query truth, execute the five
+# specs/demo-first-answers.v1.yaml questions live with their SPECIFIC arguments
+# and assert each returns a populated answer. The generic query shapes assert
+# each tool/route with example arguments; this phase guards the demo oracle's
+# own pinned arguments so a demo answer cannot silently regress to empty.
 "${bin_dir}/eshu-golden-corpus-gate" \
-	-phase=graph,query,timing \
+	-phase=graph,query,timing,demo-answers \
 	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
+	-demo-manifest=specs/demo-first-answers.v1.yaml \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" \
 	-graph-required-only=false \

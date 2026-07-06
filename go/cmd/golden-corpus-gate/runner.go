@@ -41,6 +41,11 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			return fmt.Errorf("query phase: %w", err)
 		}
 	}
+	if phases["demo-answers"] {
+		if err := runDemoAnswers(ctx, o, getenv, &r); err != nil {
+			return fmt.Errorf("demo-answers phase: %w", err)
+		}
+	}
 	if phases["timing"] {
 		if o.budgetSeconds > 0 {
 			EvaluateTiming(
@@ -174,9 +179,23 @@ func runQuery(ctx context.Context, o options, getenv func(string) string, snap S
 	return nil
 }
 
+// runDemoAnswers executes the demo-first-answers questions live and asserts a
+// populated answer for each (#4776). It reuses the query/mcp clients the query
+// phase builds; both the API and the MCP base URLs must be set because the
+// manifest pins mcp-tool questions alongside http-route ones.
+func runDemoAnswers(ctx context.Context, o options, getenv func(string) string, r *Report) error {
+	if strings.TrimSpace(o.mcpBaseURL) == "" {
+		return fmt.Errorf("requires -mcp-base-url: the demo-first-answers manifest pins mcp-tool questions")
+	}
+	apiKey := strings.TrimSpace(getenv("ESHU_API_KEY"))
+	qc := newQueryClient(o.apiBaseURL, apiKey)
+	mc := newMCPClient(o.mcpBaseURL, apiKey)
+	return checkDemoAnswers(ctx, qc, mc, o.demoManifestPath, r)
+}
+
 // phaseSet expands the comma-separated phase flag, treating "all" as every phase.
 func phaseSet(raw string) map[string]bool {
-	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true}
+	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true, "demo-answers": true}
 	out := map[string]bool{}
 	for _, p := range strings.Split(raw, ",") {
 		p = strings.TrimSpace(p)

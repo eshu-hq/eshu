@@ -96,6 +96,28 @@ type Surface struct {
 	// Arguments are the call arguments used against the surface (illustrative
 	// for docs; the referential-integrity test does not replay them).
 	Arguments map[string]any
+	// Execute is the concrete, gate-executable call that produces this
+	// question's answer. It is required for any surface the gate cannot call
+	// directly — a playbook (a playbook ID is not a callable endpoint) or a cli
+	// verb (the gate has no CLI seam) — so the manifest names the underlying
+	// mcp tool or http route the demo-answers gate invokes. It is optional for
+	// mcp/http surfaces, whose own Kind/Ref/Arguments are already executable;
+	// nil there means "run the surface itself".
+	Execute *ExecuteTarget
+}
+
+// ExecuteTarget is a concrete, gate-executable read call: an MCP tool or an
+// HTTP route plus its arguments. The demo-answers phase of the golden-corpus
+// gate uses it to fetch a live answer for a question whose Surface is not
+// directly callable (a playbook).
+type ExecuteTarget struct {
+	// Kind is the executable surface kind: mcp or http (not playbook or cli).
+	Kind SurfaceKind
+	// Ref is the MCP tool name, or the literal "METHOD /path" HTTP key.
+	Ref string
+	// Arguments are the call arguments (MCP tool arguments, or query/path
+	// parameters for an HTTP route).
+	Arguments map[string]any
 }
 
 // ExpectedAnswer describes what a correct answer looks like: the response
@@ -113,6 +135,14 @@ type ExpectedAnswer struct {
 	// from testdata/golden/e2e-20repo-snapshot.json that this question's
 	// answer proves ran.
 	DemonstratesCorrelations []string
+	// MinimumResults is the minimum number of items the answer's primary
+	// result array must contain for the answer to count as populated. Zero
+	// (the default) asserts only that the required fields/paths are present —
+	// correct for object-shaped answers with no result array. A positive value
+	// is asserted by the demo-answers gate phase against the first
+	// array-valued RequiredResponseFields entry, so a demo answer that
+	// silently regresses to empty turns the gate red.
+	MinimumResults int
 }
 
 // Artifacts are the golden-corpus inputs a question's answer depends on.
@@ -150,6 +180,13 @@ type questionFile struct {
 }
 
 type surfaceFile struct {
+	Kind      string             `yaml:"kind"`
+	Ref       string             `yaml:"ref"`
+	Arguments map[string]any     `yaml:"arguments"`
+	Execute   *executeTargetFile `yaml:"execute"`
+}
+
+type executeTargetFile struct {
 	Kind      string         `yaml:"kind"`
 	Ref       string         `yaml:"ref"`
 	Arguments map[string]any `yaml:"arguments"`
@@ -159,6 +196,7 @@ type expectedAnswerFile struct {
 	RequiredResponseFields  []string `yaml:"required_response_fields"`
 	RequiredJSONPaths       []string `yaml:"required_json_paths"`
 	DemonstratesCorrelation []string `yaml:"demonstrates_correlations"`
+	MinimumResults          int      `yaml:"minimum_results"`
 }
 
 type artifactsFile struct {
@@ -235,13 +273,9 @@ func convertQuestion(path string, qf questionFile) (Question, error) {
 		return Question{}, fmt.Errorf("demo-first-answers manifest %s: question %q has blank correlation_kind", path, id)
 	}
 
-	kind := SurfaceKind(strings.TrimSpace(qf.Surface.Kind))
-	if _, ok := validSurfaceKinds[kind]; !ok {
-		return Question{}, fmt.Errorf("demo-first-answers manifest %s: question %q has invalid surface kind %q", path, id, qf.Surface.Kind)
-	}
-	ref := strings.TrimSpace(qf.Surface.Ref)
-	if ref == "" {
-		return Question{}, fmt.Errorf("demo-first-answers manifest %s: question %q has blank surface ref", path, id)
+	surface, err := convertSurface(path, id, qf.Surface)
+	if err != nil {
+		return Question{}, err
 	}
 
 	if len(qf.ExpectedAnswer.RequiredResponseFields) == 0 && len(qf.ExpectedAnswer.RequiredJSONPaths) == 0 {
@@ -253,27 +287,82 @@ func convertQuestion(path string, qf questionFile) (Question, error) {
 	if len(qf.ExpectedAnswer.DemonstrateCorrelationsOrEmpty()) == 0 {
 		return Question{}, fmt.Errorf("demo-first-answers manifest %s: question %q demonstrates no correlations", path, id)
 	}
+	if qf.ExpectedAnswer.MinimumResults < 0 {
+		return Question{}, fmt.Errorf("demo-first-answers manifest %s: question %q has negative minimum_results %d", path, id, qf.ExpectedAnswer.MinimumResults)
+	}
 
 	return Question{
 		ID:              id,
 		QuestionText:    strings.TrimSpace(qf.Question),
 		CorrelationKind: strings.TrimSpace(qf.CorrelationKind),
-		Surface: Surface{
-			Kind:      kind,
-			Ref:       ref,
-			Arguments: qf.Surface.Arguments,
-		},
-		Notes: strings.TrimSpace(qf.Notes),
+		Surface:         surface,
+		Notes:           strings.TrimSpace(qf.Notes),
 		ExpectedAnswer: ExpectedAnswer{
 			RequiredResponseFields:   qf.ExpectedAnswer.RequiredResponseFields,
 			RequiredJSONPaths:        qf.ExpectedAnswer.RequiredJSONPaths,
 			DemonstratesCorrelations: qf.ExpectedAnswer.DemonstrateCorrelationsOrEmpty(),
+			MinimumResults:           qf.ExpectedAnswer.MinimumResults,
 		},
 		Artifacts: Artifacts{
 			Cassettes: qf.Artifacts.Cassettes,
 			Repos:     qf.Artifacts.Repos,
 		},
 	}, nil
+}
+
+// validExecuteKinds are the surface kinds an execute target may use: only the
+// two directly-callable read surfaces, never a playbook (not callable) or cli
+// (not reachable over the gate's API/MCP seams).
+var validExecuteKinds = map[SurfaceKind]struct{}{
+	SurfaceKindMCP:  {},
+	SurfaceKindHTTP: {},
+}
+
+// convertSurface validates and converts a question's surface block, including
+// the optional execute target that makes a playbook surface gate-executable.
+func convertSurface(path, id string, sf surfaceFile) (Surface, error) {
+	kind := SurfaceKind(strings.TrimSpace(sf.Kind))
+	if _, ok := validSurfaceKinds[kind]; !ok {
+		return Surface{}, fmt.Errorf("demo-first-answers manifest %s: question %q has invalid surface kind %q", path, id, sf.Kind)
+	}
+	ref := strings.TrimSpace(sf.Ref)
+	if ref == "" {
+		return Surface{}, fmt.Errorf("demo-first-answers manifest %s: question %q has blank surface ref", path, id)
+	}
+	exec, err := convertExecuteTarget(path, id, kind, sf.Execute)
+	if err != nil {
+		return Surface{}, err
+	}
+	return Surface{Kind: kind, Ref: ref, Arguments: sf.Arguments, Execute: exec}, nil
+}
+
+// convertExecuteTarget validates the optional execute block. A playbook surface
+// requires one (its ref is not directly callable, so the manifest must name the
+// underlying mcp tool or http route the gate invokes); an mcp/http/cli surface
+// may omit it. When present it must name an mcp tool or an http route.
+func convertExecuteTarget(path, id string, surfaceKind SurfaceKind, ef *executeTargetFile) (*ExecuteTarget, error) {
+	if ef == nil {
+		// A surface the gate cannot call directly (playbook: a playbook id is not
+		// a callable endpoint; cli: the gate has no CLI seam, only API/MCP) must
+		// name the underlying mcp tool or http route the demo-answers gate
+		// invokes. The directly-callable kinds (mcp, http) may omit execute.
+		if _, callable := validExecuteKinds[surfaceKind]; !callable {
+			return nil, fmt.Errorf(
+				"demo-first-answers manifest %s: question %q has a %s surface the gate cannot call directly but no surface.execute; name the underlying mcp tool or http route the demo-answers gate invokes",
+				path, id, surfaceKind,
+			)
+		}
+		return nil, nil
+	}
+	kind := SurfaceKind(strings.TrimSpace(ef.Kind))
+	if _, ok := validExecuteKinds[kind]; !ok {
+		return nil, fmt.Errorf("demo-first-answers manifest %s: question %q surface.execute has invalid kind %q (want mcp or http)", path, id, ef.Kind)
+	}
+	ref := strings.TrimSpace(ef.Ref)
+	if ref == "" {
+		return nil, fmt.Errorf("demo-first-answers manifest %s: question %q surface.execute has blank ref", path, id)
+	}
+	return &ExecuteTarget{Kind: kind, Ref: ref, Arguments: ef.Arguments}, nil
 }
 
 // DemonstrateCorrelationsOrEmpty returns the demonstrated correlation IDs, or

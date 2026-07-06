@@ -21,7 +21,10 @@
 // A successfully loaded Manifest always has exactly five Questions, each with
 // a non-blank ID, question text, correlation kind, and surface ref; a surface
 // Kind of playbook, mcp, cli, or http; at least one expected-answer field or
-// JSON path; and at least one demonstrated correlation ID. LoadManifest does
+// JSON path; a non-negative minimum_results; and at least one demonstrated
+// correlation ID. A surface the gate cannot call directly (a playbook id, or a
+// cli verb) additionally carries an execute target — the underlying mcp tool or
+// http route the demo-answers golden-gate phase invokes. LoadManifest does
 // not check that referenced artifacts (cassette families, fixture repos,
 // playbook IDs, or query-shape keys) actually exist — that referential
 // integrity is the job of the package's test suite, which cross-checks the
