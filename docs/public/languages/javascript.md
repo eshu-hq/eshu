@@ -120,3 +120,9 @@ Not claimed today:
 - Runtime-dependent computed expressions, dynamic `require()` targets,
   runtime plugin loading, package export breadth, and declaration/API precision
   remain outside the exactness boundary.
+- A JavaScript, TypeScript, or TSX file larger than 1 MiB has its tree-sitter
+  parse skipped entirely (the shared javascript-family parser bounds
+  TypeScript and TSX identically) to bound superlinear tree-sitter cost on
+  very large generated files such as minified webpack bundles (#4766). No
+  entities are extracted from a bounded file. The bound is recorded in
+  `payload["js_parse_bounded"]` and logged, never silently dropped.

@@ -79,6 +79,10 @@ Not claimed today:
 - Decorator/container behavior is not modeled as whole-framework reachability.
 - Dynamic imports, plugin loading, runtime property dispatch, and broad package
   declaration surfaces remain exactness blockers.
+- A TypeScript file larger than 1 MiB has its tree-sitter parse skipped
+  entirely (the shared javascript-family parser bounds JavaScript, TypeScript,
+  and TSX identically); see [JavaScript Parser](javascript.md#known-limitations)
+  for the bound (#4766).
 
 ## Related Docs
 

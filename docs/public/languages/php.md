@@ -83,3 +83,8 @@ Not claimed today:
   public surfaces, include/require resolution, namespace alias breadth, broader
   framework route resolution, and arbitrary whole-program alias flow remain
   outside the documented contract.
+- A PHP file larger than 1 MiB has its tree-sitter parse skipped entirely to
+  bound superlinear tree-sitter cost on very large generated files such as
+  CID font maps or bundled library sources (#4766). No entities are extracted
+  from a bounded file. The bound is recorded in `payload["php_parse_bounded"]`
+  and logged, never silently dropped.
