@@ -46,58 +46,38 @@ CREATE TABLE fact_work_items (
 );
 `
 
-// seedSucceededReopenWorkItem inserts one succeeded reducer work item for the
-// given domain and (scope_id, generation_id) partition, matching the shape
-// generation_liveness_sql.go's writer produces for a completed reducer run.
-func seedSucceededReopenWorkItem(
-	t *testing.T,
-	ctx context.Context,
-	db *sql.DB,
-	workItemID, scopeID, genID, domain string,
-	at time.Time,
-) {
-	t.Helper()
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_work_items
-  (work_item_id, scope_id, generation_id, stage, domain, status, payload, created_at, updated_at)
-VALUES ($1, $2, $3, 'reducer', $4, 'succeeded', '{}'::jsonb, $5, $5)`,
-		workItemID, scopeID, genID, domain, at); err != nil {
-		t.Fatalf("seed succeeded %s work item %q: %v", domain, workItemID, err)
-	}
-}
-
-// workItemStatus reads back one work item's current status.
-func workItemStatus(t *testing.T, ctx context.Context, db *sql.DB, workItemID string) string {
-	t.Helper()
-	var status string
-	if err := db.QueryRowContext(
-		ctx,
-		"SELECT status FROM fact_work_items WHERE work_item_id = $1", workItemID,
-	).Scan(&status); err != nil {
-		t.Fatalf("read status for work item %q: %v", workItemID, err)
-	}
-	return status
-}
-
 // TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence is the
-// MANDATORY equivalence regression proof for issue #4770: for a partition
+// MANDATORY equivalence regression proof for issue #4770. For a partition
 // whose backward evidence already committed under the CURRENT catalog
 // fingerprint (a real memo-hit, produced by running BackfillAllRelationshipEvidence
 // twice over an unchanged catalog+fact corpus, exactly like
 // TestDeferredBackfillPartitionMemoNoChangeRerunSkipsAndIsIdentical proves for
-// the fact-load side), the gated ReopenDeploymentMappingWorkItems call
-// produces the IDENTICAL resulting fact_work_items status ('succeeded',
-// unchanged — 0 rows reopened) as simply never reopening it at all: the
-// partition's evidence set is byte-identical before and after the skipped
-// reopen (proved by the shared evidenceEdgeSet comparison), so a reopened
-// replay of this work item would recompute the same intents the reducer
-// already resolved from that unchanged evidence — the skip is provably
-// redundant, not merely likely so.
+// the fact-load side), this test proves TWO things against the REAL
+// production code, not a stand-in:
+//
+//  1. The unconditional-reopen counterfactual is itself a no-op: driving the
+//     REAL reducer.CrossRepoRelationshipHandler.Resolve (backed by the real
+//     Postgres RelationshipStore/SharedIntentStore) TWICE over the SAME
+//     unchanged evidence — exactly what an unconditional reopen followed by a
+//     reducer re-drive to convergence would do — produces a byte-identical
+//     shared_projection_intents row set both times (0/0 on intent_id AND
+//     payload, not merely a row count). This is the direct evidence for the
+//     purity claim (DiscoverEvidence/Resolve/UpsertIntents are pure functions
+//     of (facts, catalog, assertions) with no read-back of their own prior
+//     output, and evidence_id/intent_id are content-addressed), proven by
+//     actually running the resolver rather than asserting it analytically.
+//  2. Given (1), the GATED ReopenDeploymentMappingWorkItems call leaving the
+//     work item 'succeeded' (0 rows reopened) is provably equivalent to
+//     letting the unconditional reopen run and re-resolve: both paths would
+//     converge to the identical intent rows proven in (1), so skipping the
+//     replay changes nothing about the eventual graph truth, only the
+//     scheduling cost of getting there.
 func TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence(t *testing.T) {
 	dsn := dsnForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
+	ensureResolverSchema(t, ctx, db)
 
 	base := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
 	fixtures := []memoProofFixture{
@@ -126,6 +106,15 @@ func TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence(t *tes
 	// if the reducer already resolved it against the evidence pass 1 committed.
 	seedSucceededReopenWorkItem(t, ctx, db, "work-deployment-mapping-a", "git:scope-a", "gen-a", "deployment_mapping", base)
 
+	// BASELINE: run the REAL cross-repo resolver once against pass 1's
+	// evidence, representing the resolution the reducer already performed
+	// before this work item was marked 'succeeded'.
+	baselineCount := resolveCrossRepoIntents(t, ctx, db, "git:scope-a", "gen-a")
+	baselineIntents := snapshotSharedProjectionIntents(t, ctx, db, "gen-a")
+	if baselineCount == 0 || len(baselineIntents) == 0 {
+		t.Fatal("baseline Resolve() emitted no intents; fixture is not exercising the cross-repo edge")
+	}
+
 	// Pass 2: identical catalog and facts. scope-a's partition must be a memo
 	// HIT (backward evidence unchanged since pass 1), so BackfillAllRelationshipEvidence
 	// skips its fact load AND ReopenDeploymentMappingWorkItems must skip
@@ -143,6 +132,20 @@ func TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence(t *tes
 		}
 	}
 
+	// UNCONDITIONAL-REOPEN COUNTERFACTUAL: run the REAL resolver a SECOND time
+	// over the same (unchanged) evidence pass 2 left in place — exactly what
+	// reopening this work item unconditionally and letting the reducer
+	// re-claim and re-drive it to convergence would do. Compare the resulting
+	// intent rows against the baseline for byte-identity (0/0), proving the
+	// replay this gate skips would have been a no-op, not merely asserting it.
+	counterfactualCount := resolveCrossRepoIntents(t, ctx, db, "git:scope-a", "gen-a")
+	counterfactualIntents := snapshotSharedProjectionIntents(t, ctx, db, "gen-a")
+	if counterfactualCount != baselineCount {
+		t.Fatalf("unconditional-reopen counterfactual Resolve() emitted %d intents, want %d (baseline)", counterfactualCount, baselineCount)
+	}
+	assertIntentSnapshotsIdentical(t, baselineIntents, counterfactualIntents,
+		"unconditional-reopen counterfactual vs baseline resolve over unchanged evidence")
+
 	if err := store.ReopenDeploymentMappingWorkItems(ctx, nil, nil); err != nil {
 		t.Fatalf("ReopenDeploymentMappingWorkItems() error = %v", err)
 	}
@@ -150,12 +153,18 @@ func TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence(t *tes
 	// EQUIVALENCE ASSERTION: the gated reopen must leave the work item
 	// 'succeeded' — identical to the resulting status set an unconditional
 	// reopen followed by re-resolving to convergence over UNCHANGED evidence
-	// would produce (a no-op replay converging back to the same intents),
+	// would produce (proven above to be a byte-identical no-op replay),
 	// because the replay was skipped, not merely because nothing happened to
 	// run.
 	if got, want := workItemStatus(t, ctx, db, "work-deployment-mapping-a"), "succeeded"; got != want {
 		t.Fatalf("work item status after gated reopen = %q, want %q (memo-hit partition must be skipped, 0 rows reopened)", got, want)
 	}
+
+	// The gated reopen must not itself have altered the intent rows: it only
+	// skips the queue-status transition, never touches shared_projection_intents.
+	postGateIntents := snapshotSharedProjectionIntents(t, ctx, db, "gen-a")
+	assertIntentSnapshotsIdentical(t, counterfactualIntents, postGateIntents,
+		"post-gate intents vs unconditional-reopen counterfactual")
 }
 
 // TestReopenDeploymentMappingWorkItemsReopensNonMemoHitPartition is the
@@ -326,127 +335,4 @@ func provisionReopenPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 		t.Fatalf("create proof tables: %v", err)
 	}
 	return schemaName
-}
-
-// seedArgoCDControlFixture seeds the same ArgoCD ApplicationSet + external
-// config repo shape TestDeferredBackfillPartitionMemoArgoCDCarveOutAlwaysReloads
-// uses, so this file's reopen-layer ArgoCD proof exercises the identical
-// evidence shape the fact-load-layer proof already covers.
-func seedArgoCDControlFixture(t *testing.T, ctx context.Context, db *sql.DB, base time.Time) {
-	t.Helper()
-
-	if _, err := db.ExecContext(ctx,
-		"INSERT INTO ingestion_scopes (scope_id, active_generation_id) VALUES ($1, NULL)", "git:scope-control"); err != nil {
-		t.Fatalf("seed scope-control: %v", err)
-	}
-	if _, err := db.ExecContext(ctx,
-		"INSERT INTO scope_generations (generation_id, scope_id, ingested_at) VALUES ($1, $2, $3)",
-		"gen-control", "git:scope-control", base); err != nil {
-		t.Fatalf("seed gen-control: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
-		"repo-fact-control", "git:scope-control", "gen-control", base,
-		`{"repo_id":"repo-control","name":"control-service"}`); err != nil {
-		t.Fatalf("seed repo-control repository fact: %v", err)
-	}
-
-	appSetYAML := `apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: demo
-spec:
-  generators:
-  - git:
-      repoURL: https://github.com/example/repo-config.git
-      files:
-      - path: services/*/service.yaml
-  template:
-    spec:
-      source:
-        repoURL: "{{ .service.repoURL }}"
-`
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'file', $1, 'git', $1, $4, $4, $5::jsonb)`,
-		"appset-control", "git:scope-control", "gen-control", base,
-		mustJSONPayload(t, "repo-control", "argocd", "appset.yaml", appSetYAML)); err != nil {
-		t.Fatalf("seed ApplicationSet fact: %v", err)
-	}
-
-	if _, err := db.ExecContext(ctx,
-		"INSERT INTO ingestion_scopes (scope_id, active_generation_id) VALUES ($1, NULL)", "git:scope-config"); err != nil {
-		t.Fatalf("seed scope-config: %v", err)
-	}
-	if _, err := db.ExecContext(ctx,
-		"INSERT INTO scope_generations (generation_id, scope_id, ingested_at) VALUES ($1, $2, $3)",
-		"gen-config-1", "git:scope-config", base); err != nil {
-		t.Fatalf("seed gen-config-1: %v", err)
-	}
-	if _, err := db.ExecContext(ctx,
-		"UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2",
-		"gen-config-1", "git:scope-config"); err != nil {
-		t.Fatalf("activate gen-config-1: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
-		"repo-fact-config", "git:scope-config", "gen-config-1", base,
-		`{"repo_id":"repo-config","name":"repo-config"}`); err != nil {
-		t.Fatalf("seed repo-config repository fact: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'content', $1, 'git', $1, $4, $4, $5::jsonb)`,
-		"content-config-1", "git:scope-config", "gen-config-1", base,
-		`{"repo_id":"repo-config","artifact_type":"yaml","relative_path":"services/demo/service.yaml","content":"service:\n  repoURL: https://github.com/example/repo-target-v1.git\n"}`); err != nil {
-		t.Fatalf("seed repo-config v1 content fact: %v", err)
-	}
-
-	for _, id := range []string{"target-v1", "target-v2"} {
-		scopeID := "git:scope-" + id
-		genID := "gen-" + id
-		repoID := "repo-" + id
-		if _, err := db.ExecContext(ctx,
-			"INSERT INTO ingestion_scopes (scope_id, active_generation_id) VALUES ($1, NULL)", scopeID); err != nil {
-			t.Fatalf("seed scope %q: %v", scopeID, err)
-		}
-		if _, err := db.ExecContext(ctx,
-			"INSERT INTO scope_generations (generation_id, scope_id, ingested_at) VALUES ($1, $2, $3)",
-			genID, scopeID, base); err != nil {
-			t.Fatalf("seed generation %q: %v", genID, err)
-		}
-		if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records
-  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
-VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
-			"repo-fact-"+repoID, scopeID, genID, base,
-			`{"repo_id":"`+repoID+`","name":"`+repoID+`"}`); err != nil {
-			t.Fatalf("seed repository fact for %q: %v", repoID, err)
-		}
-	}
-}
-
-// mustJSONPayload builds the file-fact payload JSON for the ArgoCD fixture,
-// matching the shape TestDeferredBackfillPartitionMemoArgoCDCarveOutAlwaysReloads
-// constructs inline via fmt.Sprintf.
-func mustJSONPayload(t *testing.T, repoID, artifactType, relativePath, content string) string {
-	t.Helper()
-	escaped := ""
-	for _, r := range content {
-		switch r {
-		case '\n':
-			escaped += `\n`
-		case '"':
-			escaped += `\"`
-		default:
-			escaped += string(r)
-		}
-	}
-	return `{"repo_id":"` + repoID + `","artifact_type":"` + artifactType + `","relative_path":"` + relativePath + `","content":"` + escaped + `"}`
 }

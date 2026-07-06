@@ -140,6 +140,25 @@ func applyReopenPartitionMemoGate(
 // case) returns an empty fingerprint, signalling the gate to fall back to the
 // legacy unconditional-reopen contract rather than fabricate a fingerprint that
 // could never match a real memo row.
+//
+// This intentionally diverges from the write side
+// (BackfillAllRelationshipEvidence, ingestion_backfill.go ~line 109), which
+// does NOT special-case ok=false: it always hashes the params (zero-value on
+// ok=false) through deferredCatalogFingerprint, which returns a fixed
+// non-empty digest even for zero-value input, and writeDeferredBackfillBatch
+// writes a memo row under that fixed digest whenever
+// catalogFingerprint != "" && len(memoCandidates) > 0 — a condition that does
+// not depend on ok, only on there being active repos to memoize. So an
+// ok=false pass CAN legitimately produce a real memo row keyed to that fixed
+// "empty-catalog" digest. The divergence is still safe because it can only
+// ever bias TOWARD reopening, never toward an unsafe skip: this function's ""
+// can never equal a stored "sha256:..." fingerprint (empty string vs. a
+// 64-hex-char digest, by construction), so applyReopenPartitionMemoGate's
+// currentFingerprint == "" short-circuit forces reopen-all every time, even on
+// the rare pass where the write side did commit a real fixed-digest memo row
+// for an empty catalog. The two sides would need to be reconciled only if a
+// future change wanted the reopen gate to SKIP on an ok=false pass; today it
+// never does.
 func computeCurrentReopenCatalogFingerprint(ctx context.Context, queryer Queryer) (string, error) {
 	if queryer == nil {
 		return "", nil

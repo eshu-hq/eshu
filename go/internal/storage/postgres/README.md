@@ -1154,20 +1154,36 @@ fact corpus, with a succeeded `deployment_mapping` work item seeded for the
 non-ArgoCD-bearing partition after pass 1, produces a Track 1 memo hit on pass
 2; `ReopenDeploymentMappingWorkItems` then leaves that work item `status =
 'succeeded'` (0 rows reopened) —
-`TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence` asserts
-this AND that the evidence edge set is byte-identical between pass 1 and pass
-2 (0/0), so the skip is proven against unchanged evidence, not merely a row
-count. The identical fixture with a stale (non-matching) memo fingerprint
-reopens (`TestReopenDeploymentMappingWorkItemsReopensNonMemoHitPartition`,
-status transitions to `pending`), and the ArgoCD-bearing control fixture
+`TestReopenDeploymentMappingWorkItemsSkipsMemoHitPartitionEquivalence` proves
+this against the REAL production resolver, not an analytical assertion: it
+wires `reducer.CrossRepoRelationshipHandler.Resolve` to the real
+Postgres-backed `RelationshipStore` (evidence loader) and `SharedIntentStore`
+(intent writer) — the same ports the reducer claim/drain path uses — runs
+`Resolve` once as the baseline, snapshots `shared_projection_intents`, runs
+`Resolve` a SECOND time over the identical unchanged evidence (the exact
+recomputation an unconditional reopen followed by a reducer re-drive would
+trigger), and asserts the two intent-row snapshots are byte-identical on both
+`intent_id` and `payload` (0/0), not merely a row count. This is the direct
+empirical evidence for the purity claim (`DiscoverEvidence`/`Resolve`/
+`UpsertIntents` are pure functions of `(facts, catalog, assertions)` with no
+read-back of their own prior output, and `evidence_id`/`intent_id` are
+content-addressed) — proven by actually running the resolver twice, not
+asserted. The differential assertion (`assertIntentSnapshotsIdentical`) was
+itself proven RED: injecting a fabricated payload mutation between the two
+`Resolve` runs made the test fail with the exact intent id and a
+before/after payload diff, confirming the check is load-bearing, not a
+tautology, before reverting to green. The identical fixture with a stale
+(non-matching) memo fingerprint reopens
+(`TestReopenDeploymentMappingWorkItemsReopensNonMemoHitPartition`, status
+transitions to `pending`), and the ArgoCD-bearing control fixture
 (`TestReopenDeploymentMappingWorkItemsAlwaysReopensArgoCDBearingPartition`,
 the same ApplicationSet/git-generator shape as
 `TestDeferredBackfillPartitionMemoArgoCDCarveOutAlwaysReloads`) always reopens
 despite its own partition being unchanged between passes.
 `TestReopenCodeImportRepoEdgeWorkItemsSkipsMemoHitPartition` proves the same
-skip on the `code_import_repo_edge` sibling path. The gate was proven RED
-without the fix: temporarily short-circuiting the memo-hit comparison in
-`applyReopenPartitionMemoGate` made
+skip on the `code_import_repo_edge` sibling path. The gate itself was also
+proven RED without the fix: temporarily short-circuiting the memo-hit
+comparison in `applyReopenPartitionMemoGate` made
 `TestApplyReopenPartitionMemoGateSkipsMemoHitPartition` fail with `ToReopen =
 [work-1]`, confirming the assertion is a real guard, not a tautology, before
 restoring the fix to green. Focused suite: `go test
@@ -1175,6 +1191,19 @@ restoring the fix to green. Focused suite: `go test
 ./cmd/ingester -count=1` — 4271 tests passed. This removes redundant reducer
 replay scheduling work; it does not change conflict-domain partitioning,
 worker counts, or batch sizes on the reopen path.
+
+`computeCurrentReopenCatalogFingerprint` intentionally diverges from the write
+side on the `buildDeferredScopedFactQueryParams` `ok=false` (empty/unbuildable
+catalog) case: the write side (`BackfillAllRelationshipEvidence`) always
+hashes the params — including the zero-value case — into
+`deferredCatalogFingerprint`'s fixed non-empty digest, and can commit a real
+memo row under that digest whenever there are active repos to memoize,
+independent of `ok`. The reopen side instead returns `""` on `ok=false`. This
+is safe, not merely convenient: `""` can never equal a stored `sha256:...`
+fingerprint, so the gate's `currentFingerprint == ""` short-circuit always
+forces reopen-all on that path, even on the rare pass where the write side did
+commit a fixed-digest memo row for an empty catalog. The divergence can only
+ever bias toward reopening, never toward an unsafe skip.
 
 Observability Evidence: `eshu_dp_reopen_skipped_by_partition_memo_total`
 (labeled `domain` = `deployment_mapping`/`code_import_repo_edge`, `reason` =
