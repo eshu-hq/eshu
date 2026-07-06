@@ -49,6 +49,17 @@ type File struct {
 	Metadata        map[string]string
 	Deleted         bool
 	EntityBuckets   map[string][]Entity
+
+	// ParseBounded is true when the parser skipped its tree-sitter parse for
+	// this file entirely because it exceeded a parser-level byte cap (the
+	// #4766 JS/TS/TSX/PHP 1 MiB cap: payload["js_parse_bounded"] /
+	// payload["php_parse_bounded"]). EntityBuckets is empty in that case not
+	// because the file has no symbols, but because the parse never ran. This
+	// mirrors the per-file entity-count cap (fileEntityCapHit below): both
+	// mean "no new entities were produced for a reason unrelated to the
+	// file's actual content" and both must force PurgeEntities so the writer
+	// retracts any stale content_entities left from a prior indexing run.
+	ParseBounded bool
 }
 
 // Entity captures one parser-shaped entity payload.
@@ -96,9 +107,12 @@ func Materialize(input Input) (content.Materialization, error) {
 
 // materializeFile returns the content record plus entities for one parsed file,
 // along with fileEntityCapHit which is true when the per-file entity count cap
-// was applied and entity materialization was skipped entirely. When the cap
-// fires, PurgeEntities is set on the record so the writer retracts any stale
-// content_entities rows left from a prior indexing run.
+// was applied and entity materialization was skipped entirely. PurgeEntities is
+// set on the record so the writer retracts any stale content_entities rows left
+// from a prior indexing run whenever the file's entity buckets are empty for a
+// reason unrelated to its actual content: the per-file entity-count cap fired
+// (fileEntityCapHit), or the parser itself skipped the parse via its byte cap
+// (file.ParseBounded, see #4766).
 func materializeFile(repoID string, file File) (content.Record, []content.EntityRecord, bool, error) {
 	path := strings.TrimSpace(file.Path)
 	if path == "" {
@@ -117,7 +131,7 @@ func materializeFile(repoID string, file File) (content.Record, []content.Entity
 	if err != nil {
 		return content.Record{}, nil, false, err
 	}
-	if fileEntityCapHit {
+	if fileEntityCapHit || file.ParseBounded {
 		record.PurgeEntities = true
 	}
 

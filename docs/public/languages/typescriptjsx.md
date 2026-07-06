@@ -43,6 +43,11 @@ Not claimed today:
 - Runtime-built component names, framework plugin loading, generated route
   maps, and JSX indirection that is not represented in source remain outside
   the exactness boundary.
+- A TSX file larger than 1 MiB has its tree-sitter parse skipped entirely in
+  the normal parse stage (the shared javascript-family parser bounds
+  JavaScript, TypeScript, and TSX identically); see
+  [JavaScript Parser](javascript.md#known-limitations) for the bound and its
+  pre-scan-stage gap (#4766, [#4808](https://github.com/eshu-hq/eshu/issues/4808)).
 
 ## Related Docs
 

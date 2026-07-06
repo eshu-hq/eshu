@@ -79,6 +79,11 @@ Not claimed today:
 - Decorator/container behavior is not modeled as whole-framework reachability.
 - Dynamic imports, plugin loading, runtime property dispatch, and broad package
   declaration surfaces remain exactness blockers.
+- A TypeScript file larger than 1 MiB has its tree-sitter parse skipped
+  entirely in the normal parse stage (the shared javascript-family parser
+  bounds JavaScript, TypeScript, and TSX identically); see
+  [JavaScript Parser](javascript.md#known-limitations) for the bound and its
+  pre-scan-stage gap (#4766, [#4808](https://github.com/eshu-hq/eshu/issues/4808)).
 
 ## Related Docs
 

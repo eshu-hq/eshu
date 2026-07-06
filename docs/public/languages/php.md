@@ -83,3 +83,11 @@ Not claimed today:
   public surfaces, include/require resolution, namespace alias breadth, broader
   framework route resolution, and arbitrary whole-program alias flow remain
   outside the documented contract.
+- A PHP file larger than 1 MiB has its tree-sitter parse skipped entirely in
+  the normal parse stage, to bound superlinear tree-sitter parse cost on very
+  large generated files such as CID font maps or bundled library sources
+  (#4766). No entities are extracted from a bounded file. The bound is
+  recorded in `payload["php_parse_bounded"]` and logged, never silently
+  dropped. The repository pre-scan stage is not yet bounded by this cap and
+  can still fully parse an over-cap file at the same cost; tracked in
+  [#4808](https://github.com/eshu-hq/eshu/issues/4808).

@@ -4,12 +4,56 @@
 package php
 
 import (
+	"log/slog"
 	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+// phpParseByteCap bounds the size of a single PHP file handed to tree-sitter.
+// Normal hand-written source is tens of KB; the pathological tail is large
+// generated files -- a 1.3MB TCPDF CID font-map measured 6.0s (~273x a normal
+// parse), and a 1.3MB mPDF file measured 2.5s (#4766) -- that tree-sitter
+// parses superlinearly. 1 MiB is generous headroom above any hand-written
+// file while remaining well below the pathological range.
+const phpParseByteCap = 1 << 20
+
+// phpBoundedFileEvent records one file whose size exceeded phpParseByteCap
+// and whose tree-sitter parse was skipped entirely.
+type phpBoundedFileEvent struct {
+	path          string
+	originalBytes int
+}
+
+// row renders one bounded-file event as a payload row for
+// payload["php_parse_bounded"].
+func (e phpBoundedFileEvent) row() map[string]any {
+	return map[string]any{
+		"path":           e.path,
+		"original_bytes": e.originalBytes,
+		"action":         "file_skipped",
+	}
+}
+
+// recordPHPBoundedFile appends a php_parse_bounded payload row for one
+// bounded file and emits a matching structured log line so a dropped parse
+// is observable rather than silent.
+func recordPHPBoundedFile(payload map[string]any, path string, originalBytes int) {
+	event := phpBoundedFileEvent{path: path, originalBytes: originalBytes}
+	payload["php_parse_bounded"] = append(
+		payload["php_parse_bounded"].([]map[string]any),
+		event.row(),
+	)
+	slog.Warn(
+		"php parse file bounded",
+		"component", "parser.php",
+		"path", event.path,
+		"original_bytes", event.originalBytes,
+		"action", "file_skipped",
+	)
+}
 
 // phpParseState carries the cross-statement evidence that PHP type inference
 // and dead-code root classification need while walking the AST. The maps mirror
@@ -43,15 +87,21 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 		return nil, err
 	}
 
+	payload := shared.BasePayload(path, "php", isDependency)
+	payload["traits"] = []map[string]any{}
+	payload["interfaces"] = []map[string]any{}
+	payload["php_parse_bounded"] = []map[string]any{}
+
+	if len(source) > phpParseByteCap {
+		recordPHPBoundedFile(payload, path, len(source))
+		return payload, nil
+	}
+
 	tree := parser.Parse(source, nil)
 	if tree == nil {
 		return nil, parseError(path)
 	}
 	defer tree.Close()
-
-	payload := shared.BasePayload(path, "php", isDependency)
-	payload["traits"] = []map[string]any{}
-	payload["interfaces"] = []map[string]any{}
 
 	state := &phpParseState{
 		payload:             payload,

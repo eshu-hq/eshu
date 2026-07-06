@@ -297,5 +297,27 @@ func shapeFileFromParsed(parsed map[string]any, relativePath string, body string
 		IACRelevant:     snapshotPayloadBoolPtr(parsed, "iac_relevant"),
 		CommitSHA:       commitSHA,
 		EntityBuckets:   entityBucketsFromParsed(parsed),
+		ParseBounded:    parseBoundedFromParsed(parsed),
 	}
+}
+
+// parseBoundedFileMarkers lists the parser payload keys that record a
+// skipped-parse event for the #4766 per-language byte cap. Each parser
+// (javascript.Parse, php.Parse) always initializes its bucket to an empty
+// slice and only appends a row when the file exceeded the cap and the
+// tree-sitter parse was skipped entirely, so a non-empty bucket here means
+// the file's EntityBuckets are empty for a reason unrelated to its actual
+// symbol content -- the same "no new entities were produced" signal the
+// per-file entity-count cap already forces PurgeEntities for.
+var parseBoundedFileMarkers = []string{"js_parse_bounded", "php_parse_bounded"}
+
+// parseBoundedFromParsed reports whether the parser skipped this file's
+// tree-sitter parse via a byte cap (see parseBoundedFileMarkers).
+func parseBoundedFromParsed(parsed map[string]any) bool {
+	for _, key := range parseBoundedFileMarkers {
+		if rows, ok := parsed[key].([]map[string]any); ok && len(rows) > 0 {
+			return true
+		}
+	}
+	return false
 }
