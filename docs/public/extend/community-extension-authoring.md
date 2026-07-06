@@ -186,7 +186,10 @@ boundary and must not import `github.com/eshu-hq/eshu/go/internal/...`.
 
 The initial SDK module semver line is `v0.1.x`. The initial wire protocol is
 `collector-sdk/v1alpha1`, and the checked-in JSON Schema artifact is
-`sdk/go/collector/schema/collector-sdk-v1alpha1.schema.json`.
+`sdk/go/collector/schema/collector-sdk-v1alpha1.schema.json`. See
+[SDK Compatibility](sdk-compatibility.md) for the full SDK-version /
+core-release / wire-protocol / fixture-pack-version compatibility table and
+the exact tag versions to pin.
 
 Use the SDK types and validator to emit:
 
@@ -461,6 +464,7 @@ Use this checklist when triaging an extension PR.
 
 ## Related Docs
 
+- [SDK Compatibility](sdk-compatibility.md)
 - [Component Package Manager](../reference/component-package-manager.md)
 - [Plugin Trust Model](../reference/plugin-trust-model.md)
 - [Fact Schema Versioning](../reference/fact-schema-versioning.md)
