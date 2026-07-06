@@ -1,0 +1,260 @@
+# Demo corpus staging, cassette collectors, and the deferred-relationship
+# maintenance orchestrator. Use docker-compose.demo.yaml as the operator
+# entrypoint.
+#
+# The demo corpus is the manifest-declared subset of the golden-corpus-gate's
+# proven fixture/cassette set (specs/demo-first-answers.v1.yaml artifacts):
+# the union of repos and cassette families the five demo questions depend on.
+# ESHU_GITHUB_ORG=acme (set on demo-corpus-orchestrator below) matches the
+# gate's org pinning so the package-registry source_hint on lib-common
+# resolves to the in-corpus orders-api -> lib-common owner repo (rc-3).
+
+x-demo-runtime-env: &demo_runtime_env
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  ESHU_NEO4J_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+  NEO4J_URI: bolt://nornicdb:7687
+  NEO4J_USERNAME: neo4j
+  NEO4J_PASSWORD: ${ESHU_DEMO_NEO4J_PASSWORD:-change-me}
+  ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_DEMO_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_DEMO_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_HOME: /tmp/.eshu
+  HOME: /tmp
+  ESHU_REPOS_DIR: /data/repos
+  ESHU_REPO_SOURCE_MODE: filesystem
+  # Source corpus (ESHU_FILESYSTEM_ROOT) and the managed working checkout
+  # (ESHU_REPOS_DIR) MUST be different directories. In the default (non-direct)
+  # filesystem mode, bootstrap-index cleans ESHU_REPOS_DIR and then copies each
+  # discovered repo from ESHU_FILESYSTEM_ROOT into it (see
+  # go/internal/collector/git_selection_filesystem.go). Pointing both at the
+  # same dir makes that clean wipe the staged fixtures before the copy reads
+  # them. This mirrors scripts/verify-golden-corpus-gate.sh, which stages into
+  # a corpus dir and syncs into a separate repos dir.
+  ESHU_FILESYSTEM_ROOT: /data/corpus
+  ESHU_GIT_AUTH_METHOD: none
+  ESHU_GITHUB_ORG: acme
+  ESHU_REPOSITORY_RULES_JSON: "[]"
+  ESHU_QUERY_PROFILE: local_full_stack
+  ESHU_DEPLOYMENT_ENVIRONMENT: local-compose-demo
+
+# Cassette collectors are long-running: `-mode=cassette` replays a recorded
+# fixture, commits its facts, then keeps its status server up (they run as a
+# hosted service, not a one-shot). The orchestrator gates on service_healthy
+# (status server serving = process alive) and then verifies every collector's
+# facts actually landed in ingestion_scopes before running bootstrap, so a
+# collector that is up but has not yet committed cannot let the pipeline
+# proceed on a partial corpus. Teardown (down -v) stops them.
+x-demo-collector: &demo_collector
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+  environment:
+    <<: *demo_runtime_env
+    ESHU_LISTEN_ADDR: "0.0.0.0:8080"
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+    interval: 5s
+    timeout: 5s
+    retries: 20
+    start_period: 10s
+  depends_on:
+    db-migrate:
+      condition: service_completed_successfully
+
+services:
+  nornicdb:
+    extends:
+      file: docker-compose.yaml
+      service: nornicdb
+    ports: !override
+      - "${ESHU_DEMO_NORNICDB_HTTP_PORT:-17474}:7474"
+      - "${ESHU_DEMO_NORNICDB_BOLT_PORT:-17687}:7687"
+
+  postgres:
+    extends:
+      file: docker-compose.yaml
+      service: postgres
+    ports: !override
+      - "${ESHU_DEMO_POSTGRES_PORT:-18432}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${ESHU_DEMO_POSTGRES_PASSWORD:-change-me}
+
+  db-migrate:
+    extends:
+      file: docker-compose.yaml
+      service: db-migrate
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    environment:
+      <<: *demo_runtime_env
+
+  # One-shot: COPIES (not symlinks) each manifest-declared repo fixture into
+  # the shared source corpus dir /data/corpus (ESHU_FILESYSTEM_ROOT), which
+  # bootstrap-index then syncs into ESHU_REPOS_DIR. The filesystem discovery
+  # walker treats each immediate child of ESHU_FILESYSTEM_ROOT as a repo and
+  # does not follow symlinks, so a symlinked fixture collapses to a single
+  # scope and breaks the cross-repo DEPENDS_ON edge (rc-3) this demo shows.
+  demo-corpus-staging:
+    image: alpine:3.21
+    user: "0:0"
+    volumes:
+      - type: volume
+        source: eshu_demo_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./tests/fixtures/ecosystems:/src-fixtures:ro
+      - ./scripts/demo-corpus-staging.sh:/usr/local/bin/demo-corpus-staging.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/demo-corpus-staging.sh"]
+    environment:
+      ESHU_DEMO_CORPUS_REPOS: >-
+        api-svc deployable-source deployable-config
+        kustomize-deployable-overlay orders-api lib-common
+
+  workspace-setup:
+    extends:
+      file: docker-compose.yaml
+      service: workspace-setup
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    volumes:
+      - type: volume
+        source: eshu_demo_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      demo-corpus-staging:
+        condition: service_completed_successfully
+
+  collector-kubernetes-live:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-kubernetes-live", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/kuberneteslive:/cassettes:ro
+
+  collector-oci-registry:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-oci-registry", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/ociregistry:/cassettes:ro
+
+  collector-gcp-cloud:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-gcp-cloud", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/gcpcloud:/cassettes:ro
+
+  collector-package-registry:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-package-registry", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/packageregistry:/cassettes:ro
+
+  collector-pagerduty:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-pagerduty", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/pagerduty:/cassettes:ro
+
+  collector-tempo:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-tempo", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/tempo:/cassettes:ro
+
+  collector-prometheus-mimir:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-prometheus-mimir", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/prometheusmimir:/cassettes:ro
+
+  collector-grafana:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-grafana", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/grafana:/cassettes:ro
+
+  collector-loki:
+    <<: *demo_collector
+    command: ["/usr/local/bin/eshu-collector-loki", "-mode=cassette", "-cassette-file=/cassettes/supply-chain-demo.json"]
+    volumes:
+      - ./testdata/cassettes/loki:/cassettes:ro
+
+  # One-shot orchestrator: verify collector commits landed -> bootstrap-index
+  # -> drain -> deferred-relationship maintenance x2 -> drain, mirroring
+  # scripts/verify-golden-corpus-gate.sh's approximation of the ingester's
+  # continuous RunDeferredRelationshipMaintenance loop. Q2 (RUNS_IMAGE, rc-4)
+  # and Q4 (cross-repo DEPENDS_ON, rc-3) only converge after this sequence — a
+  # single bootstrap+reducer pass is NOT sufficient. Runs bootstrap-index and
+  # the reducer/projector binaries directly (built into the same product image)
+  # rather than depending on the gate-only eshu-golden-corpus-gate binary, which
+  # is not part of the Dockerfile build.
+  demo-corpus-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    user: "0:0"
+    # Disable the image's inherited HEALTHCHECK: this is a one-shot that runs a
+    # shell script and exits, with no :8080 server, so the curl healthcheck
+    # would report it perpetually unhealthy and `docker compose up --wait` would
+    # block on it forever instead of accepting its exit-0 completion (which is
+    # what the api/mcp depends_on: service_completed_successfully keys off).
+    healthcheck:
+      disable: true
+    entrypoint: ["/bin/sh", "/usr/local/bin/demo-corpus-orchestrator.sh"]
+    environment:
+      <<: *demo_runtime_env
+      # bootstrap-index, reducer, and projector each start an operator status
+      # server (ESHU_LISTEN_ADDR) and a metrics server (ESHU_METRICS_ADDR),
+      # both defaulting to fixed ports 8080/9464. The orchestrator runs the
+      # reducer and projector concurrently in one container, so a fixed port
+      # collides ("bind: address already in use"). Give each an ephemeral port,
+      # exactly as scripts/verify-golden-corpus-gate.sh does for the same
+      # concurrently-run lifecycle binaries.
+      ESHU_LISTEN_ADDR: "127.0.0.1:0"
+      ESHU_METRICS_ADDR: "127.0.0.1:0"
+      ESHU_DEMO_EXPECTED_COLLECTOR_SOURCES: ${ESHU_DEMO_EXPECTED_COLLECTOR_SOURCES:-9}
+      ESHU_DEMO_DRAIN_TIMEOUT_SECONDS: ${ESHU_DEMO_DRAIN_TIMEOUT_SECONDS:-600}
+      ESHU_DEMO_DRAIN_POLL_SECONDS: ${ESHU_DEMO_DRAIN_POLL_SECONDS:-3}
+      ESHU_DEMO_DRAIN_SETTLE_SECONDS: ${ESHU_DEMO_DRAIN_SETTLE_SECONDS:-60}
+    volumes:
+      - type: volume
+        source: eshu_demo_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./scripts/demo-corpus-orchestrator.sh:/usr/local/bin/demo-corpus-orchestrator.sh:ro
+    depends_on:
+      workspace-setup:
+        condition: service_completed_successfully
+      collector-kubernetes-live:
+        condition: service_healthy
+      collector-oci-registry:
+        condition: service_healthy
+      collector-gcp-cloud:
+        condition: service_healthy
+      collector-package-registry:
+        condition: service_healthy
+      collector-pagerduty:
+        condition: service_healthy
+      collector-tempo:
+        condition: service_healthy
+      collector-prometheus-mimir:
+        condition: service_healthy
+      collector-grafana:
+        condition: service_healthy
+      collector-loki:
+        condition: service_healthy
+
+volumes:
+  nornicdb_data:
+  postgres_data:
+  eshu_demo_data:

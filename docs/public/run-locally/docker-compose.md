@@ -17,6 +17,7 @@ fast rebuilds without containers.
 | `docker-compose.tier2-tfstate.yaml` | Layers MinIO, MinIO setup, active workflow coordination, and one Terraform state collector onto the default stack. | You are running the Tier-2 Terraform state drift proof. |
 | `docker-compose.tier2-tfstate-v25.yaml` | Layers MinIO, two generation-specific MinIO setup jobs, active workflow coordination, and two Terraform state collectors. | You are running the v2.5 Terraform state drift proof across two fixture generations. |
 | `docker-compose.remote-e2e.yaml` | Standalone remote proof stack with runtime services, preflight, workflow coordination, webhook listener, and cloud/package/registry collectors. | You are on an EC2 or VPN-attached host and need a full remote collector proof. |
+| `docker-compose.demo.yaml` | Standalone, credential-free demo stack: corpus staging, one-shot cassette collectors, a deferred-relationship maintenance orchestrator, API, and MCP. Answers the five `specs/demo-first-answers.v1.yaml` questions. | You want a working correlated-graph demo with zero credential env, or you are proving the first-five-minutes onboarding path. |
 
 ## Default Stack
 
@@ -445,6 +446,90 @@ collector instance JSON.
 Missing rendered services remain
 `skipped` proof rows; rendered services with zero source facts fail the hosted
 collector proof.
+
+## Demo Stack
+
+Use `docker-compose.demo.yaml` for a working, credential-free correlated-graph
+demo. It boots the same corpus family the B-7 golden-corpus gate proves
+(`scripts/verify-golden-corpus-gate.sh`) — the manifest-declared subset of
+fixtures and cassette families in `specs/demo-first-answers.v1.yaml` — so the
+five demo-first-answers questions answer correctly over HTTP with zero
+credential environment variables.
+
+```bash
+docker compose -p eshu-demo -f docker-compose.demo.yaml up --build -d --wait
+```
+
+The stack is standalone and defaults the Compose project to `eshu-demo`. The
+root file is the operator entrypoint; it includes a corpus fragment
+(`docker-compose.demo.corpus.yaml`) and a runtime fragment
+(`docker-compose.demo.runtime.yaml`) that own the service groups.
+
+| Service | Responsibility |
+| --- | --- |
+| `demo-corpus-staging` | One-shot: copies (not symlinks) each manifest-declared repo fixture into the shared source corpus dir `/data/corpus` (`ESHU_FILESYSTEM_ROOT`). bootstrap-index syncs from there into `/data/repos` (`ESHU_REPOS_DIR`); the two must differ because the non-direct filesystem mode cleans the repos dir before copying. The filesystem discovery walker does not follow symlinks, so a symlinked fixture collapses to a single scope and breaks cross-repo edges. |
+| `collector-kubernetes-live`, `collector-oci-registry`, `collector-gcp-cloud`, `collector-package-registry`, `collector-pagerduty`, `collector-tempo`, `collector-prometheus-mimir`, `collector-grafana`, `collector-loki` | `-mode=cassette` replays of `testdata/cassettes/<family>/supply-chain-demo.json`. Each replays its recorded fixture, commits its facts, then keeps its status server up (cassette collectors run as a hosted service, not a one-shot). The orchestrator gates on `service_healthy` and then verifies every collector's facts landed in `ingestion_scopes` before running bootstrap, so a collector that is up but has not yet committed cannot advance the pipeline on a partial corpus. |
+| `demo-corpus-orchestrator` | One-shot: `bootstrap-index` -> drain -> deferred-relationship maintenance pass x2 (`bootstrap-index` rerun + drain each), mirroring the golden-corpus gate's approximation of the ingester's continuous `RunDeferredRelationshipMaintenance` loop. Required for the cross-repo `DEPENDS_ON` (rc-3) and `RUNS_IMAGE` (rc-4) correlations Q2 and Q4 depend on to converge; a single bootstrap+reducer pass is not sufficient. |
+| `eshu` | HTTP API, gated on `demo-corpus-orchestrator` completion. |
+| `mcp-server` | MCP HTTP runtime, gated on `demo-corpus-orchestrator` completion. |
+
+The demo corpus is a trimmed, manifest-declared subset of the golden-corpus
+gate's proven 20-repo/17-cassette set: the union of repos and cassette
+families each of the five questions' `artifacts` declares in
+`specs/demo-first-answers.v1.yaml` (6 repos, 9 cassette families). Every
+collector not needed by one of the five questions (for example
+`collector-vault-live`, which the product Dockerfile does not build) is
+omitted.
+
+Host ports default off both the base stack (`8080`/`15432`/`7687`/`7474`) and
+the golden-corpus gate's ports (`18080`/`18091`) to avoid a collision when both
+run concurrently:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_DEMO_PROJECT_NAME` | `eshu-demo` | Compose project name. |
+| `ESHU_DEMO_BIND_ADDR` | `127.0.0.1` | Host address the API and MCP ports publish on. Loopback by default because the demo serves reads open (no auth header); set it to a specific address or `0.0.0.0` only for intentional network exposure. |
+| `ESHU_DEMO_API_PORT` | `18080` | HTTP API port. |
+| `ESHU_DEMO_MCP_PORT` | `18091` | MCP HTTP port. |
+| `ESHU_DEMO_NORNICDB_HTTP_PORT` | `17474` | NornicDB HTTP port. |
+| `ESHU_DEMO_NORNICDB_BOLT_PORT` | `17687` | NornicDB Bolt port. |
+| `ESHU_DEMO_POSTGRES_PORT` | `18432` | Postgres port. |
+| `ESHU_DEMO_DRAIN_TIMEOUT_SECONDS` | `600` | Per-drain-pass timeout the orchestrator waits before failing. |
+| `ESHU_DEMO_DRAIN_POLL_SECONDS` | `3` | Orchestrator drain-residual poll interval. |
+| `ESHU_DEMO_DRAIN_SETTLE_SECONDS` | `60` | Settle window before each drain's first poll, so a poll never reads a false 0/0 "drained" before the reducer's first emit; also absorbs contention from other heavy stacks running concurrently on the same host. |
+
+No credential environment variable is required anywhere in the demo path:
+`ESHU_GIT_AUTH_METHOD=none`, `ESHU_REPO_SOURCE_MODE=filesystem`, and every
+collector replays a recorded cassette instead of calling a live provider. The
+demo runtime also force-disables every external-provider knob the base stack
+passes through: `DEEPSEEK_API_KEY`, `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`,
+`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`, `ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID`,
+and the Ask Eshu settings are all overridden to empty or `false`, so the demo
+never calls an external LLM even if an operator has those exported in their
+shell. `scripts/verify-demo-compose-answers.sh` asserts this two ways: a
+grep-level check (no `:?`-required env var, no `*_TOKEN`/external-provider
+`*_API_KEY`/cloud-credential reference in the demo compose files or scripts)
+and a runtime check that reads the actual env of the running `eshu` and
+`mcp-server` containers and fails if any provider credential is present or Ask
+Eshu is enabled. It also boots the stack, calls all five questions over HTTP,
+and confirms `docker compose down -v --remove-orphans` leaves zero containers,
+volumes, or networks for the run's project.
+
+The demo API and MCP serve reads **without an auth header** by default. Unlike
+the base stack, the demo runtime sets `ESHU_AUTO_GENERATE_API_KEY=false` and
+leaves `ESHU_API_KEY` empty, so `ResolveAPIKey` returns an empty token and the
+read auth middleware runs open. This is deliberate: a first-run demo should
+answer the five questions with a plain `curl`, no key handling. Because the
+read surface is open, the API and MCP ports publish on `127.0.0.1` by default
+(via `ESHU_DEMO_BIND_ADDR`) so the unauthenticated surface is not reachable
+from the network; set `ESHU_DEMO_BIND_ADDR` to a specific address or `0.0.0.0`
+only for intentional exposure. To require a key instead, set `ESHU_DEMO_API_KEY`
+before `up`; the API and MCP then reject unauthenticated reads and callers must
+send `Authorization: Bearer <key>`.
+
+For the proof gate and its no-regression / no-observability-change evidence,
+see
+[Demo Compose Stack Proof](../reference/local-testing.md#demo-compose-stack-proof).
 
 ## Point CLI Commands At Compose
 

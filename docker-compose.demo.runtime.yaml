@@ -1,0 +1,125 @@
+# Demo API and MCP runtime services. Use docker-compose.demo.yaml as the
+# operator entrypoint. Both services are gated on demo-corpus-orchestrator so
+# they only accept traffic once the corpus is staged, every cassette collector
+# has committed, and the deferred-relationship maintenance passes have run —
+# the point at which the five demo-first-answers questions
+# (specs/demo-first-answers.v1.yaml) answer correctly.
+
+services:
+  eshu:
+    extends:
+      file: docker-compose.yaml
+      service: eshu
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    environment:
+      ESHU_GRAPH_BACKEND: nornicdb
+      DEFAULT_DATABASE: nornic
+      ESHU_NEO4J_DATABASE: nornic
+      NEO4J_DATABASE: nornic
+      NEO4J_URI: bolt://nornicdb:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_DEMO_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_DEMO_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_DEMO_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /data/.eshu
+      ESHU_REPOS_DIR: /data/repos
+      ESHU_REPO_SOURCE_MODE: filesystem
+      ESHU_FILESYSTEM_ROOT: /data/corpus
+      ESHU_GIT_AUTH_METHOD: none
+      ESHU_GITHUB_ORG: acme
+      ESHU_REPOSITORY_RULES_JSON: "[]"
+      ESHU_QUERY_PROFILE: local_full_stack
+      ESHU_API_KEY: ${ESHU_DEMO_API_KEY:-}
+      ESHU_AUTO_GENERATE_API_KEY: "false"
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose-demo
+      ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER: auto_hash
+      # Neutralize every provider/secret env the extended base eshu service
+      # passes through (docker-compose.yaml). `extends` MERGES the base
+      # environment, so without these explicit overrides the demo would inherit
+      # and consume an operator's exported DEEPSEEK_API_KEY, semantic provider
+      # profile, or Ask Eshu settings — sending demo data to a real external
+      # LLM with their key. The demo contract is no external provider: force
+      # each to literal-empty/disabled. Overrides win over the extended base.
+      DEEPSEEK_API_KEY: ""
+      ESHU_SEMANTIC_PROVIDER_PROFILES_JSON: ""
+      ESHU_SEMANTIC_EXTRACTION_POLICY_JSON: ""
+      ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID: ""
+      ESHU_ASK_ENABLED: "false"
+      ESHU_ASK_NARRATION_ENABLED: "false"
+      ESHU_ASK_MAX_ITERATIONS: ""
+      ESHU_ASK_MAX_TOOL_CALLS_PER_TURN: ""
+    # Bind to loopback by default: the demo serves reads open (no auth header),
+    # so publishing on 0.0.0.0 (docker's short-syntax default) would expose an
+    # unauthenticated API to anyone on the reachable network. Set
+    # ESHU_DEMO_BIND_ADDR to a specific address (or 0.0.0.0) for intentional
+    # exposure; the default MUST stay 127.0.0.1.
+    ports: !override
+      - "${ESHU_DEMO_BIND_ADDR:-127.0.0.1}:${ESHU_DEMO_API_PORT:-18080}:8080"
+    volumes:
+      - type: volume
+        source: eshu_demo_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      demo-corpus-orchestrator:
+        condition: service_completed_successfully
+
+  mcp-server:
+    extends:
+      file: docker-compose.yaml
+      service: mcp-server
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    environment:
+      ESHU_GRAPH_BACKEND: nornicdb
+      DEFAULT_DATABASE: nornic
+      ESHU_NEO4J_DATABASE: nornic
+      NEO4J_DATABASE: nornic
+      NEO4J_URI: bolt://nornicdb:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_DEMO_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_DEMO_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_DEMO_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /data/.eshu
+      ESHU_REPOS_DIR: /data/repos
+      ESHU_REPO_SOURCE_MODE: filesystem
+      ESHU_FILESYSTEM_ROOT: /data/corpus
+      ESHU_GIT_AUTH_METHOD: none
+      ESHU_GITHUB_ORG: acme
+      ESHU_REPOSITORY_RULES_JSON: "[]"
+      ESHU_MCP_TRANSPORT: http
+      ESHU_MCP_ADDR: ":8080"
+      ESHU_API_KEY: ${ESHU_DEMO_API_KEY:-}
+      ESHU_AUTO_GENERATE_API_KEY: "false"
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose-demo
+      ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER: auto_hash
+      # Neutralize every provider/secret env the extended base mcp-server
+      # service passes through, for the same reason as the eshu service above:
+      # `extends` merges the base environment, so the demo would otherwise
+      # inherit and consume an operator's exported provider credentials. The
+      # demo contract is no external provider.
+      DEEPSEEK_API_KEY: ""
+      ESHU_SEMANTIC_PROVIDER_PROFILES_JSON: ""
+      ESHU_SEMANTIC_EXTRACTION_POLICY_JSON: ""
+      ESHU_SEMANTIC_SEARCH_PROVIDER_PROFILE_ID: ""
+      ESHU_ASK_ENABLED: "false"
+      ESHU_ASK_NARRATION_ENABLED: "false"
+      ESHU_ASK_MAX_ITERATIONS: ""
+      ESHU_ASK_MAX_TOOL_CALLS_PER_TURN: ""
+    # Bind to loopback by default (see the eshu service note); the open-read
+    # demo must not publish an unauthenticated MCP surface on 0.0.0.0.
+    ports: !override
+      - "${ESHU_DEMO_BIND_ADDR:-127.0.0.1}:${ESHU_DEMO_MCP_PORT:-18091}:8080"
+    volumes:
+      - type: volume
+        source: eshu_demo_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      demo-corpus-orchestrator:
+        condition: service_completed_successfully
