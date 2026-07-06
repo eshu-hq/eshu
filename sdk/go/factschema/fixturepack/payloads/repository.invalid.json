@@ -1,0 +1,7 @@
+{
+  "graph_id": "repo-example",
+  "graph_kind": "repository",
+  "name": "example-service",
+  "parsed_file_count": "42",
+  "is_dependency": false
+}

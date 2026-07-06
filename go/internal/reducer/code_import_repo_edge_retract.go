@@ -45,15 +45,11 @@ func BuildCodeImportRepoEdgeRefreshIntents(
 		if envelope.FactKind != factKindFile {
 			continue
 		}
-		consumerRepoID := strings.TrimSpace(payloadStr(envelope.Payload, "repo_id"))
-		if consumerRepoID == "" {
-			continue
-		}
-		language := strings.TrimSpace(payloadStr(envelope.Payload, "language"))
-		fileData, ok := envelope.Payload["parsed_file_data"].(map[string]any)
+		file, ok := decodeCodegraphFileImportIdentity(envelope)
 		if !ok {
 			continue
 		}
+		consumerRepoID := file.repoID
 
 		if _, seen := candidates[consumerRepoID]; !seen {
 			candidates[consumerRepoID] = struct{}{}
@@ -63,12 +59,12 @@ func BuildCodeImportRepoEdgeRefreshIntents(
 		if _, alreadyCovered := covered[consumerRepoID]; alreadyCovered {
 			continue
 		}
-		for _, entry := range mapSlice(fileData["imports"]) {
+		for _, entry := range mapSlice(file.imports) {
 			source := codeImportEntrySource(entry)
 			if source == "" {
 				continue
 			}
-			ecosystem, coordinate := normalizeImportSource(source, language)
+			ecosystem, coordinate := normalizeImportSource(source, file.language)
 			if ecosystem == "" || coordinate == "" {
 				continue
 			}

@@ -6,6 +6,7 @@ package payloadusage
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -110,6 +111,11 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindVulnerabilityKnownExploited":     "vulnerability.known_exploited.v1.schema.json",
 	"FactKindVulnerabilityGoModuleEvidence":   "vulnerability.go_module_evidence.v1.schema.json",
 	"FactKindVulnerabilityGoCallReachability": "vulnerability.go_call_reachability.v1.schema.json",
+	// code family: the two git-collector kinds whose outer envelope the
+	// code-graph-core reducer decode seam decodes
+	// (factschema_decode_codegraph.go). Bare (non-namespaced) wire kinds.
+	"FactKindCodegraphFile":       "file.v1.schema.json",
+	"FactKindCodegraphRepository": "repository.v1.schema.json",
 	// ci_cd_run family: all six kinds a reducer decode seam wrapper actually
 	// decodes (factschema_decode_cicdrun.go). ci.job, ci.pipeline_definition,
 	// and ci.warning carry no typed struct at all (cicdrun/v1 AGENTS.md), so
@@ -257,9 +263,7 @@ func MergeRegistryPayloadSchemaFields(declared map[string]map[string]struct{}, r
 		return declared
 	}
 	merged := make(map[string]map[string]struct{}, len(declared))
-	for k, v := range declared {
-		merged[k] = v
-	}
+	maps.Copy(merged, declared)
 	for factKind, fields := range registryFields {
 		existing := merged[factKind]
 		if existing == nil {

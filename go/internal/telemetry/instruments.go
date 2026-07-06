@@ -276,10 +276,12 @@ type Instruments struct {
 	PackageConsumptionRepoEdges metric.Int64Counter
 	// CodeImportRepoEdges counts repo-to-repo DEPENDS_ON edge outcomes derived
 	// from per-file external import sources correlated to package-registry
-	// ownership, labeled by reducer domain and outcome (considered, written, and
-	// the skip reasons relative, unresolved, ambiguous, no_owner, self). It lets
+	// ownership, labeled by reducer domain and outcome. The outcome label values
+	// are exactly the strings the handler emits: "considered", "written",
+	// "skipped_relative", "skipped_unresolved", "skipped_ambiguous",
+	// "skipped_no_owner", "skipped_self", and "skipped_malformed_file". It lets
 	// an operator confirm the code-import projection lane is producing edges and
-	// see why candidate imports were dropped (issue #3642).
+	// see why candidate imports were dropped (issues #3642, #4749).
 	CodeImportRepoEdges             metric.Int64Counter
 	ContainerImageIdentityDecisions metric.Int64Counter
 	CICDRunCorrelations             metric.Int64Counter

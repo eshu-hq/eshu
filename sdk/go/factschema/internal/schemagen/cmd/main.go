@@ -136,6 +136,14 @@ func run() error {
 		{name: "vulnerability.known_exploited.v1.schema.json", generate: schemagen.VulnerabilityKnownExploitedSchema},
 		{name: "vulnerability.go_module_evidence.v1.schema.json", generate: schemagen.VulnerabilityGoModuleEvidenceSchema},
 		{name: "vulnerability.go_call_reachability.v1.schema.json", generate: schemagen.VulnerabilityGoCallReachabilitySchema},
+		// The code family fact kinds are BARE (no family prefix), unlike every
+		// other family here: they are the git collector's original,
+		// pre-Contract-System literal kinds ("file", "repository"). Only the
+		// outer envelope identity is typed; parsed_file_data stays an opaque
+		// map[string]any pass-through (issue #4750 defers the inner-AST
+		// typing).
+		{name: "file.v1.schema.json", generate: schemagen.CodegraphFileSchema},
+		{name: "repository.v1.schema.json", generate: schemagen.CodegraphRepositorySchema},
 		// The ci_cd_run family fact kinds are DOTTED (like the incident
 		// family). The schema filename is the dotted kind plus the version
 		// suffix; a dot in a filename is valid and needs no transform.
@@ -275,7 +283,7 @@ func moduleRootDir() (string, error) {
 // wantModuleLine as the module path, tolerating a leading UTF-8 byte-order
 // mark and surrounding whitespace on the module line.
 func declaresModule(goMod []byte, wantModuleLine string) bool {
-	for _, line := range strings.Split(string(goMod), "\n") {
+	for line := range strings.SplitSeq(string(goMod), "\n") {
 		if strings.TrimSpace(strings.TrimPrefix(line, byteOrderMark)) == wantModuleLine {
 			return true
 		}

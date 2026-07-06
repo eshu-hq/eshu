@@ -169,7 +169,7 @@ func (h CodeImportRepoEdgeHandler) succeededResult(intent Intent, counts codeImp
 		Domain:   DomainCodeImportRepoEdge,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"code import edges considered=%d written=%d skipped_relative=%d skipped_unresolved=%d skipped_ambiguous=%d skipped_no_owner=%d skipped_self=%d",
+			"code import edges considered=%d written=%d skipped_relative=%d skipped_unresolved=%d skipped_ambiguous=%d skipped_no_owner=%d skipped_self=%d skipped_malformed_file=%d",
 			counts.considered,
 			written,
 			counts.skippedRelative,
@@ -177,6 +177,7 @@ func (h CodeImportRepoEdgeHandler) succeededResult(intent Intent, counts codeImp
 			counts.skippedAmbiguous,
 			counts.skippedNoOwner,
 			counts.skippedSelf,
+			counts.skippedMalformedFile,
 		),
 	}
 }
@@ -205,6 +206,12 @@ func (h CodeImportRepoEdgeHandler) emitCounters(ctx context.Context, counts code
 	add("skipped_ambiguous", counts.skippedAmbiguous)
 	add("skipped_no_owner", counts.skippedNoOwner)
 	add("skipped_self", counts.skippedSelf)
+	// A "file" fact whose outer envelope failed the codegraph decode seam
+	// (missing repo_id/relative_path, or a non-object parsed_file_data) is
+	// counted here so the accuracy hole issue #4749 closes has an
+	// operator-visible signal on the existing eshu_dp_code_import_repo_edges_total
+	// counter (bounded outcome label), not a silent skip.
+	add("skipped_malformed_file", counts.skippedMalformedFile)
 }
 
 // emitRefreshCounter records the number of retract-only refresh intents

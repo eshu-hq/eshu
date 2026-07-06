@@ -1728,6 +1728,82 @@ new `DocumentationStructDir` (`sdk/go/factschema/documentation/v1`) parsed
 alongside the existing struct dirs in `Load`; this only widens which decode
 seams the gate covers and adds no new gate mechanism.
 
+No-Regression Evidence (Wave 4f S1, code family typed-payload decode, Contract
+System v1 #4566/#4749): the code-graph-core reducer read sites
+(`code_call_materialization_extract.go`, `code_call_materialization_intents.go`,
+`code_import_repo_edge.go`, `code_import_repo_edge_retract.go`) now decode the
+`file`/`repository` fact OUTER envelope through the `sdk/go/factschema` seam
+(`decodeCodegraphFile`/`decodeCodegraphRepository` in
+`factschema_decode_codegraph.go`) instead of raw `payloadStr(env.Payload, ...)`
+lookups. `parsed_file_data` stays an opaque validated `map[string]any`
+passthrough (required-present + must-be-map; inner-AST typing deferred to
+#4750). `extractCodeCallRowsWithIndex` now returns a `[]quarantinedFact`: a
+`file` fact missing `repo_id` or `relative_path` is quarantined per-fact via
+`partitionDecodeFailures` rather than silently producing an empty-string graph
+identity, while every valid `file` fact in the same batch still projects.
+`TestExtractCodeCallRowsQuarantinesFileMissingRepoID` /
+`...MissingRelativePath` failed before the conversion (no quarantinedFact was
+ever recorded — the missing field decoded to `""` and the fact was silently
+skipped by the `repositoryID == ""` guard), then passed after. Measured with the
+existing hot-path benchmark (in-memory extractor; the 500-source large-JS
+dynamic-call corpus the benchmark builds; darwin/arm64, `-count=5`): `go test
+./internal/reducer -run '^$' -bench
+'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem`. BEFORE
+(raw `payloadStr`, `origin/main`) -> AFTER (typed decode):
+8.79ms/1653571 B/30209 allocs -> 8.77ms/1655558 B/30208 allocs (~0% time, ~0%
+allocs — the per-file outer-envelope decode is amortized against the per-call
+resolution work that dominates this path). The typed path buys the accuracy
+guarantee at no measured handler cost. Result class: correctness win with no
+measured regression. The `file`/`repository` fact kinds are NOT registered in
+the fact-kind registry this wave (registry + schema-version admission deferred
+to #4752).
+
+SCHEMA-VERSION NORMALIZATION (corpus-gate P0, PR #4753): the git collector
+emits `file`/`repository` with NO `SchemaVersion`, but the Postgres persist
+layer stamps a version-less fact as the sentinel `"0.0.0"`
+(`go/internal/storage/postgres/facts.go`, `facts_streaming.go`:
+`emptyToDefault(SchemaVersion, "0.0.0")`). A fact LOADED for reduction
+therefore carries `SchemaVersion="0.0.0"`, not `""`. `decodeLatestMajor`
+accepts only `major=="1"` and `major("0.0.0")=="0"`, so before the fix EVERY
+real `file`/`repository` fact dead-lettered as an unsupported major and the
+whole code graph collapsed (12 golden-corpus rc gates to zero: rc-2/8/10/11/12/
+13/15/23). `factschemaEnvelope` now normalizes BOTH version-less spellings —
+`""` and the persisted `"0.0.0"` sentinel — to the latest major, so a real
+loaded code-graph fact decodes. `"0.0.0"` is never a real emitted schema
+version (it is exclusively the persist-layer's empty marker), so this is safe
+for every other family, all of which stamp a concrete `"1.0.0"`. The fix does
+NOT weaken accuracy: a genuine unsupported major (`"2.0.0"`) still dead-letters,
+and a fact missing `repo_id`/`relative_path` still dead-letters `input_invalid`.
+`TestDecodeCodegraphAcceptsPersistedVersionlessSchemaVersion` and
+`TestExtractCodeCallRowsProducesRowsForPersistedVersionlessFacts` reproduce the
+corpus P0 at unit scale (a `file` fact with `SchemaVersion="0.0.0"` must decode
+and produce >=1 code-call row);
+`TestDecodeCodegraphTreatsAbsentSchemaVersionAsLatestMajor` covers the empty
+spelling. The unit tests that used ABSENT (`""`) version passed while the corpus
+broke because they never exercised the persisted `"0.0.0"` a real loaded fact
+carries — the coverage gap this regression pair closes.
+
+No-Observability-Change (Wave 4f S1, code family): the typed-decode migration
+adds no route, graph query shape, queue table, worker, lease, runtime knob,
+metric instrument, or metric label. A malformed `file` fact surfaces through the
+EXISTING dead-letter path — `partitionDecodeFailures` -> `recordQuarantinedFacts`
+-> `eshu_dp_reducer_input_invalid_facts_total` (labeled `domain` =
+`code_call_materialization`, an existing label value, `fact_kind` gaining the
+`file` kind) plus the existing structured "reducer input_invalid fact
+quarantined" error log and `Result.SubSignals["input_invalid_facts"]` — the same
+instruments and log key every prior family wired.
+`CodeCallMaterializationHandler` gained an `Instruments *telemetry.Instruments`
+field (wired from `DefaultHandlers.Instruments` in `defaults_domain_catalog.go`,
+mirroring every other migrated handler). The code-import repo-edge builders
+surface a malformed `file` fact through the existing per-run
+`codeImportEdgeCounts` telemetry (new `skippedMalformedFile` tally) rather than a
+new instrument. The `payload-usage-manifest` gate required an additive-only
+extension: two new `factKindSchemaFile` entries (`FactKindCodegraphFile`,
+`FactKindCodegraphRepository`) and a new `CodegraphStructDir`
+(`sdk/go/factschema/codegraph/v1`) parsed alongside the existing struct dirs in
+`Load` — this widens gate coverage (manifest count 88 -> 90) with no new gate
+mechanism and no dependency on the deferred registry registration.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

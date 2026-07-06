@@ -64,6 +64,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			def.Handler = CodeCallMaterializationHandler{
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.CodeCallIntentWriter,
+				Instruments:  handlers.Instruments,
 			}
 		case DomainPlatformInfraMaterialization:
 			def.Handler = PlatformInfraMaterializationHandler{

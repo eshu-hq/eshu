@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 const codeCallPartitionKeyVersion = "code-calls:v1"
@@ -21,6 +22,20 @@ type codeCallDeltaFileScope struct {
 	partitionPaths []string
 }
 
+// buildCodeCallProjectionContexts decodes each "repository" fact's outer
+// envelope through the codegraph contracts seam (decodeCodegraphRepository)
+// to recover its join identity (RepoID) and optional SourceRunID before
+// building one ProjectionContext per repository. A repository fact whose
+// payload is missing a required identity field is skipped for context
+// building — dropped by returning early from decodeCodegraphRepository's
+// error, matching this function's pre-existing "skip and continue" shape for
+// an absent identity; batch-wide quarantine visibility for this read site is
+// provided by extractCodeCallRowsWithIndex's file-fact quarantine, which is
+// the accuracy hole issue #4749 targets (repo_id/relative_path used to
+// silently collapse to an empty-string graph identity on "file" facts).
+// SourceRunID stays optional: not every repository fact carries one, and an
+// absent source run id is a legitimate reason to skip context building here,
+// not a malformed payload.
 func buildCodeCallProjectionContexts(envelopes []facts.Envelope, generationID string) map[string]ProjectionContext {
 	contextByRepoID := make(map[string]ProjectionContext)
 	for _, env := range envelopes {
@@ -28,12 +43,24 @@ func buildCodeCallProjectionContexts(envelopes []facts.Envelope, generationID st
 			continue
 		}
 
-		repositoryID := payloadStr(env.Payload, "repo_id")
-		if repositoryID == "" {
-			repositoryID = payloadStr(env.Payload, "graph_id")
+		repository, err := decodeCodegraphRepository(env)
+		if err != nil {
+			continue
 		}
-		sourceRunID := payloadStr(env.Payload, "source_run_id")
-		if repositoryID == "" || sourceRunID == "" {
+
+		// TrimSpace preserves the pre-Contract-System payloadStr behavior: a
+		// whitespace-only repo_id must not become a non-canonical
+		// AcceptanceUnitID/contextByRepoID key. The real collector never emits
+		// a whitespace repo id, so this is behavior-equivalence, not new logic.
+		repositoryID := strings.TrimSpace(repository.RepoID)
+		if repositoryID == "" {
+			continue
+		}
+		var sourceRunID string
+		if repository.SourceRunID != nil {
+			sourceRunID = strings.TrimSpace(*repository.SourceRunID)
+		}
+		if sourceRunID == "" {
 			continue
 		}
 
@@ -220,6 +247,23 @@ func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string]
 	return pathsByRepoID
 }
 
+// buildCodeCallDeltaFileScopesByRepoID decodes each delta-generation
+// "repository" fact's outer envelope through the codegraph contracts seam
+// (decodeCodegraphRepository) to recover its join identity (RepoID) and the
+// delta path slices before collecting the delta file scope. The cheap
+// delta_generation gate check runs on the raw payload before decode so a
+// non-delta repository fact (the overwhelming majority) never pays the
+// decode cost. A delta-generation repository fact whose payload is missing a
+// required identity field is skipped, matching this function's pre-existing
+// "skip and continue" shape for an absent identity.
+//
+// The repository checkout path is resolved from the raw "path" key first, then
+// the typed LocalPath — preserving the exact pre-Contract-System precedence.
+// "path" is NOT a typed Repository field: repositoryFactEnvelope never writes
+// it to the payload (it routes the checkout path to SourceRef.SourceURI), so in
+// production this raw read is always absent and LocalPath is used. It is read
+// raw here only to preserve behavior for callers (and tests) that carry the
+// checkout path under "path".
 func buildCodeCallDeltaFileScopesByRepoID(envelopes []facts.Envelope) map[string]codeCallDeltaFileScope {
 	seenByRepoID := make(map[string]map[string]struct{})
 	repoPathByRepoID := make(map[string]string)
@@ -228,22 +272,27 @@ func buildCodeCallDeltaFileScopesByRepoID(envelopes []facts.Envelope) map[string
 		if env.FactKind != factKindRepository || !codeCallPayloadBool(env.Payload, "delta_generation") {
 			continue
 		}
-		repositoryID := semanticPayloadString(env.Payload, "repo_id")
-		if repositoryID == "" {
-			repositoryID = semanticPayloadString(env.Payload, "graph_id")
+		repository, err := decodeCodegraphRepository(env)
+		if err != nil {
+			continue
 		}
+		// TrimSpace + skip-empty preserves the pre-Contract-System
+		// semanticPayloadString behavior: a whitespace-only repo_id must not
+		// create an unsafeByRepoID/seenByRepoID entry under a non-canonical key.
+		repositoryID := strings.TrimSpace(repository.RepoID)
 		if repositoryID == "" {
 			continue
 		}
+
 		repoPath := semanticPayloadString(env.Payload, "path")
-		if repoPath == "" {
-			repoPath = semanticPayloadString(env.Payload, "local_path")
+		if repoPath == "" && repository.LocalPath != nil {
+			repoPath = *repository.LocalPath
 		}
 		if strings.TrimSpace(repoPath) == "" {
 			unsafeByRepoID[repositoryID] = struct{}{}
 			continue
 		}
-		for _, relativePath := range codeCallDeltaRelativePaths(env.Payload) {
+		for _, relativePath := range codeCallDeltaRelativePathsFromRepository(repository) {
 			cleanedRelativePath, ok := normalizeCodeCallDeltaRelativePath(relativePath)
 			if !ok {
 				unsafeByRepoID[repositoryID] = struct{}{}
@@ -290,17 +339,28 @@ func buildCodeCallDeltaFileScopesByRepoID(envelopes []facts.Envelope) map[string
 	return scopesByRepoID
 }
 
-func codeCallDeltaRelativePaths(payload map[string]any) []string {
+// codeCallDeltaRelativePathsFromRepository returns the deduplicated union of
+// a decoded codegraphv1.Repository's DeltaRelativePaths and
+// DeltaDeletedRelativePaths — the changed and deleted file paths a delta
+// generation carries. It is the typed-decode replacement for the pre-Contract-
+// System raw payload["delta_relative_paths"]/["delta_deleted_relative_paths"]
+// reads.
+func codeCallDeltaRelativePathsFromRepository(repository codegraphv1.Repository) []string {
 	seen := make(map[string]struct{})
 	var paths []string
-	for _, key := range []string{"delta_relative_paths", "delta_deleted_relative_paths"} {
-		for _, relativePath := range semanticPayloadStringSlice(payload, key) {
-			if _, ok := seen[relativePath]; ok {
-				continue
-			}
-			seen[relativePath] = struct{}{}
-			paths = append(paths, relativePath)
+	for _, relativePath := range repository.DeltaRelativePaths {
+		if _, ok := seen[relativePath]; ok {
+			continue
 		}
+		seen[relativePath] = struct{}{}
+		paths = append(paths, relativePath)
+	}
+	for _, relativePath := range repository.DeltaDeletedRelativePaths {
+		if _, ok := seen[relativePath]; ok {
+			continue
+		}
+		seen[relativePath] = struct{}{}
+		paths = append(paths, relativePath)
 	}
 	return paths
 }
