@@ -1,0 +1,5 @@
+{
+  "provider": "backstage",
+  "entity_ref": "component:default/checkout",
+  "url": 12345
+}

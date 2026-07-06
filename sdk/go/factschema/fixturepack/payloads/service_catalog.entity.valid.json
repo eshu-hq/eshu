@@ -1,0 +1,10 @@
+{
+  "provider": "backstage",
+  "entity_ref": "component:default/checkout",
+  "entity_type": "component",
+  "display_name": "Checkout",
+  "lifecycle": "production",
+  "tier": "tier_1",
+  "service_id": "svc-checkout",
+  "workload_id": "wl-checkout"
+}

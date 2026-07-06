@@ -1,0 +1,57 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/servicecatalog/v1/entity.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "display_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "entity_ref": {
+      "type": "string"
+    },
+    "entity_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lifecycle": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workload_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "entity_ref"
+  ],
+  "title": "Eshu service_catalog.entity Payload (schema version 1)",
+  "type": "object"
+}

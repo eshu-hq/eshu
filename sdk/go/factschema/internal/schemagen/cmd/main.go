@@ -234,6 +234,16 @@ func run() error {
 		{name: "documentation_claim_candidate.v1.schema.json", generate: schemagen.DocumentationClaimCandidateSchema},
 		{name: "documentation_finding.v1.schema.json", generate: schemagen.DocumentationFindingSchema},
 		{name: "documentation_evidence_packet.v1.schema.json", generate: schemagen.DocumentationEvidencePacketSchema},
+		// The service_catalog family is ALREADY registered and
+		// schema-version-admitted; this wave only fills payload_schema_overrides
+		// for the four kinds a real consumer decodes (three via the reducer
+		// correlation index, one via a raw-SQL JSONB loader in
+		// go/internal/query — servicecatalog/v1/README.md). The other five
+		// kinds have no decode-side consumer and are intentionally untyped.
+		{name: "service_catalog.entity.v1.schema.json", generate: schemagen.ServiceCatalogEntitySchema},
+		{name: "service_catalog.ownership.v1.schema.json", generate: schemagen.ServiceCatalogOwnershipSchema},
+		{name: "service_catalog.repository_link.v1.schema.json", generate: schemagen.ServiceCatalogRepositoryLinkSchema},
+		{name: "service_catalog.operational_link.v1.schema.json", generate: schemagen.ServiceCatalogOperationalLinkSchema},
 	}
 
 	for _, target := range targets {

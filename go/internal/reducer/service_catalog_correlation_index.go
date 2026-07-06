@@ -5,7 +5,6 @@ package reducer
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -56,56 +55,189 @@ type serviceCatalogRepositoryEvidence struct {
 	tombstone    bool
 }
 
+// buildServiceCatalogCorrelationIndex builds the correlation index, silently
+// discarding any fact that fails to decode. It exists for the public
+// BuildServiceCatalogCorrelationDecisions entrypoint and pre-migration test
+// callers whose signature cannot observe quarantined or fatal facts; Handle
+// calls buildServiceCatalogCorrelationIndexWithQuarantine directly so a
+// malformed fact is recorded as a visible dead-letter, not silently dropped,
+// and a fatal decode error fails the whole intent.
 func buildServiceCatalogCorrelationIndex(envelopes []facts.Envelope) serviceCatalogCorrelationIndex {
+	index, _, _ := buildServiceCatalogCorrelationIndexWithQuarantine(envelopes)
+	return index
+}
+
+// buildServiceCatalogCorrelationIndexWithQuarantine decodes each
+// service_catalog.entity, service_catalog.ownership, and
+// service_catalog.repository_link envelope's outer identity through the
+// contracts seam (decodeServiceCatalogEntity, decodeServiceCatalogOwnership,
+// decodeServiceCatalogRepositoryLink) and the codegraph "repository" envelope
+// through decodeCodegraphRepository (reused from Wave 4f S1), returning
+// (index, quarantined, fatalErr).
+//
+// A fact whose payload is missing its required entity_ref (or, for a codegraph
+// repository, repo_id) identity field is a QUARANTINABLE input_invalid: it is
+// recorded as a quarantinedFact and EXCLUDED from the index — exactly the set
+// the pre-migration payloadString reads silently dropped via their
+// blank-string guards, but now with a visible, operator-diagnosable
+// dead-letter (Contract System v1 Wave 4f S3, issue #4755).
+//
+// A FATAL decode error — a payload type mismatch, or an unsupported schema
+// major (service_catalog is registered and schema-version-admitted, so unlike
+// the unregistered codegraph file/repository kinds an unsupported major IS a
+// reachable class here) — is NOT quarantined: partitionDecodeFailures returns
+// it as the fatal third result and this function returns it as fatalErr so the
+// handler fails the whole work item through WorkSink.Fail (which triages it for
+// retry once the reducer supports the new major), rather than publishing
+// version-skewed service-catalog truth with the offending fact silently
+// omitted. On a fatal error the partial index and quarantine slice are
+// discarded by the caller.
+func buildServiceCatalogCorrelationIndexWithQuarantine(
+	envelopes []facts.Envelope,
+) (serviceCatalogCorrelationIndex, []quarantinedFact, error) {
 	index := serviceCatalogCorrelationIndex{
 		entities:  make(map[serviceCatalogEntityKey]serviceCatalogEntityEvidence),
 		ownership: make(map[serviceCatalogEntityKey]serviceCatalogOwnershipEvidence),
 		repoLinks: make(map[serviceCatalogEntityKey][]serviceCatalogRepositoryLinkEvidence),
 	}
+	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.ServiceCatalogEntityFactKind:
-			entity := serviceCatalogEntityFromFact(envelope)
-			if entity.entityRef != "" {
-				index.entities[entity.key()] = entity
+			entity, err := serviceCatalogEntityFromFact(envelope)
+			if err != nil {
+				q, ok, fatal := serviceCatalogQuarantine(envelope, err)
+				if !ok {
+					return serviceCatalogCorrelationIndex{}, nil, fatal
+				}
+				quarantined = append(quarantined, q)
+				continue
 			}
+			if entity.entityRef == "" {
+				// A present-but-empty entity_ref is a valid decoded fact (the
+				// typed contract accepts present-but-empty required fields) but
+				// carries no usable catalog identity, so it is NOT indexed —
+				// exactly as the pre-migration `if entity.entityRef != ""`
+				// guard did. Only an ABSENT entity_ref dead-letters (the decode
+				// error above); a present-but-blank one is simply skipped, never
+				// keyed under an empty-string identity.
+				continue
+			}
+			index.entities[entity.key()] = entity
 		case facts.ServiceCatalogOwnershipFactKind:
-			owner := serviceCatalogOwnershipFromFact(envelope)
-			if owner.ownerRef != "" && owner.entityRef != "" {
-				index.ownership[owner.key()] = owner
+			owner, err := serviceCatalogOwnershipFromFact(envelope)
+			if err != nil {
+				q, ok, fatal := serviceCatalogQuarantine(envelope, err)
+				if !ok {
+					return serviceCatalogCorrelationIndex{}, nil, fatal
+				}
+				quarantined = append(quarantined, q)
+				continue
 			}
+			if owner.ownerRef == "" || owner.entityRef == "" {
+				// A present-but-empty owner reference (both owner_ref and its
+				// legacy owner fallback absent or blank) or a present-but-empty
+				// entity_ref is a valid decoded fact carrying no usable
+				// ownership claim, not a malformed payload — it is simply not
+				// indexed, matching the pre-migration
+				// `if owner.ownerRef != "" && owner.entityRef != ""` guard
+				// (never quarantined).
+				continue
+			}
+			index.ownership[owner.key()] = owner
 		case facts.ServiceCatalogRepositoryLinkFactKind:
-			link := serviceCatalogRepositoryLinkFromFact(envelope)
-			if link.entityRef != "" {
-				index.repoLinks[link.key()] = append(index.repoLinks[link.key()], link)
+			link, err := serviceCatalogRepositoryLinkFromFact(envelope)
+			if err != nil {
+				q, ok, fatal := serviceCatalogQuarantine(envelope, err)
+				if !ok {
+					return serviceCatalogCorrelationIndex{}, nil, fatal
+				}
+				quarantined = append(quarantined, q)
+				continue
 			}
+			if link.entityRef == "" {
+				// A present-but-empty entity_ref is a valid decoded fact but
+				// carries no join identity, so it is NOT indexed — exactly as
+				// the pre-migration `if link.entityRef != ""` guard did. Only an
+				// ABSENT entity_ref dead-letters.
+				continue
+			}
+			index.repoLinks[link.key()] = append(index.repoLinks[link.key()], link)
 		case factKindRepository:
-			repository := serviceCatalogRepositoryFromFact(envelope)
-			if repository.repositoryID != "" {
-				index.repositories = append(index.repositories, repository)
+			repository, err := serviceCatalogRepositoryFromFact(envelope)
+			if err != nil {
+				q, ok, fatal := serviceCatalogQuarantine(envelope, err)
+				if !ok {
+					return serviceCatalogCorrelationIndex{}, nil, fatal
+				}
+				quarantined = append(quarantined, q)
+				continue
 			}
+			if repository.repositoryID == "" {
+				// repositoryID is firstNonBlank(graph_id, repo_id); a repository
+				// with both present-but-empty resolves to "" and carries no
+				// canonical identity to correlate against, so it is NOT added —
+				// exactly as the pre-migration `if repository.repositoryID != ""`
+				// guard did. (An ABSENT repo_id dead-letters at decode above;
+				// this drop is only for the present-but-both-empty case.)
+				continue
+			}
+			index.repositories = append(index.repositories, repository)
 		}
 	}
 	sort.SliceStable(index.repositories, func(i, j int) bool {
 		return index.repositories[i].repositoryID < index.repositories[j].repositoryID
 	})
 	index.repositoryLookup = buildServiceCatalogRepositoryLookup(index.repositories)
-	return index
+	return index, quarantined, nil
 }
 
-func serviceCatalogEntityFromFact(envelope facts.Envelope) serviceCatalogEntityEvidence {
+// serviceCatalogQuarantine classifies a service_catalog (or reused codegraph
+// repository) decode error through partitionDecodeFailures, returning
+// (quarantinedFact, ok, fatalErr). When ok is true the fact is a quarantinable
+// per-fact input_invalid (a missing/null required identity field) the caller
+// records and skips. When ok is false the error is FATAL — a payload type
+// mismatch or an unsupported schema major — and fatalErr is the underlying
+// error the caller returns to fail the whole work item, never a per-fact
+// quarantine. The residual quarantinedFact carries the decode error's own
+// classification/field for the fatal case only so the caller can still surface
+// it in a log if it chooses; ok is the authoritative signal.
+//
+// This tightens the earlier wrapper, which discarded partitionDecodeFailures's
+// fatal third result and fell back to serviceCatalogDecodeQuarantine for it —
+// swallowing an unsupported-major (version-skew) error into a per-fact
+// quarantine and letting the handler publish incomplete service-catalog truth.
+// Because service_catalog IS registered and schema-version-admitted, an
+// unsupported major is a reachable class here (unlike the unregistered
+// codegraph file/repository kinds), so the fatal result must propagate.
+func serviceCatalogQuarantine(envelope facts.Envelope, err error) (quarantinedFact, bool, error) {
+	if q, ok, _ := partitionDecodeFailures(envelope, err); ok {
+		return q, true, nil
+	}
+	return serviceCatalogDecodeQuarantine(envelope, err), false, err
+}
+
+// serviceCatalogEntityFromFact decodes one service_catalog.entity envelope's
+// outer identity through the contracts seam. A payload missing entity_ref
+// returns a classified decode error; the caller quarantines it rather than
+// indexing a blank-identity entity.
+func serviceCatalogEntityFromFact(envelope facts.Envelope) (serviceCatalogEntityEvidence, error) {
+	entity, err := decodeServiceCatalogEntity(envelope)
+	if err != nil {
+		return serviceCatalogEntityEvidence{}, err
+	}
 	return serviceCatalogEntityEvidence{
 		factID:             envelope.FactID,
-		provider:           payloadString(envelope.Payload, "provider"),
-		entityRef:          payloadString(envelope.Payload, "entity_ref"),
-		entityType:         payloadString(envelope.Payload, "entity_type"),
-		displayName:        payloadString(envelope.Payload, "display_name"),
-		lifecycle:          payloadString(envelope.Payload, "lifecycle"),
-		tier:               payloadString(envelope.Payload, "tier"),
+		provider:           stringPtrValue(entity.Provider),
+		entityRef:          entity.EntityRef,
+		entityType:         stringPtrValue(entity.EntityType),
+		displayName:        stringPtrValue(entity.DisplayName),
+		lifecycle:          stringPtrValue(entity.Lifecycle),
+		tier:               stringPtrValue(entity.Tier),
 		sourceRepositoryID: serviceCatalogSourceRepositoryID(envelope.ScopeID),
-		serviceID:          payloadString(envelope.Payload, "service_id"),
-		workloadID:         payloadString(envelope.Payload, "workload_id"),
-	}
+		serviceID:          stringPtrValue(entity.ServiceID),
+		workloadID:         stringPtrValue(entity.WorkloadID),
+	}, nil
 }
 
 func (entity serviceCatalogEntityEvidence) key() serviceCatalogEntityKey {
@@ -115,13 +247,24 @@ func (entity serviceCatalogEntityEvidence) key() serviceCatalogEntityKey {
 	}
 }
 
-func serviceCatalogOwnershipFromFact(envelope facts.Envelope) serviceCatalogOwnershipEvidence {
+// serviceCatalogOwnershipFromFact decodes one service_catalog.ownership
+// envelope's outer identity through the contracts seam. A payload missing
+// entity_ref returns a classified decode error; the caller quarantines it.
+// The owner reference itself may arrive under either owner_ref (preferred) or
+// the legacy owner key — matched by firstNonBlank, exactly as before this
+// conversion — and staying blank on both is a valid decoded fact carrying no
+// ownership claim, not a decode failure.
+func serviceCatalogOwnershipFromFact(envelope facts.Envelope) (serviceCatalogOwnershipEvidence, error) {
+	ownership, err := decodeServiceCatalogOwnership(envelope)
+	if err != nil {
+		return serviceCatalogOwnershipEvidence{}, err
+	}
 	return serviceCatalogOwnershipEvidence{
 		factID:    envelope.FactID,
-		provider:  payloadString(envelope.Payload, "provider"),
-		entityRef: payloadString(envelope.Payload, "entity_ref"),
-		ownerRef:  firstNonBlank(payloadString(envelope.Payload, "owner_ref"), payloadString(envelope.Payload, "owner")),
-	}
+		provider:  stringPtrValue(ownership.Provider),
+		entityRef: ownership.EntityRef,
+		ownerRef:  firstNonBlank(stringPtrValue(ownership.OwnerRef), stringPtrValue(ownership.OwnerLegacy)),
+	}, nil
 }
 
 func (owner serviceCatalogOwnershipEvidence) key() serviceCatalogEntityKey {
@@ -131,17 +274,37 @@ func (owner serviceCatalogOwnershipEvidence) key() serviceCatalogEntityKey {
 	}
 }
 
-func serviceCatalogRepositoryLinkFromFact(envelope facts.Envelope) serviceCatalogRepositoryLinkEvidence {
-	return serviceCatalogRepositoryLinkEvidence{
-		factID:         envelope.FactID,
-		provider:       payloadString(envelope.Payload, "provider"),
-		entityRef:      payloadString(envelope.Payload, "entity_ref"),
-		repositoryID:   firstNonBlank(payloadString(envelope.Payload, "repository_id"), payloadString(envelope.Payload, "repo_id")),
-		repositoryURL:  firstNonBlank(payloadString(envelope.Payload, "normalized_url"), payloadString(envelope.Payload, "repository_url"), payloadString(envelope.Payload, "raw_url"), payloadString(envelope.Payload, "url")),
-		repositoryName: payloadString(envelope.Payload, "repository_name"),
-		serviceID:      payloadString(envelope.Payload, "service_id"),
-		workloadID:     payloadString(envelope.Payload, "workload_id"),
+// serviceCatalogRepositoryLinkFromFact decodes one
+// service_catalog.repository_link envelope's outer identity through the
+// contracts seam. A payload missing entity_ref returns a classified decode
+// error; the caller quarantines it. Every repository-identifying field stays
+// optional by design (servicecatalogv1.RepositoryLink's doc comment): a link
+// carrying none of them still decodes, and the reducer's own correlation
+// logic — not this decode step — classifies that as
+// ServiceCatalogCorrelationRejected.
+func serviceCatalogRepositoryLinkFromFact(envelope facts.Envelope) (serviceCatalogRepositoryLinkEvidence, error) {
+	link, err := decodeServiceCatalogRepositoryLink(envelope)
+	if err != nil {
+		return serviceCatalogRepositoryLinkEvidence{}, err
 	}
+	return serviceCatalogRepositoryLinkEvidence{
+		factID:    envelope.FactID,
+		provider:  stringPtrValue(link.Provider),
+		entityRef: link.EntityRef,
+		repositoryID: firstNonBlank(
+			stringPtrValue(link.RepositoryID),
+			stringPtrValue(link.RepoID),
+		),
+		repositoryURL: firstNonBlank(
+			stringPtrValue(link.NormalizedURL),
+			stringPtrValue(link.RepositoryURL),
+			stringPtrValue(link.RawURL),
+			stringPtrValue(link.URL),
+		),
+		repositoryName: stringPtrValue(link.RepositoryName),
+		serviceID:      stringPtrValue(link.ServiceID),
+		workloadID:     stringPtrValue(link.WorkloadID),
+	}, nil
 }
 
 func (link serviceCatalogRepositoryLinkEvidence) key() serviceCatalogEntityKey {
@@ -151,315 +314,39 @@ func (link serviceCatalogRepositoryLinkEvidence) key() serviceCatalogEntityKey {
 	}
 }
 
-func serviceCatalogRepositoryFromFact(envelope facts.Envelope) serviceCatalogRepositoryEvidence {
+// serviceCatalogRepositoryFromFact decodes one codegraph "repository"
+// envelope's outer identity through decodeCodegraphRepository, reused
+// unchanged from Wave 4f S1 (factschema_decode_codegraph.go). A payload
+// missing repo_id returns a classified decode error; the caller quarantines
+// it via codegraphDecodeQuarantine/partitionDecodeFailures, exactly like the
+// code-graph-core reducer's own "repository" reads.
+func serviceCatalogRepositoryFromFact(envelope facts.Envelope) (serviceCatalogRepositoryEvidence, error) {
+	repository, err := decodeCodegraphRepository(envelope)
+	if err != nil {
+		return serviceCatalogRepositoryEvidence{}, err
+	}
 	return serviceCatalogRepositoryEvidence{
 		factID:       envelope.FactID,
-		repositoryID: firstNonBlank(payloadString(envelope.Payload, "graph_id"), payloadString(envelope.Payload, "repo_id")),
-		name:         payloadString(envelope.Payload, "name"),
-		remoteURL:    payloadString(envelope.Payload, "remote_url"),
+		repositoryID: firstNonBlank(stringPtrValue(repository.GraphID), repository.RepoID),
+		name:         stringPtrValue(repository.Name),
+		remoteURL:    stringPtrValue(repository.RemoteURL),
 		tombstone:    envelope.IsTombstone,
-	}
+	}, nil
 }
 
-func classifyServiceCatalogEntity(
-	entity serviceCatalogEntityEvidence,
-	index serviceCatalogCorrelationIndex,
-) ServiceCatalogCorrelationDecision {
-	key := entity.key()
-	decision := serviceCatalogBaseDecision(entity, index.ownership[key])
-	links := index.repoLinks[key]
-	if len(links) == 0 {
-		if entity.sourceRepositoryID != "" {
-			return classifyRepoLocalServiceCatalogEntity(entity, decision, index.repositoryLookup)
-		}
-		decision.Outcome = ServiceCatalogCorrelationUnresolved
-		decision.Reason = "catalog entity has no repository link evidence"
-		decision.DriftStatus = "missing"
-		return decision
-	}
-
-	activeMatches, staleMatches, rejectedLinks := matchServiceCatalogRepositories(links, index.repositoryLookup)
-	decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, serviceCatalogRepositoryLinkFactIDs(links)...)
-	switch len(activeMatches) {
-	case 0:
-		if len(staleMatches) > 0 {
-			decision.Outcome = ServiceCatalogCorrelationStale
-			decision.Reason = "catalog repository link matched only tombstoned repository facts"
-			decision.CandidateRepositoryIDs = serviceCatalogRepositoryIDs(staleMatches)
-			decision.DriftStatus = "stale"
-			return decision
-		}
-		if rejectedLinks == len(links) {
-			decision.Outcome = ServiceCatalogCorrelationRejected
-			decision.Reason = "catalog repository link lacks URL or canonical repository id; name-only links cannot prove ownership"
-			decision.DriftStatus = "rejected"
-			return decision
-		}
-		decision.Outcome = ServiceCatalogCorrelationUnresolved
-		decision.Reason = "catalog repository link did not match any active repository"
-		decision.DriftStatus = "missing"
-		return decision
-	case 1:
-		match := activeMatches[0]
-		decision.RepositoryID = match.repository.repositoryID
-		decision.Outcome = match.outcome
-		decision.Reason = match.reason
-		decision.ProvenanceOnly = false
-		decision.DriftStatus = "matches"
-		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.repository.factID)
-		if decision.ServiceID == "" {
-			decision.ServiceID = match.link.serviceID
-		}
-		if decision.WorkloadID == "" {
-			decision.WorkloadID = match.link.workloadID
-		}
-		return decision
-	default:
-		decision.Outcome = ServiceCatalogCorrelationAmbiguous
-		decision.Reason = "catalog repository link matches multiple active repository facts"
-		decision.CandidateRepositoryIDs = serviceCatalogMatchedRepositoryIDs(activeMatches)
-		decision.DriftStatus = "ambiguous"
-		for _, match := range activeMatches {
-			decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.repository.factID)
-		}
-		return decision
-	}
-}
-
-func classifyRepoLocalServiceCatalogEntity(
-	entity serviceCatalogEntityEvidence,
-	decision ServiceCatalogCorrelationDecision,
-	lookup serviceCatalogRepositoryLookup,
-) ServiceCatalogCorrelationDecision {
-	activeMatches, staleMatches := matchRepoLocalServiceCatalogRepository(entity.sourceRepositoryID, lookup)
-	switch len(activeMatches) {
-	case 0:
-		if len(staleMatches) > 0 {
-			decision.Outcome = ServiceCatalogCorrelationStale
-			decision.Reason = "repo-local catalog descriptor scope matched only tombstoned repository facts"
-			decision.CandidateRepositoryIDs = serviceCatalogRepositoryIDs(staleMatches)
-			decision.DriftStatus = "stale"
-			for _, match := range staleMatches {
-				decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
-			}
-			return decision
-		}
-		decision.Outcome = ServiceCatalogCorrelationUnresolved
-		decision.Reason = "repo-local catalog descriptor scope did not match any active repository"
-		decision.DriftStatus = "missing"
-		return decision
-	case 1:
-		match := activeMatches[0]
-		decision.RepositoryID = match.repositoryID
-		if decision.ServiceID == "" {
-			decision.ServiceID = serviceCatalogAdmittedServiceID(entity)
-		}
-		decision.Outcome = ServiceCatalogCorrelationExact
-		decision.Reason = "repo-local catalog descriptor scope matches canonical repository identity"
-		decision.ProvenanceOnly = false
-		decision.DriftStatus = "matches"
-		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
-		return decision
-	default:
-		decision.Outcome = ServiceCatalogCorrelationAmbiguous
-		decision.Reason = "repo-local catalog descriptor scope matches multiple active repository facts"
-		decision.CandidateRepositoryIDs = serviceCatalogRepositoryIDs(activeMatches)
-		decision.DriftStatus = "ambiguous"
-		for _, match := range activeMatches {
-			decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
-		}
-		return decision
-	}
-}
-
-func serviceCatalogAdmittedServiceID(entity serviceCatalogEntityEvidence) string {
-	if strings.EqualFold(strings.TrimSpace(entity.entityType), "service") {
-		return entity.entityRef
-	}
-	return ""
-}
-
-func serviceCatalogBaseDecision(
-	entity serviceCatalogEntityEvidence,
-	owner serviceCatalogOwnershipEvidence,
-) ServiceCatalogCorrelationDecision {
-	return ServiceCatalogCorrelationDecision{
-		Provider:        entity.provider,
-		EntityRef:       entity.entityRef,
-		EntityType:      entity.entityType,
-		DisplayName:     entity.displayName,
-		ServiceID:       entity.serviceID,
-		WorkloadID:      entity.workloadID,
-		OwnerRef:        owner.ownerRef,
-		Lifecycle:       entity.lifecycle,
-		Tier:            entity.tier,
-		ProvenanceOnly:  true,
-		DriftKind:       "repository",
-		EvidenceFactIDs: compactStringSlice(entity.factID, owner.factID),
-	}
-}
-
-func serviceCatalogSourceRepositoryID(scopeID string) string {
-	scopeID = strings.TrimSpace(scopeID)
-	if !strings.HasPrefix(scopeID, serviceCatalogGitRepositoryScopePrefix) {
+// stringPtrValue dereferences an optional *string field to its value,
+// returning "" for a nil pointer (an absent payload key) — the same
+// zero-value the pre-migration payloadString read produced for a missing
+// key, so every optional-field read in this file stays byte-identical to its
+// pre-conversion behavior.
+func stringPtrValue(value *string) string {
+	if value == nil {
 		return ""
 	}
-	return strings.TrimSpace(strings.TrimPrefix(scopeID, serviceCatalogGitRepositoryScopePrefix))
+	return *value
 }
 
-type serviceCatalogRepositoryMatch struct {
-	link       serviceCatalogRepositoryLinkEvidence
-	repository serviceCatalogRepositoryEvidence
-	outcome    ServiceCatalogCorrelationOutcome
-	reason     string
-	strength   int
-}
-
-func matchServiceCatalogRepositories(
-	links []serviceCatalogRepositoryLinkEvidence,
-	lookup serviceCatalogRepositoryLookup,
-) ([]serviceCatalogRepositoryMatch, []serviceCatalogRepositoryEvidence, int) {
-	var active []serviceCatalogRepositoryMatch
-	var stale []serviceCatalogRepositoryEvidence
-	rejected := 0
-	for _, link := range links {
-		if link.repositoryID != "" {
-			linkActive, linkStale := matchServiceCatalogRepositoryID(link, lookup)
-			active = append(active, linkActive...)
-			stale = append(stale, linkStale...)
-			continue
-		}
-		if link.repositoryURL == "" {
-			rejected++
-			continue
-		}
-		linkActive, linkStale := matchServiceCatalogRepositoryURL(link, lookup)
-		active = append(active, linkActive...)
-		stale = append(stale, linkStale...)
-	}
-	return uniqueServiceCatalogRepositoryMatches(active), uniqueServiceCatalogRepositories(stale), rejected
-}
-
-func matchServiceCatalogRepositoryID(
-	link serviceCatalogRepositoryLinkEvidence,
-	lookup serviceCatalogRepositoryLookup,
-) ([]serviceCatalogRepositoryMatch, []serviceCatalogRepositoryEvidence) {
-	var active []serviceCatalogRepositoryMatch
-	var stale []serviceCatalogRepositoryEvidence
-	activeRepositories, staleRepositories := lookup.byRepositoryID(link.repositoryID)
-	stale = append(stale, staleRepositories...)
-	for _, repository := range activeRepositories {
-		active = append(active, serviceCatalogRepositoryMatch{
-			link:       link,
-			repository: repository,
-			outcome:    ServiceCatalogCorrelationExact,
-			reason:     "catalog repository id matches canonical repository identity",
-			strength:   3,
-		})
-	}
-	return active, stale
-}
-
-func matchRepoLocalServiceCatalogRepository(
-	repositoryID string,
-	lookup serviceCatalogRepositoryLookup,
-) ([]serviceCatalogRepositoryEvidence, []serviceCatalogRepositoryEvidence) {
-	active, stale := lookup.byRepositoryID(repositoryID)
-	return uniqueServiceCatalogRepositories(active), uniqueServiceCatalogRepositories(stale)
-}
-
-func matchServiceCatalogRepositoryURL(
-	link serviceCatalogRepositoryLinkEvidence,
-	lookup serviceCatalogRepositoryLookup,
-) ([]serviceCatalogRepositoryMatch, []serviceCatalogRepositoryEvidence) {
-	linkKey := canonicalPackageSourceURLKey(link.repositoryURL)
-	if linkKey == "" {
-		return nil, nil
-	}
-	var active []serviceCatalogRepositoryMatch
-	var stale []serviceCatalogRepositoryEvidence
-	activeRepositories, staleRepositories := lookup.byCanonicalURL(linkKey)
-	stale = append(stale, staleRepositories...)
-	for _, repository := range activeRepositories {
-		outcome := ServiceCatalogCorrelationDerived
-		reason := "catalog repository link matches repository remote after git URL canonicalization"
-		strength := 1
-		if exactPackageSourceURLMatch(link.repositoryURL, repository.remoteURL) {
-			outcome = ServiceCatalogCorrelationExact
-			reason = "catalog repository link matches repository remote exactly"
-			strength = 2
-		}
-		active = append(active, serviceCatalogRepositoryMatch{
-			link:       link,
-			repository: repository,
-			outcome:    outcome,
-			reason:     reason,
-			strength:   strength,
-		})
-	}
-	return active, stale
-}
-
-func uniqueServiceCatalogRepositoryMatches(
-	matches []serviceCatalogRepositoryMatch,
-) []serviceCatalogRepositoryMatch {
-	bestByRepo := make(map[string]serviceCatalogRepositoryMatch, len(matches))
-	for _, match := range matches {
-		key := match.repository.repositoryID
-		current, ok := bestByRepo[key]
-		if ok && current.strength >= match.strength {
-			continue
-		}
-		bestByRepo[key] = match
-	}
-	out := make([]serviceCatalogRepositoryMatch, 0, len(bestByRepo))
-	for _, match := range bestByRepo {
-		out = append(out, match)
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].repository.repositoryID < out[j].repository.repositoryID
-	})
-	return out
-}
-
-func uniqueServiceCatalogRepositories(
-	repositories []serviceCatalogRepositoryEvidence,
-) []serviceCatalogRepositoryEvidence {
-	seen := make(map[string]struct{}, len(repositories))
-	out := make([]serviceCatalogRepositoryEvidence, 0, len(repositories))
-	for _, repository := range repositories {
-		if _, ok := seen[repository.repositoryID]; ok {
-			continue
-		}
-		seen[repository.repositoryID] = struct{}{}
-		out = append(out, repository)
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].repositoryID < out[j].repositoryID
-	})
-	return out
-}
-
-func serviceCatalogRepositoryLinkFactIDs(links []serviceCatalogRepositoryLinkEvidence) []string {
-	ids := make([]string, 0, len(links))
-	for _, link := range links {
-		ids = append(ids, link.factID)
-	}
-	return ids
-}
-
-func serviceCatalogMatchedRepositoryIDs(matches []serviceCatalogRepositoryMatch) []string {
-	ids := make([]string, 0, len(matches))
-	for _, match := range matches {
-		ids = append(ids, match.repository.repositoryID)
-	}
-	return uniqueSortedStrings(ids)
-}
-
-func serviceCatalogRepositoryIDs(repositories []serviceCatalogRepositoryEvidence) []string {
-	ids := make([]string, 0, len(repositories))
-	for _, repository := range repositories {
-		ids = append(ids, repository.repositoryID)
-	}
-	return uniqueSortedStrings(ids)
-}
+// classifyServiceCatalogEntity, the repository-matching helpers, and the
+// per-decision shaping functions live in service_catalog_correlation_classify.go
+// (split out to keep this file under the 500-line cap; this file owns fact
+// decode + index construction, the classify file owns decision logic).

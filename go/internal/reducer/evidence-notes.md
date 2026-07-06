@@ -732,3 +732,71 @@ runtime knob, or Cypher statement is introduced. P2 changes only which import
 specifier feeds owner lookup and surfaces through the existing
 `skipped_relative`/`skipped_no_owner` counters already on this path, so no
 observability surface changes for it.
+
+## #4755 — service_catalog + content typed-payload decode (Wave 4f S3, 2026-07-06)
+
+Routed the service_catalog correlation index's `entity`/`ownership`/
+`repository_link` reads and its codegraph `repository` read through the typed
+factschema decode seam (`decodeServiceCatalogEntity/Ownership/RepositoryLink`
+and the reused `decodeCodegraphRepository` from #4753) instead of raw
+`payloadString` map reads. Split `service_catalog_correlation_index.go` into
+`_index.go` (decode + index build) and `_classify.go` (decision classification
++ repository matching) for the 500-line cap.
+
+Benchmark Evidence: `BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout`
+(the existing 4096-repository ambiguous-fanout benchmark that exercises the full
+index build + classification the change touches), run with
+`go test ./internal/reducer -run '^$' -bench 'BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout' -benchtime 3x -count=3`
+on an Apple M1 Max (darwin/arm64), compared against a throwaway worktree at the
+merge-base commit `f90be94e0`:
+
+- Before (raw payloadString reads): ~8.65 ms/op, 13.22 MB/op, 45225 allocs/op.
+- After (typed decode seam): ~9.95 ms/op, 13.81 MB/op, 45220 allocs/op.
+
+Input shape: one catalog entity + one repository_link fanning out to 4096
+active repository facts sharing one remote (worst-case ambiguous match). The
+result set is byte-identical (same single Ambiguous decision, same 4096
+`CandidateRepositoryIDs` in the same order); the ~15% wall-time and ~4.5%
+allocated-bytes increase is the bounded cost of decoding each fact into a typed
+struct before reading its identity, with allocation count essentially flat.
+This is the same cost shape #4753 measured for the codegraph conversion. No
+Cypher, graph write, Postgres query, index, worker, lease, batch size, or queue
+knob changed — the index build is a pure in-process transform on the same
+per-intent fact batch.
+
+No-Regression Evidence: written test-first. The flagship regression
+`TestServiceCatalogCorrelationQuarantinesEntityMissingEntityRef` and
+`TestPartitionServiceCatalogFacts...` were red (`buildServiceCatalogCorrelation
+IndexWithQuarantine` undefined) before the seam landed, then green after. A
+missing required `entity_ref` now dead-letters as a classified `input_invalid`
+quarantine instead of silently dropping; a present-but-empty `entity_ref` keeps
+the pre-migration drop behavior (locked by
+`TestBuildServiceCatalogCorrelationIndexDoesNotIndexPresentButEmptyEntityRef`).
+`TestServiceCatalogCorrelationHandleIsIdempotentUnderReplay` proves the decision
+set and quarantine set are byte-identical across a replayed intent.
+`TestDecodeServiceCatalogAcceptsPersistedVersionlessSchemaVersion` proves a
+persisted `"0.0.0"` sentinel still decodes as the latest major. Following a
+codex review finding on #4757,
+`TestBuildServiceCatalogCorrelationIndexPropagatesUnsupportedMajorAsFatal` and
+`TestServiceCatalogCorrelationHandleFailsIntentOnUnsupportedMajor` prove that an
+unsupported schema major (for example `2.0.0`) on a registered,
+schema-version-admitted service_catalog fact is NOT swallowed into a per-fact
+quarantine: `buildServiceCatalogCorrelationIndexWithQuarantine` returns the
+fatal error and `Handle` fails the whole intent (no correlations written) so the
+work item is triaged for retry once the reducer supports the new major, rather
+than publishing version-skewed truth with the fact silently omitted. The full
+B-7 golden-corpus gate is GREEN after the change (`405 pass, 0 required-fail`),
+proving no rc dropped for the service_catalog correlations or the codegraph
+file/repository truth in B-12. `go test ./internal/reducer -count=1` and
+`cd sdk/go/factschema && go test ./... -count=1` pass.
+
+No-Observability-Change: the decode reuses the existing
+`eshu_dp_reducer_input_invalid_facts_total` counter (`recordQuarantinedFacts` in
+`factschema_decode.go`), labeled `domain`=`service_catalog_correlation` (an
+existing label value). The service_catalog_correlation domain's decision and
+guardrail counters (`eshu_dp_service_catalog_correlations_total`,
+`eshu_dp_service_catalog_correlation_guardrails_total`) and its evidence-summary
+structured log are unchanged. No new metric, span, queue domain, worker, lease,
+runtime knob, or Cypher statement is introduced;
+`docs/public/observability/telemetry-coverage.md` gains two
+No-Observability-Change rows for the new reducer files.

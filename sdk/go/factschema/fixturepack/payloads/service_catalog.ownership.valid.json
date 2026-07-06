@@ -1,0 +1,5 @@
+{
+  "provider": "backstage",
+  "entity_ref": "component:default/checkout",
+  "owner_ref": "group:default/payments"
+}

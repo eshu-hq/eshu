@@ -106,6 +106,10 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "work_item.workflow_metadata.v1.schema.json", generate: schemagen.WorkItemWorkflowMetadataSchema},
 		{file: "work_item.field_metadata.v1.schema.json", generate: schemagen.WorkItemFieldMetadataSchema},
 		{file: "work_item.metadata_warning.v1.schema.json", generate: schemagen.WorkItemMetadataWarningSchema},
+		{file: "service_catalog.entity.v1.schema.json", generate: schemagen.ServiceCatalogEntitySchema},
+		{file: "service_catalog.ownership.v1.schema.json", generate: schemagen.ServiceCatalogOwnershipSchema},
+		{file: "service_catalog.repository_link.v1.schema.json", generate: schemagen.ServiceCatalogRepositoryLinkSchema},
+		{file: "service_catalog.operational_link.v1.schema.json", generate: schemagen.ServiceCatalogOperationalLinkSchema},
 	}
 
 	for _, tc := range cases {
@@ -210,6 +214,10 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"ci.trigger_edge.v1.schema.json",
 		"ci.step.v1.schema.json",
 		"ci.workflow_image_evidence.v1.schema.json",
+		"service_catalog.entity.v1.schema.json",
+		"service_catalog.ownership.v1.schema.json",
+		"service_catalog.repository_link.v1.schema.json",
+		"service_catalog.operational_link.v1.schema.json",
 	}
 
 	for _, file := range files {

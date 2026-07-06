@@ -164,7 +164,17 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 	}
 	envelopes = append(envelopes, activeRepos...)
 
-	decisions := BuildServiceCatalogCorrelationDecisions(envelopes)
+	index, quarantined, fatalErr := buildServiceCatalogCorrelationIndexWithQuarantine(envelopes)
+	if fatalErr != nil {
+		// A fatal decode error (payload type mismatch or unsupported schema
+		// major on a registered, schema-version-admitted service_catalog fact)
+		// must fail the whole intent through WorkSink.Fail so it is triaged for
+		// retry once the reducer supports the new major, never published as
+		// version-skewed truth with the offending fact silently omitted.
+		return Result{}, fmt.Errorf("decode service catalog correlation facts: %w", fatalErr)
+	}
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainServiceCatalogCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
+	decisions := serviceCatalogDecisionsFromIndex(index)
 	counts := serviceCatalogCorrelationCounts(decisions)
 	guardrails := serviceCatalogCorrelationGuardrailStats(decisions)
 	writeResult, err := h.Writer.WriteServiceCatalogCorrelations(ctx, ServiceCatalogCorrelationWrite{
@@ -190,6 +200,7 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: serviceCatalogCorrelationSummary(len(decisions), counts, writeResult.FactsWritten, guardrails),
 		CanonicalWrites: writeResult.FactsWritten,
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -394,9 +405,25 @@ func (h ServiceCatalogCorrelationHandler) loadActiveRepositoryFacts(ctx context.
 }
 
 // BuildServiceCatalogCorrelationDecisions classifies catalog entities without
-// turning name-only catalog metadata into repository, service, or workload truth.
+// turning name-only catalog metadata into repository, service, or workload
+// truth. A fact that fails to decode (a missing entity_ref, owner join key, or
+// repository identity) is silently excluded from the index — see
+// buildServiceCatalogCorrelationIndex; callers that need visibility into which
+// facts were quarantined should call
+// buildServiceCatalogCorrelationIndexWithQuarantine and
+// serviceCatalogDecisionsFromIndex directly (Handle does this).
 func BuildServiceCatalogCorrelationDecisions(envelopes []facts.Envelope) []ServiceCatalogCorrelationDecision {
 	index := buildServiceCatalogCorrelationIndex(envelopes)
+	return serviceCatalogDecisionsFromIndex(index)
+}
+
+// serviceCatalogDecisionsFromIndex classifies every catalog entity already
+// present in a built index. It is the shared classification step behind both
+// BuildServiceCatalogCorrelationDecisions (which builds a quarantine-oblivious
+// index) and Handle (which builds the index via
+// buildServiceCatalogCorrelationIndexWithQuarantine so it can separately
+// report the quarantined facts).
+func serviceCatalogDecisionsFromIndex(index serviceCatalogCorrelationIndex) []ServiceCatalogCorrelationDecision {
 	decisions := make([]ServiceCatalogCorrelationDecision, 0, len(index.entities))
 	for _, entity := range index.entities {
 		decisions = append(decisions, serviceCatalogCorrelationDecisionWithGuardrails(

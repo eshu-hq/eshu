@@ -1,0 +1,75 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/servicecatalog/v1/repository_link.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "entity_ref": {
+      "type": "string"
+    },
+    "normalized_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "raw_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repo_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workload_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "entity_ref"
+  ],
+  "title": "Eshu service_catalog.repository_link Payload (schema version 1)",
+  "type": "object"
+}
