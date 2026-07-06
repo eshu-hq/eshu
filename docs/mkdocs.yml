@@ -136,6 +136,7 @@ nav:
   - Extend Eshu:
     - Overview: extend/index.md
     - Community Extension Authoring: extend/community-extension-authoring.md
+    - SDK Compatibility: extend/sdk-compatibility.md
     - Reference Scorecard Extension: extend/reference-scorecard-extension.md
     - Reference PagerDuty Extension: extend/reference-pagerduty-extension.md
     - Collector Authoring: guides/collector-authoring.md

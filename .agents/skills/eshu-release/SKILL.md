@@ -115,6 +115,43 @@ git diff --check
 
 Open a PR from a branch or worktree. Do not push directly to `main`.
 
+## SDK Module Release (`sdk/go/collector`, `sdk/go/factschema`)
+
+The core release flow above tags the repository root (`vX.Y.Z`) for the
+Docker image, Helm chart, and CLI binaries. `sdk/go/collector` and
+`sdk/go/factschema` are separate public Go subdirectory modules, each tagged
+independently with the `<module-dir>/vX.Y.Z` format
+(`sdk/go/collector/v0.1.0`, `sdk/go/factschema/v0.1.0`, ...), never a bare
+`vX.Y.Z`. See [`RELEASING.md`](../../../RELEASING.md) for the full
+preconditions, exact tag commands, the proxy-fetch verification, and the
+initial-version reasoning; the summary:
+
+1. Land the release-worthy change with an updated
+   `sdk/go/collector/CHANGELOG.md` or `sdk/go/factschema/CHANGELOG.md` entry
+   (rename `[Unreleased]` to the chosen version) and a new row in
+   `docs/public/extend/sdk-compatibility.md`.
+2. For a `sdk/go/factschema` release, confirm
+   `.github/workflows/factschema-diff.yml` is green — it is that module's
+   `buf breaking` equivalent and catches an unbumped major.
+3. After merge, from a clean fast-forwarded `main`:
+
+   ```bash
+   git tag sdk/go/collector/vX.Y.Z <sha>
+   git tag sdk/go/factschema/vX.Y.Z <sha>
+   git push origin sdk/go/collector/vX.Y.Z
+   git push origin sdk/go/factschema/vX.Y.Z
+   ```
+
+4. Prove the tag is fetchable from a scratch module outside the repo
+   (`go get github.com/eshu-hq/eshu/sdk/go/collector@vX.Y.Z` in a throwaway
+   `go mod init`), and paste the resolved version in the release record.
+
+This tagging step is outward-facing and permanent once pushed (the Go module
+proxy caches it), so treat it as coordinator/maintainer-controlled the same
+way root `vX.Y.Z` tags are: an executor preparing the release PR states the
+exact commands and versions for a maintainer to run, rather than running
+`git tag`/`git push origin <tag>` itself.
+
 ## Verification Checklist
 
 Report concrete evidence:

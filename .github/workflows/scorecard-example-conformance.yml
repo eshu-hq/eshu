@@ -1,0 +1,50 @@
+# Reference Scorecard example CI (#4583, #4572).
+#
+# The scorecard example under examples/collector-extensions/scorecard is the
+# out-of-tree proof that an external collector can build against the public
+# sdk/go/collector and sdk/go/factschema modules, run the conformance harness
+# against a pinned fixture pack, and pass in its own CI config — without the
+# eshu binary or any go/internal package. This workflow is that CI config: it
+# runs the example's own `go test ./...` (its own go.mod, resolved in-repo via
+# `replace` directives against the SDK module paths) on any PR that touches
+# the example or either SDK module, so "the external collector proves
+# conformance in its own CI" is a real, running gate rather than a manual
+# command a maintainer might forget to run.
+name: Scorecard Example Conformance
+
+on:
+  pull_request:
+    paths:
+      - "examples/collector-extensions/scorecard/**"
+      - "sdk/go/collector/**"
+      - "sdk/go/factschema/**"
+      - ".github/workflows/scorecard-example-conformance.yml"
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Scorecard example go test
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: examples/collector-extensions/scorecard/go.mod
+          cache-dependency-path: examples/collector-extensions/scorecard/go.sum
+
+      - name: Run scorecard example tests
+        working-directory: examples/collector-extensions/scorecard
+        run: go test ./... -count=1

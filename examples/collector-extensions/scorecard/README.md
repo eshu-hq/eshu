@@ -61,6 +61,48 @@ worker image, and `scripts/proof-install-oci.sh`, driven by
 [Reference Scorecard Extension](../../../docs/public/extend/reference-scorecard-extension.md)
 docs for the OCI adapter proof.
 
+## Pinning story: `replace` directives stand in for a real version pin
+
+This example's `go.mod` uses `replace` directives for both SDK modules:
+
+```
+replace github.com/eshu-hq/eshu/sdk/go/collector => ../../../sdk/go/collector
+replace github.com/eshu-hq/eshu/sdk/go/factschema => ../../../sdk/go/factschema
+```
+
+That is a monorepo-only convenience, not the shape a real external collector
+uses. Inside this repository, the example needs to build and test against
+whatever is on the current branch — including an unreleased change under
+review in the same PR — so it resolves both SDK modules by local path instead
+of a tag.
+
+An out-of-tree collector repository has no local path to the SDK modules and
+instead pins real released versions:
+
+```
+require github.com/eshu-hq/eshu/sdk/go/collector v0.1.0
+require github.com/eshu-hq/eshu/sdk/go/factschema v0.1.0
+```
+
+with no `replace` directive at all — `go get
+github.com/eshu-hq/eshu/sdk/go/collector@v0.1.0` (and the `factschema`
+equivalent) resolves through the public Go module proxy once the tags in
+[`RELEASING.md`](../../../RELEASING.md) are cut. The `sdk/go/factschema` pin
+is also the fixture-pack pin: `fixturepack_pin_test.go` in this directory
+demonstrates pinning that module and validating payloads against its embedded
+schemas, exactly as an external collector would after replacing the local
+`replace` with a real `require vX.Y.Z`.
+
+See [SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for
+which `sdk/go/collector` / `sdk/go/factschema` version pair to pin for a given
+core Eshu release and wire protocol version.
+
+CI proof that this example's tests actually pass on every PR touching it or
+either SDK module lives in
+[`.github/workflows/scorecard-example-conformance.yml`](../../../.github/workflows/scorecard-example-conformance.yml) —
+the "external collector proves conformance in its own CI" claim is a running
+gate, not a manual command a contributor could forget to run.
+
 ## Privacy posture
 
 Fixtures use public example repository names only. The collector never accepts
