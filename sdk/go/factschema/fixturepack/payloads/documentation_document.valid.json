@@ -1,0 +1,14 @@
+{
+  "document_id": "doc:git:repo-123:docs/runbook.md",
+  "source_id": "fp:doc-source:git-markdown",
+  "revision_id": "rev-1",
+  "canonical_uri": "https://github.com/example/repo/blob/main/docs/runbook.md",
+  "title": "Platform Runbook",
+  "document_type": "readme",
+  "format": "markdown",
+  "language": "en",
+  "source_metadata": {
+    "path": "docs/runbook.md",
+    "repo_id": "repo-123"
+  }
+}

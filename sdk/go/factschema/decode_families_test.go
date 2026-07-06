@@ -384,6 +384,30 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindSecurityAlertRepositoryAlert:
 		_, err := DecodeSecurityAlertRepositoryAlert(env)
 		return err
+	case FactKindDocumentationSource:
+		_, err := DecodeDocumentationSource(env)
+		return err
+	case FactKindDocumentationDocument:
+		_, err := DecodeDocumentationDocument(env)
+		return err
+	case FactKindDocumentationSection:
+		_, err := DecodeDocumentationSection(env)
+		return err
+	case FactKindDocumentationLink:
+		_, err := DecodeDocumentationLink(env)
+		return err
+	case FactKindDocumentationEntityMention:
+		_, err := DecodeDocumentationEntityMention(env)
+		return err
+	case FactKindDocumentationClaimCandidate:
+		_, err := DecodeDocumentationClaimCandidate(env)
+		return err
+	case FactKindDocumentationFinding:
+		_, err := DecodeDocumentationFinding(env)
+		return err
+	case FactKindDocumentationEvidencePacket:
+		_, err := DecodeDocumentationEvidencePacket(env)
+		return err
 	case FactKindObservabilityDeclaredFolder:
 		_, err := DecodeObservabilityDeclaredFolder(env)
 		return err
@@ -558,6 +582,14 @@ var allDecodedKinds = []string{
 	FactKindObservabilityObservedTraceSignal,
 	FactKindObservabilityCoverageWarning,
 	FactKindObservabilitySourceInstance,
+	FactKindDocumentationSource,
+	FactKindDocumentationDocument,
+	FactKindDocumentationSection,
+	FactKindDocumentationLink,
+	FactKindDocumentationEntityMention,
+	FactKindDocumentationClaimCandidate,
+	FactKindDocumentationFinding,
+	FactKindDocumentationEvidencePacket,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -880,6 +912,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeObservabilityCoverageWarning(env)
 			case FactKindObservabilitySourceInstance:
 				_, err = DecodeObservabilitySourceInstance(env)
+			case FactKindDocumentationSource:
+				_, err = DecodeDocumentationSource(env)
+			case FactKindDocumentationDocument:
+				_, err = DecodeDocumentationDocument(env)
+			case FactKindDocumentationSection:
+				_, err = DecodeDocumentationSection(env)
+			case FactKindDocumentationLink:
+				_, err = DecodeDocumentationLink(env)
+			case FactKindDocumentationEntityMention:
+				_, err = DecodeDocumentationEntityMention(env)
+			case FactKindDocumentationClaimCandidate:
+				_, err = DecodeDocumentationClaimCandidate(env)
+			case FactKindDocumentationFinding:
+				_, err = DecodeDocumentationFinding(env)
+			case FactKindDocumentationEvidencePacket:
+				_, err = DecodeDocumentationEvidencePacket(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

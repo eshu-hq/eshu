@@ -99,6 +99,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				FactLoader:           handlers.FactLoader,
 				EdgeWriter:           handlers.DocumentationEdgeWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				Instruments:          handlers.Instruments,
 			}
 		case DomainRationaleMaterialization:
 			def.Handler = RationaleEdgeMaterializationHandler{

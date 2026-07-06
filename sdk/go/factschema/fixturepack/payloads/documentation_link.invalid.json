@@ -1,0 +1,6 @@
+{
+  "revision_id": "rev-1",
+  "section_id": "sect-1",
+  "link_id": "link-1",
+  "target_uri": "service://payments-api"
+}

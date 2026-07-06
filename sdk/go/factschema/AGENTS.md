@@ -72,6 +72,14 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
   required identity anchor; see `observability/v1/README.md` for the
   per-kind required set). When you
   add a new kind, add its typed
+  `sbom/v1/README.md` for which are wired versus typed-but-deferred) and the
+  documentation family (`documentation_source`, `documentation_document`,
+  `documentation_section`, `documentation_link`,
+  `documentation_entity_mention`, `documentation_claim_candidate`,
+  `documentation_finding`, `documentation_evidence_packet` — see
+  `documentation/v1/README.md` for which are wired versus typed-but-deferred,
+  and note `documentation_section` carries its own schema version distinct
+  from the rest of the family). When you add a new kind, add its typed
   struct under `<family>/v1` (its required set is whatever the struct's own json
   tags declare — there is no separate registration step), its
   `Decode<Kind>`/`Encode<Kind>` and `FactKind<Kind>` in the family's

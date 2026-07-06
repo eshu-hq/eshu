@@ -1,0 +1,15 @@
+{
+  "finding_id": "finding-1",
+  "finding_version": "2026-07-05T00:00:00Z",
+  "finding_type": "ownership_claim",
+  "status": "verified",
+  "truth_level": "high",
+  "freshness_state": "fresh",
+  "source_id": "fp:doc-source:git-markdown",
+  "document_id": "doc:git:repo-123:docs/runbook.md",
+  "section_id": "sect-1",
+  "claim_id": "claim-1",
+  "claim_type": "ownership",
+  "claim_text": "The payments-api service is owned by the payments team.",
+  "evidence_packet_id": "packet-1"
+}

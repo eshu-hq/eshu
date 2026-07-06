@@ -1,0 +1,109 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/documentation/v1/finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "claim_byte_length": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "claim_byte_offset": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "claim_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "claim_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "claim_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "document_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_packet_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "finding_id": {
+      "type": "string"
+    },
+    "finding_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "finding_version": {
+      "type": "string"
+    },
+    "freshness_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "normalized_claim": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "section_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "truth_level": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "finding_id",
+    "finding_version"
+  ],
+  "title": "Eshu documentation_finding Payload (schema version 1)",
+  "type": "object"
+}

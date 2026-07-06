@@ -199,6 +199,22 @@ func run() error {
 		{name: "observability.observed_trace_signal.v1.schema.json", generate: schemagen.ObservabilityObservedTraceSignalSchema},
 		{name: "observability.coverage_warning.v1.schema.json", generate: schemagen.ObservabilityCoverageWarningSchema},
 		{name: "observability.source_instance.v1.schema.json", generate: schemagen.ObservabilitySourceInstanceSchema},
+		// The documentation family fact kinds are UNDERSCORE-separated (not
+		// dotted, unlike work_item/incident/sbom). Only documentation_document
+		// and documentation_entity_mention have a reducer decode site today;
+		// the rest are typed-but-deferred (documentation/v1/README.md).
+		// documentation_section carries its own schema-minor version (1.1),
+		// reflected in its schema description, not its filename (the file
+		// name convention is kind+".v1.schema.json" across every major-1
+		// kind regardless of minor).
+		{name: "documentation_source.v1.schema.json", generate: schemagen.DocumentationSourceSchema},
+		{name: "documentation_document.v1.schema.json", generate: schemagen.DocumentationDocumentSchema},
+		{name: "documentation_section.v1.schema.json", generate: schemagen.DocumentationSectionSchema},
+		{name: "documentation_link.v1.schema.json", generate: schemagen.DocumentationLinkSchema},
+		{name: "documentation_entity_mention.v1.schema.json", generate: schemagen.DocumentationEntityMentionSchema},
+		{name: "documentation_claim_candidate.v1.schema.json", generate: schemagen.DocumentationClaimCandidateSchema},
+		{name: "documentation_finding.v1.schema.json", generate: schemagen.DocumentationFindingSchema},
+		{name: "documentation_evidence_packet.v1.schema.json", generate: schemagen.DocumentationEvidencePacketSchema},
 	}
 
 	for _, target := range targets {

@@ -1,0 +1,11 @@
+{
+  "document_id": "doc:git:repo-123:docs/runbook.md",
+  "revision_id": "rev-1",
+  "section_id": "sect-1",
+  "claim_id": "claim-1",
+  "claim_type": "ownership",
+  "claim_text": "The payments-api service is owned by the payments team.",
+  "claim_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "subject_mention_id": "mention-1",
+  "authority": "document_evidence"
+}

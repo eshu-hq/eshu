@@ -1,0 +1,55 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/documentation/v1/evidence_packet.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "finding_id": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "linked_entities": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "entity_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "packet_id": {
+      "type": "string"
+    },
+    "packet_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "packet_id",
+    "finding_id"
+  ],
+  "title": "Eshu documentation_evidence_packet Payload (schema version 1)",
+  "type": "object"
+}

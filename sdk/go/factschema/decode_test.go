@@ -17,6 +17,7 @@ import (
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
+	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
@@ -392,6 +393,14 @@ var payloadContracts = []struct {
 	{FactKindObservabilityObservedTraceSignal, "observability.observed_trace_signal.v1.schema.json", reflect.TypeOf(observabilityv1.ObservedTraceSignal{})},
 	{FactKindObservabilityCoverageWarning, "observability.coverage_warning.v1.schema.json", reflect.TypeOf(observabilityv1.CoverageWarning{})},
 	{FactKindObservabilitySourceInstance, "observability.source_instance.v1.schema.json", reflect.TypeOf(observabilityv1.SourceInstance{})},
+	{FactKindDocumentationSource, "documentation_source.v1.schema.json", reflect.TypeOf(documentationv1.Source{})},
+	{FactKindDocumentationDocument, "documentation_document.v1.schema.json", reflect.TypeOf(documentationv1.Document{})},
+	{FactKindDocumentationSection, "documentation_section.v1.schema.json", reflect.TypeOf(documentationv1.Section{})},
+	{FactKindDocumentationLink, "documentation_link.v1.schema.json", reflect.TypeOf(documentationv1.Link{})},
+	{FactKindDocumentationEntityMention, "documentation_entity_mention.v1.schema.json", reflect.TypeOf(documentationv1.EntityMention{})},
+	{FactKindDocumentationClaimCandidate, "documentation_claim_candidate.v1.schema.json", reflect.TypeOf(documentationv1.ClaimCandidate{})},
+	{FactKindDocumentationFinding, "documentation_finding.v1.schema.json", reflect.TypeOf(documentationv1.Finding{})},
+	{FactKindDocumentationEvidencePacket, "documentation_evidence_packet.v1.schema.json", reflect.TypeOf(documentationv1.EvidencePacket{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry
