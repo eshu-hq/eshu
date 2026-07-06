@@ -90,7 +90,19 @@ func Generate(opts Options) ([]byte, error) {
 		return nil, err
 	}
 
-	scopeID := fmt.Sprintf("gcp:project:%s", opts.ProjectID)
+	// The seed is part of the scope identity, not only cosmetic metadata: two
+	// corpora for the same ProjectID but different Seed must be independently
+	// replayable. Replay derives fact_id from
+	// (scope_id, generation_id, stable_fact_key)
+	// (go/internal/replay/cassette/source.go), generation_id derives from
+	// scope_id (replay.DerivedGenerationID below), and the stable keys here are
+	// project/resource-based (seed-independent). Folding the seed into scope_id
+	// makes scope_id, generation_id, and every derived fact_id seed-distinct, so
+	// replaying two seed-variants into one store keeps them independent instead
+	// of the later run fencing/overwriting the earlier. Same-seed determinism is
+	// unaffected: the seed is fixed per generation, so the scope_id is stable and
+	// the byte-identical contract (TestGenerateIsByteIdenticalForSameSeed) holds.
+	scopeID := fmt.Sprintf("gcp:project:%s:seed:%d", opts.ProjectID, opts.Seed)
 	file := cassette.File{
 		Collector:     opts.collectorLabel(),
 		SchemaVersion: cassette.SchemaVersionV1,

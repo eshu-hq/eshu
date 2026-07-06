@@ -51,6 +51,15 @@ generation draws only from the seeded PCG and the fixed, sorted
 run-to-run churn (key ordering, the derived `generation_id`, the collapsed
 `observed_at` sentinel).
 
+The seed is part of the scope identity, not only cosmetic metadata: the scope
+id is `gcp:project:<ProjectID>:seed:<Seed>`. Two corpora with the same
+`ProjectID` but different `Seed` therefore carry distinct `scope_id`,
+`generation_id` (derived from `scope_id`), and derived `fact_id`
+(`facts.StableID` over `scope_id`, `generation_id`, `stable_fact_key`), so both
+can be replayed into one store as independent corpora rather than the later run
+fencing or overwriting the earlier one
+(`TestSameProjectDifferentSeedsHaveDisjointReplayIdentities`).
+
 ## Conformance and schema validity
 
 `TestGeneratedCassettePassesConformance` and
