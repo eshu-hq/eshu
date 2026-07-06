@@ -16,13 +16,13 @@ import (
 // IAM scanner emits for an instance-profile node. It mirrors
 // awscloud.ResourceTypeIAMInstanceProfile; the duplication is intentional so the
 // reducer does not import the collector package for one string constant.
-const ec2UsesProfileResourceTypeInstanceProfile = "aws_iam_instance_profile"
+const ec2UsesProfileResourceTypeInstanceProfile = awsv1.ResourceTypeIAMInstanceProfile
 
 // ec2UsesProfileResourceTypeInstance is the canonical resource-type token an EC2
 // instance CloudResource node carries. It mirrors awscloud.ResourceTypeEC2Instance
 // and the PR-A node materialization (ec2_instance_node_rows.go), so the edge's
 // source uid is byte-identical to the node uid PR-A committed.
-const ec2UsesProfileResourceTypeInstance = "aws_ec2_instance"
+const ec2UsesProfileResourceTypeInstance = awsv1.ResourceTypeEC2Instance
 
 // ec2UsesProfileRelationshipType is the closed single-member relationship
 // vocabulary this slice projects. It is the static token the cypher writer

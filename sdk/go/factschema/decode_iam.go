@@ -21,7 +21,31 @@ func DecodeAWSIAMPermission(env Envelope) (iamv1.Permission, error) {
 // for schema-version-1 payloads, used by collectors emitting this fact kind and
 // by this module's round-trip tests.
 func EncodeAWSIAMPermission(permission iamv1.Permission) (map[string]any, error) {
-	return encodeToPayload(permission)
+	payload := map[string]any{
+		"account_id":    permission.AccountID,
+		"region":        permission.Region,
+		"principal_arn": permission.PrincipalARN,
+		"effect":        permission.Effect,
+		"policy_source": permission.PolicySource,
+	}
+	addStringPtr(payload, "service_kind", permission.ServiceKind)
+	addStringPtr(payload, "collector_instance_id", permission.CollectorInstanceID)
+	addStringPtr(payload, "principal_type", permission.PrincipalType)
+	addStringPtr(payload, "policy_arn", permission.PolicyARN)
+	addStringPtr(payload, "policy_name", permission.PolicyName)
+	addStringPtr(payload, "statement_sid", permission.StatementSID)
+	addStringSlice(payload, "actions", permission.Actions)
+	addStringSlice(payload, "not_actions", permission.NotActions)
+	addStringSlice(payload, "resources", permission.Resources)
+	addStringSlice(payload, "not_resources", permission.NotResources)
+	addStringSlice(payload, "assume_principals", permission.AssumePrincipals)
+	addBoolPtr(payload, "has_conditions", permission.HasConditions)
+	addStringSlice(payload, "condition_keys", permission.ConditionKeys)
+	addStringSlice(payload, "condition_operators", permission.ConditionOperators)
+	addIntPtr(payload, "condition_operator_count", permission.ConditionOperatorCount)
+	addBoolPtr(payload, "is_wildcard_action", permission.IsWildcardAction)
+	addBoolPtr(payload, "is_wildcard_resource", permission.IsWildcardResource)
+	return payload, nil
 }
 
 // DecodeAWSResourcePolicyPermission decodes env.Payload into the latest
@@ -35,7 +59,32 @@ func DecodeAWSResourcePolicyPermission(env Envelope) (iamv1.ResourcePolicyPermis
 // into the map[string]any payload shape an Envelope carries. It is the inverse
 // of DecodeAWSResourcePolicyPermission for schema-version-1 payloads.
 func EncodeAWSResourcePolicyPermission(permission iamv1.ResourcePolicyPermission) (map[string]any, error) {
-	return encodeToPayload(permission)
+	payload := map[string]any{
+		"account_id":    permission.AccountID,
+		"region":        permission.Region,
+		"resource_arn":  permission.ResourceARN,
+		"resource_type": permission.ResourceType,
+		"effect":        permission.Effect,
+	}
+	addStringPtr(payload, "service_kind", permission.ServiceKind)
+	addStringPtr(payload, "collector_instance_id", permission.CollectorInstanceID)
+	addStringPtr(payload, "policy_source", permission.PolicySource)
+	addStringSlice(payload, "actions", permission.Actions)
+	addStringSlice(payload, "not_actions", permission.NotActions)
+	addStringSlice(payload, "resources", permission.Resources)
+	addStringSlice(payload, "not_resources", permission.NotResources)
+	addStringSlice(payload, "principal_arns", permission.PrincipalARNs)
+	addBoolPtr(payload, "is_public", permission.IsPublic)
+	addBoolPtr(payload, "has_conditions", permission.HasConditions)
+	addStringSlice(payload, "condition_keys", permission.ConditionKeys)
+	addStringSlice(payload, "condition_operators", permission.ConditionOperators)
+	addIntPtr(payload, "condition_operator_count", permission.ConditionOperatorCount)
+	addStringSlice(payload, "principal_account_ids", permission.PrincipalAccountIDs)
+	addStringSlice(payload, "principal_types", permission.PrincipalTypes)
+	addBoolPtr(payload, "is_wildcard_action", permission.IsWildcardAction)
+	addBoolPtr(payload, "is_wildcard_resource", permission.IsWildcardResource)
+	addBoolPtr(payload, "is_cross_account", permission.IsCrossAccount)
+	return payload, nil
 }
 
 // DecodeAWSIAMPrincipal decodes env.Payload into the latest iamv1.Principal
@@ -49,5 +98,10 @@ func DecodeAWSIAMPrincipal(env Envelope) (iamv1.Principal, error) {
 // payload shape an Envelope carries. It is the inverse of DecodeAWSIAMPrincipal
 // for schema-version-1 payloads.
 func EncodeAWSIAMPrincipal(principal iamv1.Principal) (map[string]any, error) {
-	return encodeToPayload(principal)
+	return map[string]any{
+		"account_id":     principal.AccountID,
+		"region":         principal.Region,
+		"principal_arn":  principal.PrincipalARN,
+		"principal_type": principal.PrincipalType,
+	}, nil
 }

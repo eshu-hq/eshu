@@ -1,0 +1,147 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/rds_instance_posture.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "arn": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "backup_retention_period": {
+      "type": "integer"
+    },
+    "ca_certificate_identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "deletion_protection": {
+      "type": "boolean"
+    },
+    "engine": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "iam_database_authentication_enabled": {
+      "type": "boolean"
+    },
+    "identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kms_key_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "multi_az": {
+      "type": "boolean"
+    },
+    "option_groups": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "parameter_groups": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "performance_insights_enabled": {
+      "type": "boolean"
+    },
+    "performance_insights_kms_key_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "performance_insights_retention_days": {
+      "type": "integer"
+    },
+    "publicly_accessible": {
+      "type": "boolean"
+    },
+    "region": {
+      "type": "string"
+    },
+    "resource_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "security_parameters": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "storage_encrypted": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "publicly_accessible",
+    "storage_encrypted",
+    "iam_database_authentication_enabled",
+    "multi_az",
+    "deletion_protection",
+    "backup_retention_period",
+    "performance_insights_enabled",
+    "performance_insights_retention_days"
+  ],
+  "title": "Eshu rds_instance_posture Payload (schema version 1)",
+  "type": "object"
+}

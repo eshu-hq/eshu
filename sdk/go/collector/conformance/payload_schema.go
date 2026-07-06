@@ -53,6 +53,9 @@ type propertySchema struct {
 	// "type": "string" or a union "type": ["string", "null"]. Never empty after
 	// compileProperty.
 	types map[string]struct{}
+	// format constrains string values when set. Only date-time is supported
+	// today because it is the only format emitted by checked-in factschemas.
+	format string
 	// items constrains array element values when "array" is an allowed type.
 	// Nil when the property is not array-typed.
 	items *propertySchema
@@ -80,6 +83,7 @@ var (
 		"items":                {},
 		"properties":           {},
 		"additionalProperties": {},
+		"format":               {},
 	}
 	supportedPrimitiveTypes = map[string]struct{}{
 		"string":  {},
@@ -89,6 +93,9 @@ var (
 		"array":   {},
 		"object":  {},
 		"null":    {},
+	}
+	supportedStringFormats = map[string]struct{}{
+		"date-time": {},
 	}
 )
 
@@ -192,6 +199,9 @@ func compileAdditionalProperties(doc map[string]json.RawMessage) (string, error)
 	if err := rejectUnknownKeywords(apObject, knownPropertyKeywords); err != nil {
 		return "", fmt.Errorf("additionalProperties: %w", err)
 	}
+	if _, ok := apObject["format"]; ok {
+		return "", fmt.Errorf("\"additionalProperties\" schema \"format\" is not supported")
+	}
 	rawAPType, ok := apObject["type"]
 	if !ok {
 		return "", fmt.Errorf("\"additionalProperties\" schema must declare a \"type\"")
@@ -236,6 +246,17 @@ func compileProperty(raw json.RawMessage) (propertySchema, error) {
 	}
 	prop.types = types
 
+	if rawFormat, ok := doc["format"]; ok {
+		format, err := decodeStringFormat(rawFormat)
+		if err != nil {
+			return propertySchema{}, err
+		}
+		if _, ok := prop.types["string"]; !ok {
+			return propertySchema{}, fmt.Errorf("\"format\" is only supported on a string-typed property")
+		}
+		prop.format = format
+	}
+
 	_, isArray := prop.types["array"]
 	if isArray {
 		rawItems, ok := doc["items"]
@@ -265,6 +286,20 @@ func compileProperty(raw json.RawMessage) (propertySchema, error) {
 	}
 
 	return prop, nil
+}
+
+// decodeStringFormat validates a JSON Schema string "format" value. Only
+// date-time is supported because that is the format generated for Go time.Time
+// fields in the checked-in schemas.
+func decodeStringFormat(raw json.RawMessage) (string, error) {
+	var format string
+	if err := json.Unmarshal(raw, &format); err != nil {
+		return "", fmt.Errorf("\"format\" must be a string")
+	}
+	if _, ok := supportedStringFormats[format]; !ok {
+		return "", fmt.Errorf("unsupported string format %q", format)
+	}
+	return format, nil
 }
 
 // decodeTypeSet expands a JSON Schema "type" value — a bare string or a union

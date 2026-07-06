@@ -61,9 +61,9 @@ It must remain independent from Eshu internals.
   that reads AWS/Azure/GCP kinds together and still reads them raw. Adding a
   struct here would be a hollow contract (the decode seam would never be called
   by the real read path) and would asymmetrically type GCP while its AWS/Azure
-  siblings stay raw — matching how the AWS wave left `aws_image_reference` and
-  `aws_tag_observation` untyped. They migrate WITH their cross-provider
-  consumer, not in a per-cloud wave.
+  sibling stays raw. AWS cloud support now types image references; tag
+  observations still migrate WITH their cross-provider consumer, not in a
+  per-cloud wave.
 - **Family boundary**: `gcp_iam_principal`, `gcp_iam_trust_policy`, and
   `gcp_iam_permission_policy` belong to the `secrets_iam` fact family
   (`go/internal/facts/secrets_iam.go`), NOT this package. Do not add structs

@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 // wildcardAction is the IAM action wildcard that grants every action. A
@@ -72,29 +74,32 @@ func NewIAMPermissionEnvelope(observation IAMPermissionObservation) (facts.Envel
 	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
 	stableKey := facts.StableID(facts.AWSIAMPermissionFactKind, stableIdentity)
 
-	payload := map[string]any{
-		"account_id":               observation.Boundary.AccountID,
-		"region":                   observation.Boundary.Region,
-		"service_kind":             observation.Boundary.ServiceKind,
-		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
-		"principal_arn":            principalARN,
-		"principal_type":           strings.TrimSpace(observation.PrincipalType),
-		"policy_source":            policySource,
-		"policy_arn":               policyARN,
-		"policy_name":              policyName,
-		"statement_sid":            statementSID,
-		"effect":                   effect,
-		"actions":                  actions,
-		"not_actions":              notActions,
-		"resources":                resources,
-		"not_resources":            notResources,
-		"condition_keys":           conditionKeys,
-		"condition_operators":      conditionOperators,
-		"condition_operator_count": len(conditionOperators),
-		"assume_principals":        assumePrincipals,
-		"has_conditions":           len(conditionKeys) > 0 || len(conditionOperators) > 0,
-		"is_wildcard_action":       containsValue(actions, wildcardAction),
-		"is_wildcard_resource":     containsValue(resources, wildcardAction),
+	payload, err := factschema.EncodeAWSIAMPermission(iamv1.Permission{
+		AccountID:              observation.Boundary.AccountID,
+		Region:                 observation.Boundary.Region,
+		ServiceKind:            boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID:    boundaryValue(observation.Boundary.CollectorInstanceID),
+		PrincipalARN:           principalARN,
+		PrincipalType:          stringValuePtr(strings.TrimSpace(observation.PrincipalType)),
+		PolicySource:           policySource,
+		PolicyARN:              stringValuePtr(policyARN),
+		PolicyName:             stringValuePtr(policyName),
+		StatementSID:           stringValuePtr(statementSID),
+		Effect:                 effect,
+		Actions:                actions,
+		NotActions:             notActions,
+		Resources:              resources,
+		NotResources:           notResources,
+		ConditionKeys:          conditionKeys,
+		ConditionOperators:     conditionOperators,
+		ConditionOperatorCount: intValuePtr(len(conditionOperators)),
+		AssumePrincipals:       assumePrincipals,
+		HasConditions:          boolValuePtr(len(conditionKeys) > 0 || len(conditionOperators) > 0),
+		IsWildcardAction:       boolValuePtr(containsValue(actions, wildcardAction)),
+		IsWildcardResource:     boolValuePtr(containsValue(resources, wildcardAction)),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_iam_permission payload: %w", err)
 	}
 
 	return newEnvelope(

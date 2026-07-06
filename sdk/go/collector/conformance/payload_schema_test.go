@@ -307,6 +307,54 @@ func TestCompileSchemaAcceptsOpenObjects(t *testing.T) {
 	}
 }
 
+// TestRunValidatesDateTimeFormat proves the schema-subset validator understands
+// the "format": "date-time" construct emitted for time.Time fields. A malformed
+// timestamp must fail closed rather than passing as an arbitrary string.
+func TestRunValidatesDateTimeFormat(t *testing.T) {
+	t.Parallel()
+
+	const dateTimeSchema = `{
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["account_id", "observed_at"],
+      "properties": {
+        "account_id": {"type": "string"},
+        "observed_at": {"type": ["string", "null"], "format": "date-time"}
+      }
+    }`
+
+	validPayload := map[string]any{
+		"account_id":  "123456789012",
+		"observed_at": "2026-06-09T15:00:00Z",
+	}
+	validReport := conformance.Run(conformance.Request{
+		Manifest:       awsManifest(),
+		Fixtures:       []collector.Result{awsResourceResult(validPayload)},
+		Mode:           conformance.ModeFixture,
+		PayloadSchemas: map[string]json.RawMessage{awsResourceKind: json.RawMessage(dateTimeSchema)},
+	})
+	if !validReport.OK() {
+		t.Fatalf("findings = %#v, want passed for a valid date-time payload", validReport.Findings)
+	}
+
+	invalidPayload := map[string]any{
+		"account_id":  "123456789012",
+		"observed_at": "2026-06-09 15:00:00",
+	}
+	invalidReport := conformance.Run(conformance.Request{
+		Manifest:       awsManifest(),
+		Fixtures:       []collector.Result{awsResourceResult(invalidPayload)},
+		Mode:           conformance.ModeFixture,
+		PayloadSchemas: map[string]json.RawMessage{awsResourceKind: json.RawMessage(dateTimeSchema)},
+	})
+	if invalidReport.OK() {
+		t.Fatal("report OK = true, want failed for a malformed date-time payload")
+	}
+	if !findingMentions(invalidReport, conformance.FindingPayloadSchemaInvalid, "observed_at") {
+		t.Fatalf("findings = %#v, want a payload-schema finding naming %q", invalidReport.Findings, "observed_at")
+	}
+}
+
 // TestRunValidatesNestedObjectArrayItems proves the validator descends into a
 // nested-object array element (the ec2_instance_posture block_devices shape): a
 // wrong-typed field inside an array-of-objects element fails closed and names

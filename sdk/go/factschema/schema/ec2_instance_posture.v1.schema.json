@@ -54,6 +54,12 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "correlation_anchors": {
       "items": {
         "type": "string"
@@ -108,6 +114,12 @@
     "nitro_enclave_enabled": {
       "type": [
         "boolean",
+        "null"
+      ]
+    },
+    "public_ip_address": {
+      "type": [
+        "string",
         "null"
       ]
     },

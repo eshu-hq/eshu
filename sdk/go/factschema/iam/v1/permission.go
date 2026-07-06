@@ -26,9 +26,18 @@ type Permission struct {
 	// Region is the AWS region the statement was observed in. Required.
 	Region string `json:"region"`
 
+	// ServiceKind is the collector service-kind boundary token. Optional.
+	ServiceKind *string `json:"service_kind,omitempty"`
+
+	// CollectorInstanceID is the collector instance boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// PrincipalARN is the ARN of the principal the policy statement is attached
 	// to. Required — it anchors every edge the statement can produce.
 	PrincipalARN string `json:"principal_arn"`
+
+	// PrincipalType is the collector's normalized principal resource type.
+	PrincipalType *string `json:"principal_type,omitempty"`
 
 	// Effect is the normalized statement effect ("Allow" or "Deny"). Required.
 	Effect string `json:"effect"`
@@ -41,6 +50,12 @@ type Permission struct {
 	// PolicyARN is the managed-policy ARN the statement came from, when it came
 	// from a managed policy. Optional: inline statements have no policy ARN.
 	PolicyARN *string `json:"policy_arn,omitempty"`
+
+	// PolicyName is the inline or managed policy display name, when known.
+	PolicyName *string `json:"policy_name,omitempty"`
+
+	// StatementSID is the statement Sid, when present in the policy document.
+	StatementSID *string `json:"statement_sid,omitempty"`
 
 	// Actions is the normalized, lowercased, sorted set of IAM actions the
 	// statement lists. Optional: always emitted by the collector but may be
@@ -69,4 +84,19 @@ type Permission struct {
 	// distinct from an observed false; the grant evaluators treat a nil or
 	// false value as unconditioned.
 	HasConditions *bool `json:"has_conditions,omitempty"`
+
+	// ConditionKeys lists condition key identifiers only, never values.
+	ConditionKeys []string `json:"condition_keys,omitempty"`
+
+	// ConditionOperators lists condition operators only, never values.
+	ConditionOperators []string `json:"condition_operators,omitempty"`
+
+	// ConditionOperatorCount is the number of condition operators observed.
+	ConditionOperatorCount *int `json:"condition_operator_count,omitempty"`
+
+	// IsWildcardAction reports whether actions contains "*".
+	IsWildcardAction *bool `json:"is_wildcard_action,omitempty"`
+
+	// IsWildcardResource reports whether resources contains "*".
+	IsWildcardResource *bool `json:"is_wildcard_resource,omitempty"`
 }

@@ -1,0 +1,12 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "publicly_accessible": false,
+  "storage_encrypted": true,
+  "iam_database_authentication_enabled": true,
+  "multi_az": true,
+  "deletion_protection": true,
+  "backup_retention_period": 7,
+  "performance_insights_enabled": true,
+  "performance_insights_retention_days": 7
+}

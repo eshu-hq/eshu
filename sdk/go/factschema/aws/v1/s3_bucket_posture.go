@@ -31,6 +31,12 @@ type S3BucketPosture struct {
 	// Region is the AWS region the bucket was observed in. Required.
 	Region string `json:"region"`
 
+	// ServiceKind is the collector service-kind boundary token. Optional.
+	ServiceKind *string `json:"service_kind,omitempty"`
+
+	// CollectorInstanceID is the collector instance boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// BucketARN is the bucket ARN. Optional: the emitter requires bucket_arn OR
 	// bucket_name, so this may be empty when only the name was observed; the
 	// reducer derives the name from the ARN tail when BucketName is blank.
@@ -66,4 +72,49 @@ type S3BucketPosture struct {
 	// RestrictPublicBuckets reports the restrict-public-buckets block-public-
 	// access flag. Optional pointer preserving unreported vs observed false.
 	RestrictPublicBuckets *bool `json:"restrict_public_buckets,omitempty"`
+
+	// BlockPublicACLs reports the block-public-ACLs flag. Optional.
+	BlockPublicACLs *bool `json:"block_public_acls,omitempty"`
+
+	// BlockPublicPolicy reports the block-public-policy flag. Optional.
+	BlockPublicPolicy *bool `json:"block_public_policy,omitempty"`
+
+	// DefaultEncryptionEnabled reports whether default encryption is enabled.
+	DefaultEncryptionEnabled *bool `json:"default_encryption_enabled,omitempty"`
+
+	// EncryptionAlgorithms is the normalized default-encryption algorithm list.
+	EncryptionAlgorithms []string `json:"encryption_algorithms,omitempty"`
+
+	// SSEKMSKeyARN is the default SSE-KMS key ARN, when configured.
+	SSEKMSKeyARN *string `json:"sse_kms_key_arn,omitempty"`
+
+	// BucketKeyEnabled reports whether the S3 bucket key is enabled.
+	BucketKeyEnabled *bool `json:"bucket_key_enabled,omitempty"`
+
+	// VersioningStatus is the S3 versioning status string.
+	VersioningStatus *string `json:"versioning_status,omitempty"`
+
+	// VersioningEnabled reports whether bucket versioning is enabled.
+	VersioningEnabled *bool `json:"versioning_enabled,omitempty"`
+
+	// MFADeleteEnabled reports whether MFA delete is enabled.
+	MFADeleteEnabled *bool `json:"mfa_delete_enabled,omitempty"`
+
+	// ObjectOwnership carries observed object-ownership modes.
+	ObjectOwnership []string `json:"object_ownership,omitempty"`
+
+	// ACLDisabled reports whether ACLs are disabled by object ownership.
+	ACLDisabled *bool `json:"acl_disabled,omitempty"`
+
+	// LoggingEnabled reports whether access logging is enabled.
+	LoggingEnabled *bool `json:"logging_enabled,omitempty"`
+
+	// ReplicationEnabled reports whether replication is enabled.
+	ReplicationEnabled *bool `json:"replication_enabled,omitempty"`
+
+	// PolicyGrantsCrossAccount marks a policy with cross-account grants.
+	PolicyGrantsCrossAccount *bool `json:"policy_grants_cross_account,omitempty"`
+
+	// CorrelationAnchors are redaction-safe bucket anchors.
+	CorrelationAnchors []string `json:"correlation_anchors,omitempty"`
 }

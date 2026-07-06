@@ -40,7 +40,8 @@
 // called by the real read path — and would asymmetrically type GCP while its
 // AWS/Azure siblings stay raw. These two kinds migrate WITH their
 // cross-provider consumer, not in this per-cloud wave, matching how the
-// AWS wave left aws_image_reference and aws_tag_observation untyped.
+// AWS cloud support now types image references; tag observations still migrate
+// with their shared cross-provider consumer.
 //
 // GCPCloudResourceSchemaVersion (go/internal/facts.gcp.go) is pinned at
 // 1.1.0, one minor ahead of the rest of this family's 1.0.0 kinds: 1.1.0

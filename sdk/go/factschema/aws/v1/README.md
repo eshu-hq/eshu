@@ -11,19 +11,24 @@ of these structs, validated.
 
 ## Purpose
 
-Five AWS fact kinds decode through this package:
+Ten AWS-backed fact kinds decode through this package:
 
 | Fact kind | Struct | Decode function |
 | --- | --- | --- |
 | `aws_resource` | `Resource` | `factschema.DecodeAWSResource` |
 | `aws_relationship` | `Relationship` | `factschema.DecodeAWSRelationship` |
+| `aws_dns_record` | `DNSRecord` | `factschema.DecodeAWSDNSRecord` |
+| `aws_image_reference` | `ImageReference` | `factschema.DecodeAWSImageReference` |
 | `aws_security_group_rule` | `SecurityGroupRule` | `factschema.DecodeAWSSecurityGroupRule` |
+| `aws_warning` | `Warning` | `factschema.DecodeAWSWarning` |
 | `ec2_instance_posture` | `EC2InstancePosture` | `factschema.DecodeEC2InstancePosture` |
+| `rds_instance_posture` | `RDSInstancePosture` | `factschema.DecodeRDSInstancePosture` |
 | `s3_bucket_posture` | `S3BucketPosture` | `factschema.DecodeS3BucketPosture` |
+| `s3_external_principal_grant` | `S3ExternalPrincipalGrant` | `factschema.DecodeS3ExternalPrincipalGrant` |
 
 ## Ownership boundary
 
-This package owns the Go type definitions and JSON codec for these five fact
+This package owns the Go type definitions and JSON codec for these fact
 kinds' payloads. It does not own decode dispatch, schema-version routing, or
 required-field validation — that lives in the parent `factschema` package
 (`decode.go`, `decode_aws.go`). It does not own graph projection; reducer
@@ -32,10 +37,11 @@ outside this module.
 
 ## Exported surface
 
-`Resource`, `Relationship`, `SecurityGroupRule`, `EC2InstancePosture`,
-`S3BucketPosture`, and `BlockDevice` (an `EC2InstancePosture` sub-struct).
-See each struct's godoc comment for its full field list; the required/
-optional split below is the contract most callers need first.
+`Resource`, `Relationship`, `DNSRecord`, `ImageReference`,
+`SecurityGroupRule`, `Warning`, `EC2InstancePosture`, `RDSInstancePosture`,
+`S3BucketPosture`, `S3ExternalPrincipalGrant`, and their nested helper structs.
+See each struct's godoc comment for its full field list; the required/optional
+split below is the contract most callers need first.
 
 ## Dependencies
 
@@ -60,9 +66,14 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 | --- | --- | --- |
 | `Resource` | `AccountID`, `ResourceID`, `Region`, `ResourceType` | The collector emitter (`awscloud.NewResourceEnvelope`) validates all four non-empty. Missing any one previously produced an empty-string graph uid; the decode seam now dead-letters it as `input_invalid` instead. |
 | `Relationship` | `AccountID`, `Region`, `RelationshipType`, `SourceResourceID`, `TargetResourceID` | The collector emitter (`awscloud.NewRelationshipEnvelope`) validates all five non-empty (`source_resource_id` defaults to `source_arn`, `target_resource_id` to `target_arn`, so one identity is always present). |
+| `DNSRecord` | `AccountID`, `Region`, `HostedZoneID`, `RecordName`, `NormalizedRecordName`, `RecordType` | Route 53 records are keyed by zone, normalized name, and type; optional values, alias target, and routing policy describe the record body without changing the identity. |
+| `ImageReference` | `AccountID`, `Region`, `RepositoryName`, `ImageDigest`, `ManifestDigest` | ECR image identity requires the repository plus digest pair; tags and media types are optional observations. |
 | `SecurityGroupRule` | `AccountID`, `Region`, `GroupID`, `Direction`, `IPProtocol`, `SourceKind`, `SourceValue` | The collector emitter (`awscloud.NewSecurityGroupRuleEnvelope`) validates `group_id` non-empty and always emits the rest from a boundary and a normalized `(kind, value)` pair. `GroupID` anchors the `SecurityGroup` node the reachability edge hangs off. |
+| `Warning` | `AccountID`, `Region`, `WarningKind` | Warnings remain scoped to an account/region boundary and a bounded warning category; messages and attributes are optional evidence. |
 | `EC2InstancePosture` | `AccountID`, `Region` | The emitter validates `instance_id` OR `arn` non-empty as an either-or identity, so neither `InstanceID` nor `ARN` can be required on its own — requiring one would dead-letter a valid fact identified only by the other. |
+| `RDSInstancePosture` | `AccountID`, `Region`, `PubliclyAccessible`, `StorageEncrypted`, `IAMDatabaseAuthenticationEnabled`, `MultiAZ`, `DeletionProtection`, `BackupRetentionPeriod`, `PerformanceInsightsEnabled`, `PerformanceInsightsRetentionDays` | RDS posture facts always emit these observed security flags and retention values, while resource identity and engine details remain optional. |
 | `S3BucketPosture` | `AccountID`, `Region` | Same either-or shape: the emitter validates `bucket_arn` OR `bucket_name` non-empty, so neither `BucketARN` nor `BucketName` is required on its own. |
+| `S3ExternalPrincipalGrant` | `AccountID`, `Region`, `PrincipalKind`, `PrincipalValue`, `GrantOutcome`, `IsPublic`, `IsCrossAccount`, `IsServicePrincipal`, `IsUnsupported` | Grant facts classify one normalized policy principal and outcome without carrying raw policy JSON. |
 
 Missing a required identity field dead-letters as `input_invalid` rather than
 forming an empty-string graph identity — this is the accuracy fix this
@@ -115,9 +126,8 @@ epic #4566, tracked as #4631). It is a distinct, larger increment, not a gap
 in this package's identity-accuracy goal, which is complete and uniform
 across every `aws_resource` and `aws_relationship` consumer today.
 
-`SecurityGroupRule`, `EC2InstancePosture`, and `S3BucketPosture` are each
-scoped to one fact kind with a known field set, so none of them carries an
-`Attributes` pass-through.
+The non-polymorphic structs are each scoped to one fact kind with a known field
+set, so none of them carries an `Attributes` pass-through.
 
 ## Changing a struct
 

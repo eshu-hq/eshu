@@ -1,0 +1,6 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "repository_name": "backend",
+  "manifest_digest": "sha256:aaaabbbbccccddddeeeeffff1111222233334444555566667777888899990000"
+}

@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
 )
 
 // NewResourcePolicyPermissionEnvelope builds the durable
@@ -73,30 +75,33 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
 	stableKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, stableIdentity)
 
-	payload := map[string]any{
-		"account_id":               observation.Boundary.AccountID,
-		"region":                   observation.Boundary.Region,
-		"service_kind":             observation.Boundary.ServiceKind,
-		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
-		"resource_arn":             resourceARN,
-		"resource_type":            resourceType,
-		"policy_source":            ResourcePolicySourceResource,
-		"effect":                   effect,
-		"actions":                  actions,
-		"not_actions":              notActions,
-		"resources":                resources,
-		"not_resources":            notResources,
-		"condition_keys":           conditionKeys,
-		"condition_operators":      conditionOperators,
-		"condition_operator_count": len(conditionOperators),
-		"principal_account_ids":    principalAccountIDs,
-		"principal_arns":           principalARNs,
-		"principal_types":          principalTypes,
-		"has_conditions":           len(conditionKeys) > 0 || len(conditionOperators) > 0,
-		"is_wildcard_action":       containsValue(actions, wildcardAction),
-		"is_wildcard_resource":     containsValue(resources, wildcardAction),
-		"is_public":                observation.IsPublic,
-		"is_cross_account":         observation.IsCrossAccount,
+	payload, err := factschema.EncodeAWSResourcePolicyPermission(iamv1.ResourcePolicyPermission{
+		AccountID:              observation.Boundary.AccountID,
+		Region:                 observation.Boundary.Region,
+		ServiceKind:            boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID:    boundaryValue(observation.Boundary.CollectorInstanceID),
+		ResourceARN:            resourceARN,
+		ResourceType:           resourceType,
+		PolicySource:           stringValuePtr(ResourcePolicySourceResource),
+		Effect:                 effect,
+		Actions:                actions,
+		NotActions:             notActions,
+		Resources:              resources,
+		NotResources:           notResources,
+		ConditionKeys:          conditionKeys,
+		ConditionOperators:     conditionOperators,
+		ConditionOperatorCount: intValuePtr(len(conditionOperators)),
+		PrincipalAccountIDs:    principalAccountIDs,
+		PrincipalARNs:          principalARNs,
+		PrincipalTypes:         principalTypes,
+		HasConditions:          boolValuePtr(len(conditionKeys) > 0 || len(conditionOperators) > 0),
+		IsWildcardAction:       boolValuePtr(containsValue(actions, wildcardAction)),
+		IsWildcardResource:     boolValuePtr(containsValue(resources, wildcardAction)),
+		IsPublic:               boolValuePtr(observation.IsPublic),
+		IsCrossAccount:         boolValuePtr(observation.IsCrossAccount),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_resource_policy_permission payload: %w", err)
 	}
 
 	return newEnvelope(

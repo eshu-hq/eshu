@@ -24,10 +24,52 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "condition_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "condition_operator_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "condition_operators": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
     "effect": {
       "type": "string"
     },
     "has_conditions": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_wildcard_action": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_wildcard_resource": {
       "type": [
         "boolean",
         "null"
@@ -57,11 +99,23 @@
         "null"
       ]
     },
+    "policy_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "policy_source": {
       "type": "string"
     },
     "principal_arn": {
       "type": "string"
+    },
+    "principal_type": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "region": {
       "type": "string"
@@ -72,6 +126,18 @@
       },
       "type": [
         "array",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "statement_sid": {
+      "type": [
+        "string",
         "null"
       ]
     }

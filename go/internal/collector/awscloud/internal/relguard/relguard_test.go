@@ -40,10 +40,13 @@ func writeFixtureTree(t *testing.T, constantsSrc string, services map[string]str
 
 const fixtureConstants = `package awscloud
 
+import awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+
 const (
 	ResourceTypeEC2VPC = "aws_ec2_vpc"
 	ResourceTypeS3Bucket = "aws_s3_bucket"
 	ResourceTypeGeneric = "aws_resource"
+	ResourceTypeIAMRole = awsv1.ResourceTypeIAMRole
 )
 `
 
@@ -85,7 +88,12 @@ func TestDeclaredResourceTypeValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeclaredResourceTypeValues() error = %v", err)
 	}
-	want := map[string]bool{"aws_ec2_vpc": true, "aws_s3_bucket": true, "aws_resource": true}
+	want := map[string]bool{
+		"aws_ec2_vpc":   true,
+		"aws_s3_bucket": true,
+		"aws_resource":  true,
+		"aws_iam_role":  true,
+	}
 	if len(values) != len(want) {
 		t.Fatalf("DeclaredResourceTypeValues() = %v, want %d values", values, len(want))
 	}

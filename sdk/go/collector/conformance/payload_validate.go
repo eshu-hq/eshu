@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 // validatePayload checks a decoded fact payload against the compiled schema,
@@ -87,6 +88,11 @@ func (p propertySchema) validateValue(field string, value any) error {
 	if !typeSetAccepts(p.types, actual) {
 		return fmt.Errorf("field %q has type %s, want one of %s", field, actual, sortedTypeList(p.types))
 	}
+	if p.format != "" {
+		if err := validateStringFormat(field, p.format, value); err != nil {
+			return err
+		}
+	}
 
 	switch actual {
 	case "array":
@@ -107,6 +113,25 @@ func (p propertySchema) validateValue(field string, value any) error {
 		if err := p.object.validate(field, entries); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// validateStringFormat checks a value against a supported JSON Schema string
+// format. Compile-time checks ensure this is only called for string-typed
+// values, so a failed type assertion here is a defensive validator error.
+func validateStringFormat(field, format string, value any) error {
+	typed, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("field %q has type %s, want string format %s", field, jsonTypeOf(value), format)
+	}
+	switch format {
+	case "date-time":
+		if _, err := time.Parse(time.RFC3339Nano, typed); err != nil {
+			return fmt.Errorf("field %q is not a valid date-time: %w", field, err)
+		}
+	default:
+		return fmt.Errorf("field %q uses unsupported string format %q", field, format)
 	}
 	return nil
 }

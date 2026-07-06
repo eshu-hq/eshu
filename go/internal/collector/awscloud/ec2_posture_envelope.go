@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // NewEC2InstancePostureEnvelope builds the durable ec2_instance_posture fact for
@@ -39,30 +41,31 @@ func NewEC2InstancePostureEnvelope(observation EC2InstancePostureObservation) (f
 		"region":      observation.Boundary.Region,
 	})
 	anchors := normalizedAnchors(nil, arn, instanceID)
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"resource_type":         ResourceTypeEC2Instance,
-		"arn":                   arn,
-		"instance_id":           instanceID,
-		"state":                 strings.TrimSpace(observation.State),
-
-		"imds_v2_required":            boolOrNil(observation.IMDSv2Required),
-		"imds_http_endpoint":          strings.TrimSpace(observation.HTTPEndpoint),
-		"imds_http_put_hop_limit":     int32OrNil(observation.HTTPPutResponseHopLimit),
-		"user_data_present":           boolOrNil(observation.UserDataPresent),
-		"detailed_monitoring_enabled": observation.DetailedMonitoring,
-		"ebs_optimized":               observation.EBSOptimized,
-		"public_ip_associated":        observation.PublicIPAssociated,
-		"public_ip_address":           strings.TrimSpace(observation.PublicIPAddress),
-		"instance_profile_arn":        strings.TrimSpace(observation.InstanceProfileARN),
-		"tenancy":                     strings.TrimSpace(observation.Tenancy),
-		"nitro_enclave_enabled":       observation.NitroEnclaveEnabled,
-		"block_devices":               ec2BlockDeviceMaps(observation.BlockDevices),
-
-		"correlation_anchors": anchors,
+	payload, err := factschema.EncodeEC2InstancePosture(awsv1.EC2InstancePosture{
+		AccountID:                 observation.Boundary.AccountID,
+		Region:                    observation.Boundary.Region,
+		ServiceKind:               boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID:       boundaryValue(observation.Boundary.CollectorInstanceID),
+		ResourceType:              stringValuePtr(ResourceTypeEC2Instance),
+		ARN:                       stringValuePtr(arn),
+		InstanceID:                stringValuePtr(instanceID),
+		State:                     stringValuePtr(strings.TrimSpace(observation.State)),
+		IMDSv2Required:            observation.IMDSv2Required,
+		IMDSHTTPEndpoint:          stringValuePtr(strings.TrimSpace(observation.HTTPEndpoint)),
+		IMDSHTTPPutHopLimit:       observation.HTTPPutResponseHopLimit,
+		UserDataPresent:           observation.UserDataPresent,
+		DetailedMonitoringEnabled: boolValuePtr(observation.DetailedMonitoring),
+		EBSOptimized:              boolValuePtr(observation.EBSOptimized),
+		PublicIPAssociated:        boolValuePtr(observation.PublicIPAssociated),
+		PublicIPAddress:           stringValuePtr(strings.TrimSpace(observation.PublicIPAddress)),
+		InstanceProfileARN:        stringValuePtr(strings.TrimSpace(observation.InstanceProfileARN)),
+		Tenancy:                   stringValuePtr(strings.TrimSpace(observation.Tenancy)),
+		NitroEnclaveEnabled:       boolValuePtr(observation.NitroEnclaveEnabled),
+		BlockDevices:              ec2BlockDevices(observation.BlockDevices),
+		CorrelationAnchors:        anchors,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode ec2_instance_posture payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,
@@ -75,32 +78,19 @@ func NewEC2InstancePostureEnvelope(observation EC2InstancePostureObservation) (f
 	), nil
 }
 
-// ec2BlockDeviceMaps normalizes per-volume block-device metadata into stable
-// payload maps. It returns nil for an empty input so posture payloads carry a
-// stable shape. Encryption stays nil unless the observation already carries it;
-// DescribeInstances does not report per-volume encryption.
-func ec2BlockDeviceMaps(devices []EC2BlockDevicePosture) []map[string]any {
+func ec2BlockDevices(devices []EC2BlockDevicePosture) []awsv1.BlockDevice {
 	if len(devices) == 0 {
 		return nil
 	}
-	output := make([]map[string]any, 0, len(devices))
+	output := make([]awsv1.BlockDevice, 0, len(devices))
 	for _, device := range devices {
-		output = append(output, map[string]any{
-			"device_name":           strings.TrimSpace(device.DeviceName),
-			"volume_id":             strings.TrimSpace(device.VolumeID),
-			"delete_on_termination": device.DeleteOnTermination,
-			"status":                strings.TrimSpace(device.Status),
-			"encrypted":             boolOrNil(device.Encrypted),
+		output = append(output, awsv1.BlockDevice{
+			DeviceName:          stringValuePtr(strings.TrimSpace(device.DeviceName)),
+			VolumeID:            stringValuePtr(strings.TrimSpace(device.VolumeID)),
+			DeleteOnTermination: boolValuePtr(device.DeleteOnTermination),
+			Status:              stringValuePtr(strings.TrimSpace(device.Status)),
+			Encrypted:           device.Encrypted,
 		})
 	}
 	return output
-}
-
-// int32OrNil returns the dereferenced int32 or nil when input is nil, so an
-// unreported hop limit stays distinct from an observed zero.
-func int32OrNil(input *int32) any {
-	if input == nil {
-		return nil
-	}
-	return *input
 }

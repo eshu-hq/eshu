@@ -15,6 +15,36 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "condition_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "condition_operator_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "condition_operators": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
     "effect": {
       "type": "string"
     },
@@ -24,7 +54,25 @@
         "null"
       ]
     },
+    "is_cross_account": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "is_public": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_wildcard_action": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_wildcard_resource": {
       "type": [
         "boolean",
         "null"
@@ -54,7 +102,25 @@
         "null"
       ]
     },
+    "principal_account_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
     "principal_arns": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "principal_types": {
       "items": {
         "type": "string"
       },
@@ -78,6 +144,12 @@
       },
       "type": [
         "array",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
         "null"
       ]
     }

@@ -1,0 +1,53 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/warning.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "attributes": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "error_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "region": {
+      "type": "string"
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "warning_kind": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "warning_kind"
+  ],
+  "title": "Eshu aws_warning Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,116 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/s3_external_principal_grant.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "bucket_arn": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bucket_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "grant_outcome": {
+      "type": "string"
+    },
+    "is_cross_account": {
+      "type": "boolean"
+    },
+    "is_public": {
+      "type": "boolean"
+    },
+    "is_service_principal": {
+      "type": "boolean"
+    },
+    "is_unsupported": {
+      "type": "boolean"
+    },
+    "principal_account_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal_kind": {
+      "type": "string"
+    },
+    "principal_partition": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal_service": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal_value": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "resolution_mode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_statement_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "unsupported_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "principal_kind",
+    "principal_value",
+    "grant_outcome",
+    "is_public",
+    "is_cross_account",
+    "is_service_principal",
+    "is_unsupported"
+  ],
+  "title": "Eshu s3_external_principal_grant Payload (schema version 1)",
+  "type": "object"
+}

@@ -16,7 +16,7 @@ import (
 // emits for a bucket node. It mirrors awscloud.ResourceTypeS3Bucket; the
 // duplication is intentional so the reducer does not import the collector
 // package for one string constant.
-const s3LogsToResourceTypeBucket = "aws_s3_bucket"
+const s3LogsToResourceTypeBucket = awsv1.ResourceTypeS3Bucket
 
 // s3LogsToARNInfix marks the start of the bucket-name tail in an S3 bucket ARN.
 // S3 ARNs are arn:aws:s3:::<name> (partition-bearing in the second segment, NO

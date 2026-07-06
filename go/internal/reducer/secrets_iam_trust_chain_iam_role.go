@@ -5,13 +5,14 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // iamRoleCloudResourceType is the CloudResource resource_type the AWS resource
 // projection assigns to IAM roles. It mirrors awscloud.ResourceTypeIAMRole; the
 // reducer duplicates the literal so it does not import the collector package for
 // one constant, matching the iam_can_assume slice's resolution.
-const iamRoleCloudResourceType = "aws_iam_role"
+const iamRoleCloudResourceType = awsv1.ResourceTypeIAMRole
 
 // secretsIAMRoleCloudResourceUID returns the redaction-safe CloudResource node
 // uid for an assumed IAM role, or "" when the read model cannot resolve a

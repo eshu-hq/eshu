@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // resourceTypeConstPrefix is the identifier prefix every shared AWS resource
@@ -134,6 +136,10 @@ func collectResourceTypeConstants(file *ast.File, seen map[string]struct{}) {
 				}
 				if value, ok := stringLiteral(valueSpec.Values[i]); ok {
 					seen[value] = struct{}{}
+					continue
+				}
+				if value, ok := factschemaResourceTypeSelector(valueSpec.Values[i]); ok {
+					seen[value] = struct{}{}
 				}
 			}
 		}
@@ -195,6 +201,42 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 		return "", false
 	}
 	return value, true
+}
+
+// factschemaResourceTypeSelector resolves awscloud ResourceType* constants
+// repointed to the typed factschema/aws/v1 source of truth.
+func factschemaResourceTypeSelector(expr ast.Expr) (string, bool) {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || !strings.HasPrefix(selector.Sel.Name, resourceTypeConstPrefix) {
+		return "", false
+	}
+	value, ok := factschemaResourceTypes[selector.Sel.Name]
+	return value, ok
+}
+
+var factschemaResourceTypes = map[string]string{
+	"ResourceTypeAWSAccount":           awsv1.ResourceTypeAWSAccount,
+	"ResourceTypeGeneric":              awsv1.ResourceTypeGeneric,
+	"ResourceTypeEC2VPC":               awsv1.ResourceTypeEC2VPC,
+	"ResourceTypeEC2Subnet":            awsv1.ResourceTypeEC2Subnet,
+	"ResourceTypeEC2SecurityGroup":     awsv1.ResourceTypeEC2SecurityGroup,
+	"ResourceTypeEC2SecurityGroupRule": awsv1.ResourceTypeEC2SecurityGroupRule,
+	"ResourceTypeEC2NetworkInterface":  awsv1.ResourceTypeEC2NetworkInterface,
+	"ResourceTypeEC2Volume":            awsv1.ResourceTypeEC2Volume,
+	"ResourceTypeEC2Instance":          awsv1.ResourceTypeEC2Instance,
+	"ResourceTypeIAMRole":              awsv1.ResourceTypeIAMRole,
+	"ResourceTypeIAMUser":              awsv1.ResourceTypeIAMUser,
+	"ResourceTypeIAMGroup":             awsv1.ResourceTypeIAMGroup,
+	"ResourceTypeIAMPolicy":            awsv1.ResourceTypeIAMPolicy,
+	"ResourceTypeIAMInstanceProfile":   awsv1.ResourceTypeIAMInstanceProfile,
+	"ResourceTypeIAMPrincipal":         awsv1.ResourceTypeIAMPrincipal,
+	"ResourceTypeS3Bucket":             awsv1.ResourceTypeS3Bucket,
+	"ResourceTypeKMSKey":               awsv1.ResourceTypeKMSKey,
+	"ResourceTypeSecretsManagerSecret": awsv1.ResourceTypeSecretsManagerSecret,
+	"ResourceTypeSSMParameter":         awsv1.ResourceTypeSSMParameter,
+	"ResourceTypeDynamoDBTable":        awsv1.ResourceTypeDynamoDBTable,
+	"ResourceTypeRDSDBInstance":        awsv1.ResourceTypeRDSDBInstance,
+	"ResourceTypeLambdaFunction":       awsv1.ResourceTypeLambdaFunction,
 }
 
 // sortedKeys returns the sorted keys of a string set.

@@ -3,7 +3,11 @@
 
 package reducer
 
-import "sort"
+import (
+	"sort"
+
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+)
 
 // CAN_PERFORM target resource_type tokens the catalog maps actions to. They
 // mirror the awscloud collector's ResourceType* constants (the reducer must not
@@ -13,14 +17,14 @@ import "sort"
 // entry's expected type so, e.g., an s3:GetObject grant never resolves to a KMS
 // key node that happens to share a glob.
 const (
-	iamCanPerformResourceTypeS3Bucket    = "aws_s3_bucket"
-	iamCanPerformResourceTypeKMSKey      = "aws_kms_key"
-	iamCanPerformResourceTypeSecret      = "aws_secretsmanager_secret"
-	iamCanPerformResourceTypeSSMParam    = "aws_ssm_parameter"
-	iamCanPerformResourceTypeDynamoDB    = "aws_dynamodb_table"
-	iamCanPerformResourceTypeEC2Instance = "aws_ec2_instance"
-	iamCanPerformResourceTypeRDSInstance = "aws_rds_db_instance"
-	iamCanPerformResourceTypeLambdaFunc  = "aws_lambda_function"
+	iamCanPerformResourceTypeS3Bucket    = awsv1.ResourceTypeS3Bucket
+	iamCanPerformResourceTypeKMSKey      = awsv1.ResourceTypeKMSKey
+	iamCanPerformResourceTypeSecret      = awsv1.ResourceTypeSecretsManagerSecret
+	iamCanPerformResourceTypeSSMParam    = awsv1.ResourceTypeSSMParameter
+	iamCanPerformResourceTypeDynamoDB    = awsv1.ResourceTypeDynamoDBTable
+	iamCanPerformResourceTypeEC2Instance = awsv1.ResourceTypeEC2Instance
+	iamCanPerformResourceTypeRDSInstance = awsv1.ResourceTypeRDSDBInstance
+	iamCanPerformResourceTypeLambdaFunc  = awsv1.ResourceTypeLambdaFunction
 )
 
 const (

@@ -42,7 +42,15 @@ families:
     read_surface: "GET /api/v0/cloud/inventory"
     truth_profile: provider_gated
     provider_key_independent: false
-    payload_schema_overrides: {aws_resource: "sdk/go/factschema/schema/aws_resource.v1.schema.json"}
+    payload_schema_overrides:
+      aws_dns_record: "sdk/go/factschema/schema/aws_dns_record.v1.schema.json"
+      aws_iam_permission: "sdk/go/factschema/schema/aws_iam_permission.v1.schema.json"
+      aws_image_reference: "sdk/go/factschema/schema/aws_image_reference.v1.schema.json"
+      aws_relationship: "sdk/go/factschema/schema/aws_relationship.v1.schema.json"
+      aws_resource: "sdk/go/factschema/schema/aws_resource.v1.schema.json"
+      aws_resource_policy_permission: "sdk/go/factschema/schema/aws_resource_policy_permission.v1.schema.json"
+      aws_security_group_rule: "sdk/go/factschema/schema/aws_security_group_rule.v1.schema.json"
+      aws_warning: "sdk/go/factschema/schema/aws_warning.v1.schema.json"
     kinds: [aws_dns_record, aws_iam_permission, aws_image_reference, aws_relationship, aws_resource, aws_resource_policy_permission, aws_security_group_rule, aws_tag_observation, aws_warning]
   azure:
     lifecycle_owner: go/internal/facts
@@ -221,6 +229,7 @@ families:
     read_surface: "GET /api/v0/cloud/resources"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema: "sdk/go/factschema/schema/rds_instance_posture.v1.schema.json"
     kinds: [rds_instance_posture]
   s3_bucket_posture:
     lifecycle_owner: go/internal/facts
@@ -231,6 +240,7 @@ families:
     read_surface: "GET /api/v0/cloud/resources"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema: "sdk/go/factschema/schema/s3_bucket_posture.v1.schema.json"
     kinds: [s3_bucket_posture]
   s3_external_principal_grant:
     lifecycle_owner: go/internal/facts
@@ -241,6 +251,7 @@ families:
     read_surface: "GET /api/v0/secrets-iam/posture-summary"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema: "sdk/go/factschema/schema/s3_external_principal_grant.v1.schema.json"
     kinds: [s3_external_principal_grant]
   sbom_attestation:
     lifecycle_owner: go/internal/facts

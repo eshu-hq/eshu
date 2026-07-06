@@ -1,0 +1,10 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "hosted_zone_id": "Z1234567890",
+  "record_name": "api.example.com.",
+  "normalized_record_name": "api.example.com",
+  "values": [
+    "203.0.113.10"
+  ]
+}
