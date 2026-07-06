@@ -173,9 +173,16 @@ questions:
         - incident
         - related_changes
         - timeline
-      # evidence_path is the first array-valued field; require >= 1 so the
-      # incident->service evidence link cannot silently regress to empty.
-      minimum_results: 1
+      # BuildIncidentContextResponse always materializes every evidence_path
+      # slot (a missing one gets truth_label=missing and no value), so array
+      # length alone cannot prove the incident still resolves to a service.
+      # Assert the positive service value instead: the service edge carries
+      # value.service_id ONLY when the incident->service link is present
+      # (missingIncidentContextEdge has no value block), so this path resolves
+      # to empty and fails the gate if that correlation regresses.
+      required_json_paths:
+        - evidence_path[].value.service_id
+      minimum_results: 0
       demonstrates_correlations:
         - rc-14
     artifacts:

@@ -157,6 +157,53 @@ func TestAssertDemoAnswersEmptyResultFails(t *testing.T) {
 	}
 }
 
+// TestAssertDemoAnswersIncidentServiceRegressionFails proves the q3-style
+// positive assertion (evidence_path[].value.service_id) catches the false-green
+// the incident-context contract otherwise allows: BuildIncidentContextResponse
+// always materializes a full evidence_path (a missing slot gets
+// truth_label=missing and no value), so an array-length check passes even when
+// the incident->service edge regresses. Asserting the service value fails that
+// case and passes only when the service edge is present (PR #4778 review).
+func TestAssertDemoAnswersIncidentServiceRegressionFails(t *testing.T) {
+	t.Parallel()
+	q := demospec.Question{
+		ID: "q_incident",
+		Surface: demospec.Surface{
+			Kind: demospec.SurfaceKindPlaybook, Ref: "incident_context_evidence_path",
+			Execute: &demospec.ExecuteTarget{Kind: demospec.SurfaceKindHTTP, Ref: "GET /api/v0/incidents/PSCD1/context"},
+		},
+		ExpectedAnswer: demospec.ExpectedAnswer{
+			RequiredResponseFields: []string{"incident", "evidence_path"},
+			RequiredJSONPaths:      []string{"evidence_path[].value.service_id"},
+		},
+	}
+	cases := []struct {
+		name   string
+		body   string
+		wantOK bool
+	}{
+		// Full evidence_path, but the service slot regressed to missing (no value).
+		{"service_missing", `{"incident":{},"evidence_path":[{"slot":"incident","truth_label":"exact"},{"slot":"service","truth_label":"missing"}]}`, false},
+		// Service edge resolved, carrying value.service_id.
+		{"service_resolved", `{"incident":{},"evidence_path":[{"slot":"incident","truth_label":"exact"},{"slot":"service","truth_label":"exact","value":{"service_id":"SVCSCD1"}}]}`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doer := &fakeDemoDoer{httpByPath: map[string]string{"GET /api/v0/incidents/PSCD1/context": tc.body}}
+			qc, mc := demoClients(doer)
+			var r Report
+			assertDemoAnswers(context.Background(), qc, mc, []demospec.Question{q}, &r)
+			f, ok := findingByCheck(r, "demo:q_incident")
+			if !ok {
+				t.Fatal("missing finding demo:q_incident")
+			}
+			if f.OK != tc.wantOK {
+				t.Fatalf("service %s: finding OK=%v, want %v (detail %q)", tc.name, f.OK, tc.wantOK, f.Detail)
+			}
+		})
+	}
+}
+
 // TestAssertDemoAnswersSurfaceErrorFails proves a transport/HTTP error on a
 // question surfaces as a failing required finding rather than being swallowed.
 func TestAssertDemoAnswersSurfaceErrorFails(t *testing.T) {
