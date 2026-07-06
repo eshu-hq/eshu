@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -48,6 +49,12 @@ type CodeCallMaterializationHandler struct {
 	// EdgeWriter is retained for compatibility with older wiring and tests.
 	// The handler no longer writes canonical edges directly.
 	EdgeWriter SharedProjectionEdgeWriter
+
+	// Instruments records the input_invalid quarantine counter for a "file"
+	// fact whose outer envelope fails the codegraph decode seam (issue
+	// #4749). Optional: nil skips the counter (recordQuarantinedFacts still
+	// logs), matching every other typed-decode handler's convention.
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes the code-call materialization path.
@@ -126,8 +133,9 @@ func (h CodeCallMaterializationHandler) Handle(
 	symbolLoadDuration := time.Since(symbolLoadStart)
 
 	extractStart := time.Now()
-	_, codeCallRows, _, metaclassRows, entityIndex := extractAllCodeRelationshipRowsWithIndex(relationshipEnvelopes)
+	_, codeCallRows, _, metaclassRows, entityIndex, quarantinedFiles := extractAllCodeRelationshipRowsWithIndex(relationshipEnvelopes)
 	extractDuration := time.Since(extractStart)
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCodeCallMaterialization, intent.ScopeID, intent.GenerationID, quarantinedFiles)
 	createdAt := intent.EnqueuedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now().UTC()
@@ -191,6 +199,10 @@ func (h CodeCallMaterializationHandler) Handle(
 		})
 		// Projection context was built (input present) but extraction produced no
 		// edges: genuine empty work, signaled by input_ready=1 and written_rows=0.
+		emptySubSignals := materializationDiagnosticSignals(true, 0)
+		for key, value := range inputInvalidSubSignals(inputInvalidCount) {
+			emptySubSignals[key] = value
+		}
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainCodeCallMaterialization,
@@ -204,7 +216,7 @@ func (h CodeCallMaterializationHandler) Handle(
 				intentBuildDuration: intentBuildDuration,
 				totalDuration:       totalDuration,
 			}),
-			SubSignals: materializationDiagnosticSignals(true, 0),
+			SubSignals: emptySubSignals,
 		}, nil
 	}
 
@@ -246,6 +258,12 @@ func (h CodeCallMaterializationHandler) Handle(
 		totalDuration:       totalDuration,
 	})
 
+	// Projection context was built (input present) and intents were emitted.
+	subSignals := materializationDiagnosticSignals(true, len(intentRows))
+	for key, value := range inputInvalidSubSignals(inputInvalidCount) {
+		subSignals[key] = value
+	}
+
 	return Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainCodeCallMaterialization,
@@ -257,8 +275,7 @@ func (h CodeCallMaterializationHandler) Handle(
 		),
 		CanonicalWrites: len(intentRows),
 		SubDurations:    codeCallMaterializationSubDurations(successTiming),
-		// Projection context was built (input present) and intents were emitted.
-		SubSignals: materializationDiagnosticSignals(true, len(intentRows)),
+		SubSignals:      subSignals,
 	}, nil
 }
 

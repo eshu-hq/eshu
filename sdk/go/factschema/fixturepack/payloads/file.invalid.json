@@ -1,0 +1,9 @@
+{
+  "graph_id": "repo-example:src/service.go",
+  "graph_kind": "file",
+  "relative_path": "src/service.go",
+  "parsed_file_data": {
+    "path": "src/service.go"
+  },
+  "is_dependency": false
+}

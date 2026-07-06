@@ -1,0 +1,135 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codegraph/v1/repository.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "default_branch": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "delta_deleted_relative_paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "delta_generation": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "delta_relative_paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "git_refs": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "head_sha": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "head_sha",
+          "is_default"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "graph_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "graph_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_dependency": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "local_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parsed_file_count": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reconciliation_generation": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "remote_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "repo_slug": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_run_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "repo_id"
+  ],
+  "title": "Eshu repository Payload (schema version 1)",
+  "type": "object"
+}

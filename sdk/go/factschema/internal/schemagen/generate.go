@@ -12,6 +12,7 @@ import (
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
@@ -849,6 +850,25 @@ const VulnerabilityGoCallReachabilitySchemaID = schemaBaseID + "vulnerability/v1
 // vulnerabilityv1.GoCallReachability.
 func VulnerabilityGoCallReachabilitySchema() ([]byte, error) {
 	return reflectSchema(VulnerabilityGoCallReachabilitySchemaID, "Eshu vulnerability.go_call_reachability Payload (schema version 1)", &vulnerabilityv1.GoCallReachability{})
+}
+
+// CodegraphFileSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "file" payload.
+const CodegraphFileSchemaID = schemaBaseID + "codegraph/v1/file.schema.json"
+
+// CodegraphFileSchema returns the JSON Schema bytes for codegraphv1.File.
+func CodegraphFileSchema() ([]byte, error) {
+	return reflectSchema(CodegraphFileSchemaID, "Eshu file Payload (schema version 1)", &codegraphv1.File{})
+}
+
+// CodegraphRepositorySchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "repository" payload.
+const CodegraphRepositorySchemaID = schemaBaseID + "codegraph/v1/repository.schema.json"
+
+// CodegraphRepositorySchema returns the JSON Schema bytes for
+// codegraphv1.Repository.
+func CodegraphRepositorySchema() ([]byte, error) {
+	return reflectSchema(CodegraphRepositorySchemaID, "Eshu repository Payload (schema version 1)", &codegraphv1.Repository{})
 }
 
 // CICDRunSchemaID is the checked-in JSON Schema $id for the schema-version-1

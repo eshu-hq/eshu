@@ -83,6 +83,8 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "vulnerability.known_exploited.v1.schema.json", generate: schemagen.VulnerabilityKnownExploitedSchema},
 		{file: "vulnerability.go_module_evidence.v1.schema.json", generate: schemagen.VulnerabilityGoModuleEvidenceSchema},
 		{file: "vulnerability.go_call_reachability.v1.schema.json", generate: schemagen.VulnerabilityGoCallReachabilitySchema},
+		{file: "file.v1.schema.json", generate: schemagen.CodegraphFileSchema},
+		{file: "repository.v1.schema.json", generate: schemagen.CodegraphRepositorySchema},
 		{file: "ci.run.v1.schema.json", generate: schemagen.CICDRunSchema},
 		{file: "ci.artifact.v1.schema.json", generate: schemagen.CICDArtifactSchema},
 		{file: "ci.environment_observation.v1.schema.json", generate: schemagen.CICDEnvironmentObservationSchema},
@@ -101,7 +103,6 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
 
@@ -195,6 +196,8 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 		"vulnerability.known_exploited.v1.schema.json",
 		"vulnerability.go_module_evidence.v1.schema.json",
 		"vulnerability.go_call_reachability.v1.schema.json",
+		"file.v1.schema.json",
+		"repository.v1.schema.json",
 		"ci.run.v1.schema.json",
 		"ci.artifact.v1.schema.json",
 		"ci.environment_observation.v1.schema.json",
@@ -204,7 +207,6 @@ func TestSchemasMatchCollectorPayloadShape(t *testing.T) {
 	}
 
 	for _, file := range files {
-		file := file
 		t.Run(file, func(t *testing.T) {
 			t.Parallel()
 

@@ -75,6 +75,16 @@ func requiredFieldValue(t *testing.T, typ reflect.Type, jsonName string, nonEmpt
 				return map[string]any{"k": "v"}
 			}
 			return map[string]any{}
+		case reflect.Bool:
+			// A required bool has no "empty" value distinct from its zero value
+			// (false is both a valid observed value and the Go zero value), so
+			// both the nonEmpty and present-but-empty cases return a concrete
+			// bool rather than a string: assignField rejects a string payload
+			// value for a bool field.
+			if nonEmpty {
+				return true
+			}
+			return false
 		default:
 			if nonEmpty {
 				return "x"
@@ -312,6 +322,12 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindVulnerabilityGoCallReachability:
 		_, err := DecodeVulnerabilityGoCallReachability(env)
 		return err
+	case FactKindCodegraphFile:
+		_, err := DecodeCodegraphFile(env)
+		return err
+	case FactKindCodegraphRepository:
+		_, err := DecodeCodegraphRepository(env)
+		return err
 	case FactKindCICDRun:
 		_, err := DecodeCICDRun(env)
 		return err
@@ -540,6 +556,8 @@ var allDecodedKinds = []string{
 	FactKindVulnerabilityKnownExploited,
 	FactKindVulnerabilityGoModuleEvidence,
 	FactKindVulnerabilityGoCallReachability,
+	FactKindCodegraphFile,
+	FactKindCodegraphRepository,
 	FactKindCICDRun,
 	FactKindCICDArtifact,
 	FactKindCICDEnvironmentObservation,
@@ -602,12 +620,10 @@ func TestDecodeEachKind_MissingEachRequiredFieldDeadLetters(t *testing.T) {
 	t.Parallel()
 
 	for _, factKind := range allDecodedKinds {
-		factKind := factKind
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
 			for _, field := range requiredFieldsForKind(t, factKind) {
-				field := field
 				t.Run(field, func(t *testing.T) {
 					t.Parallel()
 
@@ -642,7 +658,6 @@ func TestDecodeEachKind_FullRequiredPayloadDecodes(t *testing.T) {
 	t.Parallel()
 
 	for _, factKind := range allDecodedKinds {
-		factKind := factKind
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
@@ -662,7 +677,6 @@ func TestDecodeEachKind_PresentButEmptyRequiredFieldDecodes(t *testing.T) {
 	t.Parallel()
 
 	for _, factKind := range allDecodedKinds {
-		factKind := factKind
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
@@ -685,7 +699,6 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 	t.Parallel()
 
 	for _, factKind := range allDecodedKinds {
-		factKind := factKind
 		t.Run(factKind, func(t *testing.T) {
 			t.Parallel()
 
@@ -828,6 +841,10 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeVulnerabilityGoModuleEvidence(env)
 			case FactKindVulnerabilityGoCallReachability:
 				_, err = DecodeVulnerabilityGoCallReachability(env)
+			case FactKindCodegraphFile:
+				_, err = DecodeCodegraphFile(env)
+			case FactKindCodegraphRepository:
+				_, err = DecodeCodegraphRepository(env)
 			case FactKindCICDRun:
 				_, err = DecodeCICDRun(env)
 			case FactKindCICDArtifact:

@@ -105,4 +105,12 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// binding's unconditional principal evidence — an absent members key must
 	// dead-letter, not decode to a struct with no principal.
 	{FactKindGCPIAMPolicyObservation, "members"}: {},
+	// file.parsed_file_data: fileFactEnvelope
+	// (go/internal/collector/git_fact_builder.go:433-439) unconditionally sets
+	// parsed_file_data to the parser's per-file map on every "file" fact it
+	// builds — there is no conditional-emission path that could omit it for a
+	// valid fact. An absent parsed_file_data must dead-letter, not decode to a
+	// File with a nil parser payload the code-graph-core reducer handlers
+	// would then silently skip.
+	{FactKindCodegraphFile, "parsed_file_data"}: {},
 }

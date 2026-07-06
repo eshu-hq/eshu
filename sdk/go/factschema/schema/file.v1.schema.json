@@ -1,0 +1,47 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codegraph/v1/file.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "graph_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "graph_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_dependency": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parsed_file_data": {
+      "type": "object"
+    },
+    "relative_path": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "repo_id",
+    "relative_path",
+    "parsed_file_data"
+  ],
+  "title": "Eshu file Payload (schema version 1)",
+  "type": "object"
+}

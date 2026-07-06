@@ -87,22 +87,18 @@ func BuildCodeImportRepoDependencyIntents(
 		if envelope.FactKind != factKindFile {
 			continue
 		}
-		consumerRepoID := strings.TrimSpace(payloadStr(envelope.Payload, "repo_id"))
-		if consumerRepoID == "" {
-			continue
-		}
-		language := strings.TrimSpace(payloadStr(envelope.Payload, "language"))
-		fileData, ok := envelope.Payload["parsed_file_data"].(map[string]any)
+		file, ok := decodeCodegraphFileImportIdentity(envelope)
 		if !ok {
 			continue
 		}
+		consumerRepoID := file.repoID
 
-		for _, entry := range mapSlice(fileData["imports"]) {
+		for _, entry := range mapSlice(file.imports) {
 			source := codeImportEntrySource(entry)
 			if source == "" {
 				continue
 			}
-			ecosystem, coordinate := normalizeImportSource(source, language)
+			ecosystem, coordinate := normalizeImportSource(source, file.language)
 			if ecosystem == "" || coordinate == "" {
 				continue
 			}
@@ -350,6 +346,13 @@ type codeImportEdgeCounts struct {
 	skippedAmbiguous  int
 	skippedNoOwner    int
 	skippedSelf       int
+	// skippedMalformedFile counts "file" facts whose outer envelope failed the
+	// codegraph decode seam (a missing repo_id or relative_path, or a
+	// non-object parsed_file_data) — visible operator signal for the
+	// accuracy hole issue #4749 closes: before typed decode, such a fact
+	// silently contributed no edges with no distinguishing counter from a
+	// file that legitimately has no imports.
+	skippedMalformedFile int
 }
 
 // classifyCodeImportEdges tallies the per-import outcome over the same file
@@ -364,22 +367,19 @@ func classifyCodeImportEdges(input CodeImportRepoDependencyInput) codeImportEdge
 		if envelope.FactKind != factKindFile {
 			continue
 		}
-		consumerRepoID := strings.TrimSpace(payloadStr(envelope.Payload, "repo_id"))
-		if consumerRepoID == "" {
-			continue
-		}
-		language := strings.TrimSpace(payloadStr(envelope.Payload, "language"))
-		fileData, ok := envelope.Payload["parsed_file_data"].(map[string]any)
+		file, ok := decodeCodegraphFileImportIdentity(envelope)
 		if !ok {
+			counts.skippedMalformedFile++
 			continue
 		}
-		for _, entry := range mapSlice(fileData["imports"]) {
+		consumerRepoID := file.repoID
+		for _, entry := range mapSlice(file.imports) {
 			source := codeImportEntrySource(entry)
 			if source == "" {
 				continue
 			}
 			counts.considered++
-			ecosystem, coordinate := normalizeImportSource(source, language)
+			ecosystem, coordinate := normalizeImportSource(source, file.language)
 			if ecosystem == "" || coordinate == "" {
 				counts.skippedRelative++
 				continue

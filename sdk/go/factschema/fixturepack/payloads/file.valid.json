@@ -1,0 +1,16 @@
+{
+  "graph_id": "repo-example:src/service.go",
+  "graph_kind": "file",
+  "repo_id": "repo-example",
+  "relative_path": "src/service.go",
+  "parsed_file_data": {
+    "path": "src/service.go",
+    "language": "go",
+    "imports": [
+      { "source": "fmt" }
+    ],
+    "functions": []
+  },
+  "is_dependency": false,
+  "language": "go"
+}

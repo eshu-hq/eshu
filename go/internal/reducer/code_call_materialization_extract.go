@@ -19,7 +19,7 @@ func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 	metaclassRepoIDs []string,
 	metaclassRows []map[string]any,
 ) {
-	ccRepoIDs, ccRows, mcRepoIDs, mcRows, _ := extractAllCodeRelationshipRowsWithIndex(envelopes)
+	ccRepoIDs, ccRows, mcRepoIDs, mcRows, _, _ := extractAllCodeRelationshipRowsWithIndex(envelopes)
 	return ccRepoIDs, ccRows, mcRepoIDs, mcRows
 }
 
@@ -28,49 +28,134 @@ func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 // need the index for an additional resolution pass (for example HANDLES_ROUTE
 // handler resolution, #2721) reuse one index build instead of paying for a
 // second pass over the same envelopes.
+//
+// It partitions the "file" facts ONCE through the codegraph decode seam before
+// any extraction: a fact whose outer envelope is missing a required
+// join-identity field (repo_id, relative_path, or parsed_file_data) is
+// quarantined and EXCLUDED from every downstream consumer — the shared entity
+// index, the code-call extractor, AND the metaclass extractor — so a malformed
+// fact cannot be dead-lettered on the code-call path while still emitting
+// USES_METACLASS intents on the metaclass path (the quarantine is authoritative
+// for the whole code-relationship extraction, not just code-calls). The
+// non-"file" envelopes (repository, content_entity, ...) pass through unchanged
+// because the other index/import builders consume them.
 func extractAllCodeRelationshipRowsWithIndex(envelopes []facts.Envelope) (
 	codeCallRepoIDs []string,
 	codeCallRows []map[string]any,
 	metaclassRepoIDs []string,
 	metaclassRows []map[string]any,
 	entityIndex codeEntityIndex,
+	quarantined []quarantinedFact,
 ) {
 	if len(envelopes) == 0 {
-		return nil, nil, nil, nil, codeEntityIndex{}
+		return nil, nil, nil, nil, codeEntityIndex{}, nil
 	}
 
-	repositoryIDs := collectCodeCallRepositoryIDs(envelopes)
+	validEnvelopes, quarantined := partitionCodegraphFileFacts(envelopes)
+
+	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
 	if len(repositoryIDs) == 0 {
-		return nil, nil, nil, nil, codeEntityIndex{}
+		return nil, nil, nil, nil, codeEntityIndex{}, quarantined
 	}
 
-	entityIndex = buildCodeEntityIndex(envelopes)
-	repositoryImports := collectCodeCallRepositoryImports(envelopes)
-	reexportIndex := buildCodeCallReexportIndex(envelopes)
+	entityIndex = buildCodeEntityIndex(validEnvelopes)
+	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
+	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
 
-	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
-	mcRepoIDs, mcRows := extractPythonMetaclassRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports)
-	return ccRepoIDs, ccRows, mcRepoIDs, mcRows, entityIndex
+	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	mcRepoIDs, mcRows := extractPythonMetaclassRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports)
+	return ccRepoIDs, ccRows, mcRepoIDs, mcRows, entityIndex, quarantined
 }
 
 // ExtractCodeCallRows builds canonical caller/callee edge rows from repository
-// and file facts.
+// and file facts. A "file" fact whose outer envelope is missing a required
+// join-identity field (repo_id, relative_path, or parsed_file_data) is
+// excluded rather than contributing an empty-string graph identity; use
+// partitionCodegraphFileFacts + extractCodeCallRowsWithIndex directly when the
+// caller needs to observe which facts were quarantined.
 func ExtractCodeCallRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	if len(envelopes) == 0 {
 		return nil, nil
 	}
 
-	repositoryIDs := collectCodeCallRepositoryIDs(envelopes)
+	validEnvelopes, _ := partitionCodegraphFileFacts(envelopes)
+	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
 	if len(repositoryIDs) == 0 {
 		return nil, nil
 	}
 
-	entityIndex := buildCodeEntityIndex(envelopes)
-	repositoryImports := collectCodeCallRepositoryImports(envelopes)
-	reexportIndex := buildCodeCallReexportIndex(envelopes)
-	return extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	entityIndex := buildCodeEntityIndex(validEnvelopes)
+	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
+	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
+	repoIDs, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	return repoIDs, rows
 }
 
+// partitionCodegraphFileFacts decodes each "file" fact's outer envelope through
+// the codegraph contracts seam (decodeCodegraphFile) and splits the envelope
+// list into (valid, quarantined): a "file" fact whose payload is missing a
+// required identity field (repo_id, relative_path, or a non-object
+// parsed_file_data) is recorded as a quarantinedFact and DROPPED from the valid
+// set, while every valid "file" fact and every non-"file" fact is kept in
+// order. It is the single decode/quarantine gate for the whole
+// code-relationship extraction (Contract System v1 Wave 4f S1, issue #4749), so
+// a malformed file is excluded from the shared entity index and both extractors
+// at once — before this conversion a missing repo_id/relative_path read through
+// payloadStr as "", silently producing no edges or edges under an empty-string
+// path segment with no operator signal.
+//
+// ParsedFileData stays untyped past decode: the returned struct's inner AST
+// keys (imports, functions, function_calls, classes, ...) are read exactly as
+// before this conversion (issue #4750 defers typing them). A non-"file" fact
+// is never decoded here (repository/content_entity facts have their own index
+// builders); it passes through unchanged.
+func partitionCodegraphFileFacts(envelopes []facts.Envelope) ([]facts.Envelope, []quarantinedFact) {
+	valid := make([]facts.Envelope, 0, len(envelopes))
+	var quarantined []quarantinedFact
+
+	for _, env := range envelopes {
+		if env.FactKind != factKindFile {
+			valid = append(valid, env)
+			continue
+		}
+
+		if _, err := decodeCodegraphFile(env); err != nil {
+			// Every decode failure is recorded as a visible quarantine, never
+			// silently dropped. partitionDecodeFailures classifies a
+			// missing/null required field (repo_id, relative_path,
+			// parsed_file_data) as a quarantinable input_invalid; any other
+			// decode error (a type mismatch, or an unsupported schema major)
+			// is reported through codegraphDecodeQuarantine with the decode
+			// error's own classification, so the malformed fact still surfaces
+			// on the input_invalid counter and error log rather than vanishing.
+			// factschemaEnvelope normalizes the version-less spellings ("" and
+			// the persisted "0.0.0" sentinel) to the latest major, so a valid
+			// loaded "file" fact decodes and an unsupported major does not occur
+			// on the production path for this unregistered kind (registry +
+			// schema-version admission deferred to #4752).
+			if q, ok, _ := partitionDecodeFailures(env, err); ok {
+				quarantined = append(quarantined, q)
+			} else {
+				quarantined = append(quarantined, codegraphDecodeQuarantine(env, err))
+			}
+			continue
+		}
+		valid = append(valid, env)
+	}
+
+	return valid, quarantined
+}
+
+// extractCodeCallRowsWithIndex builds caller/callee edge rows from the "file"
+// facts in envelopes. Callers pass the VALID-only envelope set from
+// partitionCodegraphFileFacts, so every "file" fact here already decoded
+// cleanly; this function re-decodes each to recover its typed identity
+// (RepoID, RelativePath, ParsedFileData) rather than re-reading raw payload
+// keys. A "file" fact that somehow fails to decode is skipped defensively (the
+// authoritative quarantine happened upstream in partitionCodegraphFileFacts).
+//
+// ParsedFileData stays untyped: the returned struct's inner AST keys are read
+// exactly as before this conversion (issue #4750 defers typing them).
 func extractCodeCallRowsWithIndex(
 	envelopes []facts.Envelope,
 	repositoryIDs []string,
@@ -82,20 +167,22 @@ func extractCodeCallRowsWithIndex(
 	rows := make([]map[string]any, 0)
 
 	for _, env := range envelopes {
-		if env.FactKind != "file" {
+		if env.FactKind != factKindFile {
 			continue
 		}
 
-		repositoryID := payloadStr(env.Payload, "repo_id")
-		if repositoryID == "" {
+		file, err := decodeCodegraphFile(env)
+		if err != nil {
+			// Unreachable for envelopes from partitionCodegraphFileFacts (every
+			// "file" fact there already decoded); skip defensively so a future
+			// caller passing un-partitioned envelopes cannot produce an
+			// empty-identity row.
 			continue
 		}
 
-		fileData, ok := env.Payload["parsed_file_data"].(map[string]any)
-		if !ok {
-			continue
-		}
-		relativePath := payloadStr(env.Payload, "relative_path")
+		repositoryID := file.RepoID
+		fileData := file.ParsedFileData
+		relativePath := file.RelativePath
 
 		rows = append(rows, extractSCIPCodeCallRows(repositoryID, entityIndex, seenRows, fileData)...)
 		rows = append(

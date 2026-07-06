@@ -1,0 +1,21 @@
+{
+  "graph_id": "repo-example",
+  "graph_kind": "repository",
+  "name": "example-service",
+  "repo_id": "repo-example",
+  "parsed_file_count": "42",
+  "is_dependency": false,
+  "repo_slug": "example-org/example-service",
+  "remote_url": "https://example.invalid/example-org/example-service.git",
+  "local_path": "/workspace/example-service",
+  "default_branch": "main",
+  "git_refs": [
+    {
+      "name": "main",
+      "kind": "branch",
+      "head_sha": "0123456789abcdef0123456789abcdef01234567",
+      "is_default": true
+    }
+  ],
+  "source_run_id": "run-0001"
+}

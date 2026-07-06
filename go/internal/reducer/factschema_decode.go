@@ -348,17 +348,29 @@ func decodeGCPCloudRelationship(env facts.Envelope) (gcpv1.Relationship, error) 
 // is documented follow-up work (design §3.1), so the adapter stays explicit and
 // narrow rather than aliasing the two envelope types.
 //
-// An empty SchemaVersion is normalized to the current major-1 schema version.
-// Every AWS/IAM/security-group emitter stamps a concrete "1.0.0" version and the
-// projector's schema-version admission already gates on it upstream, so a
-// version-less fact does not occur on the production path; the normalization
-// exists only so the decode seam's major dispatch matches the pre-typing
-// behavior, where the reducer read the payload without inspecting the version.
-// A present but unsupported major (for example "2.0.0") is NOT normalized and
-// still dead-letters through the Decode* seam's default branch.
+// A version-less SchemaVersion is normalized to the current major-1 schema
+// version. "Version-less" means either an empty string (what a fact carries
+// in-memory before persistence) OR the sentinel "0.0.0" that the Postgres
+// persist layer stamps for a fact its collector emitted with no version
+// (go/internal/storage/postgres/facts.go, facts_streaming.go:
+// emptyToDefault(SchemaVersion, "0.0.0")). A fact LOADED from Postgres for
+// reduction therefore carries "0.0.0", not "", so both spellings of
+// "the collector emitted no version" must normalize identically — otherwise a
+// version-less family loaded from storage (the git code family: "file",
+// "repository") dead-letters as an unsupported major and its whole graph
+// collapses (PR #4753 corpus-gate P0). "0.0.0" is used nowhere as a real
+// schema version — it is exclusively the persist-layer's empty marker
+// (schemaVersionPattern accepts it, but no collector emits it), so treating it
+// as version-less is safe for every other family, all of which stamp a concrete
+// "1.0.0".
+//
+// This does NOT weaken accuracy: a present, genuine, unsupported major (for
+// example "2.0.0") is NOT normalized and still dead-letters through the Decode*
+// seam's default branch, and a fact missing a required identity field still
+// dead-letters as input_invalid regardless of its version.
 func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
 	schemaVersion := env.SchemaVersion
-	if schemaVersion == "" {
+	if schemaVersion == "" || schemaVersion == persistedVersionlessSchemaVersion {
 		schemaVersion = defaultSchemaMajorVersion
 	}
 	return factschema.Envelope{
@@ -373,3 +385,12 @@ func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
 // kind is at schema major 1 today; the value's minor/patch are irrelevant since
 // the Decode seam dispatches on the major component only.
 const defaultSchemaMajorVersion = "1.0.0"
+
+// persistedVersionlessSchemaVersion is the sentinel the Postgres persist layer
+// stamps for a fact whose collector emitted no SchemaVersion
+// (emptyToDefault(envelope.SchemaVersion, "0.0.0") in
+// go/internal/storage/postgres/facts.go and facts_streaming.go). A fact loaded
+// back for reduction therefore carries this value rather than the empty string,
+// so factschemaEnvelope normalizes it to defaultSchemaMajorVersion exactly like
+// an empty version. It is never a real schema version any collector emits.
+const persistedVersionlessSchemaVersion = "0.0.0"
