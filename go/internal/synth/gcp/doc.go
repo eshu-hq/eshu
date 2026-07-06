@@ -42,4 +42,17 @@
 // (testdata/cassettes/gcpcloud/supply-chain-demo.json). It is skipped by
 // default and in CI, following the same env-var-gated live-smoke precedent as
 // go/internal/collector/pagerduty/live_test.go.
+//
+// DefaultDemoOrgProfile formalizes the demo/conformance corpus identity scheme
+// already used by scripts/verify-golden-corpus-gate.sh: ESHU_GITHUB_ORG=acme
+// and deterministic repository remotes shaped as github.com/acme/<repo>. Its
+// JoinKeyRegistry reserves those cross-family keys, including the
+// github.com/acme/lib-common package owner hint that drives cross-repo
+// DEPENDS_ON resolution. GenerateDemoOrgCassette is the Go regeneration entry
+// point for the first generated family; it returns canonical bytes labeled for
+// testdata/cassettes/gcpcloud/supply-chain-demo.json, the demo-corpus manifest
+// layout path. WriteDemoOrgCassette materializes those bytes under
+// testdata/generated-cassettes/ instead of overwriting the committed
+// golden-corpus cassette; committed-path swaps are valid only behind the
+// operator-controlled golden-corpus gate.
 package gcp
