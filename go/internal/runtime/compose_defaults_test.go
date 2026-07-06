@@ -346,6 +346,7 @@ func graphRuntimeServices() []string {
 		"mcp-server",
 		"ingester",
 		"resolution-engine",
+		"projector",
 	}
 }
 
@@ -362,6 +363,7 @@ func telemetryOverlayServices() []string {
 		"ingester",
 		"resolution-engine",
 		"workflow-coordinator",
+		"projector",
 	}
 }
 
