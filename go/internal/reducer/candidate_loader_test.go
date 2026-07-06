@@ -702,3 +702,137 @@ func TestExtractWorkloadCandidatesRecognizesGroovyPipelineCallsOutsideJenkinsfil
 		t.Fatalf("Provenance = %v, want first entry jenkins_pipeline", candidate.Provenance)
 	}
 }
+
+// TestExtractWorkloadCandidatesIncludesDockerComposeArtifactType is a
+// regression test for #4771: the parser (templated_detection.go) sets
+// artifact_type=="docker_compose" for compose files, but candidate_loader.go
+// only ever checked the never-produced docker_compose_services key, so
+// SignalDockerComposeRuntime could never fire from real parser output. A
+// compose.yaml file with no docker_compose_services key (matching real
+// parser output) must still produce the docker_compose_runtime signal.
+func TestExtractWorkloadCandidatesIncludesDockerComposeArtifactType(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	envelopes := []facts.Envelope{
+		{
+			FactID:   "fact-repo",
+			FactKind: "repository",
+			Payload: map[string]any{
+				"graph_id": "repo-compose",
+				"name":     "compose-service",
+			},
+			ObservedAt: now,
+		},
+		{
+			FactID:   "fact-file-1",
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-compose",
+				"language":      "yaml",
+				"relative_path": "compose.yaml",
+				"parsed_file_data": map[string]any{
+					"artifact_type": "docker_compose",
+				},
+			},
+			ObservedAt: now,
+		},
+	}
+
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1", len(candidates))
+	}
+
+	candidate := candidates[0]
+	if !hasProvenance(candidate.Provenance, "docker_compose_runtime") {
+		t.Fatalf("Provenance = %v, want docker_compose_runtime", candidate.Provenance)
+	}
+}
+
+// TestExtractWorkloadCandidatesGitHubActionsFiresWithoutDeadTriggerKeys locks
+// in that removing the dead github_actions_workflow_triggers and
+// github_actions_reusable_workflow_refs key-reads (#4771; no parser ever
+// produces them) does not regress GitHub Actions detection, which already
+// fires from the real artifact_type=="github_actions_workflow" parser output.
+func TestExtractWorkloadCandidatesGitHubActionsFiresWithoutDeadTriggerKeys(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	envelopes := []facts.Envelope{
+		{
+			FactID:   "fact-repo",
+			FactKind: "repository",
+			Payload: map[string]any{
+				"graph_id": "repo-ci-only",
+				"name":     "ci-only-service",
+			},
+			ObservedAt: now,
+		},
+		{
+			FactID:   "fact-file-1",
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-ci-only",
+				"language":      "yaml",
+				"relative_path": ".github/workflows/deploy.yml",
+				"parsed_file_data": map[string]any{
+					"artifact_type": "github_actions_workflow",
+				},
+			},
+			ObservedAt: now,
+		},
+	}
+
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1", len(candidates))
+	}
+
+	candidate := candidates[0]
+	if !hasProvenance(candidate.Provenance, "github_actions_workflow") {
+		t.Fatalf("Provenance = %v, want github_actions_workflow", candidate.Provenance)
+	}
+}
+
+// TestExtractWorkloadCandidatesJenkinsfileFiresWithoutDeadPipelineCallsKey
+// locks in that removing the dead jenkins_pipeline_calls key-read (#4771; no
+// parser ever produces it) does not regress Jenkinsfile detection, which
+// already fires by path alone via isJenkinsArtifact's Jenkinsfile-name check.
+func TestExtractWorkloadCandidatesJenkinsfileFiresWithoutDeadPipelineCallsKey(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	envelopes := []facts.Envelope{
+		{
+			FactID:   "fact-repo",
+			FactKind: "repository",
+			Payload: map[string]any{
+				"graph_id": "repo-jenkins-only",
+				"name":     "jenkins-only-service",
+			},
+			ObservedAt: now,
+		},
+		{
+			FactID:   "fact-file-1",
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          "repo-jenkins-only",
+				"language":         "groovy",
+				"relative_path":    "Jenkinsfile",
+				"parsed_file_data": map[string]any{},
+			},
+			ObservedAt: now,
+		},
+	}
+
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1", len(candidates))
+	}
+
+	candidate := candidates[0]
+	if !hasProvenance(candidate.Provenance, "jenkins_pipeline") {
+		t.Fatalf("Provenance = %v, want jenkins_pipeline", candidate.Provenance)
+	}
+}

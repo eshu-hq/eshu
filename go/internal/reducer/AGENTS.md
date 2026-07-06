@@ -1974,3 +1974,27 @@ completion logs, reducer run spans, and execution counters as before.
   the non-atomic write/publish recovery path).
 - The ordering of phases in `sharedProjectionReadinessPhase`
   (`shared_projection.go:91–99`).
+
+## #4771 — docker-compose runtime signal repair (evidence)
+
+`extractArtifactSignals` (`candidate_loader.go`) now detects the docker-compose
+workload signal off `artifact_type == "docker_compose"` (the classification
+`templated_detection.go` already emits) instead of the never-produced
+`docker_compose_services` key, and drops three other never-produced key reads
+(`github_actions_workflow_triggers`, `github_actions_reusable_workflow_refs`,
+`jenkins_pipeline_calls`) whose signals already fire via `artifact_type`, the
+`Jenkinsfile` path, and groovy `pipeline_calls`.
+
+No-Regression Evidence: this runs once per file during workload-candidate
+loading, off the code-call hot path. It swaps one slice-length check for one
+string compare and removes three slice-length checks, so per-file work is
+unchanged or slightly lower. No hot-path Cypher, graph write, lease, or queue
+behavior is touched; the git-collector E2E candidate-loading baseline is
+unaffected (no measurable per-file cost change on darwin/arm64).
+
+No-Observability-Change: no metric, span, log, or status field is added,
+removed, or renamed. The `eshu_dp_reducer_*` candidate-loading surface and the
+workload-signal confidence values are identical; docker-compose files now carry
+the `docker_compose_runtime` provenance they always should have, off the same
+`SignalDockerComposeRuntime` confidence. Only which `parsed_file_data` key is
+read changed, not the emitted signal shape or any telemetry surface.
