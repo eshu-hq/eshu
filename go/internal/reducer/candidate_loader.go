@@ -210,8 +210,13 @@ func extractArtifactSignals(
 		}
 	}
 
-	// Docker Compose: detected via parsed docker_compose_services or service_name keys.
-	if len(sliceValue(fileData["docker_compose_services"])) > 0 {
+	// Docker Compose: detected via the parser's artifact_type classification
+	// (templated_detection.go sets artifact_type=="docker_compose" for
+	// compose.yaml/compose.yml/docker-compose.yaml/.yml). No parser emits
+	// docker_compose_services; it is kept as an additional OR for forward
+	// compatibility if a future parser starts producing it.
+	if strings.TrimSpace(fmt.Sprint(fileData["artifact_type"])) == "docker_compose" ||
+		len(sliceValue(fileData["docker_compose_services"])) > 0 {
 		sig.addProvenance(string(SignalDockerComposeRuntime), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalDockerComposeRuntime))
 		return
 	}
@@ -222,11 +227,12 @@ func extractArtifactSignals(
 		return
 	}
 
-	// GitHub Actions workflow: yaml file under .github/workflows/.
+	// GitHub Actions workflow: yaml file under .github/workflows/ classified
+	// by the parser as artifact_type=="github_actions_workflow". No parser
+	// emits github_actions_workflow_triggers or
+	// github_actions_reusable_workflow_refs.
 	if lang == "yaml" && strings.HasPrefix(relativePath, ".github/workflows/") {
-		if strings.TrimSpace(fmt.Sprint(fileData["artifact_type"])) == "github_actions_workflow" ||
-			len(sliceValue(fileData["github_actions_workflow_triggers"])) > 0 ||
-			len(sliceValue(fileData["github_actions_reusable_workflow_refs"])) > 0 {
+		if strings.TrimSpace(fmt.Sprint(fileData["artifact_type"])) == "github_actions_workflow" {
 			sig.addProvenance(string(SignalGitHubActionsWorkflow), DefaultWorkloadSignalConfidence.ConfidenceFor(SignalGitHubActionsWorkflow))
 		}
 	}
@@ -247,12 +253,15 @@ func hasCloudFormationSignals(fileData map[string]any) bool {
 	return false
 }
 
+// isJenkinsArtifact reports whether a file is Jenkins pipeline evidence: the
+// Jenkinsfile path by convention, or groovy-parser-produced pipeline_calls
+// for shared library scripts outside a Jenkinsfile. No parser emits
+// jenkins_pipeline_calls.
 func isJenkinsArtifact(relativePath string, fileData map[string]any) bool {
 	if strings.EqualFold(strings.TrimSpace(relativePath), "Jenkinsfile") {
 		return true
 	}
-	return len(sliceValue(fileData["jenkins_pipeline_calls"])) > 0 ||
-		len(sliceValue(fileData["pipeline_calls"])) > 0
+	return len(sliceValue(fileData["pipeline_calls"])) > 0
 }
 
 func extractOverlayEnvs(repoID, relativePath string, deploymentEnvs map[string]map[string]struct{}) {
