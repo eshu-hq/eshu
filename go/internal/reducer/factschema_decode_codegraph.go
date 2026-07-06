@@ -22,10 +22,14 @@ import (
 // partitionDecodeFailures so it dead-letters as a per-fact input_invalid
 // quarantine rather than a silent empty-string graph identity (issue #4749).
 //
-// The returned struct's ParsedFileData field stays an untyped map[string]any:
-// callers must keep reading its inner keys (imports, functions,
-// function_calls, ...) raw, exactly as before this contract. Inner-AST typing
-// is deferred to issue #4750.
+// The returned struct's ParsedFileData field stays an OPEN map[string]any
+// container. Specific inner keys are typed incrementally through the factschema
+// DecodeParsedFileData* accessors, wrapped reducer-side in
+// parsed_file_data_typed.go (issue #4750): S1 routes gomod_state and
+// dead_code_file_root_kinds through typed accessors, while the wide per-language
+// AST buckets (imports, functions, function_calls, ...) are still read raw until
+// their own #4750 increment. The container itself is never narrowed, so an
+// untyped key is read exactly as before this contract.
 func decodeCodegraphFile(env facts.Envelope) (codegraphv1.File, error) {
 	file, err := factschema.DecodeCodegraphFile(factschemaEnvelope(env))
 	if err != nil {
