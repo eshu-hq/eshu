@@ -51,3 +51,7 @@ services:
   resolution-engine:
     environment: *eshu-otel-env
     depends_on: *eshu-telemetry-deps
+
+  projector:
+    environment: *eshu-otel-env
+    depends_on: *eshu-telemetry-deps
