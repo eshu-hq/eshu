@@ -74,6 +74,10 @@ type Paths struct {
 	// CodegraphStructDir is sdk/go/factschema/codegraph/v1 (Contract System v1
 	// Wave 4f S1: the code family's file/repository outer envelopes).
 	CodegraphStructDir string
+	// CodedataflowStructDir is sdk/go/factschema/codedataflow/v1 (Contract
+	// System v1 Wave 4f S2: the git dataflow/taint/interproc/function-summary
+	// family).
+	CodedataflowStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -151,6 +155,7 @@ func ResolvePaths(p Paths) Paths {
 		{&resolved.ObservabilityStructDir, "observability"},
 		{&resolved.DocumentationStructDir, "documentation"},
 		{&resolved.CodegraphStructDir, "codegraph"},
+		{&resolved.CodedataflowStructDir, "codedataflow"},
 	} {
 		if strings.TrimSpace(*family.dir) == "" {
 			*family.dir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", family.name, "v1")

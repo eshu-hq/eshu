@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -34,14 +35,20 @@ func codeTaintEvidenceDomainDefinition() DomainDefinition {
 	}
 }
 
-// CodeTaintEvidenceLoader loads reducer-ready taint findings for one scope
-// generation.
+// CodeTaintEvidenceLoader loads the raw code_taint_evidence fact envelopes for
+// one scope generation. The handler decodes them through the typed contracts
+// seam (ExtractCodeTaintEvidenceRowsWithQuarantine), so a malformed fact
+// dead-letters as an input_invalid quarantine rather than being silently
+// dropped by the loader (Contract System v1 Wave 4f S2, issue #4754). The
+// loader stays a pure envelope fetch: the typed decode + quarantine belongs in
+// the reducer package where partitionDecodeFailures and recordQuarantinedFacts
+// live, not in a storage adapter.
 type CodeTaintEvidenceLoader interface {
 	LoadCodeTaintEvidence(
 		ctx context.Context,
 		scopeID string,
 		generationID string,
-	) ([]CodeTaintEvidenceInput, error)
+	) ([]facts.Envelope, error)
 }
 
 // CodeTaintEvidenceWriter writes and retracts reducer-owned CodeTaintEvidence
@@ -74,11 +81,15 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 		return Result{}, fmt.Errorf("code taint evidence writer is required")
 	}
 
-	inputs, err := h.Loader.LoadCodeTaintEvidence(ctx, intent.ScopeID, intent.GenerationID)
+	envelopes, err := h.Loader.LoadCodeTaintEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load code taint evidence: %w", err)
 	}
-	rows := ExtractCodeTaintEvidenceRows(inputs)
+	rows, quarantined, err := ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("decode code taint evidence: %w", err)
+	}
+	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCodeTaintEvidence, intent.ScopeID, intent.GenerationID, quarantined)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
@@ -103,8 +114,9 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 		"code taint evidence materialization completed",
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
-		"finding_count", len(inputs),
+		"fact_count", len(envelopes),
 		"graph_rows", len(rows),
+		"input_invalid_facts", inputInvalidCount,
 		"skip_retract", skipRetract,
 	)
 
@@ -112,8 +124,9 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 		IntentID:        intent.IntentID,
 		Domain:          DomainCodeTaintEvidence,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf("materialized %d taint evidence row(s) from %d finding(s)", len(rows), len(inputs)),
+		EvidenceSummary: fmt.Sprintf("materialized %d taint evidence row(s) from %d fact(s)", len(rows), len(envelopes)),
 		CanonicalWrites: len(rows),
+		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

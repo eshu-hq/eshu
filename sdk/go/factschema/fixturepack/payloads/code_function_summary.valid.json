@@ -1,0 +1,15 @@
+{
+  "graph_kind": "code_function_summary",
+  "function_id": "repo-example:pkg:HandleRequest",
+  "repo_id": "repo-example",
+  "graph_uid": "uid:example-fn",
+  "language": "go",
+  "param_to_return": [0],
+  "param_to_sink": [
+    { "param": 0, "sink_kind": "sql_exec" }
+  ],
+  "source_to_return": ["http_request"],
+  "param_to_call_arg": [
+    { "callee": "repo-example:pkg:ExecQuery", "param": 0, "arg": 1 }
+  ]
+}

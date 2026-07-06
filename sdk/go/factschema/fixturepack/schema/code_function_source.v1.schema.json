@@ -1,0 +1,31 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codedataflow/v1/code_function_source.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "function_id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "param_index": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "function_id",
+    "kind"
+  ],
+  "title": "Eshu code_function_source Payload (schema version 1)",
+  "type": "object"
+}

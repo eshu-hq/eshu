@@ -144,6 +144,17 @@ func run() error {
 		// typing).
 		{name: "file.v1.schema.json", generate: schemagen.CodegraphFileSchema},
 		{name: "repository.v1.schema.json", generate: schemagen.CodegraphRepositorySchema},
+		// The codedataflow family fact kinds are also BARE (no family prefix),
+		// the git collector's original, pre-Contract-System literal kinds.
+		// code_dataflow_function has no reducer decode call today (query-layer
+		// only consumer); it is still typed for family completeness (see
+		// codedataflow/v1/doc.go).
+		{name: "code_dataflow_scanned.v1.schema.json", generate: schemagen.CodeDataflowScannedSchema},
+		{name: "code_dataflow_function.v1.schema.json", generate: schemagen.CodeDataflowFunctionSchema},
+		{name: "code_function_summary.v1.schema.json", generate: schemagen.CodeFunctionSummarySchema},
+		{name: "code_function_source.v1.schema.json", generate: schemagen.CodeFunctionSourceSchema},
+		{name: "code_taint_evidence.v1.schema.json", generate: schemagen.CodeTaintEvidenceSchema},
+		{name: "code_interproc_evidence.v1.schema.json", generate: schemagen.CodeInterprocEvidenceSchema},
 		// The ci_cd_run family fact kinds are DOTTED (like the incident
 		// family). The schema filename is the dotted kind plus the version
 		// suffix; a dot in a filename is valid and needs no transform.

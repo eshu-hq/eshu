@@ -1804,6 +1804,111 @@ extension: two new `factKindSchemaFile` entries (`FactKindCodegraphFile`,
 `Load` — this widens gate coverage (manifest count 88 -> 90) with no new gate
 mechanism and no dependency on the deferred registry registration.
 
+No-Regression Evidence (Wave 4f S2, git dataflow family typed-payload decode,
+Contract System v1, issue #4754): types the six git-collector value-flow fact
+kinds — `code_dataflow_scanned`, `code_dataflow_function`,
+`code_function_summary`, `code_function_source`, `code_taint_evidence`,
+`code_interproc_evidence` — into `sdk/go/factschema/codedataflow/v1`. The
+postgres loaders (`code_taint_evidence_loader.go`,
+`code_interproc_evidence_loader.go`, `code_function_summary_loader.go`,
+`code_function_source_loader.go`) now return the RAW fact envelopes and the
+reducer handlers decode them through the typed contracts seam via the
+`*WithQuarantine` extractors (`ExtractCodeTaintEvidenceRowsWithQuarantine`,
+`ExtractCodeInterprocEvidenceRowsWithQuarantine`,
+`ExtractCodeFunctionSummaryEffectsWithQuarantine`,
+`ExtractCodeFunctionGraphIDsWithQuarantine`,
+`ExtractCodeFunctionSourcesWithQuarantine`), matching the Wave 4f S1
+(`code_call_materialization_extract.go`) and Wave 4e documentation
+(`ExtractDocumentationEdgeRowsWithQuarantine`) precedent: the storage adapter
+owns the SQL fetch, the reducer owns the typed decode AND the input_invalid
+dead-letter. Also converts `shell_exec_materialization.go`'s and
+`sql_relationship_delta_scope.go`'s `file`/`repository` identity reads to
+Wave 4f S1's `decodeCodegraphFile`/`decodeCodegraphRepository`.
+
+Dead-letter Evidence (epic #4566 §1, the migration's core deliverable): a fact
+missing a required identity field — `function_uid` (taint),
+`source_function_uid`/`sink_function_uid` (interproc), `function_id` (summary),
+`function_id`/`kind` (source) — is routed through `partitionDecodeFailures` to
+a visible `quarantinedFact` the handler records via `recordQuarantinedFacts`,
+feeding `eshu_dp_reducer_input_invalid_facts_total` (labeled `domain` =
+`code_taint_evidence`/`code_interproc_evidence`/`code_function_summary`,
+existing label values), the structured "reducer input_invalid fact
+quarantined" error log, and `Result.SubSignals["input_invalid_facts"]`. This
+REPLACES the initial (rejected-in-review) swallow-to-zero-value behavior; the
+production-path proof is `TestCodeTaintEvidenceHandlerQuarantinesMalformedFact`,
+`TestCodeInterprocEvidenceHandlerQuarantinesMalformedFact`,
+`TestCodeFunctionSummaryHandlerQuarantinesMalformedFact`, and
+`TestCodeFunctionSummaryHandlerQuarantinesMalformedSourceFact` — each feeds a
+malformed fact through the ACTUAL loader -> handler path and asserts
+`SubSignals["input_invalid_facts"] == 1` while a valid sibling still projects.
+A P0 was ruled out: `ExtractCodeTaintEvidenceRows`/`ExtractCodeInterprocEvidenceRows`
+already `continue` on an empty uid, so a decode-failed fact never wrote an
+empty-key graph node even before this dead-letter wiring landed. The interproc
+handler reads a NEW `CodeInterprocEvidenceFactLoader` (envelopes) distinct from
+the fixpoint projector's `CodeInterprocEvidenceLoader` (typed inputs from an
+in-memory solve, no raw decode) so the projector path is untouched. The
+graph-id view reads the SAME `code_function_summary` facts the summary-effects
+view already quarantines, so its quarantines are discarded to avoid
+double-counting one malformed fact.
+
+Benchmark Evidence: `go test ./internal/reducer -run xxx -bench
+'BenchmarkDecodeCodeTaintEvidenceInput|BenchmarkDecodeCodeInterprocEvidenceInput|BenchmarkExtractCodeTaintEvidenceRows|BenchmarkExtractCodeInterprocEvidenceRows|BenchmarkExtractShellExecRows'
+-benchtime=3x -count=3`. The typed-decode path costs ~12 allocs/fact
+(`TaintEvidence`, 11 optional pointer fields) and ~59 allocs/fact
+(`InterprocEvidence`, 8 optional pointer fields plus a `WhyTrail`
+`[]map[string]any`), versus 0 allocs/fact for the removed ad hoc
+`payloadString`/`payloadInt`/`payloadFloat` reads — measured against the
+already-merged Wave 4f S1 baseline (`decodeCodegraphFile`/
+`decodeCodegraphRepository`, ~1 alloc per populated optional field) on a
+same-shaped synthetic payload, this migration's cost scales identically with
+optional-field count, not a regression this migration introduces. Result
+class: correctness win (typed, schema-validated decode; a malformed identity
+field now dead-letters as input_invalid instead of silently joining under a
+blank identity) at the same per-field allocation cost every prior Contract
+System v1 wave already accepted.
+
+No-Regression Evidence (review-fix pass, same PR): four accuracy gaps found in
+review and closed before merge, each with a regression test:
+(1) `buildSQLRelationshipDeltaScope` reused Wave 4f S1's
+`codeCallDeltaRelativePathsFromRepository`, which returns each
+`delta_relative_paths` JSON element RAW (no trim/drop-empty), unlike the
+removed `semanticPayloadStringSlice`; a whitespace-only entry could qualify
+into a bogus `"<repoPath>/  "` path via `path.Clean` — fixed with an explicit
+`TrimSpace`+skip-empty step
+(`TestBuildSQLRelationshipDeltaScopeSkipsWhitespaceOnlyRelativePath`).
+(2) the function-summary/source decode accepted a present-but-blank
+`function_id`/`kind` as valid identity — fixed with an explicit post-decode
+`TrimSpace`-and-skip (a blank identity is a silent drop, distinct from a
+missing-field dead-letter), mirroring Wave 4f S1's `buildCodeCallProjectionContexts`
+(`TestCodeFunctionSummaryEffectsBlankFunctionIDReturnsNotOKNoError`,
+`TestCodeFunctionSourceBlankFieldsReturnNotOKNoError`).
+(3) the taint/interproc decode did not trim string fields, while the removed
+`payloadString` helper trimmed universally; a padded `function_uid` would have
+flowed untrimmed into the graph node key — fixed by trimming every field
+(`TestDecodeCodeTaintEvidenceInputTrimsWhitespace`,
+`TestDecodeCodeInterprocEvidenceInputTrimsWhitespace`).
+(4) [Codex] `param_to_call_arg[].callee` was stored verbatim, but the old
+loader TrimSpace'd it via `payloadString`; a padded callee would point the
+durable summary at a FunctionID the value-flow fixpoint cannot match its
+summary/graph-id maps against — fixed by trimming the callee before it becomes
+a `summary.FunctionID` (`TestCodeFunctionSummaryEffectsTrimsCallee`).
+
+No-Observability-Change (Wave 4f S2, git dataflow family): the typed-decode
+migration adds no route, graph query shape, queue table, worker, lease,
+runtime knob, or NEW metric instrument. The three consuming domains reuse the
+EXISTING `eshu_dp_reducer_input_invalid_facts_total` counter for the new
+per-fact dead-letter (Dead-letter Evidence above), plus the generic
+`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`
+every reducer domain gets from `service.go` — the same instruments and log key
+every prior Contract System v1 family wired. The three
+`code_*_typed_decode.go` / `factschema_decode_codedataflow.go` seam files are
+covered by rows in `docs/public/observability/telemetry-coverage.md`. The
+`payload-usage-manifest` gate required an additive-only extension: six new
+`factKindSchemaFile` entries and a new `CodedataflowStructDir`
+(`sdk/go/factschema/codedataflow/v1`) parsed alongside the existing struct
+dirs in `Load` — widens gate coverage (manifest count 90 -> 96) with no new
+gate mechanism.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

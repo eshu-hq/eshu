@@ -1,0 +1,13 @@
+{
+  "graph_kind": "code_interproc_evidence",
+  "source_function_uid": "uid:source-fn",
+  "sink_function_uid": "uid:sink-fn",
+  "repo_id": "repo-example",
+  "relative_path": "src/service.go",
+  "source_function_name": "handleRequest",
+  "sink_function_name": "execQuery",
+  "language": "go",
+  "sink_kind": "sql_exec",
+  "source_kind": "http_request",
+  "confidence": 0.8
+}

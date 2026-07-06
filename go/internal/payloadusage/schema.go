@@ -116,6 +116,19 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// (factschema_decode_codegraph.go). Bare (non-namespaced) wire kinds.
 	"FactKindCodegraphFile":       "file.v1.schema.json",
 	"FactKindCodegraphRepository": "repository.v1.schema.json",
+	// codedataflow family (Contract System v1 Wave 4f S2, issue #4754): all
+	// five kinds a reducer decode seam wrapper actually decodes
+	// (factschema_decode_codedataflow.go), including code_dataflow_function
+	// even though its only decode call site is a wrapper with no
+	// materialization handler yet (the wrapper still satisfies the gate's
+	// "decode seam exists" definition). Bare (non-namespaced) wire kinds,
+	// same as the codegraph family.
+	"FactKindCodeDataflowScanned":   "code_dataflow_scanned.v1.schema.json",
+	"FactKindCodeDataflowFunction":  "code_dataflow_function.v1.schema.json",
+	"FactKindCodeFunctionSummary":   "code_function_summary.v1.schema.json",
+	"FactKindCodeFunctionSource":    "code_function_source.v1.schema.json",
+	"FactKindCodeTaintEvidence":     "code_taint_evidence.v1.schema.json",
+	"FactKindCodeInterprocEvidence": "code_interproc_evidence.v1.schema.json",
 	// ci_cd_run family: all six kinds a reducer decode seam wrapper actually
 	// decodes (factschema_decode_cicdrun.go). ci.job, ci.pipeline_definition,
 	// and ci.warning carry no typed struct at all (cicdrun/v1 AGENTS.md), so

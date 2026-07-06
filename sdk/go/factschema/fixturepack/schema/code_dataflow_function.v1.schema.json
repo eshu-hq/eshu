@@ -1,0 +1,89 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codedataflow/v1/code_dataflow_function.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "cfg_blocks": {
+      "items": {
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "cfg_edges": {
+      "items": {
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "control_dependencies": {
+      "items": {
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "def_use": {
+      "items": {
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "function_name": {
+      "type": "string"
+    },
+    "function_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "line_number": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "overflow": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "overflow_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relative_path": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "repo_id",
+    "relative_path",
+    "function_name"
+  ],
+  "title": "Eshu code_dataflow_function Payload (schema version 1)",
+  "type": "object"
+}

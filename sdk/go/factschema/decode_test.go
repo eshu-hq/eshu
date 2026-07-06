@@ -17,6 +17,7 @@ import (
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
+	codedataflowv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codedataflow/v1"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -354,6 +355,12 @@ var payloadContracts = []struct {
 	{FactKindVulnerabilityGoCallReachability, "vulnerability.go_call_reachability.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoCallReachability{})},
 	{FactKindCodegraphFile, "file.v1.schema.json", reflect.TypeOf(codegraphv1.File{})},
 	{FactKindCodegraphRepository, "repository.v1.schema.json", reflect.TypeOf(codegraphv1.Repository{})},
+	{FactKindCodeDataflowScanned, "code_dataflow_scanned.v1.schema.json", reflect.TypeOf(codedataflowv1.DataflowScanned{})},
+	{FactKindCodeDataflowFunction, "code_dataflow_function.v1.schema.json", reflect.TypeOf(codedataflowv1.DataflowFunction{})},
+	{FactKindCodeFunctionSummary, "code_function_summary.v1.schema.json", reflect.TypeOf(codedataflowv1.FunctionSummary{})},
+	{FactKindCodeFunctionSource, "code_function_source.v1.schema.json", reflect.TypeOf(codedataflowv1.FunctionSource{})},
+	{FactKindCodeTaintEvidence, "code_taint_evidence.v1.schema.json", reflect.TypeOf(codedataflowv1.TaintEvidence{})},
+	{FactKindCodeInterprocEvidence, "code_interproc_evidence.v1.schema.json", reflect.TypeOf(codedataflowv1.InterprocEvidence{})},
 	{FactKindCICDRun, "ci.run.v1.schema.json", reflect.TypeOf(cicdrunv1.Run{})},
 	{FactKindCICDArtifact, "ci.artifact.v1.schema.json", reflect.TypeOf(cicdrunv1.Artifact{})},
 	{FactKindCICDEnvironmentObservation, "ci.environment_observation.v1.schema.json", reflect.TypeOf(cicdrunv1.EnvironmentObservation{})},

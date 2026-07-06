@@ -234,10 +234,11 @@ type CodeEvidenceHandlers struct {
 	// nodes attached to their Function.
 	CodeTaintEvidenceWriter CodeTaintEvidenceWriter
 
-	// CodeInterprocEvidenceLoader loads resolved cross-function taint findings
-	// from code_interproc_evidence facts. Non-nil alongside the writer to register
+	// CodeInterprocEvidenceLoader loads the raw code_interproc_evidence fact
+	// envelopes; the handler decodes + quarantines them (Contract System v1
+	// Wave 4f S2). Non-nil alongside the writer to register
 	// DomainCodeInterprocEvidence.
-	CodeInterprocEvidenceLoader CodeInterprocEvidenceLoader
+	CodeInterprocEvidenceLoader CodeInterprocEvidenceFactLoader
 
 	// CodeInterprocEvidenceWriter projects cross-function findings into
 	// TAINT_FLOWS_TO edges between Function nodes.

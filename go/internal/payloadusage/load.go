@@ -227,6 +227,7 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 		{resolved.ObservabilityStructDir, "observabilityv1"},
 		{resolved.DocumentationStructDir, "documentationv1"},
 		{resolved.CodegraphStructDir, "codegraphv1"},
+		{resolved.CodedataflowStructDir, "codedataflowv1"},
 	}
 	shapes := make(map[string]StructShape)
 	for _, family := range families {

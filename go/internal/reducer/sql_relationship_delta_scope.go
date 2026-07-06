@@ -80,6 +80,15 @@ func deduplicateSQLRelationshipEnvelopes(envelopes []facts.Envelope) []facts.Env
 	return out
 }
 
+// sqlRelationshipEnvelopeKey builds the dedup key for one envelope.
+// "repository" and "file" fact identity is decoded through the codegraph
+// contracts seam (decodeCodegraphRepository, decodeCodegraphFile, Contract
+// System v1 Wave 4f S2, issue #4754) rather than raw semanticPayloadString
+// lookups. A decode failure falls through to the "" no-dedup-key return,
+// matching this function's pre-existing behavior for a fact missing its
+// identity fields (such a fact was never deduplicated by identity before this
+// conversion either — it fell through every case to the FactID/StableFactKey
+// checks above, which already ran first).
 func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 	if envelope.FactID != "" {
 		return "fact_id:" + envelope.FactID
@@ -89,9 +98,13 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 	}
 	switch envelope.FactKind {
 	case factKindRepository:
-		repositoryID := semanticPayloadString(envelope.Payload, "repo_id")
-		if repositoryID == "" {
-			repositoryID = semanticPayloadString(envelope.Payload, "graph_id")
+		repository, err := decodeCodegraphRepository(envelope)
+		if err != nil {
+			return ""
+		}
+		repositoryID := strings.TrimSpace(repository.RepoID)
+		if repositoryID == "" && repository.GraphID != nil {
+			repositoryID = strings.TrimSpace(*repository.GraphID)
 		}
 		if repositoryID != "" {
 			return factKindRepository + ":" + repositoryID
@@ -102,8 +115,12 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 			return factKindContentEntity + ":" + entityID
 		}
 	case factKindFile:
-		repositoryID := semanticPayloadString(envelope.Payload, "repo_id")
-		relativePath := semanticPayloadString(envelope.Payload, "relative_path")
+		file, err := decodeCodegraphFile(envelope)
+		if err != nil {
+			return ""
+		}
+		repositoryID := strings.TrimSpace(file.RepoID)
+		relativePath := strings.TrimSpace(file.RelativePath)
 		if repositoryID != "" && relativePath != "" {
 			return factKindFile + ":" + repositoryID + ":" + relativePath
 		}
@@ -111,6 +128,17 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 	return ""
 }
 
+// buildSQLRelationshipDeltaScope builds the delta-generation scope from the
+// batch's "repository" facts. Repository identity and the delta path slices
+// are decoded through the codegraph contracts seam (decodeCodegraphRepository,
+// Contract System v1 Wave 4f S2, issue #4754) rather than raw
+// semanticPayloadString/semanticPayloadStringSlice lookups. The cheap
+// delta_generation gate check runs on the raw payload before decode (matching
+// code_call_materialization_intents.go's buildCodeCallDeltaFileScopesByRepoID
+// precedent) so a non-delta repository fact never pays the decode cost. A
+// delta-generation repository fact whose payload is missing a required
+// identity field is skipped, matching this function's pre-existing "skip and
+// continue" shape for an absent repo_id.
 func buildSQLRelationshipDeltaScope(envelopes []facts.Envelope) sqlRelationshipDeltaScope {
 	seenRepoIDs := make(map[string]struct{})
 	seenPathsByRepoID := make(map[string]map[string]struct{})
@@ -119,9 +147,13 @@ func buildSQLRelationshipDeltaScope(envelopes []facts.Envelope) sqlRelationshipD
 		if env.FactKind != factKindRepository || !sqlRelationshipPayloadBool(env.Payload, "delta_generation") {
 			continue
 		}
-		repositoryID := semanticPayloadString(env.Payload, "repo_id")
-		if repositoryID == "" {
-			repositoryID = semanticPayloadString(env.Payload, "graph_id")
+		repository, err := decodeCodegraphRepository(env)
+		if err != nil {
+			continue
+		}
+		repositoryID := strings.TrimSpace(repository.RepoID)
+		if repositoryID == "" && repository.GraphID != nil {
+			repositoryID = strings.TrimSpace(*repository.GraphID)
 		}
 		if repositoryID == "" {
 			continue
@@ -131,11 +163,34 @@ func buildSQLRelationshipDeltaScope(envelopes []facts.Envelope) sqlRelationshipD
 			seenRepoIDs[repositoryID] = struct{}{}
 			scope.repositoryIDs = append(scope.repositoryIDs, repositoryID)
 		}
+		// "path" is read raw off the top-level envelope first, then falls
+		// back to the typed LocalPath — preserving the exact
+		// pre-Contract-System precedence documented in
+		// code_call_materialization_intents.go's
+		// buildCodeCallDeltaFileScopesByRepoID: "path" is NOT a typed
+		// codegraphv1.Repository field (repositoryFactEnvelope never writes
+		// it to the payload in production), so it is read raw here only to
+		// preserve behavior for callers/fixtures that carry the checkout
+		// path under "path".
 		repoPath := semanticPayloadString(env.Payload, "path")
-		if repoPath == "" {
-			repoPath = semanticPayloadString(env.Payload, "local_path")
+		if repoPath == "" && repository.LocalPath != nil {
+			repoPath = strings.TrimSpace(*repository.LocalPath)
 		}
-		for _, relativePath := range sqlRelationshipDeltaRelativePaths(env.Payload) {
+		for _, relativePath := range codeCallDeltaRelativePathsFromRepository(repository) {
+			// TrimSpace + skip-empty preserves the pre-Contract-System
+			// semanticPayloadStringSlice behavior: that helper trimmed and
+			// dropped each blank/whitespace-only path entry BEFORE
+			// qualification, so a whitespace-only entry never reached
+			// path.Join. codeCallDeltaRelativePathsFromRepository (reused
+			// from the codegraph decode seam) returns each JSON array
+			// element raw, so the trim must happen here or a whitespace-only
+			// delta_relative_paths entry would qualify into a bogus
+			// "<repoPath>/  "-shaped path (path.Clean does not trim
+			// whitespace).
+			relativePath = strings.TrimSpace(relativePath)
+			if relativePath == "" {
+				continue
+			}
 			filePath := qualifySQLRelationshipDeltaFilePath(repoPath, relativePath)
 			if filePath == "" {
 				continue
@@ -163,21 +218,6 @@ func buildSQLRelationshipDeltaScope(envelopes []facts.Envelope) sqlRelationshipD
 		scope.filePathsByRepoID[repositoryID] = filePaths
 	}
 	return scope
-}
-
-func sqlRelationshipDeltaRelativePaths(payload map[string]any) []string {
-	seen := make(map[string]struct{})
-	var paths []string
-	for _, key := range []string{"delta_relative_paths", "delta_deleted_relative_paths"} {
-		for _, relativePath := range semanticPayloadStringSlice(payload, key) {
-			if _, ok := seen[relativePath]; ok {
-				continue
-			}
-			seen[relativePath] = struct{}{}
-			paths = append(paths, relativePath)
-		}
-	}
-	return paths
 }
 
 func qualifySQLRelationshipDeltaFilePath(repoPath string, relativePath string) string {
