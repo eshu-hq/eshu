@@ -952,6 +952,7 @@ type Instruments struct {
 	RepoSnapshotDuration           metric.Float64Histogram
 	CollectorSnapshotStageDuration metric.Float64Histogram
 	FileParseDuration              metric.Float64Histogram
+	FilePreScanDuration            metric.Float64Histogram
 	ReposSnapshotted               metric.Int64Counter
 	FilesParsed                    metric.Int64Counter
 	SCIPSnapshotAttempts           metric.Int64Counter
@@ -3476,6 +3477,21 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register FileParseDuration histogram: %w", err)
+	}
+
+	// Same bucket shape as FileParseDuration: pre_scan and parse both run one
+	// tree-sitter pass per file, so their per-file cost distributions land in
+	// the same range. Sharing the histogram's "language" attribute naming
+	// (not the instrument itself) lets an operator pivot language cost across
+	// both stages with the same PromQL shape (#4767).
+	inst.FilePreScanDuration, err = meter.Float64Histogram(
+		"eshu_dp_file_prescan_duration_seconds",
+		metric.WithDescription("Per-file pre_scan duration, labeled by language"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(fileParseBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register FilePreScanDuration histogram: %w", err)
 	}
 
 	inst.ReposSnapshotted, err = meter.Int64Counter(

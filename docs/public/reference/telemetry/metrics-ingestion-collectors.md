@@ -18,6 +18,7 @@ loop metrics live in `go/internal/coordinator/metrics.go`.
 | `eshu_dp_repo_snapshot_duration_seconds` | Per-repository snapshot cost (whole snapshot). |
 | `eshu_dp_collector_snapshot_stage_duration_seconds` | Per-stage snapshot cost within one repository, labeled by `collector_kind` and bounded `stage` (`discovery`, `pre_scan`, `go_package_semantic_prescan`, `parse`, `materialize`, `value_flow_evidence`). Use it to attribute a slow `eshu_dp_repo_snapshot_duration_seconds` to a specific stage — parse and SCIP cost shows under `parse`, and taint/interprocedural/function-summary value-flow cost shows under `value_flow_evidence`. Repository and file paths stay in logs/spans, never metric labels. |
 | `eshu_dp_file_parse_duration_seconds` | Per-file parse cost. |
+| `eshu_dp_file_prescan_duration_seconds` | Per-file pre_scan cost, labeled by bounded `language`. Only files that actually dispatch to a language pre-scanner emit a sample — `parser.IsDerivedPreScanLanguage` languages (php, javascript, typescript, tsx) derive their ImportsMap contribution from the parse stage on a full ingest (#4764) and so contribute no samples there; a delta sync still runs the legacy pre_scan pass for every language and so does emit samples for those too. Pairs with the `pre_scan` stage's `language_prescan_summary` structured-log bucket (mirrors the parse stage's `language_parse_summary`) to attribute pre_scan cost per language the same way parse cost is already attributed. |
 | `eshu_dp_scip_snapshot_attempts_total` | SCIP supplement attempt volume per selected language package or workspace root, labeled by bounded `language` and `result` (`used`, `disabled`, `no_supported_language`, `binary_unavailable`, `indexer_failed`, `parse_failed`, or `empty_result`). A sustained non-`used` rate means call precision is falling back to native parser output; investigate SCIP binary availability, indexer errors, parser errors, language allowlists, or empty index output. Repository names, root paths, file paths, and index paths stay out of labels. |
 | `eshu_dp_scip_process_wait_seconds` | Time spent waiting for the shared SCIP process limiter before launching an external indexer, labeled only by bounded `language`. Sustained wait growth means `SCIP_WORKERS` is saturated across concurrent repository snapshots; either raise the worker budget with CPU/memory proof, narrow `SCIP_LANGUAGES`, or lower snapshot concurrency. |
 | `eshu_dp_discovery_dirs_skipped_total` | Directory pruning by discovery policy. |
@@ -58,6 +59,52 @@ file counts; repository and file paths stay in logs and spans and never appear
 as metric labels, so the histogram and span set stay low-cardinality. When the
 collector runs without an instruments meter or tracer the path is a safe no-op,
 proven by `TestSnapshotRepositoryStageTelemetryNoInstrumentsNoPanic`.
+
+Observability Evidence (#4767): before this change, an operator could see the
+`pre_scan` stage's total wall time and file count via
+`eshu_dp_collector_snapshot_stage_duration_seconds{stage="pre_scan"}` but could
+not tell which language dominated that cost, unlike the `parse` stage which
+already carried a `language_parse_summary` structured-log breakdown. The
+pre_scan stage log now carries a matching `language_prescan_summary` bucket
+(same `language`/`file_count`/`total_duration_seconds`/`avg_duration_seconds`
+shape as `language_parse_summary`), and the new
+`eshu_dp_file_prescan_duration_seconds` histogram (labeled `language`, mirrors
+`eshu_dp_file_parse_duration_seconds`'s bucket boundaries) lets an operator
+graph per-language pre_scan cost the same way per-language parse cost is
+already graphed. Verified by
+`TestNativeRepositorySnapshotterLogsPreScanLanguageSummary`
+(`go/internal/collector/git_snapshot_native_test.go`), which asserts the
+`pre_scan` stage log line for a python+groovy fixture repo carries
+`language_prescan_summary` with both languages' `file_count`,
+`total_duration_seconds`, and `avg_duration_seconds`.
+
+The summary only ever reflects pre_scan work that actually ran: `Engine`'s new
+`PreScanRepositoryPathsWithWorkersStats` method (the stats-returning
+counterpart to the unchanged `PreScanRepositoryPathsWithWorkers`) marks a file
+`dispatched` only when it reached a language pre-scanner, so an unregistered
+file or a `parser.IsDerivedPreScanLanguage` language (php, javascript,
+typescript, tsx — which derive their ImportsMap contribution from the parse
+stage on a full ingest per #4764 and so never reach `preScanOnePath`'s
+dispatch) contributes zero fabricated samples. A delta sync still routes every
+language through the legacy pre_scan pass and so still emits samples for all
+of them, including the derived-eligible set.
+
+No-Regression Evidence (#4767): `go test ./internal/parser ./internal/collector
+./cmd/ingester -count=1` (all packages green) proves the three existing
+exported `Engine.PreScanPaths` / `PreScanRepositoryPaths` /
+`PreScanRepositoryPathsWithWorkers` methods keep their exact signatures,
+merge/sort behavior, and first-error semantics —
+`TestDefaultEnginePreScanRepositoryPathsWithWorkersMatchesSequential` and the
+other 35+ existing PreScan call sites across `internal/parser`,
+`internal/reducer`, `internal/resolutionparity`, and `internal/accuracygate`
+are unmodified and pass unchanged. The added cost per pre-scanned file is one
+`time.Now()` read at dispatch entry/exit (already timed identically at the
+parse-stage per-file level) and one histogram `Record` call per dispatched
+file at the collector layer; no new graph write, Cypher, queue, lease, batch,
+or worker behavior is introduced, and the per-file work `preScanOnePath`
+performs is unchanged. `go vet` confirms no other caller in
+`internal/reducer`, `internal/resolutionparity`, or `internal/accuracygate`
+needed changes.
 
 ## Terraform-State Collector
 

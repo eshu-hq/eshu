@@ -273,6 +273,77 @@ func TestNativeRepositorySnapshotterLogsSnapshotStageTimings(t *testing.T) {
 	}
 }
 
+// TestNativeRepositorySnapshotterLogsPreScanLanguageSummary is the #4767
+// regression: the pre_scan stage log must carry a language_prescan_summary
+// bucket-per-language breakdown mirroring the existing parse-stage
+// language_parse_summary, so an operator can attribute pre_scan cost to a
+// language the same way parse cost is already attributed. python and groovy
+// are used because, after #4764, only parser.IsDerivedPreScanLanguage
+// languages (php, javascript, typescript, tsx) derive their ImportsMap
+// contribution from the parse stage on a full ingest and so skip a dedicated
+// pre_scan pass; python and groovy are not in that derived set and so still
+// dispatch through Engine's per-language PreScan switch (verified against
+// go/internal/parser/engine.go's preScanOnePath, which has no dispatch case
+// for json — json contributes no PreScan entries at all, derived or
+// otherwise, so it is not a valid fixture language for this test).
+func TestNativeRepositorySnapshotterLogsPreScanLanguageSummary(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeCollectorTestFile(
+		t,
+		filepath.Join(repoRoot, "service.py"),
+		"def handler():\n    return 1\n",
+	)
+	writeCollectorTestFile(
+		t,
+		filepath.Join(repoRoot, "Jenkinsfile.groovy"),
+		"def build() {\n    echo 'hi'\n}\n",
+	)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	var logs bytes.Buffer
+	snapshotter := NativeRepositorySnapshotter{
+		Engine:       engine,
+		ParseWorkers: 2,
+		Logger:       slog.New(slog.NewJSONHandler(&logs, nil)),
+	}
+	if _, err := snapshotter.SnapshotRepository(
+		context.Background(),
+		SelectedRepository{RepoPath: repoRoot},
+	); err != nil {
+		t.Fatalf("SnapshotRepository() error = %v, want nil", err)
+	}
+
+	logOutput := logs.String()
+	preScanLineStart := strings.Index(logOutput, `"stage":"pre_scan"`)
+	if preScanLineStart == -1 {
+		t.Fatalf("snapshot stage logs missing pre_scan stage line: %s", logOutput)
+	}
+	preScanLineEnd := strings.Index(logOutput[preScanLineStart:], "\n")
+	if preScanLineEnd == -1 {
+		preScanLineEnd = len(logOutput) - preScanLineStart
+	}
+	preScanLine := logOutput[preScanLineStart : preScanLineStart+preScanLineEnd]
+
+	for _, want := range []string{
+		`"language_prescan_summary":`,
+		`"language":"python"`,
+		`"language":"groovy"`,
+		`"file_count":1`,
+		`"total_duration_seconds":`,
+		`"avg_duration_seconds":`,
+	} {
+		if !strings.Contains(preScanLine, want) {
+			t.Fatalf("pre_scan stage log missing %s in %s", want, preScanLine)
+		}
+	}
+}
+
 func TestNativeRepositorySnapshotterPreservesDependencyOwnership(t *testing.T) {
 	t.Parallel()
 

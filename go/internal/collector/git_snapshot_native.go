@@ -206,7 +206,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	)
 
 	preScanStartedAt := time.Now()
-	importsMap, err := engine.PreScanRepositoryPathsWithWorkers(
+	importsMap, preScanFileStats, err := engine.PreScanRepositoryPathsWithWorkersStats(
 		repoPath,
 		legacyPreScanFiles,
 		effectiveSnapshotParseWorkers(s.ParseWorkers),
@@ -220,6 +220,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 		slog.Int("derive_from_parse_file_count", len(deriveEligiblePreScanFiles)),
+		slog.Any("language_prescan_summary", preScanLanguageSummary(ctx, s, preScanFileStats)),
 	)
 	goPackageSemanticPreScanStartedAt := time.Now()
 	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, preScanFileSet.Files)
