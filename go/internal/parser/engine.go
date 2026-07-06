@@ -75,7 +75,11 @@ func (e *Engine) ParsePath(
 		return nil, err
 	}
 	if source, readErr := readSource(resolvedPath); readErr == nil {
-		metadata := inferContentMetadata(resolvedPath, string(source))
+		sourceText := string(source)
+		var metadata contentMetadata
+		if !shouldSkipContentMetadata(resolvedPath, sourceText) {
+			metadata = inferContentMetadata(resolvedPath, sourceText)
+		}
 		if strings.TrimSpace(metadata.ArtifactType) != "" {
 			payload["artifact_type"] = metadata.ArtifactType
 		}

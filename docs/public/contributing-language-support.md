@@ -59,6 +59,52 @@ Keying by repo root instead of resolved config path is a correctness bug in a
 monorepo: nested packages can each own a distinct config file, and a repo-root
 key would leak one package's config into a sibling package's files.
 
+### Content-metadata sniffing is skipped for non-IaC-signal source files
+
+`Engine.ParsePath` calls `inferContentMetadata` after every parse to populate
+`artifact_type`, `template_dialect`, and `iac_relevant`. That inference runs
+three regex scans (a Go template line-control scan, a Terraform
+`templatefile()` scan, and an internal re-scan inside root-family detection),
+costing roughly 7.5ms on a large PHP/JS file -- about 5% of `ParsePath` wall
+time across a full corpus (issue #4768). Most source files carry no
+IaC/template signal at all, so `shouldSkipContentMetadata`
+(`go/internal/parser/content_metadata_gate.go`) gates the call: it skips
+`inferContentMetadata` and uses the zero-value `contentMetadata{}` only when
+the file's extension, path segments, basename, and content contain none of the
+signals `inferContentMetadata`'s own predicates match on.
+
+This gate does not simply skip "source-code languages." A `.py`, `.js`, or
+`.php` file living under an Ansible (`roles/`, `playbooks/`, `handlers/`,
+`tasks/`, `group_vars/`, `host_vars/`, `inventory/`, `inventories/`), Dagster
+(`dagster/`, `assets/`, `data_quality/`, `data_lakehouse/`), Helm/Argo
+(`chart/`, `templates/`, `argocd/`), GitHub Actions (`.github/workflows/`), or
+bare `iac/` path segment is legitimately reclassified by path alone (for
+example `ansible_role` or `iac_relevant=true`) and always runs the real
+inference. So does any file whose content contains an Ansible-playbook marker
+substring (`hosts:`, `roles:`, `vars_files:`, or `import_playbook:` at the
+start of a line) regardless of its path or extension, since that
+classification is content-based, not path-based. The extension check itself
+must test every dot-suffix a filename carries, not only the last one (a
+`vars.tf.json` file is real `terraform_hcl` via its `.tf` suffix even though
+`.json` is last), and must include `.conf`/`.cfg`/`.cnf` (raw config files
+reclassified to `nginx_config`/`apache_config`/`generic_config`) and `.kcl`
+(which gets template-marker handling identical to YAML).
+
+An earlier version of this gate skipped by last-suffix only and omitted
+`.conf`/`.cfg`/`.cnf`/`.kcl` entirely, silently corrupting persisted
+`artifact_type`/`iac_relevant` for those files -- caught by a hostile
+`eshu-code-review` before merge, not by the equivalence test, because that
+test's hand-picked case list did not happen to include those shapes. The gate
+is now proven, not just asserted, against those trigger classes: in addition
+to the hand-picked equivalence cases, `content_metadata_gate_test.go` runs a
+generative differential (`TestShouldSkipContentMetadataGeneratedEquivalence`)
+over a cartesian product of every gated/plain extension (including multi-dot
+shapes like `vars.tf.json`), every signal/plain directory context, and every
+content signal, asserting `shouldSkip==true => inferContentMetadata(path,
+content) == contentMetadata{}` for every generated combination -- plus two
+tests proving that assertion is not a tautology by showing it fails red
+against a too-wide gate and against the pre-fix gate shape.
+
 Parse-only behavior is not supported query behavior. A parser can recognize a
 syntax shape and still be unsupported for language-query, entity context,
 story, relationship, or dead-code answers until those read paths have focused

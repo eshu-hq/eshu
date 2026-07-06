@@ -560,6 +560,104 @@ still diagnose parse behavior through the existing collector
 completed` logs; the read-count change is internal to `ParsePath` and does not
 alter what those signals report.
 
+## Gated content-metadata inference
+
+`inferContentMetadata` (`templated_detection.go`) runs three regex scans (a Go
+template line-control scan, a Terraform `templatefile()` scan, and an internal
+re-scan inside `inferRootFamily`) to populate `artifact_type`,
+`template_dialect`, and `iac_relevant` after every parse. Profiling a
+full-corpus run (issue #4768) showed this call costing roughly 7.5ms on a large
+PHP/JS file, about 5% of `ParsePath` wall time across the corpus, even though
+most files carry no IaC/template signal at all and always resolve to the zero
+`contentMetadata{}`.
+
+`shouldSkipContentMetadata` (`content_metadata_gate.go`) gates the call in
+`Engine.ParsePath`: it returns `true` (skip, use the zero value) only when
+none of `inferContentMetadata`'s own trigger conditions can apply --- derived
+directly from a full line-by-line audit of every branch in
+`templated_detection.go`:
+
+- no suffix returned by `splitSuffixes` (i.e. every dot-segment in the
+  basename, not just the last one) is in `{.yaml, .yml, .hcl, .tf, .tfvars,
+  .tpl, .tftpl, .jinja, .jinja2, .j2, .conf, .cfg, .cnf, .kcl}`
+  (`isYAMLSuffix`, `isHCLSuffix`, `isJinjaSuffix`, `isTerraformTemplateSuffix`,
+  `isRawConfigSuffix`, and the `.kcl` special case). Checking every suffix
+  (mirroring `anySuffix`'s semantics in `inferArtifactType`/`inferRootFamily`),
+  not only the last one, matters for multi-dot names like `vars.tf.json`
+  (suffixes `.tf`, `.json`), which is real `terraform_hcl` via its `.tf`
+  suffix even though `.json` is last.
+- no path segment in `{roles, playbooks, handlers, tasks, group_vars,
+  host_vars, inventory, inventories, dagster, assets, data_quality,
+  data_lakehouse, chart, templates, argocd, iac}` (`inferRootFamily`,
+  `ansibleArtifactType`, and `isIACRelevant`'s bare-`iac` fallback)
+- no `.github` + `workflows` path pair (`github_actions_workflow` artifact
+  type)
+- basename is not `chart.yaml`, does not start with `values.`, is not
+  `dockerfile`/`dockerfile.*`, and is not a Docker Compose filename
+- content contains none of the path-independent Ansible-playbook markers
+  (`isAnsiblePlaybookContent`: a line starting with `hosts:`, `roles:`,
+  `vars_files:`, or `import_playbook:`)
+
+This is deliberately conservative: a `.py`, `.js`, or `.php` file under
+`roles/`, `playbooks/`, `dagster/`, `chart/templates/`, or `argocd/` is
+legitimately reclassified by path alone (for example `ansible_role` or
+`iac_relevant=true`) and is never skipped; content-based Ansible-playbook
+detection is checked regardless of extension or path; and a `.conf`/`.cfg`/
+`.cnf`/`.kcl` file, or a multi-dot name carrying a gated suffix anywhere
+(not just last), is never skipped either. See
+`docs/public/contributing-language-support.md#content-metadata-sniffing-is-skipped-for-non-iac-signal-source-files`
+for the full contributor-facing description and
+`content_metadata_gate_test.go` for the proof: a hand-picked-case equivalence
+test plus the mandatory generative differential
+(`TestShouldSkipContentMetadataGeneratedEquivalence`), which enumerates a
+cartesian product of extensions (including multi-dot shapes), directory
+contexts, and content signals and asserts the implication `shouldSkip==true
+=> inferContentMetadata(path, content) == contentMetadata{}` holds for every
+generated combination -- plus two red-without-the-fix regressions
+(`TestShouldSkipContentMetadataTooWideIsCaught` and
+`TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate`) proving
+the differential is not a tautology and actually distinguishes a too-narrow
+gate from a correct one. An earlier version of this gate shipped without the
+generative differential and missed three real trigger classes (`.conf`/
+`.cfg`/`.cnf` entirely absent from the extension set, last-suffix-only
+matching instead of `anySuffix` over every suffix, and `.kcl` absent); a
+hostile `eshu-code-review` caught all three live through
+`DefaultEngine().ParsePath` before merge, and this section and the gate code
+were corrected in response.
+
+Performance Evidence: `go test -run '^$' -bench
+'BenchmarkInferContentMetadataUnconditional|BenchmarkContentMetadataGated'
+-benchmem -benchtime 2s -count=3 ./internal/parser` on darwin/arm64 (Apple M5
+Max), a synthetic 400-method PHP file with no IaC/template signal in its path
+or content (unaffected by the extension-set/anySuffix fix, since `.php` was
+never a gated extension and carries no multi-dot suffix):
+`BenchmarkInferContentMetadataUnconditional` (before, unconditional
+`inferContentMetadata` call) ranged 3.13ms-3.64ms/op, 117.3-117.7KB/op, 25
+allocs/op across 3 runs; `BenchmarkContentMetadataGated` (after, gate check
+plus skip) ranged 0.163ms-0.181ms/op, 57.7KB/op, 9 allocs/op -- roughly an
+18-20x reduction and ~3ms saved per gated file on this synthetic input,
+consistent with the corpus profile's ~7.5ms figure on bigger real files.
+`BenchmarkContentMetadataGatedRawConfigCorrectlyNotSkipped` measures the
+corrected behavior for the class the review caught: a large synthetic
+`.conf` file (nginx-shaped content, real IaC signal) that the pre-fix gate
+incorrectly skipped now correctly runs the real inference, ranging
+2.58ms-3.01ms/op, 860-947B/op, 18 allocs/op -- this is the expected cost of
+no longer silently corrupting `artifact_type`/`iac_relevant` for that file
+class. `BenchmarkParsePathLargeGatedPHP` proves the same gated PHP file parses
+correctly end to end through the real `ParsePath` entrypoint with the gate
+wired in (81.5ms-91.6ms/op total parse cost, dominated by the tree-sitter PHP
+parse itself, confirming no crash or behavior change on the gated call-site).
+
+No-Observability-Change: this adds no metric, span, structured log, status
+field, queue, graph write, worker, lease, batch, or runtime knob. Operators
+still diagnose parse behavior through the existing collector
+`telemetry.FileParseDuration` instrument; `shouldSkipContentMetadata` is a pure
+function with no side effects and does not change what `artifact_type`,
+`template_dialect`, or `iac_relevant` is persisted for any file that clears
+the gate (proven by the hand-picked equivalence test and the generative
+differential over the cartesian product described above), so no read surface
+can observe a difference beyond wall-clock time.
+
 ## Operational notes
 
 - `DefaultRegistry()` panics if the built-in `defaultDefinitions()` list
