@@ -198,6 +198,41 @@ Guardrails:
 - Source-only parser metadata must not be used to claim graph, query, story, or
   dead-code support without the consumer path that reads it.
 
+## TypeScript Public-Surface Cache (Package-Root Scoped)
+
+TypeScript dead-code analysis (`dead_code_root_kinds` for exported
+declarations) resolves whether a declaration is reachable through a package's
+public entry point (`package.json` `exports`/`types`) by walking the barrel
+re-export graph rooted at that entry point, up to 8 hops deep. That closure
+graph is identical for every source file inside one package: the walk starts
+at the same public entry file and follows the same re-export edges regardless
+of which file is currently being parsed.
+
+To avoid re-parsing that identical closure once per file (issue #4765), the
+per-node facts the walk needs from each file it visits -- its static re-export
+edges, its named-import bindings, and which imported names each of its public
+declarations mentions -- are memoized in a package-root-scoped cache
+(`go/internal/parser/javascript/typescript_public_surface_cache.go`). The
+cache key is `(package root, file path, mtime, size)`, so:
+
+- Two different packages in a monorepo never share cache entries, even if a
+  re-exported path happens to collide.
+- Editing a barrel or a re-exported module invalidates only that file's entry
+  (a changed `mtime`/`size` is a different generation), so the next file
+  parsed after the edit recomputes rather than reusing a stale extraction.
+- Concurrent parse workers touching the same package coalesce onto one
+  in-flight computation per `(package root, file path)` key instead of racing
+  a duplicate parse (single-flight, mirroring the tsconfig/package.json
+  config-scope cache from issue #4515 P2a).
+
+Contributors changing the TypeScript public-surface walk
+(`javaScriptTypeScriptSurfaceRootKinds`, the reexport and imported-type-reference
+BFS functions, or their per-node fact extraction) must keep the cached facts
+(`typeScriptPublicSurfaceNodeFacts`) equivalent to what a fresh, uncached parse
+of that file would produce -- the cache must never change which declarations
+are marked as public-surface reachable, only how many times each file in the
+closure is parsed.
+
 ## Workflow
 
 1. Add or update Go parser tests first.

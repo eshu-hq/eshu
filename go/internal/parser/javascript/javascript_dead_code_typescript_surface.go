@@ -49,6 +49,16 @@ func javaScriptTypeScriptSurfaceRootKinds(
 		return rootKinds
 	}
 
+	// packageRoot scopes the public-surface cache so the reexport-BFS closure
+	// computed for one package is never shared with a sibling package's files
+	// (see typescript_public_surface_cache.go, issue #4765). A missing
+	// package root (no owning package.json) still works correctly: every
+	// cache key below falls back to the empty string, which only collapses
+	// entries for files that share no package.json at all -- those files
+	// also have no javaScriptPackagePublicSourcePaths, so this loop body
+	// never runs for them.
+	packageRoot, _ := NearestPackageRoot(repoRoot, path)
+
 	publicNames := make(map[string]struct{})
 	for _, publicPath := range javaScriptPackagePublicSourcePaths(repoRoot, path) {
 		if sameJavaScriptPath(publicPath, path) {
@@ -58,11 +68,11 @@ func javaScriptTypeScriptSurfaceRootKinds(
 			}
 			continue
 		}
-		for name := range javaScriptTypeScriptPublicReexportNames(repoRoot, publicPath, path, exportedNames, siblingParser) {
+		for name := range javaScriptTypeScriptPublicReexportNames(repoRoot, packageRoot, publicPath, path, exportedNames, siblingParser) {
 			publicNames[name] = struct{}{}
 			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
 		}
-		for name := range javaScriptTypeScriptPublicImportedTypeReferenceNames(repoRoot, publicPath, path, exportedNames, siblingParser) {
+		for name := range javaScriptTypeScriptPublicImportedTypeReferenceNames(repoRoot, packageRoot, publicPath, path, exportedNames, siblingParser) {
 			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
 		}
 	}
@@ -78,6 +88,7 @@ func javaScriptTypeScriptSurfaceRootKinds(
 
 func javaScriptTypeScriptPublicReexportNames(
 	repoRoot string,
+	packageRoot string,
 	publicPath string,
 	targetPath string,
 	exportedNames map[string]struct{},
@@ -99,7 +110,7 @@ func javaScriptTypeScriptPublicReexportNames(
 		}
 		visited[visitKey] = struct{}{}
 
-		for _, reexport := range javaScriptTypeScriptStaticReexportsFromFile(item.path, siblingParser) {
+		for _, reexport := range packageSurfaceFacts(packageRoot, item.path, siblingParser).reexports {
 			nextNames, nextStar, ok := javaScriptTypeScriptPropagateReexport(item, reexport)
 			if !ok {
 				continue
@@ -251,17 +262,6 @@ func javaScriptTypeScriptDeclarationName(node *tree_sitter.Node, source []byte) 
 
 func javaScriptPackagePublicSourcePaths(repoRoot string, path string) []string {
 	return PackagePublicSourcePaths(repoRoot, path)
-}
-
-func javaScriptTypeScriptStaticReexportsFromFile(
-	path string,
-	siblingParser *javaScriptSiblingParser,
-) []javaScriptTypeScriptSurfaceReexport {
-	root, source, ok := siblingParser.rootForFile(path)
-	if !ok {
-		return nil
-	}
-	return javaScriptTypeScriptStaticReexportsFromRoot(root, source)
 }
 
 // javaScriptTypeScriptStaticReexportsFromRoot extracts every static re-export
