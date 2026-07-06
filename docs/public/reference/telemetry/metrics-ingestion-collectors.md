@@ -60,6 +60,52 @@ as metric labels, so the histogram and span set stay low-cardinality. When the
 collector runs without an instruments meter or tracer the path is a safe no-op,
 proven by `TestSnapshotRepositoryStageTelemetryNoInstrumentsNoPanic`.
 
+Observability Evidence (#4767): before this change, an operator could see the
+`pre_scan` stage's total wall time and file count via
+`eshu_dp_collector_snapshot_stage_duration_seconds{stage="pre_scan"}` but could
+not tell which language dominated that cost, unlike the `parse` stage which
+already carried a `language_parse_summary` structured-log breakdown. The
+pre_scan stage log now carries a matching `language_prescan_summary` bucket
+(same `language`/`file_count`/`total_duration_seconds`/`avg_duration_seconds`
+shape as `language_parse_summary`), and the new
+`eshu_dp_file_prescan_duration_seconds` histogram (labeled `language`, mirrors
+`eshu_dp_file_parse_duration_seconds`'s bucket boundaries) lets an operator
+graph per-language pre_scan cost the same way per-language parse cost is
+already graphed. Verified by
+`TestNativeRepositorySnapshotterLogsPreScanLanguageSummary`
+(`go/internal/collector/git_snapshot_native_test.go`), which asserts the
+`pre_scan` stage log line for a python+groovy fixture repo carries
+`language_prescan_summary` with both languages' `file_count`,
+`total_duration_seconds`, and `avg_duration_seconds`.
+
+The summary only ever reflects pre_scan work that actually ran: `Engine`'s new
+`PreScanRepositoryPathsWithWorkersStats` method (the stats-returning
+counterpart to the unchanged `PreScanRepositoryPathsWithWorkers`) marks a file
+`dispatched` only when it reached a language pre-scanner, so an unregistered
+file or a `parser.IsDerivedPreScanLanguage` language (php, javascript,
+typescript, tsx — which derive their ImportsMap contribution from the parse
+stage on a full ingest per #4764 and so never reach `preScanOnePath`'s
+dispatch) contributes zero fabricated samples. A delta sync still routes every
+language through the legacy pre_scan pass and so still emits samples for all
+of them, including the derived-eligible set.
+
+No-Regression Evidence (#4767): `go test ./internal/parser ./internal/collector
+./cmd/ingester -count=1` (all packages green) proves the three existing
+exported `Engine.PreScanPaths` / `PreScanRepositoryPaths` /
+`PreScanRepositoryPathsWithWorkers` methods keep their exact signatures,
+merge/sort behavior, and first-error semantics —
+`TestDefaultEnginePreScanRepositoryPathsWithWorkersMatchesSequential` and the
+other 35+ existing PreScan call sites across `internal/parser`,
+`internal/reducer`, `internal/resolutionparity`, and `internal/accuracygate`
+are unmodified and pass unchanged. The added cost per pre-scanned file is one
+`time.Now()` read at dispatch entry/exit (already timed identically at the
+parse-stage per-file level) and one histogram `Record` call per dispatched
+file at the collector layer; no new graph write, Cypher, queue, lease, batch,
+or worker behavior is introduced, and the per-file work `preScanOnePath`
+performs is unchanged. `go vet` confirms no other caller in
+`internal/reducer`, `internal/resolutionparity`, or `internal/accuracygate`
+needed changes.
+
 ## Terraform-State Collector
 
 | Metric | Key labels | Use |
