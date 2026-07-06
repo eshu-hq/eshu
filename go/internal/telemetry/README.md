@@ -319,6 +319,7 @@ module prefixes across generations.
 | `BatchClaimSize` | `eshu_dp_reducer_batch_claim_size` (Int64) | 1–128 items |
 | `RepoSnapshotDuration` | `eshu_dp_repo_snapshot_duration_seconds` | 0.1–300 s |
 | `FileParseDuration` | `eshu_dp_file_parse_duration_seconds` | 0.001–2.5 s |
+| `FilePreScanDuration` | `eshu_dp_file_prescan_duration_seconds` (labels: `language`) | 0.001–2.5 s |
 | `GenerationFactCount` | `eshu_dp_generation_fact_count` | 10–300000 facts |
 | `SCIPProcessWaitDuration` | `eshu_dp_scip_process_wait_seconds` | 0–60 s |
 | `LargeRepoSemaphoreWait` | `eshu_dp_large_repo_semaphore_wait_seconds` | 0–300 s |

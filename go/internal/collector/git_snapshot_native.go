@@ -214,13 +214,19 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan repository imports for %q: %w", repoPath, err)
 	}
-	s.recordSnapshotStage(
-		ctx, repoPath, telemetry.SnapshotStagePreScan, preScanStartedAt,
+	// Capture the stage end time before building the per-language summary:
+	// preScanLanguageSummary records one histogram sample per pre-scanned file,
+	// and that recording cost must not be attributed to the pre_scan stage
+	// duration itself (#4767).
+	preScanEndedAt := time.Now()
+	preScanSummary := preScanLanguageSummary(ctx, s, preScanFileStats)
+	s.recordSnapshotStageAt(
+		ctx, repoPath, telemetry.SnapshotStagePreScan, preScanStartedAt, preScanEndedAt,
 		slog.Int("file_count", len(legacyPreScanFiles)),
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 		slog.Int("derive_from_parse_file_count", len(deriveEligiblePreScanFiles)),
-		slog.Any("language_prescan_summary", preScanLanguageSummary(ctx, s, preScanFileStats)),
+		slog.Any("language_prescan_summary", preScanSummary),
 	)
 	goPackageSemanticPreScanStartedAt := time.Now()
 	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, preScanFileSet.Files)
@@ -359,6 +365,14 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 // is back-dated to startedAt so the trace reflects the real stage window even
 // though it is recorded after the stage completes; this keeps the call sites a
 // single post-stage statement rather than a control-flow rewrite.
+//
+// recordSnapshotStage captures the stage end time itself (time.Now()), so the
+// stage window silently grows to include any variadic attrs expression the
+// caller evaluates before the call — Go evaluates all call arguments before
+// invoking the function. Any call site whose attrs construction does
+// non-trivial work (a per-file summary loop, a metric-recording pass) MUST
+// capture its own endedAt first and call recordSnapshotStageAt instead, or the
+// stage-duration metric double-counts that post-processing cost (#4767).
 func (s NativeRepositorySnapshotter) recordSnapshotStage(
 	ctx context.Context,
 	repoPath string,
@@ -366,7 +380,21 @@ func (s NativeRepositorySnapshotter) recordSnapshotStage(
 	startedAt time.Time,
 	attrs ...any,
 ) {
-	endedAt := time.Now()
+	s.recordSnapshotStageAt(ctx, repoPath, stage, startedAt, time.Now(), attrs...)
+}
+
+// recordSnapshotStageAt is recordSnapshotStage with an explicit, already-captured
+// end time. Use this when building the attrs for a stage does measurable work
+// (e.g. a per-file telemetry summary loop) so that work is not folded into the
+// reported stage duration.
+func (s NativeRepositorySnapshotter) recordSnapshotStageAt(
+	ctx context.Context,
+	repoPath string,
+	stage string,
+	startedAt time.Time,
+	endedAt time.Time,
+	attrs ...any,
+) {
 	duration := endedAt.Sub(startedAt)
 
 	if s.Instruments != nil {
