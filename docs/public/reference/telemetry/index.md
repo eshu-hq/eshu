@@ -456,6 +456,54 @@ workers share no mutable state through the recording path. Verified by
 `go test ./internal/collector ./internal/telemetry -count=1` and the
 claimed-service `-race` suite.
 
+## Per-File Parse And Pre-Scan Cost
+
+Within the `parse` and `pre_scan` snapshot stages above, two histograms
+attribute cost per file and per bounded `language`:
+
+- `eshu_dp_file_parse_duration_seconds` — per-file parse duration, labeled by
+  `language`.
+- `eshu_dp_file_prescan_duration_seconds` — per-file pre_scan duration, labeled
+  by `language`. Only files that actually dispatch to a language pre-scanner
+  emit a sample; languages that derive their `ImportsMap` contribution from the
+  parse stage instead (php, javascript, typescript, tsx, on a full ingest)
+  contribute no pre_scan sample.
+
+Both pair with a structured-log language summary on their owning stage
+(`language_parse_summary` for `parse`, `language_prescan_summary` for
+`pre_scan`) so an operator can graph or log-pivot per-language cost the same
+way for both stages. Full row detail, including the derive-from-parse caveat
+above, lives in the "Git, Discovery, And Fact Streaming" table of
+[Ingestion And Collector Metrics](metrics-ingestion-collectors.md).
+
+Observability Evidence: `eshu_dp_file_prescan_duration_seconds` was registered
+in `go/internal/telemetry/instruments.go` (#4767/#4811) but this operator
+reference page never gained a row for it or its `eshu_dp_file_parse_duration_seconds`
+sibling — a frozen-inventory gap this section closes. No behavior changed;
+this is a documentation-only addition.
+
+No-Regression Evidence: fixes a `git_snapshot_native.go` pre_scan stage-duration
+measurement bug — `recordSnapshotStage` self-captured its end time inside the
+call, so the caller's `preScanLanguageSummary(...)` argument expression (a
+per-file histogram-record loop) ran before that capture and was silently
+folded into `eshu_dp_collector_snapshot_stage_duration_seconds{stage="pre_scan"}`.
+The fix captures `preScanEndedAt` immediately after
+`PreScanRepositoryPathsWithWorkersStats` returns, builds the summary after that,
+and records the stage via the new `recordSnapshotStageAt(..., preScanEndedAt, ...)`
+overload that takes an already-captured end time instead of self-capturing one.
+The `parse` stage was audited and does not have this bug: its
+`languageParseSummary` is returned from `buildParsedRepositoryFiles` itself (the
+per-file `FileParseDuration.Record` call happens inline during the measured
+parse work), so no equivalent post-processing loop runs between the parse work
+finishing and its `recordSnapshotStage` call. No new Cypher, graph write,
+worker, lease, batch, or queue behavior; this only changes which `time.Now()`
+sample is used as the stage end time. Verified by
+`TestRecordSnapshotStageAtExcludesPostEndTimeWork`,
+`TestRecordSnapshotStageSelfCapturesEndTimeAtCallTime`, and the existing
+`TestSnapshotRepositoryRecordsPerStageTelemetry` in
+`go/internal/collector/git_snapshot_stage_endtime_test.go` and
+`git_snapshot_stage_telemetry_test.go`.
+
 ## Per-(Domain, Partition) Shared-Projection Drain Telemetry
 
 The reducer shared-projection runner now publishes two instruments for #3624
