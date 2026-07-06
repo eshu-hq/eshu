@@ -35,6 +35,11 @@ type Options struct {
 	// CollectorLabel is the informational cassette.File.Collector value.
 	// Defaults to "gcp_synthetic" when empty.
 	CollectorLabel string
+	// ScopeMetadata is optional deterministic metadata copied onto the
+	// cassette scope. It may add profile or fixture-contract labels, but it
+	// must not override project_id, synthetic, or seed with conflicting
+	// values.
+	ScopeMetadata map[string]string
 }
 
 // validate returns a fail-closed error for a malformed Options rather than
@@ -46,6 +51,15 @@ func (o Options) validate() error {
 	if o.ResourceCount <= 0 {
 		return fmt.Errorf("synth/gcp: ResourceCount must be positive, got %d", o.ResourceCount)
 	}
+	for key, value := range o.ScopeMetadata {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			return fmt.Errorf("synth/gcp: ScopeMetadata contains a blank key")
+		}
+		if err := validateReservedScopeMetadata(trimmed, value, o); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -55,6 +69,33 @@ func (o Options) collectorLabel() string {
 		return o.CollectorLabel
 	}
 	return "gcp_synthetic"
+}
+
+// scopeMetadata returns the cassette scope metadata for this generation run.
+func (o Options) scopeMetadata() map[string]string {
+	metadata := map[string]string{
+		"project_id": o.ProjectID,
+		"synthetic":  "true",
+		"seed":       strconv.FormatUint(o.Seed, 10),
+	}
+	for key, value := range o.ScopeMetadata {
+		metadata[strings.TrimSpace(key)] = value
+	}
+	return metadata
+}
+
+// validateReservedScopeMetadata rejects metadata that would make the scope
+// lie about its core generated identity.
+func validateReservedScopeMetadata(key, value string, opts Options) error {
+	reserved := map[string]string{
+		"project_id": opts.ProjectID,
+		"synthetic":  "true",
+		"seed":       strconv.FormatUint(opts.Seed, 10),
+	}
+	if want, ok := reserved[key]; ok && value != want {
+		return fmt.Errorf("synth/gcp: ScopeMetadata[%q] = %q conflicts with generated value %q", key, value, want)
+	}
+	return nil
 }
 
 // Generate builds a deterministic, seeded synthetic GCP cassette and returns
@@ -113,15 +154,11 @@ func Generate(opts Options) ([]byte, error) {
 				ScopeKind:     "account",
 				CollectorKind: "gcp",
 				PartitionKey:  scopeID,
-				Metadata: map[string]string{
-					"project_id": opts.ProjectID,
-					"synthetic":  "true",
-					"seed":       strconv.FormatUint(opts.Seed, 10),
-				},
-				GenerationID: replay.DerivedGenerationID(scopeID),
-				ObservedAt:   time.Now().UTC(),
-				TriggerKind:  "snapshot",
-				Facts:        facts,
+				Metadata:      opts.scopeMetadata(),
+				GenerationID:  replay.DerivedGenerationID(scopeID),
+				ObservedAt:    time.Now().UTC(),
+				TriggerKind:   "snapshot",
+				Facts:         facts,
 			},
 		},
 	}

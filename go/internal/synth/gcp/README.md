@@ -42,6 +42,28 @@ without provider access").
 (the five kinds this generator has schema coverage for) is refused rather than
 emitted unvalidated.
 
+## Demo-org coherence profile
+
+`DefaultDemoOrgProfile()` formalizes the demo/conformance corpus identity
+scheme already used by the golden-corpus gate: `ESHU_GITHUB_ORG=acme` and
+deterministic repository remotes shaped as `github.com/acme/<repo>`. That scheme
+is reserved in `JoinKeyRegistry`, including the cross-repo package owner hint
+for `github.com/acme/lib-common`, so later synthetic families can share the same
+join keys instead of inventing a second fake org.
+
+`GenerateDemoOrgCassette(DefaultDemoOrgProfile())` returns canonical cassette
+bytes plus the repository-relative manifest-layout path
+`testdata/cassettes/gcpcloud/supply-chain-demo.json`.
+`WriteDemoOrgCassette(repoRoot, DefaultDemoOrgProfile())` is the regeneration
+entry point for the first generated family: it writes those bytes under
+`testdata/generated-cassettes/gcpcloud/supply-chain-demo.json`, while preserving
+the committed golden-corpus path as `GeneratedCassette.ManifestPath`. Replacing
+the committed `testdata/cassettes/gcpcloud/supply-chain-demo.json` artifact is
+only valid under the operator-gated golden-corpus swap test, because the demo
+answers depend on projected graph truth, not only cassette shape. The entry
+point is Go, not a shell generator script, so the `generate-*.sh` / `lib/` /
+`test-generate-*.sh` pattern is intentionally not introduced for this issue.
+
 ## Determinism
 
 `Generate(Options{Seed: N, ...})` called twice with identical options produces
