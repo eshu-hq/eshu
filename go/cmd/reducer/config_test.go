@@ -310,7 +310,7 @@ func TestLoadReducerClaimDomains_ReportsLegacySourceForEmptyDomain(t *testing.T)
 }
 
 func expectedNornicDBReducerWorkers() int {
-	n := runtime.NumCPU()
+	n := runtime.GOMAXPROCS(0)
 	if n < 1 {
 		n = 1
 	}

@@ -8,12 +8,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"math"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
@@ -103,7 +103,7 @@ func SolveValueFlowProgramIncrementalDurable(
 	results := make([]interproc.Result, len(components))
 	recomputed := make([]bool, len(components))
 
-	sem := make(chan struct{}, maxValueFlowInt(1, runtime.GOMAXPROCS(0)))
+	sem := make(chan struct{}, cpubudget.UsableCPUs())
 	var wg sync.WaitGroup
 	for idx := range keyed {
 		wg.Add(1)
@@ -497,11 +497,4 @@ func sortedStrings(values []string) []string {
 	out := append([]string(nil), values...)
 	sort.Strings(out)
 	return out
-}
-
-func maxValueFlowInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

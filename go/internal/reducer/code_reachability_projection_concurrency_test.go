@@ -24,16 +24,17 @@ const barrierReleaseTimeout = 2 * time.Second
 func TestCodeReachabilityProjectionRunnerPartitionsDisjointRepositoriesConcurrently(t *testing.T) {
 	t.Parallel()
 
-	if runtime.NumCPU() < 2 {
+	if runtime.GOMAXPROCS(0) < 2 {
 		t.Skip("need at least 2 CPUs to observe concurrent partition projection")
 	}
 
 	const partitions = 4
-	// The runner clamps fan-out to the host CPU count, so the barrier must
-	// release at the effective concurrency, not the partition count, or it
-	// would stall waiting for arrivals that can never run at once.
+	// The runner clamps fan-out to the usable (cgroup-aware) CPU count, so
+	// the barrier must release at the effective concurrency, not the
+	// partition count, or it would stall waiting for arrivals that can never
+	// run at once.
 	effective := partitions
-	if n := runtime.NumCPU(); effective > n {
+	if n := runtime.GOMAXPROCS(0); effective > n {
 		effective = n
 	}
 	inputs := make([]CodeReachabilityProjectionInput, 0, partitions)

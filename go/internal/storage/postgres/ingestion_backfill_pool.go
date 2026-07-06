@@ -7,12 +7,12 @@ import (
 	"context"
 	"log"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -118,7 +118,7 @@ func deferredBackfillWorkerCount() int {
 			return n
 		}
 	}
-	return deferredBackfillDefaultWorkerCount(runtime.NumCPU())
+	return deferredBackfillDefaultWorkerCount(cpubudget.UsableCPUs())
 }
 
 func deferredBackfillDefaultWorkerCount(numCPU int) int {

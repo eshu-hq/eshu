@@ -8,12 +8,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"math"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
@@ -62,7 +62,7 @@ func SolveValueFlowSnapshotIncrementalDurable(
 	recomputed := make([]bool, len(components))
 	assembled := make([]bool, len(components))
 
-	sem := make(chan struct{}, maxValueFlowInt(1, runtime.GOMAXPROCS(0)))
+	sem := make(chan struct{}, cpubudget.UsableCPUs())
 	var wg sync.WaitGroup
 	for idx := range components {
 		wg.Add(1)

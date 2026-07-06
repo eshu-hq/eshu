@@ -6,10 +6,11 @@ package postgres
 import (
 	"context"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 )
 
 const (
@@ -61,7 +62,7 @@ func contentWriterBatchConcurrencyFromEnv() int {
 // repo_id+path+kind+identifier), so the batches are safely independent and
 // can run on parallel connections.
 func contentWriterDefaultBatchConcurrency() int {
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > contentWriterBatchConcurrencyAutoCap {
 		n = contentWriterBatchConcurrencyAutoCap
 	}

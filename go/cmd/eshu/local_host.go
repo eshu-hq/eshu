@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -69,7 +70,7 @@ var (
 	localHostWaitChildProcess                     = waitLocalChildProcess
 	localHostWaitManagedChildren                  = waitLocalHostChildren
 	localHostWaitOwnerChildren                    = waitLocalHostChildrenKeepingAllowedCleanExits
-	localHostNumCPU                               = runtime.NumCPU
+	localHostNumCPU                               = cpubudget.UsableCPUs
 	localHostApplyBootstrap                       = applyLocalBootstrap
 	localHostApplyGraphBootstrap                  = applyLocalGraphBootstrap
 	localHostMarkGraphSchemaApplied               = markLocalGraphSchemaApplied

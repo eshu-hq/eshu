@@ -7,10 +7,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"runtime"
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -42,7 +42,7 @@ func (e nornicDBPhaseGroupExecutor) entityFlushTrigger(stmts []sourcecypher.Stat
 // per label, so the chunks are safely independent and can run on parallel
 // Bolt sessions.
 //
-// The default is `runtime.NumCPU()` clamped to
+// The default is `cpubudget.UsableCPUs()` clamped to
 // `nornicDBEntityPhaseConcurrencyCap` (16). The earlier auto-cap of 4 was
 // conservative for a write path that turned out to scale sub-linearly
 // with worker count on the K8s dogfood lane (per-chunk CPU rose ~24%
@@ -52,7 +52,7 @@ func (e nornicDBPhaseGroupExecutor) entityFlushTrigger(stmts []sourcecypher.Stat
 // or larger value can still set `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`;
 // the env path uses the same cap.
 func nornicDBDefaultEntityPhaseConcurrency() int {
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > nornicDBEntityPhaseConcurrencyCap {
 		n = nornicDBEntityPhaseConcurrencyCap
 	}

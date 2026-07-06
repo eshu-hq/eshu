@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -18,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
@@ -383,7 +383,7 @@ func projectionWorkerCount(getenv func(string) string) int {
 			return n
 		}
 	}
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > 8 {
 		n = 8
 	}
