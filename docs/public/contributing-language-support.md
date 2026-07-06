@@ -236,13 +236,13 @@ closure is parsed.
 ## JS/TS/PHP Parse Byte Cap
 
 JavaScript, TypeScript, TSX, and PHP source files larger than 1 MiB have their
-tree-sitter parse skipped entirely, mirroring the SQL segment byte cap
-(`go/internal/parser/sql/segments.go`, #4422). Large generated files -- a
-minified webpack bundle, a bundled vendor library, a CID font map -- parse
-superlinearly under tree-sitter; full-corpus discovery finds pathological
-files in this size range across real repositories (#4766). Normal
-hand-written source is tens of KB, so 1 MiB is generous headroom above any
-legitimate single file.
+tree-sitter parse skipped entirely in the normal parse stage, mirroring the
+SQL segment byte cap (`go/internal/parser/sql/segments.go`, #4422). Large
+generated files -- a minified webpack bundle, a bundled vendor library, a CID
+font map -- parse superlinearly under tree-sitter in that stage; full-corpus
+discovery finds pathological files in this size range across real
+repositories (#4766). Normal hand-written source is tens of KB, so 1 MiB is
+generous headroom above any legitimate single file.
 
 The cap lives in each language family's `Parse` entry point
 (`go/internal/parser/javascript/javascript_language.go`'s `jsParseByteCap`,
@@ -251,6 +251,13 @@ and TSX through the shared javascript-family parser. A bounded file returns an
 otherwise-empty payload with no extracted entities; the bound is recorded in
 `payload["js_parse_bounded"]` or `payload["php_parse_bounded"]` and logged, so
 a dropped parse is observable rather than silent.
+
+This cap does not yet cover the repository pre-scan stage (`preScanNames` in
+`go/internal/parser/javascript/prescan.go` and
+`go/internal/parser/php/prescan.go`), which still parses the whole file with
+no cap; because pre-scan runs across the full repository on every delta
+sync, an over-cap file still pays the same superlinear parse cost there.
+That gap is tracked in [#4808](https://github.com/eshu-hq/eshu/issues/4808).
 
 ## Workflow
 

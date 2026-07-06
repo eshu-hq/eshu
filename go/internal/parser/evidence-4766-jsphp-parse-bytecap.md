@@ -4,14 +4,25 @@
 
 Full-corpus discovery on the 896-repo corpus found 93 files over 512 KiB that
 survive discovery and reach parse. A microbenchmark against real pathological
-files confirmed superlinear tree-sitter parse cost on JavaScript/TypeScript/TSX
-and PHP, the same defect class as the SQL segment byte cap
-(`go/internal/parser/sql/segments.go`, #4422). This change adds a 1 MiB
-per-file parse byte cap to the javascript-family parser
+files confirmed superlinear tree-sitter parse cost in the **normal parse
+stage** (`Engine.ParsePath` → `javascript.Parse` / `php.Parse`) on
+JavaScript/TypeScript/TSX and PHP, the same defect class as the SQL segment
+byte cap (`go/internal/parser/sql/segments.go`, #4422). This change adds a
+1 MiB per-file parse byte cap to the javascript-family parser
 (`go/internal/parser/javascript/javascript_language.go`) and the PHP parser
 (`go/internal/parser/php/parser.go`). A file over the cap has its tree-sitter
-parse skipped entirely; the bound is recorded in
+parse skipped entirely in this stage; the bound is recorded in
 `payload["js_parse_bounded"]` / `payload["php_parse_bounded"]` and logged.
+
+**Scope note:** this cap bounds the normal parse stage only. The repository
+pre-scan stage (`preScanNames` in
+`go/internal/parser/javascript/prescan.go` and
+`go/internal/parser/php/prescan.go`) still calls the tree-sitter parser on
+the whole file with no cap, and pre-scan runs across the full repository on
+every delta sync (not just changed files), so an over-cap file is still
+fully parsed at the same superlinear cost in that stage. That gap is tracked
+separately in [#4808](https://github.com/eshu-hq/eshu/issues/4808) and is
+out of scope for this change.
 
 ## Performance Evidence:
 
@@ -36,11 +47,14 @@ additional pathological files from the 896-repo corpus:
 gate), confirming this is a recurring full-corpus cost, not an isolated
 outlier.
 
-Classification: **Handler win** (bounds worst-case per-file parse handler cost
-from seconds to tens of milliseconds on the pathological tail). Full-corpus
-wall-clock impact was not separately re-measured in this change; the
-per-file cost reduction directly removes the multi-second-per-file tail
-identified in the PROVE-FIRST gate.
+Classification: **Handler win, parse stage only** (bounds worst-case per-file
+parse handler cost from seconds to tens of milliseconds on the pathological
+tail). Full-corpus wall-clock impact was not separately re-measured in this
+change; the per-file cost reduction directly removes the multi-second-per-file
+tail identified in the PROVE-FIRST gate for the normal parse stage. The
+pre-scan stage is not bounded by this change (see Scope note above and
+#4808), so a full-repo delta-sync pre-scan pass still pays the same
+superlinear cost per over-cap file until #4808 lands.
 
 Equivalence proof (output-preserving for the common case, intended-delta for
 the bounded case):
