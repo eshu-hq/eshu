@@ -42,6 +42,7 @@ func TestDemoFirstAnswers(t *testing.T) {
 		t.Run(q.ID, func(t *testing.T) {
 			assertArtifactsExist(t, root, q)
 			assertSurfaceResolves(t, q, playbookIDs, snapshot)
+			assertExecuteResolves(t, q, snapshot)
 		})
 		demonstrated = append(demonstrated, q.ExpectedAnswer.DemonstratesCorrelations...)
 	}
@@ -105,6 +106,31 @@ func assertSurfaceResolves(t *testing.T, q Question, playbookIDs map[string]stru
 		}
 	default:
 		t.Errorf("question %s: unhandled surface kind %q", q.ID, q.Surface.Kind)
+	}
+}
+
+// assertExecuteResolves fails the test when a question's surface.execute target
+// (the concrete callable the demo-answers golden-gate phase runs to fetch the
+// live answer) does not resolve to a real MCP tool or HTTP route in the golden
+// snapshot. A playbook question must carry one (the loader enforces presence);
+// mcp/http questions may omit it because their own surface is executable.
+func assertExecuteResolves(t *testing.T, q Question, snapshot goldenSnapshot) {
+	t.Helper()
+	ex := q.Surface.Execute
+	if ex == nil {
+		return
+	}
+	switch ex.Kind {
+	case SurfaceKindMCP:
+		if _, ok := snapshot.QueryShapes.MCP[ex.Ref]; !ok {
+			t.Errorf("question %s: surface.execute ref %q is not a key in golden snapshot query_shapes.mcp", q.ID, ex.Ref)
+		}
+	case SurfaceKindHTTP:
+		if !httpRouteResolves(ex.Ref, snapshot.QueryShapes.HTTP) {
+			t.Errorf("question %s: surface.execute ref %q does not match method+path prefix of any golden snapshot query_shapes.http route", q.ID, ex.Ref)
+		}
+	default:
+		t.Errorf("question %s: surface.execute has unhandled kind %q (want mcp or http)", q.ID, ex.Kind)
 	}
 }
 
