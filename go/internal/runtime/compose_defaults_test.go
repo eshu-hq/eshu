@@ -19,6 +19,7 @@ type composeDocument struct {
 
 type composeService struct {
 	Command     any            `yaml:"command"`
+	Extends     any            `yaml:"extends"`
 	Entrypoint  any            `yaml:"entrypoint"`
 	Healthcheck map[string]any `yaml:"healthcheck"`
 	Image       string         `yaml:"image"`

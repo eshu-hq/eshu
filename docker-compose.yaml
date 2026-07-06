@@ -63,6 +63,18 @@ services:
       - "effective_io_concurrency=200"
       - "-c"
       - "random_page_cost=1.1"
+      # Sized to cover the whole-stack connection budget: every runtime that opens
+      # a Postgres pool (any of ESHU_FACT_STORE_DSN / ESHU_CONTENT_STORE_DSN /
+      # ESHU_POSTGRES_DSN) is bounded to ESHU_POSTGRES_MAX_OPEN_CONNS (default 30).
+      # The ceiling covers the LARGEST stack that shares this postgres: the
+      # remote-e2e stack extends it and adds the full collector fleet (19
+      # pool-holding services = 570 worst-case). 640 covers that plus reserve for
+      # superuser_reserved_connections, an operator psql, the admin-status probe,
+      # and transient tools. The base local stack (10 pool holders) sits far under
+      # this; the slots are cheap when idle. Enforced for the base, neo4j, AND
+      # merged remote-e2e stacks by TestComposePostgresMaxConnectionsCoversPoolBudget.
+      - "-c"
+      - "max_connections=${ESHU_PG_MAX_CONNECTIONS:-640}"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:

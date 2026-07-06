@@ -75,6 +75,15 @@ func wireAPI(
 	}
 	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
 
+	// Validate the Postgres pool config before dialing any datastore, so an invalid
+	// ESHU_POSTGRES_MAX_OPEN_CONNS/idle/lifetime is reported regardless of graph
+	// backend availability (validation-before-datastore invariant). It is applied
+	// after sql.Open below.
+	pgPoolCfg, err := internalruntime.LoadPostgresConfig(getenv)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("load postgres pool config: %w", err)
+	}
+
 	driver, neo4jDB, err := openQueryGraph(ctx, getenv, queryProfile, logger)
 	if err != nil {
 		return nil, nil, nil, err
@@ -97,6 +106,11 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("open postgres: %w", err)
 	}
+	// Bound the pool to the shared per-process ceiling (validated above, before the
+	// graph dial). Without this the api pool is database/sql-default unbounded, which
+	// would let a read burst exceed the whole-stack connection budget (#4456). Only
+	// the pool sizes are applied; the DSN resolved above is kept.
+	internalruntime.ConfigurePostgresPool(db, pgPoolCfg)
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		if driver != nil {
