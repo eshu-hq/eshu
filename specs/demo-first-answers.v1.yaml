@@ -135,6 +135,15 @@ questions:
       ref: incident_context_evidence_path
       arguments:
         incident_id: PSCD1
+    notes: >
+      The incident -> service correlation is a reducer correlation (the
+      pagerduty PSCD1 incident scope, resolved through evidence_path with
+      truth_label exact), proven live by the surface response rather than by a
+      dedicated graph rc-edge: the golden snapshot's required_correlations
+      carry no incident correlation. demonstrates_correlations therefore lists
+      rc-14 (Repository DEFINES Workload), the nearest graph anchor that ties
+      the resolved service (the api-svc workload) into the gate's
+      required_correlations. See PR body for the captured response.
     expected_answer:
       required_response_fields:
         - answer_metadata
@@ -208,6 +217,15 @@ questions:
       arguments:
         provider: tempo
         limit: 50
+    notes: >
+      The observability -> workload correlation is a reducer correlation (tempo
+      trace coverage resolved to the demo workload), proven live by the surface
+      response (data.count 2) rather than by a dedicated graph rc-edge: the
+      golden snapshot's required_correlations carry no observability-coverage
+      edge. demonstrates_correlations therefore lists rc-2 (Function RUNS_IN
+      Workload), the nearest graph anchor that ties the covered api-svc workload
+      into the gate's required_correlations. See PR body for the captured
+      response.
     expected_answer:
       required_json_paths:
         - data.correlations
