@@ -190,10 +190,17 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
 	}
-	// Reopen transaction: one succeeded deployment_mapping work item.
+	// Reopen transaction: the reopen partition-memo fingerprint gate re-reads the
+	// repository catalog first (computeCurrentReopenCatalogFingerprint, issue
+	// #4770), then lists succeeded deployment_mapping work items (one, with its
+	// scope/generation partition columns), then looks up its partition in the
+	// reopen memo gate (no memo row staged, so it is a memo miss and reopens),
+	// then the code_import_repo_edge listing (none, via fakeTx's default
+	// fallback) and its own memo lookup default.
 	reopenTx := &fakeTx{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"work-item-1"}}},
+			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)}}},
+			{rows: [][]any{{"work-item-1", "scope-infra", "gen-infra"}}},
 		},
 	}
 	// Completion transaction marks the barrier complete after maintenance.

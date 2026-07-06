@@ -378,6 +378,23 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsInTransaction(
 
 // ReopenDeploymentMappingWorkItems replays succeeded deployment_mapping work
 // items after deferred backward evidence is committed.
+//
+// The reopen is gated by a partition memo fingerprint (issue #4770 / #3624
+// Track 2): a work item whose (scope_id, generation_id) partition already has
+// a memo row matching the CURRENT catalog fingerprint is skipped as provably
+// redundant (see applyReopenPartitionMemoGate's doc comment) rather than
+// unconditionally replayed on every maintenance cycle. The fingerprint is
+// computed fresh here (computeCurrentReopenCatalogFingerprint), against the
+// SAME catalog-derived query params BackfillAllRelationshipEvidence
+// fingerprinted the just-completed fact-load pass with, so this reopen
+// compares against the fingerprint the memo table was just written under.
+// This keeps the public method signature unchanged for both existing callers
+// (the ingester's RunDeferredRelationshipMaintenance, which runs this inside
+// its own transaction, and bootstrap-index's RelationshipMaintenanceCommitter
+// interface, which calls this directly as its own pipeline phase) rather than
+// threading a fingerprint parameter through the interface. A fingerprint
+// computation failure degrades to the legacy unconditional-reopen contract
+// (empty fingerprint disables the gate entirely) rather than aborting reopen.
 func (s IngestionStore) ReopenDeploymentMappingWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -393,48 +410,64 @@ func (s IngestionStore) ReopenDeploymentMappingWorkItems(
 		defer span.End()
 	}
 
-	workItemIDs, err := listSucceededDeploymentMappingWorkItemIDs(ctx, s.db)
+	currentFingerprint, err := computeCurrentReopenCatalogFingerprint(ctx, s.db)
+	if err != nil {
+		log.Printf("reopen_partition_memo_fingerprint_failed domain=deployment_mapping error=%q falling_back=true", err)
+		currentFingerprint = ""
+	}
+
+	items, err := listSucceededDeploymentMappingWorkItems(ctx, s.db)
 	if err != nil {
 		return err
 	}
+	gateResult, err := applyReopenPartitionMemoGate(
+		ctx, newDeferredBackfillPartitionMemoStore(s.db), "deployment_mapping", items, currentFingerprint, instruments,
+	)
+	if err != nil {
+		return fmt.Errorf("apply reopen partition memo gate for deployment_mapping: %w", err)
+	}
+
 	queue := ReducerQueue{db: s.db, Now: s.Now}
-	for _, workItemID := range workItemIDs {
-		if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
+	for _, item := range gateResult.ToReopen {
+		if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
 			return fmt.Errorf("reopen deployment_mapping work items: %w", err)
 		}
 	}
 
 	if instruments != nil {
-		instruments.DeploymentMappingReopened.Add(ctx, int64(len(workItemIDs)))
+		instruments.DeploymentMappingReopened.Add(ctx, int64(len(gateResult.ToReopen)))
 	}
-	log.Printf("deployment_mapping_reopened count=%d", len(workItemIDs))
+	log.Printf(
+		"deployment_mapping_reopened count=%d skipped_by_memo=%d",
+		len(gateResult.ToReopen), len(gateResult.Skipped),
+	)
 
 	return nil
 }
 
-func listSucceededDeploymentMappingWorkItemIDs(
+func listSucceededDeploymentMappingWorkItems(
 	ctx context.Context,
 	queryer Queryer,
-) ([]string, error) {
+) ([]reopenWorkItemRef, error) {
 	rows, err := queryer.QueryContext(ctx, listSucceededDeploymentMappingWorkItemsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list succeeded deployment_mapping work items: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	workItemIDs := make([]string, 0)
+	items := make([]reopenWorkItemRef, 0)
 	for rows.Next() {
-		var workItemID string
-		if err := rows.Scan(&workItemID); err != nil {
+		var item reopenWorkItemRef
+		if err := rows.Scan(&item.WorkItemID, &item.Partition.ScopeID, &item.Partition.GenerationID); err != nil {
 			return nil, fmt.Errorf("scan succeeded deployment_mapping work item: %w", err)
 		}
-		if strings.TrimSpace(workItemID) == "" {
+		if strings.TrimSpace(item.WorkItemID) == "" {
 			continue
 		}
-		workItemIDs = append(workItemIDs, workItemID)
+		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list succeeded deployment_mapping work items: %w", err)
 	}
-	return workItemIDs, nil
+	return items, nil
 }

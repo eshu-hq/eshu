@@ -177,6 +177,7 @@ queue-depth and claim-wait surfaces with the reducer.
 | ingestion commit shared-lock hold | go/internal/storage/postgres/ingestion_backfill_per_commit.go:118 | `eshu_dp_ingestion_shared_lock_hold_duration_seconds` | ingestion commit |
 | deferred backfill partition fan-out | go/internal/storage/postgres/ingestion_backfill_scoped_load.go:178 | `eshu_dp_deferred_backfill_partitions_total`, `eshu_dp_deferred_backfill_partition_workers`, `eshu_dp_deferred_backfill_partition_load_duration_seconds` | projector backfill |
 | deferred backfill partition memo gate | go/internal/storage/postgres/ingestion_backfill_partition_memo_gate.go:178 | `eshu_dp_deferred_backfill_partitions_skipped_total`, `eshu_dp_deferred_backfill_partitions_loaded_total` | projector backfill |
+| deployment_mapping/code_import_repo_edge reopen partition memo gate | go/internal/storage/postgres/ingestion_reopen_partition_memo_gate.go:118 | `eshu_dp_reopen_skipped_by_partition_memo_total` | projector backfill |
 
 <!-- eshu:metric:section=collector-dispatch-seams -->
 ## Collector Dispatch Seams
