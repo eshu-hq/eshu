@@ -8,12 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -323,14 +323,18 @@ func (r *CodeReachabilityProjectionRunner) maxVisited() int {
 }
 
 // concurrency returns the bounded partition fan-out, clamped to at least one
-// and never above the host CPU count so the runner cannot oversubscribe the
-// reducer process or the Postgres connection pool.
+// and never above the usable (cgroup-aware) CPU count so the runner cannot
+// oversubscribe the reducer process or the Postgres connection pool. Uses
+// cpubudget.UsableCPUs(), not internal/runtime's UsableCPUs(): internal/reducer
+// cannot import internal/runtime without an import cycle (internal/runtime ->
+// internal/recovery -> internal/projector -> internal/reducer). cpubudget has
+// zero internal dependencies, so it is safe to import here.
 func (r *CodeReachabilityProjectionRunner) concurrency() int {
 	limit := r.Config.Concurrency
 	if limit <= 0 {
 		limit = defaultCodeReachabilityConcurrency
 	}
-	if cpus := runtime.NumCPU(); limit > cpus {
+	if cpus := cpubudget.UsableCPUs(); limit > cpus {
 		limit = cpus
 	}
 	if limit < 1 {

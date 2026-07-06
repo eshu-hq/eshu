@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -298,9 +298,9 @@ func projectorWorkerCount(getenv func(string) string) int {
 	}
 	if strings.TrimSpace(getenv("ESHU_QUERY_PROFILE")) == "local_authoritative" &&
 		strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND")) == string(runtimecfg.GraphBackendNornicDB) {
-		return runtime.NumCPU()
+		return cpubudget.UsableCPUs()
 	}
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > 8 {
 		n = 8
 	}

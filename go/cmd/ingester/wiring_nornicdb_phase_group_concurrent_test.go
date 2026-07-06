@@ -17,16 +17,19 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
-// TestNornicDBDefaultEntityPhaseConcurrencyTracksNumCPU pins the default
-// worker count for canonical entity-phase dispatch to NumCPU clamped only
-// at the env-override cap. The prior auto-cap of 4 left multi-core hosts
-// with idle workers during canonical_write; lifting it to the env cap
-// matches NornicDB's measured sub-linear scaling on the K8s dogfood lane.
-func TestNornicDBDefaultEntityPhaseConcurrencyTracksNumCPU(t *testing.T) {
+// TestNornicDBDefaultEntityPhaseConcurrencyTracksUsableCPUs pins the default
+// worker count for canonical entity-phase dispatch to the cgroup-aware usable
+// CPU count (GOMAXPROCS(0), what cpubudget.UsableCPUs returns) clamped only at
+// the env-override cap. The prior auto-cap of 4 left multi-core hosts with idle
+// workers during canonical_write; lifting it to the env cap matches NornicDB's
+// measured sub-linear scaling on the K8s dogfood lane. The oracle uses
+// GOMAXPROCS(0), not NumCPU(): in a cgroup-limited container the production path
+// sizes off the reduced GOMAXPROCS while NumCPU stays host-wide.
+func TestNornicDBDefaultEntityPhaseConcurrencyTracksUsableCPUs(t *testing.T) {
 	t.Parallel()
 
 	got := nornicDBDefaultEntityPhaseConcurrency()
-	want := runtime.NumCPU()
+	want := runtime.GOMAXPROCS(0)
 	if want > nornicDBEntityPhaseConcurrencyCap {
 		want = nornicDBEntityPhaseConcurrencyCap
 	}
@@ -34,8 +37,8 @@ func TestNornicDBDefaultEntityPhaseConcurrencyTracksNumCPU(t *testing.T) {
 		want = 1
 	}
 	if got != want {
-		t.Fatalf("default entity phase concurrency = %d, want %d (NumCPU=%d, cap=%d)",
-			got, want, runtime.NumCPU(), nornicDBEntityPhaseConcurrencyCap)
+		t.Fatalf("default entity phase concurrency = %d, want %d (GOMAXPROCS=%d, cap=%d)",
+			got, want, runtime.GOMAXPROCS(0), nornicDBEntityPhaseConcurrencyCap)
 	}
 }
 

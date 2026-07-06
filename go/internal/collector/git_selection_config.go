@@ -10,11 +10,12 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 )
 
 // RepoSyncRepositoryRule constrains repository selection for one sync cycle.
@@ -412,7 +413,6 @@ func sortUniqueStrings(values []string) []string {
 
 // snapshotWorkerCount returns the number of concurrent snapshot workers.
 // Reads ESHU_SNAPSHOT_WORKERS from env; defaults to min(NumCPU, 8).
-//
 // With two-lane scheduling and the large-repo semaphore, extra workers
 // safely process small repos while large repos hold semaphore slots.
 // The two-phase streaming design keeps per-snapshot memory at O(single_file).
@@ -422,7 +422,7 @@ func snapshotWorkerCount(getenv func(string) string) int {
 			return n
 		}
 	}
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > 8 {
 		n = 8
 	}
@@ -455,7 +455,7 @@ func parseWorkerCount(getenv func(string) string) int {
 			return n
 		}
 	}
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > 8 {
 		n = 8
 	}

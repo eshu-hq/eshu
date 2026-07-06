@@ -4,10 +4,11 @@
 package reducer
 
 import (
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 )
 
 func LoadSharedProjectionConfig(getenv func(string) string) SharedProjectionRunnerConfig {
@@ -20,8 +21,14 @@ func LoadSharedProjectionConfig(getenv func(string) string) SharedProjectionRunn
 	}
 }
 
+// defaultSharedProjectionWorkers uses cpubudget.UsableCPUs() (cgroup-aware),
+// not internal/runtime's UsableCPUs(): internal/reducer cannot import
+// internal/runtime without an import cycle (internal/runtime -> internal/recovery
+// -> internal/projector -> internal/reducer). cpubudget has zero internal
+// dependencies, so it is safe to import here. ESHU_SHARED_PROJECTION_WORKERS
+// remains the operator override for cgroup-limited containers.
 func defaultSharedProjectionWorkers() int {
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > 4 {
 		n = 4
 	}

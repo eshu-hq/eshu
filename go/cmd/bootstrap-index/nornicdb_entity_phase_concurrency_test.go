@@ -19,7 +19,7 @@ func TestBootstrapNornicDBDefaultEntityPhaseConcurrencyTracksNumCPU(t *testing.T
 	t.Parallel()
 
 	got := nornicDBDefaultEntityPhaseConcurrency()
-	want := runtime.NumCPU()
+	want := runtime.GOMAXPROCS(0)
 	if want > nornicDBEntityPhaseConcurrencyCap {
 		want = nornicDBEntityPhaseConcurrencyCap
 	}

@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -258,13 +258,13 @@ func loadReducerWorkerCount(getenv func(string) string, graphBackend runtimecfg.
 		}
 	}
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
-		n := runtime.NumCPU()
+		n := cpubudget.UsableCPUs()
 		if n < 1 {
 			n = 1
 		}
 		return n
 	}
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > 4 {
 		n = 4
 	}

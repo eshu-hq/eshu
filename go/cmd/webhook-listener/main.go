@@ -66,7 +66,6 @@ func run(parent context.Context) error {
 	if err := telemetry.RecordGOMEMLIMIT(meter, memLimit); err != nil {
 		return fmt.Errorf("register gomemlimit gauge: %w", err)
 	}
-
 	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
 	if err != nil {
 		return err

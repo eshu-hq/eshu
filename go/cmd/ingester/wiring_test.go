@@ -38,8 +38,8 @@ func TestProjectorWorkerCountDefaultsToCPUForNornicDBLocalAuthoritative(t *testi
 			return ""
 		}
 	})
-	if got != runtime.NumCPU() {
-		t.Fatalf("projectorWorkerCount() = %d, want runtime.NumCPU()", got)
+	if got != runtime.GOMAXPROCS(0) {
+		t.Fatalf("projectorWorkerCount() = %d, want runtime.GOMAXPROCS(0)", got)
 	}
 }
 

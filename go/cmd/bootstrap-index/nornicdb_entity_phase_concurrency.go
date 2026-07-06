@@ -5,9 +5,10 @@ package main
 
 import (
 	"fmt"
-	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 // entity-phase default so bootstrap and steady-state NornicDB writes use the
 // same CPU-scaled worker budget.
 func nornicDBDefaultEntityPhaseConcurrency() int {
-	n := runtime.NumCPU()
+	n := cpubudget.UsableCPUs()
 	if n > nornicDBEntityPhaseConcurrencyCap {
 		n = nornicDBEntityPhaseConcurrencyCap
 	}

@@ -22,7 +22,7 @@ type nornicDBPhaseGroupExecutor struct {
 	entityLabelMaxStatements map[string]int
 	// entityPhaseConcurrency caps how many canonical entity-phase grouped
 	// chunks may run in parallel against the inner GroupExecutor. The
-	// runtime default is `runtime.NumCPU()` clamped to
+	// runtime default is `cpubudget.UsableCPUs()` (cgroup-aware CPU count) clamped to
 	// `nornicDBEntityPhaseConcurrencyCap`, so most callers route through
 	// the streaming dispatcher in wiring_nornicdb_phase_group_streaming.go.
 	// A value of zero or one is an explicit serial override: it pins
