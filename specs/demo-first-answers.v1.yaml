@@ -20,20 +20,30 @@ design: >
   (scripts/verify-golden-corpus-gate.sh), replayed as the acme org under
   supply-chain-demo. Reusing it means every demo answer is backed by a fixture
   and a cassette that CI already runs on every PR — no separate demo-only
-  seed data to keep in sync. The five-question set was chosen to trace one
-  correlation hop from each of the five evidence domains the golden snapshot
-  requires (code, deployment, incident, dependency, observability), so a demo
-  user sees the platform's core claim — code, infra, and runtime evidence
-  joined into one graph — inside the first five answers. Each question maps
-  to an existing playbook, MCP tool, CLI verb, or HTTP route; none of them
-  introduce a new query capability. Q2 (deployment -> cloud resource) is
-  pinned to list_kubernetes_correlations rather than trace_deployment_chain:
-  the golden snapshot asserts trace_deployment_chain with minimum_results 0
-  (its cloud_resources are not guaranteed non-empty for this corpus) while
-  list_kubernetes_correlations asserts minimum_results 1 for the same
-  cluster_id scope, so it is the surface that reliably demonstrates the
-  KubernetesWorkload RUNS_IMAGE OciImageManifest correlation (rc-4) on this
-  corpus without a flaky empty-payload demo answer.
+  seed data to keep in sync. The five-question set traces one correlation hop
+  from five evidence domains the golden snapshot proves: code -> deployment,
+  deployment -> cloud resource, incident -> service, cross-repo dependency, and
+  observability -> workload. A demo user sees the platform's core claim — code,
+  infra, and runtime evidence joined into one graph — inside the first five
+  answers. Each question maps to an existing playbook, MCP tool, CLI verb, or
+  HTTP route; none of them introduce a new query capability, and each expected
+  answer was captured live against the golden-corpus-gate stack before this
+  spec was finalized.
+  .
+  Two questions were pinned to the surface the corpus actually populates rather
+  than the first candidate. Q2 (deployment -> cloud resource) uses
+  list_kubernetes_correlations rather than trace_deployment_chain because the
+  live run returned an empty cloud_resources for trace_deployment_chain while
+  list_kubernetes_correlations returned the digest-joined workload -> image
+  correlation (rc-4). Q4 was originally scoped as dependency -> vulnerability,
+  but that correlation does not exist in this corpus: CVE-2026-00000 carries
+  advisory evidence yet produces no CVE-to-component impact finding
+  (explain_supply_chain_impact returns outcome=no_finding; the findings
+  surfaces return ready_zero_findings). Rather than pin an empty or fabricated
+  vulnerability answer, Q4 demonstrates the cross-repo dependency the corpus
+  does prove (orders-api -> github.com/acme/lib-common, rc-3), and its note
+  records the evaluated-and-rejected vulnerability framing plus the #4747 hook
+  where a real impact finding could later be seeded.
 
 questions:
   - id: q1_code_to_deployment
@@ -85,19 +95,26 @@ questions:
       arguments:
         cluster_id: supply-chain-demo
     notes: >
-      Pinned to list_kubernetes_correlations rather than trace_deployment_chain
-      because the golden snapshot asserts minimum_results 1 for this tool on
-      this corpus, versus minimum_results 0 for trace_deployment_chain's
-      cloud_resources. Confirmed live against the golden-corpus-gate stack
-      before this spec was finalized (see PR body for the captured response).
+      Pinned to list_kubernetes_correlations rather than trace_deployment_chain.
+      Confirmed live against the golden-corpus-gate stack: the tool returns
+      count 2 with a digest-joined workload -> image correlation
+      (correlations[0].image_ref = ghcr.io/... , source_digest, join_mode
+      digest, outcome exact), which is the read-side evidence for rc-4
+      (KubernetesWorkload RUNS_IMAGE OciImageManifest). trace_deployment_chain
+      {service_name: api-svc} was also captured and its cloud_resources came
+      back empty (null) on this corpus, so list_kubernetes_correlations is the
+      surface that demonstrably shows the correlation. demonstrates_correlations
+      is trimmed to rc-4 (the correlation this surface actually evidences); the
+      broader deployment-source edges rc-19/rc-20/rc-51 are proven by the gate
+      but are not surfaced by this tool. See PR body for the captured response.
     expected_answer:
       required_response_fields:
         - correlations
+        - count
+        - limit
+        - truncated
       demonstrates_correlations:
         - rc-4
-        - rc-19
-        - rc-20
-        - rc-51
     artifacts:
       cassettes:
         - kuberneteslive
@@ -134,50 +151,51 @@ questions:
       repos:
         - api-svc
 
-  - id: q4_dependency_to_vulnerability
+  - id: q4_dependency_cross_repo
     question: >
-      Which components of the demo supply chain does CVE-2026-00000 affect,
-      and through which dependency edge?
-    correlation_kind: dependency_to_vulnerability
+      Which repository depends on github.com/acme/lib-common, and how was that
+      dependency declared and resolved?
+    correlation_kind: code/supply-chain dependency (cross-repo, package-registry resolved)
     surface:
       kind: mcp
-      ref: explain_supply_chain_impact
+      ref: list_package_registry_correlations
       arguments:
-        cve_id: CVE-2026-00000
+        package_id: github.com/acme/lib-common
     notes: >
-      Pinned to the explain_supply_chain_impact MCP tool with {cve_id:
-      CVE-2026-00000} because the tool accepts cve_id directly and the golden
-      snapshot proves it live on this corpus, whose vulnerabilityintelligence
-      cassette is built around CVE-2026-00000. The guided-path playbook wrapper
-      is supply_chain_impact_explanation, which is finding_id-keyed; issue
-      #4745 wires that playbook with a real reducer-owned finding_id later, out
-      of scope here. HTTP parity is
-      GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000
-      (mcp:list_supply_chain_impact_findings parity). Confirmed live against
-      the golden-corpus-gate stack before this spec was finalized (see PR body
-      for the captured response).
+      This question was originally scoped as dependency -> vulnerability, but
+      that correlation does NOT exist in this corpus: CVE-2026-00000 carries
+      advisory evidence (vulnerability.advisory facts) but no CVE-to-component
+      impact finding. Confirmed live against the golden-corpus-gate stack:
+      explain_supply_chain_impact {cve_id: CVE-2026-00000, package_id: ...}
+      returns outcome=no_finding with missing_evidence=[impact_finding,
+      package_registry_metadata], and both list_supply_chain_impact_findings and
+      GET /api/v0/supply-chain/impact/findings?cve_id=CVE-2026-00000 return
+      readiness_state=ready_zero_findings (count 0). The honest correlation this
+      corpus proves is the cross-repo dependency: orders-api's go.mod declares a
+      dependency on github.com/acme/lib-common, resolved to the in-corpus owner
+      repo via the package-registry source hint (rc-3, the B-13 cross-repo
+      DEPENDS_ON fix). Issue #4747 owns the demo-org coherence profile in the
+      generators; a real CVE-to-component impact finding could be seeded there
+      later, at which point this question could become dependency ->
+      vulnerability. Pinned to list_package_registry_correlations
+      {package_id: github.com/acme/lib-common}, which returns the read-side
+      consumption correlation live (count 2). Confirmed against the golden gate
+      before this spec was finalized (see PR body for the captured response).
     expected_answer:
-      required_response_fields:
-        - advisory
-        - anchors
-        - component
-        - evidence
-        - evidence_packet_handle
-        - freshness
-        - missing_evidence
-        - outcome
-        - readiness
+      required_json_paths:
+        - collector_readiness
+        - correlations
+        - count
+        - correlations[].outcome
+        - correlations[].relationship_kind
       demonstrates_correlations:
-        - rc-9
-        - rc-24
-        - rc-25
+        - rc-3
     artifacts:
       cassettes:
         - packageregistry
-        - vulnerabilityintelligence
-        - sbomattestation
-        - securityalerts
-      repos: []
+      repos:
+        - orders-api
+        - lib-common
 
   - id: q5_observability_to_workload
     question: >
