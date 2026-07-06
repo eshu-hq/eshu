@@ -560,6 +560,72 @@ still diagnose parse behavior through the existing collector
 completed` logs; the read-count change is internal to `ParsePath` and does not
 alter what those signals report.
 
+## Gated content-metadata inference
+
+`inferContentMetadata` (`templated_detection.go`) runs three regex scans (a Go
+template line-control scan, a Terraform `templatefile()` scan, and an internal
+re-scan inside `inferRootFamily`) to populate `artifact_type`,
+`template_dialect`, and `iac_relevant` after every parse. Profiling a
+full-corpus run (issue #4768) showed this call costing roughly 7.5ms on a large
+PHP/JS file, about 5% of `ParsePath` wall time across the corpus, even though
+most files carry no IaC/template signal at all and always resolve to the zero
+`contentMetadata{}`.
+
+`shouldSkipContentMetadata` (`content_metadata_gate.go`) gates the call in
+`Engine.ParsePath`: it returns `true` (skip, use the zero value) only when
+none of `inferContentMetadata`'s own trigger conditions can apply --- derived
+directly from `templated_detection.go`'s predicates:
+
+- extension not in `{.yaml, .yml, .hcl, .tf, .tfvars, .tpl, .tftpl, .jinja,
+  .jinja2, .j2}` (`isYAMLSuffix`, `isHCLSuffix`, `isJinjaSuffix`,
+  `isTerraformTemplateSuffix`)
+- no path segment in `{roles, playbooks, handlers, tasks, group_vars,
+  host_vars, inventory, inventories, dagster, assets, data_quality,
+  data_lakehouse, chart, templates, argocd, iac}` (`inferRootFamily`,
+  `ansibleArtifactType`, and `isIACRelevant`'s bare-`iac` fallback)
+- no `.github` + `workflows` path pair (`github_actions_workflow` artifact
+  type)
+- basename is not `chart.yaml`, does not start with `values.`, is not
+  `dockerfile`/`dockerfile.*`, and is not a Docker Compose filename
+- content contains none of the path-independent Ansible-playbook markers
+  (`isAnsiblePlaybookContent`: a line starting with `hosts:`, `roles:`,
+  `vars_files:`, or `import_playbook:`)
+
+This is deliberately conservative: a `.py`, `.js`, or `.php` file under
+`roles/`, `playbooks/`, `dagster/`, `chart/templates/`, or `argocd/` is
+legitimately reclassified by path alone (for example `ansible_role` or
+`iac_relevant=true`) and is never skipped, and content-based Ansible-playbook
+detection is checked regardless of extension or path. See
+`docs/public/contributing-language-support.md#content-metadata-sniffing-is-skipped-for-non-iac-signal-source-files`
+for the full contributor-facing description and
+`content_metadata_gate_test.go` for the exhaustive 0/0 equivalence proof
+(including a regression test proving a too-wide, extension-only gate is
+caught).
+
+Performance Evidence: `go test -run '^$' -bench
+'BenchmarkInferContentMetadataUnconditional|BenchmarkContentMetadataGated'
+-benchmem -benchtime 2s -count=3 ./internal/parser` on darwin/arm64 (Apple M5
+Max), a synthetic 400-method PHP file with no IaC/template signal in its path
+or content: `BenchmarkInferContentMetadataUnconditional` (before, unconditional
+`inferContentMetadata` call) ranged 1.91ms-2.59ms/op, 117.5-117.9KB/op, 25
+allocs/op across 3 runs; `BenchmarkContentMetadataGated` (after, gate check
+plus skip) ranged 0.197ms-0.274ms/op, 57.7KB/op, 9 allocs/op. This is roughly a
+7-13x reduction and 1.7-2.3ms saved per gated file on this synthetic input,
+consistent with the corpus profile's larger ~7.5ms figure on bigger real
+files. `BenchmarkParsePathLargeGatedPHP` proves the same file parses correctly
+end to end through the real `ParsePath` entrypoint with the gate wired in
+(91.6ms-111.9ms/op total parse cost, dominated by the tree-sitter PHP parse
+itself, confirming no crash or behavior change on the gated call-site).
+
+No-Observability-Change: this adds no metric, span, structured log, status
+field, queue, graph write, worker, lease, batch, or runtime knob. Operators
+still diagnose parse behavior through the existing collector
+`telemetry.FileParseDuration` instrument; `shouldSkipContentMetadata` is a pure
+function with no side effects and does not change what `artifact_type`,
+`template_dialect`, or `iac_relevant` is persisted for any file (proven by the
+0/0 equivalence test), so no read surface can observe a difference beyond
+wall-clock time.
+
 ## Operational notes
 
 - `DefaultRegistry()` panics if the built-in `defaultDefinitions()` list
