@@ -15,7 +15,7 @@
         "status": 200,
         "body": {
           "data": {
-            "count": 13,
+            "count": 16,
             "playbooks": [
               {
                 "description": "Answer a service story prompt and back it with a bounded citation packet built from the evidence handles the dossier returns.",
@@ -1523,6 +1523,174 @@
                   }
                 ],
                 "version": "1.0.0"
+              },
+              {
+                "description": "Answer the demo deployment-to-cloud-resource question by listing the reducer-owned Kubernetes workload -> image correlations for a cluster.",
+                "failure_modes": [
+                  {
+                    "condition": "no correlations returned",
+                    "fallback": "confirm the selector (cluster_id, package_id, or provider) matches the demo corpus and retry with a broader scope",
+                    "meaning": "deployment-to-cloud-resource correlation matched no rows in scope; the answer is unsupported, not an empty fact"
+                  },
+                  {
+                    "condition": "result truncated",
+                    "fallback": "page with after_correlation_id or raise the bounded limit before drawing a final conclusion",
+                    "meaning": "deployment-to-cloud-resource correlation returned more rows than the bounded limit allowed"
+                  },
+                  {
+                    "condition": "reducer generation not yet converged",
+                    "fallback": "check get_generation_lifecycle before citing the answer as final",
+                    "meaning": "deployment-to-cloud-resource correlation may be incomplete while the reducer is still materializing this correlation family"
+                  }
+                ],
+                "id": "demo_deployment_to_cloud_resource",
+                "name": "Demo: deployment to cloud resource",
+                "prompt_family": "demo.deployment_to_cloud_resource",
+                "required_inputs": [
+                  {
+                    "description": "Cluster ID to anchor the Kubernetes correlation lookup, e.g. supply-chain-demo.",
+                    "name": "cluster_id",
+                    "required": true,
+                    "type": "identifier"
+                  }
+                ],
+                "steps": [
+                  {
+                    "drilldowns": [
+                      {
+                        "reason": "drill into the owning service dossier when a workload correlation is selected",
+                        "tool": "get_service_story"
+                      }
+                    ],
+                    "evidence_expected": "digest-joined Kubernetes workload -> OCI image correlations for the cluster, with outcome and join_mode per row",
+                    "expected_truth": "derived",
+                    "id": "kubernetes_correlations",
+                    "params": [
+                      {
+                        "from_input": "cluster_id",
+                        "name": "cluster_id"
+                      },
+                      {
+                        "const_int": 50,
+                        "name": "limit"
+                      }
+                    ],
+                    "tool": "list_kubernetes_correlations"
+                  }
+                ],
+                "version": "1.0.0"
+              },
+              {
+                "description": "Answer the demo cross-repo dependency question by listing the reducer-owned package consumption correlations for a package.",
+                "failure_modes": [
+                  {
+                    "condition": "no correlations returned",
+                    "fallback": "confirm the selector (cluster_id, package_id, or provider) matches the demo corpus and retry with a broader scope",
+                    "meaning": "cross-repo dependency correlation matched no rows in scope; the answer is unsupported, not an empty fact"
+                  },
+                  {
+                    "condition": "result truncated",
+                    "fallback": "page with after_correlation_id or raise the bounded limit before drawing a final conclusion",
+                    "meaning": "cross-repo dependency correlation returned more rows than the bounded limit allowed"
+                  },
+                  {
+                    "condition": "reducer generation not yet converged",
+                    "fallback": "check get_generation_lifecycle before citing the answer as final",
+                    "meaning": "cross-repo dependency correlation may be incomplete while the reducer is still materializing this correlation family"
+                  }
+                ],
+                "id": "demo_dependency_cross_repo",
+                "name": "Demo: cross-repo dependency",
+                "prompt_family": "demo.dependency_cross_repo",
+                "required_inputs": [
+                  {
+                    "description": "Package.uid to anchor the package registry correlation lookup, e.g. github.com/acme/lib-common.",
+                    "name": "package_id",
+                    "required": true,
+                    "type": "identifier"
+                  }
+                ],
+                "steps": [
+                  {
+                    "drilldowns": [
+                      {
+                        "reason": "inspect the underlying package-native dependency edges when consumption alone is not enough",
+                        "tool": "list_package_registry_dependencies"
+                      }
+                    ],
+                    "evidence_expected": "manifest-backed consumption correlations naming the repository that depends on the package, with relationship_kind and outcome per row",
+                    "expected_truth": "derived",
+                    "id": "package_registry_correlations",
+                    "params": [
+                      {
+                        "from_input": "package_id",
+                        "name": "package_id"
+                      },
+                      {
+                        "const_int": 50,
+                        "name": "limit"
+                      }
+                    ],
+                    "tool": "list_package_registry_correlations"
+                  }
+                ],
+                "version": "1.0.0"
+              },
+              {
+                "description": "Answer the demo observability-to-workload question by listing the reducer-owned observability coverage correlations for a provider.",
+                "failure_modes": [
+                  {
+                    "condition": "no correlations returned",
+                    "fallback": "confirm the selector (cluster_id, package_id, or provider) matches the demo corpus and retry with a broader scope",
+                    "meaning": "observability-to-workload correlation matched no rows in scope; the answer is unsupported, not an empty fact"
+                  },
+                  {
+                    "condition": "result truncated",
+                    "fallback": "page with after_correlation_id or raise the bounded limit before drawing a final conclusion",
+                    "meaning": "observability-to-workload correlation returned more rows than the bounded limit allowed"
+                  },
+                  {
+                    "condition": "reducer generation not yet converged",
+                    "fallback": "check get_generation_lifecycle before citing the answer as final",
+                    "meaning": "observability-to-workload correlation may be incomplete while the reducer is still materializing this correlation family"
+                  }
+                ],
+                "id": "demo_observability_to_workload",
+                "name": "Demo: observability to workload",
+                "prompt_family": "demo.observability_to_workload",
+                "required_inputs": [
+                  {
+                    "description": "Observability provider to scope coverage correlation lookup, e.g. tempo.",
+                    "name": "provider",
+                    "required": true,
+                    "type": "string"
+                  }
+                ],
+                "steps": [
+                  {
+                    "drilldowns": [
+                      {
+                        "reason": "drill into the owning service dossier when a covered workload is selected",
+                        "tool": "get_service_story"
+                      }
+                    ],
+                    "evidence_expected": "observability coverage correlations naming the covered workload or resource, with coverage_status and freshness per row",
+                    "expected_truth": "derived",
+                    "id": "observability_coverage_correlations",
+                    "params": [
+                      {
+                        "from_input": "provider",
+                        "name": "provider"
+                      },
+                      {
+                        "const_int": 50,
+                        "name": "limit"
+                      }
+                    ],
+                    "tool": "list_observability_coverage_correlations"
+                  }
+                ],
+                "version": "1.0.0"
               }
             ],
             "schema_version": "query-playbooks.v1",
@@ -1577,6 +1745,18 @@
               },
               {
                 "id": "query_to_supply_chain_context",
+                "version": "1.0.0"
+              },
+              {
+                "id": "demo_deployment_to_cloud_resource",
+                "version": "1.0.0"
+              },
+              {
+                "id": "demo_dependency_cross_repo",
+                "version": "1.0.0"
+              },
+              {
+                "id": "demo_observability_to_workload",
                 "version": "1.0.0"
               }
             ]

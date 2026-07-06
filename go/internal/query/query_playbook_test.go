@@ -30,6 +30,9 @@ func TestCatalogStabilityGolden(t *testing.T) {
 		{ID: "query_to_code_topic_context", Version: "1.0.0"},
 		{ID: "query_to_incident_context", Version: "1.0.0"},
 		{ID: "query_to_supply_chain_context", Version: "1.0.0"},
+		{ID: "demo_deployment_to_cloud_resource", Version: "1.0.0"},
+		{ID: "demo_dependency_cross_repo", Version: "1.0.0"},
+		{ID: "demo_observability_to_workload", Version: "1.0.0"},
 	}
 
 	got := PlaybookCatalogVersions()

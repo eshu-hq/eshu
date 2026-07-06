@@ -29,6 +29,9 @@ func PlaybookCatalog() []QueryPlaybook {
 		queryToCodeTopicContextPlaybook(),
 		queryToIncidentContextPlaybook(),
 		queryToSupplyChainContextPlaybook(),
+		demoDeploymentToCloudResourcePlaybook(),
+		demoDependencyCrossRepoPlaybook(),
+		demoObservabilityToWorkloadPlaybook(),
 	}
 }
 
