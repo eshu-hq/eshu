@@ -12,7 +12,7 @@ type ToolDefinition struct {
 
 // ReadOnlyTools returns all read-only MCP tool definitions.
 func ReadOnlyTools() []ToolDefinition {
-	tools := make([]ToolDefinition, 0, 150)
+	tools := make([]ToolDefinition, 0, 160)
 	tools = append(tools, codebaseTools()...)
 	tools = append(tools, codeFlowTools()...)
 	tools = append(tools, repositoryLanguageTools()...)

@@ -122,6 +122,18 @@ else
   record_fail "duplicate panel id(s): $(echo "${dup_ids}" | tr '\n' ' ')"
 fi
 
+# Case 9: the first-class dead-letter operator surface has a route-keyed
+# dashboard panel, so operators can see whether the bounded read is being used
+# and whether it is erroring.
+if jq -e '
+  [.panels[] | select(.title == "Dead-Letter Operator Surface") | .targets[]?.expr]
+  | any(test("POST /api/v0/admin/dead-letters/query"))
+' "${expected_path}" >/dev/null 2>&1; then
+  record_pass "dashboard has the dead-letter operator surface panel"
+else
+  record_fail "dashboard is missing the dead-letter operator surface panel"
+fi
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'generate-operator-dashboard tests FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
   exit 1

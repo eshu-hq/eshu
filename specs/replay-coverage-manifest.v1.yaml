@@ -130,6 +130,8 @@ coverage:
   - {surface: authz_family:docs_semantic:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: docs_semantic:out_of_grant, proof_gate: authz-scoped-route-tests}
   - {surface: authz_family:operations_status:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: operations_status:in_grant, proof_gate: authz-scoped-route-tests}
   - {surface: authz_family:operations_status:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: operations_status:out_of_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:operator_dead_letters:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: operator_dead_letters:in_grant, proof_gate: authz-scoped-route-tests}
+  - {surface: authz_family:operator_dead_letters:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: operator_dead_letters:out_of_grant, proof_gate: authz-scoped-route-tests}
   - {surface: authz_family:repository_content:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: repository_content:in_grant, proof_gate: authz-scoped-route-tests}
   - {surface: authz_family:repository_content:out_of_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: repository_content:out_of_grant, proof_gate: authz-scoped-route-tests}
   - {surface: authz_family:roles_grants:in_grant, scenario: authz_scoped_route, scenario_type: baseline, ref: roles_grants:in_grant, proof_gate: authz-scoped-route-tests}
@@ -238,6 +240,7 @@ coverage:
   - {surface: capability:iac_quality.dead_iac, scenario: capability_claim, scenario_type: baseline, ref: iac_quality.dead_iac, proof_gate: capability-inventory}
   - {surface: capability:incident.context.read, scenario: capability_claim, scenario_type: baseline, ref: incident.context.read, proof_gate: capability-inventory}
   - {surface: capability:observability.coverage.correlations.list, scenario: capability_claim, scenario_type: baseline, ref: observability.coverage.correlations.list, proof_gate: capability-inventory}
+  - {surface: capability:operator.dead_letters.list, scenario: capability_claim, scenario_type: baseline, ref: operator.dead_letters.list, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.aggregate, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.aggregate, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.list, proof_gate: capability-inventory}
   - {surface: capability:package_registry.versions.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.versions.list, proof_gate: capability-inventory}

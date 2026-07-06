@@ -41,6 +41,32 @@ one-shot helper and does not mount this runtime-local admin surface.
 The public API admin surface remains under `/api/v0/admin/*` and is described
 by `/api/v0/openapi.json`, not by this page.
 
+## Public Admin Dead-Letter Read
+
+The public query API exposes a first-class dead-letter list so operators and
+component-extension authors do not need hand-written SQL against
+`fact_work_items`:
+
+- `POST /api/v0/admin/dead-letters/query`
+- MCP mirror: `list_dead_letter_work_items`
+
+The request requires both `limit` (`1` to `500`) and `timeout_ms` (`1` to
+`30000`). Optional filters are `failure_class`, `domain`, `scope_id`,
+`collector_kind`, `updated_after`, and `updated_before`. Time filters are
+RFC3339 and apply to `fact_work_items.updated_at`. Results are ordered
+deterministically by `updated_at DESC, work_item_id ASC` and return
+`truncated=true` when more rows matched than the requested limit.
+
+Scoped component-extension tokens are restricted to their granted repository or
+scope IDs before rows are read. The response includes work item IDs, scope IDs,
+generation IDs, stage, domain, collector kind, failure class, attempt count,
+and timestamps for the caller's visible rows, but it does not expose raw
+failure messages or fact payloads.
+
+Runbook: find dead letters with `POST /api/v0/admin/dead-letters/query` or
+`list_dead_letter_work_items`, group by `failure_class`, fix the root cause, then
+use targeted `/api/v0/admin/replay` only for rows whose class is safe to replay.
+
 ## Probe Responses
 
 `/healthz` and `/readyz` return text:

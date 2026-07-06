@@ -51,6 +51,7 @@ type AdminEvidenceRow struct {
 // (fact_work_items, projection_decisions, fact_replay_events, fact_backfill_requests).
 type AdminStore interface {
 	ListWorkItems(ctx context.Context, f WorkItemFilter) ([]AdminWorkItem, error)
+	ListDeadLetterWorkItems(ctx context.Context, f DeadLetterListFilter) ([]AdminDeadLetterWorkItem, error)
 	DeadLetterWorkItems(ctx context.Context, f DeadLetterFilter) ([]AdminWorkItem, error)
 	SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]AdminWorkItem, error)
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]AdminWorkItem, error)
@@ -80,6 +81,22 @@ type AdminWorkItem struct {
 	VisibleAt      *time.Time `json:"visible_at"`
 }
 
+// AdminDeadLetterWorkItem is a bounded operator-facing view of one durable
+// fact_work_items dead-letter row.
+type AdminDeadLetterWorkItem struct {
+	WorkItemID    string     `json:"work_item_id"`
+	ScopeID       string     `json:"scope_id"`
+	GenerationID  string     `json:"generation_id"`
+	Stage         string     `json:"stage"`
+	Domain        string     `json:"domain"`
+	CollectorKind string     `json:"collector_kind"`
+	AttemptCount  int        `json:"attempt_count"`
+	FailureClass  *string    `json:"failure_class"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	VisibleAt     *time.Time `json:"visible_at"`
+}
+
 // AdminReplayEvent is an admin-friendly view of a fact_replay_events row.
 type AdminReplayEvent struct {
 	ReplayEventID string    `json:"replay_event_id"`
@@ -107,6 +124,20 @@ type WorkItemFilter struct {
 	Stage        string
 	FailureClass string
 	Limit        int
+}
+
+// DeadLetterListFilter constrains bounded dead-letter read queries.
+type DeadLetterListFilter struct {
+	FailureClass         string
+	Domain               string
+	ScopeID              string
+	CollectorKind        string
+	UpdatedAfter         *time.Time
+	UpdatedBefore        *time.Time
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
+	Limit                int
+	Timeout              time.Duration
 }
 
 // DeadLetterFilter constrains admin dead-letter operations.
@@ -189,6 +220,7 @@ func (h *AdminHandler) Mount(mux *http.ServeMux) {
 
 	// Fact-inspection endpoints (from admin_facts.py)
 	mux.HandleFunc("POST /api/v0/admin/work-items/query", h.listWorkItems)
+	mux.HandleFunc("POST /api/v0/admin/dead-letters/query", h.listDeadLetters)
 	mux.HandleFunc("POST /api/v0/admin/decisions/query", h.listDecisions)
 	mux.HandleFunc("POST /api/v0/admin/dead-letter", h.deadLetter)
 	mux.HandleFunc("POST /api/v0/admin/skip", h.skip)

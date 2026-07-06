@@ -11,7 +11,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 156
+	expectedCount := 157
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -105,6 +105,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"export_cloud_runtime_drift_packet",
 		"get_hosted_readiness",
 		"get_operator_control_plane",
+		"list_dead_letter_work_items",
 		"get_freshness_causality",
 		"get_hosted_governance_status",
 		"get_semantic_capability_status",
@@ -318,8 +319,8 @@ func TestContentTools(t *testing.T) {
 
 func TestRuntimeTools(t *testing.T) {
 	tools := runtimeTools()
-	if len(tools) != 13 {
-		t.Errorf("Expected 13 runtime tools, got %d", len(tools))
+	if len(tools) != 14 {
+		t.Errorf("Expected 14 runtime tools, got %d", len(tools))
 	}
 }
 
@@ -378,6 +379,8 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 		return map[string]any{"component_id": "dev.eshu.collector.aws"}
 	case "get_collector_extraction_readiness":
 		return map[string]any{"family": "pagerduty"}
+	case "list_dead_letter_work_items":
+		return map[string]any{"limit": 10, "timeout_ms": 5000}
 	case "get_fact_schema_version":
 		return map[string]any{"fact_kind": "terraform_state_resource"}
 	case "get_repo_summary":

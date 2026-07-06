@@ -183,6 +183,7 @@ type APIRouter struct {
 	Capabilities           *CapabilitiesHandler
 	SurfaceInventory       *SurfaceInventoryHandler
 	Compare                *CompareHandler
+	AdminDeadLetters       *AdminDeadLetterListHandler
 	Admin                  *AdminHandler
 	Ask                    *AskHandler
 	LocalIdentity          *LocalIdentityHandler
@@ -412,6 +413,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Compare
 	if a.Compare != nil {
 		a.Compare.Mount(mux)
+	}
+
+	// Read-only admin surfaces
+	if a.AdminDeadLetters != nil {
+		a.AdminDeadLetters.Mount(mux)
 	}
 
 	// Admin

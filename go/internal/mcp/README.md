@@ -131,7 +131,7 @@ dispatch observability surface.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 156 tools from the tool definition files.
+`ReadOnlyTools` assembles 157 tools from the tool definition files.
 `ReadOnlyTools()` (and the `Verify ReadOnlyTools count` gate) is the authoritative
 count; the per-group table below lists the major static groups for orientation
 and is not an exhaustive enumeration (some groups — e.g. reachability and ask —
@@ -423,7 +423,7 @@ membership as trust.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 156 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 157 tool definitions |
 
 ## SSE session model
 

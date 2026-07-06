@@ -78,6 +78,58 @@ func TestPostgresAdminStoreReplayFailedWorkItems_PreservesRetrySemantics(t *test
 	}
 }
 
+func TestPostgresAdminStoreListDeadLetterWorkItems_BuildsBoundedFilteredQuery(t *testing.T) {
+	t.Parallel()
+
+	after := time.Date(2026, 7, 6, 13, 0, 0, 0, time.UTC)
+	before := after.Add(time.Hour)
+	db := &recordingAdminExecQueryer{
+		rows: &recordingAdminRows{},
+	}
+	store := &postgresAdminStore{db: db}
+
+	_, err := store.ListDeadLetterWorkItems(context.Background(), DeadLetterListFilter{
+		FailureClass:         "projection_bug",
+		Domain:               "runtime",
+		ScopeID:              "scope-a",
+		CollectorKind:        "git",
+		UpdatedAfter:         &after,
+		UpdatedBefore:        &before,
+		AllowedRepositoryIDs: []string{"repo-a"},
+		AllowedScopeIDs:      []string{"scope-a"},
+		Limit:                11,
+	})
+	if err != nil {
+		t.Fatalf("ListDeadLetterWorkItems() error = %v, want nil", err)
+	}
+
+	requiredFragments := []string{
+		"FROM fact_work_items AS work",
+		"JOIN ingestion_scopes AS scope ON scope.scope_id = work.scope_id",
+		"work.status = 'dead_letter'",
+		"work.failure_class = $1",
+		"work.domain = $2",
+		"work.scope_id = $3",
+		"scope.collector_kind = $4",
+		"work.updated_at >= $5",
+		"work.updated_at < $6",
+		"((scope.scope_kind = 'repository' AND scope.source_key = ANY($7)) OR work.scope_id = ANY($8))",
+		"ORDER BY work.updated_at DESC, work.work_item_id ASC",
+		"LIMIT $9",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(db.query, fragment) {
+			t.Fatalf("query missing %q:\n%s", fragment, db.query)
+		}
+	}
+	if got, want := maxPlaceholderIndex(db.query), len(db.queryArgs); got != want {
+		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, db.query)
+	}
+	if got, want := db.queryArgs[8], 11; got != want {
+		t.Fatalf("limit arg = %#v, want %#v", got, want)
+	}
+}
+
 type recordingAdminExecQueryer struct {
 	query     string
 	queryArgs []any

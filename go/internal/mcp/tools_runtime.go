@@ -75,6 +75,50 @@ func runtimeTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "list_dead_letter_work_items",
+			Description: "Return a bounded, deterministic page of durable fact_work_items dead letters with filters for failure_class, domain, scope_id, collector_kind, and updated_at window. Requires limit and timeout_ms; scoped tokens only see granted component scopes.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"failure_class": map[string]any{
+						"type":        "string",
+						"description": "Optional failure_class filter such as projection_bug or resource_exhausted.",
+					},
+					"domain": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer/domain filter.",
+					},
+					"scope_id": map[string]any{
+						"type":        "string",
+						"description": "Optional ingestion scope id filter.",
+					},
+					"collector_kind": map[string]any{
+						"type":        "string",
+						"description": "Optional collector_kind filter from ingestion_scopes.",
+					},
+					"updated_after": map[string]any{
+						"type":        "string",
+						"format":      "date-time",
+						"description": "Optional inclusive updated_at lower bound, RFC3339.",
+					},
+					"updated_before": map[string]any{
+						"type":        "string",
+						"format":      "date-time",
+						"description": "Optional exclusive updated_at upper bound, RFC3339.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Required maximum rows to return (1-500).",
+					},
+					"timeout_ms": map[string]any{
+						"type":        "integer",
+						"description": "Required query timeout in milliseconds (1-30000).",
+					},
+				},
+				"required": []string{"limit", "timeout_ms"},
+			},
+		},
+		{
 			Name:        "get_freshness_causality",
 			Description: "Return the freshness causality read model: why answers are stale by closed cause (pending generation, reducer backlog, dead-lettered domain, missing collector completion, plus per-answer content-coverage, unsupported-profile, and retention-expired classes), the generation lifecycle including retired generations, and pending projection work. Scoped tokens receive the same aggregate counts with raw scope/generation identifiers withheld.",
 			InputSchema: map[string]any{

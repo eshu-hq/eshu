@@ -23,6 +23,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		"/api/v0/admin/shared-projection/tuning-report",
 		"/api/v0/admin/work-items/query",
 		"/api/v0/admin/decisions/query",
+		"/api/v0/admin/dead-letters/query",
 		"/api/v0/admin/dead-letter",
 		"/api/v0/admin/skip",
 		"/api/v0/admin/replay",

@@ -167,7 +167,7 @@ roles:
         data_classes: [repository_metadata, source_content]
         scope_levels: [tenant, workspace, repository]
       - action: service.runtime.read
-        data_classes: [repository_metadata, service_runtime]
+        data_classes: [repository_metadata, service_runtime, status_metadata]
         scope_levels: [tenant, workspace, repository, source_scope]
       - action: cloud.iac.read
         data_classes: [cloud_iac]
@@ -274,6 +274,13 @@ permission_families:
     data_classes: [status_metadata, catalog_metadata]
     scope_levels: [tenant, workspace]
     default_roles: [tenant_admin, operator, auditor, owner]
+  - family: operator_dead_letters
+    description: Bounded dead-letter operator triage reads over fact work items, scoped to granted repositories or source scopes.
+    capability_prefixes: [operator.dead_letters.]
+    action: service.runtime.read
+    data_classes: [status_metadata]
+    scope_levels: [tenant, workspace, repository, source_scope]
+    default_roles: [operator, owner]
   - family: audit_export
     description: Audit, export, admission decision, work-item evidence, denied-decision inspection, and incident/audit report reads.
     capability_prefixes: [admission_decisions., work_item.]
