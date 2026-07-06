@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
@@ -89,13 +90,15 @@ func (e *Engine) ParsePath(
 
 // PreScanPaths returns the import-map contract used by the collector prescan path.
 func (e *Engine) PreScanPaths(paths []string) (map[string][]string, error) {
-	return e.preScanPathsWithRoot("", paths, 1)
+	importsMap, _, err := e.preScanPathsWithRoot("", paths, 1)
+	return importsMap, err
 }
 
 // PreScanRepositoryPaths returns the import-map contract used by collectors
 // that already know the repository root and want prescan logic bounded to it.
 func (e *Engine) PreScanRepositoryPaths(repoRoot string, paths []string) (map[string][]string, error) {
-	return e.preScanPathsWithRoot(repoRoot, paths, 1)
+	importsMap, _, err := e.preScanPathsWithRoot(repoRoot, paths, 1)
+	return importsMap, err
 }
 
 // PreScanRepositoryPathsWithWorkers returns repository-bounded pre-scan
@@ -103,15 +106,41 @@ func (e *Engine) PreScanRepositoryPaths(repoRoot string, paths []string) (map[st
 // so callers keep deterministic output ordering while large repositories avoid
 // a single serial parser bottleneck before the normal parse stage.
 func (e *Engine) PreScanRepositoryPathsWithWorkers(repoRoot string, paths []string, workers int) (map[string][]string, error) {
+	importsMap, _, err := e.preScanPathsWithRoot(repoRoot, paths, workers)
+	return importsMap, err
+}
+
+// PreScanFileStat carries one file's pre-scan language attribution and wall
+// time so callers can build a per-language cost summary (mirroring the
+// parse-stage parseLanguageStats) for the pre_scan stage. Path is the
+// resolved absolute path; Language is empty when the file had no registered
+// parser or its provider/language does not implement pre-scan (no work was
+// actually dispatched, so it must not be counted as a zero-duration sample).
+type PreScanFileStat struct {
+	Path            string
+	Language        string
+	DurationSeconds float64
+}
+
+// PreScanRepositoryPathsWithWorkersStats is the stats-returning counterpart to
+// PreScanRepositoryPathsWithWorkers, used by collectors that need to attribute
+// pre_scan wall time per language (#4767). It performs the identical scan —
+// same worker pool, same merge and sort behavior, same import-map contract —
+// and additionally returns one PreScanFileStat per file that actually
+// dispatched to a language pre-scanner, so an operator-facing summary reflects
+// only the pre_scan work that really ran.
+func (e *Engine) PreScanRepositoryPathsWithWorkersStats(
+	repoRoot string, paths []string, workers int,
+) (map[string][]string, []PreScanFileStat, error) {
 	return e.preScanPathsWithRoot(repoRoot, paths, workers)
 }
 
-func (e *Engine) preScanPathsWithRoot(repoRoot string, paths []string, workers int) (map[string][]string, error) {
+func (e *Engine) preScanPathsWithRoot(repoRoot string, paths []string, workers int) (map[string][]string, []PreScanFileStat, error) {
 	resolvedRepoRoot := strings.TrimSpace(repoRoot)
 	if resolvedRepoRoot != "" {
 		absRepoRoot, err := filepath.Abs(resolvedRepoRoot)
 		if err != nil {
-			return nil, fmt.Errorf("resolve prescan repo root %q: %w", repoRoot, err)
+			return nil, nil, fmt.Errorf("resolve prescan repo root %q: %w", repoRoot, err)
 		}
 		resolvedRepoRoot = absRepoRoot
 	}
@@ -124,31 +153,53 @@ func (e *Engine) preScanPathsWithRoot(repoRoot string, paths []string, workers i
 
 // preScanPathsSequential preserves the historical first-error behavior for
 // callers that do not opt into the worker-aware repository pre-scan path.
-func (e *Engine) preScanPathsSequential(resolvedRepoRoot string, paths []string) (map[string][]string, error) {
+func (e *Engine) preScanPathsSequential(resolvedRepoRoot string, paths []string) (map[string][]string, []PreScanFileStat, error) {
 	results := make(map[string][]string)
+	stats := make([]PreScanFileStat, 0, len(paths))
 	for _, rawPath := range paths {
 		scanned, err := e.preScanOnePath(resolvedRepoRoot, rawPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		mergePreScanPathResult(results, scanned)
+		if stat, ok := scanned.stat(); ok {
+			stats = append(stats, stat)
+		}
 	}
 	sortPreScanResults(results)
-	return results, nil
+	return results, stats, nil
 }
 
 // preScanPathResult carries one file's resolved path and discovered names so
 // concurrent workers can merge results after sorting by original input order.
 type preScanPathResult struct {
-	index int
-	path  string
-	names []string
-	err   error
+	index           int
+	path            string
+	names           []string
+	language        string
+	durationSeconds float64
+	dispatched      bool
+	err             error
+}
+
+// stat converts a preScanPathResult into a PreScanFileStat when the file
+// actually dispatched to a language pre-scanner (dispatched is false for
+// unregistered files and languages without pre-scan support, so those never
+// appear as a spurious zero-duration language sample).
+func (r preScanPathResult) stat() (PreScanFileStat, bool) {
+	if !r.dispatched {
+		return PreScanFileStat{}, false
+	}
+	return PreScanFileStat{
+		Path:            r.path,
+		Language:        r.language,
+		DurationSeconds: r.durationSeconds,
+	}, true
 }
 
 // preScanPathsConcurrent scans files in parallel, then returns the first input
 // order error and sorted per-name path lists to keep output deterministic.
-func (e *Engine) preScanPathsConcurrent(resolvedRepoRoot string, paths []string, workers int) (map[string][]string, error) {
+func (e *Engine) preScanPathsConcurrent(resolvedRepoRoot string, paths []string, workers int) (map[string][]string, []PreScanFileStat, error) {
 	type preScanJob struct {
 		index int
 		path  string
@@ -190,18 +241,25 @@ func (e *Engine) preScanPathsConcurrent(resolvedRepoRoot string, paths []string,
 	})
 
 	merged := make(map[string][]string)
+	stats := make([]PreScanFileStat, 0, len(resultSlice))
 	for _, result := range resultSlice {
 		if result.err != nil {
-			return nil, result.err
+			return nil, nil, result.err
 		}
 		mergePreScanPathResult(merged, result)
+		if stat, ok := result.stat(); ok {
+			stats = append(stats, stat)
+		}
 	}
 	sortPreScanResults(merged)
-	return merged, nil
+	return merged, stats, nil
 }
 
 // preScanOnePath dispatches one file to the language-specific import-map
-// scanner without mutating shared result state.
+// scanner without mutating shared result state. The returned result's
+// dispatched flag is true only when a language pre-scanner actually ran, so
+// unregistered files and languages without pre-scan support never contribute
+// a spurious zero-duration PreScanFileStat sample (see stat()).
 func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preScanPathResult, error) {
 	resolvedPath, err := filepath.Abs(rawPath)
 	if err != nil {
@@ -214,6 +272,7 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 	}
 
 	var names []string
+	startedAt := time.Now()
 	if definition.Provider != nil {
 		if !definition.Provider.Capabilities().PreScan {
 			return preScanPathResult{}, nil
@@ -225,7 +284,13 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 		if err != nil {
 			return preScanPathResult{}, err
 		}
-		return preScanPathResult{path: resolvedPath, names: names}, nil
+		return preScanPathResult{
+			path:            resolvedPath,
+			names:           names,
+			language:        definition.Language,
+			durationSeconds: time.Since(startedAt).Seconds(),
+			dispatched:      true,
+		}, nil
 	}
 	if IsDerivedPreScanLanguage(definition.Language) {
 		derivedLanguagePreScanDispatchCount.Add(1)
@@ -281,7 +346,13 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 	if err != nil {
 		return preScanPathResult{}, err
 	}
-	return preScanPathResult{path: resolvedPath, names: names}, nil
+	return preScanPathResult{
+		path:            resolvedPath,
+		names:           names,
+		language:        definition.Language,
+		durationSeconds: time.Since(startedAt).Seconds(),
+		dispatched:      true,
+	}, nil
 }
 
 // mergePreScanPathResult appends one file's names into the shared import map.
