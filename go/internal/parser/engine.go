@@ -227,6 +227,9 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 		}
 		return preScanPathResult{path: resolvedPath, names: names}, nil
 	}
+	if IsDerivedPreScanLanguage(definition.Language) {
+		derivedLanguagePreScanDispatchCount.Add(1)
+	}
 	switch definition.Language {
 	case "c":
 		names, err = e.preScanC(resolvedPath)
