@@ -5,8 +5,8 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 
 ## Read first
 
-- `README.md` — what the four phases assert and how node/edge counts + query
-  shapes are asserted.
+- `README.md` — what the phases (drains, graph, query, demo-answers, timing)
+  assert and how node/edge counts + query shapes are asserted.
 - `doc.go` — the godoc contract.
 - `testdata/golden/e2e-20repo-snapshot.json` (repo root) — the B-12 contract this
   command diffs against. Its keys drive the typed structs in `snapshot.go`.
@@ -25,8 +25,12 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   aliases, so the gate's call sites read unchanged. Edit the assertion rules in
   `internal/goldengate`, and keep them I/O-free there (no Postgres / Bolt / net).
   This command package keeps only the I/O-and-orchestration layer
-  (`graph.go`, `drains.go`, `query.go`, `mcp.go`, `runner.go`, `timing.go`,
-  `main.go`).
+  (`graph.go`, `drains.go`, `query.go`, `mcp.go`, `demoanswers.go`, `runner.go`,
+  `timing.go`, `main.go`). The demo-answers phase (`demoanswers.go`, #4776)
+  reuses the pure `EvaluateQueryShape` core — it adds no new evaluator, only the
+  I/O to execute each `specs/demo-first-answers.v1.yaml` question live (its
+  `surface`, or a playbook's `surface.execute` target) and assert the answer is
+  populated.
 - **Drain semantics are a contract, not a style choice.** `fact_work_items`
   residual = `status NOT IN ('succeeded','superseded')`; nonterminal
   `shared_projection_intents` = `completed_at IS NULL`. The `repo_dependency`

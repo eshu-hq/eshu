@@ -5,8 +5,8 @@
 // end-to-end corpus gate (issue #3800).
 //
 // It diffs a live pipeline run against the B-12 golden snapshot
-// (testdata/golden/e2e-20repo-snapshot.json) and asserts the four B-7
-// acceptance buckets:
+// (testdata/golden/e2e-20repo-snapshot.json) and asserts the B-7 acceptance
+// buckets:
 //
 //   - drains: fact_work_items residual rows and shared_projection_intents
 //     nonterminal rows both reach their snapshot bound. The
@@ -22,6 +22,12 @@
 //     20-repo mode (-graph-required-only=false, #3866); the ranges are calibrated
 //     to the real deterministic corpus output, not aspirational values.
 //   - query: canonical HTTP responses carry their required shape.
+//   - demo-answers: the five specs/demo-first-answers.v1.yaml questions are
+//     executed live with their SPECIFIC pinned arguments (via
+//     go/internal/demospec) and each must return a populated answer. The query
+//     phase asserts each tool/route with the snapshot's generic example
+//     arguments; this phase guards the demo oracle's own arguments (#4776) so a
+//     first-run demo answer cannot silently regress to empty.
 //   - timing: total pipeline wall time stays within a budget multiplier, and —
 //     when -phase-timings-file is given (B-11, #3804) — each gated phase stays
 //     within its testdata/golden/e2e-baseline.json baseline (band OR absolute

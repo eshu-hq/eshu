@@ -13,6 +13,7 @@ buckets.
 | drains | B-7(a)    | `fact_work_items` residual ≤ bound; `shared_projection_intents` nonterminal ≤ bound (B-13 / #3859 gate, incl. `repo_dependency` subset detail) | — |
 | graph  | B-7(b)    | required correlations exist (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...); required edge/node **properties** present (e.g. `source_tool` on Tier-2 edges, `language` on `File` nodes) | per-label node / per-relationship edge counts vs snapshot tolerances |
 | query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields, minimum results, and declared deep JSON fields / values | — |
+| demo-answers | #4776 | each of the five `specs/demo-first-answers.v1.yaml` questions, executed live with its **specific** pinned arguments (a playbook via its `surface.execute` target), returns a populated answer (required fields present, `minimum_results` met) | — |
 | timing | B-7(d)    | total pipeline wall time ≤ `budget-multiplier` × baseline; with `-phase-timings-file` (B-11 / #3804) each **gated** phase ≤ baseline band/slack in `e2e-baseline.json` | per-phase findings are advisory under `-phase-regression-advisory` (shared CI) |
 
 **Node/edge count tolerances are required (#3866):** the gate runs the full
@@ -115,5 +116,9 @@ scans an entire response.
 - `graph.go` — Bolt graph counts (nodes, edges, required correlations) and
   edge/node property listing for the provenance property assertions.
 - `query.go` — authenticated HTTP query-shape checks.
+- `mcp.go` — live MCP tool query-shape checks over `POST /mcp/message`.
+- `demoanswers.go` — the demo-answers phase: load `specs/demo-first-answers.v1.yaml`
+  via `go/internal/demospec`, execute each question live (its `surface` or, for a
+  playbook, its `surface.execute` target), and assert a populated answer (#4776).
 - `report.go` — finding aggregation, severity, and rendering.
 - `runner.go` / `main.go` — flag parsing and phase orchestration.

@@ -43,6 +43,7 @@ type options struct {
 	phase                   string
 	apiBaseURL              string
 	mcpBaseURL              string
+	demoManifestPath        string
 	drainTimeout            time.Duration
 	drainPoll               time.Duration
 	budgetSeconds           float64
@@ -63,7 +64,8 @@ func parseFlags(args []string) (options, error) {
 	fs := flag.NewFlagSet("golden-corpus-gate", flag.ContinueOnError)
 	var o options
 	fs.StringVar(&o.snapshotPath, "snapshot", "testdata/golden/e2e-20repo-snapshot.json", "path to the B-12 golden snapshot")
-	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,all")
+	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,all")
+	fs.StringVar(&o.demoManifestPath, "demo-manifest", "specs/demo-first-answers.v1.yaml", "path to the demo-first-answers manifest asserted live by the demo-answers phase (#4776)")
 	fs.StringVar(&o.apiBaseURL, "api-base-url", "http://localhost:8080", "base URL of a running eshu-api for query truth")
 	fs.StringVar(&o.mcpBaseURL, "mcp-base-url", "", "base URL of a running eshu-mcp-server (http transport); when set, the query phase also asserts the snapshot's MCP tool query shapes live (#3866)")
 	fs.DurationVar(&o.drainTimeout, "drain-timeout", 10*time.Minute, "max time to wait for queues to drain")
