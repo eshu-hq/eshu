@@ -19,17 +19,31 @@
 // contract under Contract System v1's "don't drop right results" accuracy
 // guarantee.
 //
-// File.ParsedFileData stays an UNTYPED map[string]any pass-through by design:
-// there is no producer-side struct for the parser's per-file AST, its shape
-// varies by language and parser version, and typing it is deferred to issue
-// #4750. This mirrors the shipped aws_resource/Attributes open-object pattern
-// (sdk/go/factschema/AGENTS.md) — the difference is that ParsedFileData is a
-// single named required field, not a remainder-catching Attributes map, so it
-// carries no custom MarshalJSON/UnmarshalJSON: the parent module's
-// decodeMapInto already assigns a payload map value directly onto a
+// File.ParsedFileData stays an OPEN map[string]any container by design: its
+// full per-file AST shape varies by language and parser version, so the
+// container is never narrowed to a closed struct (narrowing it would drop
+// unmodeled inner keys, force a schema major bump, and break the parsed_file_data
+// wire byte-identity). This mirrors the shipped aws_resource/Attributes
+// open-object pattern (sdk/go/factschema/AGENTS.md) — the difference is that
+// ParsedFileData is a single named required field, not a remainder-catching
+// Attributes map, so it carries no custom MarshalJSON/UnmarshalJSON: the parent
+// module's decodeMapInto already assigns a payload map value directly onto a
 // map[string]any field of any name (decode_map.go), and a non-object payload
 // value fails that assignment with a classified decode error, giving the
 // "must be a JSON object" guarantee with no extra code here.
+//
+// Specific INNER keys of ParsedFileData are typed incrementally, key by key, as
+// the code-graph-core reducer read sites migrate off raw map lookups (issue
+// #4750). The typed inner structs live in parsed_file_data.go and are decoded on
+// demand through the parent module's DecodeParsedFileData* accessors
+// (decode_parsed_file_data.go); the container itself stays open so a key that is
+// not yet typed is still read raw exactly as before. S1 (issue #4750) types the
+// five closed-shape, single-producer keys — gomod_state, function_calls_scip,
+// dockerfile_stages, pipeline_calls, dead_code_file_root_kinds. The wide
+// per-language AST buckets (imports, functions, function_calls, classes,
+// variables, framework_semantics), whose element shape is a union of many
+// per-language field sets, are deferred to later #4750 increments and continue
+// to be read as untyped map slices until then.
 //
 // Each struct's required fields are non-pointer with no omitempty tag; the
 // decode seam rejects a payload that omits one, or supplies an explicit JSON

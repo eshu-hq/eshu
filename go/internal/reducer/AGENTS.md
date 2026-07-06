@@ -1909,6 +1909,43 @@ covered by rows in `docs/public/observability/telemetry-coverage.md`. The
 dirs in `Load` — widens gate coverage (manifest count 90 -> 96) with no new
 gate mechanism.
 
+No-Regression Evidence (#4750 S1, parsed_file_data inner-key typing): the
+code-graph-core reducer now reads two closed-shape parsed_file_data inner keys
+through typed factschema accessors instead of raw map lookups —
+`dead_code_file_root_kinds` (`resolveFileRootCodeCallCallerID`) and
+`gomod_state.module_path` (`goModuleDeclaredPath`), wrapped in
+`parsed_file_data_typed.go`. `File.ParsedFileData` stays an OPEN
+`map[string]any` (the aws_resource.Attributes open-object precedent), so the
+`file.v1.schema.json` wire schema is unchanged (no major bump) and the graph
+rows for valid facts stay byte-identical. Byte-identity is proven three ways:
+(a) accessor/raw-read equivalence tests
+(`go test ./internal/reducer -run 'TestParsedFileData|TestResolveFileRootCallerIDTypedByteIdentity' -count=1`);
+(b) hot-path ns/op no-regression on the same JavaScript code-call benchmark the
+prior typed-decode waves used —
+`go test ./internal/reducer -run '^$' -bench 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem -count=5`
+went 8.82ms/1.66MB/30,212allocs (BEFORE) -> 8.82ms/1.66MB/30,211allocs (AFTER),
+0% delta (darwin/arm64, Apple M1 Max); (c) the B-7/B-12 golden-corpus gate
+byte-identical. The two migrated read sites are cold relative to the SCIP and
+generic per-edge inner loops, and the SCIP consumer
+(`extractSCIPCodeCallRows`) was left reading raw on purpose: its output rows
+copy raw edge values verbatim with present/absent semantics
+(`copyOptionalCodeCallField`) an `omitempty` typed struct cannot reproduce
+byte-identically, so per the byte-identity-non-negotiable guardrail it keeps its
+raw read while the typed `codegraphv1.SCIPFunctionCall` struct is delivered as
+the authoritative contract shape (round-trip-proven in
+`go/internal/parser/scip_parsed_file_data_contract_test.go`). Result class:
+Correctness/contract win (typed inner-key seam) with no measured handler
+regression.
+
+No-Observability-Change (#4750 S1): the inner-key typing adds no route, graph
+query shape, queue table, worker, lease, runtime knob, metric instrument, metric
+label, or log key. The migrated reads keep the reducer's pre-typing tolerant
+semantics (a malformed or absent inner sub-object reads as empty, exactly as the
+raw map read did) — the graph-truth accuracy anchor for a "file" fact remains
+its OUTER envelope, already dead-lettered by `partitionCodegraphFileFacts` (Wave
+4f S1). Operators diagnose the path through the same code-call materialization
+completion logs, reducer run spans, and execution counters as before.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

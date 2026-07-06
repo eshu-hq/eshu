@@ -24,12 +24,19 @@ repo-dependency edges) READ to attribute rows to a repository and file. The
 required set tracks what the reducer reads for identity, not the full wire
 shape (see the required/optional table below).
 
-`File.ParsedFileData` stays an UNTYPED `map[string]any` pass-through: there is
-no producer-side struct for the parser's per-file AST
-(`go/internal/parser`), and typing it is deferred follow-up work tracked by
-issue #4750. Reducer code continues reading its inner keys (`imports`,
-`functions`, `function_calls`, ...) exactly as before — only the identity
-fields around it are now validated.
+`File.ParsedFileData` stays an OPEN `map[string]any` container — it is never
+narrowed to a closed struct (that would drop unmodeled inner keys, force a
+schema major bump, and break the parsed_file_data wire byte-identity). Its
+inner keys are typed INCREMENTALLY, key by key, as reducer read sites migrate
+off raw map lookups (issue #4750): the typed inner structs live in
+`parsed_file_data.go` and are decoded on demand through the parent module's
+`DecodeParsedFileData*` accessors (`decode_parsed_file_data.go`). S1 types the
+five closed-shape, single-producer keys — `gomod_state`, `function_calls_scip`,
+`dockerfile_stages`, `pipeline_calls`, `dead_code_file_root_kinds`. The wide
+per-language AST buckets (`imports`, `functions`, `function_calls`, `classes`,
+`variables`, `framework_semantics`) are still read raw until their own #4750
+increment. Only the container's identity fields and object-ness are validated at
+the envelope level.
 
 ## Ownership boundary
 
@@ -76,7 +83,7 @@ System v1's "don't drop right results" accuracy guarantee.
 
 | Struct | Required fields | Why |
 | --- | --- | --- |
-| `File` | `RepoID`, `RelativePath`, `ParsedFileData` | `RepoID`/`RelativePath` are the accuracy hole issue #4749 exists to close (a fact missing either used to join under an empty-string graph identity); the code-graph-core handlers reach into `ParsedFileData` for every edge. `ParsedFileData` is required-present and must decode as a JSON object; its inner shape is intentionally unmodeled (issue #4750). |
+| `File` | `RepoID`, `RelativePath`, `ParsedFileData` | `RepoID`/`RelativePath` are the accuracy hole issue #4749 exists to close (a fact missing either used to join under an empty-string graph identity); the code-graph-core handlers reach into `ParsedFileData` for every edge. `ParsedFileData` is required-present and must decode as a JSON object; its container stays open while inner keys are typed incrementally through the `DecodeParsedFileData*` accessors (issue #4750). |
 | `File` optional fields | `GraphID`, `GraphKind`, `IsDependency`, `Language` | `GraphID`/`GraphKind`/`IsDependency` are unconditionally emitted but no reducer read site consumes them (`GraphID` is a redundant `RepoID:RelativePath` derivation, `GraphKind` a constant discriminator, `IsDependency` unread by any code-graph-core handler). `Language` is written only when the parser reported one. |
 | `Repository` | `RepoID` | The only field a code-graph-core reducer read site requires (`buildCodeCallProjectionContexts`, `buildCodeCallDeltaFileScopesByRepoID`). |
 | `Repository` optional fields | `GraphID`, `GraphKind`, `Name`, `ParsedFileCount`, `IsDependency`, `RepoSlug`, `RemoteURL`, `LocalPath`, `DefaultBranch`, `GitRefs`, `DeltaGeneration`, `ReconciliationGeneration`, `DeltaRelativePaths`, `DeltaDeletedRelativePaths`, `SourceRunID` | `Name`/`ParsedFileCount`/`GraphID`/`GraphKind`/`IsDependency` are unconditionally emitted but unread by any code-graph-core reducer read site. The reducer reads only `SourceRunID`, `LocalPath`, `DeltaRelativePaths`, and `DeltaDeletedRelativePaths` (all optional) beyond `RepoID`. `ParsedFileCount` is a STRING on the wire (`fmt.Sprintf("%d", ...)`) — do not retype it numeric. |
@@ -104,13 +111,32 @@ break projector reads on a future schema change with no gate to catch it. This
 mirrors the incident family's SQL-loader-only field precedent documented in
 the parent module's `AGENTS.md`.
 
-## `parsed_file_data` stays opaque (issue #4750)
+## `parsed_file_data` is an open container, typed key by key (issue #4750)
 
-`File.ParsedFileData` is `map[string]any` with no nested struct. The parser's
-per-file output varies by language and parser version with no single stable
-shape today; typing it is out of scope for this change and tracked by issue
-#4750. Do not add a nested struct for its inner keys here — that is a
-follow-up migration, not an incremental edit to this package.
+`File.ParsedFileData` is an OPEN `map[string]any` — the container is never
+narrowed to a closed struct. Its inner keys are typed INCREMENTALLY as reducer
+read sites migrate off raw map lookups: the typed inner structs live in
+`parsed_file_data.go` (`GomodState`, `SCIPFunctionCall`, `DockerfileStage`, ...)
+and are decoded on demand through the parent module's `DecodeParsedFileData*`
+accessors (`decode_parsed_file_data.go`), each of which reads ONE inner key.
+This follows the shipped `aws_resource.Attributes` open-object precedent: type
+what a consumer joins on, leave the container open so an un-typed key is still
+read raw and no producer field is dropped.
+
+S1 (issue #4750) types the five closed-shape, single-producer keys —
+`gomod_state`, `function_calls_scip`, `dockerfile_stages`, `pipeline_calls`,
+`dead_code_file_root_kinds`. Each typed inner struct that carries producer
+fields no consumer reads uses an open `Attributes map[string]any` pass-through
+so the accessor drops nothing. Do NOT add typed structs for the wide
+per-language AST buckets (`imports`, `functions`, `function_calls`, `classes`,
+`variables`, `framework_semantics`) here yet — their element shape is a union of
+many independently evolving per-language field sets, deferred to later #4750
+increments that will follow the same read-set-plus-open-passthrough shape.
+
+Typing an inner key here adds a struct + accessor, NOT a new fact kind: these
+structs have no `payloadContracts` row, no `schema/` artifact, and no schemagen
+entry (they are not envelopes), so they do not change the `file.v1.schema.json`
+wire schema — that is the whole point of keeping the container open.
 
 ## Changing a struct
 
@@ -152,8 +178,11 @@ emission path — see the module `README.md`'s no-observability-change note.
   value (a string, number, or array) fails the parent module's `decodeMapInto`
   assignment and surfaces as a classified decode error — no extra validation
   code is needed here for the "must be a map" guarantee.
-- Do not model `ParsedFileData`'s inner keys here. That is issue #4750,
-  out of scope for this package.
+- Type `ParsedFileData`'s inner keys INCREMENTALLY via `parsed_file_data.go`
+  structs + `DecodeParsedFileData*` accessors (issue #4750), keeping the
+  container open. Do not narrow `ParsedFileData` itself, and do not type the
+  wide per-language AST buckets ahead of their increment — see the
+  `parsed_file_data` section above.
 - The reducer decodes only the latest struct per fact kind. Older-schema-major
   shims live in the parent package's `decodeLatestMajor`, never here.
 

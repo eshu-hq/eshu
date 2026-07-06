@@ -102,10 +102,8 @@ func goModuleDeclaredPath(fileData map[string]any) string {
 	if strings.TrimSpace(anyToString(fileData["lang"])) != "gomod" {
 		return ""
 	}
-	if state, ok := fileData["gomod_state"].(map[string]any); ok {
-		if modulePath := strings.TrimSpace(anyToString(state["module_path"])); modulePath != "" {
-			return modulePath
-		}
+	if modulePath := strings.TrimSpace(parsedFileDataGomodModulePath(fileData)); modulePath != "" {
+		return modulePath
 	}
 	for _, row := range mapSlice(fileData["variables"]) {
 		if strings.TrimSpace(anyToString(row["config_kind"])) != "module_declaration" {

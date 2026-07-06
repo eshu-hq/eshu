@@ -19,7 +19,7 @@ func resolveFileRootCodeCallCallerID(repositoryID string, relativePath string, f
 	default:
 		return ""
 	}
-	for _, rootKind := range toStringSlice(fileData["dead_code_file_root_kinds"]) {
+	for _, rootKind := range parsedFileDataDeadCodeFileRootKinds(fileData) {
 		switch rootKind {
 		case "javascript.node_package_entrypoint", "javascript.node_package_bin", "javascript.node_package_script", "javascript.node_package_export":
 			if repositoryID == "" || relativePath == "" {

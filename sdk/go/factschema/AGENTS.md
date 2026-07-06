@@ -113,3 +113,15 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
   untyped `Attributes map[string]any` (custom Marshal/Unmarshal, open-object
   schema). Fully typed kinds keep a closed schema. Per-resource_type /
   per-relationship_type attribute typing is deferred follow-up work, not a gap.
+- The `file` kind's `parsed_file_data` field is the same open-object story one
+  level down: `codegraphv1.File.ParsedFileData` stays an open `map[string]any`,
+  and its INNER keys are typed incrementally (issue #4750) through the
+  `DecodeParsedFileData*` accessors (`decode_parsed_file_data.go`) over structs
+  in `codegraph/v1/parsed_file_data.go`. Each accessor decodes ONE inner key; a
+  typed inner struct carrying producer fields no consumer reads uses an open
+  `Attributes map[string]any` pass-through. These inner structs are NOT fact
+  kinds — no `payloadContracts` row, no `schema/` artifact, no schemagen entry —
+  so they never change the `file.v1.schema.json` wire schema. Do not narrow
+  `ParsedFileData` itself, and do not type the wide per-language AST buckets
+  (`imports`, `functions`, `function_calls`, `classes`, `variables`,
+  `framework_semantics`) ahead of their own #4750 increment.
