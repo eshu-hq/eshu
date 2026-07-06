@@ -60,6 +60,12 @@ documentation.
   proof artifact that binds capability-matrix `p95_latency_ms` and
   `max_scope_size` rows to measured API/MCP budget evidence. It is enforced by
   `scripts/verify-capability-budget-proof.sh`.
+- `demo-first-answers.v1.yaml` pins the five zero-credential demo-mode
+  questions (epic #4592, issue #4741) to bounded, already-shipped read
+  surfaces (a query playbook, an MCP tool, a CLI verb, or an HTTP route) and
+  to the golden-corpus-gate cassette families and fixture repos each answer
+  depends on. It is the acceptance oracle every sibling demo-mode issue tests
+  against. Loaded and referentially validated by `go/internal/demospec`.
 
 Treat edits here as contract changes. Update matching docs and verification in
 the same PR.

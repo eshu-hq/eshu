@@ -1,0 +1,196 @@
+version: demo-first-answers/v1
+updated_at: 2026-07-06
+issue: 4741
+parent_issue: 4592
+owners:
+  - runtime
+  - query
+  - answer-narration
+
+purpose: >
+  Pin the five demo-mode questions to concrete, already-shipped read surfaces
+  and to the golden-corpus-gate artifacts that make each answer correct and
+  correlated. This spec is the acceptance oracle for issue #4741: every
+  sibling issue under epic #4592 (the demo command, the guided path, the
+  console overlay) tests against the questions declared here rather than
+  inventing new query capability.
+
+design: >
+  The demo corpus is the same corpus the B-7 golden-corpus gate already proves
+  (scripts/verify-golden-corpus-gate.sh), replayed as the acme org under
+  supply-chain-demo. Reusing it means every demo answer is backed by a fixture
+  and a cassette that CI already runs on every PR — no separate demo-only
+  seed data to keep in sync. The five-question set was chosen to trace one
+  correlation hop from each of the five evidence domains the golden snapshot
+  requires (code, deployment, incident, dependency, observability), so a demo
+  user sees the platform's core claim — code, infra, and runtime evidence
+  joined into one graph — inside the first five answers. Each question maps
+  to an existing playbook, MCP tool, CLI verb, or HTTP route; none of them
+  introduce a new query capability. Q2 (deployment -> cloud resource) is
+  pinned to list_kubernetes_correlations rather than trace_deployment_chain:
+  the golden snapshot asserts trace_deployment_chain with minimum_results 0
+  (its cloud_resources are not guaranteed non-empty for this corpus) while
+  list_kubernetes_correlations asserts minimum_results 1 for the same
+  cluster_id scope, so it is the surface that reliably demonstrates the
+  KubernetesWorkload RUNS_IMAGE OciImageManifest correlation (rc-4) on this
+  corpus without a flaky empty-payload demo answer.
+
+questions:
+  - id: q1_code_to_deployment
+    question: >
+      Which workload does the api-svc repository run in, and which functions
+      handle its routes?
+    correlation_kind: code_to_deployment
+    surface:
+      kind: playbook
+      ref: service_story_citation
+      arguments:
+        service_name: api-svc
+        environment: prod
+    notes: >
+      CLI parity is "eshu trace service --json" (command
+      ["trace","service","checkout","--json"], parity_with mcp:get_service_story
+      in the golden snapshot); MCP parity is get_service_story
+      {workload_id: "workload:api-svc"}.
+    expected_answer:
+      required_response_fields:
+        - answer_metadata
+        - answer_packet
+        - ci_cd_evidence
+        - code_to_runtime_trace
+        - deployment_evidence
+        - deployment_lanes
+        - deployment_overview
+        - service_identity
+        - service_name
+        - story
+        - story_sections
+      demonstrates_correlations:
+        - rc-2
+        - rc-8
+        - rc-14
+    artifacts:
+      cassettes: []
+      repos:
+        - api-svc
+
+  - id: q2_deployment_to_cloud_resource
+    question: >
+      Which cloud-managed image does the api-svc Kubernetes workload run, and
+      what correlated it there?
+    correlation_kind: deployment_to_cloud_resource
+    surface:
+      kind: mcp
+      ref: list_kubernetes_correlations
+      arguments:
+        cluster_id: supply-chain-demo
+    notes: >
+      Pinned to list_kubernetes_correlations rather than trace_deployment_chain
+      because the golden snapshot asserts minimum_results 1 for this tool on
+      this corpus, versus minimum_results 0 for trace_deployment_chain's
+      cloud_resources. Confirmed live against the golden-corpus-gate stack
+      before this spec was finalized (see PR body for the captured response).
+    expected_answer:
+      required_response_fields:
+        - correlations
+      demonstrates_correlations:
+        - rc-4
+        - rc-19
+        - rc-20
+        - rc-51
+    artifacts:
+      cassettes:
+        - kuberneteslive
+        - ociregistry
+        - gcpcloud
+      repos:
+        - deployable-source
+        - deployable-config
+        - kustomize-deployable-overlay
+
+  - id: q3_incident_to_service
+    question: >
+      Which service does incident PSCD1 point to, and what evidence ties them
+      together?
+    correlation_kind: incident_to_service
+    surface:
+      kind: playbook
+      ref: incident_context_evidence_path
+      arguments:
+        incident_id: PSCD1
+    expected_answer:
+      required_response_fields:
+        - answer_metadata
+        - answer_packet
+        - evidence_path
+        - incident
+        - related_changes
+        - timeline
+      demonstrates_correlations:
+        - rc-14
+    artifacts:
+      cassettes:
+        - pagerduty
+      repos:
+        - api-svc
+
+  - id: q4_dependency_to_vulnerability
+    question: >
+      Which components of the demo supply chain does CVE-2026-00000 affect,
+      and through which dependency edge?
+    correlation_kind: dependency_to_vulnerability
+    surface:
+      kind: playbook
+      ref: supply_chain_impact_explanation
+      arguments:
+        cve_id: CVE-2026-00000
+    expected_answer:
+      required_response_fields:
+        - advisory
+        - anchors
+        - component
+        - evidence
+        - evidence_packet_handle
+        - freshness
+        - missing_evidence
+        - outcome
+        - readiness
+      demonstrates_correlations:
+        - rc-9
+        - rc-24
+        - rc-25
+    artifacts:
+      cassettes:
+        - packageregistry
+        - vulnerabilityintelligence
+        - sbomattestation
+        - securityalerts
+      repos: []
+
+  - id: q5_observability_to_workload
+    question: >
+      Which workload does the tempo trace coverage in the demo org correlate
+      to, and how fresh is that coverage?
+    correlation_kind: observability_to_workload
+    surface:
+      kind: http
+      ref: "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50"
+      arguments:
+        provider: tempo
+        limit: 50
+    expected_answer:
+      required_json_paths:
+        - data.correlations
+        - data.count
+        - data.limit
+        - data.truncated
+      demonstrates_correlations:
+        - rc-2
+    artifacts:
+      cassettes:
+        - tempo
+        - prometheusmimir
+        - grafana
+        - loki
+      repos:
+        - api-svc
