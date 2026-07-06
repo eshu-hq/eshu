@@ -97,11 +97,12 @@ type Surface struct {
 	// for docs; the referential-integrity test does not replay them).
 	Arguments map[string]any
 	// Execute is the concrete, gate-executable call that produces this
-	// question's answer. It is required for a playbook surface (a playbook ID
-	// is not directly callable, so the manifest names the underlying tool/route
-	// the demo-answers gate invokes) and optional for mcp/http surfaces (whose
-	// own Kind/Ref/Arguments are already executable). nil means "run the
-	// surface itself".
+	// question's answer. It is required for any surface the gate cannot call
+	// directly — a playbook (a playbook ID is not a callable endpoint) or a cli
+	// verb (the gate has no CLI seam) — so the manifest names the underlying
+	// mcp tool or http route the demo-answers gate invokes. It is optional for
+	// mcp/http surfaces, whose own Kind/Ref/Arguments are already executable;
+	// nil there means "run the surface itself".
 	Execute *ExecuteTarget
 }
 
@@ -341,10 +342,14 @@ func convertSurface(path, id string, sf surfaceFile) (Surface, error) {
 // may omit it. When present it must name an mcp tool or an http route.
 func convertExecuteTarget(path, id string, surfaceKind SurfaceKind, ef *executeTargetFile) (*ExecuteTarget, error) {
 	if ef == nil {
-		if surfaceKind == SurfaceKindPlaybook {
+		// A surface the gate cannot call directly (playbook: a playbook id is not
+		// a callable endpoint; cli: the gate has no CLI seam, only API/MCP) must
+		// name the underlying mcp tool or http route the demo-answers gate
+		// invokes. The directly-callable kinds (mcp, http) may omit execute.
+		if _, callable := validExecuteKinds[surfaceKind]; !callable {
 			return nil, fmt.Errorf(
-				"demo-first-answers manifest %s: question %q has a playbook surface but no surface.execute; a playbook id is not directly callable, so the manifest must name the underlying mcp tool or http route the gate invokes",
-				path, id,
+				"demo-first-answers manifest %s: question %q has a %s surface the gate cannot call directly but no surface.execute; name the underlying mcp tool or http route the demo-answers gate invokes",
+				path, id, surfaceKind,
 			)
 		}
 		return nil, nil

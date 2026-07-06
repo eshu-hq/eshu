@@ -18,13 +18,15 @@ for any Go edit.
   entry pointing at a surface that does not exist yet; land the surface first
   (in its owning package), prove it in the golden snapshot, then reference it
   here.
-- **Playbook surfaces need an `execute` target.** A playbook id is not directly
-  callable, so a `kind: playbook` question MUST carry a `surface.execute`
-  (`kind: mcp|http`, `ref`, `arguments`) naming the underlying tool/route the
-  demo-answers golden-gate phase (issue #4776) invokes to fetch the live
-  answer. `LoadManifest` hard-fails a playbook surface with no execute. The
-  execute `ref` is referential-integrity-checked against the golden snapshot
-  query shapes, same as a surface ref.
+- **Non-callable surfaces need an `execute` target.** The gate can call an mcp
+  tool or an http route directly, but not a playbook (a playbook id is not an
+  endpoint) or a cli verb (the gate has no CLI seam). So a `kind: playbook` or
+  `kind: cli` question MUST carry a `surface.execute` (`kind: mcp|http`, `ref`,
+  `arguments`) naming the underlying tool/route the demo-answers golden-gate
+  phase (issue #4776) invokes to fetch the live answer. `LoadManifest`
+  hard-fails such a surface with no execute. The execute `ref` is
+  referential-integrity-checked against the golden snapshot query shapes, same
+  as a surface ref.
 - **`minimum_results` reflects the live answer, not an aspiration.** Set it to
   the floor the answer's first result array actually meets on the deterministic
   corpus (captured from a golden-gate run), or `0` for an object-shaped answer

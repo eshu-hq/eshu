@@ -109,6 +109,36 @@ func assertSurfaceResolves(t *testing.T, q Question, playbookIDs map[string]stru
 	}
 }
 
+// TestConvertExecuteTargetRequiresCallableTarget proves the execute contract:
+// a surface the gate cannot call directly (playbook, cli) must carry an execute
+// target, a directly-callable surface (mcp, http) need not, and a present
+// execute target must name an mcp tool or http route with a non-blank ref.
+func TestConvertExecuteTargetRequiresCallableTarget(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []SurfaceKind{SurfaceKindPlaybook, SurfaceKindCLI} {
+		if _, err := convertExecuteTarget("m", "q", kind, nil); err == nil {
+			t.Errorf("%s surface without execute must be rejected", kind)
+		}
+	}
+	for _, kind := range []SurfaceKind{SurfaceKindMCP, SurfaceKindHTTP} {
+		got, err := convertExecuteTarget("m", "q", kind, nil)
+		if err != nil || got != nil {
+			t.Errorf("%s surface without execute must load as (nil, nil), got (%v, %v)", kind, got, err)
+		}
+	}
+	if _, err := convertExecuteTarget("m", "q", SurfaceKindPlaybook, &executeTargetFile{Kind: "playbook", Ref: "x"}); err == nil {
+		t.Error("execute kind playbook must be rejected (want mcp or http)")
+	}
+	if _, err := convertExecuteTarget("m", "q", SurfaceKindPlaybook, &executeTargetFile{Kind: "mcp", Ref: "   "}); err == nil {
+		t.Error("blank execute ref must be rejected")
+	}
+	got, err := convertExecuteTarget("m", "q", SurfaceKindPlaybook, &executeTargetFile{Kind: "http", Ref: "GET /api/v0/x"})
+	if err != nil || got == nil || got.Kind != SurfaceKindHTTP || got.Ref != "GET /api/v0/x" {
+		t.Errorf("valid http execute target must convert, got (%+v, %v)", got, err)
+	}
+}
+
 // assertExecuteResolves fails the test when a question's surface.execute target
 // (the concrete callable the demo-answers golden-gate phase runs to fetch the
 // live answer) does not resolve to a real MCP tool or HTTP route in the golden

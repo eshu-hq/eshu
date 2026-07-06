@@ -34,8 +34,8 @@ field/path, at least one demonstrated correlation). It does NOT own:
 
 Two fields make each question gate-executable by the demo-answers phase of the
 golden-corpus gate (issue #4776): `Surface.Execute` (an `ExecuteTarget` naming
-the underlying mcp tool or http route for a playbook surface, whose id is not
-directly callable) and `ExpectedAnswer.MinimumResults` (the floor the answer's
+the underlying mcp tool or http route for a surface the gate cannot call
+directly — a playbook or a cli verb) and `ExpectedAnswer.MinimumResults` (the floor the answer's
 first result array must meet, so a demo answer that regresses to empty turns
 the gate red). `MinimumResults: 0` asserts field presence only, for
 object-shaped answers with no result array.
