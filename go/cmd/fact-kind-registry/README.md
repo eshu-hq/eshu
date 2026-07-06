@@ -24,9 +24,16 @@ No runtime telemetry is emitted. The command runs in local and CI generation
 gates only.
 
 ## Gotchas / invariants
-The YAML must list every fact kind in the live family helpers. Deterministic
-entries must be provider-key independent, and optional semantic entries must
-name a policy gate.
+A non-exempt family's YAML kinds must match its live family helper exactly.
+Deterministic entries must be provider-key independent, and optional semantic
+entries must name a policy gate.
+
+An `admission_exempt: true` family (issue #4752) is the exception: it has no
+live `(XFactKinds, XSchemaVersion)` helper, must leave `schema_version` blank,
+and its kinds classify as `unknown_kind` at runtime — it records
+`payload_schema` and reserves the kind name without entering schema-version
+admission. The generator fails closed if an exempt family sets a schema
+version. See `docs/public/reference/fact-schema-versioning.md`.
 
 ## Related docs
 - `go/internal/facts/README.md`

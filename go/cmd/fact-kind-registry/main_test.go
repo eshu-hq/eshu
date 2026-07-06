@@ -316,6 +316,104 @@ func TestBuildFamilyEntriesRejectsPayloadSchemaEscapingSchemaDir(t *testing.T) {
 	}
 }
 
+// TestBuildFamilyEntriesAdmissionExemptFamilySkipsLiveVersion proves an
+// admission-exempt family generates entries with no schema version, the exempt
+// flag set, and its payload_schema recorded, without needing a live
+// (XFactKinds, XSchemaVersion) helper — the live argument is zero.
+func TestBuildFamilyEntriesAdmissionExemptFamilySkipsLiveVersion(t *testing.T) {
+	repoRoot := t.TempDir()
+	schemaRel := "sdk/go/factschema/schema/file.v1.schema.json"
+	if err := writeTestFile(t, filepath.Join(repoRoot, filepath.FromSlash(schemaRel)), "{}"); err != nil {
+		t.Fatalf("writeTestFile() error = %v", err)
+	}
+	spec := familySpec{
+		LifecycleOwner:         "go/internal/facts",
+		AdmissionExempt:        true,
+		ReducerDomain:          "code_graph_projection",
+		ProjectionHook:         "canonical_code_graph",
+		AdmissionHook:          "none",
+		ReadSurface:            "GET /api/v0/repositories",
+		TruthProfile:           "deterministic",
+		ProviderKeyIndependent: true,
+		PayloadSchemaOverrides: map[string]string{"file": schemaRel},
+		Kinds:                  []string{"file"},
+	}
+
+	// live is intentionally zero: an exempt family has no live helper.
+	entries, err := buildFamilyEntries(repoRoot, "code", liveFamily{}, spec)
+	if err != nil {
+		t.Fatalf("buildFamilyEntries() error = %v, want nil", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries = %+v, want one entry", entries)
+	}
+	got := entries[0]
+	if !got.AdmissionExempt {
+		t.Fatalf("entry AdmissionExempt = false, want true")
+	}
+	if got.SchemaVersion != "" {
+		t.Fatalf("entry SchemaVersion = %q, want blank", got.SchemaVersion)
+	}
+	if got.PayloadSchema != schemaRel {
+		t.Fatalf("entry PayloadSchema = %q, want %q", got.PayloadSchema, schemaRel)
+	}
+}
+
+// TestBuildFamilyEntriesAdmissionExemptFamilyRejectsSchemaVersion proves an
+// exempt family that declares a schema_version fails closed, so an exempt kind
+// can never be silently enrolled in version admission through the spec.
+func TestBuildFamilyEntriesAdmissionExemptFamilyRejectsSchemaVersion(t *testing.T) {
+	spec := familySpec{
+		LifecycleOwner:         "go/internal/facts",
+		AdmissionExempt:        true,
+		SchemaVersion:          "1.0.0",
+		ReducerDomain:          "code_graph_projection",
+		ProjectionHook:         "canonical_code_graph",
+		AdmissionHook:          "none",
+		ReadSurface:            "GET /api/v0/repositories",
+		TruthProfile:           "deterministic",
+		ProviderKeyIndependent: true,
+		Kinds:                  []string{"file"},
+	}
+
+	_, err := buildFamilyEntries(t.TempDir(), "code", liveFamily{}, spec)
+	if err == nil {
+		t.Fatal("buildFamilyEntries() error = nil, want schema_version rejection for exempt family")
+	}
+	if !strings.Contains(err.Error(), "schema_version") {
+		t.Fatalf("buildFamilyEntries() error = %q, want schema_version context", err)
+	}
+}
+
+// TestBuildFamilyEntriesAdmissionExemptFamilyRejectsSchemaVersionOverrides
+// proves an exempt family that declares a per-kind schema_version_overrides
+// fails closed. Without this, buildFamilyEntries skips the version branch for
+// exempt families and would silently emit blank schema versions, so the YAML
+// could appear to declare per-kind version admission for an exempt kind while
+// runtime classification stayed unknown_kind. See issue #4752.
+func TestBuildFamilyEntriesAdmissionExemptFamilyRejectsSchemaVersionOverrides(t *testing.T) {
+	spec := familySpec{
+		LifecycleOwner:         "go/internal/facts",
+		AdmissionExempt:        true,
+		SchemaVersionOverride:  map[string]string{"file": "1.0.0"},
+		ReducerDomain:          "code_graph_projection",
+		ProjectionHook:         "canonical_code_graph",
+		AdmissionHook:          "none",
+		ReadSurface:            "GET /api/v0/repositories",
+		TruthProfile:           "deterministic",
+		ProviderKeyIndependent: true,
+		Kinds:                  []string{"file"},
+	}
+
+	_, err := buildFamilyEntries(t.TempDir(), "code", liveFamily{}, spec)
+	if err == nil {
+		t.Fatal("buildFamilyEntries() error = nil, want schema_version_overrides rejection for exempt family")
+	}
+	if !strings.Contains(err.Error(), "schema_version_overrides") {
+		t.Fatalf("buildFamilyEntries() error = %q, want schema_version_overrides context", err)
+	}
+}
+
 func writeTestFile(t *testing.T, path, contents string) error {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {

@@ -69,7 +69,15 @@ type familySpec struct {
 	RemovedIn string `yaml:"removed_in"`
 	// RemovedInOverrides sets removed_in per kind.
 	RemovedInOverrides map[string]string `yaml:"removed_in_overrides"`
-	Kinds              []string          `yaml:"kinds"`
+	// AdmissionExempt registers a legacy family for its contract metadata
+	// (notably payload_schema) without enrolling it in schema-version
+	// admission. An exempt family has no live (XFactKinds, XSchemaVersion) Go
+	// pair, must leave schema_version blank, and its kinds classify as
+	// CompatibilityUnknownKind at runtime — identical to an unregistered kind.
+	// This decouples registry membership from mandatory version admission for
+	// the legacy git code-graph kinds (file, repository); see issue #4752.
+	AdmissionExempt bool     `yaml:"admission_exempt"`
+	Kinds           []string `yaml:"kinds"`
 }
 
 type liveFamily struct {
@@ -186,7 +194,10 @@ func buildRegistry(repoRoot string, spec specFile) ([]registryEntry, error) {
 	seen := map[string]string{}
 	for name, familySpec := range spec.Families {
 		live, ok := liveByName[name]
-		if !ok {
+		if !ok && !familySpec.AdmissionExempt {
+			// A non-exempt family must have a live (XFactKinds,
+			// XSchemaVersion) Go pair backing it. An admission-exempt family
+			// has none by design and is allowed through with a zero live.
 			return nil, fmt.Errorf("spec references unknown fact family %q", name)
 		}
 		familyEntries, err := buildFamilyEntries(repoRoot, name, live, familySpec)
@@ -209,10 +220,15 @@ func buildFamilyEntries(repoRoot, name string, live liveFamily, spec familySpec)
 	if err := validateFamilyMetadata(name, spec); err != nil {
 		return nil, err
 	}
-	liveKinds := sortedUnique(live.kinds())
 	specKinds := sortedUnique(spec.Kinds)
-	if !stringSlicesEqual(liveKinds, specKinds) {
-		return nil, fmt.Errorf("family %q kinds drifted: spec=%v live=%v", name, specKinds, liveKinds)
+	// A non-exempt family's kinds must match its live Go helper exactly. An
+	// admission-exempt family has no live helper (live is zero), so it skips
+	// the drift check and derives everything from the spec alone.
+	if !spec.AdmissionExempt {
+		liveKinds := sortedUnique(live.kinds())
+		if !stringSlicesEqual(liveKinds, specKinds) {
+			return nil, fmt.Errorf("family %q kinds drifted: spec=%v live=%v", name, specKinds, liveKinds)
+		}
 	}
 	if err := validateKindOverrides(name, "read_surface_overrides", spec.ReadSurfaceOverrides, specKinds); err != nil {
 		return nil, err
@@ -228,16 +244,23 @@ func buildFamilyEntries(repoRoot, name string, live liveFamily, spec familySpec)
 	}
 	entries := make([]facts.FactKindRegistryEntry, 0, len(specKinds))
 	for _, kind := range specKinds {
-		wantVersion, ok := live.version(kind)
-		if !ok {
-			return nil, fmt.Errorf("family %q kind %q has no live schema version", name, kind)
-		}
-		specVersion := spec.SchemaVersion
-		if override := strings.TrimSpace(spec.SchemaVersionOverride[kind]); override != "" {
-			specVersion = override
-		}
-		if specVersion != wantVersion {
-			return nil, fmt.Errorf("family %q kind %q schema_version = %q, live helper returns %q", name, kind, specVersion, wantVersion)
+		// An admission-exempt kind carries no schema version and is not backed
+		// by a live version helper; every other kind must match its live
+		// helper exactly. validateFamilyMetadata already rejects a non-blank
+		// schema_version on an exempt family.
+		var specVersion string
+		if !spec.AdmissionExempt {
+			wantVersion, ok := live.version(kind)
+			if !ok {
+				return nil, fmt.Errorf("family %q kind %q has no live schema version", name, kind)
+			}
+			specVersion = spec.SchemaVersion
+			if override := strings.TrimSpace(spec.SchemaVersionOverride[kind]); override != "" {
+				specVersion = override
+			}
+			if specVersion != wantVersion {
+				return nil, fmt.Errorf("family %q kind %q schema_version = %q, live helper returns %q", name, kind, specVersion, wantVersion)
+			}
 		}
 		readSurface := spec.ReadSurface
 		if override := strings.TrimSpace(spec.ReadSurfaceOverrides[kind]); override != "" {
@@ -281,6 +304,7 @@ func buildFamilyEntries(repoRoot, name string, live liveFamily, spec familySpec)
 			PayloadSchema:          strings.TrimSpace(payloadSchema),
 			DeprecatedIn:           strings.TrimSpace(deprecatedIn),
 			RemovedIn:              strings.TrimSpace(removedIn),
+			AdmissionExempt:        spec.AdmissionExempt,
 		})
 	}
 	return entries, nil
@@ -296,10 +320,10 @@ func renderGo(entries []registryEntry) ([]byte, error) {
 	buf.WriteString("package facts\n\n")
 	buf.WriteString("var factKindRegistryEntries = []FactKindRegistryEntry{\n")
 	for _, entry := range entries {
-		fmt.Fprintf(&buf, "\t{Kind: %q, SchemaVersion: %q, LifecycleOwner: %q, ReducerDomain: %q, ProjectionHook: %q, AdmissionHook: %q, ReadSurface: %q, TruthProfile: %q, PolicyGate: %q, ProviderKeyIndependent: %t, PayloadSchema: %q, DeprecatedIn: %q, RemovedIn: %q},\n",
+		fmt.Fprintf(&buf, "\t{Kind: %q, SchemaVersion: %q, LifecycleOwner: %q, ReducerDomain: %q, ProjectionHook: %q, AdmissionHook: %q, ReadSurface: %q, TruthProfile: %q, PolicyGate: %q, ProviderKeyIndependent: %t, PayloadSchema: %q, DeprecatedIn: %q, RemovedIn: %q, AdmissionExempt: %t},\n",
 			entry.Kind, entry.SchemaVersion, entry.LifecycleOwner, entry.ReducerDomain, entry.ProjectionHook,
 			entry.AdmissionHook, entry.ReadSurface, entry.TruthProfile, entry.PolicyGate, entry.ProviderKeyIndependent,
-			entry.PayloadSchema, entry.DeprecatedIn, entry.RemovedIn)
+			entry.PayloadSchema, entry.DeprecatedIn, entry.RemovedIn, entry.AdmissionExempt)
 	}
 	buf.WriteString("}\n\n")
 	buf.WriteString("var factKindRegistryByKind = buildFactKindRegistryByKind(factKindRegistryEntries)\n")
@@ -314,13 +338,13 @@ func renderMarkdown(entries []registryEntry) []byte {
 	var buf bytes.Buffer
 	buf.WriteString("# Fact Kind Registries\n\n")
 	buf.WriteString("Generated from `specs/fact-kind-registry.v1.yaml`. Do not edit this file by hand; run `scripts/generate-fact-kind-registry.sh`.\n\n")
-	buf.WriteString("| Fact kind | Schema | Owner | Reducer domain | Projection | Admission | Read surface | Truth profile | Policy gate | No-provider | Payload schema | Deprecated in | Removed in |\n")
-	buf.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	buf.WriteString("| Fact kind | Schema | Owner | Reducer domain | Projection | Admission | Read surface | Truth profile | Policy gate | No-provider | Payload schema | Deprecated in | Removed in | Admission exempt |\n")
+	buf.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, entry := range entries {
-		fmt.Fprintf(&buf, "| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%t` | `%s` | `%s` | `%s` |\n",
+		fmt.Fprintf(&buf, "| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%t` | `%s` | `%s` | `%s` | `%t` |\n",
 			entry.Kind, entry.SchemaVersion, entry.LifecycleOwner, entry.ReducerDomain, entry.ProjectionHook,
 			entry.AdmissionHook, entry.ReadSurface, entry.TruthProfile, entry.PolicyGate, entry.ProviderKeyIndependent,
-			entry.PayloadSchema, entry.DeprecatedIn, entry.RemovedIn)
+			entry.PayloadSchema, entry.DeprecatedIn, entry.RemovedIn, entry.AdmissionExempt)
 	}
 	return buf.Bytes()
 }

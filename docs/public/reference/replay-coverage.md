@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 217/389 surfaces satisfied (55.78%)** — mode: blocking.
+**Overall: 219/392 surfaces satisfied (55.87%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -13,22 +13,22 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | authorization_catalog | 22 | 22 | 100.00% | 0 | 0 |
 | Capability claims | 130 | 130 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 17 | 17 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 19 | 19 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 0 | 24 | 0.00% | 24 | 0 |
+| Projections (cost/ordering) | 0 | 25 | 0.00% | 25 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 2 | 52 | 3.85% | 50 | 0 |
 | Retractable node types (delta) | 1 | 87 | 1.15% | 86 | 0 |
 | Collectors | 22 | 34 | 64.71% | 12 | 8 |
-| **Total** | **217** | **389** | **55.78%** | **172** | **9** |
+| **Total** | **219** | **392** | **55.87%** | **173** | **9** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 204 | 204 | 100.00% | 0 | 5 |
-| cost | 1 | 23 | 4.35% | 22 | 0 |
+| baseline | 206 | 206 | 100.00% | 0 | 5 |
+| cost | 1 | 24 | 4.17% | 23 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 4 | 140 | 2.86% | 136 | 0 |
 | fault | 5 | 17 | 29.41% | 12 | 4 |
@@ -63,13 +63,14 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 
 ## Gaps — surfaces still needing a replay scenario
 
-172 surface(s) uncovered or unresolved:
+173 surface(s) uncovered or unresolved:
 
-### Projections (cost/ordering) (24)
+### Projections (cost/ordering) (25)
 
 - `projection:aws_cloud_runtime_drift` (cost)
 - `projection:azure_resource_materialization` (cost)
 - `projection:ci_cd_run_correlation` (cost)
+- `projection:code_graph_projection` (cost)
 - `projection:config_state_drift` (cost)
 - `projection:container_image_identity` (cost)
 - `projection:documentation_materialization` (cost)
@@ -249,7 +250,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 - `collector:terraform_state` (fault)
 - `collector:vulnerability_intelligence` (fault)
 
-## Covered surfaces (217)
+## Covered surfaces (219)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -421,6 +422,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 | `read_surface:GET /api/v0/incidents/{incident_id}/context` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/incidents/PSCD1/context` |
 | `read_surface:GET /api/v0/observability/coverage/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
 | `read_surface:GET /api/v0/package-registry/packages` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |
+| `read_surface:GET /api/v0/repositories` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/repositories` |
 | `read_surface:GET /api/v0/secrets-iam/posture-summary` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/semantic/code-hints` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25` |
 | `read_surface:GET /api/v0/semantic/documentation-observations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25` |
@@ -429,6 +431,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 | `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom` |
 | `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | baseline | exempt | — | — |
 | `read_surface:GET /api/v0/work-items/evidence` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
+| `read_surface:list_repository_files` | baseline | api_mcp_golden | golden-corpus-gate | `list_repository_files` |
 | `parser:cloudformation` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |
 | `parser:dockerfile` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |
 | `parser:hcl` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/hcl.fixture.json` |

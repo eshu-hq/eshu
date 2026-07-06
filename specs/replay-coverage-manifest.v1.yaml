@@ -74,6 +74,13 @@ coverage:
   # is the B-12 snapshot query-shape key; the golden-corpus-gate calls the endpoint
   # live against the 20-repo corpus and asserts the response shape (truth, not just
   # schema). HTTP query params, when required, are embedded in the shape key.
+  # code family (admission-exempt, #4752). The two exempt kinds read through
+  # different surfaces: repository rows via the repositories HTTP route, file
+  # rows via the list_repository_files MCP tool. Both are asserted live by the
+  # golden-corpus gate and held as snapshot query shapes (HTTP and MCP), so
+  # neither row can go green without exercising that kind's real read path.
+  - {surface: "read_surface:GET /api/v0/repositories", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/repositories", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:list_repository_files", scenario: api_mcp_golden, scenario_type: baseline, ref: "list_repository_files", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/cloud/inventory", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/inventory", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/cloud/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/resources", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate}

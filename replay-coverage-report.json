@@ -2,12 +2,12 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 389,
-    "covered": 208,
-    "uncovered": 172,
+    "total": 392,
+    "covered": 210,
+    "uncovered": 173,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 55.78
+    "percent_satisfied": 55.87
   },
   "registry_summaries": [
     {
@@ -39,8 +39,8 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 17,
-      "covered": 16,
+      "total": 19,
+      "covered": 18,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -66,9 +66,9 @@
     },
     {
       "registry": "projection",
-      "total": 24,
+      "total": 25,
       "covered": 0,
-      "uncovered": 24,
+      "uncovered": 25,
       "unresolved": 0,
       "exempt": 0,
       "percent_satisfied": 0
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 204,
-      "covered": 199,
+      "total": 206,
+      "covered": 201,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -122,12 +122,12 @@
     },
     {
       "scenario_type": "cost",
-      "total": 23,
+      "total": 24,
       "covered": 1,
-      "uncovered": 22,
+      "uncovered": 23,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 4.35
+      "percent_satisfied": 4.17
     },
     {
       "scenario_type": "crash",
@@ -1849,6 +1849,16 @@
     },
     {
       "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/repositories",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/repositories",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/repositories\""
+    },
+    {
+      "registry": "fact_kind_registry",
       "key": "read_surface:GET /api/v0/secrets-iam/posture-summary",
       "scenario_type": "baseline",
       "status": "covered",
@@ -1923,6 +1933,16 @@
       "ref": "GET /api/v0/work-items/evidence?limit=50\u0026scope_id=jira:supply-chain-demo:SCD",
       "proof_gate": "golden-corpus-gate",
       "detail": "snapshot HTTP query shape \"GET /api/v0/work-items/evidence?limit=50\u0026scope_id=jira:supply-chain-demo:SCD\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:list_repository_files",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "list_repository_files",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot MCP query shape \"list_repository_files\""
     },
     {
       "registry": "parser_backing_ledger",
@@ -2091,6 +2111,13 @@
     {
       "registry": "projection",
       "key": "projection:ci_cd_run_correlation",
+      "scenario_type": "cost",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type cost"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:code_graph_projection",
       "scenario_type": "cost",
       "status": "uncovered",
       "detail": "no replay scenario mapped for required scenario_type cost"
@@ -3531,6 +3558,7 @@
     "projection:aws_cloud_runtime_drift|cost",
     "projection:azure_resource_materialization|cost",
     "projection:ci_cd_run_correlation|cost",
+    "projection:code_graph_projection|cost",
     "projection:config_state_drift|cost",
     "projection:container_image_identity|cost",
     "projection:documentation_materialization|cost",

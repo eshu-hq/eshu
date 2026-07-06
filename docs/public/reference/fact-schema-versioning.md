@@ -160,6 +160,7 @@ without them.
 | `payload_schema` | string, optional | Repo-relative path to the checked-in JSON Schema artifact under `sdk/go/factschema/schema/` that describes this fact kind's payload shape. |
 | `deprecated_in` | string, optional | Semver marker for the registry-spec version at which this fact kind was marked deprecated. |
 | `removed_in` | string, optional | Semver marker for the registry-spec version at which this fact kind is scheduled for removal. Requires `deprecated_in` to also be set. |
+| `admission_exempt` | bool, optional (family-level) | Registers a legacy family for its contract metadata (notably `payload_schema`) without enrolling it in schema-version admission. See [Admission-exempt registration](#admission-exempt-registration). |
 
 All three follow the same per-kind override pattern the registry already
 uses for `schema_version_overrides` and `read_surface_overrides`: a family
@@ -192,6 +193,49 @@ traversal such as `sdk/go/factschema/schema/../../secret.json` cannot slip a
 non-schema repo file past the guard. Fact kinds without a typed schema yet
 simply omit the field; that is the expected incremental state, not a gap to
 backfill in every change.
+
+### Admission-exempt registration
+
+Registry membership and schema-version admission are two separate axes. Most
+families are on both: they are registered *and* their envelopes are checked
+against the supported schema version at projection time
+(`facts.ValidateSchemaVersion`). A few legacy families predate the
+versioned-admission regime and flow as `unknown_kind` — the collector emits no
+`schema_version` and the projector admits them unchecked. The git code-graph
+kinds `file` and `repository` are the canonical example.
+
+An `admission_exempt: true` family is registered for its contract metadata —
+so its `payload_schema` reference is recorded and the kind name is reserved as
+a core fact kind — while its runtime admission behavior stays exactly as if it
+were unregistered: `SchemaVersion(kind)` reports it as core-unowned and
+`ClassifySchemaVersion` returns `unknown_kind` for every candidate version.
+This decouples "record the payload schema" from "flip the kind into mandatory
+version admission," which for `file`/`repository` would otherwise obligate a
+`schema_version` on every emitted envelope and every fixture literal.
+
+```yaml
+code:
+  lifecycle_owner: go/internal/facts
+  admission_exempt: true
+  reducer_domain: code_graph_projection
+  projection_hook: canonical_code_graph
+  admission_hook: none
+  read_surface: "GET /api/v0/repositories"
+  truth_profile: deterministic
+  provider_key_independent: true
+  payload_schema_overrides:
+    file: "sdk/go/factschema/schema/file.v1.schema.json"
+    repository: "sdk/go/factschema/schema/repository.v1.schema.json"
+  kinds: [file, repository]
+```
+
+An exempt family has no live `(XFactKinds, XSchemaVersion)` Go helper and must
+leave `schema_version` blank; the generator fails closed if an exempt family
+sets a schema version, and the registry drift-lock rejects an exempt entry that
+carries one or that also appears in `schemaVersionFamilies`. This is the
+reusable path for the other version-less git kinds (`code_dataflow_*`, taint,
+interproc, function summary) should they later record a `payload_schema`
+without entering version admission. See issue #4752.
 
 ### Declaring deprecation and removal
 

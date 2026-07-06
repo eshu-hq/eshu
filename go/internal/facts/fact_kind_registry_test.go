@@ -22,12 +22,23 @@ func TestGeneratedFactKindRegistryCoversCoreContracts(t *testing.T) {
 		if !ok {
 			t.Fatalf("FactKindRegistry() missing core kind %q", kind)
 		}
-		schemaVersion, ok := SchemaVersion(kind)
-		if !ok {
-			t.Fatalf("SchemaVersion(%q) ok = false, want true", kind)
-		}
-		if entry.SchemaVersion != schemaVersion {
-			t.Fatalf("registry schema for %q = %q, want %q", kind, entry.SchemaVersion, schemaVersion)
+		if entry.AdmissionExempt {
+			// Exempt kinds carry no schema version by design; assert only the
+			// non-version contract metadata and that they classify unknown.
+			if entry.SchemaVersion != "" {
+				t.Fatalf("admission-exempt kind %q has schema version %q, want blank", kind, entry.SchemaVersion)
+			}
+			if _, ok := SchemaVersion(kind); ok {
+				t.Fatalf("SchemaVersion(%q) ok = true for admission-exempt kind, want false", kind)
+			}
+		} else {
+			schemaVersion, ok := SchemaVersion(kind)
+			if !ok {
+				t.Fatalf("SchemaVersion(%q) ok = false, want true", kind)
+			}
+			if entry.SchemaVersion != schemaVersion {
+				t.Fatalf("registry schema for %q = %q, want %q", kind, entry.SchemaVersion, schemaVersion)
+			}
 		}
 		if entry.LifecycleOwner == "" || entry.ReducerDomain == "" || entry.ProjectionHook == "" || entry.AdmissionHook == "" || entry.ReadSurface == "" {
 			t.Fatalf("registry entry for %q has incomplete contract metadata: %+v", kind, entry)

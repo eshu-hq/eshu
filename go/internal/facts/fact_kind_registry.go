@@ -53,6 +53,16 @@ type FactKindRegistryEntry struct {
 	// RemovedIn is the registry-spec semver at which this fact kind is
 	// planned for removal. Optional; blank means no removal is scheduled.
 	RemovedIn string
+	// AdmissionExempt marks a legacy fact kind that is registered for its
+	// contract metadata (notably PayloadSchema) but is deliberately kept out
+	// of the schema-version admission regime. An exempt kind carries no
+	// SchemaVersion, is absent from schemaVersionFamilies, and classifies as
+	// CompatibilityUnknownKind at runtime exactly as an unregistered kind
+	// does — so registering it records its payload schema without changing
+	// how its envelopes are admitted or projected. This decouples registry
+	// membership from mandatory version admission for the legacy git
+	// code-graph kinds (file, repository); see issue #4752.
+	AdmissionExempt bool
 }
 
 // FactKindRegistry returns the generated fact-kind registry in stable order.
@@ -94,12 +104,25 @@ func validateFactKindRegistryEntry(entry FactKindRegistryEntry, expected map[str
 	if kind == "" {
 		return fmt.Errorf("fact kind registry entry has blank kind")
 	}
-	expectedVersion, ok := expected[kind]
-	if !ok {
-		return fmt.Errorf("registry entry references missing implementation for fact kind %q", kind)
-	}
-	if strings.TrimSpace(entry.SchemaVersion) != expectedVersion {
-		return fmt.Errorf("fact kind %q schema_version = %q, want %q", kind, entry.SchemaVersion, expectedVersion)
+	if entry.AdmissionExempt {
+		// An admission-exempt kind is registered for its contract metadata
+		// only. It has no live schema-version implementation to match against
+		// (it is absent from schemaVersionFamilies by design), and it must
+		// carry no schema version so nothing reads it as version-admitted.
+		if strings.TrimSpace(entry.SchemaVersion) != "" {
+			return fmt.Errorf("admission-exempt fact kind %q must not declare a schema_version, got %q", kind, entry.SchemaVersion)
+		}
+		if _, ok := expected[kind]; ok {
+			return fmt.Errorf("admission-exempt fact kind %q must not appear in schemaVersionFamilies", kind)
+		}
+	} else {
+		expectedVersion, ok := expected[kind]
+		if !ok {
+			return fmt.Errorf("registry entry references missing implementation for fact kind %q", kind)
+		}
+		if strings.TrimSpace(entry.SchemaVersion) != expectedVersion {
+			return fmt.Errorf("fact kind %q schema_version = %q, want %q", kind, entry.SchemaVersion, expectedVersion)
+		}
 	}
 	for field, value := range map[string]string{
 		"lifecycle_owner": entry.LifecycleOwner,
@@ -150,6 +173,14 @@ func buildFactKindRegistryByKind(entries []FactKindRegistryEntry) map[string]Fac
 func buildFactKindSchemaRegistry(entries []FactKindRegistryEntry) map[string]string {
 	registry := make(map[string]string, len(entries))
 	for _, entry := range entries {
+		// Admission-exempt kinds carry no schema version and must not enter
+		// the supported-version registry, or SchemaVersion would report them
+		// as versioned core kinds and ClassifySchemaVersion would start
+		// admitting/rejecting their envelopes by version. Skipping them keeps
+		// their runtime classification at CompatibilityUnknownKind, unchanged.
+		if entry.AdmissionExempt {
+			continue
+		}
 		registry[entry.Kind] = entry.SchemaVersion
 	}
 	return registry

@@ -78,15 +78,36 @@ func validateLifecycleMarker(family, kind, field, value string) error {
 // (deterministic requires provider-key independence, optional_semantic requires
 // a policy gate).
 func validateFamilyMetadata(name string, spec familySpec) error {
-	for field, value := range map[string]string{
+	required := map[string]string{
 		"lifecycle_owner": spec.LifecycleOwner,
-		"schema_version":  spec.SchemaVersion,
 		"reducer_domain":  spec.ReducerDomain,
 		"projection_hook": spec.ProjectionHook,
 		"admission_hook":  spec.AdmissionHook,
 		"read_surface":    spec.ReadSurface,
 		"truth_profile":   spec.TruthProfile,
-	} {
+	}
+	if spec.AdmissionExempt {
+		// An admission-exempt family carries no schema version; it must be
+		// left blank so nothing reads its kinds as version-admitted. The
+		// per-kind schema_version_overrides map must also be empty: since
+		// buildFamilyEntries skips the version branch for exempt families, a
+		// non-empty override would be silently dropped, making the YAML look
+		// like it declares per-kind version admission while runtime
+		// classification stayed unknown_kind. Fail closed on both.
+		if strings.TrimSpace(spec.SchemaVersion) != "" {
+			return fmt.Errorf("admission-exempt family %q must not set schema_version, got %q", name, spec.SchemaVersion)
+		}
+		if len(spec.SchemaVersionOverride) != 0 {
+			kinds := make([]string, 0, len(spec.SchemaVersionOverride))
+			for kind := range spec.SchemaVersionOverride {
+				kinds = append(kinds, kind)
+			}
+			return fmt.Errorf("admission-exempt family %q must not set schema_version_overrides (kinds: %v)", name, sortedUnique(kinds))
+		}
+	} else {
+		required["schema_version"] = spec.SchemaVersion
+	}
+	for field, value := range required {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("family %q missing %s", name, field)
 		}
