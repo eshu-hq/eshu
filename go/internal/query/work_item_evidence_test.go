@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -244,6 +246,94 @@ func TestPostgresWorkItemEvidenceStoreRejectsUnboundedFilter(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "scope_id, project_key, work_item_key, provider_work_item_id, url_fingerprint, or observed_after is required") {
 		t.Fatalf("error = %q, want scope requirement", err.Error())
+	}
+}
+
+func TestWorkItemEvidenceFactKindsMatchRegistrySet(t *testing.T) {
+	t.Parallel()
+
+	// The evidence read surface must bound its SQL read to exactly the
+	// work_item family the fact-kind registry maps to
+	// GET /api/v0/work-items/evidence. facts.WorkItemFactKinds() is the single
+	// source of truth for that family, so the read kind set must equal it. A
+	// future read_surface_override that narrows the family would then trip this
+	// guard instead of silently drifting.
+	want := facts.WorkItemFactKinds()
+	got := slices.Clone(workItemEvidenceFactKinds)
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("workItemEvidenceFactKinds = %v, want facts.WorkItemFactKinds() = %v", got, want)
+	}
+	if slices.Contains(got, "work_item.coverage_warning") {
+		t.Fatal("workItemEvidenceFactKinds still lists the phantom work_item.coverage_warning (no emitter, no registry row)")
+	}
+	for _, required := range []string{"work_item.issue_type_metadata", "work_item.metadata_warning"} {
+		if !slices.Contains(got, required) {
+			t.Fatalf("workItemEvidenceFactKinds missing registered read-surface kind %q", required)
+		}
+	}
+}
+
+func TestWorkItemEvidenceRowsSurfaceIssueTypeAndMetadataWarning(t *testing.T) {
+	t.Parallel()
+
+	// issue_type_metadata and metadata_warning are both registered on the
+	// evidence read surface. Each must decode into an evidence row rather than
+	// being dropped at the switch default; issue_type_metadata carries the
+	// provider issue-type id and its project scope.
+	rows := buildWorkItemEvidenceRows([]workItemEvidenceFactRow{
+		{
+			FactID:           "issue-type",
+			FactKind:         "work_item.issue_type_metadata",
+			ScopeID:          "jira:site:example",
+			GenerationID:     "generation-1",
+			SchemaVersion:    facts.WorkItemSchemaVersionV1,
+			SourceConfidence: "reported",
+			ObservedAt:       "2026-06-01T12:00:00Z",
+			Payload: map[string]any{
+				"provider":                 "jira_cloud",
+				"issue_type_id":            "10001",
+				"project_id":               "10000",
+				"redaction_policy_version": "jira_work_item_v1",
+			},
+		},
+		{
+			FactID:        "metadata-warning",
+			FactKind:      "work_item.metadata_warning",
+			ScopeID:       "jira:site:example",
+			GenerationID:  "generation-1",
+			SchemaVersion: facts.WorkItemSchemaVersionV1,
+			Payload: map[string]any{
+				"provider":                 "jira_cloud",
+				"metadata_type":            "issue_type",
+				"reason":                   "permission_denied",
+				"redaction_policy_version": "jira_work_item_v1",
+			},
+		},
+	})
+
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d, want 2 (issue_type_metadata + metadata_warning surfaced, not dropped)", len(rows))
+	}
+	issueType := rows[0]
+	if issueType.FactKind != "work_item.issue_type_metadata" {
+		t.Fatalf("rows[0].FactKind = %q, want work_item.issue_type_metadata", issueType.FactKind)
+	}
+	if issueType.Provider != "jira_cloud" {
+		t.Fatalf("issue_type_metadata Provider = %q, want jira_cloud", issueType.Provider)
+	}
+	if issueType.IssueTypeID != "10001" {
+		t.Fatalf("issue_type_metadata IssueTypeID = %q, want 10001", issueType.IssueTypeID)
+	}
+	if issueType.ProjectID != "10000" {
+		t.Fatalf("issue_type_metadata ProjectID = %q, want 10000", issueType.ProjectID)
+	}
+	if rows[1].FactKind != "work_item.metadata_warning" {
+		t.Fatalf("rows[1].FactKind = %q, want work_item.metadata_warning", rows[1].FactKind)
+	}
+	if rows[1].Provider != "jira_cloud" {
+		t.Fatalf("metadata_warning Provider = %q, want jira_cloud", rows[1].Provider)
 	}
 }
 

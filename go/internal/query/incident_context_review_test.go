@@ -27,27 +27,6 @@ func TestBuildIncidentReviewWorkItemEvidenceAddsExactPullRequest(t *testing.T) {
 	assertIncidentNoEdge(t, got, IncidentSlotWorkItem)
 }
 
-func TestBuildIncidentReviewWorkItemEvidenceDoesNotVerifyJiraOnlyPullRequestURL(t *testing.T) {
-	t.Parallel()
-
-	got := buildIncidentReviewWorkItemEvidence(incidentReviewWorkItemInput{
-		CommitSHA: "3333333333333333333333333333333333333333",
-		WorkItemLinks: []incidentWorkItemExternalLink{
-			{
-				FactID:      "jira-link",
-				Provider:    "jira_cloud",
-				WorkItemKey: "INC-123",
-				URL:         "https://github.com/eshu-hq/eshu/pull/42",
-				Title:       "INC-123 fix checkout deploy",
-				AnchorClass: "github_pull_request",
-			},
-		},
-	})
-
-	assertIncidentNoEdge(t, got, IncidentSlotPullRequest)
-	assertIncidentEdge(t, got, IncidentSlotWorkItem, IncidentTruthDerived)
-}
-
 func TestBuildIncidentReviewWorkItemEvidenceDoesNotDeriveWorkItemFromAmbiguousProviderPullRequest(t *testing.T) {
 	t.Parallel()
 
@@ -67,16 +46,6 @@ func TestBuildIncidentReviewWorkItemEvidenceDoesNotDeriveWorkItemFromAmbiguousPr
 				CommitSHA: "3333333333333333333333333333333333333333",
 				Number:    "43",
 				URL:       "https://github.com/eshu-hq/eshu/pull/43",
-			},
-		},
-		WorkItemLinks: []incidentWorkItemExternalLink{
-			{
-				FactID:      "jira-link",
-				Provider:    "jira_cloud",
-				WorkItemKey: "INC-123",
-				URL:         "https://github.com/eshu-hq/eshu/pull/42",
-				Title:       "INC-123 fix checkout deploy",
-				AnchorClass: "github_pull_request",
 			},
 		},
 	})

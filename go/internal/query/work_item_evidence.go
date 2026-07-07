@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -40,16 +41,13 @@ const (
 	WorkItemEvidenceStateRejectedUnsafePayload = "rejected_unsafe_payload"
 )
 
-var workItemEvidenceFactKinds = []string{
-	"work_item.record",
-	"work_item.transition",
-	"work_item.external_link",
-	"work_item.project_metadata",
-	"work_item.status_metadata",
-	"work_item.workflow_metadata",
-	"work_item.field_metadata",
-	"work_item.coverage_warning",
-}
+// workItemEvidenceFactKinds bounds the evidence read to exactly the work_item
+// family the fact-kind registry maps to GET /api/v0/work-items/evidence.
+// facts.WorkItemFactKinds() is the single source of truth for that family, so
+// deriving the read set from it (rather than a hand-maintained copy) keeps the
+// SQL kind list, the decode switch in decodeWorkItemEvidenceRow, and the
+// registry in lockstep and drops any kind that is not a real registered fact.
+var workItemEvidenceFactKinds = facts.WorkItemFactKinds()
 
 // WorkItemEvidenceStore reads bounded Jira/work-item source facts.
 type WorkItemEvidenceStore interface {
@@ -282,6 +280,17 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.Provider = metadata.Provider
 		base.ProjectID = workItemDerefString(metadata.ProjectID)
 		base.ProjectKey = workItemDerefString(metadata.ProjectKey)
+		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
+
+	case "work_item.issue_type_metadata":
+		metadata, err := decodeWorkItemIssueTypeMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		if err != nil {
+			logWorkItemEvidenceDecodeDrop(err)
+			return WorkItemEvidenceRow{}, false
+		}
+		base.Provider = metadata.Provider
+		base.ProjectID = workItemDerefString(metadata.ProjectID)
+		base.IssueTypeID = metadata.IssueTypeID
 		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.status_metadata":

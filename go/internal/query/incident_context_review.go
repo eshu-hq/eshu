@@ -4,7 +4,6 @@
 package query
 
 import (
-	"net/url"
 	"regexp"
 	"strings"
 )
@@ -13,9 +12,7 @@ var incidentIssueKeyRE = regexp.MustCompile(`\b[A-Z][A-Z0-9]+-[0-9]+\b`)
 
 type incidentReviewWorkItemInput struct {
 	CommitSHA       string
-	IncidentURL     string
 	PullRequests    []incidentPullRequestEvidence
-	WorkItemLinks   []incidentWorkItemExternalLink
 	WorkItems       []incidentWorkItemRecord
 	ProjectMetadata []incidentWorkItemProjectMetadata
 	StatusMetadata  []incidentWorkItemStatusMetadata
@@ -29,17 +26,6 @@ type incidentPullRequestEvidence struct {
 	Number             string
 	URL                string
 	Title              string
-}
-
-type incidentWorkItemExternalLink struct {
-	FactID      string
-	Provider    string
-	WorkItemID  string
-	WorkItemKey string
-	URL         string
-	Title       string
-	AnchorClass string
-	SourceURL   string
 }
 
 type incidentWorkItemRecord struct {
@@ -144,70 +130,20 @@ func buildIncidentWorkItemEdge(
 	input incidentReviewWorkItemInput,
 	selectedPullRequest *incidentPullRequestEvidence,
 ) *IncidentContextEvidenceEdge {
-	if links := incidentWorkItemLinksForURL(input.WorkItemLinks, input.IncidentURL); len(links) > 0 {
-		return incidentWorkItemExternalLinkEdge(
-			links,
-			IncidentTruthExact,
-			"Jira work item remote link points to the PagerDuty incident",
-		)
+	if selectedPullRequest == nil {
+		return nil
 	}
-	if selectedPullRequest != nil {
-		if links := incidentWorkItemLinksForURL(input.WorkItemLinks, selectedPullRequest.URL); len(links) > 0 {
-			return incidentWorkItemExternalLinkEdge(
-				links,
-				IncidentTruthExact,
-				"Jira work item remote link points to the provider-verified pull request",
-			)
-		}
-		if records := incidentWorkItemsForIssueKeys(input.WorkItems, incidentIssueKeys(selectedPullRequest.Title)); len(records) > 0 {
-			return incidentWorkItemRecordEdge(
-				records,
-				IncidentTruthDerived,
-				"Jira work item key was derived from the provider-verified pull request title",
-				input.ProjectMetadata,
-				input.StatusMetadata,
-			)
-		}
+	records := incidentWorkItemsForIssueKeys(input.WorkItems, incidentIssueKeys(selectedPullRequest.Title))
+	if len(records) == 0 {
+		return nil
 	}
-	if links := incidentJiraOnlyPullRequestLinks(input.WorkItemLinks, input.PullRequests, input.CommitSHA); len(links) > 0 {
-		return incidentWorkItemExternalLinkEdge(
-			links,
-			IncidentTruthDerived,
-			"Jira remote link names a pull request URL, but provider pull request evidence did not match the incident commit",
-		)
-	}
-	return nil
-}
-
-func incidentWorkItemExternalLinkEdge(
-	links []incidentWorkItemExternalLink,
-	label IncidentTruthLabel,
-	explanation string,
-) *IncidentContextEvidenceEdge {
-	if len(links) > 1 {
-		return &IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotWorkItem,
-			TruthLabel:  IncidentTruthAmbiguous,
-			Explanation: "multiple Jira work item links matched the incident evidence",
-			Candidates:  incidentWorkItemLinkCandidates(links),
-		}
-	}
-	link := links[0]
-	return &IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotWorkItem,
-		TruthLabel:  label,
-		Explanation: explanation,
-		Value: map[string]string{
-			"provider":      link.Provider,
-			"work_item_id":  link.WorkItemID,
-			"work_item_key": link.WorkItemKey,
-			"url":           link.URL,
-			"title":         link.Title,
-		},
-		Evidence: []IncidentContextEvidenceRef{
-			incidentEvidenceRef("work_item.external_link", link.FactID, firstNonEmpty(link.SourceURL, link.URL), link.Provider),
-		},
-	}
+	return incidentWorkItemRecordEdge(
+		records,
+		IncidentTruthDerived,
+		"Jira work item key was derived from the provider-verified pull request title",
+		input.ProjectMetadata,
+		input.StatusMetadata,
+	)
 }
 
 func incidentWorkItemRecordEdge(
@@ -288,55 +224,6 @@ func incidentWorkItemStatusMetadataForRecord(
 	return nil
 }
 
-func incidentWorkItemLinksForURL(
-	links []incidentWorkItemExternalLink,
-	targetURL string,
-) []incidentWorkItemExternalLink {
-	targetURL = strings.TrimSpace(targetURL)
-	if targetURL == "" {
-		return nil
-	}
-	out := make([]incidentWorkItemExternalLink, 0, len(links))
-	for _, link := range links {
-		if strings.TrimSpace(link.URL) == targetURL {
-			out = append(out, link)
-		}
-	}
-	return out
-}
-
-func incidentJiraOnlyPullRequestLinks(
-	links []incidentWorkItemExternalLink,
-	pullRequests []incidentPullRequestEvidence,
-	commitSHA string,
-) []incidentWorkItemExternalLink {
-	providerPullRequestURLs := incidentProviderPullRequestURLs(pullRequests, commitSHA)
-	out := make([]incidentWorkItemExternalLink, 0, len(links))
-	for _, link := range links {
-		linkURL := strings.TrimSpace(link.URL)
-		if _, ok := providerPullRequestURLs[linkURL]; ok {
-			continue
-		}
-		if strings.TrimSpace(link.AnchorClass) == "github_pull_request" || incidentIsGitHubPullRequestURL(linkURL) {
-			out = append(out, link)
-		}
-	}
-	return out
-}
-
-func incidentProviderPullRequestURLs(
-	pullRequests []incidentPullRequestEvidence,
-	commitSHA string,
-) map[string]struct{} {
-	pullRequestURLs := make(map[string]struct{})
-	for _, pullRequest := range incidentPullRequestCandidates(pullRequests, commitSHA) {
-		if pullRequestURL := strings.TrimSpace(pullRequest.URL); pullRequestURL != "" {
-			pullRequestURLs[pullRequestURL] = struct{}{}
-		}
-	}
-	return pullRequestURLs
-}
-
 func incidentWorkItemsForIssueKeys(
 	records []incidentWorkItemRecord,
 	issueKeys []string,
@@ -371,16 +258,6 @@ func incidentIssueKeys(text string) []string {
 	return out
 }
 
-func incidentIsGitHubPullRequestURL(raw string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return false
-	}
-	host := strings.ToLower(parsed.Hostname())
-	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-	return host == "github.com" && len(parts) == 4 && parts[2] == "pull" && parts[3] != ""
-}
-
 func incidentPullRequestCandidateValues(
 	pullRequests []incidentPullRequestEvidence,
 ) []IncidentContextEvidenceCandidate {
@@ -391,21 +268,6 @@ func incidentPullRequestCandidateValues(
 			Label:  firstNonEmpty(pullRequest.Number, pullRequest.Title),
 			URL:    pullRequest.URL,
 			Reason: "provider pull request merge matched the incident commit",
-		})
-	}
-	return candidates
-}
-
-func incidentWorkItemLinkCandidates(
-	links []incidentWorkItemExternalLink,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(links))
-	for _, link := range links {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(link.WorkItemKey, link.WorkItemID, link.FactID),
-			Label:  firstNonEmpty(link.WorkItemKey, link.Title),
-			URL:    link.URL,
-			Reason: "Jira remote link matched incident evidence",
 		})
 	}
 	return candidates

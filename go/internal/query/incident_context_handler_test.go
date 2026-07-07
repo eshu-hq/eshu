@@ -299,15 +299,6 @@ func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T
 		}
 	}
 	for _, want := range []string{
-		"fact.fact_kind = 'work_item.external_link'",
-		"fact.payload->>'url' = $1",
-		"LIMIT $2",
-	} {
-		if !strings.Contains(listIncidentWorkItemExternalLinksByURLQuery, want) {
-			t.Fatalf("listIncidentWorkItemExternalLinksByURLQuery missing %q:\n%s", want, listIncidentWorkItemExternalLinksByURLQuery)
-		}
-	}
-	for _, want := range []string{
 		"fact.fact_kind = 'work_item.record'",
 		"fact.payload->>'work_item_key' = $1",
 		"LIMIT $2",
