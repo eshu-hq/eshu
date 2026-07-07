@@ -37,7 +37,7 @@ const attributesField = "Attributes"
 // for the pass-through. out must be a non-nil pointer to a struct.
 func decodeMapInto(payload map[string]any, out any) error {
 	rv := reflect.ValueOf(out)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return fmt.Errorf("factschema: decode target must be a non-nil pointer, got %T", out)
 	}
 	sv := rv.Elem()
@@ -180,7 +180,7 @@ func assignField(field reflect.Value, raw any) error {
 		field.SetBool(b)
 		return nil
 
-	case reflect.Ptr:
+	case reflect.Pointer:
 		switch field.Type().Elem().Kind() {
 		case reflect.String:
 			s, ok := raw.(string)

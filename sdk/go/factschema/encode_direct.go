@@ -5,12 +5,6 @@ package factschema
 
 import "time"
 
-func addStringValue(payload map[string]any, key string, value string) {
-	if value != "" {
-		payload[key] = value
-	}
-}
-
 func addStringPtr(payload map[string]any, key string, value *string) {
 	if value != nil {
 		payload[key] = *value
