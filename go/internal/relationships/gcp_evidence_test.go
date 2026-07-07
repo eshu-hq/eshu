@@ -4,9 +4,11 @@
 package relationships
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestDiscoverGCPCloudRelationshipEvidenceFromCatalogAnchoredResourceReference(t *testing.T) {
@@ -191,6 +193,61 @@ func TestDiscoverGCPNonResolverFactsDoNotEmitRelationshipEvidence(t *testing.T) 
 	evidence := DiscoverEvidence(envelopes, catalog)
 	if len(evidence) != 0 {
 		t.Fatalf("len = %d, want 0 for non-resolver GCP facts: %#v", len(evidence), evidence)
+	}
+}
+
+func TestDiscoverGCPCloudRelationshipRejectsUnsupportedSchemaMajor(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind:      facts.GCPCloudRelationshipFactKind,
+			SchemaVersion: "2.0.0",
+			Payload: map[string]any{
+				"source_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/order-gateway",
+				"source_asset_type":         "run.googleapis.com/Service",
+				"relationship_type":         "run_service_uses_secret",
+				"target_full_resource_name": "//secretmanager.googleapis.com/projects/demo/secrets/payments-service",
+				"target_asset_type":         "secretmanager.googleapis.com/Secret",
+				"support_state":             "supported",
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-orders", Aliases: []string{"order-gateway"}},
+		{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) != 0 {
+		t.Fatalf("len = %d, want 0 for unsupported schema major: %#v", len(evidence), evidence)
+	}
+}
+
+func TestDecodeGCPCloudRelationshipClassifiesMissingRequiredField(t *testing.T) {
+	t.Parallel()
+
+	_, err := decodeGCPCloudRelationship(relationshipDecodeInput{
+		FactID:        "fact-missing-source",
+		SchemaVersion: facts.GCPCloudRelationshipSchemaVersion,
+		Payload: map[string]any{
+			"relationship_type":         "run_service_uses_secret",
+			"target_full_resource_name": "//secretmanager.googleapis.com/projects/demo/secrets/payments-service",
+			"support_state":             "supported",
+		},
+	})
+	if err == nil {
+		t.Fatal("decodeGCPCloudRelationship error = nil, want input_invalid")
+	}
+	var relationshipErr *relationshipDecodeError
+	if !errors.As(err, &relationshipErr) {
+		t.Fatalf("decodeGCPCloudRelationship error = %T, want *relationshipDecodeError", err)
+	}
+	if relationshipErr.Classification != factschema.ClassificationInputInvalid {
+		t.Fatalf("classification = %q, want %q", relationshipErr.Classification, factschema.ClassificationInputInvalid)
+	}
+	if relationshipErr.Field != "source_full_resource_name" {
+		t.Fatalf("field = %q, want source_full_resource_name", relationshipErr.Field)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // CatalogEntry maps one repository to its known aliases for matching.
@@ -69,10 +70,16 @@ func discoverFromEnvelopeWithIndex(
 		return discoverGCPCloudRelationshipEvidence(envelope, matcher, seen)
 	}
 
-	artifactType, _ := envelope.Payload["artifact_type"].(string)
-	parsedFileData, _ := envelope.Payload["parsed_file_data"].(map[string]any)
-	sourceRepoID, filePath, content := envelopeContentIdentity(envelope)
-	commitSHA := envelopeCommitSHA(envelope.Payload)
+	filePayload, ok := evidenceFilePayloadFromEnvelope(envelope)
+	if !ok {
+		return nil
+	}
+	artifactType := filePayload.artifactType
+	parsedFileData := filePayload.parsedFileData
+	sourceRepoID := filePayload.sourceRepoID
+	filePath := filePayload.filePath
+	content := filePayload.content
+	commitSHA := filePayload.commitSHA
 
 	if filePath == "" {
 		return nil
@@ -154,6 +161,54 @@ func discoverFromEnvelopeWithIndex(
 	}
 
 	return evidence
+}
+
+type evidenceFilePayload struct {
+	sourceRepoID   string
+	filePath       string
+	content        string
+	artifactType   string
+	commitSHA      string
+	parsedFileData map[string]any
+}
+
+func evidenceFilePayloadFromEnvelope(envelope facts.Envelope) (evidenceFilePayload, bool) {
+	content := envelopeContentBody(envelope.Payload)
+	artifactType, _ := envelope.Payload["artifact_type"].(string)
+	commitSHA := envelopeCommitSHA(envelope.Payload)
+
+	if envelope.FactKind != factschema.FactKindCodegraphFile {
+		repoID, filePath, legacyContent := legacyEnvelopeContentIdentity(envelope)
+		parsedFileData, _ := envelope.Payload["parsed_file_data"].(map[string]any)
+		return evidenceFilePayload{
+			sourceRepoID:   repoID,
+			filePath:       filePath,
+			content:        legacyContent,
+			artifactType:   artifactType,
+			commitSHA:      commitSHA,
+			parsedFileData: parsedFileData,
+		}, true
+	}
+
+	file, err := decodeCodegraphFileEnvelope(envelope)
+	if err != nil {
+		return evidenceFilePayload{}, false
+	}
+	return evidenceFilePayload{
+		sourceRepoID:   sourceRepositoryIDFromDecodedFile(envelope, file.RepoID),
+		filePath:       strings.TrimSpace(file.RelativePath),
+		content:        content,
+		artifactType:   artifactType,
+		commitSHA:      commitSHA,
+		parsedFileData: file.ParsedFileData,
+	}, true
+}
+
+func sourceRepositoryIDFromDecodedFile(envelope facts.Envelope, repoID string) string {
+	if trimmed := strings.TrimSpace(repoID); trimmed != "" {
+		return trimmed
+	}
+	return normalizeRepositoryIdentifier(envelope.ScopeID)
 }
 
 func sourceRepositoryIDFromEnvelope(envelope facts.Envelope) string {

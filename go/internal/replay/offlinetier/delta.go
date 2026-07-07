@@ -81,9 +81,11 @@ func DeltaMaterializationFromGenerations(
 	var tombstonedDirPaths []string
 	for _, env := range gen2Envs {
 		if env.IsTombstone && env.FactKind == factKindDirectory {
-			if p, ok := env.Payload["path"].(string); ok && p != "" {
-				tombstonedDirPaths = append(tombstonedDirPaths, p)
+			path, err := tombstonedDirectoryPathFromPayload(env.Payload)
+			if err != nil {
+				return DeltaMaterialization{}, fmt.Errorf("gen2 tombstone %s: %w", env.FactKind, err)
 			}
+			tombstonedDirPaths = append(tombstonedDirPaths, path)
 		}
 	}
 
@@ -141,4 +143,8 @@ func drainGeneration(gen collector.CollectedGeneration) ([]facts.Envelope, error
 		}
 	}
 	return envs, nil
+}
+
+func tombstonedDirectoryPathFromPayload(payload map[string]any) (string, error) {
+	return requireString(payload, "path")
 }

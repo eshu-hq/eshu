@@ -32,8 +32,16 @@ func buildEvidenceContentIndex(envelopes []facts.Envelope) evidenceContentIndex 
 }
 
 func envelopeContentIdentity(envelope facts.Envelope) (string, string, string) {
+	filePayload, ok := evidenceFilePayloadFromEnvelope(envelope)
+	if !ok {
+		return "", "", ""
+	}
+	return filePayload.sourceRepoID, filePayload.filePath, filePayload.content
+}
+
+func legacyEnvelopeContentIdentity(envelope facts.Envelope) (string, string, string) {
 	filePath, _ := envelope.Payload["relative_path"].(string)
-	content, _ := envelope.Payload["content"].(string)
+	content := envelopeContentBody(envelope.Payload)
 
 	// The Go collector emits content_path/content_body while some tests and
 	// older facts use relative_path/content. Support both payload shapes.
@@ -45,4 +53,12 @@ func envelopeContentIdentity(envelope facts.Envelope) (string, string, string) {
 	}
 
 	return sourceRepositoryIDFromEnvelope(envelope), filePath, content
+}
+
+func envelopeContentBody(payload map[string]any) string {
+	content, _ := payload["content"].(string)
+	if content == "" {
+		content, _ = payload["content_body"].(string)
+	}
+	return content
 }

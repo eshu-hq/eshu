@@ -22,10 +22,14 @@ func discoverGCPCloudRelationshipEvidence(
 	if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
 		return nil
 	}
-	sourceName := strings.TrimSpace(payloadString(envelope.Payload, "source_full_resource_name"))
-	targetName := strings.TrimSpace(payloadString(envelope.Payload, "target_full_resource_name"))
-	relationshipType := strings.TrimSpace(payloadString(envelope.Payload, "relationship_type"))
-	supportState := gcpRelationshipSupportState(envelope)
+	relationship, err := decodeGCPCloudRelationshipEnvelope(envelope)
+	if err != nil {
+		return nil
+	}
+	sourceName := strings.TrimSpace(relationship.SourceFullResourceName)
+	targetName := strings.TrimSpace(relationship.TargetFullResourceName)
+	relationshipType := strings.TrimSpace(relationship.RelationshipType)
+	supportState := gcpRelationshipSupportState(relationship.SupportState)
 	if sourceName == "" || targetName == "" || relationshipType == "" {
 		return nil
 	}
@@ -46,10 +50,10 @@ func discoverGCPCloudRelationshipEvidence(
 		"gcp_fact_kind":         facts.GCPCloudRelationshipFactKind,
 		"gcp_relationship_type": relationshipType,
 		"gcp_support_state":     supportState,
-		"source_asset_type":     strings.TrimSpace(payloadString(envelope.Payload, "source_asset_type")),
+		"source_asset_type":     gcpRelationshipOptionalString(relationship.SourceAssetType),
 		"source_matched_alias":  sourceMatch.alias,
 		"source_matched_value":  sourceName,
-		"target_asset_type":     strings.TrimSpace(payloadString(envelope.Payload, "target_asset_type")),
+		"target_asset_type":     gcpRelationshipOptionalString(relationship.TargetAssetType),
 	}
 	if envelope.StableFactKey != "" {
 		details["source_fact_key"] = envelope.StableFactKey
@@ -111,13 +115,17 @@ func ResolveGCPRelationshipRepoLinks(
 		if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
 			continue
 		}
-		sourceName := strings.TrimSpace(payloadString(envelope.Payload, "source_full_resource_name"))
-		targetName := strings.TrimSpace(payloadString(envelope.Payload, "target_full_resource_name"))
-		relationshipType := strings.TrimSpace(payloadString(envelope.Payload, "relationship_type"))
+		relationship, err := decodeGCPCloudRelationshipEnvelope(envelope)
+		if err != nil {
+			continue
+		}
+		sourceName := strings.TrimSpace(relationship.SourceFullResourceName)
+		targetName := strings.TrimSpace(relationship.TargetFullResourceName)
+		relationshipType := strings.TrimSpace(relationship.RelationshipType)
 		if sourceName == "" || targetName == "" || relationshipType == "" {
 			continue
 		}
-		if gcpRelationshipSupportState(envelope) != gcpRelationshipSupported {
+		if gcpRelationshipSupportState(relationship.SupportState) != gcpRelationshipSupported {
 			continue
 		}
 		sourceMatch, ok := uniqueGCPResourceCatalogMatch(sourceName, "", matcher)
@@ -146,12 +154,16 @@ func hasSupportedGCPRelationshipFact(envelopes []facts.Envelope) bool {
 		if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
 			continue
 		}
-		if gcpRelationshipSupportState(envelope) != gcpRelationshipSupported {
+		relationship, err := decodeGCPCloudRelationshipEnvelope(envelope)
+		if err != nil {
 			continue
 		}
-		if strings.TrimSpace(payloadString(envelope.Payload, "source_full_resource_name")) == "" ||
-			strings.TrimSpace(payloadString(envelope.Payload, "target_full_resource_name")) == "" ||
-			strings.TrimSpace(payloadString(envelope.Payload, "relationship_type")) == "" {
+		if gcpRelationshipSupportState(relationship.SupportState) != gcpRelationshipSupported {
+			continue
+		}
+		if strings.TrimSpace(relationship.SourceFullResourceName) == "" ||
+			strings.TrimSpace(relationship.TargetFullResourceName) == "" ||
+			strings.TrimSpace(relationship.RelationshipType) == "" {
 			continue
 		}
 		return true
@@ -159,8 +171,15 @@ func hasSupportedGCPRelationshipFact(envelopes []facts.Envelope) bool {
 	return false
 }
 
-func gcpRelationshipSupportState(envelope facts.Envelope) string {
-	return strings.TrimSpace(payloadString(envelope.Payload, "support_state"))
+func gcpRelationshipSupportState(value *string) string {
+	return gcpRelationshipOptionalString(value)
+}
+
+func gcpRelationshipOptionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 func uniqueGCPResourceCatalogMatch(

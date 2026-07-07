@@ -171,6 +171,12 @@ Guardrails:
 - Parse-only behavior is not supported query behavior. Parser evidence can feed
   relationships, but the relationship remains unsupported until resolver,
   materializer, and query/story proof exist.
+- Fact-backed relationship evidence must decode typed source envelopes before
+  reading identity fields. For `file` facts, decode the outer codegraph payload
+  first and keep `parsed_file_data` inner buckets open until their own typed
+  accessor exists; for provider relationship facts, reject unsupported schema
+  majors or missing required identity fields instead of treating zero values as
+  evidence.
 - Dynamic imports, plugin loading, reflection, generated code, framework roots,
   and provider-specific conventions need exact fixtures before they can admit a
   relationship.
