@@ -188,12 +188,41 @@ func OpenPostgres(ctx context.Context, getenv func(string) string) (*sql.DB, err
 
 	pingCtx, cancel := context.WithTimeout(ctx, cfg.PingTimeout)
 	defer cancel()
-	if err := db.PingContext(pingCtx); err != nil {
+	if err := pingWithRetry(pingCtx, db.PingContext, postgresPingBackoff, postgresPingPerAttemptTimeout); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
 	return db, nil
+}
+
+const (
+	postgresPingBackoff           = 250 * time.Millisecond
+	postgresPingPerAttemptTimeout = 2 * time.Second
+)
+
+// pingWithRetry calls ping repeatedly until it succeeds or ctx expires, so a
+// transient startup failure does not kill the process. A single ping is fragile
+// against a Postgres that has already passed pg_isready but is still finishing
+// startup: the first host TCP/TLS connection then surfaces a "connection reset
+// by peer"/EOF that a retry a few hundred ms later clears. Each attempt is
+// bounded by the smaller of perAttempt and the remaining ctx budget; when ctx
+// expires the last error is returned so a genuinely-unreachable Postgres still
+// fails within the overall ping-timeout budget.
+func pingWithRetry(ctx context.Context, ping func(context.Context) error, backoff, perAttempt time.Duration) error {
+	for {
+		attemptCtx, cancel := context.WithTimeout(ctx, perAttempt)
+		err := ping(attemptCtx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(backoff):
+		}
+	}
 }
 
 // LoadNeo4jConfig reads the shared Neo4j config from env.
