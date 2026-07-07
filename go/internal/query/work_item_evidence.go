@@ -40,17 +40,6 @@ const (
 	WorkItemEvidenceStateRejectedUnsafePayload = "rejected_unsafe_payload"
 )
 
-var workItemEvidenceFactKinds = []string{
-	"work_item.record",
-	"work_item.transition",
-	"work_item.external_link",
-	"work_item.project_metadata",
-	"work_item.status_metadata",
-	"work_item.workflow_metadata",
-	"work_item.field_metadata",
-	"work_item.coverage_warning",
-}
-
 // WorkItemEvidenceStore reads bounded Jira/work-item source facts.
 type WorkItemEvidenceStore interface {
 	ListWorkItemEvidence(context.Context, WorkItemEvidenceFilter) (WorkItemEvidencePage, error)
@@ -282,6 +271,17 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		base.Provider = metadata.Provider
 		base.ProjectID = workItemDerefString(metadata.ProjectID)
 		base.ProjectKey = workItemDerefString(metadata.ProjectKey)
+		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
+
+	case "work_item.issue_type_metadata":
+		metadata, err := decodeWorkItemIssueTypeMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		if err != nil {
+			logWorkItemEvidenceDecodeDrop(err)
+			return WorkItemEvidenceRow{}, false
+		}
+		base.Provider = metadata.Provider
+		base.ProjectID = workItemDerefString(metadata.ProjectID)
+		base.IssueTypeID = metadata.IssueTypeID
 		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.status_metadata":

@@ -11,8 +11,6 @@ import (
 
 func (s PostgresIncidentContextStore) readIncidentReviewWorkItemEvidence(
 	ctx context.Context,
-	incident IncidentContextIncident,
-	changes []IncidentContextChangeCandidate,
 	evidence []IncidentContextEvidenceEdge,
 ) ([]IncidentContextEvidenceEdge, error) {
 	commitSHA := incidentSelectedCommitSHA(evidence)
@@ -20,11 +18,6 @@ func (s PostgresIncidentContextStore) readIncidentReviewWorkItemEvidence(
 		return nil, nil
 	}
 	pullRequests, err := s.readIncidentPullRequestsByCommit(ctx, commitSHA)
-	if err != nil {
-		return nil, err
-	}
-	urls := incidentReviewWorkItemURLs(incident, changes, pullRequests)
-	workItemLinks, err := s.readIncidentWorkItemLinksByURLs(ctx, urls)
 	if err != nil {
 		return nil, err
 	}
@@ -43,9 +36,7 @@ func (s PostgresIncidentContextStore) readIncidentReviewWorkItemEvidence(
 	}
 	return buildIncidentReviewWorkItemEvidence(incidentReviewWorkItemInput{
 		CommitSHA:       commitSHA,
-		IncidentURL:     incident.SourceURL,
 		PullRequests:    pullRequests,
-		WorkItemLinks:   workItemLinks,
 		WorkItems:       workItems,
 		ProjectMetadata: projectMetadata,
 		StatusMetadata:  statusMetadata,
@@ -101,32 +92,6 @@ func (s PostgresIncidentContextStore) readIncidentPullRequestsByCommit(
 		return nil, fmt.Errorf("scan incident pull requests: %w", err)
 	}
 	return pullRequests, nil
-}
-
-func (s PostgresIncidentContextStore) readIncidentWorkItemLinksByURLs(
-	ctx context.Context,
-	urls []string,
-) ([]incidentWorkItemExternalLink, error) {
-	links := make([]incidentWorkItemExternalLink, 0)
-	for _, linkURL := range urls {
-		rows, err := s.queryIncidentContextRows(
-			ctx,
-			listIncidentWorkItemExternalLinksByURLQuery,
-			linkURL,
-			incidentRuntimeEvidenceLimit+1,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list incident work item external links: %w", err)
-		}
-		for _, row := range rows {
-			link, ok := decodeIncidentWorkItemExternalLink(row)
-			if !ok {
-				continue
-			}
-			links = append(links, link)
-		}
-	}
-	return links, nil
 }
 
 func (s PostgresIncidentContextStore) readIncidentWorkItemsByKeys(
@@ -225,26 +190,6 @@ func incidentWorkItemStatusIDs(records []incidentWorkItemRecord) []string {
 	return ids
 }
 
-func incidentReviewWorkItemURLs(
-	incident IncidentContextIncident,
-	changes []IncidentContextChangeCandidate,
-	pullRequests []incidentPullRequestEvidence,
-) []string {
-	urls := make([]string, 0, 1+len(changes)+len(pullRequests))
-	urls = appendIncidentReviewURL(urls, incident.SourceURL)
-	for _, pullRequest := range pullRequests {
-		urls = appendIncidentReviewURL(urls, pullRequest.URL)
-	}
-	for _, change := range changes {
-		for _, link := range change.Links {
-			if incidentIsGitHubPullRequestURL(link.Href) {
-				urls = appendIncidentReviewURL(urls, link.Href)
-			}
-		}
-	}
-	return urls
-}
-
 func incidentReviewIssueKeys(
 	pullRequests []incidentPullRequestEvidence,
 ) []string {
@@ -255,19 +200,6 @@ func incidentReviewIssueKeys(
 		}
 	}
 	return keys
-}
-
-func appendIncidentReviewURL(urls []string, value string) []string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return urls
-	}
-	for _, existing := range urls {
-		if existing == value {
-			return urls
-		}
-	}
-	return append(urls, value)
 }
 
 func appendIncidentIssueKey(keys []string, value string) []string {
@@ -285,36 +217,6 @@ func appendIncidentReviewDistinct(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
-}
-
-// decodeIncidentWorkItemExternalLink decodes one work_item.external_link fact
-// row through the typed sdk/go/factschema/workitem/v1 seam. ok is false when
-// the fact failed decode (only "provider" is required for this kind, so this
-// rarely fires; see workitem/v1/README.md) — the caller drops the fact from
-// the incident-review evidence list rather than emitting an empty-identity
-// row.
-//
-// URL is read from the raw "url" payload key, which the Jira collector always
-// emits but redacts to the empty string (the key is present, never a raw URL;
-// only "url_fingerprint" and "url_present" carry link identity — see the Wave
-// 4d out-of-scope note), so it derefs the typed struct's field of the same name
-// and is byte-identical to the pre-typing StringVal("") result: always empty.
-func decodeIncidentWorkItemExternalLink(row incidentContextFactRow) (incidentWorkItemExternalLink, bool) {
-	link, err := decodeWorkItemExternalLink(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
-	if err != nil {
-		logWorkItemEvidenceDecodeDrop(err)
-		return incidentWorkItemExternalLink{}, false
-	}
-	return incidentWorkItemExternalLink{
-		FactID:      row.FactID,
-		Provider:    link.Provider,
-		WorkItemID:  workItemDerefString(link.ProviderWorkItemID),
-		WorkItemKey: workItemDerefString(link.WorkItemKey),
-		URL:         workItemDerefString(link.URL),
-		Title:       workItemDerefString(link.Title),
-		AnchorClass: workItemDerefString(link.AnchorClass),
-		SourceURL:   row.SourceURI,
-	}, true
 }
 
 // decodeIncidentWorkItemRecord decodes one work_item.record fact row through

@@ -173,12 +173,16 @@ func decodeWorkItemProjectMetadata(in workItemDecodeInput) (workitemv1.WorkItemP
 	return metadata, nil
 }
 
-// work_item.issue_type_metadata is typed in the contracts module
-// (factschema.DecodeWorkItemIssueTypeMetadata + workitem/v1) but the evidence
-// read model does not consume it today, so there is no query-side decode
-// wrapper for it here — mapping one would assert a manifest-gate contract for
-// a kind no read path decodes. Its read-surface absence is tracked as a
-// follow-up (see the PR body).
+// decodeWorkItemIssueTypeMetadata decodes one work_item.issue_type_metadata
+// fact row into the typed struct. A missing required field (provider,
+// issue_type_id) yields a self-classifying *queryDecodeError.
+func decodeWorkItemIssueTypeMetadata(in workItemDecodeInput) (workitemv1.WorkItemIssueTypeMetadata, error) {
+	metadata, err := factschema.DecodeWorkItemIssueTypeMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemIssueTypeMetadata, in.SchemaVersion, in.Payload))
+	if err != nil {
+		return workitemv1.WorkItemIssueTypeMetadata{}, newQueryDecodeError(factschema.FactKindWorkItemIssueTypeMetadata, in.FactID, err)
+	}
+	return metadata, nil
+}
 
 // decodeWorkItemStatusMetadata decodes one work_item.status_metadata fact row
 // into the typed struct. A missing required field (status_id) yields a

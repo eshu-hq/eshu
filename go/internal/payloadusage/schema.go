@@ -183,14 +183,15 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// the contracts module but the read model does not consume it, so it has no
 	// query wrapper and no mapping here (mapping it would assert a gate contract
 	// for a kind no read path decodes).
-	"FactKindWorkItemRecord":           "work_item.record.v1.schema.json",
-	"FactKindWorkItemTransition":       "work_item.transition.v1.schema.json",
-	"FactKindWorkItemExternalLink":     "work_item.external_link.v1.schema.json",
-	"FactKindWorkItemProjectMetadata":  "work_item.project_metadata.v1.schema.json",
-	"FactKindWorkItemStatusMetadata":   "work_item.status_metadata.v1.schema.json",
-	"FactKindWorkItemWorkflowMetadata": "work_item.workflow_metadata.v1.schema.json",
-	"FactKindWorkItemFieldMetadata":    "work_item.field_metadata.v1.schema.json",
-	"FactKindWorkItemMetadataWarning":  "work_item.metadata_warning.v1.schema.json",
+	"FactKindWorkItemRecord":            "work_item.record.v1.schema.json",
+	"FactKindWorkItemTransition":        "work_item.transition.v1.schema.json",
+	"FactKindWorkItemExternalLink":      "work_item.external_link.v1.schema.json",
+	"FactKindWorkItemProjectMetadata":   "work_item.project_metadata.v1.schema.json",
+	"FactKindWorkItemIssueTypeMetadata": "work_item.issue_type_metadata.v1.schema.json",
+	"FactKindWorkItemStatusMetadata":    "work_item.status_metadata.v1.schema.json",
+	"FactKindWorkItemWorkflowMetadata":  "work_item.workflow_metadata.v1.schema.json",
+	"FactKindWorkItemFieldMetadata":     "work_item.field_metadata.v1.schema.json",
+	"FactKindWorkItemMetadataWarning":   "work_item.metadata_warning.v1.schema.json",
 	// security_alert family (Wave 4e): the single repository_alert kind a
 	// reducer decode seam wrapper actually decodes
 	// (go/internal/reducer/factschema_decode_securityalert.go). Its one decode

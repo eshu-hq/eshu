@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -244,6 +246,92 @@ func TestPostgresWorkItemEvidenceStoreRejectsUnboundedFilter(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "scope_id, project_key, work_item_key, provider_work_item_id, url_fingerprint, or observed_after is required") {
 		t.Fatalf("error = %q, want scope requirement", err.Error())
+	}
+}
+
+func TestWorkItemEvidenceFactKindsMatchRegistrySet(t *testing.T) {
+	t.Parallel()
+
+	// The evidence read surface bounds its SQL read to the work_item family the
+	// fact-kind registry maps to GET /api/v0/work-items/evidence, MINUS
+	// work_item.metadata_warning (deferred to #4887; WorkItemEvidenceRow has no
+	// metadata_type/reason field, so surfacing it would strip its contract).
+	// facts.WorkItemFactKinds() is the single source of truth for the family, so
+	// asserting the read set equals it minus that one kind means a future family
+	// addition trips this guard instead of silently drifting.
+	want := make([]string, 0)
+	for _, kind := range facts.WorkItemFactKinds() {
+		if kind == facts.WorkItemMetadataWarningFactKind {
+			continue
+		}
+		want = append(want, kind)
+	}
+	got := slices.Clone(workItemEvidenceFactKinds)
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("workItemEvidenceFactKinds = %v, want facts.WorkItemFactKinds() minus metadata_warning = %v", got, want)
+	}
+	if slices.Contains(got, "work_item.coverage_warning") {
+		t.Fatal("workItemEvidenceFactKinds still lists the phantom work_item.coverage_warning (no emitter, no registry row)")
+	}
+	if !slices.Contains(got, "work_item.issue_type_metadata") {
+		t.Fatal("workItemEvidenceFactKinds missing registered read-surface kind \"work_item.issue_type_metadata\"")
+	}
+	if slices.Contains(got, facts.WorkItemMetadataWarningFactKind) {
+		t.Fatal("workItemEvidenceFactKinds must exclude work_item.metadata_warning until #4887 surfaces it with metadata_type/reason")
+	}
+}
+
+func TestWorkItemEvidenceSurfacesIssueTypeAndExcludesMetadataWarning(t *testing.T) {
+	t.Parallel()
+
+	// issue_type_metadata is on the read surface and must decode into an
+	// evidence row (carrying the provider issue-type id and its project scope)
+	// rather than being dropped at the switch default.
+	rows := buildWorkItemEvidenceRows([]workItemEvidenceFactRow{
+		{
+			FactID:           "issue-type",
+			FactKind:         "work_item.issue_type_metadata",
+			ScopeID:          "jira:site:example",
+			GenerationID:     "generation-1",
+			SchemaVersion:    facts.WorkItemSchemaVersionV1,
+			SourceConfidence: "reported",
+			ObservedAt:       "2026-06-01T12:00:00Z",
+			Payload: map[string]any{
+				"provider":                 "jira_cloud",
+				"issue_type_id":            "10001",
+				"project_id":               "10000",
+				"redaction_policy_version": "jira_work_item_v1",
+			},
+		},
+	})
+
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1 (issue_type_metadata surfaced, not dropped)", len(rows))
+	}
+	issueType := rows[0]
+	if issueType.FactKind != "work_item.issue_type_metadata" {
+		t.Fatalf("rows[0].FactKind = %q, want work_item.issue_type_metadata", issueType.FactKind)
+	}
+	if issueType.Provider != "jira_cloud" {
+		t.Fatalf("issue_type_metadata Provider = %q, want jira_cloud", issueType.Provider)
+	}
+	if issueType.IssueTypeID != "10001" {
+		t.Fatalf("issue_type_metadata IssueTypeID = %q, want 10001", issueType.IssueTypeID)
+	}
+	if issueType.ProjectID != "10000" {
+		t.Fatalf("issue_type_metadata ProjectID = %q, want 10000", issueType.ProjectID)
+	}
+
+	// metadata_warning is deliberately NOT on the read surface: the read set
+	// bounds the SQL query, and WorkItemEvidenceRow has no metadata_type/reason
+	// field, so a warning must not present as an ordinary provider fact. The
+	// SQL therefore never selects it and it never reaches the row builder. This
+	// assertion fails if metadata_warning is added back to the read set before
+	// #4887 gives WorkItemEvidenceRow the warning's contract fields.
+	if slices.Contains(workItemEvidenceFactKinds, facts.WorkItemMetadataWarningFactKind) {
+		t.Fatalf("read set must exclude %s until #4887; including it would surface a warning as an exact_provider_fact with no metadata_type/reason", facts.WorkItemMetadataWarningFactKind)
 	}
 }
 

@@ -122,7 +122,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
-	reviewEvidence, err := s.readIncidentReviewWorkItemEvidence(ctx, incident, changes, runtimeEvidence)
+	reviewEvidence, err := s.readIncidentReviewWorkItemEvidence(ctx, runtimeEvidence)
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
