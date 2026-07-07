@@ -49,7 +49,7 @@ func TestEshuSearchVectorPendingStoreListsScopes(t *testing.T) {
 		"scope.scope_kind = 'repository'",
 		"fact.fact_kind = $1",
 		"fact.is_tombstone = FALSE",
-		"fact.payload->'document'->>'id' AS document_id",
+		"fact.payload->>'document_id' AS document_id",
 		"fact.payload->>'content_hash' AS content_hash",
 		// NOT EXISTS correlated subquery shape (#4233 rewrite)
 		"WHERE NOT EXISTS",
@@ -72,6 +72,16 @@ func TestEshuSearchVectorPendingStoreListsScopes(t *testing.T) {
 		if !strings.Contains(q, fragment) {
 			t.Errorf("query missing %q:\n%s", fragment, q)
 		}
+	}
+	// #4885 regression: the pending lister MUST read the top-level
+	// payload->>'document_id' key the writer emits, NOT the nested
+	// payload->'document'->>'id'. searchdocs.Document has no JSON tags, so its
+	// ID field marshals as the capitalized key "ID"; reading lowercase 'id'
+	// from the nested document object yields NULL, which makes the terminal
+	// metadata NOT EXISTS join never match and returns every active scope as
+	// pending on every sweep forever.
+	if strings.Contains(q, "payload->'document'->>'id'") {
+		t.Errorf("query reads the NULL-yielding nested document.id key (#4885); it must read payload->>'document_id':\n%s", q)
 	}
 	if got, want := db.queries[0].args[0], EshuSearchDocumentFactKind; got != want {
 		t.Errorf("fact kind arg = %v, want %v", got, want)

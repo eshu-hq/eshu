@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -153,6 +154,55 @@ func TestSearchVectorBuildRunnerSumsPhaseDurationsAcrossScopes(t *testing.T) {
 	require.Equal(t, 27*time.Millisecond, result.EmbedBuildDuration)
 	require.Equal(t, 39*time.Millisecond, result.WriteUpsertDuration)
 	require.GreaterOrEqual(t, result.SchedulingWaitDuration, time.Duration(0))
+}
+
+// TestSearchVectorBuildRunnerBacksOffOnNoProgressSweep proves that a sweep
+// which selects pending scopes but produces zero durable output (no documents,
+// no vectors, no disabled rows) applies the poll-interval backoff instead of
+// immediately re-looping. Without the backoff the runner hot-loops on a
+// never-draining pending set (#4885), pinning Postgres with useless query load.
+func TestSearchVectorBuildRunnerBacksOffOnNoProgressSweep(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// The lister always reports the same scope as pending (both the initial
+	// listing and the post-build re-check), so the sweep never "catches up" —
+	// exactly the never-draining condition that caused the hot loop.
+	scope := SearchVectorBuildPendingScope{ScopeID: "scope-a", GenerationID: "gen-a", RepoID: "repo-a"}
+	pending := &fakeSearchVectorPendingLister{
+		scopes:          []SearchVectorBuildPendingScope{scope},
+		postBuildScopes: []SearchVectorBuildPendingScope{scope},
+	}
+	// Every build reports zero durable output — no documents, no vectors, no
+	// disabled rows, and no error — so nothing changes between sweeps.
+	builder := &fakeSearchVectorBuilder{results: []SearchVectorBuildResult{{}}}
+
+	var waitCalls int32
+	runner := &SearchVectorBuildRunner{
+		Pending: pending,
+		Builder: builder,
+		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
+			EmbeddingModelID:   "local-hash-v1",
+			VectorIndexVersion: "vector-v1",
+		},
+		Wait: func(ctx context.Context, _ time.Duration) error {
+			atomic.AddInt32(&waitCalls, 1)
+			cancel() // stop the loop after the first backoff
+			return ctx.Err()
+		},
+	}
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	// The runner must back off exactly once (not hot-loop) and must have run
+	// exactly one no-progress sweep before backing off.
+	require.Equal(t, int32(1), atomic.LoadInt32(&waitCalls), "no-progress sweep must apply the poll-interval backoff")
+	require.Equal(t, 1, builder.callCount(), "runner must not hot-loop on a no-progress pending set")
 }
 
 func TestSearchVectorBuildRunnerValidation(t *testing.T) {

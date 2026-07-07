@@ -1998,3 +1998,79 @@ workload-signal confidence values are identical; docker-compose files now carry
 the `docker_compose_runtime` provenance they always should have, off the same
 `SignalDockerComposeRuntime` confidence. Only which `parsed_file_data` key is
 read changed, not the emitted signal shape or any telemetry surface.
+
+## #4885 — search-vector build sweep hot-loop fix (evidence)
+
+Two coupled defects made the reducer's search-vector build sweep hot-loop
+forever (~every 2.7s), pinning ~2 Postgres cores 24/7 with zero useful output
+on a drained full-corpus stack.
+
+Defect B (root cause): the pending lister derived the document id via
+`fact.payload->'document'->>'id'`, but `searchdocs.Document` has no JSON tags,
+so its `ID` field marshals as the capitalized key `"ID"` and the lowercase
+nested read returned NULL. The terminal-metadata `NOT EXISTS` join then never
+matched, so every active repository scope was returned as pending on every
+sweep regardless of whether its vectors were already built. Fixed by reading
+the top-level `payload->>'document_id'` key the writer already emits
+(`eshuSearchDocumentPayload`, `eshu_search_document_writer.go:427`).
+
+Defect A (defense-in-depth): `SearchVectorBuildRunner.Run` only backed off when
+`PendingScopes==0`; a sweep with pending scopes but no durable output re-looped
+immediately. Now a no-progress sweep (`DocumentCount==0 && VectorCount==0 &&
+DisabledCount==0`) applies the poll-interval backoff.
+
+Performance Evidence: backend Postgres 18-alpine (local Compose, `:15432`),
+Eshu at origin/main 508f8e964. The behavior regression
+`TestEshuSearchVectorPendingBoundedPlanLive` (`go test
+./internal/storage/postgres
+-run TestEshuSearchVectorPendingBoundedPlanLive -count=1` with
+`ESHU_SEARCH_VECTOR_PENDING_PLAN_LIVE=1` + `ESHU_POSTGRES_DSN`) FAILS on the
+old nested-key SQL ("scopeB (all-ready) returned; expected excluded" — the
+perpetual-pending bug) and PASSES on the fixed top-level-key SQL. Input shape:
+scope A (mixed pending/ready docs, cases 1-7), scope B (all `ready`+`disabled`,
+must be excluded), scope C (duplicate document_id dedup); the payload is seeded
+in the production shape (`{"document_id":…,"document":{"ID":…},…}`).
+`EXPLAIN (ANALYZE, BUFFERS)` on the fixed query shows a bounded Nested-Loop
+Anti-Join over `eshu_search_vector_metadata` (Execution Time 0.128 ms, no
+top-level Unique/Sort over the metadata table). Before: the sweep never drained
+and hot-looped (~2 Postgres cores, 24/7); after: an all-built scope leaves the
+pending set so the sweep reaches zero pending and rests on the 30s poll.
+No-Regression Evidence: `TestSearchVectorBuildRunnerBacksOffOnNoProgressSweep`
+(`go test ./internal/reducer -run SearchVector -count=1`) FAILS before the
+backoff (0 Wait calls, hot-loops the full 2s ctx) and PASSES after (exactly 1
+Wait call, exactly 1 build before backoff). The shape guard
+`TestEshuSearchVectorPendingStoreListsScopes` locks the SQL to
+`payload->>'document_id'` and rejects the NULL-yielding nested key in CI.
+
+Observability Evidence: no new metric instrument. The stall is diagnosable via
+the existing `eshu_dp_search_vector_build_phase_seconds` histogram, the existing
+"search vector build sweep completed" completion log (non-zero `pending_scopes`
+with zero `document_count`/`vector_count` is the telltale), and a new WARN
+structured log "search vector build sweep made no progress; backing off"
+(`stall_reason=no_durable_output`). The sweep logging/metric emitters moved to
+`search_vector_build_runner_log.go` for the 500-line cap; that stage file is
+covered in `docs/public/observability/telemetry-coverage.md`.
+
+Live-corpus confirmation (drained `e2e3586persist` full-corpus stack, 831 active
+search-document scopes over 2,595,922 facts): the OLD `payload->'document'->>'id'`
+key produced 0 non-NULL document_ids out of 2,595,922 (the nested `id` is always
+NULL because `searchdocs.Document.ID` marshals as `"ID"`), so the pending query
+selected 831/831 scopes — 100% of active scopes, permanently, which is the
+never-draining set that pinned ~2 Postgres cores 24/7. The NEW
+`payload->>'document_id'` key produced 2,595,922 non-NULL document_ids and the
+pending query selected 556 scopes: the 275 fully-built scopes correctly drop out
+and the remaining 556 are genuinely unbuilt work that leaves the set as it
+builds, so the sweep reaches `pending=0` and rests on the 30s poll.
+
+Remote runtime proof (`eshu-remote-validation`, live `e2e3586persist` stack):
+a musl-built fixed `eshu-reducer` was swapped into the running resolution-engine
+and compared against the shipped (buggy) binary. BEFORE: 9 sweeps/30s, each
+`document_count=0`/`vector_count=0` — the sweep looped on the already-built
+low-`scope_id` batch (`ORDER BY scope_id LIMIT 100`) the broken lister kept
+returning, so it never reached the genuine unbuilt backlog and built ZERO
+vectors while Postgres sat at 154-280%. AFTER: sweeps build ~30k vectors each
+(`document_count`/`vector_count` = 31276, 29370, 31032), no no-progress
+backoffs (real work exists), Postgres doing productive write work draining the
+backlog toward idle. So the fix is not only a spin fix — it restores
+search-vector building for the unbuilt scope backlog that the NULL join key had
+silently starved.
