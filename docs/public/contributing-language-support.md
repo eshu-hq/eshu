@@ -63,15 +63,26 @@ key would leak one package's config into a sibling package's files.
 
 `Engine.ParsePath` calls `inferContentMetadata` after every parse to populate
 `artifact_type`, `template_dialect`, and `iac_relevant`. That inference runs
-three regex scans (a Go template line-control scan, a Terraform
-`templatefile()` scan, and an internal re-scan inside root-family detection),
-costing roughly 7.5ms on a large PHP/JS file -- about 5% of `ParsePath` wall
-time across a full corpus (issue #4768). Most source files carry no
-IaC/template signal at all, so `shouldSkipContentMetadata`
-(`go/internal/parser/content_metadata_gate.go`) gates the call: it skips
-`inferContentMetadata` and uses the zero-value `contentMetadata{}` only when
-the file's extension, path segments, basename, and content contain none of the
-signals `inferContentMetadata`'s own predicates match on.
+several regex scans (a Go template line-control scan, a Terraform
+`templatefile()` scan, and the marker scans described below), costing roughly
+7.5ms on a large PHP/JS file -- about 5% of `ParsePath` wall time across a full
+corpus (issue #4768). Most source files carry no IaC/template signal at all,
+so `shouldSkipContentMetadata` (`go/internal/parser/content_metadata_gate.go`)
+gates the call: it skips `inferContentMetadata` and uses the zero-value
+`contentMetadata{}` only when the file's extension, path segments, basename,
+and content contain none of the signals `inferContentMetadata`'s own
+predicates match on.
+
+For a file this gate correctly declines to skip, `inferContentMetadata` used
+to call root-family detection (`inferRootFamily`), which internally
+re-scanned the same five marker regexes (Go-template expression, Jinja
+statement, and Terraform interpolation/directive/`templatefile()`) that
+`inferContentMetadata` itself scans again a few lines later -- pure
+duplicated work, since root-family detection has exactly one call site
+(issue #4805). The fix hoists those marker scans to run once and passes the
+results down via a small struct, preserving root-family detection's original
+unfiltered match semantics exactly (see `go/internal/parser/README.md#hoisted-marker-scan`
+for the full before/after proof).
 
 This gate does not simply skip "source-code languages." A `.py`, `.js`, or
 `.php` file living under an Ansible (`roles/`, `playbooks/`, `handlers/`,
