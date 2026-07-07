@@ -36,6 +36,13 @@
   `TestDeltaTombstoneGraphTruth`.
 - Cleanup MUST run before AND after the write (DETACH DELETE by repo identity)
   so re-runs are deterministic.
+- `materialization.go`'s cassette fact-kind mapping (`git.repository`,
+  `git.directory`, `git.file`, `git.gitlab_pipeline`, `git.gitlab_job`) reads
+  raw payloads by design and is EXEMPT from the `sdk/go/factschema` typed-decode
+  migration (epic #4783) and its future W3a raw-payload ratchet gate (#4800).
+  See [ADR #4866](../../../../docs/internal/design/4866-offlinetier-cassette-exemption.md).
+  Do not "fix" this by inventing typed structs or routing it through
+  `factschema.Decode*` without first reading that ADR.
 - The assertion MUST fail when the projection writes nothing (no false green).
   The depth-2 CONTAINS edge is the regression guard.
 - Do NOT touch `scripts/verify-golden-corpus-gate.sh`; the Compose B-7 gate
