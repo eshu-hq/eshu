@@ -152,7 +152,7 @@ func run(parent context.Context, opts launchOptions) error {
 	service, err := app.NewHostedWithStatusServer(
 		runtimeName,
 		runner,
-		postgres.NewStatusStore(postgres.SQLQueryer{DB: db}),
+		postgres.NewInstrumentedStatusStore(postgres.SQLQueryer{DB: db}, instruments),
 		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),
 	)
 	if err != nil {

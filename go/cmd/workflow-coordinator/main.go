@@ -218,7 +218,7 @@ func run(parent context.Context) error {
 			"scope_count", len(semanticWorkerCfg.ScopeIDs),
 		)
 	}
-	statusReader := postgres.NewStatusStore(postgres.SQLQueryer{DB: db})
+	statusReader := postgres.NewInstrumentedStatusStore(postgres.SQLQueryer{DB: db}, instruments)
 	service, err := app.NewHostedWithStatusServer(
 		"workflow-coordinator",
 		serviceRunner,

@@ -98,7 +98,7 @@ func run(parent context.Context) error {
 	service, err := app.NewHostedWithStatusServer(
 		"collector-git",
 		runner,
-		postgres.NewStatusStore(postgres.SQLQueryer{DB: db}),
+		postgres.NewInstrumentedStatusStore(postgres.SQLQueryer{DB: db}, instruments),
 		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),
 	)
 	if err != nil {
