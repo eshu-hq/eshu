@@ -57,7 +57,18 @@ func (cr *ContentReader) ListRepositories(ctx context.Context) ([]RepositoryCata
 	return repositories, nil
 }
 
-// ListWorkloadIdentities returns workload handles from reducer read-model facts.
+// ListWorkloadIdentities returns workload handles from reducer read-model
+// facts.
+//
+// This reads reducer_workload_identity (a GOVERNED reducer-derived kind per
+// the #4784 ADR, docs/internal/design/4784-reducer-derived-fact-governance.md,
+// pending its own W1 sdk/go/factschema struct) but only through a bound SQL
+// predicate: `jsonb_array_elements_text` projects the payload's entity_keys
+// array directly in the query, and no Go code ever hydrates the fact's full
+// payload into a map[string]any for response assembly. Per the ADR, "SQL/
+// indexed predicates may remain as filters; only row hydration/response
+// assembly must decode typed" — there is no hydration step here to convert,
+// so this stays as-is rather than adding an unused decode wrapper.
 func (cr *ContentReader) ListWorkloadIdentities(
 	ctx context.Context,
 	limit int,

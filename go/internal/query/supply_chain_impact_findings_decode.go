@@ -9,6 +9,19 @@ import (
 	"strings"
 )
 
+// decodeSupplyChainImpactFindingRow decodes one reducer_supply_chain_impact_finding
+// fact payload (supply_chain_impact_findings_queries.go's
+// supplyChainImpactFindingFactKind) into the query-side row shape.
+//
+// TODO(#4810/W1h): reducer_supply_chain_impact_finding is a GOVERNED
+// reducer-derived kind per the #4784 ADR
+// (docs/internal/design/4784-reducer-derived-fact-governance.md) — full
+// governance requires a landed sdk/go/factschema struct, generated JSON
+// Schema, and a typed reducer writer before this read site (and
+// supply_chain_impact_explain_postgres.go's ExplainSupplyChainImpact, which
+// calls this function) can move off raw payload decode onto the typed
+// factschema seam. That struct/schema/writer is #4810 (W1h), not yet landed;
+// this function stays on the pre-existing raw path until it lands.
 func decodeSupplyChainImpactFindingRow(
 	factID string,
 	sourceConfidence string,

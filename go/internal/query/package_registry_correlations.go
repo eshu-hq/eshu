@@ -12,6 +12,15 @@ import (
 	"github.com/lib/pq"
 )
 
+// TODO(#4795 W2b / #4784 ADR): these three kinds are GOVERNED reducer-derived
+// facts per the #4784 ADR
+// (docs/internal/design/4784-reducer-derived-fact-governance.md — "W1 governs
+// all three package correlation kinds together") — full governance requires a
+// landed sdk/go/factschema struct, generated JSON Schema, and a typed reducer
+// writer (producer: go/internal/reducer/package_correlation_writer.go) before
+// decodePackageRegistryCorrelationRow below can move off raw payload decode
+// onto a typed factschema seam. No W1 issue is assigned for this family yet;
+// this file stays on the pre-existing raw path until that struct work lands.
 const (
 	packageOwnershipCorrelationFactKind   = "reducer_package_ownership_correlation"
 	packageConsumptionCorrelationFactKind = "reducer_package_consumption_correlation"

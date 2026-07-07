@@ -90,28 +90,50 @@ func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
 	case "vulnerability.affected_package":
 		a.addAffectedPackage(fact, source, advisoryID, cveID, ghsaID)
 	case "vulnerability.affected_product":
+		// vulnerability/v1.AffectedProduct (sdk/go/factschema) does not yet
+		// declare six of the nine fields this response reads
+		// (version_start/end_including/excluding,
+		// source_configuration_operator/negate, source_node_operator/negate),
+		// so this kind stays on the raw payload path rather than adding a
+		// decode wrapper this package could not call losslessly. Flag for a
+		// future W1 struct-completion pass.
 		a.addAffectedProduct(fact, source, cveID)
 	case "vulnerability.epss_score":
+		score, err := decodeVulnerabilityEPSSScore(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+		if err != nil {
+			// classified input_invalid (missing cve_id): skip rather than
+			// fabricate a zero-valued EPSS observation from an unusable fact.
+			return
+		}
 		a.row.EPSS = append(a.row.EPSS, AdvisoryEPSSObservation{
 			Source:      source,
-			CVEID:       cveID,
-			Probability: StringVal(payload, "probability"),
-			Percentile:  StringVal(payload, "percentile"),
-			ScoreDate:   StringVal(payload, "score_date"),
+			CVEID:       score.CVEID,
+			Probability: workItemDerefString(score.Probability),
+			Percentile:  workItemDerefString(score.Percentile),
+			ScoreDate:   workItemDerefString(score.ScoreDate),
 			FactID:      fact.FactID,
 		})
 	case "vulnerability.known_exploited":
+		kev, err := decodeVulnerabilityKnownExploited(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+		if err != nil {
+			// classified input_invalid (missing cve_id): skip rather than
+			// fabricate a zero-valued KEV observation from an unusable fact.
+			return
+		}
 		a.row.KEV = append(a.row.KEV, AdvisoryKEVObservation{
 			Source:                     source,
-			CVEID:                      cveID,
-			DateAdded:                  StringVal(payload, "date_added"),
-			RequiredAction:             StringVal(payload, "required_action"),
-			DueDate:                    StringVal(payload, "due_date"),
-			KnownRansomwareCampaignUse: StringVal(payload, "known_ransomware_campaign_use"),
-			CWEs:                       sortedStrings(StringSliceVal(payload, "cwes")),
+			CVEID:                      kev.CVEID,
+			DateAdded:                  workItemDerefString(kev.DateAdded),
+			RequiredAction:             workItemDerefString(kev.RequiredAction),
+			DueDate:                    workItemDerefString(kev.DueDate),
+			KnownRansomwareCampaignUse: workItemDerefString(kev.KnownRansomwareCampaignUse),
+			CWEs:                       sortedStrings(kev.CWEs),
 			FactID:                     fact.FactID,
 		})
 	case "vulnerability.reference":
+		// vulnerability.reference has no sdk/go/factschema struct yet (not
+		// part of the vulnerability/v1 family), so this kind stays on the raw
+		// payload path until a future W1 change adds one.
 		a.row.References = append(a.row.References, AdvisoryReferenceEvidence{
 			Source:        source,
 			AdvisoryID:    advisoryID,
@@ -159,18 +181,33 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 	ghsaID string,
 ) {
 	payload := fact.Payload
+	cve, err := decodeVulnerabilityCVE(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+	if err != nil {
+		// classified input_invalid (missing advisory_id): skip rather than
+		// fabricate a zero-valued source-evidence row from an unusable fact.
+		return
+	}
 	evidence := AdvisorySourceEvidence{
-		Source:        source,
-		AdvisoryID:    advisoryID,
-		CVEID:         cveID,
-		GHSAID:        ghsaID,
+		Source:     source,
+		AdvisoryID: advisoryID,
+		CVEID:      cveID,
+		GHSAID:     ghsaID,
+		// TODO(#4795 struct gap): vulnerability/v1.CVE (sdk/go/factschema)
+		// has no Aliases field yet; OSV-sourced vulnerability.cve facts carry
+		// a real "aliases" list
+		// (go/internal/collector/vulnerabilityintelligence/envelope.go). Read
+		// raw until a W1 change extends the struct.
 		Aliases:       sortedStrings(StringSliceVal(payload, "aliases")),
-		PublishedAt:   StringVal(payload, "published_at"),
-		ModifiedAt:    StringVal(payload, "modified_at"),
-		WithdrawnAt:   StringVal(payload, "withdrawn_at"),
-		SeverityLabel: StringVal(payload, "severity_label"),
-		CVSSScore:     floatVal(payload, "cvss_score"),
-		CVSSVector:    StringVal(payload, "cvss_vector"),
+		PublishedAt:   workItemDerefString(cve.PublishedAt),
+		ModifiedAt:    workItemDerefString(cve.ModifiedAt),
+		WithdrawnAt:   workItemDerefString(cve.WithdrawnAt),
+		SeverityLabel: workItemDerefString(cve.SeverityLabel),
+		CVSSScore:     supplyChainDerefFloat64(cve.CVSSScore),
+		CVSSVector:    workItemDerefString(cve.CVSSVector),
+		// TODO(#4795 struct gap): CVE has no CVSSVectorV2/V3/V4, CVSSMetrics,
+		// Severity, or CWEs fields yet; NVD-sourced facts carry cvss_metrics
+		// and OSV-sourced facts carry severity. Read raw until a W1 change
+		// extends the struct.
 		CVSSVectorV2:  StringVal(payload, "cvss_v2"),
 		CVSSVectorV3:  StringVal(payload, "cvss_v3"),
 		CVSSVectorV4:  StringVal(payload, "cvss_v4"),
@@ -198,19 +235,32 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 	ghsaID string,
 ) {
 	payload := fact.Payload
+	typedPackage, err := decodeVulnerabilityAffectedPackage(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+	if err != nil {
+		// classified input_invalid (missing advisory_id): skip rather than
+		// fabricate a zero-valued affected-package row from an unusable fact.
+		return
+	}
 	affected := AdvisoryAffectedPackage{
-		Source:              source,
-		AdvisoryID:          advisoryID,
-		CVEID:               cveID,
-		GHSAID:              ghsaID,
-		Ecosystem:           StringVal(payload, "ecosystem"),
-		PackageID:           StringVal(payload, "package_id"),
-		PURL:                StringVal(payload, "purl"),
-		AffectedRange:       StringVal(payload, "affected_range"),
+		Source:        source,
+		AdvisoryID:    advisoryID,
+		CVEID:         cveID,
+		GHSAID:        ghsaID,
+		Ecosystem:     workItemDerefString(typedPackage.Ecosystem),
+		PackageID:     workItemDerefString(typedPackage.PackageID),
+		PURL:          workItemDerefString(typedPackage.PURL),
+		AffectedRange: workItemDerefString(typedPackage.AffectedRangeRaw),
+		// TODO(#4795 struct gap): vulnerability/v1.AffectedPackage (sdk/go/factschema)
+		// has no ParsedAffectedRange field yet (GitLab Gemnasium-sourced facts
+		// carry a real "parsed_affected_range" object,
+		// go/internal/collector/vulnerabilityintelligence/gitlab_gemnasium_envelope.go),
+		// and its typed AffectedRanges field is []AffectedRange, a different Go
+		// shape than this response's []map[string]any. Read both raw until a
+		// W1 change extends the struct (or a verified round trip is added).
 		ParsedAffectedRange: mapVal(payload, "parsed_affected_range"),
 		AffectedRanges:      anyMapSliceVal(payload, "affected_ranges"),
-		AffectedVersions:    sortedStrings(StringSliceVal(payload, "affected_versions")),
-		FixedVersions:       sortedStrings(StringSliceVal(payload, "fixed_versions")),
+		AffectedVersions:    sortedStrings(typedPackage.AffectedVersions),
+		FixedVersions:       sortedStrings(typedPackage.FixedVersions),
 		SourceFactID:        fact.FactID,
 	}
 	a.row.AffectedPackages = append(a.row.AffectedPackages, affected)
