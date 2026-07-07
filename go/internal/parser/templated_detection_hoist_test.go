@@ -345,8 +345,11 @@ func generateLargeTFTemplateSource(blockCount int) string {
 // BenchmarkInferContentMetadataTFTemplateBeforeHoist and
 // BenchmarkInferRootFamilyAloneTFTemplate are the #4805 before/after proof
 // pair. BenchmarkInferRootFamilyAloneTFTemplate isolates inferRootFamily's
-// own cost (now near-zero: no regex scans, just suffix/path-segment
-// comparisons and boolean reads from the precomputed contentMarkers).
+// own cost for a .tftpl path, which does reach the marker-consulting
+// branch: the lazy hasTFMarkers check still runs its one-time scan inside
+// this benchmark's timed loop (a fresh lazyTFMarkerCheck is built per
+// iteration so the memoization does not hide the cost), so this measures
+// the same single-scan-per-call cost the #4805 hoist introduced, not zero.
 // BenchmarkInferContentMetadataTFTemplateBeforeHoist measures the full,
 // still-necessary inferContentMetadata call for a file this shape actually
 // requires full inference for (real IaC markers, not gated by
@@ -370,17 +373,79 @@ func BenchmarkInferRootFamilyAloneTFTemplate(b *testing.B) {
 
 	hasAnyGoExpression := goExpressionRE.MatchString(content)
 	hasAnyJinjaStatement := jinjaStatementRE.MatchString(content)
-	hasAnyTFInterpolation := tfInterpolationRE.MatchString(content)
-	hasAnyTFDirective := tfDirectiveRE.MatchString(content)
-	hasAnyTFTemplatefile := tfTemplatefileRE.MatchString(content)
-	markers := contentMarkers{
-		hasTFMarkers:       hasAnyTFInterpolation || hasAnyTFDirective || hasAnyTFTemplatefile,
-		hasGoExpressions:   hasAnyGoExpression,
-		hasJinjaStatements: hasAnyJinjaStatement,
-	}
 
 	b.ResetTimer()
 	for b.Loop() {
+		markers := contentMarkers{
+			hasTFMarkers:       newLazyTFMarkerCheck(content),
+			hasGoExpressions:   hasAnyGoExpression,
+			hasJinjaStatements: hasAnyJinjaStatement,
+		}
 		_ = inferRootFamily(path, content, markers)
+	}
+}
+
+// BenchmarkInferContentMetadataPathOnlyTFNoMarkers is the finding-1
+// regression proof: a large, marker-free .tf file resolves through
+// inferRootFamily's first case (anySuffix(suffixes, isHCLSuffix)) on path
+// alone. Before the lazy fix, the #4805 hoist made the three TF-marker
+// MatchString scans run eagerly for every inferContentMetadata call,
+// including this one, even though inferRootFamily never reads
+// markers.hasTFMarkers on this path -- a hot-path regression for the most
+// common large-IaC-file shape (the opposite of the intended #4805 win).
+// TestLazyTFMarkerCheckNotConsultedForHCLSuffix below is the direct,
+// deterministic proof that the lazy check is never triggered for this
+// shape; this benchmark is the companion wall-time evidence, comparable
+// against the eager pre-fix implementation.
+func BenchmarkInferContentMetadataPathOnlyTFNoMarkers(b *testing.B) {
+	path := filepath.Join("infra", "large_plain.tf")
+	content := generateLargePlainTFSource(400)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_ = inferContentMetadata(path, content)
+	}
+}
+
+// generateLargePlainTFSource produces a large synthetic .tf file with no TF
+// interpolation/directive/templatefile() markers, so it exercises
+// inferRootFamily's path-only isHCLSuffix fast path without ever needing
+// markers.hasTFMarkers.
+func generateLargePlainTFSource(blockCount int) string {
+	var b strings.Builder
+	for i := range blockCount {
+		fmt.Fprintf(&b, "resource \"aws_instance\" \"node_%d\" {\n", i)
+		fmt.Fprintf(&b, "  ami           = \"ami-static-%d\"\n", i)
+		b.WriteString("  instance_type = \"t3.micro\"\n}\n\n")
+	}
+	return b.String()
+}
+
+// TestLazyTFMarkerCheckNotConsultedForHCLSuffix is the direct proof that a
+// path-only family (isHCLSuffix) never triggers the lazy TF-marker scan: it
+// asserts lazyTFMarkerCheck.done stays false after inferRootFamily resolves
+// an HCL-suffixed file through its first case, proving has() was never
+// invoked and the three TF-marker regexes never ran for this shape.
+func TestLazyTFMarkerCheckNotConsultedForHCLSuffix(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join("infra", "plain.tf")
+	content := `resource "aws_instance" "node" {
+  ami = "ami-123456"
+}
+`
+	check := newLazyTFMarkerCheck(content)
+	markers := contentMarkers{
+		hasTFMarkers:       check,
+		hasGoExpressions:   false,
+		hasJinjaStatements: false,
+	}
+
+	got := inferRootFamily(path, content, markers)
+	if got != "terraform" {
+		t.Fatalf("inferRootFamily = %q, want %q", got, "terraform")
+	}
+	if check.done {
+		t.Fatalf("lazyTFMarkerCheck.has() was consulted for an isHCLSuffix path-only family; expected zero marker scans")
 	}
 }

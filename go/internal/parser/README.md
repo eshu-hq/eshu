@@ -675,15 +675,38 @@ un-gated call.
 The fix hoists the marker scans to run once in `inferContentMetadata` and
 passes the results down to `inferRootFamily` through a `contentMarkers`
 struct, instead of `inferRootFamily` re-invoking `MatchString` on the same
-regexes. `inferRootFamily`'s original three marker checks used *unfiltered*
+regexes.
+
+A follow-up review caught a second-order regression in that first hoist: it
+made `inferContentMetadata` scan all five marker regexes *eagerly*, even for
+files that `inferRootFamily` resolves through a path-only branch before ever
+consulting a marker (for example `anySuffix(suffixes, isHCLSuffix)`, which
+returns `"terraform"` immediately for any `.tf`/`.hcl`/`.tfvars` file, marker
+signal or not). That reintroduced hot-path regex cost for the common
+large-marker-free-`.tf`-file shape -- the opposite of the intended win. The
+fix makes the three TF-marker probes (`tfInterpolationRE`, `tfDirectiveRE`,
+`tfTemplatefileRE`) lazy: `contentMarkers.hasTFMarkers` is a
+`*lazyTFMarkerCheck` that runs its three `MatchString` probes and caches the
+result on first call to `.has()`, not when the struct is built.
+`inferRootFamily`'s first case never calls `.has()`, so a path-only family
+still triggers zero marker-regex scans; a branch that does need the TF-marker
+signal (`inferRootFamily`'s second case) still triggers exactly one scan per
+regex, preserving the original hoist's single-scan invariant for the
+marker-consulting path. `goExpressionRE`/`jinjaStatementRE` stay eager because
+`inferContentMetadata` needs both unconditionally for its own logic
+(`hasCurlyExpressions`/`explicitJinja`), regardless of which `inferRootFamily`
+branch runs.
+
+`inferRootFamily`'s original five marker checks used *unfiltered*
 `MatchString` (matching, for example, a bare `{{ ... }}` even inside a
 GitHub-Actions-shaped `${{ ... }}`, and an escaped `$${`/`%%{` sequence that
 the filtered `filteredMatches`/`countUnprefixedMatches` variants used
 elsewhere in `inferContentMetadata` intentionally exclude), so the hoist
-preserves that exact unfiltered semantics (`hasAnyGoExpression`,
-`hasAnyJinjaStatement`, `hasAnyTFInterpolation`, `hasAnyTFDirective`,
-`hasAnyTFTemplatefile` in `inferContentMetadata`) rather than reusing the
-filtered values computed for `inferContentMetadata`'s own bucket logic.
+preserves that exact unfiltered semantics: `hasAnyGoExpression` and
+`hasAnyJinjaStatement` stay as eager locals in `inferContentMetadata`, and the
+three TF-marker probes run inside `lazyTFMarkerCheck.has()` with the same
+unfiltered `MatchString` calls, rather than reusing the filtered values
+computed for `inferContentMetadata`'s own bucket logic.
 `MatchString` short-circuits at the first match, so keeping it alongside the
 filtered `FindAll`-based scans does not reintroduce a second full-content
 scan; the fix removes the *second* full scan that `inferRootFamily` used to
@@ -700,23 +723,42 @@ executes, unlike a plain `.tf` file which resolves through the
 `inferRootFamily` alone (isolating the eliminated duplicate scan) dropped from
 roughly 85.6us/op (368B/op, 6 allocs/op; measured pre-hoist as a throwaway
 shim, not committed) to 236-243ns/op (344B/op, 6 allocs/op) post-hoist -- about
-a 350x reduction in `inferRootFamily`'s own cost, since it now does zero regex
-scanning (only suffix/path-segment comparisons and boolean reads from the
-precomputed `contentMarkers`). The full `inferContentMetadata` call for this
-file shape dropped from roughly 1.56ms/op (pre-hoist, same shim) to
-1.29-1.62ms/op post-hoist across repeated runs (188-189KB/op, 1636 allocs/op
-in both, unchanged -- the hoist removes CPU-bound regex matching, not
-allocations, since `inferRootFamily`'s removed calls were boolean
+a 350x reduction in `inferRootFamily`'s own cost for a marker-consulting path,
+since the only regex work left on that path is the lazy TF-marker check's
+single pass (only suffix/path-segment comparisons plus one memoized
+`lazyTFMarkerCheck.has()` call otherwise). The full `inferContentMetadata`
+call for this file shape dropped from roughly 1.56ms/op (pre-hoist, same shim)
+to 1.29-1.62ms/op post-hoist across repeated runs (188-189KB/op, 1636
+allocs/op in both, unchanged -- the hoist removes CPU-bound regex matching,
+not allocations, since `inferRootFamily`'s removed calls were boolean
 `MatchString` probes that never allocated). Allocation count is a more stable
 signal here than wall time on this machine (visible some-run-to-run variance
 from system noise); allocs/op is identical before and after, and
 `inferRootFamily`'s isolated ns/op collapsed by two orders of magnitude,
 confirming the duplicate scan is gone.
 
+Lazy-fix Performance Evidence:
+`BenchmarkInferContentMetadataPathOnlyTFNoMarkers` in
+`templated_detection_hoist_test.go` measures the regression case directly: a
+synthetic 400-block, marker-free `.tf` file through the full
+`inferContentMetadata` entrypoint. On the same machine, the eager (regressed)
+implementation ran roughly 1.133-1.137ms/op (measured via a throwaway `git
+worktree` checkout of the pre-fix commit, not committed); after making
+`contentMarkers.hasTFMarkers` a lazy, memoized-on-first-call accessor
+(`lazyTFMarkerCheck`) instead of a precomputed bool, the same benchmark runs
+0.867-0.881ms/op -- roughly a 22-24% reduction, consistent with eliminating
+the three now-unneeded `MatchString` scans for this shape.
+`TestLazyTFMarkerCheckNotConsultedForHCLSuffix` is the deterministic companion
+proof: it asserts `lazyTFMarkerCheck.done` is still `false` (the scan never
+ran) after `inferRootFamily` resolves an `isHCLSuffix` path through its first
+case.
+
 Classification: **Handler win** (removes duplicated regex-matching CPU work
-from every un-gated `inferContentMetadata` call; the query/graph-visible
-output is unchanged, so this does not change `ParsePath` correctness, only its
-cost on the subset of files that legitimately run full inference).
+from every un-gated `inferContentMetadata` call, and the follow-up lazy fix
+restores zero-marker-scan behavior for path-only families; the query/graph-
+visible output is unchanged in both steps, so this does not change `ParsePath`
+correctness, only its cost on the subset of files that legitimately run full
+inference).
 
 Equivalence proof (output-preserving, 0/0):
 `TestInferContentMetadataHoistEquivalence` in
@@ -735,16 +777,16 @@ and a `.kcl` file with go-template markers. Every expected value in that table
 was independently verified against the pre-hoist implementation on `origin/main`
 (commit `c2c477f48`) by running the identical input battery through a
 throwaway probe built from that commit, confirming the hoist changed no
-observable output for any case. `TestInferRootFamilyMarkersMatchDirectRegexScan`
-separately proves the `contentMarkers` values `inferContentMetadata` computes
-match a direct, unfiltered `MatchString` probe against each of the five marker
-regexes across 11 content shapes (empty, plain text, each marker family alone,
-an escaped-interpolation-only case, a GitHub-Actions-expression-only case, and
-mixed markers) -- this pins the hoist's core invariant directly, independent
-of any downstream bucket/artifact-type branching. The full existing
-`TestInferContentMetadata` and `TestShouldSkipContentMetadataGeneratedEquivalence`
-suites (the latter enumerating a cartesian product of extensions, directory
-signals, and content signals) also stay green, unmodified, after the hoist.
+observable output for any case; this same suite stays green, unmodified, after
+the follow-up lazy-marker fix, since laziness only changes when the TF-marker
+regexes run, never the resulting `contentMetadata{}` value. This table --
+plus `TestLazyTFMarkerCheckNotConsultedForHCLSuffix` for the zero-scan
+invariant on path-only families -- is this package's proof for the hoist's
+core invariant, independent of any downstream bucket/artifact-type branching.
+The full existing `TestInferContentMetadata` and
+`TestShouldSkipContentMetadataGeneratedEquivalence` suites (the latter
+enumerating a cartesian product of extensions, directory signals, and content
+signals) also stay green, unmodified, after both the hoist and the lazy fix.
 
 No-Observability-Change: this adds no metric, span, structured log, status
 field, queue, graph write, worker, lease, batch, or runtime knob; it is a

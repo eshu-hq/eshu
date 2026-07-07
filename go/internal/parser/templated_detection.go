@@ -28,12 +28,22 @@ var (
 )
 
 func inferContentMetadata(path string, content string) contentMetadata {
-	// These marker scans are the single source of truth for both this
-	// function and inferRootFamily below. Each regex here MUST run at most
-	// once per inferContentMetadata call: inferRootFamily is only ever
-	// called from here (single call site), so it reuses these results
-	// through the contentMarkers struct instead of re-invoking MatchString
-	// on the same five regexes over the same content.
+	// hasAnyGoExpression/hasAnyJinjaStatement are unconditional inputs to
+	// inferContentMetadata's own logic below (markers.hasGoExpressions/
+	// hasJinjaStatements and explicitJinja), so they always run exactly
+	// once here regardless of which branch inferRootFamily takes.
+	//
+	// The three TF-marker MatchString probes (tfInterpolationRE/
+	// tfDirectiveRE/tfTemplatefileRE) are lazy: inferRootFamily's first
+	// case short-circuits on path/suffix alone for HCL files and never
+	// reads markers.hasTFMarkers, so eagerly scanning those three regexes
+	// for every file -- including large marker-free .tf files that hit
+	// that path-only fast path -- would reintroduce hot-path regex cost
+	// the #4805 hoist was meant to remove. newLazyTFMarkerCheck below wraps
+	// content in a memoized accessor that computes each of the three exactly
+	// once, on first read, so a branch that does consult
+	// markers.hasTFMarkers (only inferRootFamily's second case) still
+	// triggers at most one scan per regex.
 	//
 	// hasAnyGoExpression/hasAnyTFInterpolation/hasAnyTFDirective/
 	// hasAnyTFTemplatefile preserve inferRootFamily's original *unfiltered*
@@ -44,9 +54,6 @@ func inferContentMetadata(path string, content string) contentMetadata {
 	// below does not reintroduce a second full-content scan.
 	hasAnyGoExpression := goExpressionRE.MatchString(content)
 	hasAnyJinjaStatement := jinjaStatementRE.MatchString(content)
-	hasAnyTFInterpolation := tfInterpolationRE.MatchString(content)
-	hasAnyTFDirective := tfDirectiveRE.MatchString(content)
-	hasAnyTFTemplatefile := tfTemplatefileRE.MatchString(content)
 
 	goExpressions := filteredMatches(content, goExpressionRE, '$')
 	hasCurlyExpressions := len(goExpressions) > 0
@@ -56,7 +63,7 @@ func inferContentMetadata(path string, content string) contentMetadata {
 	tfTemplatefileMatches := tfTemplatefileRE.FindAllString(content, -1)
 	tfMarkerCount := tfInterpolationCount + tfDirectiveCount + len(tfTemplatefileMatches)
 	markers := contentMarkers{
-		hasTFMarkers:       hasAnyTFInterpolation || hasAnyTFDirective || hasAnyTFTemplatefile,
+		hasTFMarkers:       newLazyTFMarkerCheck(content),
 		hasGoExpressions:   hasAnyGoExpression,
 		hasJinjaStatements: hasAnyJinjaStatement,
 	}
@@ -193,20 +200,51 @@ func countUnprefixedMatches(content string, expression *regexp.Regexp, disallowe
 }
 
 // contentMarkers carries the template/interpolation marker signals that
-// inferContentMetadata computes once from the shared marker regexes
-// (goExpressionRE, jinjaStatementRE, tfInterpolationRE, tfDirectiveRE,
-// tfTemplatefileRE) and passes down to inferRootFamily. inferRootFamily
-// reuses these instead of re-invoking the same regexes over the same
-// content: prior to this hoist, each of these five regexes ran twice per
-// inferContentMetadata call (once inside inferRootFamily's own MatchString
-// probes, once again in inferContentMetadata's own
-// filteredMatches/countUnprefixedMatches calls) -- pure duplicated work,
-// since inferRootFamily is only ever called from inferContentMetadata
-// (single call site).
+// inferContentMetadata computes and passes down to inferRootFamily.
+// inferRootFamily reuses these instead of re-invoking the marker regexes
+// over the same content: each of goExpressionRE/jinjaStatementRE runs
+// exactly once (inferContentMetadata needs both unconditionally for its own
+// logic below), and the three TF-marker regexes (tfInterpolationRE/
+// tfDirectiveRE/tfTemplatefileRE) run at most once each, lazily, via
+// hasTFMarkers -- computed only if a branch that actually reads it is
+// reached (inferRootFamily's second case), so a path-only family such as an
+// HCL-suffixed file that short-circuits on suffix alone triggers zero
+// marker-regex scans, matching pre-#4805 behavior for that fast path.
 type contentMarkers struct {
-	hasTFMarkers       bool
+	hasTFMarkers       *lazyTFMarkerCheck
 	hasGoExpressions   bool
 	hasJinjaStatements bool
+}
+
+// lazyTFMarkerCheck memoizes whether content contains any of the three
+// TF-marker shapes (interpolation, directive, templatefile()) using a single
+// MatchString probe per regex, computed no more than once regardless of how
+// many times inferRootFamily's branches consult it (in practice it is
+// consulted at most once per inferRootFamily call, but the memoization also
+// protects any future caller that reads it more than once).
+type lazyTFMarkerCheck struct {
+	content string
+	done    bool
+	value   bool
+}
+
+func newLazyTFMarkerCheck(content string) *lazyTFMarkerCheck {
+	return &lazyTFMarkerCheck{content: content}
+}
+
+// has runs the three TF-marker MatchString probes on first call and caches
+// the result; the regexes are never scanned when has is never called, which
+// is the case for any path that resolves through inferRootFamily's path-only
+// branches before reaching the marker-consulting case.
+func (l *lazyTFMarkerCheck) has() bool {
+	if l.done {
+		return l.value
+	}
+	l.done = true
+	l.value = tfInterpolationRE.MatchString(l.content) ||
+		tfDirectiveRE.MatchString(l.content) ||
+		tfTemplatefileRE.MatchString(l.content)
+	return l.value
 }
 
 func inferRootFamily(path string, content string, markers contentMarkers) string {
@@ -217,7 +255,7 @@ func inferRootFamily(path string, content string, markers contentMarkers) string
 	switch {
 	case anySuffix(suffixes, isHCLSuffix):
 		return "terraform"
-	case markers.hasTFMarkers &&
+	case markers.hasTFMarkers.has() &&
 		(anySuffix(suffixes, isTerraformTemplateSuffix) || anySuffix(suffixes, isJinjaSuffix)) &&
 		!markers.hasGoExpressions &&
 		!markers.hasJinjaStatements:
