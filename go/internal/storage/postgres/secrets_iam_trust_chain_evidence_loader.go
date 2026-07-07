@@ -90,7 +90,10 @@ func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 		}
 		envelopes = appendUniqueSecretsIAMEnvelope(envelopes, seen, envelope)
 	}
-	anchors := secretsIAMTrustChainAnchorsFromEnvelopes(envelopes)
+	anchors, err := secretsIAMTrustChainAnchorsFromEnvelopes(envelopes)
+	if err != nil {
+		return nil, reducer.SecretsIAMTrustChainLoadStats{}, err
+	}
 	truncated := false
 	for pass := 0; pass < secretsIAMTrustChainMaxExpansionPasses && anchors.hasAny(); pass++ {
 		page, err := s.listActiveSecretsIAMTrustChainFacts(ctx, anchors)
@@ -104,7 +107,10 @@ func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 		if len(envelopes) == before {
 			break
 		}
-		anchors = secretsIAMTrustChainAnchorsFromEnvelopes(envelopes)
+		anchors, err = secretsIAMTrustChainAnchorsFromEnvelopes(envelopes)
+		if err != nil {
+			return nil, reducer.SecretsIAMTrustChainLoadStats{}, err
+		}
 		if pass == secretsIAMTrustChainMaxExpansionPasses-1 && anchors.hasAny() {
 			truncated = true
 		}
@@ -192,7 +198,7 @@ type secretsIAMTrustChainAnchors struct {
 	gcpServiceAccountEmailDigests  stringSet
 }
 
-func secretsIAMTrustChainAnchorsFromEnvelopes(envelopes []facts.Envelope) secretsIAMTrustChainAnchors {
+func secretsIAMTrustChainAnchorsFromEnvelopes(envelopes []facts.Envelope) (secretsIAMTrustChainAnchors, error) {
 	anchors := secretsIAMTrustChainAnchors{
 		serviceAccountJoinKeys:         stringSet{},
 		roleARNs:                       stringSet{},
@@ -203,29 +209,11 @@ func secretsIAMTrustChainAnchorsFromEnvelopes(envelopes []facts.Envelope) secret
 		gcpServiceAccountEmailDigests:  stringSet{},
 	}
 	for _, envelope := range envelopes {
-		payload := envelope.Payload
-		anchors.serviceAccountJoinKeys.add(payloadString(payload, "service_account_join_key"))
-		anchors.serviceAccountJoinKeys.addAll(payloadStringSlice(payload, "bound_service_account_join_keys"))
-		anchors.roleARNs.add(payloadString(payload, "role_arn"))
-		anchors.roleARNs.add(payloadString(payload, "principal_arn"))
-		anchors.webIdentitySubjectFingerprints.add(payloadString(payload, "web_identity_subject_fingerprint"))
-		anchors.webIdentitySubjectFingerprints.addAll(payloadStringSlice(payload, "web_identity_subject_fingerprints"))
-		anchors.vaultPolicyJoinKeys.add(payloadString(payload, "policy_join_key"))
-		anchors.vaultPolicyJoinKeys.addAll(payloadStringSlice(payload, "token_policy_join_keys"))
-		anchors.vaultKVPathFingerprints.add(payloadString(payload, "kv_path_fingerprint"))
-		for _, rule := range payloadMapSlice(payload, "rules") {
-			anchors.vaultKVPathFingerprints.add(payloadString(rule, "path_fingerprint"))
+		if err := anchors.addEnvelope(envelope); err != nil {
+			return secretsIAMTrustChainAnchors{}, err
 		}
-		// GCP principal/permission facts share the service-account member
-		// fingerprint, so it joins a principal fact to its grants across active
-		// generations (#2347).
-		anchors.gcpPrincipalFingerprints.add(payloadString(payload, "principal_fingerprint"))
-		anchors.gcpPrincipalFingerprints.add(payloadString(payload, "target_principal_fingerprint"))
-		anchors.gcpServiceAccountEmailDigests.add(payloadString(payload, "gcp_service_account_email_digest"))
-		anchors.gcpServiceAccountEmailDigests.add(payloadString(payload, "target_service_account_email_digest"))
-		anchors.webIdentitySubjectFingerprints.add(payloadString(payload, "gcp_workload_identity_subject_fingerprint"))
 	}
-	return anchors
+	return anchors, nil
 }
 
 func (a secretsIAMTrustChainAnchors) hasAny() bool {
@@ -275,59 +263,4 @@ func (s stringSet) values() []string {
 		out = append(out, value)
 	}
 	return out
-}
-
-func payloadString(payload map[string]any, key string) string {
-	if len(payload) == 0 {
-		return ""
-	}
-	value, ok := payload[key]
-	if !ok {
-		return ""
-	}
-	text, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(text)
-}
-
-func payloadStringSlice(payload map[string]any, key string) []string {
-	if len(payload) == 0 {
-		return nil
-	}
-	switch typed := payload[key].(type) {
-	case []string:
-		return typed
-	case []any:
-		out := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if value, ok := item.(string); ok {
-				out = append(out, value)
-			}
-		}
-		return out
-	default:
-		return nil
-	}
-}
-
-func payloadMapSlice(payload map[string]any, key string) []map[string]any {
-	if len(payload) == 0 {
-		return nil
-	}
-	switch typed := payload[key].(type) {
-	case []map[string]any:
-		return typed
-	case []any:
-		out := make([]map[string]any, 0, len(typed))
-		for _, item := range typed {
-			if value, ok := item.(map[string]any); ok {
-				out = append(out, value)
-			}
-		}
-		return out
-	default:
-		return nil
-	}
 }
