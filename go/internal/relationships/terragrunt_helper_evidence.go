@@ -34,6 +34,13 @@ var terragruntConfigAssetSpecs = []terragruntConfigAssetSpec{
 	},
 }
 
+// TODO(#4799 W2f / #4750): discoverStructuredTerragruntConfigEvidence reads the
+// parsed_file_data inner key terragrunt_configs (and its nested helper-path
+// fields, via payloadCSV) raw. parsed_file_data is codegraphv1.File.ParsedFileData
+// (an open map[string]any), and terragrunt_configs is not yet typed in
+// sdk/go/factschema/decode_parsed_file_data.go (only the #4750 S1 batch has typed
+// accessors). Route these reads through typed DecodeParsedFileData* accessors once
+// #4750 types this inner key.
 func discoverStructuredTerragruntConfigEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,

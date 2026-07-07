@@ -7,12 +7,82 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 const (
 	gcpRelationshipSupported = "supported"
 	gcpRelationshipExtractor = "gcp-cloud-relationship"
 )
+
+// gcpRelationshipPersistedVersionlessSchemaVersion is the sentinel the Postgres
+// persist layer stamps for a fact whose collector emitted no SchemaVersion
+// (emptyToDefault(envelope.SchemaVersion, "0.0.0") in
+// go/internal/storage/postgres/facts.go). A gcp_cloud_relationship fact loaded
+// back for evidence discovery therefore carries this value rather than the empty
+// string, so decodeGCPCloudRelationship normalizes it (and the empty string an
+// in-memory fact carries before persistence) to the family's real major-1 schema
+// version. It is never a real schema version any collector emits. Mirrors the
+// reducer's persistedVersionlessSchemaVersion
+// (go/internal/reducer/factschema_decode.go).
+const gcpRelationshipPersistedVersionlessSchemaVersion = "0.0.0"
+
+// decodeGCPCloudRelationship decodes a gcp_cloud_relationship envelope's payload
+// through the Contract System v1 typed seam (factschema.DecodeGCPCloudRelationship)
+// instead of reading raw payload keys. It returns the typed gcpv1.Relationship and
+// true when the payload decodes, or the zero struct and false on a classified
+// decode error — a missing required identity field (source_full_resource_name,
+// target_full_resource_name, relationship_type) or an unsupported schema major.
+//
+// On a decode error the caller MUST produce no evidence. This mirrors the reducer's
+// decodeGCPCloudRelationship contract (go/internal/reducer/factschema_decode.go): a
+// malformed payload is never read as a zero-value/empty-string identity. The
+// relationships package holds no queue or graph handle and so cannot itself
+// dead-letter (see AGENTS.md "No graph writes"); returning false so the extractor
+// emits no evidence is its correct, contract-aligned response — the package's own
+// "produce no evidence rather than a speculative match" invariant — while the
+// authoritative input_invalid dead-letter is still emitted later when the reducer
+// decodes the same fact for its own domain.
+//
+// A version-less envelope (empty SchemaVersion for an in-memory fact, or the
+// persist-layer "0.0.0" sentinel for a fact loaded from Postgres) is normalized to
+// the family's real major-1 schema version before decode, so a version-less fact
+// still decodes rather than dead-lettering as an unsupported major, matching the
+// reducer's factschemaEnvelope normalization and the raw read's prior
+// version-agnostic behavior on the corpus.
+//
+// NOTE(#4865): DecodeGCPCloudRelationship rebuilds the discarded Attributes
+// remainder that this named-field-only caller never reads; a named-field-only
+// decode variant is tracked there.
+func decodeGCPCloudRelationship(envelope facts.Envelope) (gcpv1.Relationship, bool) {
+	schemaVersion := envelope.SchemaVersion
+	if schemaVersion == "" || schemaVersion == gcpRelationshipPersistedVersionlessSchemaVersion {
+		schemaVersion = facts.GCPCloudRelationshipSchemaVersion
+	}
+	relationship, err := factschema.DecodeGCPCloudRelationship(factschema.Envelope{
+		FactKind:      envelope.FactKind,
+		SchemaVersion: schemaVersion,
+		Payload:       envelope.Payload,
+	})
+	if err != nil {
+		return gcpv1.Relationship{}, false
+	}
+	return relationship, true
+}
+
+// trimDerefString returns the trimmed dereferenced value of an optional payload
+// string pointer, or "" when the pointer is nil. It maps the gcpv1.Relationship
+// optional pointer fields (SourceAssetType, TargetAssetType, SupportState) back to
+// the trimmed-string shape the extractor previously obtained from
+// strings.TrimSpace(payloadString(...)): an absent optional key decoded to nil
+// yields "" exactly as an absent map key did.
+func trimDerefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
 
 func discoverGCPCloudRelationshipEvidence(
 	envelope facts.Envelope,
@@ -22,10 +92,14 @@ func discoverGCPCloudRelationshipEvidence(
 	if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
 		return nil
 	}
-	sourceName := strings.TrimSpace(payloadString(envelope.Payload, "source_full_resource_name"))
-	targetName := strings.TrimSpace(payloadString(envelope.Payload, "target_full_resource_name"))
-	relationshipType := strings.TrimSpace(payloadString(envelope.Payload, "relationship_type"))
-	supportState := gcpRelationshipSupportState(envelope)
+	relationship, ok := decodeGCPCloudRelationship(envelope)
+	if !ok {
+		return nil
+	}
+	sourceName := strings.TrimSpace(relationship.SourceFullResourceName)
+	targetName := strings.TrimSpace(relationship.TargetFullResourceName)
+	relationshipType := strings.TrimSpace(relationship.RelationshipType)
+	supportState := gcpRelationshipSupportState(relationship)
 	if sourceName == "" || targetName == "" || relationshipType == "" {
 		return nil
 	}
@@ -46,10 +120,10 @@ func discoverGCPCloudRelationshipEvidence(
 		"gcp_fact_kind":         facts.GCPCloudRelationshipFactKind,
 		"gcp_relationship_type": relationshipType,
 		"gcp_support_state":     supportState,
-		"source_asset_type":     strings.TrimSpace(payloadString(envelope.Payload, "source_asset_type")),
+		"source_asset_type":     trimDerefString(relationship.SourceAssetType),
 		"source_matched_alias":  sourceMatch.alias,
 		"source_matched_value":  sourceName,
-		"target_asset_type":     strings.TrimSpace(payloadString(envelope.Payload, "target_asset_type")),
+		"target_asset_type":     trimDerefString(relationship.TargetAssetType),
 	}
 	if envelope.StableFactKey != "" {
 		details["source_fact_key"] = envelope.StableFactKey
@@ -111,13 +185,17 @@ func ResolveGCPRelationshipRepoLinks(
 		if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
 			continue
 		}
-		sourceName := strings.TrimSpace(payloadString(envelope.Payload, "source_full_resource_name"))
-		targetName := strings.TrimSpace(payloadString(envelope.Payload, "target_full_resource_name"))
-		relationshipType := strings.TrimSpace(payloadString(envelope.Payload, "relationship_type"))
+		relationship, ok := decodeGCPCloudRelationship(envelope)
+		if !ok {
+			continue
+		}
+		sourceName := strings.TrimSpace(relationship.SourceFullResourceName)
+		targetName := strings.TrimSpace(relationship.TargetFullResourceName)
+		relationshipType := strings.TrimSpace(relationship.RelationshipType)
 		if sourceName == "" || targetName == "" || relationshipType == "" {
 			continue
 		}
-		if gcpRelationshipSupportState(envelope) != gcpRelationshipSupported {
+		if gcpRelationshipSupportState(relationship) != gcpRelationshipSupported {
 			continue
 		}
 		sourceMatch, ok := uniqueGCPResourceCatalogMatch(sourceName, "", matcher)
@@ -146,12 +224,16 @@ func hasSupportedGCPRelationshipFact(envelopes []facts.Envelope) bool {
 		if envelope.IsTombstone || envelope.FactKind != facts.GCPCloudRelationshipFactKind {
 			continue
 		}
-		if gcpRelationshipSupportState(envelope) != gcpRelationshipSupported {
+		relationship, ok := decodeGCPCloudRelationship(envelope)
+		if !ok {
 			continue
 		}
-		if strings.TrimSpace(payloadString(envelope.Payload, "source_full_resource_name")) == "" ||
-			strings.TrimSpace(payloadString(envelope.Payload, "target_full_resource_name")) == "" ||
-			strings.TrimSpace(payloadString(envelope.Payload, "relationship_type")) == "" {
+		if gcpRelationshipSupportState(relationship) != gcpRelationshipSupported {
+			continue
+		}
+		if strings.TrimSpace(relationship.SourceFullResourceName) == "" ||
+			strings.TrimSpace(relationship.TargetFullResourceName) == "" ||
+			strings.TrimSpace(relationship.RelationshipType) == "" {
 			continue
 		}
 		return true
@@ -159,8 +241,8 @@ func hasSupportedGCPRelationshipFact(envelopes []facts.Envelope) bool {
 	return false
 }
 
-func gcpRelationshipSupportState(envelope facts.Envelope) string {
-	return strings.TrimSpace(payloadString(envelope.Payload, "support_state"))
+func gcpRelationshipSupportState(relationship gcpv1.Relationship) string {
+	return trimDerefString(relationship.SupportState)
 }
 
 func uniqueGCPResourceCatalogMatch(

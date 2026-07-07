@@ -256,6 +256,68 @@ confidence and evidence count through the reducer/Postgres relationship
 evidence path. This package still emits no telemetry directly; diagnosis uses
 the existing reducer admission and relationship persistence signals.
 
+### Typed gcp_cloud_relationship decode (issue #4797, W2d)
+
+`gcp_evidence.go` reads the `gcp_cloud_relationship` payload through the Contract
+System v1 typed seam (`factschema.DecodeGCPCloudRelationship`) instead of raw
+`payloadString` map lookups. The `decodeGCPCloudRelationship` helper decodes the
+envelope into the typed `gcpv1.Relationship` struct and returns `(struct, false)`
+on any classified `*factschema.DecodeError` — a missing required identity field
+(`source_full_resource_name`, `target_full_resource_name`, `relationship_type`) or
+an unsupported schema major. The three call sites
+(`discoverGCPCloudRelationshipEvidence`, `ResolveGCPRelationshipRepoLinks`,
+`hasSupportedGCPRelationshipFact`) produce **no evidence** on a decode error rather
+than substituting a zero-value/empty-string identity, mirroring the reducer's
+`decodeGCPCloudRelationship` contract
+(`go/internal/reducer/factschema_decode.go`) while honoring this package's own
+"produce no evidence rather than a speculative match" invariant (it holds no queue
+or graph handle and cannot itself dead-letter; the authoritative `input_invalid`
+dead-letter is emitted later when the reducer decodes the same fact).
+
+Accuracy the typed decode buys: a payload with an unsupported schema major, or one
+missing a required identity field, now yields **no** speculative evidence instead
+of the pre-conversion raw read's empty-string identity match. A version-less
+envelope (empty `SchemaVersion`, or the persist-layer `0.0.0` sentinel) is
+normalized to the family's `1.0.0` before decode, matching the reducer's
+`factschemaEnvelope` normalization and the raw read's prior version-agnostic
+behavior on the corpus, so version-less facts still decode.
+
+No-Regression Evidence: `BenchmarkDiscoverGCPCloudRelationshipEvidence`
+(`gcp_evidence_bench_test.go`, 200 emitter-shaped facts through the reducer-called
+`DiscoverEvidence` path, `-count=6` on Apple M-series) measured raw reads
+(origin/main `1a9eb1505`) versus the typed decode:
+
+| Variant | Path | ns/op | B/op | allocs/op |
+| --- | --- | --- | --- | --- |
+| RealisticAttributes (~11-key emitter Attributes) | raw (OLD) | 1,348,000 | 811,608 | 13,238 |
+| RealisticAttributes | typed (NEW) | 1,690,000 | 1,027,619 | 15,038 |
+| WorstCaseWideAttributes (35-key) | raw (OLD) | 1,349,000 | 811,608 | 13,238 |
+| WorstCaseWideAttributes | typed (NEW) | 2,285,000 | 1,731,633 | 15,838 |
+
+The realistic figure is the representative one: **+25% time, +1.7 µs per fact**.
+`WorstCaseWideAttributes` is a synthetic stress bound — it pads the payload's
+`Attributes` map to 35 keys, whereas real `gcp_cloud_relationship` payloads carry
+thin named-edge identity fields plus a small (~11-key) control-plane `Attributes`
+map, so the +69% worst-case does not reflect production shape. The raw-read path is
+flat across both variants because it never materializes `Attributes`; the typed
+decode grows with `Attributes` width because `decodeMapInto` rebuilds the
+`Attributes` remainder map for every fact even though this named-field-only caller
+never reads it (tracked for a decode variant in issue #4865).
+
+This per-op cost is accepted for this PR as aggregate-negligible: `gcp_cloud_relationship`
+is a low-cardinality kind, emitted per observed cloud-resource edge and bounded by
+cloud infrastructure (zero for non-GCP repos). It appears about 85 times in the
+20-repo golden snapshot and about 124 times in the single GCP cassette — thousands
+corpus-wide at most, not the per-file/per-function millions the code family
+carries — so the added wall-clock is on the order of milliseconds against the
+~15-minute git-collector E2E baseline. The golden-corpus gate stays byte-identical:
+the corpus carries only `1.0.0` gcp relationship facts, and the only behavior change
+(rejecting an unsupported major) touches no corpus fact.
+
+No-Observability-Change: the conversion reads the same payload values through a
+typed struct instead of raw map lookups; it adds no metric, span, or log, and the
+evidence/candidate/resolved-relationship shapes are unchanged.
+
 ### Deferred backfill self-repo_id scope (issue #3659)
 
 `CatalogRepoIDValues` returns each catalog entry's full lowercase repo_id value
