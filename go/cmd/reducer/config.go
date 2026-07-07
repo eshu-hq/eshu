@@ -68,6 +68,17 @@ const (
 	generationLivenessMaxRecoverAttemptsEnv = "ESHU_GENERATION_LIVENESS_MAX_RECOVER_ATTEMPTS"
 	generationLivenessBatchLimitEnv         = "ESHU_GENERATION_LIVENESS_BATCH_LIMIT"
 
+	// poisonLivenessAutoRetryEnabledEnv opts into the bounded auto-retry sweep
+	// for the dead-letter/poison class (#4740). Default is false: the poison
+	// stuck-gauge is always active regardless of this flag, but the sweep loop
+	// itself — and therefore any dead_letter -> pending re-enqueue write — only
+	// runs when an operator explicitly opts in. This is the deliberate
+	// surface-only default posture the ticket asked for.
+	poisonLivenessAutoRetryEnabledEnv   = "ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED"
+	poisonLivenessPollIntervalEnv       = "ESHU_POISON_LIVENESS_POLL_INTERVAL"
+	poisonLivenessMaxRecoverAttemptsEnv = "ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS"
+	poisonLivenessBatchLimitEnv         = "ESHU_POISON_LIVENESS_BATCH_LIMIT"
+
 	graphOrphanSweepEnabledEnv      = "ESHU_GRAPH_ORPHAN_SWEEP_ENABLED"
 	graphOrphanSweepPollIntervalEnv = "ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL"
 	graphOrphanSweepTTLEnv          = "ESHU_GRAPH_ORPHAN_SWEEP_TTL"
@@ -105,6 +116,10 @@ const (
 	defaultGenerationLivenessMaxRecoverAttempts = 5
 	defaultGenerationLivenessBatchLimit         = 200
 
+	defaultPoisonLivenessPollInterval       = 5 * time.Minute
+	defaultPoisonLivenessMaxRecoverAttempts = 1
+	defaultPoisonLivenessBatchLimit         = 200
+
 	defaultGraphOrphanSweepPollInterval = time.Hour
 	defaultGraphOrphanSweepTTL          = 7 * 24 * time.Hour
 	defaultGraphOrphanSweepBatchLimit   = 100
@@ -120,6 +135,14 @@ type generationRetentionConfig struct {
 type generationLivenessConfig struct {
 	Enabled bool
 	Runner  reducer.GenerationLivenessRunnerConfig
+}
+
+// poisonLivenessConfig configures the #4740 dead-letter/poison bounded
+// recovery arm. The runner is only constructed (see poisonLivenessRunnerFor)
+// when Runner.AutoRetryEnabled is true; the stuck-gauge is wired independently
+// in registerReducerObservableGauges and is always active.
+type poisonLivenessConfig struct {
+	Runner reducer.PoisonLivenessRunnerConfig
 }
 
 type graphOrphanSweepConfig struct {
@@ -364,6 +387,22 @@ func loadGenerationLivenessConfig(getenv func(string) string) generationLiveness
 				ActivationDeadline: loadDurationOrDefault(getenv, generationLivenessActivationDeadlineEnv, defaultGenerationLivenessActivationDeadline),
 				MaxRecoverAttempts: loadPositiveIntOrDefault(getenv, generationLivenessMaxRecoverAttemptsEnv, defaultGenerationLivenessMaxRecoverAttempts),
 				BatchLimit:         loadPositiveIntOrDefault(getenv, generationLivenessBatchLimitEnv, defaultGenerationLivenessBatchLimit),
+			},
+		},
+	}
+}
+
+func loadPoisonLivenessConfig(getenv func(string) string) poisonLivenessConfig {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	return poisonLivenessConfig{
+		Runner: reducer.PoisonLivenessRunnerConfig{
+			AutoRetryEnabled: loadBoolOrDefault(getenv, poisonLivenessAutoRetryEnabledEnv, false),
+			PollInterval:     loadDurationOrDefault(getenv, poisonLivenessPollIntervalEnv, defaultPoisonLivenessPollInterval),
+			Policy: reducer.PoisonLivenessPolicy{
+				MaxRecoverAttempts: loadPositiveIntOrDefault(getenv, poisonLivenessMaxRecoverAttemptsEnv, defaultPoisonLivenessMaxRecoverAttempts),
+				BatchLimit:         loadPositiveIntOrDefault(getenv, poisonLivenessBatchLimitEnv, defaultPoisonLivenessBatchLimit),
 			},
 		},
 	}

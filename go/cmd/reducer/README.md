@@ -150,6 +150,22 @@ present so a global legacy value cannot silently override a Helm lane allowlist.
 | `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | Semantic-entity claims wait until this many source-local projectors have published |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | Optional cap on cross-scope semantic-entity claims; unset keeps the cap disabled |
 
+### Poison dead-letter liveness (#4740)
+
+The poison **stuck-gauge** (`eshu_dp_poison_dead_letter_scopes` / `_items` /
+`_oldest_age_seconds`) is always published and needs no configuration — a
+non-zero value alarms that a scope has permanently wedged (`fact_work_items`
+rows stuck in `dead_letter` with no strictly-newer generation). The bounded
+**auto-retry arm** that re-drives such rows `dead_letter -> pending` is
+**off by default** (surface-only); enable and tune it with:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED` | `false` | Opt into the bounded recovery arm. When `false` only the stuck-gauge runs and nothing is mutated |
+| `ESHU_POISON_LIVENESS_POLL_INTERVAL` | `5m` | How often the arm sweeps for poison rows to re-drive |
+| `ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS` | `1` | Per-item recovery budget; at the ceiling the row is left `dead_letter` for the operator while the gauge keeps alarming |
+| `ESHU_POISON_LIVENESS_BATCH_LIMIT` | `200` | Max poison work items re-driven per sweep |
+
 ### Shared projection
 
 Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.

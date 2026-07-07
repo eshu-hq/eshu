@@ -41,6 +41,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 	generationLivenessCfg := loadGenerationLivenessConfig(getenv)
+	poisonLivenessCfg := loadPoisonLivenessConfig(getenv)
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
 	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger, instruments)
@@ -101,6 +102,11 @@ func buildReducerService(
 	if generationLivenessRunner != nil {
 		generationLivenessRunner.Instruments = instruments
 		generationLivenessRunner.Logger = logger
+	}
+	poisonLivenessRunner := poisonLivenessRunnerFor(database, poisonLivenessCfg)
+	if poisonLivenessRunner != nil {
+		poisonLivenessRunner.Instruments = instruments
+		poisonLivenessRunner.Logger = logger
 	}
 	graphOrphanSweepRunner := graphOrphanSweepRunnerFor(neo4jExec, graphReader, intentStore, graphOrphanSweepCfg)
 	if graphOrphanSweepRunner != nil {
@@ -381,6 +387,7 @@ func buildReducerService(
 		),
 		GenerationRetentionRunner:       generationRetentionRunner,
 		GenerationLivenessRunner:        generationLivenessRunner,
+		PoisonLivenessRunner:            poisonLivenessRunner,
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
 		SearchVectorBuildRunner:         searchVectorBuildRunner,
