@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -40,14 +39,6 @@ const (
 	// source payloads retained only as bounded warning evidence.
 	WorkItemEvidenceStateRejectedUnsafePayload = "rejected_unsafe_payload"
 )
-
-// workItemEvidenceFactKinds bounds the evidence read to exactly the work_item
-// family the fact-kind registry maps to GET /api/v0/work-items/evidence.
-// facts.WorkItemFactKinds() is the single source of truth for that family, so
-// deriving the read set from it (rather than a hand-maintained copy) keeps the
-// SQL kind list, the decode switch in decodeWorkItemEvidenceRow, and the
-// registry in lockstep and drops any kind that is not a real registered fact.
-var workItemEvidenceFactKinds = facts.WorkItemFactKinds()
 
 // WorkItemEvidenceStore reads bounded Jira/work-item source facts.
 type WorkItemEvidenceStore interface {
