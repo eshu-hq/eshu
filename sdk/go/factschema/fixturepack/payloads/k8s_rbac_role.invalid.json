@@ -1,0 +1,8 @@
+{
+  "provider": "kubernetes",
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "role_kind": "Role",
+  "role_scope": "namespace",
+  "role_join_key": "sha256:demo-role"
+}

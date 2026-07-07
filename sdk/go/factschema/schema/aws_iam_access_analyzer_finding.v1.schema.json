@@ -1,0 +1,76 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/aws_iam_access_analyzer_finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "analyzer_arn": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "condition_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "finding_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "finding_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "resource_arn": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version"
+  ],
+  "title": "Eshu aws_iam_access_analyzer_finding Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,57 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/aws_iam_policy_attachment.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "policy_arn": {
+      "type": "string"
+    },
+    "policy_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "policy_source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal_arn": {
+      "type": "string"
+    },
+    "principal_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "principal_arn",
+    "policy_arn"
+  ],
+  "title": "Eshu aws_iam_policy_attachment Payload (schema version 1)",
+  "type": "object"
+}

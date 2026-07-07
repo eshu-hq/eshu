@@ -1,0 +1,93 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/gcp_iam_trust_policy.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "condition_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "condition_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "gcp_workload_identity_member_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "gcp_workload_identity_subject_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "impersonation_mode": {
+      "type": "string"
+    },
+    "location_bucket": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "target_principal_fingerprint": {
+      "type": "string"
+    },
+    "target_service_account_cloud_resource_uid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_service_account_email_digest": {
+      "type": "string"
+    },
+    "trusted_member_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "trusted_member_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "target_principal_fingerprint",
+    "target_service_account_email_digest",
+    "role",
+    "impersonation_mode"
+  ],
+  "title": "Eshu gcp_iam_trust_policy Payload (schema version 1)",
+  "type": "object"
+}

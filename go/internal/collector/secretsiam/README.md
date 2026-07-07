@@ -65,9 +65,11 @@ See `doc.go` for the godoc contract.
 
 - `internal/facts` for durable envelope, fact-kind, schema-version, source-ref,
   and stable-id contracts.
+- `sdk/go/factschema` for the AWS secrets_iam direct-map payload encoders and
+  typed source-contract structs used by the AWS builders.
 
-This package has no SDK dependency. Provider adapters normalize source data
-before calling it.
+Provider adapters normalize source data before calling this package. The
+package still has no provider SDK dependency.
 
 ## Telemetry
 

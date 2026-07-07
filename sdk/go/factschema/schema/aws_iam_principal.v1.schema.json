@@ -6,14 +6,83 @@
     "account_id": {
       "type": "string"
     },
+    "client_id_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_hints": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "principal_arn": {
       "type": "string"
+    },
+    "principal_id": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "principal_type": {
       "type": "string"
     },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "region": {
       "type": "string"
+    },
+    "thumbprint_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "url_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "url_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
   "required": [

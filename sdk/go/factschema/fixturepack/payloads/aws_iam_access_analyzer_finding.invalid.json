@@ -1,0 +1,6 @@
+{
+  "region": "us-east-1",
+  "provider": "aws_iam",
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1"
+}

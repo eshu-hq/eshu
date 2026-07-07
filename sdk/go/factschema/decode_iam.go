@@ -98,10 +98,22 @@ func DecodeAWSIAMPrincipal(env Envelope) (iamv1.Principal, error) {
 // payload shape an Envelope carries. It is the inverse of DecodeAWSIAMPrincipal
 // for schema-version-1 payloads.
 func EncodeAWSIAMPrincipal(principal iamv1.Principal) (map[string]any, error) {
-	return map[string]any{
+	payload := map[string]any{
 		"account_id":     principal.AccountID,
 		"region":         principal.Region,
 		"principal_arn":  principal.PrincipalARN,
 		"principal_type": principal.PrincipalType,
-	}, nil
+	}
+	addStringPtr(payload, "principal_id", principal.PrincipalID)
+	addStringPtr(payload, "provider", principal.Provider)
+	addStringPtr(payload, "collector_instance_id", principal.CollectorInstanceID)
+	addStringPtr(payload, "redaction_policy_version", principal.RedactionPolicyVersion)
+	addStringPtr(payload, "name", principal.Name)
+	addStringPtr(payload, "path", principal.Path)
+	addStringPtr(payload, "url_fingerprint", principal.URLFingerprint)
+	addBoolPtr(payload, "url_present", principal.URLPresent)
+	addIntPtr(payload, "client_id_count", principal.ClientIDCount)
+	addIntPtr(payload, "thumbprint_count", principal.ThumbprintCount)
+	addStringSlice(payload, "correlation_hints", principal.CorrelationHints)
+	return payload, nil
 }

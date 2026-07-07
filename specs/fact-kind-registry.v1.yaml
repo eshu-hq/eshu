@@ -312,26 +312,38 @@ families:
     read_surface: "GET /api/v0/secrets-iam/posture-summary"
     truth_profile: provider_gated
     provider_key_independent: false
-    # payload_schema_overrides covers only the eight VAULT + K8S lane kinds a
-    # reducer decode seam actually reads (factschema_decode_secretsiam.go,
-    # Contract System v1 Wave 4d, #4566/#4582). The AWS IAM lane
-    # (aws_iam_principal, aws_iam_trust_policy) was migrated separately in
-    # #4568 and has no override here yet; the GCP IAM lane
-    # (gcp_iam_principal, gcp_iam_trust_policy, gcp_iam_permission_policy) is
-    # deferred to a future wave. The remaining kinds (vault_auth_mount,
-    # vault_identity_alias, vault_identity_entity, vault_secret_engine_mount,
-    # k8s_rbac_binding, k8s_rbac_role, k8s_service_account_token_posture,
-    # secrets_iam_coverage_warning) have no reducer decode call in the
-    # trust-chain build and are intentionally absent.
+    # payload_schema_overrides covers the full secrets_iam source-contract
+    # matrix. Some kinds are consumed by reducer decode seams today and the
+    # loader-side second-decode path follows in W2c (#4796), but admission must
+    # validate every emitted source fact against the typed schema at the family
+    # boundary.
     payload_schema_overrides:
-      vault_auth_role: "sdk/go/factschema/schema/vault_auth_role.v1.schema.json"
-      vault_acl_policy: "sdk/go/factschema/schema/vault_acl_policy.v1.schema.json"
-      vault_kv_metadata: "sdk/go/factschema/schema/vault_kv_metadata.v1.schema.json"
-      k8s_service_account: "sdk/go/factschema/schema/k8s_service_account.v1.schema.json"
-      k8s_workload_identity_use: "sdk/go/factschema/schema/k8s_workload_identity_use.v1.schema.json"
+      aws_iam_access_analyzer_finding: "sdk/go/factschema/schema/aws_iam_access_analyzer_finding.v1.schema.json"
+      aws_iam_instance_profile: "sdk/go/factschema/schema/aws_iam_instance_profile.v1.schema.json"
+      aws_iam_permission_boundary: "sdk/go/factschema/schema/aws_iam_permission_boundary.v1.schema.json"
+      aws_iam_permission_policy: "sdk/go/factschema/schema/aws_iam_permission_policy.v1.schema.json"
+      aws_iam_policy_attachment: "sdk/go/factschema/schema/aws_iam_policy_attachment.v1.schema.json"
+      aws_iam_principal: "sdk/go/factschema/schema/aws_iam_principal.v1.schema.json"
+      aws_iam_trust_policy: "sdk/go/factschema/schema/aws_iam_trust_policy.v1.schema.json"
       eks_irsa_annotation: "sdk/go/factschema/schema/eks_irsa_annotation.v1.schema.json"
       eks_pod_identity_association: "sdk/go/factschema/schema/eks_pod_identity_association.v1.schema.json"
+      gcp_iam_permission_policy: "sdk/go/factschema/schema/gcp_iam_permission_policy.v1.schema.json"
+      gcp_iam_principal: "sdk/go/factschema/schema/gcp_iam_principal.v1.schema.json"
+      gcp_iam_trust_policy: "sdk/go/factschema/schema/gcp_iam_trust_policy.v1.schema.json"
       k8s_gcp_workload_identity_binding: "sdk/go/factschema/schema/k8s_gcp_workload_identity_binding.v1.schema.json"
+      k8s_rbac_binding: "sdk/go/factschema/schema/k8s_rbac_binding.v1.schema.json"
+      k8s_rbac_role: "sdk/go/factschema/schema/k8s_rbac_role.v1.schema.json"
+      k8s_service_account: "sdk/go/factschema/schema/k8s_service_account.v1.schema.json"
+      k8s_service_account_token_posture: "sdk/go/factschema/schema/k8s_service_account_token_posture.v1.schema.json"
+      k8s_workload_identity_use: "sdk/go/factschema/schema/k8s_workload_identity_use.v1.schema.json"
+      secrets_iam_coverage_warning: "sdk/go/factschema/schema/secrets_iam_coverage_warning.v1.schema.json"
+      vault_acl_policy: "sdk/go/factschema/schema/vault_acl_policy.v1.schema.json"
+      vault_auth_mount: "sdk/go/factschema/schema/vault_auth_mount.v1.schema.json"
+      vault_auth_role: "sdk/go/factschema/schema/vault_auth_role.v1.schema.json"
+      vault_identity_alias: "sdk/go/factschema/schema/vault_identity_alias.v1.schema.json"
+      vault_identity_entity: "sdk/go/factschema/schema/vault_identity_entity.v1.schema.json"
+      vault_kv_metadata: "sdk/go/factschema/schema/vault_kv_metadata.v1.schema.json"
+      vault_secret_engine_mount: "sdk/go/factschema/schema/vault_secret_engine_mount.v1.schema.json"
     kinds: [aws_iam_access_analyzer_finding, aws_iam_instance_profile, aws_iam_permission_boundary, aws_iam_permission_policy, aws_iam_policy_attachment, aws_iam_principal, aws_iam_trust_policy, eks_irsa_annotation, eks_pod_identity_association, gcp_iam_permission_policy, gcp_iam_principal, gcp_iam_trust_policy, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, secrets_iam_coverage_warning, vault_acl_policy, vault_auth_mount, vault_auth_role, vault_identity_alias, vault_identity_entity, vault_kv_metadata, vault_secret_engine_mount]
   security_alert:
     lifecycle_owner: go/internal/facts

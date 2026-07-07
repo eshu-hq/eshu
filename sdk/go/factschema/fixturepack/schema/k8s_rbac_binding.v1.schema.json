@@ -1,0 +1,127 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/k8s_rbac_binding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "binding_kind": {
+      "type": "string"
+    },
+    "binding_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "binding_scope": {
+      "type": "string"
+    },
+    "cluster_id": {
+      "type": "string"
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "namespace_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "resource_version_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role_ref_api_group": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role_ref_join_key": {
+      "type": "string"
+    },
+    "role_ref_kind": {
+      "type": "string"
+    },
+    "role_ref_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subject_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "subjects": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "api_group": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "namespace_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "service_account_join_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "uid_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "cluster_id",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "binding_kind",
+    "binding_scope",
+    "role_ref_kind",
+    "role_ref_join_key"
+  ],
+  "title": "Eshu k8s_rbac_binding Payload (schema version 1)",
+  "type": "object"
+}

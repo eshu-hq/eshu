@@ -1,0 +1,67 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/vault_identity_entity.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "alias_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "disabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "entity_id_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "entity_join_key": {
+      "type": "string"
+    },
+    "entity_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "group_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "namespace_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "vault_cluster_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "vault_cluster_id",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "entity_join_key"
+  ],
+  "title": "Eshu vault_identity_entity Payload (schema version 1)",
+  "type": "object"
+}

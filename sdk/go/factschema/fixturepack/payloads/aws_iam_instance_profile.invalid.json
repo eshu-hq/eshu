@@ -1,0 +1,7 @@
+{
+  "region": "us-east-1",
+  "provider": "aws_iam",
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "profile_arn": "arn:aws:iam::123456789012:instance-profile/app"
+}

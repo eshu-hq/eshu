@@ -1,0 +1,8 @@
+{
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "target_principal_fingerprint": "sha256:demo-target-principal",
+  "target_service_account_email_digest": "sha256:demo-service-account-email",
+  "role": "roles/iam.workloadIdentityUser",
+  "impersonation_mode": "workload_identity"
+}

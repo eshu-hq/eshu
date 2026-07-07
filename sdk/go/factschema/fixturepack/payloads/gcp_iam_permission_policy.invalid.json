@@ -1,0 +1,8 @@
+{
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "principal_fingerprint": "sha256:demo-principal",
+  "principal_type": "serviceAccount",
+  "role": "roles/secretmanager.secretAccessor",
+  "resource_full_resource_name": "//secretmanager.googleapis.com/projects/demo/secrets/app"
+}

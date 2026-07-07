@@ -1,0 +1,6 @@
+{
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "principal_fingerprint": "sha256:demo-principal",
+  "principal_type": "serviceAccount"
+}

@@ -22,7 +22,12 @@ func DecodeVaultAuthRole(env Envelope) (secretsiamv1.VaultAuthRole, error) {
 // DecodeVaultAuthRole for schema-version-1 payloads, used by collectors
 // emitting this fact kind and by this module's round-trip tests.
 func EncodeVaultAuthRole(role secretsiamv1.VaultAuthRole) (map[string]any, error) {
-	return encodeToPayload(role)
+	payload := map[string]any{"role_join_key": role.RoleJoinKey}
+	addStringPtr(payload, "mount_join_key", role.MountJoinKey)
+	addStringSlice(payload, "bound_service_account_join_keys", role.BoundServiceAccountJoinKeys)
+	addBoolPtr(payload, "bound_service_account_selector_wildcard", role.BoundServiceAccountSelectorWildcard)
+	addStringSlice(payload, "token_policy_join_keys", role.TokenPolicyJoinKeys)
+	return payload, nil
 }
 
 // DecodeVaultACLPolicy decodes env.Payload into the latest
@@ -36,7 +41,11 @@ func DecodeVaultACLPolicy(env Envelope) (secretsiamv1.VaultACLPolicy, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeVaultACLPolicy for schema-version-1 payloads.
 func EncodeVaultACLPolicy(policy secretsiamv1.VaultACLPolicy) (map[string]any, error) {
-	return encodeToPayload(policy)
+	payload := map[string]any{"policy_join_key": policy.PolicyJoinKey}
+	if policy.Rules != nil {
+		payload["rules"] = encodeVaultACLPolicyRules(policy.Rules)
+	}
+	return payload, nil
 }
 
 // DecodeVaultKVMetadata decodes env.Payload into the latest
@@ -50,7 +59,12 @@ func DecodeVaultKVMetadata(env Envelope) (secretsiamv1.VaultKVMetadata, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeVaultKVMetadata for schema-version-1 payloads.
 func EncodeVaultKVMetadata(metadata secretsiamv1.VaultKVMetadata) (map[string]any, error) {
-	return encodeToPayload(metadata)
+	payload := map[string]any{
+		"mount_join_key":      metadata.MountJoinKey,
+		"kv_path_fingerprint": metadata.KVPathFingerprint,
+	}
+	addIntPtr(payload, "path_depth", metadata.PathDepth)
+	return payload, nil
 }
 
 // DecodeKubernetesServiceAccount decodes env.Payload into the latest
@@ -65,7 +79,9 @@ func DecodeKubernetesServiceAccount(env Envelope) (secretsiamv1.KubernetesServic
 // an Envelope carries. It is the inverse of DecodeKubernetesServiceAccount
 // for schema-version-1 payloads.
 func EncodeKubernetesServiceAccount(account secretsiamv1.KubernetesServiceAccount) (map[string]any, error) {
-	return encodeToPayload(account)
+	return map[string]any{
+		"service_account_join_key": account.ServiceAccountJoinKey,
+	}, nil
 }
 
 // DecodeKubernetesWorkloadIdentityUse decodes env.Payload into the latest
@@ -81,7 +97,10 @@ func DecodeKubernetesWorkloadIdentityUse(env Envelope) (secretsiamv1.KubernetesW
 // shape an Envelope carries. It is the inverse of
 // DecodeKubernetesWorkloadIdentityUse for schema-version-1 payloads.
 func EncodeKubernetesWorkloadIdentityUse(use secretsiamv1.KubernetesWorkloadIdentityUse) (map[string]any, error) {
-	return encodeToPayload(use)
+	payload := map[string]any{"service_account_join_key": use.ServiceAccountJoinKey}
+	addStringPtr(payload, "workload_object_id", use.WorkloadObjectID)
+	addStringPtr(payload, "workload_kind", use.WorkloadKind)
+	return payload, nil
 }
 
 // DecodeEKSIRSAAnnotation decodes env.Payload into the latest
@@ -95,7 +114,12 @@ func DecodeEKSIRSAAnnotation(env Envelope) (secretsiamv1.EKSIRSAAnnotation, erro
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeEKSIRSAAnnotation for schema-version-1 payloads.
 func EncodeEKSIRSAAnnotation(annotation secretsiamv1.EKSIRSAAnnotation) (map[string]any, error) {
-	return encodeToPayload(annotation)
+	payload := map[string]any{
+		"service_account_join_key": annotation.ServiceAccountJoinKey,
+		"role_arn":                 annotation.RoleARN,
+	}
+	addStringPtr(payload, "web_identity_subject_fingerprint", annotation.WebIdentitySubjectFingerprint)
+	return payload, nil
 }
 
 // DecodeEKSPodIdentityAssociation decodes env.Payload into the latest
@@ -111,7 +135,10 @@ func DecodeEKSPodIdentityAssociation(env Envelope) (secretsiamv1.EKSPodIdentityA
 // shape an Envelope carries. It is the inverse of
 // DecodeEKSPodIdentityAssociation for schema-version-1 payloads.
 func EncodeEKSPodIdentityAssociation(association secretsiamv1.EKSPodIdentityAssociation) (map[string]any, error) {
-	return encodeToPayload(association)
+	return map[string]any{
+		"service_account_join_key": association.ServiceAccountJoinKey,
+		"role_arn":                 association.RoleARN,
+	}, nil
 }
 
 // DecodeKubernetesGCPWorkloadIdentityBinding decodes env.Payload into the
@@ -129,5 +156,21 @@ func DecodeKubernetesGCPWorkloadIdentityBinding(env Envelope) (secretsiamv1.Kube
 // payload shape an Envelope carries. It is the inverse of
 // DecodeKubernetesGCPWorkloadIdentityBinding for schema-version-1 payloads.
 func EncodeKubernetesGCPWorkloadIdentityBinding(binding secretsiamv1.KubernetesGCPWorkloadIdentityBinding) (map[string]any, error) {
-	return encodeToPayload(binding)
+	return map[string]any{
+		"service_account_join_key":                  binding.ServiceAccountJoinKey,
+		"gcp_service_account_email_digest":          binding.GCPServiceAccountEmailDigest,
+		"gcp_workload_identity_subject_fingerprint": binding.GCPWorkloadIdentitySubjectFingerprint,
+	}, nil
+}
+
+func encodeVaultACLPolicyRules(rules []secretsiamv1.VaultACLPolicyRule) []map[string]any {
+	output := make([]map[string]any, 0, len(rules))
+	for _, rule := range rules {
+		item := map[string]any{}
+		addStringPtr(item, "path_fingerprint", rule.PathFingerprint)
+		addIntPtr(item, "path_depth", rule.PathDepth)
+		addStringSlice(item, "capabilities", rule.Capabilities)
+		output = append(output, item)
+	}
+	return output
 }

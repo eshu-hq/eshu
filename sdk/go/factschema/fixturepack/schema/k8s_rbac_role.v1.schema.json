@@ -1,0 +1,132 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/k8s_rbac_role.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "cluster_id": {
+      "type": "string"
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "namespace_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "resource_version_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role_join_key": {
+      "type": "string"
+    },
+    "role_kind": {
+      "type": "string"
+    },
+    "role_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role_scope": {
+      "type": "string"
+    },
+    "rule_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "rules": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "api_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "non_resource_url_count": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "non_resource_urls_present": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "resource_name_count": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "resource_names_present": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "resources": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "verbs": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "uid_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "cluster_id",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "role_kind",
+    "role_scope",
+    "role_join_key"
+  ],
+  "title": "Eshu k8s_rbac_role Payload (schema version 1)",
+  "type": "object"
+}

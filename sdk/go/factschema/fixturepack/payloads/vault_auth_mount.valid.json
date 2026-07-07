@@ -1,0 +1,8 @@
+{
+  "vault_cluster_id": "vault-demo",
+  "provider": "vault",
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "auth_method": "kubernetes",
+  "mount_join_key": "sha256:demo-vault-auth-mount"
+}

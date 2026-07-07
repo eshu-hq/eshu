@@ -162,6 +162,24 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindAWSIAMPrincipal:
 		_, err := DecodeAWSIAMPrincipal(env)
 		return err
+	case FactKindAWSIAMTrustPolicy:
+		_, err := DecodeAWSIAMTrustPolicy(env)
+		return err
+	case FactKindAWSIAMPermissionPolicy:
+		_, err := DecodeAWSIAMPermissionPolicy(env)
+		return err
+	case FactKindAWSIAMPolicyAttachment:
+		_, err := DecodeAWSIAMPolicyAttachment(env)
+		return err
+	case FactKindAWSIAMPermissionBoundary:
+		_, err := DecodeAWSIAMPermissionBoundary(env)
+		return err
+	case FactKindAWSIAMInstanceProfile:
+		_, err := DecodeAWSIAMInstanceProfile(env)
+		return err
+	case FactKindAWSIAMAccessAnalyzerFinding:
+		_, err := DecodeAWSIAMAccessAnalyzerFinding(env)
+		return err
 	case FactKindIncidentRecord:
 		_, err := DecodeIncidentRecord(env)
 		return err
@@ -206,6 +224,15 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 		return err
 	case FactKindGCPImageReference:
 		_, err := DecodeGCPImageReference(env)
+		return err
+	case FactKindGCPIAMPrincipal:
+		_, err := DecodeGCPIAMPrincipal(env)
+		return err
+	case FactKindGCPIAMTrustPolicy:
+		_, err := DecodeGCPIAMTrustPolicy(env)
+		return err
+	case FactKindGCPIAMPermissionPolicy:
+		_, err := DecodeGCPIAMPermissionPolicy(env)
 		return err
 	case FactKindAzureCloudResource:
 		_, err := DecodeAzureCloudResource(env)
@@ -426,6 +453,30 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindKubernetesGCPWorkloadIdentityBinding:
 		_, err := DecodeKubernetesGCPWorkloadIdentityBinding(env)
 		return err
+	case FactKindKubernetesRBACRole:
+		_, err := DecodeKubernetesRBACRole(env)
+		return err
+	case FactKindKubernetesRBACBinding:
+		_, err := DecodeKubernetesRBACBinding(env)
+		return err
+	case FactKindKubernetesServiceAccountTokenPosture:
+		_, err := DecodeKubernetesServiceAccountTokenPosture(env)
+		return err
+	case FactKindVaultAuthMount:
+		_, err := DecodeVaultAuthMount(env)
+		return err
+	case FactKindVaultIdentityEntity:
+		_, err := DecodeVaultIdentityEntity(env)
+		return err
+	case FactKindVaultIdentityAlias:
+		_, err := DecodeVaultIdentityAlias(env)
+		return err
+	case FactKindVaultSecretEngineMount:
+		_, err := DecodeVaultSecretEngineMount(env)
+		return err
+	case FactKindSecretsIAMCoverageWarning:
+		_, err := DecodeSecretsIAMCoverageWarning(env)
+		return err
 	case FactKindWorkItemRecord:
 		_, err := DecodeWorkItemRecord(env)
 		return err
@@ -569,6 +620,12 @@ var allDecodedKinds = []string{
 	FactKindAWSIAMPermission,
 	FactKindAWSResourcePolicyPermission,
 	FactKindAWSIAMPrincipal,
+	FactKindAWSIAMTrustPolicy,
+	FactKindAWSIAMPermissionPolicy,
+	FactKindAWSIAMPolicyAttachment,
+	FactKindAWSIAMPermissionBoundary,
+	FactKindAWSIAMInstanceProfile,
+	FactKindAWSIAMAccessAnalyzerFinding,
 	FactKindIncidentRecord,
 	FactKindIncidentLifecycleEvent,
 	FactKindChangeRecord,
@@ -584,6 +641,9 @@ var allDecodedKinds = []string{
 	FactKindGCPIAMPolicyObservation,
 	FactKindGCPTagObservation,
 	FactKindGCPImageReference,
+	FactKindGCPIAMPrincipal,
+	FactKindGCPIAMTrustPolicy,
+	FactKindGCPIAMPermissionPolicy,
 	FactKindAzureCloudResource,
 	FactKindAzureCloudRelationship,
 	FactKindAzureDNSRecord,
@@ -657,6 +717,14 @@ var allDecodedKinds = []string{
 	FactKindEKSIRSAAnnotation,
 	FactKindEKSPodIdentityAssociation,
 	FactKindKubernetesGCPWorkloadIdentityBinding,
+	FactKindKubernetesRBACRole,
+	FactKindKubernetesRBACBinding,
+	FactKindKubernetesServiceAccountTokenPosture,
+	FactKindVaultAuthMount,
+	FactKindVaultIdentityEntity,
+	FactKindVaultIdentityAlias,
+	FactKindVaultSecretEngineMount,
+	FactKindSecretsIAMCoverageWarning,
 	FactKindWorkItemRecord,
 	FactKindWorkItemTransition,
 	FactKindWorkItemExternalLink,
@@ -820,6 +888,18 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeAWSResourcePolicyPermission(env)
 			case FactKindAWSIAMPrincipal:
 				_, err = DecodeAWSIAMPrincipal(env)
+			case FactKindAWSIAMTrustPolicy:
+				_, err = DecodeAWSIAMTrustPolicy(env)
+			case FactKindAWSIAMPermissionPolicy:
+				_, err = DecodeAWSIAMPermissionPolicy(env)
+			case FactKindAWSIAMPolicyAttachment:
+				_, err = DecodeAWSIAMPolicyAttachment(env)
+			case FactKindAWSIAMPermissionBoundary:
+				_, err = DecodeAWSIAMPermissionBoundary(env)
+			case FactKindAWSIAMInstanceProfile:
+				_, err = DecodeAWSIAMInstanceProfile(env)
+			case FactKindAWSIAMAccessAnalyzerFinding:
+				_, err = DecodeAWSIAMAccessAnalyzerFinding(env)
 			case FactKindIncidentRecord:
 				_, err = DecodeIncidentRecord(env)
 			case FactKindIncidentLifecycleEvent:
@@ -850,6 +930,12 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeGCPTagObservation(env)
 			case FactKindGCPImageReference:
 				_, err = DecodeGCPImageReference(env)
+			case FactKindGCPIAMPrincipal:
+				_, err = DecodeGCPIAMPrincipal(env)
+			case FactKindGCPIAMTrustPolicy:
+				_, err = DecodeGCPIAMTrustPolicy(env)
+			case FactKindGCPIAMPermissionPolicy:
+				_, err = DecodeGCPIAMPermissionPolicy(env)
 			case FactKindAzureCloudResource:
 				_, err = DecodeAzureCloudResource(env)
 			case FactKindAzureCloudRelationship:
@@ -996,6 +1082,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeEKSPodIdentityAssociation(env)
 			case FactKindKubernetesGCPWorkloadIdentityBinding:
 				_, err = DecodeKubernetesGCPWorkloadIdentityBinding(env)
+			case FactKindKubernetesRBACRole:
+				_, err = DecodeKubernetesRBACRole(env)
+			case FactKindKubernetesRBACBinding:
+				_, err = DecodeKubernetesRBACBinding(env)
+			case FactKindKubernetesServiceAccountTokenPosture:
+				_, err = DecodeKubernetesServiceAccountTokenPosture(env)
+			case FactKindVaultAuthMount:
+				_, err = DecodeVaultAuthMount(env)
+			case FactKindVaultIdentityEntity:
+				_, err = DecodeVaultIdentityEntity(env)
+			case FactKindVaultIdentityAlias:
+				_, err = DecodeVaultIdentityAlias(env)
+			case FactKindVaultSecretEngineMount:
+				_, err = DecodeVaultSecretEngineMount(env)
+			case FactKindSecretsIAMCoverageWarning:
+				_, err = DecodeSecretsIAMCoverageWarning(env)
 			case FactKindWorkItemRecord:
 				_, err = DecodeWorkItemRecord(env)
 			case FactKindWorkItemTransition:
