@@ -97,6 +97,21 @@ entities absent from gen2 — it never resurrects a tombstoned node by writing i
   removes it. This is the retraction proof; the offline half cannot delete a
   node without a backend.
 
+## Cassette fact-kind decode disposition
+
+`materialization.go`'s `rowFromPayload` helpers read the cassette's five
+synthetic fact kinds (`git.repository`, `git.directory`, `git.file`,
+`git.gitlab_pipeline`, `git.gitlab_job`) as raw `map[string]any` payloads
+rather than through the `sdk/go/factschema` typed-decode seam other
+consumers migrated to under epic #4783 (Contract System — Full Integration).
+This is deliberate, not deferred debt: those fact kinds have no real
+collector producer and no factschema family, so there is nothing to decode
+against. See
+[ADR: replay/offlinetier Cassette Fact-Kind Exemption (#4866)](../../../../docs/internal/design/4866-offlinetier-cassette-exemption.md)
+for the full rationale, the exempt fact-kind list, and the requirement that
+the future W3a raw-payload ratchet gate (#4800) allowlist this package by
+name instead of flagging it.
+
 ## Files
 
 - `materialization.go` — the cassette `fact` -> `CanonicalMaterialization` seam
