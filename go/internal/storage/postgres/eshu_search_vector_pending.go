@@ -32,7 +32,7 @@ const listPendingEshuSearchVectorScopesSQL = `
 WITH active_docs AS (
     SELECT fact.scope_id, fact.generation_id,
         COALESCE(scope.payload->>'repo_id', '') AS repo_id,
-        fact.payload->'document'->>'id' AS document_id,
+        fact.payload->>'document_id' AS document_id,
         fact.payload->>'content_hash' AS content_hash
     FROM fact_records fact
     JOIN ingestion_scopes scope

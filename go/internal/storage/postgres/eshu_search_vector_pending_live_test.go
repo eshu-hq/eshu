@@ -138,12 +138,18 @@ func TestEshuSearchVectorPendingBoundedPlanLive(t *testing.T) {
 		}
 	}
 
-	// Helper: insert a search document fact record.
+	// Helper: insert a search document fact record. The payload mirrors the
+	// production shape emitted by reducer.eshuSearchDocumentPayload: a top-level
+	// "document_id" key (what the pending lister reads) alongside the embedded
+	// "document" object. searchdocs.Document has no JSON tags, so its ID field
+	// marshals as the capitalized key "ID" — reproduced here so a reader that
+	// (incorrectly) reads the nested lowercase document.id yields NULL, which is
+	// the #4885 regression this test guards against.
 	insertFact := func(factID, scopeID, genID, docID, contentHash string, tombstone bool) {
 		t.Helper()
 		payload := fmt.Sprintf(
-			`{"document":{"id":%q},"content_hash":%q}`,
-			docID, contentHash,
+			`{"document_id":%q,"document":{"ID":%q},"content_hash":%q}`,
+			docID, docID, contentHash,
 		)
 		if _, err := sqlDB.ExecContext(
 			ctx, `
