@@ -73,6 +73,19 @@ type ActiveGenerationAgeObserver interface {
 	ActiveGenerationsByAge(ctx context.Context) (map[string]int64, error)
 }
 
+// PoisonLivenessObserver provides the current dead-letter/poison class size:
+// fact_work_items rows whose status is 'dead_letter' with no strictly-newer
+// scope_generations row for the same scope (#4740). This is the class the
+// generation-liveness ActiveGenerationAgeObserver above does not reach — a
+// poison scope's newest generation is not 'active' (it is 'failed'), so it
+// never appears in the fresh/aging/stuck buckets at all.
+type PoisonLivenessObserver interface {
+	// PoisonDeadLetterCounts returns the current poison-class scope count, item
+	// count, and the oldest item's age in seconds. Implementations must never
+	// key or label by raw scope, generation, or work-item identifiers.
+	PoisonDeadLetterCounts(ctx context.Context) (scopes int64, items int64, oldestAgeSeconds float64, err error)
+}
+
 // AWSClaimConcurrencyObserver provides active AWS claim counts by account.
 type AWSClaimConcurrencyObserver interface {
 	// AWSClaimConcurrency returns active claim counts keyed by AWS account ID.
@@ -169,14 +182,23 @@ type Instruments struct {
 	// lease heartbeat could not reach the lease store, risking reclaim and
 	// double-write by another worker while the original holder is still
 	// processing.
-	SharedProjectionPartitionHeartbeatMissed  metric.Int64Counter
-	GenerationRetentionPruned                 metric.Int64Counter
-	GenerationRetentionRowsPruned             metric.Int64Counter
-	GenerationRetentionFailures               metric.Int64Counter
-	GenerationRetentionSkipped                metric.Int64Counter
-	GenerationLivenessRecovered               metric.Int64Counter
-	GenerationLivenessSuperseded              metric.Int64Counter
-	GenerationLivenessFailures                metric.Int64Counter
+	SharedProjectionPartitionHeartbeatMissed metric.Int64Counter
+	GenerationRetentionPruned                metric.Int64Counter
+	GenerationRetentionRowsPruned            metric.Int64Counter
+	GenerationRetentionFailures              metric.Int64Counter
+	GenerationRetentionSkipped               metric.Int64Counter
+	GenerationLivenessRecovered              metric.Int64Counter
+	GenerationLivenessSuperseded             metric.Int64Counter
+	GenerationLivenessFailures               metric.Int64Counter
+	// PoisonLivenessRecovered counts dead-letter/poison-class fact_work_items
+	// rows re-enqueued to pending by the bounded poison-recovery sweep (#4740).
+	// Only increments when the sweep's bounded auto-retry is enabled; the
+	// stuck-gauge (PoisonDeadLetterScopes/Items) reports the class
+	// independently of whether auto-retry is on.
+	PoisonLivenessRecovered metric.Int64Counter
+	// PoisonLivenessFailures counts poison-recovery sweep failures by bounded
+	// reason (#4740).
+	PoisonLivenessFailures                    metric.Int64Counter
 	DeltaBaselineFallbacks                    metric.Int64Counter
 	ReconciliationFullSnapshots               metric.Int64Counter
 	ReconciliationDriftRetractions            metric.Int64Counter
@@ -1133,6 +1155,18 @@ type Instruments struct {
 	GraphOrphanNodes       metric.Int64ObservableGauge
 	AWSClaimConcurrency    metric.Int64ObservableGauge
 	ActiveGenerationsByAge metric.Int64ObservableGauge
+	// PoisonDeadLetterScopes and PoisonDeadLetterItems report the current
+	// dead-letter/poison class size (#4740): fact_work_items rows whose status
+	// is 'dead_letter' with no strictly-newer scope_generations row for the same
+	// scope. A non-zero, non-draining value is the alarm signal that a scope has
+	// permanently wedged and cannot self-heal without an operator or the bounded
+	// poison-recovery arm.
+	PoisonDeadLetterScopes metric.Int64ObservableGauge
+	PoisonDeadLetterItems  metric.Int64ObservableGauge
+	// PoisonDeadLetterOldestAgeSeconds reports the age, in seconds, of the
+	// oldest poison-class item's updated_at (when it was dead-lettered). Zero
+	// when the class is empty.
+	PoisonDeadLetterOldestAgeSeconds metric.Float64ObservableGauge
 	// WorkflowFamilyQueueDepth reports outstanding claim-aware collector queue
 	// depth by collector_kind, source_system, and status (issue #2699/#2857).
 	WorkflowFamilyQueueDepth metric.Int64ObservableGauge
@@ -1377,6 +1411,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GenerationLivenessFailures counter: %w", err)
+	}
+
+	inst.PoisonLivenessRecovered, err = meter.Int64Counter(
+		"eshu_dp_poison_liveness_recovered_total",
+		metric.WithDescription("Total dead-letter/poison-class fact_work_items rows re-enqueued to pending by the bounded poison-recovery sweep"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PoisonLivenessRecovered counter: %w", err)
+	}
+
+	inst.PoisonLivenessFailures, err = meter.Int64Counter(
+		"eshu_dp_poison_liveness_failures_total",
+		metric.WithDescription("Total poison dead-letter recovery sweep failures by bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PoisonLivenessFailures counter: %w", err)
 	}
 
 	inst.DeltaBaselineFallbacks, err = meter.Int64Counter(
@@ -4319,6 +4369,76 @@ func RegisterActiveGenerationAgeObservableGauge(inst *Instruments, meter metric.
 	)
 	if err != nil {
 		return fmt.Errorf("register ActiveGenerationsByAge gauge: %w", err)
+	}
+	return nil
+}
+
+// RegisterPoisonLivenessObservableGauges registers the dead-letter/poison-class
+// gauges (#4740). The callbacks run read-only on the meter collection goroutine
+// and are a no-op when observer is nil so binaries without a poison-liveness
+// store skip them. A non-zero PoisonDeadLetterScopes/Items is the alarm signal
+// that a scope has permanently wedged: dead_letter is terminal and unclaimable,
+// and the generation-liveness sweep does not reach it because the scope has no
+// ACTIVE generation at all.
+func RegisterPoisonLivenessObservableGauges(inst *Instruments, meter metric.Meter, observer PoisonLivenessObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.PoisonDeadLetterScopes, err = meter.Int64ObservableGauge(
+		"eshu_dp_poison_dead_letter_scopes",
+		metric.WithDescription("Current count of distinct scopes stuck in the dead-letter/poison class (dead_letter with no newer generation)"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			scopes, _, _, err := observer.PoisonDeadLetterCounts(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(scopes)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register PoisonDeadLetterScopes gauge: %w", err)
+	}
+
+	inst.PoisonDeadLetterItems, err = meter.Int64ObservableGauge(
+		"eshu_dp_poison_dead_letter_items",
+		metric.WithDescription("Current count of fact_work_items rows stuck in the dead-letter/poison class (dead_letter with no newer generation)"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			_, items, _, err := observer.PoisonDeadLetterCounts(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(items)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register PoisonDeadLetterItems gauge: %w", err)
+	}
+
+	inst.PoisonDeadLetterOldestAgeSeconds, err = meter.Float64ObservableGauge(
+		"eshu_dp_poison_dead_letter_oldest_age_seconds",
+		metric.WithDescription("Age in seconds of the oldest dead-letter/poison-class item, zero when the class is empty"),
+		metric.WithUnit("s"),
+		metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
+			_, _, oldestAgeSeconds, err := observer.PoisonDeadLetterCounts(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(oldestAgeSeconds)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register PoisonDeadLetterOldestAgeSeconds gauge: %w", err)
 	}
 	return nil
 }

@@ -369,6 +369,44 @@ superseding wedged generations) from a stuck backlog the sweep cannot clear. A
 rising `eshu_dp_generation_liveness_failures_total` means the sweep itself is
 failing; use reducer logs keyed on the bounded failure reason to find why.
 
+## Poison dead-letter liveness signals
+
+The generation-liveness sweep above does not reach every wedged scope: a scope
+whose newest generation is terminally `dead_letter` (not `active`) never
+appears in `eshu_dp_active_generations` at all, because that gauge only
+buckets active generations. The poison-liveness sweep publishes three
+observable gauges and two counters for exactly this class: `fact_work_items`
+rows that are `dead_letter` with no strictly-newer `scope_generations` row for
+the same scope.
+
+`eshu_dp_poison_dead_letter_scopes` and `eshu_dp_poison_dead_letter_items` are
+observable gauges of the current poison-class scope count and row count. Either
+one being non-zero and non-draining is the alarm signal: the scope has
+permanently wedged and cannot self-heal without an operator or the bounded
+recovery arm. `eshu_dp_poison_dead_letter_oldest_age_seconds` reports the age,
+in seconds, of the oldest poison item's `updated_at`; it is zero when the class
+is empty.
+
+These three gauges are always active regardless of whether bounded auto-retry
+is enabled (`ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED`, default `false`). The
+default operational posture is surface-only: an operator sees the class size
+and decides whether to intervene.
+
+Two counters describe what the bounded auto-retry sweep did, when enabled:
+
+- `eshu_dp_poison_liveness_recovered_total` — dead-letter/poison-class rows the
+  sweep re-enqueued to `pending`, bounded by a per-row recovery-attempt budget
+  (`ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS`, default 1) so a genuinely
+  poison item cannot loop forever.
+- `eshu_dp_poison_liveness_failures_total` — poison-recovery sweep failures by
+  bounded reason.
+
+Read `eshu_dp_poison_dead_letter_scopes` and `eshu_dp_poison_dead_letter_items`
+against `eshu_dp_poison_liveness_recovered_total` to separate a poison class an
+operator has not yet acted on from one the bounded arm is actively draining. A
+rising `eshu_dp_poison_liveness_failures_total` means the sweep itself is
+failing; use reducer logs keyed on the bounded failure reason to find why.
+
 ## Per-Endpoint Request Metrics
 
 Every query API and MCP read route emits two metrics, recorded once by a shared

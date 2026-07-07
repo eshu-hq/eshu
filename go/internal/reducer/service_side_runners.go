@@ -44,6 +44,9 @@ func (s Service) startSideRunners(
 	if s.GenerationLivenessRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GenerationLivenessRunner)
 	}
+	if s.PoisonLivenessRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.PoisonLivenessRunner)
+	}
 	if s.GraphOrphanSweepRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GraphOrphanSweepRunner)
 	}

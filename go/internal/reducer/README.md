@@ -106,6 +106,92 @@ projector enqueue path under bounded `LIMIT` statements. Verify with
 `go test ./internal/reducer -run 'GenerationLiveness' -count=1` and
 `go test ./internal/storage/postgres -run 'GenerationLiveness|WedgedActive|OrphanedActive' -count=1`.
 
+## Poison Dead-Letter Liveness Recovery (#4740)
+
+`GenerationLivenessRunner` above only re-drives a scope whose newest generation
+is `active`. It does not reach a scope whose newest generation is terminally
+`dead_letter`: `dead_letter` is never re-claimed by the normal claim path, and
+the wedge-detection NOT EXISTS guard treats same-generation `dead_letter`
+reducer work as still "in progress," excluding it from the wedged re-drive
+path. Such a scope can never self-heal without an operator or a dedicated
+bounded arm.
+
+`PoisonLivenessRunner` closes that gap. It delegates to
+`storage/postgres.PoisonLivenessStore`, which runs two bounded, read-only-safe
+statements: `CountPoisonDeadLetters` (an aggregate query) and, only when
+bounded auto-retry is enabled, `RecoverPoisonDeadLetters` (the re-enqueue
+UPDATE). The poison class is: a `fact_work_items` row with `status =
+'dead_letter'` whose scope has no strictly-newer `scope_generations` row (same
+"strictly newer" `(ingested_at, generation_id)` comparator the
+generation-liveness supersede query uses). A scope with any newer generation —
+regardless of that newer generation's own status — has already moved on, so the
+dead-letter row is historical, not live poison.
+
+The default operational posture is surface-only
+(`ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED=false`): the stuck-gauge is wired
+unconditionally in `cmd/reducer` so an operator always sees the poison-class
+size, but `PoisonLivenessRunner` itself — and therefore any `dead_letter ->
+pending` re-enqueue write — is only constructed when an operator opts in. When
+enabled, the bounded arm re-enqueues a dead-letter row to `pending` under a
+per-row `poison_recovery_attempts` budget carried in the work item's JSONB
+payload (`ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS`, default 1, mirroring the
+`liveness_recovery_attempts` idiom above; no new schema column). A row at or
+past the budget ceiling is excluded by the candidate CTE, so a genuinely poison
+item stops looping and is left `dead_letter` for an operator to inspect. The
+conflict domain is `work_item_id` (the `fact_work_items` primary key): the
+recovery UPDATE re-verifies `status = 'dead_letter'` at write time
+(`AND target.status = 'dead_letter'` on the target row, not only the read-time
+candidate snapshot), so under Read Committed a concurrent reclaim of the exact
+same row between the candidate CTE's snapshot and the UPDATE's row lock is
+never clobbered — the write-time WHERE re-evaluates (EvalPlanQual recheck)
+against the now-committed row and affects zero rows for it instead.
+
+Detection is bounded by a dedicated partial index,
+`fact_work_items_dead_letter_poison_idx` (migration `043`), on
+`(scope_id, generation_id) WHERE status = 'dead_letter'`. Because `dead_letter`
+is terminal, the index only grows on new dead-letters and shrinks when the arm
+successfully re-enqueues a row (its status leaves `dead_letter`), so it stays
+proportional to the live poison backlog rather than the full `fact_work_items`
+table.
+
+No-Regression Evidence: `go test ./internal/storage/postgres/...
+./internal/reducer/... ./cmd/reducer ./cmd/ingester -count=1` passes
+(4281 tests). Against a throwaway `postgres:16-alpine` instance (set
+`ESHU_POISON_LIVENESS_PROOF_DSN`), `go test ./internal/storage/postgres -run
+'TestPoisonLivenessIntegration|TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim'
+-count=1` proves all four required behaviors: (1) RED — the existing
+generation-liveness gauge (`CountActiveGenerationsByAge`) counts 0 of 3 seeded
+poison scopes because their newest generation is `failed`, not `active`; GREEN
+— `CountPoisonDeadLetters` counts exactly the 3 poison scopes/items and excludes
+a healed decoy (`dead_letter` with a newer `active` generation for the same
+scope); (2) the bounded arm increments `poison_recovery_attempts` 0->1->2 across
+two re-dead-lettered sweeps, then a third sweep at the ceiling affects 0 rows
+and leaves the row `dead_letter` for an operator; (3)
+`GaugeUsesPartialIndex` forces `enable_seqscan=off` and asserts the
+`countPoisonDeadLettersQuery` EXPLAIN plan references
+`fact_work_items_dead_letter_poison_idx`, proving the index is usable for this
+exact query shape; (4)
+`TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim` races a real
+concurrent reclaim transaction (`dead_letter -> claimed`) against the sweep's
+blocked UPDATE and proves the write-time guard leaves the reclaimed row
+untouched (`Recovered = 0`, final status `claimed`, `lease_owner` unchanged,
+budget counter not incremented) instead of clobbering it back to `pending`.
+
+Observability Evidence: `eshu_dp_poison_dead_letter_scopes`,
+`eshu_dp_poison_dead_letter_items`, and
+`eshu_dp_poison_dead_letter_oldest_age_seconds` are observable gauges reporting
+the current poison-class size and oldest item age, registered unconditionally
+in `cmd/reducer` (`poisonLivenessObserverFor` +
+`telemetry.RegisterPoisonLivenessObservableGauges`) so the class is visible
+regardless of the auto-retry flag, independent of whether
+`PoisonLivenessRunner` itself is constructed. When the runner is constructed
+(auto-retry enabled), it records through the shared `*telemetry.Instruments`
+contract passed into its `Instruments` field — not an inline meter — via
+`recordResult`/`recordFailure`: `eshu_dp_poison_liveness_recovered_total` and
+`eshu_dp_poison_liveness_failures_total` count bounded sweep outcomes;
+completion and failure logs carry the `reduction` phase attribute and, on
+failure, the `poison_liveness_error` failure class.
+
 ## Graph Orphan Sweep
 
 `GraphOrphanSweepRunner` runs beside reducer intent workers and shared
