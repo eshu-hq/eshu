@@ -151,13 +151,13 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindCICDTriggerEdge":            "ci.trigger_edge.v1.schema.json",
 	"FactKindCICDStep":                   "ci.step.v1.schema.json",
 	"FactKindCICDWorkflowImageEvidence":  "ci.workflow_image_evidence.v1.schema.json",
-	// secrets_iam family (Wave 4d, VAULT + K8S lanes only): every kind a
+	// secrets_iam family: every kind a
 	// reducer decode seam wrapper actually decodes
-	// (factschema_decode_secretsiam.go) is mapped. The AWS IAM lane's kinds
-	// (aws_iam_principal and siblings) are already mapped above under their
-	// own FactKind constants. The GCP IAM lane (gcp_iam_principal,
-	// gcp_iam_trust_policy, gcp_iam_permission_policy) has no reducer decode
-	// call this wave, so it is intentionally absent here.
+	// (factschema_decode_secretsiam.go) is mapped. The #4789 W1c source
+	// contracts add schemas and direct-map encoders for the full family, but
+	// W2c (#4796) owns the loader-side second-decode path; mapping those
+	// source-only kinds here before a reducer/query decode seam exists would
+	// assert a hollow usage contract.
 	"FactKindVaultAuthRole":                        "vault_auth_role.v1.schema.json",
 	"FactKindVaultACLPolicy":                       "vault_acl_policy.v1.schema.json",
 	"FactKindVaultKVMetadata":                      "vault_kv_metadata.v1.schema.json",

@@ -1,0 +1,77 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/vault_auth_mount.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "auth_method": {
+      "type": "string"
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "default_lease_ttl_seconds": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "local": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "max_lease_ttl_seconds": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "mount_accessor_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mount_join_key": {
+      "type": "string"
+    },
+    "mount_path_depth": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "mount_path_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "namespace_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "vault_cluster_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "vault_cluster_id",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "auth_method",
+    "mount_join_key"
+  ],
+  "title": "Eshu vault_auth_mount Payload (schema version 1)",
+  "type": "object"
+}

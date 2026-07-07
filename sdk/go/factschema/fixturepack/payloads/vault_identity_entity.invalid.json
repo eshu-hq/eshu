@@ -1,0 +1,6 @@
+{
+  "provider": "vault",
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "entity_join_key": "sha256:demo-vault-entity"
+}

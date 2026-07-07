@@ -1,0 +1,10 @@
+{
+  "cluster_id": "cluster-demo",
+  "provider": "kubernetes",
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "binding_kind": "RoleBinding",
+  "binding_scope": "namespace",
+  "role_ref_kind": "Role",
+  "role_ref_join_key": "sha256:demo-role"
+}

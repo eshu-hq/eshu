@@ -1,0 +1,112 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/aws_iam_trust_policy.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "actions": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "assume_principals": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "condition_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "condition_operator_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "condition_operators": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "effect": {
+      "type": "string"
+    },
+    "has_conditions": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "policy_source": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "role_arn": {
+      "type": "string"
+    },
+    "statement_sid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "web_identity_subject_fingerprints": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "web_identity_subject_wildcard": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "role_arn",
+    "policy_source",
+    "effect"
+  ],
+  "title": "Eshu aws_iam_trust_policy Payload (schema version 1)",
+  "type": "object"
+}

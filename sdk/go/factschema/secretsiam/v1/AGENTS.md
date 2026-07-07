@@ -1,27 +1,19 @@
-# secrets_iam VAULT + K8S Fact Payloads Agent Rules
+# secrets_iam Fact Payloads Agent Rules
 
 This directory is part of the public
 `github.com/eshu-hq/eshu/sdk/go/factschema` Go module. It holds the
-schema-version-1 typed payload structs for the secrets_iam family's VAULT lane
-(`VaultAuthRole`, `VaultACLPolicy`, `VaultKVMetadata`) and K8S lane
-(`KubernetesServiceAccount`, `KubernetesWorkloadIdentityUse`,
-`EKSIRSAAnnotation`, `EKSPodIdentityAssociation`,
-`KubernetesGCPWorkloadIdentityBinding`). It must remain independent from Eshu
-internals.
+schema-version-1 typed payload structs for the secrets_iam family, except for
+the legacy `aws_iam_principal` struct in `sdk/go/factschema/iam/v1`. It must
+remain independent from Eshu internals.
 
-## Scope (Wave 4d, Contract System v1 #4566/#4582)
+## Scope
 
-This package is deliberately partial. The secrets_iam family has three lanes:
-
-- **AWS IAM lane** (`aws_iam_principal`, `aws_iam_trust_policy`,
-  `aws_iam_permission_policy`): already migrated in #4568. Its structs live in
-  `sdk/go/factschema/iam/v1`, NOT here. Do not move or duplicate them.
-- **VAULT lane** and **K8S lane**: typed here in this wave.
-- **GCP IAM lane** (`gcp_iam_principal`, `gcp_iam_trust_policy`,
-  `gcp_iam_permission_policy`): deferred to a future wave. Do not add these
-  kinds here without a design discussion — the reducer's
-  `secrets_iam_trust_chain_gcp.go` continues reading them raw with an explicit
-  "deferred: gcp_iam lane" comment at each read site.
+This package covers AWS IAM source-detail facts, GCP IAM facts, Kubernetes
+identity and RBAC facts, Vault identity and mount facts, and
+`secrets_iam_coverage_warning`. Keep `aws_iam_principal` in `iam/v1` unless a
+separate design moves that legacy boundary. W2c (#4796) owns loader-side
+consumer decode changes; do not add raw JSONB consumer rewrites here unless the
+issue scope says so.
 
 ## Required Checks
 
@@ -62,12 +54,9 @@ This package is deliberately partial. The secrets_iam family has three lanes:
   convention. Never invent a dot this family's wire kinds do not already
   carry.
 
-## Adding the GCP IAM lane later
+## Adding consumer decode later
 
-When the GCP IAM lane's own wave lands, add its structs to a sibling file in
-this package (or a design-reviewed alternative), add its `FactKind*`
-constants and `Decode*`/`Encode*` seam functions to the parent module's
-`decode.go`/`decode_secretsiam.go`, and update
-`go/internal/reducer/secrets_iam_trust_chain_gcp.go`'s "deferred" comments to
-point at the real decode call. Do not do this opportunistically inside an
-unrelated change.
+The source-contract structs and parent decode/encode seams are present for the
+full family. Loader/query consumers that still read raw payload JSONB must move
+through their own scoped issue so field-use evidence, no-regression proof, and
+dead-letter behavior stay reviewable.

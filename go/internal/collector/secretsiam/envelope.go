@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 )
 
 // NewPrincipalEnvelope builds the durable aws_iam_principal source fact for one
@@ -31,17 +32,10 @@ func NewPrincipalEnvelope(observation PrincipalObservation) (facts.Envelope, err
 		"principal_type": principalType,
 		"region":         observation.Context.Region,
 	})
-	payload := commonPayload(observation.Context)
-	payload["principal_arn"] = principalARN
-	payload["principal_id"] = principalARN
-	payload["principal_type"] = principalType
-	payload["name"] = strings.TrimSpace(observation.Name)
-	payload["path"] = strings.TrimSpace(observation.Path)
-	payload["url_fingerprint"] = strings.TrimSpace(observation.URLFingerprint)
-	payload["url_present"] = strings.TrimSpace(observation.URLFingerprint) != ""
-	payload["client_id_count"] = observation.ClientIDCount
-	payload["thumbprint_count"] = observation.ThumbprintCount
-	payload["correlation_hints"] = normalizePatternList(observation.CorrelationHints)
+	payload, err := principalPayload(observation.Context, observation, principalARN, principalType)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMPrincipalFactKind,
@@ -84,19 +78,21 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	}
 	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
 	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, stableIdentity)
-	payload := commonPayload(observation.Context)
-	payload["role_arn"] = roleARN
-	payload["statement_sid"] = statementSID
-	payload["policy_source"] = PolicySourceTrust
-	payload["effect"] = effect
-	payload["actions"] = actions
-	payload["condition_keys"] = conditionKeys
-	payload["condition_operators"] = conditionOperators
-	payload["condition_operator_count"] = len(conditionOperators)
-	payload["assume_principals"] = assumePrincipals
-	payload["has_conditions"] = len(conditionKeys) > 0 || len(conditionOperators) > 0
-	payload["web_identity_subject_fingerprints"] = webIdentitySubjects
-	payload["web_identity_subject_wildcard"] = observation.WebIdentitySubjectWildcard
+	payload, err := trustPolicyPayload(
+		observation.Context,
+		roleARN,
+		statementSID,
+		effect,
+		actions,
+		conditionKeys,
+		conditionOperators,
+		assumePrincipals,
+		webIdentitySubjects,
+		observation.WebIdentitySubjectWildcard,
+	)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMTrustPolicyFactKind,
@@ -152,24 +148,25 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 	}
 	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
 	stableKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, stableIdentity)
-	payload := commonPayload(observation.Context)
-	payload["principal_arn"] = principalARN
-	payload["principal_type"] = strings.TrimSpace(observation.PrincipalType)
-	payload["policy_source"] = policySource
-	payload["policy_arn"] = policyARN
-	payload["policy_name"] = policyName
-	payload["statement_sid"] = statementSID
-	payload["effect"] = effect
-	payload["actions"] = actions
-	payload["not_actions"] = notActions
-	payload["resources"] = resources
-	payload["not_resources"] = notResources
-	payload["condition_keys"] = conditionKeys
-	payload["condition_operators"] = conditionOperators
-	payload["condition_operator_count"] = len(conditionOperators)
-	payload["has_conditions"] = len(conditionKeys) > 0 || len(conditionOperators) > 0
-	payload["is_wildcard_action"] = containsValue(actions, wildcardAction)
-	payload["is_wildcard_resource"] = containsValue(resources, wildcardAction)
+	payload, err := permissionPolicyPayload(
+		observation.Context,
+		observation,
+		principalARN,
+		policySource,
+		policyARN,
+		policyName,
+		statementSID,
+		effect,
+		actions,
+		notActions,
+		resources,
+		notResources,
+		conditionKeys,
+		conditionOperators,
+	)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMPermissionPolicyFactKind,
@@ -199,12 +196,10 @@ func NewPolicyAttachmentEnvelope(observation PolicyAttachmentObservation) (facts
 		"principal_arn": principalARN,
 		"region":        observation.Context.Region,
 	})
-	payload := commonPayload(observation.Context)
-	payload["principal_arn"] = principalARN
-	payload["principal_type"] = strings.TrimSpace(observation.PrincipalType)
-	payload["policy_arn"] = policyARN
-	payload["policy_name"] = strings.TrimSpace(observation.PolicyName)
-	payload["policy_source"] = policySource
+	payload, err := policyAttachmentPayload(observation.Context, observation, principalARN, policyARN, policySource)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMPolicyAttachmentFactKind,
@@ -233,11 +228,10 @@ func NewPermissionBoundaryEnvelope(observation PermissionBoundaryObservation) (f
 		"principal_arn":       principalARN,
 		"region":              observation.Context.Region,
 	})
-	payload := commonPayload(observation.Context)
-	payload["principal_arn"] = principalARN
-	payload["principal_type"] = strings.TrimSpace(observation.PrincipalType)
-	payload["boundary_policy_arn"] = boundaryPolicyARN
-	payload["boundary_type"] = strings.TrimSpace(observation.BoundaryType)
+	payload, err := permissionBoundaryPayload(observation.Context, observation, principalARN, boundaryPolicyARN)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMPermissionBoundaryFactKind,
@@ -264,12 +258,10 @@ func NewInstanceProfileEnvelope(observation InstanceProfileObservation) (facts.E
 		"profile_arn": profileARN,
 		"region":      observation.Context.Region,
 	})
-	payload := commonPayload(observation.Context)
-	payload["profile_arn"] = profileARN
-	payload["name"] = strings.TrimSpace(observation.Name)
-	payload["path"] = strings.TrimSpace(observation.Path)
-	payload["role_arns"] = roleARNs
-	payload["role_count"] = len(roleARNs)
+	payload, err := instanceProfilePayload(observation.Context, observation, profileARN, roleARNs)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMInstanceProfileFactKind,
@@ -299,14 +291,10 @@ func NewAccessAnalyzerFindingEnvelope(observation AccessAnalyzerFindingObservati
 		"region":       observation.Context.Region,
 		"resource_arn": resourceARN,
 	})
-	payload := commonPayload(observation.Context)
-	payload["finding_id"] = findingID
-	payload["analyzer_arn"] = strings.TrimSpace(observation.AnalyzerARN)
-	payload["resource_arn"] = resourceARN
-	payload["resource_type"] = strings.TrimSpace(observation.ResourceType)
-	payload["status"] = strings.TrimSpace(observation.Status)
-	payload["finding_type"] = strings.TrimSpace(observation.FindingType)
-	payload["condition_keys"] = conditionKeys
+	payload, err := accessAnalyzerFindingPayload(observation.Context, observation, findingID, resourceARN, conditionKeys)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMAccessAnalyzerFindingFactKind,
@@ -336,12 +324,10 @@ func NewCoverageWarningEnvelope(observation CoverageWarningObservation) (facts.E
 		"source_state": sourceState,
 		"warning_kind": warningKind,
 	})
-	payload := commonPayload(observation.Context)
-	payload["warning_kind"] = warningKind
-	payload["source_state"] = sourceState
-	payload["error_class"] = strings.TrimSpace(observation.ErrorClass)
-	payload["message"] = strings.TrimSpace(observation.Message)
-	payload["attributes"] = cloneAnyMap(observation.Attributes)
+	payload, err := coverageWarningPayload(observation.Context, observation, warningKind, sourceState)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(
 		observation.Context,
 		facts.SecretsIAMCoverageWarningFactKind,
@@ -383,13 +369,13 @@ func newEnvelope(
 	}
 }
 
-func commonPayload(ctx EnvelopeContext) map[string]any {
-	return map[string]any{
-		"account_id":               strings.TrimSpace(ctx.AccountID),
-		"region":                   strings.TrimSpace(ctx.Region),
-		"provider":                 ProviderAWSIAM,
-		"collector_instance_id":    strings.TrimSpace(ctx.CollectorInstanceID),
-		"redaction_policy_version": RedactionPolicyVersion,
+func commonPayload(ctx EnvelopeContext) secretsiamv1.AWSCommon {
+	return secretsiamv1.AWSCommon{
+		AccountID:              strings.TrimSpace(ctx.AccountID),
+		Region:                 strings.TrimSpace(ctx.Region),
+		Provider:               ProviderAWSIAM,
+		CollectorInstanceID:    strings.TrimSpace(ctx.CollectorInstanceID),
+		RedactionPolicyVersion: RedactionPolicyVersion,
 	}
 }
 

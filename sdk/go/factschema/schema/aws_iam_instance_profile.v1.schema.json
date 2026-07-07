@@ -1,0 +1,62 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/aws_iam_instance_profile.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "profile_arn": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "role_arns": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "role_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "profile_arn"
+  ],
+  "title": "Eshu aws_iam_instance_profile Payload (schema version 1)",
+  "type": "object"
+}

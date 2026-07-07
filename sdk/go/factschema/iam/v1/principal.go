@@ -27,7 +27,50 @@ type Principal struct {
 	// principal with no ARN.
 	PrincipalARN string `json:"principal_arn"`
 
+	// PrincipalID is the collector's stable principal identity mirror. Optional
+	// for compatibility with older payloads that only carried principal_arn.
+	PrincipalID *string `json:"principal_id,omitempty"`
+
 	// PrincipalType is the principal type token (for example "role" or
 	// "user"). Required — the emitter rejects a principal with no type.
 	PrincipalType string `json:"principal_type"`
+
+	// Provider is the source provider token ("aws_iam") emitted by the
+	// secrets_iam collector. Optional for compatibility with older payloads
+	// that only carried the identity fields the reducer consumed.
+	Provider *string `json:"provider,omitempty"`
+
+	// CollectorInstanceID is the collector instance boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
+	// RedactionPolicyVersion records the source-family redaction contract used
+	// to produce this metadata-only payload. Optional for older payloads.
+	RedactionPolicyVersion *string `json:"redaction_policy_version,omitempty"`
+
+	// Name is the redaction-safe principal display name emitted by the
+	// collector when it is permitted by the source contract. Optional.
+	Name *string `json:"name,omitempty"`
+
+	// Path is the IAM path emitted by the collector. Optional.
+	Path *string `json:"path,omitempty"`
+
+	// URLFingerprint is the redaction-safe fingerprint of the principal URL, if
+	// the source observed one. Optional.
+	URLFingerprint *string `json:"url_fingerprint,omitempty"`
+
+	// URLPresent records whether a principal URL was observed without storing
+	// the URL itself. Optional.
+	URLPresent *bool `json:"url_present,omitempty"`
+
+	// ClientIDCount records OIDC provider client-id cardinality without storing
+	// raw client IDs. Optional.
+	ClientIDCount *int `json:"client_id_count,omitempty"`
+
+	// ThumbprintCount records OIDC provider thumbprint cardinality without
+	// storing raw thumbprints. Optional.
+	ThumbprintCount *int `json:"thumbprint_count,omitempty"`
+
+	// CorrelationHints carries bounded, normalized correlation hint tokens.
+	// Optional.
+	CorrelationHints []string `json:"correlation_hints,omitempty"`
 }

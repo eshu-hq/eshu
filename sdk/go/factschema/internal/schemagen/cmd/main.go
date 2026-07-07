@@ -178,10 +178,20 @@ func run() error {
 		{name: "ci.trigger_edge.v1.schema.json", generate: schemagen.CICDTriggerEdgeSchema},
 		{name: "ci.step.v1.schema.json", generate: schemagen.CICDStepSchema},
 		{name: "ci.workflow_image_evidence.v1.schema.json", generate: schemagen.CICDWorkflowImageEvidenceSchema},
-		// The secrets_iam family (Wave 4d, VAULT + K8S lanes only) fact kinds
-		// are UNDERSCORE-separated, like the aws/gcp/azure kinds. The AWS IAM
-		// lane's schemas live under iam/v1 (already migrated in #4568); the
-		// GCP IAM lane is deferred to a future wave and has no schema here.
+		// The secrets_iam family fact kinds are UNDERSCORE-separated, like the
+		// aws/gcp/azure kinds.
+		{name: "aws_iam_trust_policy.v1.schema.json", generate: schemagen.AWSIAMTrustPolicySchema},
+		{name: "aws_iam_permission_policy.v1.schema.json", generate: schemagen.AWSIAMPermissionPolicySchema},
+		{name: "aws_iam_policy_attachment.v1.schema.json", generate: schemagen.AWSIAMPolicyAttachmentSchema},
+		{name: "aws_iam_permission_boundary.v1.schema.json", generate: schemagen.AWSIAMPermissionBoundarySchema},
+		{name: "aws_iam_instance_profile.v1.schema.json", generate: schemagen.AWSIAMInstanceProfileSchema},
+		{name: "aws_iam_access_analyzer_finding.v1.schema.json", generate: schemagen.AWSIAMAccessAnalyzerFindingSchema},
+		{name: "gcp_iam_principal.v1.schema.json", generate: schemagen.GCPIAMPrincipalSchema},
+		{name: "gcp_iam_trust_policy.v1.schema.json", generate: schemagen.GCPIAMTrustPolicySchema},
+		{name: "gcp_iam_permission_policy.v1.schema.json", generate: schemagen.GCPIAMPermissionPolicySchema},
+		{name: "k8s_rbac_role.v1.schema.json", generate: schemagen.KubernetesRBACRoleSchema},
+		{name: "k8s_rbac_binding.v1.schema.json", generate: schemagen.KubernetesRBACBindingSchema},
+		{name: "k8s_service_account_token_posture.v1.schema.json", generate: schemagen.KubernetesServiceAccountTokenPostureSchema},
 		{name: "vault_auth_role.v1.schema.json", generate: schemagen.VaultAuthRoleSchema},
 		{name: "vault_acl_policy.v1.schema.json", generate: schemagen.VaultACLPolicySchema},
 		{name: "vault_kv_metadata.v1.schema.json", generate: schemagen.VaultKVMetadataSchema},
@@ -190,6 +200,11 @@ func run() error {
 		{name: "eks_irsa_annotation.v1.schema.json", generate: schemagen.EKSIRSAAnnotationSchema},
 		{name: "eks_pod_identity_association.v1.schema.json", generate: schemagen.EKSPodIdentityAssociationSchema},
 		{name: "k8s_gcp_workload_identity_binding.v1.schema.json", generate: schemagen.KubernetesGCPWorkloadIdentityBindingSchema},
+		{name: "vault_auth_mount.v1.schema.json", generate: schemagen.VaultAuthMountSchema},
+		{name: "vault_identity_entity.v1.schema.json", generate: schemagen.VaultIdentityEntitySchema},
+		{name: "vault_identity_alias.v1.schema.json", generate: schemagen.VaultIdentityAliasSchema},
+		{name: "vault_secret_engine_mount.v1.schema.json", generate: schemagen.VaultSecretEngineMountSchema},
+		{name: "secrets_iam_coverage_warning.v1.schema.json", generate: schemagen.SecretsIAMCoverageWarningSchema},
 		// The work_item family fact kinds are DOTTED (like the incident
 		// family). All nine are emitted by the Jira collector; the decode site
 		// is the query read-model layer, not the reducer (workitem/v1/README.md).

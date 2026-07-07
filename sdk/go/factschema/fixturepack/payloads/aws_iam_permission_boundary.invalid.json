@@ -1,0 +1,8 @@
+{
+  "region": "us-east-1",
+  "provider": "aws_iam",
+  "collector_instance_id": "collector-demo",
+  "redaction_policy_version": "secrets-iam-v1",
+  "principal_arn": "arn:aws:iam::123456789012:role/app",
+  "boundary_policy_arn": "arn:aws:iam::123456789012:policy/boundary"
+}

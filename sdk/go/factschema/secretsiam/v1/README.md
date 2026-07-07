@@ -1,49 +1,58 @@
-# secrets_iam VAULT + K8S Fact Payloads (schema version 1)
+# secrets_iam Fact Payloads (schema version 1)
 
 This package holds the schema-version-1 typed payload structs for the
-secrets_iam family's VAULT and K8S lanes. A reducer handler never reads
-`Envelope.Payload["some_key"]` for these kinds directly; it decodes through
-the parent `factschema` package's kind-keyed seam (for example
-`factschema.DecodeVaultAuthRole`) and receives one of these structs, validated.
+secrets_iam family's AWS source details, GCP IAM lane, Kubernetes lane, Vault
+lane, and coverage warnings. The legacy AWS principal payload remains in
+`sdk/go/factschema/iam/v1` because that struct predated this package, but the
+rest of the secrets_iam source-contract matrix lives here.
 
 - Go import path: `github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1`
 - Module: `github.com/eshu-hq/eshu/sdk/go/factschema` (no `go/internal` imports)
 
 ## Purpose
 
-Eight secrets_iam fact kinds decode through this package (Contract System v1
-Wave 4d, issue #4566/#4582):
+These secrets_iam fact kinds decode through this package:
 
 | Fact kind | Struct | Decode function |
 | --- | --- | --- |
+| `aws_iam_trust_policy` | `AWSIAMTrustPolicy` | `factschema.DecodeAWSIAMTrustPolicy` |
+| `aws_iam_permission_policy` | `AWSIAMPermissionPolicy` | `factschema.DecodeAWSIAMPermissionPolicy` |
+| `aws_iam_policy_attachment` | `AWSIAMPolicyAttachment` | `factschema.DecodeAWSIAMPolicyAttachment` |
+| `aws_iam_permission_boundary` | `AWSIAMPermissionBoundary` | `factschema.DecodeAWSIAMPermissionBoundary` |
+| `aws_iam_instance_profile` | `AWSIAMInstanceProfile` | `factschema.DecodeAWSIAMInstanceProfile` |
+| `aws_iam_access_analyzer_finding` | `AWSIAMAccessAnalyzerFinding` | `factschema.DecodeAWSIAMAccessAnalyzerFinding` |
+| `gcp_iam_principal` | `GCPIAMPrincipal` | `factschema.DecodeGCPIAMPrincipal` |
+| `gcp_iam_trust_policy` | `GCPIAMTrustPolicy` | `factschema.DecodeGCPIAMTrustPolicy` |
+| `gcp_iam_permission_policy` | `GCPIAMPermissionPolicy` | `factschema.DecodeGCPIAMPermissionPolicy` |
 | `vault_auth_role` | `VaultAuthRole` | `factschema.DecodeVaultAuthRole` |
 | `vault_acl_policy` | `VaultACLPolicy` | `factschema.DecodeVaultACLPolicy` |
 | `vault_kv_metadata` | `VaultKVMetadata` | `factschema.DecodeVaultKVMetadata` |
+| `vault_auth_mount` | `VaultAuthMount` | `factschema.DecodeVaultAuthMount` |
+| `vault_identity_entity` | `VaultIdentityEntity` | `factschema.DecodeVaultIdentityEntity` |
+| `vault_identity_alias` | `VaultIdentityAlias` | `factschema.DecodeVaultIdentityAlias` |
+| `vault_secret_engine_mount` | `VaultSecretEngineMount` | `factschema.DecodeVaultSecretEngineMount` |
 | `k8s_service_account` | `KubernetesServiceAccount` | `factschema.DecodeKubernetesServiceAccount` |
 | `k8s_workload_identity_use` | `KubernetesWorkloadIdentityUse` | `factschema.DecodeKubernetesWorkloadIdentityUse` |
 | `eks_irsa_annotation` | `EKSIRSAAnnotation` | `factschema.DecodeEKSIRSAAnnotation` |
 | `eks_pod_identity_association` | `EKSPodIdentityAssociation` | `factschema.DecodeEKSPodIdentityAssociation` |
 | `k8s_gcp_workload_identity_binding` | `KubernetesGCPWorkloadIdentityBinding` | `factschema.DecodeKubernetesGCPWorkloadIdentityBinding` |
+| `k8s_rbac_role` | `KubernetesRBACRole` | `factschema.DecodeKubernetesRBACRole` |
+| `k8s_rbac_binding` | `KubernetesRBACBinding` | `factschema.DecodeKubernetesRBACBinding` |
+| `k8s_service_account_token_posture` | `KubernetesServiceAccountTokenPosture` | `factschema.DecodeKubernetesServiceAccountTokenPosture` |
+| `secrets_iam_coverage_warning` | `CoverageWarning` | `factschema.DecodeSecretsIAMCoverageWarning` |
 
 ## Lane partition
 
-The secrets_iam family is partitioned into three lanes across separate
-migration waves:
-
-- **AWS IAM lane** — already typed in `sdk/go/factschema/iam/v1` (#4568).
-  Not this package.
-- **VAULT lane + K8S lane** — typed in THIS package (Wave 4d).
-- **GCP IAM lane** (`gcp_iam_principal`, `gcp_iam_trust_policy`,
-  `gcp_iam_permission_policy`) — deferred to a future wave. The reducer's
-  `secrets_iam_trust_chain_gcp.go` reads these three kinds raw via
-  `payloadString`, with an explicit `// deferred: gcp_iam lane` comment at
-  each read site, even though it reads a K8S-lane kind
-  (`k8s_gcp_workload_identity_binding`, typed here) in the same file.
+The secrets_iam family keeps one historical split: `aws_iam_principal` uses
+`iam/v1.Principal`, while the other AWS IAM source-detail structs live here.
+W2c (#4796) owns the loader-side second-decode path for consumers that still
+read raw JSONB; this package only defines the typed payload contract and the
+parent `factschema` decode/encode seam.
 
 ## Ownership boundary
 
-This package owns the Go type definitions for these eight fact kinds'
-payloads. It does not own decode dispatch, schema-version routing, or
+This package owns the Go type definitions for these fact kinds' payloads. It
+does not own decode dispatch, schema-version routing, or
 required-field validation — that lives in the parent `factschema` package
 (`decode.go`, `decode_secretsiam.go`). It does not own graph projection or
 trust-chain resolution; the secrets_iam trust-chain reducer handler consumes
@@ -51,11 +60,17 @@ the decoded structs but lives outside this module.
 
 ## Exported surface
 
-`VaultAuthRole`, `VaultACLPolicy` (with nested `VaultACLPolicyRule`),
-`VaultKVMetadata`, `KubernetesServiceAccount`, `KubernetesWorkloadIdentityUse`,
-`EKSIRSAAnnotation`, `EKSPodIdentityAssociation`, and
-`KubernetesGCPWorkloadIdentityBinding`. See each struct's godoc comment for
-its full field list.
+`AWSIAMTrustPolicy`, `AWSIAMPermissionPolicy`, `AWSIAMPolicyAttachment`,
+`AWSIAMPermissionBoundary`, `AWSIAMInstanceProfile`,
+`AWSIAMAccessAnalyzerFinding`, `GCPIAMPrincipal`, `GCPIAMTrustPolicy`,
+`GCPIAMPermissionPolicy`, `VaultAuthRole`, `VaultACLPolicy` (with nested
+`VaultACLPolicyRule`), `VaultKVMetadata`, `VaultAuthMount`,
+`VaultIdentityEntity`, `VaultIdentityAlias`, `VaultSecretEngineMount`,
+`KubernetesServiceAccount`, `KubernetesWorkloadIdentityUse`,
+`EKSIRSAAnnotation`, `EKSPodIdentityAssociation`,
+`KubernetesGCPWorkloadIdentityBinding`, `KubernetesRBACRole`,
+`KubernetesRBACBinding`, `KubernetesServiceAccountTokenPosture`, and
+`CoverageWarning`. See each struct's godoc comment for its full field list.
 
 ## Dependencies
 
@@ -68,14 +83,31 @@ Field mutability encodes the contract, per Contract System v1 §3.1:
 
 | Struct | Required identity fields | Why |
 | --- | --- | --- |
+| `AWSIAMTrustPolicy` | `AccountID`, `Region`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `RoleARN`, `PolicySource`, `Effect` | The AWS collector validates the role/effect identity and always stamps source context. |
+| `AWSIAMPermissionPolicy` | `AccountID`, `Region`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `PrincipalARN`, `PolicySource`, `Effect` | The AWS collector validates the principal, source, and effect that anchor one normalized statement. |
+| `AWSIAMPolicyAttachment` | `AccountID`, `Region`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `PrincipalARN`, `PolicyARN` | Attachment facts join one principal to one managed policy ARN. |
+| `AWSIAMPermissionBoundary` | `AccountID`, `Region`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `PrincipalARN`, `BoundaryPolicyARN` | Boundary facts join one principal to one boundary policy ARN. |
+| `AWSIAMInstanceProfile` | `AccountID`, `Region`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `ProfileARN` | Instance-profile facts are keyed by the observed profile ARN. |
+| `AWSIAMAccessAnalyzerFinding` | `AccountID`, `Region`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion` | Finding identity fields are optional, but every emitted finding carries source context. |
+| `GCPIAMPrincipal` | `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `PrincipalFingerprint`, `PrincipalType` | The GCP collector emits redacted principal identity only. |
+| `GCPIAMTrustPolicy` | `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `TargetPrincipalFingerprint`, `TargetServiceAccountEmailDigest`, `Role`, `ImpersonationMode` | Trust facts join a redacted target service account, role, and impersonation mode. |
+| `GCPIAMPermissionPolicy` | `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `PrincipalFingerprint`, `PrincipalType`, `Role`, `ResourceFullName` | Permission facts join a redacted principal, role, and resource. |
 | `VaultAuthRole` | `RoleJoinKey` | The collector emitter always derives it; it is the reducer's sole index key for a Vault auth role. |
 | `VaultACLPolicy` | `PolicyJoinKey` | The collector emitter always derives it; it is the reducer's sole index key for a Vault ACL policy, joined from `VaultAuthRole.TokenPolicyJoinKeys`. |
 | `VaultKVMetadata` | `MountJoinKey`, `KVPathFingerprint` | Both always derived by the collector; together they are the reducer's join key for a Vault KV metadata path. |
+| `VaultAuthMount` | `VaultClusterID`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `AuthMethod`, `MountJoinKey` | Auth-mount facts are keyed by the redacted mount join key and method. |
+| `VaultIdentityEntity` | `VaultClusterID`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `EntityJoinKey` | Entity facts use the redacted entity join key. |
+| `VaultIdentityAlias` | `VaultClusterID`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `AliasIDFingerprint`, `EntityJoinKey`, `MountJoinKey` | Alias facts join a redacted alias to an entity and auth mount. |
+| `VaultSecretEngineMount` | `VaultClusterID`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `MountJoinKey`, `MountType` | Secret-engine facts are keyed by mount join key and mount type. |
 | `KubernetesServiceAccount` | `ServiceAccountJoinKey` | The collector emitter always derives it; it is the reducer's sole index key for a Kubernetes ServiceAccount. |
 | `KubernetesWorkloadIdentityUse` | `ServiceAccountJoinKey` | Always derived; the reducer's join key from a workload back to its ServiceAccount. |
 | `EKSIRSAAnnotation` | `ServiceAccountJoinKey`, `RoleARN` | The emitter rejects an annotation with no role ARN; both anchor the assumed-role identity join. |
 | `EKSPodIdentityAssociation` | `ServiceAccountJoinKey`, `RoleARN` | Mirrors `EKSIRSAAnnotation`; the emitter rejects an association with no association ID or role ARN. |
 | `KubernetesGCPWorkloadIdentityBinding` | `ServiceAccountJoinKey`, `GCPServiceAccountEmailDigest`, `GCPWorkloadIdentitySubjectFingerprint` | The emitter rejects a binding missing any of the three; all three anchor the GCP exact-chain join. |
+| `KubernetesRBACRole` | `ClusterID`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `RoleKind`, `RoleScope`, `RoleJoinKey` | RBAC role facts are keyed by redacted role identity and scope. |
+| `KubernetesRBACBinding` | `ClusterID`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `BindingKind`, `BindingScope`, `RoleRefKind`, `RoleRefJoinKey` | RBAC binding facts join redacted subjects to a redacted role reference. |
+| `KubernetesServiceAccountTokenPosture` | `ClusterID`, `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `ServiceAccountJoinKey` | Token posture facts attach to one redacted ServiceAccount join key. |
+| `CoverageWarning` | `Provider`, `CollectorInstanceID`, `RedactionPolicyVersion`, `WarningKind`, `SourceState` | Coverage warnings carry source-local state and optional scoped metadata. |
 
 Missing a required identity field dead-letters as `input_invalid` rather than
 forming an empty-string graph identity, a dropped index entry, or a
@@ -108,14 +140,7 @@ Regenerate after any struct change:
 ```bash
 cd sdk/go/factschema
 go generate ./...
-cp schema/vault_auth_role.v1.schema.json fixturepack/schema/
-cp schema/vault_acl_policy.v1.schema.json fixturepack/schema/
-cp schema/vault_kv_metadata.v1.schema.json fixturepack/schema/
-cp schema/k8s_service_account.v1.schema.json fixturepack/schema/
-cp schema/k8s_workload_identity_use.v1.schema.json fixturepack/schema/
-cp schema/eks_irsa_annotation.v1.schema.json fixturepack/schema/
-cp schema/eks_pod_identity_association.v1.schema.json fixturepack/schema/
-cp schema/k8s_gcp_workload_identity_binding.v1.schema.json fixturepack/schema/
+cp schema/<changed-kind>.v1.schema.json fixturepack/schema/
 ```
 
 `schema_gen_test.go`'s `TestSchemasHaveNoDrift` and
@@ -129,8 +154,8 @@ emission path.
 
 ## Gotchas / invariants
 
-- The GCP IAM lane (`gcp_iam_principal` and siblings) is NOT in this
-  package. Do not add it without a design discussion.
+- `aws_iam_principal` is still typed in `iam/v1.Principal`; keep that legacy
+  placement unless a separate design changes the package boundary.
 - The reducer decodes only the latest struct per fact kind. Older-schema-major
   shims live in the parent package's `decodeLatestMajor`, never here.
 - `VaultACLPolicyRule` stays a nested typed struct, never a raw map, even

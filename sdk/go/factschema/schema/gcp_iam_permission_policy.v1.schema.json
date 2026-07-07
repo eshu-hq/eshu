@@ -1,0 +1,81 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/secretsiam/v1/gcp_iam_permission_policy.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "broad_role": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": "string"
+    },
+    "condition_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "condition_present": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "location_bucket": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal_fingerprint": {
+      "type": "string"
+    },
+    "principal_type": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "type": "string"
+    },
+    "resource_asset_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_full_resource_name": {
+      "type": "string"
+    },
+    "resource_is_secret": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "role": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "provider",
+    "collector_instance_id",
+    "redaction_policy_version",
+    "principal_fingerprint",
+    "principal_type",
+    "role",
+    "resource_full_resource_name"
+  ],
+  "title": "Eshu gcp_iam_permission_policy Payload (schema version 1)",
+  "type": "object"
+}
