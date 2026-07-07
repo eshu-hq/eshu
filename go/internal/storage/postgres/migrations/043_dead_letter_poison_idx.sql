@@ -4,8 +4,8 @@
 -- is terminal (dead_letter is never claimable) and its scope will never
 -- self-heal without an operator or this bounded liveness arm.
 --
--- The stuck-gauge query (poisonScopesStuckQuery) and the bounded arm
--- (recoverPoisonDeadLetterQuery) both anchor on
+-- The stuck-gauge query (countPoisonDeadLettersQuery) and the bounded arm
+-- (recoverPoisonDeadLettersQuery) both anchor on
 -- "dead.status = 'dead_letter'" first, so a partial index on exactly that
 -- predicate lets both read only the dead_letter subset instead of scanning
 -- fact_work_items_status_idx's much larger (status, visible_at, updated_at)

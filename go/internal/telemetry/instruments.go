@@ -4395,14 +4395,6 @@ func RegisterPoisonLivenessObservableGauges(inst *Instruments, meter metric.Mete
 	inst.PoisonDeadLetterScopes, err = meter.Int64ObservableGauge(
 		"eshu_dp_poison_dead_letter_scopes",
 		metric.WithDescription("Current count of distinct scopes stuck in the dead-letter/poison class (dead_letter with no newer generation)"),
-		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
-			scopes, _, _, err := observer.PoisonDeadLetterCounts(ctx)
-			if err != nil {
-				return err
-			}
-			o.Observe(scopes)
-			return nil
-		}),
 	)
 	if err != nil {
 		return fmt.Errorf("register PoisonDeadLetterScopes gauge: %w", err)
@@ -4411,14 +4403,6 @@ func RegisterPoisonLivenessObservableGauges(inst *Instruments, meter metric.Mete
 	inst.PoisonDeadLetterItems, err = meter.Int64ObservableGauge(
 		"eshu_dp_poison_dead_letter_items",
 		metric.WithDescription("Current count of fact_work_items rows stuck in the dead-letter/poison class (dead_letter with no newer generation)"),
-		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
-			_, items, _, err := observer.PoisonDeadLetterCounts(ctx)
-			if err != nil {
-				return err
-			}
-			o.Observe(items)
-			return nil
-		}),
 	)
 	if err != nil {
 		return fmt.Errorf("register PoisonDeadLetterItems gauge: %w", err)
@@ -4428,17 +4412,25 @@ func RegisterPoisonLivenessObservableGauges(inst *Instruments, meter metric.Mete
 		"eshu_dp_poison_dead_letter_oldest_age_seconds",
 		metric.WithDescription("Age in seconds of the oldest dead-letter/poison-class item, zero when the class is empty"),
 		metric.WithUnit("s"),
-		metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
-			_, _, oldestAgeSeconds, err := observer.PoisonDeadLetterCounts(ctx)
-			if err != nil {
-				return err
-			}
-			o.Observe(oldestAgeSeconds)
-			return nil
-		}),
 	)
 	if err != nil {
 		return fmt.Errorf("register PoisonDeadLetterOldestAgeSeconds gauge: %w", err)
+	}
+
+	// Single callback across all three gauges so one meter scrape runs the
+	// poison-count query once (not once per gauge), matching the "one query per
+	// snapshot" idiom of the sibling active-generation gauge.
+	if _, err = meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+		scopes, items, oldestAgeSeconds, err := observer.PoisonDeadLetterCounts(ctx)
+		if err != nil {
+			return err
+		}
+		o.ObserveInt64(inst.PoisonDeadLetterScopes, scopes)
+		o.ObserveInt64(inst.PoisonDeadLetterItems, items)
+		o.ObserveFloat64(inst.PoisonDeadLetterOldestAgeSeconds, oldestAgeSeconds)
+		return nil
+	}, inst.PoisonDeadLetterScopes, inst.PoisonDeadLetterItems, inst.PoisonDeadLetterOldestAgeSeconds); err != nil {
+		return fmt.Errorf("register poison liveness gauge callback: %w", err)
 	}
 	return nil
 }
