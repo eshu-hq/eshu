@@ -274,6 +274,17 @@ func stringPtrIfPresent(value string) *string {
 	return &value
 }
 
+// stringPtrAlways returns a non-nil pointer to value so an optional contract
+// field is emitted even when value is empty. The image analyzer uses it for the
+// warning's image_reference, image_digest, evidence_source, and extraction_reason
+// so its wire shape stays byte-identical to the pre-contract required-string
+// payload: those keys are always present (image_reference/image_digest may be
+// empty for a validated rootfs/layer-only target that carries no image
+// identity). Only the non-image WarningAnalyzer fallback omits them, via nil.
+func stringPtrAlways(value string) *string {
+	return &value
+}
+
 func analyzerFailure(err error, usage scannerworker.ResourceUsage) error {
 	switch {
 	case errors.Is(err, errTargetUnavailable):

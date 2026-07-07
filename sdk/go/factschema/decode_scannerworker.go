@@ -53,11 +53,11 @@ func EncodeScannerWorkerWarning(warning scannerworkerv1.Warning) (map[string]any
 		"warning_class":       warning.WarningClass,
 		"analysis_status":     warning.AnalysisStatus,
 		"coverage_status":     warning.CoverageStatus,
-		"image_reference":     warning.ImageReference,
-		"image_digest":        warning.ImageDigest,
-		"evidence_source":     warning.EvidenceSource,
-		"extraction_reason":   warning.ExtractionReason,
 	}
+	addOptionalString(payload, "image_reference", warning.ImageReference)
+	addOptionalString(payload, "image_digest", warning.ImageDigest)
+	addOptionalString(payload, "evidence_source", warning.EvidenceSource)
+	addOptionalString(payload, "extraction_reason", warning.ExtractionReason)
 	addOptionalString(payload, "distro", warning.Distro)
 	addOptionalString(payload, "distro_version", warning.DistroVersion)
 	addOptionalString(payload, "package_manager", warning.PackageManager)

@@ -25,16 +25,28 @@
       ]
     },
     "evidence_source": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "extraction_reason": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "image_digest": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "image_reference": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "package_manager": {
       "type": [
@@ -62,11 +74,7 @@
     "reason",
     "warning_class",
     "analysis_status",
-    "coverage_status",
-    "image_reference",
-    "image_digest",
-    "evidence_source",
-    "extraction_reason"
+    "coverage_status"
   ],
   "title": "Eshu scanner_worker.warning Payload (schema version 1)",
   "type": "object"

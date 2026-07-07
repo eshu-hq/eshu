@@ -1,8 +1,11 @@
 # AGENTS.md - scannerworker/v1 contracts
 
 This package owns schema-version-1 payload structs for the two
-`scanner_worker` source facts emitted by the image analyzer:
-`scanner_worker.analysis` and `scanner_worker.warning`.
+`scanner_worker` source facts: `scanner_worker.analysis` (emitted by the image
+analyzer) and `scanner_worker.warning` (emitted by both the image analyzer and
+the `WarningAnalyzer` fallback in `go/internal/collector/scannerworker`). The
+`Warning` struct keeps the image-analysis fields optional so the fallback, which
+has no image evidence, stays in lockstep with the contract.
 
 Rules:
 
