@@ -83,6 +83,14 @@ before treating a graph as current:
   evidence shows one class needs a different ceiling than the other; see
   `go/cmd/reducer/README.md` "Graph write backpressure" for the full knob
   table.
+- The reducer always publishes the poison dead-letter stuck-gauge
+  (`eshu_dp_poison_dead_letter_scopes`); a non-zero value means a scope has
+  permanently wedged (`dead_letter` work items with no newer generation). The
+  bounded auto-retry arm that re-drives them is **off by default**
+  (`ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED=false`, surface-only); enable it
+  only after an operator has reviewed the wedge, and tune the poll/attempt/batch
+  budget via the `ESHU_POISON_LIVENESS_*` knobs documented in
+  `go/cmd/reducer/README.md` "Poison dead-letter liveness".
 
 ## Route Map
 

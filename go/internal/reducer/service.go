@@ -110,6 +110,13 @@ type Service struct {
 	// generation lifecycle self-healing.
 	GenerationLivenessRunner *GenerationLivenessRunner
 
+	// PoisonLivenessRunner bounds-recovers the dead-letter/poison class (#4740):
+	// fact_work_items rows that are terminally 'dead_letter' with no newer
+	// scope generation, a class GenerationLivenessRunner does not reach. Nil
+	// when bounded auto-retry is disabled (the default, surface-only posture);
+	// the stuck-gauge remains active independently of this field.
+	PoisonLivenessRunner *PoisonLivenessRunner
+
 	// GraphOrphanSweepRunner marks and deletes aged zero-relationship graph
 	// nodes in bounded batches. Nil disables automated cleanup.
 	GraphOrphanSweepRunner *GraphOrphanSweepRunner

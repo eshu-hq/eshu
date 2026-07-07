@@ -164,6 +164,14 @@ func registerReducerObservableGauges(
 		return fmt.Errorf("register active generation age observable gauge: %w", err)
 	}
 
+	// The poison stuck-gauge is wired unconditionally (unlike the recovery
+	// runner) so the dead-letter/poison class is always visible to an operator
+	// regardless of whether bounded auto-retry is enabled (#4740).
+	poisonObserver := poisonLivenessObserverFor(postgres.SQLDB{DB: db})
+	if err := telemetry.RegisterPoisonLivenessObservableGauges(instruments, meter, poisonObserver); err != nil {
+		return fmt.Errorf("register poison liveness observable gauges: %w", err)
+	}
+
 	if err := registerProvenanceCoverageGauges(instruments, meter, graphReader, getenv); err != nil {
 		return err
 	}
