@@ -371,13 +371,15 @@ failing; use reducer logs keyed on the bounded failure reason to find why.
 
 ## Poison dead-letter liveness signals
 
-The generation-liveness sweep above does not reach every wedged scope: a scope
-whose newest generation is terminally `dead_letter` (not `active`) never
-appears in `eshu_dp_active_generations` at all, because that gauge only
-buckets active generations. The poison-liveness sweep publishes three
-observable gauges and two counters for exactly this class: `fact_work_items`
-rows that are `dead_letter` with no strictly-newer `scope_generations` row for
-the same scope.
+The generation-liveness sweep above does not reach every wedged scope. `dead_letter`
+is a `fact_work_items` **work-item** status, not a `scope_generations` status
+(the generation table has no `dead_letter` state), and `eshu_dp_active_generations`
+only buckets `active` generations — so a scope whose work is stuck in
+`dead_letter` with no strictly-newer generation never appears there at all. The
+poison-liveness sweep publishes three observable gauges and two counters for
+exactly this class: `fact_work_items` rows that are `dead_letter` and whose
+scope has no strictly-newer `scope_generations` row (regardless of that
+generation's own status), so a permanently-wedged scope still raises an alarm.
 
 `eshu_dp_poison_dead_letter_scopes` and `eshu_dp_poison_dead_letter_items` are
 observable gauges of the current poison-class scope count and row count. Either
