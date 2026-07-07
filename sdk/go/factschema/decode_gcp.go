@@ -38,8 +38,14 @@ func EncodeGCPCloudResource(resource gcpv1.Resource) (map[string]any, error) {
 // DecodeGCPCloudRelationship decodes env.Payload into the latest
 // gcpv1.Relationship struct for the "gcp_cloud_relationship" fact kind. See
 // DecodeGCPCloudResource for the dispatch and error contract.
-func DecodeGCPCloudRelationship(env Envelope) (gcpv1.Relationship, error) {
-	return decodeLatestMajor[gcpv1.Relationship](FactKindGCPCloudRelationship, env)
+//
+// opts accepts DecodeOption values; passing none preserves the default decode.
+// A named-field-only caller that never reads Relationship.Attributes may pass
+// WithoutAttributesRemainder() to skip rebuilding the discarded remainder map
+// (issue #4865), leaving Attributes nil while every named field decodes
+// identically.
+func DecodeGCPCloudRelationship(env Envelope, opts ...DecodeOption) (gcpv1.Relationship, error) {
+	return decodeLatestMajor[gcpv1.Relationship](FactKindGCPCloudRelationship, env, opts...)
 }
 
 // EncodeGCPCloudRelationship marshals a gcpv1.Relationship into the

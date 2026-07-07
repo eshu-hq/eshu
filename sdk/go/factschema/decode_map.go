@@ -35,7 +35,23 @@ const attributesField = "Attributes"
 // A field named Attributes with a map[string]any type receives every remaining
 // payload key, replacing the custom UnmarshalJSON the polymorphic structs used
 // for the pass-through. out must be a non-nil pointer to a struct.
+//
+// decodeMapInto is the default entry point (full Attributes remainder), used by
+// decodeAndValidate for callers passing no option and by the nested-struct
+// recursion below. decodeMapIntoWith carries a decodeConfig for the opt-in
+// named-field-only path (WithoutAttributesRemainder, issue #4865).
 func decodeMapInto(payload map[string]any, out any) error {
+	return decodeMapIntoWith(payload, out, decodeConfig{})
+}
+
+// decodeMapIntoWith is decodeMapInto parameterized by a decodeConfig. Named
+// fields are assigned identically for every config; cfg.skipAttributesRemainder
+// only governs whether the Attributes pass-through remainder map is rebuilt.
+// When it is set, a struct that declares an Attributes field is left with that
+// field at its zero value (nil) — the named-field-only fast path that skips the
+// allocate-then-discard remainder rebuild for callers that never read
+// .Attributes.
+func decodeMapIntoWith(payload map[string]any, out any, cfg decodeConfig) error {
 	rv := reflect.ValueOf(out)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return fmt.Errorf("factschema: decode target must be a non-nil pointer, got %T", out)
@@ -57,7 +73,7 @@ func decodeMapInto(payload map[string]any, out any) error {
 		}
 	}
 
-	if plan.attributesIndex >= 0 {
+	if !cfg.skipAttributesRemainder && plan.attributesIndex >= 0 {
 		remainder := map[string]any{}
 		for key, value := range payload {
 			if _, isKnown := plan.known[key]; isKnown {

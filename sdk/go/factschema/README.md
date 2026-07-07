@@ -97,6 +97,28 @@ if err != nil {
 triage classes — that would violate the no-internal-imports rule below. The
 reducer maps this classification to its own triage class by string value.
 
+### Decode options
+
+Kind-specific `Decode*` functions accept variadic `DecodeOption` values.
+Passing none preserves the historical decode exactly, so an existing caller is
+never affected. The options are opt-in performance knobs, not behavior changes.
+
+`WithoutAttributesRemainder()` is for a **named-field-only** hot caller — one
+that reads only named struct fields and never reads a polymorphic struct's
+`Attributes` pass-through map. The default decode rebuilds `Attributes` (a fresh
+map of every non-named payload key) on every call, and on a wide-`Attributes`
+payload that rebuild dominates the decode cost. The option skips it, leaving
+`Attributes` nil while every named field decodes identically (issue #4865):
+
+```go
+// go/internal/relationships/gcp_evidence.go reads only source/target/type and
+// never Relationship.Attributes, so it opts out of the discarded remainder.
+rel, err := factschema.DecodeGCPCloudRelationship(env, factschema.WithoutAttributesRemainder())
+```
+
+A caller that reads `.Attributes` (for example the reducer's own decode site)
+MUST NOT pass this option; it stays on the default full-remainder decode.
+
 ## Schema generation
 
 `internal/schemagen` reflects each fact kind's typed struct into a JSON

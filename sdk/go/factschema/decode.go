@@ -33,6 +33,51 @@ const (
 // kind. Test with errors.Is.
 var ErrUnsupportedSchemaMajor = errors.New("factschema: unsupported schema version major")
 
+// DecodeOption configures an opt-in behavior for the kind-specific Decode*
+// functions that accept variadic options (for example
+// DecodeGCPCloudRelationship). Options are purely additive: a Decode call
+// passing no options behaves exactly as it did before options existed, so an
+// existing caller is never affected.
+type DecodeOption func(*decodeConfig)
+
+// decodeConfig holds the resolved DecodeOption set for one Decode call.
+type decodeConfig struct {
+	// skipAttributesRemainder, when set by WithoutAttributesRemainder, tells
+	// the decode to leave a polymorphic struct's Attributes pass-through field
+	// at its zero value (nil) rather than rebuilding the remainder map of every
+	// non-named payload key. Named struct fields decode identically regardless.
+	skipAttributesRemainder bool
+}
+
+// resolveDecodeConfig folds a DecodeOption slice into a decodeConfig. A nil
+// option is ignored so a caller building an option slice conditionally never
+// panics.
+func resolveDecodeConfig(opts []DecodeOption) decodeConfig {
+	var cfg decodeConfig
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	return cfg
+}
+
+// WithoutAttributesRemainder opts a decode out of building the polymorphic
+// Attributes pass-through remainder — the fresh map[string]any of every
+// payload key with no named struct field, which the decode otherwise rebuilds
+// on every call. It is for named-field-only hot callers that read only named
+// struct fields and never touch .Attributes (issue #4865): for those the
+// remainder map is allocated and immediately discarded, and on a
+// wide-Attributes payload that rebuild dominates the decode cost.
+//
+// With this option the returned struct's named fields are identical to a
+// default decode's; only the Attributes field differs, left nil instead of
+// populated. A caller that reads .Attributes MUST NOT pass this option. A
+// struct type that declares no Attributes field is unaffected either way.
+func WithoutAttributesRemainder() DecodeOption {
+	return func(c *decodeConfig) { c.skipAttributesRemainder = true }
+}
+
 // DecodeError is the classified, typed error decodeAndValidate and the
 // kind-keyed Decode functions return for any payload that fails decode or
 // required-field validation. Callers MUST check for *DecodeError (for
@@ -106,7 +151,11 @@ func major(schemaVersion string) string {
 //
 // factKind is used only for error attribution (DecodeError.FactKind); the
 // required set comes from T, not from factKind.
-func decodeAndValidate[T any](factKind string, payload map[string]any) (T, error) {
+//
+// opts carries any caller-supplied DecodeOption (for example
+// WithoutAttributesRemainder). Passing no option preserves the historical
+// decode exactly, so every existing caller is unaffected.
+func decodeAndValidate[T any](factKind string, payload map[string]any, opts ...DecodeOption) (T, error) {
 	var zero T
 
 	for _, field := range requiredPayloadKeys[T]() {
@@ -125,7 +174,7 @@ func decodeAndValidate[T any](factKind string, payload map[string]any) (T, error
 	}
 
 	var decoded T
-	if err := decodeMapInto(payload, &decoded); err != nil {
+	if err := decodeMapIntoWith(payload, &decoded, resolveDecodeConfig(opts)); err != nil {
 		return zero, &DecodeError{
 			FactKind:       factKind,
 			Classification: ClassificationInputInvalid,
@@ -161,11 +210,11 @@ func encodeToPayload[T any](value T) (map[string]any, error) {
 // decode. When a payload majors, this is where the version shim (design §3.2)
 // is added — the reducer keeps calling the same Decode* function and codes
 // against the latest struct only.
-func decodeLatestMajor[T any](factKind string, env Envelope) (T, error) {
+func decodeLatestMajor[T any](factKind string, env Envelope, opts ...DecodeOption) (T, error) {
 	var zero T
 	switch major(env.SchemaVersion) {
 	case "1":
-		return decodeAndValidate[T](factKind, env.Payload)
+		return decodeAndValidate[T](factKind, env.Payload, opts...)
 	default:
 		return zero, &DecodeError{
 			FactKind:       factKind,
