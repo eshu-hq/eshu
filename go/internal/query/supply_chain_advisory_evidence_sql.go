@@ -123,9 +123,10 @@ seed_candidates AS MATERIALIZED (
         candidate.fact_kind,
         candidate.source_confidence,
         candidate.observed_at,
-        candidate.payload
+        candidate.payload,
+        candidate.schema_version
     FROM (
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM lookup_ids AS lookup
         JOIN scope_active_generations AS scope ON TRUE
         JOIN fact_records AS fact
@@ -143,7 +144,7 @@ seed_candidates AS MATERIALIZED (
           AND fact.fact_kind = ANY($1::text[])
           AND fact.is_tombstone = FALSE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM lookup_ids AS lookup
         JOIN scope_active_generations AS scope ON TRUE
         JOIN fact_records AS fact
@@ -161,7 +162,7 @@ seed_candidates AS MATERIALIZED (
           AND fact.fact_kind = ANY($1::text[])
           AND fact.is_tombstone = FALSE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM lookup_ids AS lookup
         JOIN scope_active_generations AS scope ON TRUE
         JOIN fact_records AS fact
@@ -179,7 +180,7 @@ seed_candidates AS MATERIALIZED (
           AND fact.fact_kind = ANY($1::text[])
           AND fact.is_tombstone = FALSE
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM package_ids AS pkg
         JOIN scope_active_generations AS scope ON TRUE
         JOIN fact_records AS fact
@@ -248,9 +249,10 @@ matched_candidates AS MATERIALIZED (
         candidate.fact_kind,
         candidate.source_confidence,
         candidate.observed_at,
-        candidate.payload
+        candidate.payload,
+        candidate.schema_version
     FROM (
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM seed_keys AS keys
         JOIN LATERAL unnest(keys.values) AS lookup(value) ON TRUE
         JOIN scope_active_generations AS scope ON TRUE
@@ -271,7 +273,7 @@ matched_candidates AS MATERIALIZED (
           AND fact.is_tombstone = FALSE
           AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM seed_keys AS keys
         JOIN LATERAL unnest(keys.values) AS lookup(value) ON TRUE
         JOIN scope_active_generations AS scope ON TRUE
@@ -292,7 +294,7 @@ matched_candidates AS MATERIALIZED (
           AND fact.is_tombstone = FALSE
           AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM seed_keys AS keys
         JOIN LATERAL unnest(keys.values) AS lookup(value) ON TRUE
         JOIN scope_active_generations AS scope ON TRUE
@@ -313,7 +315,7 @@ matched_candidates AS MATERIALIZED (
           AND fact.is_tombstone = FALSE
           AND ($4 = '' OR LOWER(fact.payload->>'source') = $4)
         UNION ALL
-        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+        SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload, fact.schema_version
         FROM package_ids AS pkg
         JOIN scope_active_generations AS scope ON TRUE
         JOIN fact_records AS fact
@@ -335,7 +337,7 @@ matched_candidates AS MATERIALIZED (
     ORDER BY candidate.fact_id
 ),
 matched_facts AS (
-    SELECT fact.fact_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.payload
+    SELECT fact.fact_id, fact.fact_kind, fact.source_confidence, fact.observed_at, fact.schema_version, fact.payload
     FROM matched_candidates AS fact
     ORDER BY COALESCE(
         NULLIF(fact.payload->>'cve_id', ''),
@@ -345,6 +347,6 @@ matched_facts AS (
     ), fact.fact_kind, fact.fact_id
     LIMIT $5
 )
-SELECT fact_id, fact_kind, source_confidence, observed_at, payload
+SELECT fact_id, fact_kind, source_confidence, observed_at, schema_version, payload
 FROM matched_facts
 `

@@ -99,7 +99,7 @@ func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
 		// future W1 struct-completion pass.
 		a.addAffectedProduct(fact, source, cveID)
 	case "vulnerability.epss_score":
-		score, err := decodeVulnerabilityEPSSScore(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+		score, err := decodeVulnerabilityEPSSScore(supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: payload})
 		if err != nil {
 			// classified input_invalid (missing cve_id): skip rather than
 			// fabricate a zero-valued EPSS observation from an unusable fact.
@@ -114,7 +114,7 @@ func (a *advisoryEvidenceAccumulator) addFact(fact advisoryEvidenceFactRow) {
 			FactID:      fact.FactID,
 		})
 	case "vulnerability.known_exploited":
-		kev, err := decodeVulnerabilityKnownExploited(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+		kev, err := decodeVulnerabilityKnownExploited(supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: payload})
 		if err != nil {
 			// classified input_invalid (missing cve_id): skip rather than
 			// fabricate a zero-valued KEV observation from an unusable fact.
@@ -181,7 +181,7 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 	ghsaID string,
 ) {
 	payload := fact.Payload
-	cve, err := decodeVulnerabilityCVE(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+	cve, err := decodeVulnerabilityCVE(supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: payload})
 	if err != nil {
 		// classified input_invalid (missing advisory_id): skip rather than
 		// fabricate a zero-valued source-evidence row from an unusable fact.
@@ -235,7 +235,7 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 	ghsaID string,
 ) {
 	payload := fact.Payload
-	typedPackage, err := decodeVulnerabilityAffectedPackage(supplyChainFactDecodeInput{FactID: fact.FactID, Payload: payload})
+	typedPackage, err := decodeVulnerabilityAffectedPackage(supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: payload})
 	if err != nil {
 		// classified input_invalid (missing advisory_id): skip rather than
 		// fabricate a zero-valued affected-package row from an unusable fact.

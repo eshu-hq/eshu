@@ -385,57 +385,10 @@ func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 	}
 }
 
-// TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField proves
-// the #4795 W2b typed-decode conversion: a vulnerability.cve fact missing its
-// required advisory_id classifies input_invalid on decode
-// (factschema.DecodeVulnerabilityCVE) and is DROPPED from the response's
-// Sources list, rather than contributing a zero-valued AdvisorySourceEvidence
-// row the way the pre-conversion raw StringVal read would have. The fact
-// still has a valid cve_id so canonicalAdvisoryKey groups it (the decode
-// failure is exercised inside addSourceEvidence, not filtered out earlier).
-func TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField(t *testing.T) {
-	t.Parallel()
-
-	rows := []advisoryEvidenceFactRow{
-		factRow("cve-missing-advisory-id", "vulnerability.cve", `{
-			"source": "osv",
-			"cve_id": "CVE-2026-9001",
-			"severity_label": "HIGH"
-		}`),
-	}
-
-	got := buildAdvisoryEvidenceRows(rows)
-	if len(got) != 1 {
-		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
-	}
-	if len(got[0].Sources) != 0 {
-		t.Fatalf("Sources = %#v, want empty: a vulnerability.cve fact missing advisory_id must classify input_invalid and drop, not zero-value", got[0].Sources)
-	}
-}
-
-// TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField mirrors
-// TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField for
-// vulnerability.affected_package (factschema.DecodeVulnerabilityAffectedPackage).
-func TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField(t *testing.T) {
-	t.Parallel()
-
-	rows := []advisoryEvidenceFactRow{
-		factRow("pkg-missing-advisory-id", "vulnerability.affected_package", `{
-			"source": "osv",
-			"cve_id": "CVE-2026-9002",
-			"ecosystem": "npm",
-			"package_id": "pkg:npm/example"
-		}`),
-	}
-
-	got := buildAdvisoryEvidenceRows(rows)
-	if len(got) != 1 {
-		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
-	}
-	if len(got[0].AffectedPackages) != 0 {
-		t.Fatalf("AffectedPackages = %#v, want empty: a vulnerability.affected_package fact missing advisory_id must classify input_invalid and drop, not zero-value", got[0].AffectedPackages)
-	}
-}
+// The typed-decode dead-letter tests (missing-required-field and
+// unsupported-schema-major drops) live in
+// supply_chain_advisory_evidence_decode_test.go to keep this file under the
+// 500-line cap; they share the factRow helper below.
 
 func TestCanonicalAdvisoryKeyNormalizesMixedCaseGHSA(t *testing.T) {
 	t.Parallel()

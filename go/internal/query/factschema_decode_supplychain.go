@@ -62,13 +62,16 @@ type supplyChainFactDecodeInput struct {
 }
 
 // supplyChainSchemaEnvelope adapts one scanned supply-chain evidence fact row
-// into the contracts-module factschema.Envelope the Decode* seam accepts. An
-// empty schemaVersion is normalized to the current major-1 schema version —
-// every vulnerability/SBOM/service-catalog/package-registry source-fact
-// emitter stamps a concrete major-1 version, and the supply-chain read models
-// scan facts through a projection that does not always carry schema_version
-// in its own row shape — a present-but-unsupported major still dead-letters
-// through the Decode* seam's default branch.
+// into the contracts-module factschema.Envelope the Decode* seam accepts. Each
+// read-model row now carries the fact's persisted schema_version (selected and
+// scanned by the advisory-evidence and impact-explain stores, then threaded
+// into supplyChainFactDecodeInput), so a non-1.x (future/unsupported major)
+// fact dead-letters through the Decode* seam's default branch instead of being
+// decoded as v1. An empty schemaVersion normalizes to the current major-1
+// schema version, matching the version-less legacy default the workitem seam
+// uses; every in-tree vulnerability/SBOM/service-catalog/package-registry
+// source-fact emitter stamps a concrete major-1 version, so the empty case is
+// defensive rather than the production path.
 func supplyChainSchemaEnvelope(factKind, schemaVersion string, payload map[string]any) factschema.Envelope {
 	if schemaVersion == "" {
 		schemaVersion = queryDefaultSchemaMajorVersion
@@ -243,7 +246,7 @@ type supplyChainComponentEvidence struct {
 // need from that kind. See supplyChainComponentEvidence's doc for the
 // Matched/Err contract.
 func decodeSupplyChainComponentEvidence(fact SupplyChainImpactEvidenceFact) supplyChainComponentEvidence {
-	in := supplyChainFactDecodeInput{FactID: fact.FactID, Payload: fact.Payload}
+	in := supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload}
 	switch fact.FactKind {
 	case factschema.FactKindSBOMDocument:
 		document, err := decodeSBOMDocument(in)

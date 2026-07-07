@@ -23,7 +23,13 @@ type advisoryEvidenceFactRow struct {
 	FactKind         string
 	SourceConfidence string
 	ObservedAt       string
-	Payload          map[string]any
+	// SchemaVersion is the fact row's persisted schema_version, threaded into
+	// the typed factschema decode seam so a non-1.x (future/unsupported major)
+	// source fact dead-letters instead of being decoded as v1. An empty value
+	// normalizes to queryDefaultSchemaMajorVersion in supplyChainSchemaEnvelope,
+	// matching the version-less legacy default.
+	SchemaVersion string
+	Payload       map[string]any
 }
 
 // PostgresAdvisoryEvidenceStore reads active vulnerability source facts and
@@ -78,8 +84,9 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 		var factKind string
 		var sourceConfidence string
 		var observedAt sql.NullTime
+		var schemaVersion string
 		var payloadBytes []byte
-		if err := rows.Scan(&factID, &factKind, &sourceConfidence, &observedAt, &payloadBytes); err != nil {
+		if err := rows.Scan(&factID, &factKind, &sourceConfidence, &observedAt, &schemaVersion, &payloadBytes); err != nil {
 			return nil, fmt.Errorf("list advisory evidence: %w", err)
 		}
 		var payload map[string]any
@@ -91,6 +98,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 			FactKind:         factKind,
 			SourceConfidence: sourceConfidence,
 			ObservedAt:       formatNullTime(observedAt),
+			SchemaVersion:    schemaVersion,
 			Payload:          payload,
 		})
 	}
