@@ -16,7 +16,9 @@
 // or newer. The package imports only the standard library so any package in
 // the module tree can depend on it without risking an import cycle.
 //
-// Two worker-sizing sites under go/internal/parser are a deliberate,
-// temporary exception and are not yet routed through UsableCPUs — see
-// README.md's "Deferred: internal/parser" section for why.
+// go/internal/parser's go_package_interface_prescan.go worker-sizing site,
+// a deliberate temporary exception, is routed through UsableCPUs as of #4759.
+// interproc/solve.go is intentionally left on runtime.GOMAXPROCS(0) (stdlib-only
+// package, already cgroup-aware) — see README.md's "Formerly deferred:
+// internal/parser" section.
 package cpubudget
