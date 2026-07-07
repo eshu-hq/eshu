@@ -12,6 +12,18 @@ import (
 	"github.com/lib/pq"
 )
 
+// TODO(#4795 W2b / #4784 ADR): reducer_sbom_attestation_attachment is a
+// GOVERNED reducer-derived kind per the #4784 ADR
+// (docs/internal/design/4784-reducer-derived-fact-governance.md) — full
+// governance requires a landed sdk/go/factschema struct, generated JSON
+// Schema, and a typed reducer writer (producer:
+// go/internal/reducer/sbom_attestation_attachment_writer.go) before
+// decodeSBOMAttestationAttachmentRow below (and the
+// sbomAttestationAttachmentMissingEvidenceQuery's read of the sibling
+// reducer_container_image_identity kind, also governed and also unstructed)
+// can move off raw payload/SQL predicate decode onto a typed factschema seam.
+// No W1 issue is assigned for either kind yet; this file stays on the
+// pre-existing raw path until that struct work lands.
 const (
 	sbomAttestationAttachmentFactKind            = "reducer_sbom_attestation_attachment"
 	sbomAttestationWarningSummaryPreviewMaxCount = 10

@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // maxDNSRecordTargets bounds the number of fingerprinted targets carried on one
@@ -83,25 +85,28 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 		"content_family":                  obs.Boundary.ContentFamily,
 	})
 
-	payload := map[string]any{
-		"collector_instance_id":           obs.Boundary.CollectorInstanceID,
-		"parent_scope_kind":               string(obs.Boundary.ParentScopeKind),
-		"parent_scope_id":                 obs.Boundary.ParentScopeID,
-		"asset_type_family":               obs.Boundary.AssetTypeFamily,
-		"content_family":                  obs.Boundary.ContentFamily,
-		"location_bucket":                 obs.Boundary.LocationBucket,
-		"managed_zone_full_resource_name": zoneName,
-		"managed_zone_project_id":         strings.TrimSpace(ProjectIDFromFullName(zoneName)),
-		"record_type":                     recordType,
-		"record_name_fingerprint":         recordNameFingerprint,
-		"target_fingerprints":             targets,
-		"target_count":                    len(targets),
-		"target_truncated":                targetsTruncated,
-		"ttl_seconds":                     obs.TTLSeconds,
-		"read_time":                       timeOrNil(obs.Boundary.ReadTime),
-		"update_time":                     timeOrNil(obs.UpdateTime.UTC()),
-		"redaction_policy_version":        RedactionPolicyVersion,
+	projectID := strings.TrimSpace(ProjectIDFromFullName(zoneName))
+	// fingerprintDNSTargets bounds targets to maxDNSRecordTargets before this
+	// widening conversion.
+	// #nosec G115 -- len(targets) is capped at 100 by fingerprintDNSTargets.
+	targetCount := int64(len(targets))
+	payload, err := factschema.EncodeGCPDNSRecord(gcpv1.DNSRecord{
+		ManagedZoneFullResourceName: zoneName,
+		RecordType:                  recordType,
+		RecordNameFingerprint:       recordNameFingerprint,
+		ManagedZoneProjectID:        &projectID,
+		TargetFingerprints:          targets,
+		TargetCount:                 &targetCount,
+		TargetTruncated:             &targetsTruncated,
+		TTLSeconds:                  &obs.TTLSeconds,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode gcp_dns_record payload: %w", err)
 	}
+	addGCPBoundaryPayload(payload, obs.Boundary)
+	payload["read_time"] = timeOrNil(obs.Boundary.ReadTime)
+	payload["update_time"] = timeOrNil(obs.UpdateTime.UTC())
+	payload["redaction_policy_version"] = RedactionPolicyVersion
 
 	return newEnvelope(
 		obs.Boundary,

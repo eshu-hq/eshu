@@ -1,0 +1,7 @@
+{
+  "arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-1",
+  "normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm-1",
+  "resource_type": "microsoft.compute/virtualmachines",
+  "identity_type": "system_assigned",
+  "principal_fingerprint": "redacted:principal"
+}

@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // Image reference confidence classifies how strongly an image reference is
@@ -91,22 +93,24 @@ func NewImageReferenceEnvelope(observation ImageReferenceObservation, key redact
 		"tenant_id":            observation.Boundary.TenantID,
 	})
 
-	payload := map[string]any{
-		"collector_kind":           CollectorKind,
-		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
-		"tenant_id":                observation.Boundary.TenantID,
-		"scope_kind":               observation.Boundary.ScopeKind,
-		"provider_scope_id":        observation.Boundary.ProviderScopeID,
-		"source_lane":              observation.Boundary.SourceLane,
-		"owning_arm_resource_id":   owningID,
-		"owning_normalized_id":     owning.Normalized,
-		"owning_resource_type":     owning.ResourceType,
-		"image_reference":          imageReference,
-		"image_digest":             imageDigest,
-		"tag_digest_confidence":    confidence,
-		"provider_time":            timeOrNil(observation.ProviderTime),
-		"redaction_policy_version": RedactionPolicyVersion,
+	payload, err := factschema.EncodeAzureImageReference(azurev1.ImageReference{
+		OwningARMResourceID:    owningID,
+		OwningNormalizedID:     owning.Normalized,
+		OwningResourceType:     owning.ResourceType,
+		TagDigestConfidence:    confidence,
+		ImageReference:         &imageReference,
+		ImageDigest:            &imageDigest,
+		ProviderTime:           timeStringPtr(observation.ProviderTime),
+		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_image_reference payload: %w", err)
 	}
+	addAzureBoundaryPayload(payload, observation.Boundary)
+	payload["tenant_id"] = observation.Boundary.TenantID
+	payload["scope_kind"] = observation.Boundary.ScopeKind
+	payload["provider_scope_id"] = observation.Boundary.ProviderScopeID
+	payload["source_lane"] = observation.Boundary.SourceLane
 	if container := strings.TrimSpace(observation.ContainerName); container != "" {
 		payload["container_name_fingerprint"] = redact.String(container, "azure_image_container", "azure_image_container", key).Marker
 	}

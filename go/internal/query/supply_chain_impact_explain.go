@@ -50,7 +50,13 @@ type SupplyChainImpactEvidenceFact struct {
 	SourceSystem     string
 	SourceConfidence string
 	ObservedAt       time.Time
-	Payload          map[string]any
+	// SchemaVersion is the fact row's persisted schema_version, threaded into
+	// the typed factschema decode seam so a non-1.x (future/unsupported major)
+	// evidence fact dead-letters instead of being decoded as v1. An empty
+	// value normalizes to queryDefaultSchemaMajorVersion in
+	// supplyChainSchemaEnvelope, matching the version-less legacy default.
+	SchemaVersion string
+	Payload       map[string]any
 }
 
 // SupplyChainImpactExplanationResult is the public API and MCP data payload for

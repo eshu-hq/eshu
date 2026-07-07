@@ -385,6 +385,11 @@ func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 	}
 }
 
+// The typed-decode dead-letter tests (missing-required-field and
+// unsupported-schema-major drops) live in
+// supply_chain_advisory_evidence_decode_test.go to keep this file under the
+// 500-line cap; they share the factRow helper below.
+
 func TestCanonicalAdvisoryKeyNormalizesMixedCaseGHSA(t *testing.T) {
 	t.Parallel()
 

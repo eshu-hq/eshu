@@ -11,7 +11,7 @@ receives one of these structs, validated.
 
 ## Purpose
 
-Five GCP fact kinds decode through this package:
+Seven GCP fact kinds decode through this package:
 
 | Fact kind | Struct | Decode function |
 | --- | --- | --- |
@@ -20,21 +20,14 @@ Five GCP fact kinds decode through this package:
 | `gcp_collection_warning` | `CollectionWarning` | `factschema.DecodeGCPCollectionWarning` |
 | `gcp_dns_record` | `DNSRecord` | `factschema.DecodeGCPDNSRecord` |
 | `gcp_iam_policy_observation` | `IAMPolicyObservation` | `factschema.DecodeGCPIAMPolicyObservation` |
+| `gcp_tag_observation` | `TagObservation` | `factschema.DecodeGCPTagObservation` |
+| `gcp_image_reference` | `ImageReference` | `factschema.DecodeGCPImageReference` |
 
-`gcp_image_reference` and `gcp_tag_observation` are deliberately **not** typed
-here. Each kind's sole read-side reducer/storage consumer is a shared
-cross-provider surface — `go/internal/reducer/container_image_identity.go`
-(reads AWS/Azure/GCP/OCI/CICD image references together) and
-`go/internal/storage/postgres/cloud_tag_evidence.go` (reads AWS/Azure/GCP tag
-observations together) — that still reads them raw. Typing one provider's kind
-ahead of that shared surface would be a hollow contract (the decode seam would
-never be called by the real read path) and would asymmetrically type GCP while
-its AWS/Azure siblings stay raw. These two kinds migrate WITH their
-cross-provider consumer, not in this per-cloud wave. AWS cloud support now
-types image references; tag observations still migrate with their shared
-cross-provider consumer. Their
-`go/internal/facts.GCP{ImageReference,TagObservation}FactKind` wire constants
-remain; only the contracts-module typed structs are deferred.
+`gcp_image_reference` and `gcp_tag_observation` share downstream reducer and
+storage surfaces with AWS/Azure/OCI/CICD evidence. Those consumers still own
+their domain behavior, but the GCP collector emit path and decode seam now use
+these structs so missing required fields fail as classified `input_invalid`
+errors instead of slipping through as zero values.
 
 `gcp_iam_principal`, `gcp_iam_trust_policy`, and `gcp_iam_permission_policy`
 are also **out of scope**: they belong to the `secrets_iam` fact family
@@ -43,7 +36,7 @@ does not type.
 
 ## Ownership boundary
 
-This package owns the Go type definitions and JSON codec for these five
+This package owns the Go type definitions and JSON codec for these seven
 fact kinds' payloads. It does not own decode dispatch, schema-version
 routing, or required-field validation — that lives in the parent
 `factschema` package (`decode.go`, `decode_gcp.go`). It does not own graph
@@ -52,10 +45,10 @@ structs but live outside this module.
 
 ## Exported surface
 
-`Resource`, `Relationship`, `CollectionWarning`, `DNSRecord`, and
-`IAMPolicyObservation`. See each struct's godoc comment for its full field
-list; the required/optional split below is the contract most callers need
-first.
+`Resource`, `Relationship`, `CollectionWarning`, `DNSRecord`,
+`IAMPolicyObservation`, `TagObservation`, and `ImageReference`. See each
+struct's godoc comment for its full field list; the required/optional split
+below is the contract most callers need first.
 
 ## Dependencies
 
@@ -84,6 +77,8 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 | `CollectionWarning` | `WarningKind`, `Outcome` | The emitter validates both against bounded closed vocabularies before ever reaching the envelope builder. |
 | `DNSRecord` | `ManagedZoneFullResourceName`, `RecordType`, `RecordNameFingerprint` | The emitter fails closed on a missing zone, record type, or record name (fingerprinted before this struct sees it). |
 | `IAMPolicyObservation` | `FullResourceName`, `AssetType`, `Role`, `Members` | The emitter fails closed on any of the first three being empty AND on zero fingerprinted members. `Members` is the binding's only principal evidence, so it is required (a required slice carries no `omitempty`): an absent or null `members` key dead-letters as `input_invalid`. |
+| `TagObservation` | `FullResourceName`, `AssetType`, `TagKeyFingerprint` | The emitter only builds tag evidence after deriving the owning resource identity and fingerprinting the tag key. |
+| `ImageReference` | `FullResourceName`, `AssetType`, `ImageReference`, `TagDigestConfidence` | The emitter requires the owning resource, image reference, and bounded confidence class used by downstream image correlation. |
 
 Missing a required identity field dead-letters as `input_invalid` rather than
 forming an empty-string graph identity — this is the accuracy fix this
@@ -128,9 +123,9 @@ Typing per-asset-type `Resource` attributes (mirroring the AWS
 per-resource-type deferral, design §7, issue #4631) is deferred follow-up
 work, not a gap in this package's identity-accuracy goal.
 
-`CollectionWarning`, `DNSRecord`, and `IAMPolicyObservation` are each scoped
-to one fact kind with a known field set, so none of them carries an
-`Attributes` pass-through.
+`CollectionWarning`, `DNSRecord`, `IAMPolicyObservation`, `TagObservation`,
+and `ImageReference` are each scoped to one fact kind with a known field set,
+so none of them carries an `Attributes` pass-through.
 
 ## Changing a struct
 

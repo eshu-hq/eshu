@@ -3,8 +3,9 @@
 This directory is part of the public
 `github.com/eshu-hq/eshu/sdk/go/factschema` Go module. It holds the
 schema-version-1 typed payload structs for the `gcp` fact family: `Resource`,
-`Relationship`, `CollectionWarning`, `DNSRecord`, and `IAMPolicyObservation`.
-It must remain independent from Eshu internals.
+`Relationship`, `CollectionWarning`, `DNSRecord`, `IAMPolicyObservation`,
+`TagObservation`, and `ImageReference`. It must remain independent from Eshu
+internals.
 
 ## Required Checks
 
@@ -49,29 +50,19 @@ It must remain independent from Eshu internals.
   `resource.go` / `relationship.go`). Forgetting this leaks the new field
   into `Attributes` as well as the named struct field, which is silently
   wrong, not a compile error.
-- `CollectionWarning`, `DNSRecord`, and `IAMPolicyObservation` have no
-  `Attributes` pass-through; every payload key they care about is a named
-  field. Do not add one without discussing scope — it changes this package's
-  polymorphic-vs-fully-typed shape for that kind.
-- **Deferred kinds — do NOT type here**: `gcp_image_reference` and
-  `gcp_tag_observation` are intentionally left untyped. Each kind's sole
-  read-side consumer is a shared cross-provider surface
-  (`go/internal/reducer/container_image_identity.go` for image references,
-  `go/internal/storage/postgres/cloud_tag_evidence.go` for tag observations)
-  that reads AWS/Azure/GCP kinds together and still reads them raw. Adding a
-  struct here would be a hollow contract (the decode seam would never be called
-  by the real read path) and would asymmetrically type GCP while its AWS/Azure
-  sibling stays raw. AWS cloud support now types image references; tag
-  observations still migrate WITH their cross-provider consumer, not in a
-  per-cloud wave.
+- `CollectionWarning`, `DNSRecord`, `IAMPolicyObservation`, `TagObservation`,
+  and `ImageReference` have no `Attributes` pass-through; every payload key
+  they care about is a named field. Do not add one without discussing scope —
+  it changes this package's polymorphic-vs-fully-typed shape for that kind.
 - **Family boundary**: `gcp_iam_principal`, `gcp_iam_trust_policy`, and
   `gcp_iam_permission_policy` belong to the `secrets_iam` fact family
   (`go/internal/facts/secrets_iam.go`), NOT this package. Do not add structs
   for those kinds here; they are a different family's scope.
-- This package defines five fact kinds (`gcp_cloud_resource`,
+- This package defines seven fact kinds (`gcp_cloud_resource`,
   `gcp_cloud_relationship`, `gcp_collection_warning`, `gcp_dns_record`,
-  `gcp_iam_policy_observation`). Adding a sixth kind or a `v2` major is
-  follow-on epic work, not a casual edit.
+  `gcp_iam_policy_observation`, `gcp_tag_observation`, and
+  `gcp_image_reference`). Adding an eighth kind or a `v2` major is follow-on
+  epic work, not a casual edit.
 - `Resource`'s schema version is pinned at 1.1.0
   (`facts.GCPCloudResourceSchemaVersion` in `go/internal/facts/gcp.go`), one
   minor ahead of the rest of this family. Generate its schema artifact at

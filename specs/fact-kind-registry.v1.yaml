@@ -61,6 +61,15 @@ families:
     read_surface: "GET /api/v0/cloud/inventory"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      azure_cloud_relationship: "sdk/go/factschema/schema/azure_cloud_relationship.v1.schema.json"
+      azure_cloud_resource: "sdk/go/factschema/schema/azure_cloud_resource.v1.schema.json"
+      azure_collection_warning: "sdk/go/factschema/schema/azure_collection_warning.v1.schema.json"
+      azure_dns_record: "sdk/go/factschema/schema/azure_dns_record.v1.schema.json"
+      azure_identity_observation: "sdk/go/factschema/schema/azure_identity_observation.v1.schema.json"
+      azure_image_reference: "sdk/go/factschema/schema/azure_image_reference.v1.schema.json"
+      azure_resource_change: "sdk/go/factschema/schema/azure_resource_change.v1.schema.json"
+      azure_tag_observation: "sdk/go/factschema/schema/azure_tag_observation.v1.schema.json"
     kinds: [azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation]
   ci_cd_run:
     lifecycle_owner: go/internal/facts
@@ -129,6 +138,14 @@ families:
     read_surface: "GET /api/v0/cloud/inventory"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      gcp_cloud_relationship: "sdk/go/factschema/schema/gcp_cloud_relationship.v1.schema.json"
+      gcp_cloud_resource: "sdk/go/factschema/schema/gcp_cloud_resource.v1.schema.json"
+      gcp_collection_warning: "sdk/go/factschema/schema/gcp_collection_warning.v1.schema.json"
+      gcp_dns_record: "sdk/go/factschema/schema/gcp_dns_record.v1.schema.json"
+      gcp_iam_policy_observation: "sdk/go/factschema/schema/gcp_iam_policy_observation.v1.schema.json"
+      gcp_image_reference: "sdk/go/factschema/schema/gcp_image_reference.v1.schema.json"
+      gcp_tag_observation: "sdk/go/factschema/schema/gcp_tag_observation.v1.schema.json"
     kinds: [gcp_cloud_relationship, gcp_cloud_resource, gcp_collection_warning, gcp_dns_record, gcp_iam_policy_observation, gcp_image_reference, gcp_tag_observation]
   incident_context:
     lifecycle_owner: go/internal/facts
@@ -159,6 +176,10 @@ families:
     read_surface: "GET /api/v0/cloud/resources"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      kubernetes_live.pod_template: "sdk/go/factschema/schema/kubernetes_live.pod_template.v1.schema.json"
+      kubernetes_live.relationship: "sdk/go/factschema/schema/kubernetes_live.relationship.v1.schema.json"
+      kubernetes_live.warning: "sdk/go/factschema/schema/kubernetes_live.warning.v1.schema.json"
     kinds: [kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
   observability:
     lifecycle_owner: go/internal/facts

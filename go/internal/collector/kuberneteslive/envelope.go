@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
 // ContainerSummary is the redacted, metadata-only view of one container or
@@ -85,31 +87,40 @@ func NewPodTemplateEnvelope(observation PodTemplateObservation) (facts.Envelope,
 		return facts.Envelope{}, err
 	}
 	objectID := observation.Identity.ObjectID()
-	containers := make([]map[string]any, 0, len(observation.Containers))
+	containers := make([]kuberneteslivev1.PodTemplateContainer, 0, len(observation.Containers))
 	images := make([]string, 0, len(observation.Containers))
 	for _, container := range observation.Containers {
-		containers = append(containers, containerMap(container))
+		containers = append(containers, typedContainer(container))
 		if image := strings.TrimSpace(container.Image); image != "" {
 			images = append(images, image)
 		}
 	}
 	anchors := []string{objectID}
 	anchors = append(anchors, images...)
-	payload := map[string]any{
-		"collector_instance_id":  observation.CollectorInstanceID,
-		"cluster_id":             observation.Identity.ClusterID,
-		"object_id":              objectID,
-		"group_version_resource": observation.Identity.GroupVersionResource(),
-		"namespace":              observation.Identity.Namespace,
-		"name":                   observation.Identity.Name,
-		"uid":                    observation.Identity.UID,
-		"service_account":        strings.TrimSpace(observation.ServiceAccount),
-		"containers":             containers,
-		"image_refs":             images,
-		"selector":               sortedStringMap(observation.Selector),
-		"labels":                 sortedStringMap(observation.Labels),
-		"correlation_anchors":    anchors,
+	clusterID := observation.Identity.ClusterID
+	groupVersionResource := observation.Identity.GroupVersionResource()
+	namespace := observation.Identity.Namespace
+	name := observation.Identity.Name
+	uid := observation.Identity.UID
+	serviceAccount := strings.TrimSpace(observation.ServiceAccount)
+	payload, err := factschema.EncodeKubernetesLivePodTemplate(kuberneteslivev1.PodTemplate{
+		ObjectID:             objectID,
+		ClusterID:            &clusterID,
+		Namespace:            &namespace,
+		Name:                 &name,
+		WorkloadUID:          &uid,
+		GroupVersionResource: &groupVersionResource,
+		ServiceAccount:       &serviceAccount,
+		Containers:           containers,
+		ImageRefs:            images,
+		Selector:             sortedStringMap(observation.Selector),
+		Labels:               sortedStringMap(observation.Labels),
+		CorrelationAnchors:   anchors,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode kubernetes_live.pod_template payload: %w", err)
 	}
+	payload["collector_instance_id"] = observation.CollectorInstanceID
 	return newEnvelope(
 		observation.Identity.ClusterID,
 		facts.KubernetesPodTemplateFactKind,
@@ -147,16 +158,23 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 		"to":   toID,
 		"type": string(observation.Type),
 	})
-	payload := map[string]any{
-		"collector_instance_id":       observation.CollectorInstanceID,
-		"cluster_id":                  strings.TrimSpace(observation.ClusterID),
-		"relationship_type":           string(observation.Type),
-		"from_object_id":              fromID,
-		"to_object_id":                toID,
-		"from_group_version_resource": observation.From.GroupVersionResource(),
-		"to_group_version_resource":   observation.To.GroupVersionResource(),
-		"correlation_anchors":         []string{fromID, toID},
+	clusterID := strings.TrimSpace(observation.ClusterID)
+	relationshipType := string(observation.Type)
+	fromGroupVersionResource := observation.From.GroupVersionResource()
+	toGroupVersionResource := observation.To.GroupVersionResource()
+	payload, err := factschema.EncodeKubernetesLiveRelationship(kuberneteslivev1.Relationship{
+		RelationshipType:         relationshipType,
+		FromObjectID:             fromID,
+		ToObjectID:               toID,
+		ClusterID:                &clusterID,
+		FromGroupVersionResource: &fromGroupVersionResource,
+		ToGroupVersionResource:   &toGroupVersionResource,
+		CorrelationAnchors:       []string{fromID, toID},
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode kubernetes_live.relationship payload: %w", err)
 	}
+	payload["collector_instance_id"] = observation.CollectorInstanceID
 	return newEnvelope(
 		observation.ClusterID,
 		facts.KubernetesRelationshipFactKind,
@@ -191,14 +209,18 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		"reason":         reason,
 		"resource_scope": resourceScope,
 	})
-	payload := map[string]any{
-		"collector_instance_id": observation.CollectorInstanceID,
-		"cluster_id":            clusterID,
-		"reason":                reason,
-		"resource_scope":        resourceScope,
-		"message":               sanitizeText(observation.Message),
-		"correlation_anchors":   []string{clusterID},
+	message := sanitizeText(observation.Message)
+	payload, err := factschema.EncodeKubernetesLiveWarning(kuberneteslivev1.Warning{
+		Reason:             reason,
+		ClusterID:          clusterID,
+		ResourceScope:      &resourceScope,
+		Message:            &message,
+		CorrelationAnchors: []string{clusterID},
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode kubernetes_live.warning payload: %w", err)
 	}
+	payload["collector_instance_id"] = observation.CollectorInstanceID
 	return newEnvelope(
 		clusterID,
 		facts.KubernetesWarningFactKind,
@@ -214,19 +236,23 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 	)
 }
 
-func containerMap(container ContainerSummary) map[string]any {
+func typedContainer(container ContainerSummary) kuberneteslivev1.PodTemplateContainer {
 	ports := make([]int32, 0, len(container.Ports))
 	ports = append(ports, container.Ports...)
 	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
 	envKeys := append([]string(nil), container.EnvKeys...)
 	sort.Strings(envKeys)
-	return map[string]any{
-		"name":            strings.TrimSpace(container.Name),
-		"image":           strings.TrimSpace(container.Image),
-		"init":            container.Init,
-		"ports":           ports,
-		"env_keys":        envKeys,
-		"env_from_secret": container.EnvFromSecret,
+	name := strings.TrimSpace(container.Name)
+	image := strings.TrimSpace(container.Image)
+	init := container.Init
+	envFromSecret := container.EnvFromSecret
+	return kuberneteslivev1.PodTemplateContainer{
+		Name:          &name,
+		Image:         &image,
+		Init:          &init,
+		Ports:         ports,
+		EnvKeys:       envKeys,
+		EnvFromSecret: &envFromSecret,
 	}
 }
 

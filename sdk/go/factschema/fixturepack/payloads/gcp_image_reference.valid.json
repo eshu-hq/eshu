@@ -1,0 +1,5 @@
+{
+  "owning_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/api",
+  "tag_digest_confidence": "digest",
+  "image_digest": "sha256:111"
+}

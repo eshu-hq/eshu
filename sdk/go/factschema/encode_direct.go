@@ -64,3 +64,9 @@ func addStringMapPtr(payload map[string]any, key string, value *map[string]strin
 		payload[key] = *value
 	}
 }
+
+func addStringMap(payload map[string]any, key string, value map[string]string) {
+	if value != nil {
+		payload[key] = value
+	}
+}

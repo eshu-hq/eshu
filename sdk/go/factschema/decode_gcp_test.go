@@ -105,6 +105,14 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// binding's unconditional principal evidence — an absent members key must
 	// dead-letter, not decode to a struct with no principal.
 	{FactKindGCPIAMPolicyObservation, "members"}: {},
+	// gcp_tag_observation.tag_value_fingerprints: gcpcloud.NewTagObservationEnvelope
+	// rejects an observation with zero fingerprinted tag values before the
+	// envelope is built, so this map is the tag fact's unconditional evidence.
+	{FactKindGCPTagObservation, "tag_value_fingerprints"}: {},
+	// azure_tag_observation.tag_value_fingerprints:
+	// azurecloud.NewTagObservationEnvelope rejects an observation with zero
+	// fingerprinted tag values before the envelope is built.
+	{FactKindAzureTagObservation, "tag_value_fingerprints"}: {},
 	// file.parsed_file_data: fileFactEnvelope
 	// (go/internal/collector/git_fact_builder.go:433-439) unconditionally sets
 	// parsed_file_data to the parser's per-file map on every "file" fact it

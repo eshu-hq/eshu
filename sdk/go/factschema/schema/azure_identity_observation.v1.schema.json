@@ -1,0 +1,75 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/azure/v1/identity_observation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "arm_resource_id": {
+      "type": "string"
+    },
+    "assignment_scope": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "client_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identity_type": {
+      "type": "string"
+    },
+    "normalized_resource_id": {
+      "type": "string"
+    },
+    "object_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principal_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_time": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resource_type": {
+      "type": "string"
+    },
+    "role_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tenant_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "arm_resource_id",
+    "normalized_resource_id",
+    "resource_type",
+    "identity_type"
+  ],
+  "title": "Eshu azure_identity_observation Payload (schema version 1)",
+  "type": "object"
+}

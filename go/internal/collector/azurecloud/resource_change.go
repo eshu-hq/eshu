@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // Azure resource change types classify one Resource Graph change record. They
@@ -102,27 +104,34 @@ func NewResourceChangeEnvelope(observation ResourceChangeObservation, key redact
 		"source_lane":   observation.Boundary.SourceLane,
 	})
 
-	payload := map[string]any{
-		"collector_kind":             CollectorKind,
-		"collector_instance_id":      observation.Boundary.CollectorInstanceID,
-		"tenant_id":                  observation.Boundary.TenantID,
-		"scope_kind":                 observation.Boundary.ScopeKind,
-		"provider_scope_id":          observation.Boundary.ProviderScopeID,
-		"source_lane":                observation.Boundary.SourceLane,
-		"target_arm_resource_id":     targetID,
-		"target_normalized_id":       identity.Normalized,
-		"target_resource_type":       identity.ResourceType,
-		"change_type":                changeType,
-		"change_time":                observation.ChangeTime.UTC(),
-		"operation":                  strings.TrimSpace(observation.Operation),
-		"client_type":                strings.TrimSpace(observation.ClientType),
-		"actor_class":                strings.TrimSpace(observation.ActorClass),
-		"changed_property_paths":     changedPaths,
-		"changed_property_count":     len(changedPaths),
-		"changed_property_truncated": truncated,
-		"is_tombstone_candidate":     changeType == ChangeTypeDeleted,
-		"redaction_policy_version":   RedactionPolicyVersion,
+	operation := strings.TrimSpace(observation.Operation)
+	clientType := strings.TrimSpace(observation.ClientType)
+	actorClass := strings.TrimSpace(observation.ActorClass)
+	changedCount := len(changedPaths)
+	isTombstone := changeType == ChangeTypeDeleted
+	payload, err := factschema.EncodeAzureResourceChange(azurev1.ResourceChange{
+		TargetARMResourceID:      targetID,
+		TargetNormalizedID:       identity.Normalized,
+		TargetResourceType:       identity.ResourceType,
+		ChangeType:               changeType,
+		ChangeTime:               observation.ChangeTime.UTC().Format(time.RFC3339Nano),
+		Operation:                &operation,
+		ClientType:               &clientType,
+		ActorClass:               &actorClass,
+		ChangedPropertyPaths:     changedPaths,
+		ChangedPropertyCount:     &changedCount,
+		ChangedPropertyTruncated: &truncated,
+		IsTombstoneCandidate:     &isTombstone,
+		RedactionPolicyVersion:   stringPtr(RedactionPolicyVersion),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_resource_change payload: %w", err)
 	}
+	addAzureBoundaryPayload(payload, observation.Boundary)
+	payload["tenant_id"] = observation.Boundary.TenantID
+	payload["scope_kind"] = observation.Boundary.ScopeKind
+	payload["provider_scope_id"] = observation.Boundary.ProviderScopeID
+	payload["source_lane"] = observation.Boundary.SourceLane
 	if actor := strings.TrimSpace(observation.ActorID); actor != "" {
 		payload["actor_fingerprint"] = redact.String(actor, "azure_change_actor", "azure_change_actor:"+strings.TrimSpace(observation.ActorClass), key).Marker
 	}

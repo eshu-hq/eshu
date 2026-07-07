@@ -1,0 +1,6 @@
+{
+  "full_resource_name": "//compute.googleapis.com/projects/demo/zones/us-central1-a/instances/vm-1",
+  "tag_value_fingerprints": {
+    "env": "redacted:tag-env"
+  }
+}

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // Relationship support states classify how completely the provider described an
@@ -100,7 +102,7 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 		"tenant_id":            observation.Boundary.TenantID,
 	})
 
-	payload := map[string]any{
+	attributes := map[string]any{
 		"collector_kind":                CollectorKind,
 		"collector_instance_id":         observation.Boundary.CollectorInstanceID,
 		"tenant_id":                     observation.Boundary.TenantID,
@@ -121,6 +123,22 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 		"support_state":                 supportState,
 		"provider_time":                 timeOrNil(observation.ProviderTime),
 		"redaction_policy_version":      RedactionPolicyVersion,
+	}
+	sourceNormalized := source.Normalized
+	targetNormalized := target.Normalized
+	targetType := target.ResourceType
+	payload, err := factschema.EncodeAzureCloudRelationship(azurev1.CloudRelationship{
+		RelationshipType:           relationshipType,
+		SourceARMResourceID:        sourceID,
+		TargetARMResourceID:        targetID,
+		SourceNormalizedResourceID: &sourceNormalized,
+		TargetNormalizedResourceID: &targetNormalized,
+		TargetResourceType:         &targetType,
+		SupportState:               &supportState,
+		Attributes:                 attributes,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_cloud_relationship payload: %w", err)
 	}
 
 	return newEnvelope(
