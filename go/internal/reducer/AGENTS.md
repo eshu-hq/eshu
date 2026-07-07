@@ -2061,3 +2061,16 @@ never-draining set that pinned ~2 Postgres cores 24/7. The NEW
 pending query selected 556 scopes: the 275 fully-built scopes correctly drop out
 and the remaining 556 are genuinely unbuilt work that leaves the set as it
 builds, so the sweep reaches `pending=0` and rests on the 30s poll.
+
+Remote runtime proof (`eshu-remote-validation`, live `e2e3586persist` stack):
+a musl-built fixed `eshu-reducer` was swapped into the running resolution-engine
+and compared against the shipped (buggy) binary. BEFORE: 9 sweeps/30s, each
+`document_count=0`/`vector_count=0` — the sweep looped on the already-built
+low-`scope_id` batch (`ORDER BY scope_id LIMIT 100`) the broken lister kept
+returning, so it never reached the genuine unbuilt backlog and built ZERO
+vectors while Postgres sat at 154-280%. AFTER: sweeps build ~30k vectors each
+(`document_count`/`vector_count` = 31276, 29370, 31032), no no-progress
+backoffs (real work exists), Postgres doing productive write work draining the
+backlog toward idle. So the fix is not only a spin fix — it restores
+search-vector building for the unbuilt scope backlog that the NULL join key had
+silently starved.
