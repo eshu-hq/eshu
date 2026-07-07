@@ -10,7 +10,6 @@ on:
       - Dockerfile
       - .dockerignore
       - go/**
-      - proto/**
       - deploy/helm/**
       - .github/workflows/docker-publish.yml
   pull_request:
@@ -20,7 +19,6 @@ on:
       - Dockerfile
       - .dockerignore
       - go/**
-      - proto/**
       - deploy/helm/**
       - .github/workflows/docker-publish.yml
   workflow_dispatch:
@@ -78,7 +76,7 @@ jobs:
           chart=false
           while IFS= read -r path; do
             case "${path}" in
-              Dockerfile|.dockerignore|go/*|proto/*)
+              Dockerfile|.dockerignore|go/*)
                 image=true
                 ;;
               deploy/helm/*)
