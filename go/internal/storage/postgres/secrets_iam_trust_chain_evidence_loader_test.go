@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsActiveAnchors(t *testing.T) {
@@ -44,7 +46,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsActiveAnchors(t *testin
 					"vault-scope",
 					"vault-gen",
 					facts.VaultAuthRoleFactKind,
-					`{"bound_service_account_join_keys":["sha256:service-account"],"token_policy_join_keys":["sha256:vault-policy"]}`,
+					`{"role_join_key":"sha256:vault-role","bound_service_account_join_keys":["sha256:service-account"],"token_policy_join_keys":["sha256:vault-policy"]}`,
 				),
 			}},
 			{rows: nil},
@@ -120,7 +122,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsGCPWorkloadIdentityAnch
 					"gcp-scope",
 					"gcp-gen",
 					facts.GCPIAMTrustPolicyFactKind,
-					`{"target_principal_fingerprint":"sha256:gcp-service-account","target_service_account_email_digest":"sha256:gcp-service-account-email","gcp_workload_identity_subject_fingerprint":"sha256:gke-subject"}`,
+					`{"provider":"gcp","collector_instance_id":"collector-redacted","redaction_policy_version":"test-v1","target_principal_fingerprint":"sha256:gcp-service-account","target_service_account_email_digest":"sha256:gcp-service-account-email","role":"roles/iam.workloadIdentityUser","impersonation_mode":"workload_identity","gcp_workload_identity_subject_fingerprint":"sha256:gke-subject"}`,
 				),
 			}},
 			{rows: [][]any{
@@ -129,14 +131,14 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsGCPWorkloadIdentityAnch
 					"gcp-scope",
 					"gcp-gen",
 					facts.GCPIAMPrincipalFactKind,
-					`{"principal_fingerprint":"sha256:gcp-service-account"}`,
+					`{"provider":"gcp","collector_instance_id":"collector-redacted","redaction_policy_version":"test-v1","principal_fingerprint":"sha256:gcp-service-account","principal_type":"service_account"}`,
 				),
 				secretsIAMTrustChainFactRow(
 					"gcp-permission",
 					"gcp-scope",
 					"gcp-gen",
 					facts.GCPIAMPermissionPolicyFactKind,
-					`{"principal_fingerprint":"sha256:gcp-service-account","resource_is_secret":true}`,
+					`{"provider":"gcp","collector_instance_id":"collector-redacted","redaction_policy_version":"test-v1","principal_fingerprint":"sha256:gcp-service-account","principal_type":"service_account","role":"roles/secretmanager.secretAccessor","resource_full_resource_name":"//secretmanager.googleapis.com/projects/redacted/secrets/redacted","resource_is_secret":true}`,
 				),
 			}},
 			{rows: nil},
@@ -180,6 +182,104 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsGCPWorkloadIdentityAnch
 	}
 }
 
+func TestFactStoreLoadSecretsIAMTrustChainEvidenceClassifiesMalformedAnchor(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				secretsIAMTrustChainFactRow(
+					"aws-trust",
+					"aws-scope",
+					"aws-gen",
+					facts.AWSIAMTrustPolicyFactKind,
+					`{"region":"global","provider":"aws","collector_instance_id":"collector-redacted","redaction_policy_version":"test-v1","role_arn":"arn:aws:iam::000000000000:role/redacted","policy_source":"assume_role_policy","effect":"Allow"}`,
+				),
+			}},
+			{rows: nil},
+		},
+	}
+	store := NewFactStore(db)
+
+	_, _, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+		ScopeID:      "aws-scope",
+		GenerationID: "aws-gen",
+		Domain:       reducer.DomainSecretsIAMTrustChain,
+	})
+	if err == nil {
+		t.Fatal("LoadSecretsIAMTrustChainEvidence() error = nil, want classified input_invalid decode error")
+	}
+	var decodeErr *factschema.DecodeError
+	if !errors.As(err, &decodeErr) {
+		t.Fatalf("LoadSecretsIAMTrustChainEvidence() error = %T, want *factschema.DecodeError", err)
+	}
+	if decodeErr.Classification != factschema.ClassificationInputInvalid {
+		t.Fatalf("DecodeError.Classification = %q, want %q", decodeErr.Classification, factschema.ClassificationInputInvalid)
+	}
+	if decodeErr.Field != "account_id" {
+		t.Fatalf("DecodeError.Field = %q, want account_id", decodeErr.Field)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) {
+		t.Fatalf("LoadSecretsIAMTrustChainEvidence() error = %T, want FailureClass", err)
+	}
+	if classified.FailureClass() != factschema.ClassificationInputInvalid {
+		t.Fatalf("FailureClass() = %q, want %q", classified.FailureClass(), factschema.ClassificationInputInvalid)
+	}
+	var retryable interface{ Retryable() bool }
+	if !errors.As(err, &retryable) {
+		t.Fatalf("LoadSecretsIAMTrustChainEvidence() error = %T, want Retryable", err)
+	}
+	if retryable.Retryable() {
+		t.Fatal("Retryable() = true, want false for malformed contract payload")
+	}
+}
+
+func TestFactStoreLoadSecretsIAMTrustChainEvidenceSkipsMalformedNonAnchor(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				secretsIAMTrustChainFactRow(
+					"k8s-sa",
+					"k8s-scope",
+					"k8s-gen",
+					facts.KubernetesServiceAccountFactKind,
+					`{"service_account_join_key":"sha256:service-account"}`,
+				),
+				secretsIAMTrustChainFactRow(
+					"vault-mount",
+					"k8s-scope",
+					"k8s-gen",
+					facts.VaultAuthMountFactKind,
+					`{"provider":"vault"}`,
+				),
+			}},
+			{rows: nil},
+		},
+	}
+	store := NewFactStore(db)
+
+	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+		ScopeID:      "k8s-scope",
+		GenerationID: "k8s-gen",
+		Domain:       reducer.DomainSecretsIAMTrustChain,
+	})
+	if err != nil {
+		t.Fatalf("LoadSecretsIAMTrustChainEvidence() error = %v, want nil", err)
+	}
+	if got, want := stats.LoadedFactCount, 2; got != want {
+		t.Fatalf("LoadedFactCount = %d, want %d", got, want)
+	}
+	if got, want := len(envelopes), 2; got != want {
+		t.Fatalf("len(envelopes) = %d, want %d", got, want)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("QueryContext calls = %d, want %d", got, want)
+	}
+}
+
 func TestFactStoreLoadSecretsIAMTrustChainEvidenceMarksTruncatedAtExpansionLimit(t *testing.T) {
 	t.Parallel()
 
@@ -209,7 +309,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceMarksTruncatedAtExpansionLimit
 					"vault-scope",
 					"vault-gen",
 					facts.VaultAuthRoleFactKind,
-					`{"bound_service_account_join_keys":["sha256:service-account"],"token_policy_join_keys":["sha256:vault-policy"]}`,
+					`{"role_join_key":"sha256:vault-role","bound_service_account_join_keys":["sha256:service-account"],"token_policy_join_keys":["sha256:vault-policy"]}`,
 				),
 			}},
 			{rows: [][]any{
@@ -227,7 +327,7 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceMarksTruncatedAtExpansionLimit
 					"vault-scope",
 					"vault-gen",
 					facts.VaultKVMetadataFactKind,
-					`{"kv_path_fingerprint":"sha256:kv-path"}`,
+					`{"mount_join_key":"sha256:vault-mount","kv_path_fingerprint":"sha256:kv-path"}`,
 				),
 			}},
 		},

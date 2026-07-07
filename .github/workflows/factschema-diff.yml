@@ -58,6 +58,7 @@ on:
       - "sdk/go/factschema/internal/schemagen/**"
       - "go/cmd/factschema-diff/**"
       - "scripts/*verify-factschema-diff*.sh"
+      - "scripts/ci/install-apt-packages.sh"
       - ".github/workflows/factschema-diff.yml"
   push:
     branches:
@@ -88,7 +89,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run Go unit tests
         working-directory: go

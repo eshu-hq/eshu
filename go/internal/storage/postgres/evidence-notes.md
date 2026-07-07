@@ -3,6 +3,41 @@
 Keep this file for scoped evidence that is too detailed for the package
 orientation README.
 
+## Secrets/IAM Trust-Chain Loader Typed Decode (#4796)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+TestFactStoreLoadSecretsIAMTrustChainEvidenceClassifiesMalformedAnchor
+-count=1` failed before `LoadSecretsIAMTrustChainEvidence` routed anchor
+extraction through factschema decoders, returning nil for an
+`aws_iam_trust_policy` payload missing required `account_id`; it passed after
+the loader returned a non-retryable `input_invalid` decode error naming that
+field. `go test ./internal/storage/postgres -run
+'TestFactStoreLoadSecretsIAMTrustChainEvidence|TestServiceIncidentEvidence'
+-count=1` and `go test ./internal/storage/postgres -count=1` prove the previous
+service-account, role ARN, Vault policy/path, GCP principal/email/subject
+anchor expansion still holds with contract-shaped fixtures, and the incident
+SQL payload literals stay locked to the `incident/v1` JSON tags. The
+secrets/IAM SQL predicate, page size, active-generation join, tombstone filter,
+ordering, expansion-pass cap, queue domains, worker counts, and reducer claim
+latency path are unchanged.
+
+Gate Evidence: `ESHU_POSTGRES_PORT=25432 bash
+scripts/verify-golden-corpus-gate.sh` passed after an initial default-port run
+found 15432 already allocated by another worktree's Compose stack; the rerun
+reported residual=0, dead_letter=0, shared_projection nonterminal=0, demo q1-q5
+PASS, summary 413 pass / 0 required-fail / 0 advisory-warn, and a 92s
+golden-corpus elapsed time under the 1800s ceiling. `make pre-pr` passed
+gofumpt, golangci-lint, build, vet, changed-package tests, file cap, package
+docs, exactness/telemetry gates, coverage report generation, performance
+evidence, and the scoped race lane.
+
+No-Observability-Change: #4796 adds no table, index, queue domain, worker,
+lease, runtime knob, route, metric, span, or log field. Operators continue to
+diagnose this path through existing Postgres query spans and
+`eshu_dp_postgres_query_duration_seconds`, reducer queue status and failure
+class, the reducer's `input_invalid` dead-letter handling, and
+`SecretsIAMTrustChainLoadStats` seed/loaded/truncated counts.
+
 ## Code-Call Symbol Definition JSONB Guards (#3122)
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run

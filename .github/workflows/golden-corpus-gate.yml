@@ -31,6 +31,7 @@ on:
       - 'specs/demo-first-answers.v1.yaml'
       - 'scripts/verify-golden-corpus-gate.sh'
       - 'scripts/test-verify-golden-corpus-gate.sh'
+      - 'scripts/ci/install-apt-packages.sh'
       - '.github/workflows/golden-corpus-gate.yml'
 
 concurrency:
@@ -49,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Validate orchestrator contract
         run: bash scripts/test-verify-golden-corpus-gate.sh
 

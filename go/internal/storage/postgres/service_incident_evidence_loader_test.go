@@ -5,10 +5,12 @@ package postgres
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 func TestServiceIncidentEvidenceLoaderMapsExactProviderServiceToCatalogService(t *testing.T) {
@@ -129,6 +131,28 @@ func TestServiceIncidentEvidenceQueryUsesDurableExactFailClosedJoin(t *testing.T
 	}
 }
 
+func TestServiceIncidentEvidenceQueryIncidentRecordPayloadLiteralsMatchSchemaTags(t *testing.T) {
+	t.Parallel()
+
+	providerField := jsonTagNameForField[incidentv1.IncidentRecord](t, "Provider")
+	providerIncidentIDField := jsonTagNameForField[incidentv1.IncidentRecord](t, "ProviderIncidentID")
+	serviceIDField := jsonTagNameForField[incidentv1.IncidentRecord](t, "ServiceID")
+	serviceField := jsonTagNameForField[incidentv1.IncidentRecord](t, "Service")
+	serviceReferenceIDField := jsonTagNameForField[incidentv1.ServiceReference](t, "ID")
+
+	for _, want := range []string{
+		"fact.fact_kind = 'incident.record'",
+		"fact.payload->>'" + providerField + "'",
+		"fact.payload->>'" + providerIncidentIDField + "'",
+		"fact.payload->>'" + serviceIDField + "'",
+		"fact.payload->'" + serviceField + "'->>'" + serviceReferenceIDField + "'",
+	} {
+		if !strings.Contains(serviceIncidentEvidenceQuery, want) {
+			t.Fatalf("serviceIncidentEvidenceQuery missing schema-derived incident literal %q:\n%s", want, serviceIncidentEvidenceQuery)
+		}
+	}
+}
+
 func TestServiceIncidentEvidenceBoundedQueryAppliesRowLimit(t *testing.T) {
 	t.Parallel()
 
@@ -179,3 +203,19 @@ func TestServiceIncidentEvidenceForServicesBoundedNonPositiveLimitIsNoOp(t *test
 }
 
 var _ reducer.ServiceScopedIncidentEvidenceLoader = ServiceIncidentEvidenceLoader{}
+
+func jsonTagNameForField[T any](t *testing.T, fieldName string) string {
+	t.Helper()
+
+	typ := reflect.TypeOf((*T)(nil)).Elem()
+	field, ok := typ.FieldByName(fieldName)
+	if !ok {
+		t.Fatalf("%s has no field %s", typ.Name(), fieldName)
+	}
+	tag := field.Tag.Get("json")
+	name, _, _ := strings.Cut(tag, ",")
+	if name == "" || name == "-" {
+		t.Fatalf("%s.%s has invalid json tag %q", typ.Name(), fieldName, tag)
+	}
+	return name
+}
