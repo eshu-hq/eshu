@@ -298,12 +298,17 @@ otherwise-empty payload with no extracted entities; the bound is recorded in
 `payload["js_parse_bounded"]` or `payload["php_parse_bounded"]` and logged, so
 a dropped parse is observable rather than silent.
 
-This cap does not yet cover the repository pre-scan stage (`preScanNames` in
+The same cap also covers the repository pre-scan stage (`preScanNames` in
 `go/internal/parser/javascript/prescan.go` and
-`go/internal/parser/php/prescan.go`), which still parses the whole file with
-no cap; because pre-scan runs across the full repository on every delta
-sync, an over-cap file still pays the same superlinear parse cost there.
-That gap is tracked in [#4808](https://github.com/eshu-hq/eshu/issues/4808).
+`go/internal/parser/php/prescan.go`, closing the gap tracked by #4808).
+Pre-scan runs across the full repository on every delta sync -- unlike the
+normal parse stage, which only visits changed targets -- so an over-cap file
+would otherwise still pay the same superlinear parse cost there even after
+#4766 bounded the normal parse stage. A bounded file contributes no pre-scan
+names, mirroring `Parse`'s bounded (empty) payload for the same file; the
+bound is logged (`javascript-family pre-scan file bounded` /
+`php pre-scan file bounded`) since pre-scan has no payload map to carry a
+`*_parse_bounded` row.
 
 ## Workflow
 

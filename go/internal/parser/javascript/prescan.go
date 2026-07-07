@@ -5,6 +5,7 @@ package javascript
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -29,6 +30,18 @@ func preScanNames(
 	if err != nil {
 		return nil, err
 	}
+
+	// jsParseByteCap (Parse's over-cap bound, #4766) applies here too: pre-scan
+	// runs across the FULL repository on every delta sync, unlike the normal
+	// parse stage which only visits changed targets, so an over-cap file would
+	// otherwise still pay the same superlinear tree-sitter cost in this stage.
+	// A bounded file contributes no pre-scan names, mirroring Parse's bounded
+	// (empty) payload for the same file.
+	if len(source) > jsParseByteCap {
+		recordJSPreScanBoundedFile(path, len(source))
+		return nil, nil
+	}
+
 	tree := parser.Parse(source, nil)
 	if tree == nil {
 		return nil, fmt.Errorf("parse %s file %q: parser returned nil tree", outputLanguage, path)
@@ -76,4 +89,20 @@ func appendPreScanName(names []string, node *tree_sitter.Node, source []byte) []
 		return names
 	}
 	return append(names, filepath.Clean(name))
+}
+
+// recordJSPreScanBoundedFile logs one file whose size exceeded jsParseByteCap
+// and whose pre-scan tree-sitter parse was skipped entirely, mirroring
+// recordJSBoundedFile's structured log line for the normal Parse stage so a
+// dropped pre-scan is observable rather than silent. Pre-scan has no payload
+// map to record a js_parse_bounded row against (it returns only a name
+// slice), so the structured log is the sole observability signal here.
+func recordJSPreScanBoundedFile(path string, originalBytes int) {
+	slog.Warn(
+		"javascript-family pre-scan file bounded",
+		"component", "parser.javascript",
+		"path", path,
+		"original_bytes", originalBytes,
+		"action", "file_skipped",
+	)
 }

@@ -88,6 +88,7 @@ Not claimed today:
   large generated files such as CID font maps or bundled library sources
   (#4766). No entities are extracted from a bounded file. The bound is
   recorded in `payload["php_parse_bounded"]` and logged, never silently
-  dropped. The repository pre-scan stage is not yet bounded by this cap and
-  can still fully parse an over-cap file at the same cost; tracked in
-  [#4808](https://github.com/eshu-hq/eshu/issues/4808).
+  dropped. The repository pre-scan stage is bounded by the same cap
+  ([#4808](https://github.com/eshu-hq/eshu/issues/4808)): a bounded file
+  contributes no pre-scan names and the bound is logged, since pre-scan has
+  no payload map to carry a `php_parse_bounded` row.
