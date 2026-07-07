@@ -53,7 +53,7 @@ var workItemEvidenceFactKinds = []string{
 
 // WorkItemEvidenceStore reads bounded Jira/work-item source facts.
 type WorkItemEvidenceStore interface {
-	ListWorkItemEvidence(context.Context, WorkItemEvidenceFilter) ([]WorkItemEvidenceRow, error)
+	ListWorkItemEvidence(context.Context, WorkItemEvidenceFilter) (WorkItemEvidencePage, error)
 }
 
 // WorkItemEvidenceFilter bounds direct work-item evidence reads to a source,

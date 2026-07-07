@@ -30,20 +30,24 @@ func NewPostgresWorkItemEvidenceStore(db workItemEvidenceQueryer) PostgresWorkIt
 }
 
 // ListWorkItemEvidence returns one bounded page of active work-item source
-// evidence.
+// evidence. filter.Limit is the store's "+1" lookahead fetch bound (the
+// caller's requested page size plus one); the returned WorkItemEvidencePage's
+// Truncated and NextCursorFactID are derived from how many facts were
+// actually fetched, not from how many decoded, so a malformed fact inside the
+// visible window can never corrupt pagination (#4733).
 func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 	ctx context.Context,
 	filter WorkItemEvidenceFilter,
-) ([]WorkItemEvidenceRow, error) {
+) (WorkItemEvidencePage, error) {
 	filter = normalizeWorkItemEvidenceFilter(filter)
 	if s.DB == nil {
-		return nil, fmt.Errorf("work-item evidence database is required")
+		return WorkItemEvidencePage{}, fmt.Errorf("work-item evidence database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("scope_id, project_key, work_item_key, provider_work_item_id, url_fingerprint, or observed_after is required")
+		return WorkItemEvidencePage{}, fmt.Errorf("scope_id, project_key, work_item_key, provider_work_item_id, url_fingerprint, or observed_after is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > workItemEvidenceMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", workItemEvidenceMaxLimit+1)
+		return WorkItemEvidencePage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", workItemEvidenceMaxLimit+1)
 	}
 
 	rows, err := s.DB.QueryContext(
@@ -61,7 +65,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 		filter.Limit,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list work-item evidence: %w", err)
+		return WorkItemEvidencePage{}, fmt.Errorf("list work-item evidence: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -85,11 +89,11 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 			&schemaVersion,
 			&payloadBytes,
 		); err != nil {
-			return nil, fmt.Errorf("scan work-item evidence: %w", err)
+			return WorkItemEvidencePage{}, fmt.Errorf("scan work-item evidence: %w", err)
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-			return nil, fmt.Errorf("decode work-item evidence payload: %w", err)
+			return WorkItemEvidencePage{}, fmt.Errorf("decode work-item evidence payload: %w", err)
 		}
 		facts = append(facts, workItemEvidenceFactRow{
 			FactID:           factID,
@@ -103,9 +107,9 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list work-item evidence: %w", err)
+		return WorkItemEvidencePage{}, fmt.Errorf("list work-item evidence: %w", err)
 	}
-	return buildWorkItemEvidenceRows(facts), nil
+	return buildWorkItemEvidencePage(facts, filter.Limit), nil
 }
 
 func nullableWorkItemEvidenceTime(value time.Time) any {

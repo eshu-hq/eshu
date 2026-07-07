@@ -81,7 +81,11 @@ func (s PostgresIncidentContextStore) readIncidentServiceCatalogLinks(
 	}
 	links := make([]incidentServiceCatalogOperationalLink, 0, len(rows))
 	for _, row := range rows {
-		links = append(links, decodeIncidentServiceCatalogOperationalLink(row))
+		link, ok := decodeIncidentServiceCatalogOperationalLink(row)
+		if !ok {
+			continue
+		}
+		links = append(links, link)
 	}
 	return links, nil
 }
@@ -233,6 +237,16 @@ func incidentCICDRunCorrelationsFromRows(
 	return correlations
 }
 
+// decodeIncidentCICDRunCorrelation decodes one reducer_ci_cd_run_correlation
+// fact row into the read model's incidentCICDRunCorrelation via raw payload
+// lookups. reducer_ci_cd_run_correlation is a REDUCER-DERIVED fact
+// (go/internal/reducer/ci_cd_run_correlation_writer.go writes it directly, not
+// through sdk/go/factschema) — it has no factschema.FactKind* constant and no
+// Decode* seam, so it is out of scope for the #4794 W2a typed-decode
+// conversion (which only converts collector-emitted fact kinds that already
+// have a contracts-module seam). Converting reducer-derived reducer_* kinds to
+// a typed contract is tracked separately (see the reducer-derived fact
+// governance decision, PR #4809).
 func decodeIncidentCICDRunCorrelation(row incidentContextFactRow) incidentCICDRunCorrelation {
 	return incidentCICDRunCorrelation{
 		FactID:          row.FactID,
@@ -253,19 +267,39 @@ func decodeIncidentCICDRunCorrelation(row incidentContextFactRow) incidentCICDRu
 	}
 }
 
+// decodeIncidentServiceCatalogOperationalLink decodes one
+// service_catalog.operational_link fact row through the typed
+// sdk/go/factschema/servicecatalog/v1 seam (decodeServiceCatalogOperationalLink)
+// and shapes it into the read model's incidentServiceCatalogOperationalLink.
+// Every field of servicecatalogv1.OperationalLink is optional, so ok is false
+// only for an unsupported schema major, never a missing field.
 func decodeIncidentServiceCatalogOperationalLink(
 	row incidentContextFactRow,
-) incidentServiceCatalogOperationalLink {
+) (incidentServiceCatalogOperationalLink, bool) {
+	link, err := decodeServiceCatalogOperationalLink(incidentContextDecodeInput{
+		FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload,
+	})
+	if err != nil {
+		logIncidentContextDecodeDrop(err)
+		return incidentServiceCatalogOperationalLink{}, false
+	}
 	return incidentServiceCatalogOperationalLink{
 		FactID:    row.FactID,
-		Provider:  StringVal(row.Payload, "provider"),
-		EntityRef: StringVal(row.Payload, "entity_ref"),
-		LinkType:  StringVal(row.Payload, "link_type"),
-		Title:     StringVal(row.Payload, "title"),
-		URL:       StringVal(row.Payload, "url"),
-	}
+		Provider:  workItemDerefString(link.Provider),
+		EntityRef: workItemDerefString(link.EntityRef),
+		LinkType:  workItemDerefString(link.LinkType),
+		Title:     workItemDerefString(link.Title),
+		URL:       workItemDerefString(link.URL),
+	}, true
 }
 
+// decodeIncidentKubernetesCorrelation decodes one reducer_kubernetes_correlation
+// fact row into the read model's incidentKubernetesCorrelation via raw payload
+// lookups. reducer_kubernetes_correlation is a REDUCER-DERIVED fact
+// (go/internal/reducer/kubernetes_correlation_writer.go writes it directly,
+// not through sdk/go/factschema) — it has no factschema.FactKind* constant and
+// no Decode* seam, so it is out of scope for the #4794 W2a typed-decode
+// conversion for the same reason as decodeIncidentCICDRunCorrelation above.
 func decodeIncidentKubernetesCorrelation(row incidentContextFactRow) incidentKubernetesCorrelation {
 	return incidentKubernetesCorrelation{
 		FactID:                 row.FactID,

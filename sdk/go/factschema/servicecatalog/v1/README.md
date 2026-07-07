@@ -19,7 +19,7 @@ Four `service_catalog` fact kinds decode through this package:
 | `service_catalog.entity` | `Entity` | `factschema.DecodeServiceCatalogEntity` | reducer correlation index |
 | `service_catalog.ownership` | `Ownership` | `factschema.DecodeServiceCatalogOwnership` | reducer correlation index |
 | `service_catalog.repository_link` | `RepositoryLink` | `factschema.DecodeServiceCatalogRepositoryLink` | reducer correlation index |
-| `service_catalog.operational_link` | `OperationalLink` | `factschema.DecodeServiceCatalogOperationalLink` | raw-SQL JSONB loader (`go/internal/query`) |
+| `service_catalog.operational_link` | `OperationalLink` | `factschema.DecodeServiceCatalogOperationalLink` | query-layer incident-context read model (`go/internal/query`, #4794 W2a) |
 
 The `service_catalog` registry family is ALREADY registered and
 schema-version-admitted (`SchemaVersion: "1.0.0"`,
@@ -39,20 +39,21 @@ loader reads their payload fields today. Typing them here would create a
 `Decode*` the real read path never calls. They migrate WITH the surface that
 reads them, per Contract System v1 §7.
 
-## `OperationalLink` is an SQL-loader-only kind
+## `OperationalLink` is a query-layer-only kind
 
-`OperationalLink` is not read by any reducer decode call. It is read only by
-a raw-SQL JSONB loader
-(`go/internal/query/incident_context_runtime_sql.go`
-`listIncidentServiceCatalogOperationalLinksQuery`, decoded by
-`go/internal/query/incident_context_runtime_store.go`
-`decodeIncidentServiceCatalogOperationalLink`), which the #4573
-payload-usage-manifest gate cannot see (it scans reducer decode calls only).
-It is typed here anyway, mirroring the incident family's SQL-loader-only
-field precedent (`../../AGENTS.md`), so the schema stays honest about every
-field a real consumer reads. No field on this struct is required — the SQL
-loader reads every key with `StringVal`, which already tolerates an absent
-key as an empty string.
+`OperationalLink` is not read by any reducer decode call. It is read by the
+query-layer incident-context read model: `go/internal/query/incident_context_runtime_sql.go`'s
+`listIncidentServiceCatalogOperationalLinksQuery` fetches the fact, and
+`go/internal/query/incident_context_runtime_store.go`'s
+`decodeIncidentServiceCatalogOperationalLink` decodes it through
+`go/internal/query/factschema_decode_incident.go`'s
+`decodeServiceCatalogOperationalLink` seam (#4794 W2a). That query-layer seam
+is gated by the merged reducer+query payload-usage manifest
+(`go/internal/payloadusage`'s `resolveQueryDecodeFiles` glob), which is why
+`FactKindServiceCatalogOperationalLink` is mapped in
+`go/internal/payloadusage/schema.go`'s `factKindSchemaFile`. No field on this
+struct is required — the decode seam never dead-letters this kind on a
+missing field, only on an unsupported schema major.
 
 ## Ownership boundary
 
@@ -97,7 +98,7 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 | `Entity` | `EntityRef` | The correlation index's join key (`serviceCatalogEntityFromFact`); the index drops any entity whose `entity_ref` is blank, so a fact missing it carries no usable catalog identity at all. `Provider` participates in the same join key but stays optional: a blank provider is a legitimate single-provider deployment's observation. |
 | `Ownership` | `EntityRef` | Same join-key rationale as `Entity`. `OwnerRef`/`OwnerLegacy` (wire keys `owner_ref`/`owner`) both stay optional: the reducer's `firstNonBlank` already tolerates either being absent. |
 | `RepositoryLink` | `EntityRef` | Same join-key rationale. Every repository-identifying field (`RepositoryID`, four URL spellings, `RepositoryName`) stays optional: a link carrying none of them is a legitimate "name-only" catalog claim the reducer classifies as `ServiceCatalogCorrelationRejected` — a correlation OUTCOME, not a decode failure. |
-| `OperationalLink` | none | The SQL loader reads every field via `StringVal`, which tolerates an absent key; nothing here gates admission. |
+| `OperationalLink` | none | The query-layer decode wrapper derefs every optional pointer field to `""`/nil on absence (`workItemDerefString`), matching the pre-typing raw-map lookup's tolerance for an absent key; nothing here gates admission. |
 
 ## No Attributes pass-through
 

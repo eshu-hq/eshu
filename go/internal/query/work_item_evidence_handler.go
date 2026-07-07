@@ -101,15 +101,17 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	rows, err := h.Evidence.ListWorkItemEvidence(r.Context(), filter)
+	page, err := h.Evidence.ListWorkItemEvidence(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	truncated := len(rows) > limit
-	if truncated {
-		rows = rows[:limit]
-	}
+	// Truncated and the next cursor come from page (derived from the raw
+	// fetched fact count), never from len(page.Rows): a fact dropped mid-page
+	// by a failed typed decode must not make a truncated page look complete or
+	// hide the evidence beyond it (#4733).
+	rows := page.Rows
+	truncated := page.Truncated
 	span.SetAttributes(workItemEvidenceSpanAttributes(rows, truncated)...)
 	body := map[string]any{
 		"evidence":         rows,
@@ -119,8 +121,8 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 		"missing_evidence": len(rows) == 0,
 		"states":           summarizeWorkItemEvidenceStates(rows),
 	}
-	if truncated && len(rows) > 0 {
-		body["next_cursor"] = map[string]string{"after_fact_id": rows[len(rows)-1].FactID}
+	if truncated {
+		body["next_cursor"] = map[string]string{"after_fact_id": page.NextCursorFactID}
 	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),

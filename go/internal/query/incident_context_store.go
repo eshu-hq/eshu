@@ -98,12 +98,19 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		}
 	}
 
-	incident := decodeIncidentContextIncident(incidentRows[0])
-	timeline, err := s.readIncidentTimeline(ctx, filter, incidentRows[0])
+	incident, ok := decodeIncidentContextIncident(incidentRows[0])
+	if !ok {
+		// The sole anchor row matched the query but failed typed decode (no
+		// usable provider_incident_id or source_record_id identity, or an
+		// unsupported schema major): there is no well-formed incident to
+		// answer for, so this is indistinguishable from no match at all.
+		return IncidentContextSnapshot{}, ErrIncidentContextNotFound
+	}
+	timeline, timelineTruncated, err := s.readIncidentTimeline(ctx, filter, incidentRows[0])
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
-	changes, err := s.readIncidentChangeCandidates(ctx, filter, incident, incidentRows[0])
+	changes, changesTruncated, err := s.readIncidentChangeCandidates(ctx, filter, incident, incidentRows[0])
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
@@ -137,14 +144,27 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		Timeline:       timeline,
 		RelatedChanges: changes,
 		EvidencePath:   evidencePath,
+		// Truncated is the fetched-count truth from the timeline and
+		// related-change reads (each derives it from its raw fetched row count,
+		// not the decoded count), so a row dropped by typed decode inside the
+		// visible window cannot make a truncated page look complete (#4733
+		// sibling). The handler no longer re-derives Truncated from len().
+		Truncated: timelineTruncated || changesTruncated,
 	}, nil
 }
 
+// readIncidentTimeline returns the visible timeline window plus a truncation
+// flag derived from the RAW fetched row count, never from the decoded count
+// (#4733 sibling). filter.Limit is the "+1" lookahead fetch bound the handler
+// passes (requested limit + 1); the visible window is the first filter.Limit-1
+// fetched rows, decoded (dropping typed-decode failures within it). truncated
+// is true when the lookahead row was fetched, so a row that fails decode inside
+// the window can never make a truncated timeline report itself complete.
 func (s PostgresIncidentContextStore) readIncidentTimeline(
 	ctx context.Context,
 	filter IncidentContextFilter,
 	incident incidentContextFactRow,
-) ([]IncidentContextTimelineEvent, error) {
+) ([]IncidentContextTimelineEvent, bool, error) {
 	rows, err := s.queryIncidentContextRows(
 		ctx,
 		listIncidentContextTimelineQuery,
@@ -154,27 +174,56 @@ func (s PostgresIncidentContextStore) readIncidentTimeline(
 		filter.Limit,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list incident timeline: %w", err)
+		return nil, false, fmt.Errorf("list incident timeline: %w", err)
 	}
-	events := make([]IncidentContextTimelineEvent, 0, len(rows))
-	for _, row := range rows {
-		events = append(events, decodeIncidentContextTimelineEvent(row))
+	window, truncated := incidentContextVisibleWindow(rows, filter.Limit)
+	events := make([]IncidentContextTimelineEvent, 0, len(window))
+	for _, row := range window {
+		event, ok := decodeIncidentContextTimelineEvent(row)
+		if !ok {
+			continue
+		}
+		events = append(events, event)
 	}
 	sort.SliceStable(events, func(i, j int) bool {
 		return events[i].CreatedAt < events[j].CreatedAt
 	})
-	return events, nil
+	return events, truncated, nil
 }
 
+// incidentContextVisibleWindow splits a fetched row slice into the visible
+// window and a truncation flag, mirroring buildWorkItemEvidencePage's #4733
+// fix for the incident-context reads. fetchLimit is the SQL "+1" lookahead
+// bound; the visible window is the first fetchLimit-1 rows in fetch order, and
+// truncated is true when more than that were fetched (the lookahead row is
+// present). Both truncation and the window come from the RAW fetched count, so
+// a later typed-decode drop inside the window cannot corrupt either.
+func incidentContextVisibleWindow(rows []incidentContextFactRow, fetchLimit int) ([]incidentContextFactRow, bool) {
+	visibleLimit := fetchLimit - 1
+	if visibleLimit < 0 {
+		visibleLimit = 0
+	}
+	if len(rows) > visibleLimit {
+		return rows[:visibleLimit], true
+	}
+	return rows, false
+}
+
+// readIncidentChangeCandidates returns the visible related-change window plus a
+// truncation flag derived from the RAW fetched row count, matching
+// readIncidentTimeline and the #4733 work-item fix. The visible window is the
+// first filter.Limit-1 fetched rows; a row inside it that fails typed decode
+// (or falls outside the change time window) is dropped, but truncated still
+// reflects whether the lookahead row was fetched.
 func (s PostgresIncidentContextStore) readIncidentChangeCandidates(
 	ctx context.Context,
 	filter IncidentContextFilter,
 	incident IncidentContextIncident,
 	incidentRow incidentContextFactRow,
-) ([]IncidentContextChangeCandidate, error) {
+) ([]IncidentContextChangeCandidate, bool, error) {
 	serviceID := firstNonEmpty(filter.ServiceID, incident.Service.ID)
 	if serviceID == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 	since, until := incidentChangeWindow(filter, incident)
 	rows, err := s.queryIncidentContextRows(
@@ -188,11 +237,15 @@ func (s PostgresIncidentContextStore) readIncidentChangeCandidates(
 		filter.Limit,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list incident change candidates: %w", err)
+		return nil, false, fmt.Errorf("list incident change candidates: %w", err)
 	}
-	changes := make([]IncidentContextChangeCandidate, 0, len(rows))
-	for _, row := range rows {
-		change := decodeIncidentContextChangeCandidate(row)
+	window, truncated := incidentContextVisibleWindow(rows, filter.Limit)
+	changes := make([]IncidentContextChangeCandidate, 0, len(window))
+	for _, row := range window {
+		change, ok := decodeIncidentContextChangeCandidate(row)
+		if !ok {
+			continue
+		}
 		if incidentChangeInWindow(change, since, until) {
 			changes = append(changes, change)
 		}
@@ -200,7 +253,7 @@ func (s PostgresIncidentContextStore) readIncidentChangeCandidates(
 	sort.SliceStable(changes, func(i, j int) bool {
 		return changes[i].Timestamp < changes[j].Timestamp
 	})
-	return changes, nil
+	return changes, truncated, nil
 }
 
 func (s PostgresIncidentContextStore) queryIncidentContextRows(

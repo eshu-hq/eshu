@@ -29,14 +29,21 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindAWSIAMPermission":            "aws_iam_permission.v1.schema.json",
 	"FactKindAWSResourcePolicyPermission": "aws_resource_policy_permission.v1.schema.json",
 	"FactKindAWSIAMPrincipal":             "aws_iam_principal.v1.schema.json",
-	// Incident family: ONLY the kinds a reducer decode seam wrapper actually
-	// decodes (factschema_decode_incident.go) are mapped, so the gate covers
-	// exactly what the reducer reads through the typed seam. The unwired
-	// incident kinds (lifecycle_event, change.record, applied_alert_route,
-	// observed_pagerduty_integration) carry a schema but no reducer decode
-	// call, so they are intentionally absent here — mapping them would assert a
-	// gate contract for a kind no handler reads.
+	// Incident family: the kinds a reducer OR query-layer decode seam wrapper
+	// actually decodes are mapped. incident.record, incident_routing.applied_
+	// pagerduty_resource, incident_routing.observed_pagerduty_service, and
+	// incident_routing.coverage_warning are decoded by the reducer
+	// (factschema_decode_incident.go); incident.lifecycle_event and
+	// change.record have no reducer decode call but ARE decoded by the
+	// query-layer incident-context read model
+	// (go/internal/query/factschema_decode_incident.go, #4794 W2a), so they are
+	// mapped too. applied_alert_route and observed_pagerduty_integration carry
+	// a schema but no decode call from either layer, so they remain
+	// intentionally absent here — mapping them would assert a gate contract
+	// for a kind no handler reads.
 	"FactKindIncidentRecord":                          "incident.record.v1.schema.json",
+	"FactKindIncidentLifecycleEvent":                  "incident.lifecycle_event.v1.schema.json",
+	"FactKindChangeRecord":                            "change.record.v1.schema.json",
 	"FactKindIncidentRoutingAppliedPagerDutyResource": "incident_routing.applied_pagerduty_resource.v1.schema.json",
 	"FactKindIncidentRoutingObservedPagerDutyService": "incident_routing.observed_pagerduty_service.v1.schema.json",
 	"FactKindIncidentRoutingCoverageWarning":          "incident_routing.coverage_warning.v1.schema.json",
@@ -131,16 +138,18 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindCodeInterprocEvidence": "code_interproc_evidence.v1.schema.json",
 	// service_catalog family: the three kinds a reducer decode seam wrapper
 	// actually decodes (factschema_decode_servicecatalog.go), read by the
-	// correlation index. service_catalog.operational_link is typed
-	// (servicecatalogv1.OperationalLink) but has no reducer decode wrapper —
-	// it is read only by a raw-SQL JSONB loader in go/internal/query, which
-	// this reducer-decode-call-only gate cannot see (servicecatalog/v1
-	// README.md) — so it is intentionally absent here. The other five
-	// service_catalog kinds (dependency, api_link, scorecard_definition,
-	// scorecard_result, warning) carry no typed struct at all.
-	"FactKindServiceCatalogEntity":         "service_catalog.entity.v1.schema.json",
-	"FactKindServiceCatalogOwnership":      "service_catalog.ownership.v1.schema.json",
-	"FactKindServiceCatalogRepositoryLink": "service_catalog.repository_link.v1.schema.json",
+	// correlation index, PLUS service_catalog.operational_link, which is
+	// decoded by the query-layer incident-context read model
+	// (go/internal/query/factschema_decode_incident.go, #4794 W2a) — it was
+	// previously read only by a raw-SQL JSONB loader this reducer-decode-
+	// call-only gate could not see (servicecatalog/v1 README.md), but that
+	// loader is now a typed decode site too. The other four service_catalog
+	// kinds (dependency, api_link, scorecard_definition, scorecard_result,
+	// warning) carry no typed struct at all.
+	"FactKindServiceCatalogEntity":          "service_catalog.entity.v1.schema.json",
+	"FactKindServiceCatalogOwnership":       "service_catalog.ownership.v1.schema.json",
+	"FactKindServiceCatalogRepositoryLink":  "service_catalog.repository_link.v1.schema.json",
+	"FactKindServiceCatalogOperationalLink": "service_catalog.operational_link.v1.schema.json",
 	// ci_cd_run family: all six kinds a reducer decode seam wrapper actually
 	// decodes (factschema_decode_cicdrun.go). ci.job, ci.pipeline_definition,
 	// and ci.warning carry no typed struct at all (cicdrun/v1 AGENTS.md), so

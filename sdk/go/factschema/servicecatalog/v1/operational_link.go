@@ -8,19 +8,19 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // Unlike Entity, Ownership, and RepositoryLink, no reducer decode call reads
-// this kind: it is read only by a raw-SQL JSONB loader
+// this kind: it is decoded by the query-layer incident-context read model
 // (go/internal/query/incident_context_runtime_sql.go
-// listIncidentServiceCatalogOperationalLinksQuery, decoded by
+// listIncidentServiceCatalogOperationalLinksQuery fetches the fact,
 // go/internal/query/incident_context_runtime_store.go
-// decodeIncidentServiceCatalogOperationalLink), which the #4573
-// payload-usage-manifest gate cannot see (it scans reducer decode calls only).
-// It is typed here anyway, mirroring the incident family's SQL-loader-only
-// field precedent (sdk/go/factschema/AGENTS.md), so this schema stays honest
-// about every field a real consumer reads. No struct field is required: the
-// SQL loader reads every key with StringVal, which already tolerates an
-// absent key as an empty string, so nothing here gates admission — this
-// struct exists purely to keep the checked-in schema truthful, not to add a
-// new decode-time rejection path.
+// decodeIncidentServiceCatalogOperationalLink shapes it, through the
+// go/internal/query/factschema_decode_incident.go
+// decodeServiceCatalogOperationalLink seam, #4794 W2a). That query-layer seam
+// is covered by the merged reducer+query payload-usage manifest gate
+// (go/internal/payloadusage resolveQueryDecodeFiles), so this schema stays
+// honest about every field the read model reads. No struct field is required:
+// the read path derefs every optional pointer field to ""/nil on absence, so
+// an absent key is a valid empty value and nothing here gates admission — the
+// decode only dead-letters this kind on an unsupported schema major.
 type OperationalLink struct {
 	// Provider names the source catalog system. Optional: read by the SQL
 	// loader as StringVal(payload, "provider"), which tolerates an absent key.
