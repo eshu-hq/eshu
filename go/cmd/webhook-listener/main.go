@@ -148,7 +148,7 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
-	statusReader := postgres.NewStatusStore(postgres.SQLQueryer{DB: db})
+	statusReader := postgres.NewInstrumentedStatusStore(postgres.SQLQueryer{DB: db}, instruments)
 	service, err := newWebhookApplication(runtimeConfig, statusReader, webhookMux, providers.PrometheusHandler)
 	if err != nil {
 		return err

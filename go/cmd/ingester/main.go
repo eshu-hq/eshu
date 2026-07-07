@@ -130,7 +130,7 @@ func run(parent context.Context) error {
 		return err
 	}
 	statusReader := statuspkg.WithRetryPolicies(
-		postgres.NewStatusStore(postgres.SQLQueryer{DB: db}),
+		postgres.NewInstrumentedStatusStore(postgres.SQLQueryer{DB: db}, instruments),
 		statuspkg.MergeRetryPolicies(
 			statuspkg.DefaultRetryPolicies(),
 			statuspkg.RetryPolicySummary{

@@ -61,6 +61,26 @@ func NewStatusStore(queryer Queryer) StatusStore {
 	return StatusStore{queryer: queryer, stageCountsCache: newStatusStageCountsCache()}
 }
 
+// NewInstrumentedStatusStore constructs a read-only status store with the
+// shared meter-provider Instruments already wired, so the status query cache
+// metric (eshu_dp_status_stage_counts_cache_total, recorded in
+// status_stage_counts_cache.go's listStageCounts) emits wherever the store is
+// used — including the readiness-probe path (app.NewHostedWithStatusServer /
+// runtime.NewStatusAdminServer), not only the operator status-serving API/MCP
+// path wired by cmd/api and cmd/mcp-server's newStatusStore (#4446/#4530).
+//
+// NewStatusStore itself deliberately leaves Instruments nil for
+// source-compatibility across its ~30 existing call sites (see
+// AWSPaginationCheckpointStore for the identical pattern); this constructor is
+// the one place every readiness-probe call site should use instead so the
+// wiring cannot be silently dropped per call site. instruments may be nil;
+// recording is a no-op in that case (see recordStatusStageCountsCacheOutcome).
+func NewInstrumentedStatusStore(queryer Queryer, instruments *telemetry.Instruments) StatusStore {
+	store := NewStatusStore(queryer)
+	store.Instruments = instruments
+	return store
+}
+
 // ReadRawSnapshot returns the raw aggregate snapshot needed by the operator
 // status surface.
 func (s StatusStore) ReadRawSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
