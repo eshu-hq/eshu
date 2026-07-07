@@ -28,7 +28,40 @@ var (
 )
 
 func inferContentMetadata(path string, content string) contentMetadata {
-	rootFamily := inferRootFamily(path, content)
+	// These marker scans are the single source of truth for both this
+	// function and inferRootFamily below. Each regex here MUST run at most
+	// once per inferContentMetadata call: inferRootFamily is only ever
+	// called from here (single call site), so it reuses these results
+	// through the contentMarkers struct instead of re-invoking MatchString
+	// on the same five regexes over the same content.
+	//
+	// hasAnyGoExpression/hasAnyTFInterpolation/hasAnyTFDirective/
+	// hasAnyTFTemplatefile preserve inferRootFamily's original *unfiltered*
+	// MatchString semantics exactly (matching `${{ ... }}` GitHub-Actions
+	// shapes and escaped `$${`/`%%{` sequences that the filtered variants
+	// below intentionally exclude). MatchString short-circuits at the first
+	// match, so keeping it separate from the filtered FindAll-based scans
+	// below does not reintroduce a second full-content scan.
+	hasAnyGoExpression := goExpressionRE.MatchString(content)
+	hasAnyJinjaStatement := jinjaStatementRE.MatchString(content)
+	hasAnyTFInterpolation := tfInterpolationRE.MatchString(content)
+	hasAnyTFDirective := tfDirectiveRE.MatchString(content)
+	hasAnyTFTemplatefile := tfTemplatefileRE.MatchString(content)
+
+	goExpressions := filteredMatches(content, goExpressionRE, '$')
+	hasCurlyExpressions := len(goExpressions) > 0
+	explicitJinja := hasAnyJinjaStatement
+	tfInterpolationCount := countUnprefixedMatches(content, tfInterpolationRE, '$')
+	tfDirectiveCount := countUnprefixedMatches(content, tfDirectiveRE, '%')
+	tfTemplatefileMatches := tfTemplatefileRE.FindAllString(content, -1)
+	tfMarkerCount := tfInterpolationCount + tfDirectiveCount + len(tfTemplatefileMatches)
+	markers := contentMarkers{
+		hasTFMarkers:       hasAnyTFInterpolation || hasAnyTFDirective || hasAnyTFTemplatefile,
+		hasGoExpressions:   hasAnyGoExpression,
+		hasJinjaStatements: hasAnyJinjaStatement,
+	}
+
+	rootFamily := inferRootFamily(path, content, markers)
 	artifactType := inferArtifactType(rootFamily, path, content)
 	loweredContent := strings.ToLower(content)
 	if artifactType == "generic_config" || artifactType == "generic_config_template" {
@@ -63,7 +96,6 @@ func inferContentMetadata(path string, content string) contentMetadata {
 		lastSuffix = suffixes[len(suffixes)-2]
 	}
 
-	goExpressions := filteredMatches(content, goExpressionRE, '$')
 	explicitGo := goContextRE.MatchString(content) || goLineControlRE.MatchString(content)
 	for _, expression := range goExpressions {
 		if len(goHintRE.FindAllString(expression, -1)) > 0 {
@@ -71,12 +103,7 @@ func inferContentMetadata(path string, content string) contentMetadata {
 			break
 		}
 	}
-	explicitJinja := jinjaStatementRE.MatchString(content)
-	hasCurlyExpressions := len(goExpressions) > 0
 	hasGitHubActions := githubActionsExprRE.MatchString(content)
-	tfMarkerCount := countUnprefixedMatches(content, tfInterpolationRE, '$') +
-		countUnprefixedMatches(content, tfDirectiveRE, '%') +
-		len(tfTemplatefileRE.FindAllString(content, -1))
 
 	templateDialect := ""
 	bucket := "plain_text"
@@ -101,7 +128,7 @@ func inferContentMetadata(path string, content string) contentMetadata {
 		}
 	case strings.HasPrefix(artifactType, "ansible_"):
 		bucket = artifactType
-		if explicitJinja || jinjaStatementRE.MatchString(content) || hasCurlyExpressions {
+		if explicitJinja || hasCurlyExpressions {
 			templateDialect = "jinja"
 		}
 	case !isYAMLSuffix(lastSuffix) && lastSuffix != ".kcl":
@@ -165,24 +192,38 @@ func countUnprefixedMatches(content string, expression *regexp.Regexp, disallowe
 	return len(filteredMatches(content, expression, disallowedPrefix))
 }
 
-func inferRootFamily(path string, content string) string {
+// contentMarkers carries the template/interpolation marker signals that
+// inferContentMetadata computes once from the shared marker regexes
+// (goExpressionRE, jinjaStatementRE, tfInterpolationRE, tfDirectiveRE,
+// tfTemplatefileRE) and passes down to inferRootFamily. inferRootFamily
+// reuses these instead of re-invoking the same regexes over the same
+// content: prior to this hoist, each of these five regexes ran twice per
+// inferContentMetadata call (once inside inferRootFamily's own MatchString
+// probes, once again in inferContentMetadata's own
+// filteredMatches/countUnprefixedMatches calls) -- pure duplicated work,
+// since inferRootFamily is only ever called from inferContentMetadata
+// (single call site).
+type contentMarkers struct {
+	hasTFMarkers       bool
+	hasGoExpressions   bool
+	hasJinjaStatements bool
+}
+
+func inferRootFamily(path string, content string, markers contentMarkers) string {
 	parts := pathParts(path)
 	name := strings.ToLower(filepath.Base(path))
 	suffixes := splitSuffixes(path)
-	hasTFMarkers := tfInterpolationRE.MatchString(content) ||
-		tfDirectiveRE.MatchString(content) ||
-		tfTemplatefileRE.MatchString(content)
 
 	switch {
 	case anySuffix(suffixes, isHCLSuffix):
 		return "terraform"
-	case hasTFMarkers &&
+	case markers.hasTFMarkers &&
 		(anySuffix(suffixes, isTerraformTemplateSuffix) || anySuffix(suffixes, isJinjaSuffix)) &&
-		!goExpressionRE.MatchString(content) &&
-		!jinjaStatementRE.MatchString(content):
+		!markers.hasGoExpressions &&
+		!markers.hasJinjaStatements:
 		return "terraform"
 	case len(suffixes) > 0 && suffixes[len(suffixes)-1] == ".tpl" &&
-		hasPart(parts, "templates") && goExpressionRE.MatchString(content) &&
+		hasPart(parts, "templates") && markers.hasGoExpressions &&
 		(name == "_helpers.tpl" || strings.Contains(content, ".Chart") ||
 			strings.Contains(content, ".Release") || strings.Contains(content, ".Values") ||
 			strings.Contains(content, `{{ include "`) || strings.Contains(content, `{{- include "`) ||

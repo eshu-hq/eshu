@@ -562,14 +562,14 @@ alter what those signals report.
 
 ## Gated content-metadata inference
 
-`inferContentMetadata` (`templated_detection.go`) runs three regex scans (a Go
-template line-control scan, a Terraform `templatefile()` scan, and an internal
-re-scan inside `inferRootFamily`) to populate `artifact_type`,
-`template_dialect`, and `iac_relevant` after every parse. Profiling a
-full-corpus run (issue #4768) showed this call costing roughly 7.5ms on a large
-PHP/JS file, about 5% of `ParsePath` wall time across the corpus, even though
-most files carry no IaC/template signal at all and always resolve to the zero
-`contentMetadata{}`.
+`inferContentMetadata` (`templated_detection.go`) runs several regex scans (a
+Go template line-control scan, a Terraform `templatefile()` scan, and the
+marker scans described in [Hoisted marker scan](#hoisted-marker-scan) below)
+to populate `artifact_type`, `template_dialect`, and `iac_relevant` after every
+parse. Profiling a full-corpus run (issue #4768) showed this call costing
+roughly 7.5ms on a large PHP/JS file, about 5% of `ParsePath` wall time across
+the corpus, even though most files carry no IaC/template signal at all and
+always resolve to the zero `contentMetadata{}`.
 
 `shouldSkipContentMetadata` (`content_metadata_gate.go`) gates the call in
 `Engine.ParsePath`: it returns `true` (skip, use the zero value) only when
@@ -657,6 +657,98 @@ function with no side effects and does not change what `artifact_type`,
 the gate (proven by the hand-picked equivalence test and the generative
 differential over the cartesian product described above), so no read surface
 can observe a difference beyond wall-clock time.
+
+### Hoisted marker scan
+
+The gate above only helps files with no IaC/template signal at all. For a file
+that legitimately runs the full `inferContentMetadata` inference (real
+Terraform/Helm/Ansible/GitHub-Actions content, or anything else
+`shouldSkipContentMetadata` correctly declines to skip), issue #4805 found that
+`inferContentMetadata` called `inferRootFamily`, which internally re-scanned
+the same five marker regexes (`goExpressionRE`, `jinjaStatementRE`,
+`tfInterpolationRE`, `tfDirectiveRE`, `tfTemplatefileRE`) that
+`inferContentMetadata` itself scans again a few lines later via
+`filteredMatches`/`countUnprefixedMatches`. `inferRootFamily` has exactly one
+call site (`inferContentMetadata`), so this was pure duplicated work on every
+un-gated call.
+
+The fix hoists the marker scans to run once in `inferContentMetadata` and
+passes the results down to `inferRootFamily` through a `contentMarkers`
+struct, instead of `inferRootFamily` re-invoking `MatchString` on the same
+regexes. `inferRootFamily`'s original three marker checks used *unfiltered*
+`MatchString` (matching, for example, a bare `{{ ... }}` even inside a
+GitHub-Actions-shaped `${{ ... }}`, and an escaped `$${`/`%%{` sequence that
+the filtered `filteredMatches`/`countUnprefixedMatches` variants used
+elsewhere in `inferContentMetadata` intentionally exclude), so the hoist
+preserves that exact unfiltered semantics (`hasAnyGoExpression`,
+`hasAnyJinjaStatement`, `hasAnyTFInterpolation`, `hasAnyTFDirective`,
+`hasAnyTFTemplatefile` in `inferContentMetadata`) rather than reusing the
+filtered values computed for `inferContentMetadata`'s own bucket logic.
+`MatchString` short-circuits at the first match, so keeping it alongside the
+filtered `FindAll`-based scans does not reintroduce a second full-content
+scan; the fix removes the *second* full scan that `inferRootFamily` used to
+perform, not the first.
+
+Performance Evidence: `go test -run '^$' -bench
+'BenchmarkInferContentMetadataTFTemplateBeforeHoist|BenchmarkInferRootFamilyAloneTFTemplate'
+-benchmem -benchtime 2000x -count=3 ./internal/parser` on darwin/arm64 (Apple
+M5 Max), a synthetic 400-block `.tftpl` file carrying real Terraform
+interpolation (`${...}`) and directive (`%{...}`) markers on every line (large
+enough, and shaped so `inferRootFamily`'s marker-scanning branch actually
+executes, unlike a plain `.tf` file which resolves through the
+`anySuffix(isHCLSuffix)` fast path before ever consulting a marker):
+`inferRootFamily` alone (isolating the eliminated duplicate scan) dropped from
+roughly 85.6us/op (368B/op, 6 allocs/op; measured pre-hoist as a throwaway
+shim, not committed) to 236-243ns/op (344B/op, 6 allocs/op) post-hoist -- about
+a 350x reduction in `inferRootFamily`'s own cost, since it now does zero regex
+scanning (only suffix/path-segment comparisons and boolean reads from the
+precomputed `contentMarkers`). The full `inferContentMetadata` call for this
+file shape dropped from roughly 1.56ms/op (pre-hoist, same shim) to
+1.29-1.62ms/op post-hoist across repeated runs (188-189KB/op, 1636 allocs/op
+in both, unchanged -- the hoist removes CPU-bound regex matching, not
+allocations, since `inferRootFamily`'s removed calls were boolean
+`MatchString` probes that never allocated). Allocation count is a more stable
+signal here than wall time on this machine (visible some-run-to-run variance
+from system noise); allocs/op is identical before and after, and
+`inferRootFamily`'s isolated ns/op collapsed by two orders of magnitude,
+confirming the duplicate scan is gone.
+
+Classification: **Handler win** (removes duplicated regex-matching CPU work
+from every un-gated `inferContentMetadata` call; the query/graph-visible
+output is unchanged, so this does not change `ParsePath` correctness, only its
+cost on the subset of files that legitimately run full inference).
+
+Equivalence proof (output-preserving, 0/0):
+`TestInferContentMetadataHoistEquivalence` in
+`templated_detection_hoist_test.go` asserts `inferContentMetadata` returns a
+byte-identical `contentMetadata{}` across 18 cases spanning every branch that
+reads a marker signal: plain Go/Python source with no markers, Terraform HCL
+with each marker kind (interpolation/directive/`templatefile()`) and with no
+markers, a `.tftpl` terraform-template-suffix file, a raw `.conf` file with and
+without go-template markers, an Ansible playbook path, an Ansible role path
+with jinja markers, a Helm `values.yaml` and a Helm chart template with
+go-template markers, a GitHub Actions workflow (including the `${{ }}` shape
+that specifically exercises the unfiltered-vs-filtered marker distinction), a
+plain YAML file carrying only a `${{ }}`-shaped expression outside a workflows
+directory, a Dagster asset path with jinja markers, a Docker Compose overlay,
+and a `.kcl` file with go-template markers. Every expected value in that table
+was independently verified against the pre-hoist implementation on `origin/main`
+(commit `c2c477f48`) by running the identical input battery through a
+throwaway probe built from that commit, confirming the hoist changed no
+observable output for any case. `TestInferRootFamilyMarkersMatchDirectRegexScan`
+separately proves the `contentMarkers` values `inferContentMetadata` computes
+match a direct, unfiltered `MatchString` probe against each of the five marker
+regexes across 11 content shapes (empty, plain text, each marker family alone,
+an escaped-interpolation-only case, a GitHub-Actions-expression-only case, and
+mixed markers) -- this pins the hoist's core invariant directly, independent
+of any downstream bucket/artifact-type branching. The full existing
+`TestInferContentMetadata` and `TestShouldSkipContentMetadataGeneratedEquivalence`
+suites (the latter enumerating a cartesian product of extensions, directory
+signals, and content signals) also stay green, unmodified, after the hoist.
+
+No-Observability-Change: this adds no metric, span, structured log, status
+field, queue, graph write, worker, lease, batch, or runtime knob; it is a
+pure-function internal refactor with the same inputs/outputs as before.
 
 ## Operational notes
 
