@@ -64,7 +64,6 @@ const (
 	// FactKindAzureCollectionWarning is the "azure_collection_warning" fact
 	// kind.
 	FactKindAzureCollectionWarning = "azure_collection_warning"
-
 	// The kubernetes_live family fact-kind strings are DOTTED, matching the
 	// incident family's convention above. The dots are part of the wire kind
 	// the collector already emits (go/internal/facts.KubernetesPodTemplateFactKind

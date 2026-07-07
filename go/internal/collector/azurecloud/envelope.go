@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // AzureExtensionSchemaVersion versions the provider-specific extension object
@@ -60,7 +62,7 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 		"has_identity":   observation.HasIdentity,
 	}
 
-	payload := map[string]any{
+	attributes := map[string]any{
 		"collector_kind":           CollectorKind,
 		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
 		"tenant_id":                observation.Boundary.TenantID,
@@ -81,6 +83,22 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 		"provider_time":            timeOrNil(observation.ProviderTime),
 		"redaction_policy_version": RedactionPolicyVersion,
 		"extension":                extension,
+	}
+	resourceName := identity.ResourceName
+	providerNamespace := identity.ProviderNamespace
+	normalizedID := identity.Normalized
+	payload, err := factschema.EncodeAzureCloudResource(azurev1.CloudResource{
+		ARMResourceID:        armResourceID,
+		ResourceType:         identity.ResourceType,
+		SubscriptionID:       identity.SubscriptionID,
+		Location:             strings.TrimSpace(observation.Boundary.LocationBucket),
+		NormalizedResourceID: &normalizedID,
+		ResourceName:         &resourceName,
+		ProviderNamespace:    &providerNamespace,
+		Attributes:           attributes,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_cloud_resource payload: %w", err)
 	}
 
 	return newEnvelope(
@@ -137,27 +155,34 @@ func NewTagObservationEnvelope(observation ResourceObservation, key redact.Key) 
 		"tenant_id":     observation.Boundary.TenantID,
 	})
 
-	payload := map[string]any{
-		"collector_kind":           CollectorKind,
-		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
-		"tenant_id":                observation.Boundary.TenantID,
-		"scope_kind":               observation.Boundary.ScopeKind,
-		"provider_scope_id":        observation.Boundary.ProviderScopeID,
-		"source_lane":              observation.Boundary.SourceLane,
-		"arm_resource_id":          armResourceID,
-		"subscription_id":          identity.SubscriptionID,
-		"resource_group":           identity.ResourceGroup,
-		"provider_namespace":       identity.ProviderNamespace,
-		"resource_type":            identity.ResourceType,
-		"resource_name":            identity.ResourceName,
-		"normalized_resource_id":   identity.Normalized,
-		"tag_value_fingerprints":   fingerprints,
-		"tag_keys":                 tagKeys,
-		"tag_count":                len(fingerprints),
-		"tag_truncated":            truncated,
-		"provider_time":            timeOrNil(observation.ProviderTime),
-		"redaction_policy_version": RedactionPolicyVersion,
+	subscriptionID := identity.SubscriptionID
+	resourceGroup := identity.ResourceGroup
+	providerNamespace := identity.ProviderNamespace
+	resourceName := identity.ResourceName
+	tagCount := len(fingerprints)
+	payload, err := factschema.EncodeAzureTagObservation(azurev1.TagObservation{
+		ARMResourceID:          armResourceID,
+		NormalizedResourceID:   identity.Normalized,
+		ResourceType:           identity.ResourceType,
+		TagValueFingerprints:   fingerprints,
+		SubscriptionID:         &subscriptionID,
+		ResourceGroup:          &resourceGroup,
+		ProviderNamespace:      &providerNamespace,
+		ResourceName:           &resourceName,
+		TagKeys:                tagKeys,
+		TagCount:               &tagCount,
+		TagTruncated:           &truncated,
+		ProviderTime:           timeStringPtr(observation.ProviderTime),
+		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_tag_observation payload: %w", err)
 	}
+	addAzureBoundaryPayload(payload, observation.Boundary)
+	payload["tenant_id"] = observation.Boundary.TenantID
+	payload["scope_kind"] = observation.Boundary.ScopeKind
+	payload["provider_scope_id"] = observation.Boundary.ProviderScopeID
+	payload["source_lane"] = observation.Boundary.SourceLane
 
 	return newEnvelope(
 		observation.Boundary,
@@ -195,20 +220,28 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		"warning_kind":    warningKind,
 	})
 
-	payload := map[string]any{
-		"collector_kind":        CollectorKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"tenant_id":             observation.Boundary.TenantID,
-		"scope_kind":            observation.Boundary.ScopeKind,
-		"provider_scope_id":     observation.Boundary.ProviderScopeID,
-		"resource_family":       observation.Boundary.ResourceTypeFamily,
-		"source_lane":           observation.Boundary.SourceLane,
-		"warning_kind":          warningKind,
-		"outcome":               outcome,
-		"retryable":             observation.Retryable,
-		"hidden_resource_count": observation.HiddenResourceCount,
-		"message":               sanitizeWarningMessage(observation.Message),
+	hiddenCount, err := nonNegativeInt32PayloadCount("azure_collection_warning hidden_resource_count", observation.HiddenResourceCount)
+	if err != nil {
+		return facts.Envelope{}, err
 	}
+	payload, err := factschema.EncodeAzureCollectionWarning(azurev1.CollectionWarning{
+		WarningKind:         warningKind,
+		Outcome:             outcome,
+		ResourceFamily:      stringPtr(observation.Boundary.ResourceTypeFamily),
+		Retryable:           &observation.Retryable,
+		HiddenResourceCount: &hiddenCount,
+		Message:             stringPtr(sanitizeWarningMessage(observation.Message)),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_collection_warning payload: %w", err)
+	}
+	addAzureBoundaryPayload(payload, observation.Boundary)
+	payload["tenant_id"] = observation.Boundary.TenantID
+	payload["scope_kind"] = observation.Boundary.ScopeKind
+	payload["provider_scope_id"] = observation.Boundary.ProviderScopeID
+	payload["resource_family"] = observation.Boundary.ResourceTypeFamily
+	payload["source_lane"] = observation.Boundary.SourceLane
+	payload["hidden_resource_count"] = observation.HiddenResourceCount
 
 	return newEnvelope(
 		observation.Boundary,
@@ -322,6 +355,23 @@ func cloneStringMap(input map[string]string) map[string]string {
 		output[key] = value
 	}
 	return output
+}
+
+func addAzureBoundaryPayload(payload map[string]any, boundary Boundary) {
+	payload["collector_kind"] = CollectorKind
+	payload["collector_instance_id"] = boundary.CollectorInstanceID
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func timeStringPtr(input *time.Time) *string {
+	if input == nil || input.IsZero() {
+		return nil
+	}
+	value := input.UTC().Format(time.RFC3339Nano)
+	return &value
 }
 
 func timeOrNil(input *time.Time) any {

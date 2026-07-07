@@ -64,6 +64,8 @@ func TestNewDNSRecordEnvelopeRejectsInvalid(t *testing.T) {
 		"missing zone": func(o *DNSRecordObservation) { o.ZoneARMResourceID = "" },
 		"missing type": func(o *DNSRecordObservation) { o.RecordType = "" },
 		"missing name": func(o *DNSRecordObservation) { o.RecordName = "" },
+		"negative ttl": func(o *DNSRecordObservation) { o.TTLSeconds = -1 },
+		"overflow ttl": func(o *DNSRecordObservation) { o.TTLSeconds = 1 << 31 },
 	} {
 		obs := testDNSRecordObservation()
 		mutate(&obs)

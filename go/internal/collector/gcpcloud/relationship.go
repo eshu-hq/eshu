@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // GCP relationship support states classify how completely the provider described
@@ -98,7 +100,7 @@ func NewCloudRelationshipEnvelope(obs RelationshipObservation) (facts.Envelope, 
 		"content_family":            obs.Boundary.ContentFamily,
 	})
 
-	payload := map[string]any{
+	attributes := map[string]any{
 		"collector_instance_id":     obs.Boundary.CollectorInstanceID,
 		"parent_scope_kind":         string(obs.Boundary.ParentScopeKind),
 		"parent_scope_id":           obs.Boundary.ParentScopeID,
@@ -116,6 +118,20 @@ func NewCloudRelationshipEnvelope(obs RelationshipObservation) (facts.Envelope, 
 		"read_time":                 timeOrNil(obs.Boundary.ReadTime),
 		"update_time":               timeOrNil(obs.UpdateTime.UTC()),
 		"redaction_policy_version":  RedactionPolicyVersion,
+	}
+	sourceAssetType := strings.TrimSpace(obs.SourceAssetType)
+	targetAssetType := strings.TrimSpace(obs.TargetAssetType)
+	payload, err := factschema.EncodeGCPCloudRelationship(gcpv1.Relationship{
+		SourceFullResourceName: sourceName,
+		TargetFullResourceName: targetName,
+		RelationshipType:       relationshipType,
+		SourceAssetType:        &sourceAssetType,
+		TargetAssetType:        &targetAssetType,
+		SupportState:           &supportState,
+		Attributes:             attributes,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode gcp_cloud_relationship payload: %w", err)
 	}
 
 	return newEnvelope(

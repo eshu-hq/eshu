@@ -216,3 +216,19 @@ func TestNewWarningEnvelopeRequiresKind(t *testing.T) {
 		t.Fatal("expected error for missing warning_kind")
 	}
 }
+
+func TestNewWarningEnvelopeRejectsInvalidHiddenResourceCount(t *testing.T) {
+	for name, hiddenCount := range map[string]int{
+		"negative": -1,
+		"overflow": 1 << 31,
+	} {
+		obs := WarningObservation{
+			Boundary:            testBoundary(),
+			WarningKind:         WarningPartialScope,
+			HiddenResourceCount: hiddenCount,
+		}
+		if _, err := NewWarningEnvelope(obs); err == nil {
+			t.Fatalf("%s hidden_resource_count: error = nil, want non-nil", name)
+		}
+	}
+}

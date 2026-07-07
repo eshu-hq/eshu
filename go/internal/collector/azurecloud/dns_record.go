@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // maxDNSRecordTargets bounds the number of fingerprinted targets carried on one
@@ -84,24 +86,35 @@ func NewDNSRecordEnvelope(observation DNSRecordObservation, key redact.Key) (fac
 		"tenant_id":          observation.Boundary.TenantID,
 	})
 
-	payload := map[string]any{
-		"collector_kind":           CollectorKind,
-		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
-		"tenant_id":                observation.Boundary.TenantID,
-		"scope_kind":               observation.Boundary.ScopeKind,
-		"provider_scope_id":        observation.Boundary.ProviderScopeID,
-		"source_lane":              observation.Boundary.SourceLane,
-		"zone_arm_resource_id":     zoneID,
-		"zone_normalized_id":       zone.Normalized,
-		"record_type":              recordType,
-		"record_name_fingerprint":  redact.String(recordName, "azure_dns_record_name", "azure_dns_record_name:"+recordType, key).Marker,
-		"target_fingerprints":      targets,
-		"target_count":             len(targets),
-		"target_truncated":         targetsTruncated,
-		"ttl_seconds":              observation.TTLSeconds,
-		"provider_time":            timeOrNil(observation.ProviderTime),
-		"redaction_policy_version": RedactionPolicyVersion,
+	targetCount, err := nonNegativeInt32PayloadCount("azure_dns_record target_count", len(targets))
+	if err != nil {
+		return facts.Envelope{}, err
 	}
+	ttlSeconds, err := nonNegativeInt32PayloadValue("azure_dns_record ttl_seconds", observation.TTLSeconds)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
+	payload, err := factschema.EncodeAzureDNSRecord(azurev1.DNSRecord{
+		ZoneARMResourceID:      zoneID,
+		RecordType:             recordType,
+		RecordNameFingerprint:  redact.String(recordName, "azure_dns_record_name", "azure_dns_record_name:"+recordType, key).Marker,
+		ZoneNormalizedID:       &zone.Normalized,
+		TargetFingerprints:     targets,
+		TargetCount:            &targetCount,
+		TargetTruncated:        &targetsTruncated,
+		TTLSeconds:             &ttlSeconds,
+		ProviderTime:           timeStringPtr(observation.ProviderTime),
+		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_dns_record payload: %w", err)
+	}
+	addAzureBoundaryPayload(payload, observation.Boundary)
+	payload["tenant_id"] = observation.Boundary.TenantID
+	payload["scope_kind"] = observation.Boundary.ScopeKind
+	payload["provider_scope_id"] = observation.Boundary.ProviderScopeID
+	payload["source_lane"] = observation.Boundary.SourceLane
+	payload["ttl_seconds"] = observation.TTLSeconds
 
 	return newEnvelope(
 		observation.Boundary,

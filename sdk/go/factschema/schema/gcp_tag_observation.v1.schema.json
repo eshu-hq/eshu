@@ -1,0 +1,62 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/gcp/v1/tag_observation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "asset_type": {
+      "type": "string"
+    },
+    "full_resource_name": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tag_inheritance_state": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "tag_keys": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "tag_value_fingerprints": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "full_resource_name",
+    "asset_type",
+    "tag_value_fingerprints"
+  ],
+  "title": "Eshu gcp_tag_observation Payload (schema version 1)",
+  "type": "object"
+}

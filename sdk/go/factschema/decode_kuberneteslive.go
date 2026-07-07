@@ -24,7 +24,23 @@ func DecodeKubernetesLivePodTemplate(env Envelope) (kuberneteslivev1.PodTemplate
 // DecodeKubernetesLivePodTemplate for schema-version-1 payloads, used by
 // collectors emitting this fact kind and by this module's round-trip tests.
 func EncodeKubernetesLivePodTemplate(podTemplate kuberneteslivev1.PodTemplate) (map[string]any, error) {
-	return encodeToPayload(podTemplate)
+	payload := map[string]any{
+		"object_id": podTemplate.ObjectID,
+	}
+	addStringPtr(payload, "cluster_id", podTemplate.ClusterID)
+	addStringPtr(payload, "namespace", podTemplate.Namespace)
+	addStringPtr(payload, "name", podTemplate.Name)
+	addStringPtr(payload, "uid", podTemplate.WorkloadUID)
+	addStringPtr(payload, "group_version_resource", podTemplate.GroupVersionResource)
+	addStringPtr(payload, "service_account", podTemplate.ServiceAccount)
+	if podTemplate.Containers != nil {
+		payload["containers"] = encodeKubernetesLiveContainers(podTemplate.Containers)
+	}
+	addStringSlice(payload, "image_refs", podTemplate.ImageRefs)
+	addStringMap(payload, "selector", podTemplate.Selector)
+	addStringMap(payload, "labels", podTemplate.Labels)
+	addStringSlice(payload, "correlation_anchors", podTemplate.CorrelationAnchors)
+	return payload, nil
 }
 
 // DecodeKubernetesLiveRelationship decodes env.Payload into the latest
@@ -41,7 +57,16 @@ func DecodeKubernetesLiveRelationship(env Envelope) (kuberneteslivev1.Relationsh
 // into the map[string]any payload shape an Envelope carries. It is the
 // inverse of DecodeKubernetesLiveRelationship for schema-version-1 payloads.
 func EncodeKubernetesLiveRelationship(relationship kuberneteslivev1.Relationship) (map[string]any, error) {
-	return encodeToPayload(relationship)
+	payload := map[string]any{
+		"relationship_type": relationship.RelationshipType,
+		"from_object_id":    relationship.FromObjectID,
+		"to_object_id":      relationship.ToObjectID,
+	}
+	addStringPtr(payload, "cluster_id", relationship.ClusterID)
+	addStringPtr(payload, "from_group_version_resource", relationship.FromGroupVersionResource)
+	addStringPtr(payload, "to_group_version_resource", relationship.ToGroupVersionResource)
+	addStringSlice(payload, "correlation_anchors", relationship.CorrelationAnchors)
+	return payload, nil
 }
 
 // DecodeKubernetesLiveWarning decodes env.Payload into the latest
@@ -57,5 +82,29 @@ func DecodeKubernetesLiveWarning(env Envelope) (kuberneteslivev1.Warning, error)
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeKubernetesLiveWarning for schema-version-1 payloads.
 func EncodeKubernetesLiveWarning(warning kuberneteslivev1.Warning) (map[string]any, error) {
-	return encodeToPayload(warning)
+	payload := map[string]any{
+		"reason":     warning.Reason,
+		"cluster_id": warning.ClusterID,
+	}
+	addStringPtr(payload, "resource_scope", warning.ResourceScope)
+	addStringPtr(payload, "message", warning.Message)
+	addStringSlice(payload, "correlation_anchors", warning.CorrelationAnchors)
+	return payload, nil
+}
+
+func encodeKubernetesLiveContainers(containers []kuberneteslivev1.PodTemplateContainer) []map[string]any {
+	out := make([]map[string]any, 0, len(containers))
+	for _, container := range containers {
+		payload := make(map[string]any)
+		addStringPtr(payload, "name", container.Name)
+		addStringPtr(payload, "image", container.Image)
+		addBoolPtr(payload, "init", container.Init)
+		if container.Ports != nil {
+			payload["ports"] = container.Ports
+		}
+		addStringSlice(payload, "env_keys", container.EnvKeys)
+		addBoolPtr(payload, "env_from_secret", container.EnvFromSecret)
+		out = append(out, payload)
+	}
+	return out
 }

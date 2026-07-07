@@ -1,0 +1,7 @@
+{
+  "owning_arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-1",
+  "owning_normalized_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.containerservice/managedclusters/aks-1",
+  "owning_resource_type": "microsoft.containerservice/managedclusters",
+  "tag_digest_confidence": "digest",
+  "image_digest": "sha256:111"
+}

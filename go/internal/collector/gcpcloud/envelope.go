@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // ExtensionSchemaVersionDefault is the default provider-specific extension
@@ -55,7 +57,12 @@ func NewCloudResourceEnvelope(boundary Boundary, obs ResourceObservation, key re
 
 	labels := FingerprintLabelValues(obs.Labels, fingerprintKeys(obs.LabelFingerprint), key)
 
-	payload := map[string]any{
+	projectIDPtr := projectID
+	location := strings.TrimSpace(obs.Location)
+	displayName := strings.TrimSpace(obs.DisplayName)
+	state := strings.TrimSpace(obs.State)
+	assetTypeFamily := boundary.AssetTypeFamily
+	attributes := map[string]any{
 		"collector_instance_id":    boundary.CollectorInstanceID,
 		"parent_scope_kind":        string(boundary.ParentScopeKind),
 		"parent_scope_id":          boundary.ParentScopeID,
@@ -80,6 +87,20 @@ func NewCloudResourceEnvelope(boundary Boundary, obs ResourceObservation, key re
 		"extension":                extensionObject(obs),
 		"attributes":               cloneAnyMap(obs.Attributes),
 		"correlation_anchors":      cloneStrings(obs.CorrelationAnchors),
+	}
+	payload, err := factschema.EncodeGCPCloudResource(gcpv1.Resource{
+		FullResourceName:   fullName,
+		AssetType:          assetType,
+		ProjectID:          &projectIDPtr,
+		Location:           &location,
+		DisplayName:        &displayName,
+		State:              &state,
+		AssetTypeFamily:    &assetTypeFamily,
+		CorrelationAnchors: cloneStrings(obs.CorrelationAnchors),
+		Attributes:         attributes,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode gcp_cloud_resource payload: %w", err)
 	}
 
 	return newEnvelope(
@@ -116,20 +137,20 @@ func NewCollectionWarningEnvelope(obs WarningObservation) (facts.Envelope, error
 		"warning_kind":      obs.WarningKind,
 	})
 
-	payload := map[string]any{
-		"collector_instance_id": obs.Boundary.CollectorInstanceID,
-		"parent_scope_kind":     string(obs.Boundary.ParentScopeKind),
-		"parent_scope_id":       obs.Boundary.ParentScopeID,
-		"asset_type_family":     obs.Boundary.AssetTypeFamily,
-		"content_family":        obs.Boundary.ContentFamily,
-		"location_bucket":       obs.Boundary.LocationBucket,
-		"warning_kind":          obs.WarningKind,
-		"outcome":               obs.Outcome,
-		"reason":                strings.TrimSpace(obs.Reason),
-		"retryable":             obs.Retryable,
-		"hidden_count":          obs.HiddenCount,
-		"read_time":             timeOrNil(obs.Boundary.ReadTime),
+	hiddenCount := int64(obs.HiddenCount)
+	payload, err := factschema.EncodeGCPCollectionWarning(gcpv1.CollectionWarning{
+		WarningKind: obs.WarningKind,
+		Outcome:     obs.Outcome,
+		Reason:      stringPtr(strings.TrimSpace(obs.Reason)),
+		Retryable:   &obs.Retryable,
+		HiddenCount: &hiddenCount,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode gcp_collection_warning payload: %w", err)
 	}
+	addGCPBoundaryPayload(payload, obs.Boundary)
+	payload["read_time"] = timeOrNil(obs.Boundary.ReadTime)
+	payload["hidden_count"] = obs.HiddenCount
 
 	return newEnvelope(
 		obs.Boundary,
@@ -254,6 +275,19 @@ func sourceRecordID(candidate, fallback string) string {
 		return candidate
 	}
 	return strings.TrimSpace(fallback)
+}
+
+func addGCPBoundaryPayload(payload map[string]any, boundary Boundary) {
+	payload["collector_instance_id"] = boundary.CollectorInstanceID
+	payload["parent_scope_kind"] = string(boundary.ParentScopeKind)
+	payload["parent_scope_id"] = boundary.ParentScopeID
+	payload["asset_type_family"] = boundary.AssetTypeFamily
+	payload["content_family"] = boundary.ContentFamily
+	payload["location_bucket"] = boundary.LocationBucket
+}
+
+func stringPtr(value string) *string {
+	return &value
 }
 
 func stableTimeKey(t time.Time) string {
