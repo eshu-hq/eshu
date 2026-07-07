@@ -30,8 +30,9 @@ observations together) — that still reads them raw. Typing one provider's kind
 ahead of that shared surface would be a hollow contract (the decode seam would
 never be called by the real read path) and would asymmetrically type GCP while
 its AWS/Azure siblings stay raw. These two kinds migrate WITH their
-cross-provider consumer, not in this per-cloud wave — matching how the AWS wave
-left `aws_image_reference` and `aws_tag_observation` untyped. Their
+cross-provider consumer, not in this per-cloud wave. AWS cloud support now
+types image references; tag observations still migrate with their shared
+cross-provider consumer. Their
 `go/internal/facts.GCP{ImageReference,TagObservation}FactKind` wire constants
 remain; only the contracts-module typed structs are deferred.
 

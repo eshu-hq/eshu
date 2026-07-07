@@ -6,7 +6,25 @@
     "account_id": {
       "type": "string"
     },
+    "acl_disabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "block_public_access_all": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "block_public_acls": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "block_public_policy": {
       "type": [
         "boolean",
         "null"
@@ -18,9 +36,45 @@
         "null"
       ]
     },
+    "bucket_key_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "bucket_name": {
       "type": [
         "string",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "default_encryption_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "encryption_algorithms": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
         "null"
       ]
     },
@@ -30,9 +84,36 @@
         "null"
       ]
     },
+    "logging_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "logging_target_bucket": {
       "type": [
         "string",
+        "null"
+      ]
+    },
+    "mfa_delete_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "object_ownership": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "policy_grants_cross_account": {
+      "type": [
+        "boolean",
         "null"
       ]
     },
@@ -51,9 +132,39 @@
     "region": {
       "type": "string"
     },
+    "replication_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "restrict_public_buckets": {
       "type": [
         "boolean",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sse_kms_key_arn": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "versioning_enabled": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "versioning_status": {
+      "type": [
+        "string",
         "null"
       ]
     }

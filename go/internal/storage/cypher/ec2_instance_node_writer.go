@@ -6,6 +6,8 @@ package cypher
 import (
 	"context"
 	"fmt"
+
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // canonicalPhaseEC2Instance names the EC2 instance CloudResource node
@@ -112,7 +114,8 @@ func (w *EC2InstanceNodeWriter) WriteEC2InstanceNodes(
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseEC2Instance
 		stmts[index].Parameters[StatementMetadataEntityLabelKey] = "CloudResource"
 		stmts[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
-			"label=CloudResource resource_type=aws_ec2_instance rows=%d",
+			"label=CloudResource resource_type=%s rows=%d",
+			awsv1.ResourceTypeEC2Instance,
 			len(batchRows),
 		)
 	}

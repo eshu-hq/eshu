@@ -154,3 +154,91 @@ func TestDecodeAWSRelationship_RoundTrip_Attributes(t *testing.T) {
 		t.Fatalf("DecodeAWSRelationship() = %+v, want %+v", decoded, original)
 	}
 }
+
+// TestEncodeAWSResource_DirectMapPreservesAttributeTypes proves the AWS emit
+// path no longer uses the generic JSON roundtrip encoder from issue #4785. A
+// JSON roundtrip converts nested integer values inside the polymorphic
+// Attributes bag to float64, while the awscloud emitters' inline maps preserve
+// the original int values. The direct-map encoder must keep that parity.
+func TestEncodeAWSResource_DirectMapPreservesAttributeTypes(t *testing.T) {
+	t.Parallel()
+
+	original := awsv1.Resource{
+		AccountID:    "111111111111",
+		Region:       "us-east-1",
+		ResourceID:   "arn:aws:ecs:us-east-1:111111111111:service/prod/api",
+		ResourceType: "aws_ecs_service",
+		Attributes: map[string]any{
+			"attributes": map[string]any{
+				"desired_count": 2,
+				"running_count": 2,
+			},
+		},
+	}
+
+	payload, err := EncodeAWSResource(original)
+	if err != nil {
+		t.Fatalf("EncodeAWSResource() error = %v, want nil", err)
+	}
+	attributes, ok := payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[attributes] = %#v, want map[string]any", payload["attributes"])
+	}
+	for _, key := range []string{"desired_count", "running_count"} {
+		if _, ok := attributes[key].(int); !ok {
+			t.Fatalf("attributes[%s] = %[2]T(%[2]v), want int preserved from input", key, attributes[key])
+		}
+	}
+}
+
+func TestAWSProducerTailContractsEncodeAndDecode(t *testing.T) {
+	t.Parallel()
+
+	ttl := int64(300)
+	dns := awsv1.DNSRecord{
+		AccountID:            "111111111111",
+		Region:               "us-east-1",
+		HostedZoneID:         "Z123",
+		RecordName:           "api.example.com.",
+		NormalizedRecordName: "api.example.com",
+		RecordType:           "A",
+		TTL:                  &ttl,
+		Values:               []string{"203.0.113.10"},
+	}
+	dnsPayload, err := EncodeAWSDNSRecord(dns)
+	if err != nil {
+		t.Fatalf("EncodeAWSDNSRecord() error = %v, want nil", err)
+	}
+	if _, err := DecodeAWSDNSRecord(Envelope{FactKind: FactKindAWSDNSRecord, SchemaVersion: "1.0.0", Payload: dnsPayload}); err != nil {
+		t.Fatalf("DecodeAWSDNSRecord() error = %v, want nil", err)
+	}
+
+	image := awsv1.ImageReference{
+		AccountID:      "111111111111",
+		Region:         "us-east-1",
+		RepositoryName: "team/api",
+		ImageDigest:    "sha256:image",
+		ManifestDigest: "sha256:manifest",
+	}
+	imagePayload, err := EncodeAWSImageReference(image)
+	if err != nil {
+		t.Fatalf("EncodeAWSImageReference() error = %v, want nil", err)
+	}
+	if _, err := DecodeAWSImageReference(Envelope{FactKind: FactKindAWSImageReference, SchemaVersion: "1.0.0", Payload: imagePayload}); err != nil {
+		t.Fatalf("DecodeAWSImageReference() error = %v, want nil", err)
+	}
+
+	warning := awsv1.Warning{
+		AccountID:   "111111111111",
+		Region:      "us-east-1",
+		WarningKind: "assume_role_failed",
+		Attributes:  map[string]any{"attempt": 1},
+	}
+	warningPayload, err := EncodeAWSWarning(warning)
+	if err != nil {
+		t.Fatalf("EncodeAWSWarning() error = %v, want nil", err)
+	}
+	if _, err := DecodeAWSWarning(Envelope{FactKind: FactKindAWSWarning, SchemaVersion: "1.0.0", Payload: warningPayload}); err != nil {
+		t.Fatalf("DecodeAWSWarning() error = %v, want nil", err)
+	}
+}

@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // Security-group-rule source-kind discriminators. Each emitted
@@ -108,25 +110,28 @@ func NewSecurityGroupRuleEnvelope(observation SecurityGroupRuleObservation) (fac
 		"source_value": sourceValue,
 		"to_port":      portValue(observation.ToPort),
 	})
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"rule_id":               ruleID,
-		"group_id":              groupID,
-		"group_owner_id":        strings.TrimSpace(observation.GroupOwnerID),
-		"direction":             direction,
-		"ip_protocol":           ipProtocol,
-		"from_port":             portValue(observation.FromPort),
-		"to_port":               portValue(observation.ToPort),
-		"source_kind":           sourceKind,
-		"source_value":          sourceValue,
-		"description":           strings.TrimSpace(observation.Description),
-		"is_internet":           isInternetSource(sourceKind, sourceValue),
-		"is_all_protocols":      ipProtocol == allProtocolsSentinel,
-		"is_all_ports":          isAllPorts(ipProtocol, observation.FromPort, observation.ToPort),
-		"correlation_anchors":   securityGroupRuleAnchors(ruleID, groupID, sourceKind, sourceValue),
+	payload, err := factschema.EncodeAWSSecurityGroupRule(awsv1.SecurityGroupRule{
+		AccountID:           observation.Boundary.AccountID,
+		Region:              observation.Boundary.Region,
+		ServiceKind:         boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID: boundaryValue(observation.Boundary.CollectorInstanceID),
+		RuleID:              stringValuePtr(ruleID),
+		GroupID:             groupID,
+		GroupOwnerID:        stringValuePtr(strings.TrimSpace(observation.GroupOwnerID)),
+		Direction:           direction,
+		IPProtocol:          ipProtocol,
+		FromPort:            observation.FromPort,
+		ToPort:              observation.ToPort,
+		SourceKind:          sourceKind,
+		SourceValue:         sourceValue,
+		Description:         stringValuePtr(strings.TrimSpace(observation.Description)),
+		IsInternet:          boolValuePtr(isInternetSource(sourceKind, sourceValue)),
+		IsAllProtocols:      boolValuePtr(ipProtocol == allProtocolsSentinel),
+		IsAllPorts:          boolValuePtr(isAllPorts(ipProtocol, observation.FromPort, observation.ToPort)),
+		CorrelationAnchors:  securityGroupRuleAnchors(ruleID, groupID, sourceKind, sourceValue),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_security_group_rule payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,

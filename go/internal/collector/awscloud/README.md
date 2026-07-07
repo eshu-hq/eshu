@@ -174,6 +174,45 @@ Service SDK adapters call `RecordAPICall` so the runtime can persist bounded
 per-claim API and throttle counts without writing one Postgres row per AWS
 request.
 
+## Contract Direct-Map Evidence
+
+Issue #4787 rewrites the shared AWS envelope builders to call the typed
+factschema `Encode` methods directly instead of rebuilding equivalent untyped
+maps at the collector seam. The collector output contract stays the same:
+`facts.Envelope.Payload` remains a `map[string]any`, `FactID` /
+`StableFactKey` construction remains in this package, and reducers still read
+the same wire keys through the existing fact-kind registry.
+
+Benchmark Evidence: `cd sdk/go/factschema && go test -run '^$' -bench
+'BenchmarkEmitStrategy/(small_dns_record|medium_aws_resource)' -benchmem
+-count=5` on darwin/arm64 Apple M5 Max compared inline maps with the shipped
+direct-map `Encode` path. For `small_dns_record`, inline maps measured
+782.6-927.8 ns/op, 2352 B/op, 20 allocs/op; `encode_existing` measured
+472.4-872.7 ns/op, 1456 B/op, 17 allocs/op. For `medium_aws_resource`,
+inline maps measured 507.4-1152 ns/op, 1104 B/op, 14 allocs/op;
+`encode_existing` measured 507.8-549.2 ns/op, 1104 B/op, 14 allocs/op.
+The input shapes are the benchmark fixtures for one small Route 53 DNS record
+payload and one medium AWS resource payload. No graph backend, queue, or
+Postgres row-count dimension applies to this measurement because the changed
+path is in-process payload map construction before fact commit.
+
+No-Regression Evidence: `cd sdk/go/factschema && go test ./... -count=1`
+passes for the typed payloads, schemas, and encode/decode contracts. The
+rebased `make pre-pr` run passed gofumpt, golangci-lint, build, vet, changed
+package tests, file cap, package docs, factschema diff, registry drift,
+payload-usage manifest, scorecard conformance, accuracy, replay coverage,
+code-coverage generation, and race lanes before stopping on the missing tracked
+evidence markers this note supplies.
+
+No-Observability-Change: `go/internal/collector/awscloud/factschema_helpers.go`
+contains pure in-process conversion helpers and emits no metric, span, or log
+of its own. The AWS runtime remains covered by
+`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
+`eshu_dp_aws_scan_duration_seconds`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, scan-status counters, and claim
+concurrency telemetry at `awsruntime/source.go`; downstream graph writes remain
+covered by the reducer AWS/IAM/EC2/S3/security-group telemetry rows.
+
 ## Gotchas / invariants
 
 - AWS observations are reported source evidence. Do not claim canonical

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // NewResourceEnvelope builds the durable aws_resource fact for one AWS
@@ -36,19 +38,22 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 		"resource_type": resourceType,
 	})
 	anchors := normalizedAnchors(observation.CorrelationAnchors, arn, resourceID)
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"arn":                   arn,
-		"resource_id":           resourceID,
-		"resource_type":         resourceType,
-		"name":                  strings.TrimSpace(observation.Name),
-		"state":                 strings.TrimSpace(observation.State),
-		"tags":                  cloneStringMap(observation.Tags),
-		"attributes":            cloneAnyMap(observation.Attributes),
-		"correlation_anchors":   anchors,
+	tags := cloneStringMap(observation.Tags)
+	payload, err := factschema.EncodeAWSResource(awsv1.Resource{
+		AccountID:          observation.Boundary.AccountID,
+		Region:             observation.Boundary.Region,
+		ServiceKind:        boundaryValue(observation.Boundary.ServiceKind),
+		ARN:                stringValuePtr(arn),
+		ResourceID:         resourceID,
+		ResourceType:       resourceType,
+		Name:               stringValuePtr(strings.TrimSpace(observation.Name)),
+		State:              stringValuePtr(strings.TrimSpace(observation.State)),
+		Tags:               &tags,
+		Attributes:         awsPayloadAttributes(observation.Boundary, observation.Attributes),
+		CorrelationAnchors: anchors,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_resource payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,
@@ -89,18 +94,19 @@ func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelop
 		"source_resource_id": sourceID,
 		"target_resource_id": targetID,
 	})
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"relationship_type":     relationshipType,
-		"source_resource_id":    sourceID,
-		"source_arn":            strings.TrimSpace(observation.SourceARN),
-		"target_resource_id":    targetID,
-		"target_arn":            strings.TrimSpace(observation.TargetARN),
-		"target_type":           strings.TrimSpace(observation.TargetType),
-		"attributes":            cloneAnyMap(observation.Attributes),
+	payload, err := factschema.EncodeAWSRelationship(awsv1.Relationship{
+		AccountID:        observation.Boundary.AccountID,
+		Region:           observation.Boundary.Region,
+		RelationshipType: relationshipType,
+		SourceResourceID: sourceID,
+		SourceARN:        stringValuePtr(strings.TrimSpace(observation.SourceARN)),
+		TargetResourceID: targetID,
+		TargetARN:        stringValuePtr(strings.TrimSpace(observation.TargetARN)),
+		TargetType:       stringValuePtr(strings.TrimSpace(observation.TargetType)),
+		Attributes:       awsPayloadAttributes(observation.Boundary, observation.Attributes),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_relationship payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,
@@ -139,22 +145,25 @@ func NewImageReferenceEnvelope(observation ImageReferenceObservation) (facts.Env
 		"repository_name": repositoryName,
 		"tag":             tag,
 	})
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"repository_arn":        strings.TrimSpace(observation.RepositoryARN),
-		"repository_name":       repositoryName,
-		"registry_id":           strings.TrimSpace(observation.RegistryID),
-		"image_digest":          imageDigest,
-		"manifest_digest":       manifestDigest,
-		"tag":                   tag,
-		"pushed_at":             timeOrNil(observation.PushedAt),
-		"image_size_in_bytes":   observation.ImageSizeInBytes,
-		"manifest_media_type":   strings.TrimSpace(observation.ManifestMediaType),
-		"artifact_media_type":   strings.TrimSpace(observation.ArtifactMediaType),
-		"correlation_anchors":   imageReferenceAnchors(repositoryName, imageDigest, manifestDigest, tag),
+	payload, err := factschema.EncodeAWSImageReference(awsv1.ImageReference{
+		AccountID:           observation.Boundary.AccountID,
+		Region:              observation.Boundary.Region,
+		ServiceKind:         boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID: boundaryValue(observation.Boundary.CollectorInstanceID),
+		RepositoryARN:       stringValuePtr(strings.TrimSpace(observation.RepositoryARN)),
+		RepositoryName:      repositoryName,
+		RegistryID:          stringValuePtr(strings.TrimSpace(observation.RegistryID)),
+		ImageDigest:         imageDigest,
+		ManifestDigest:      manifestDigest,
+		Tag:                 stringValuePtr(tag),
+		PushedAt:            timeValuePtr(observation.PushedAt),
+		ImageSizeInBytes:    int64ValuePtr(observation.ImageSizeInBytes),
+		ManifestMediaType:   stringValuePtr(strings.TrimSpace(observation.ManifestMediaType)),
+		ArtifactMediaType:   stringValuePtr(strings.TrimSpace(observation.ArtifactMediaType)),
+		CorrelationAnchors:  imageReferenceAnchors(repositoryName, imageDigest, manifestDigest, tag),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_image_reference payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,
@@ -185,15 +194,18 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		"service_kind": observation.Boundary.ServiceKind,
 		"warning_kind": warningKind,
 	})
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"warning_kind":          warningKind,
-		"error_class":           strings.TrimSpace(observation.ErrorClass),
-		"message":               strings.TrimSpace(observation.Message),
-		"attributes":            cloneAnyMap(observation.Attributes),
+	payload, err := factschema.EncodeAWSWarning(awsv1.Warning{
+		AccountID:           observation.Boundary.AccountID,
+		Region:              observation.Boundary.Region,
+		ServiceKind:         boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID: boundaryValue(observation.Boundary.CollectorInstanceID),
+		WarningKind:         warningKind,
+		ErrorClass:          stringValuePtr(strings.TrimSpace(observation.ErrorClass)),
+		Message:             stringValuePtr(strings.TrimSpace(observation.Message)),
+		Attributes:          cloneAnyMap(observation.Attributes),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_warning payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,
@@ -325,11 +337,4 @@ func cloneAnyMap(input map[string]any) map[string]any {
 		output[key] = value
 	}
 	return output
-}
-
-func timeOrNil(input time.Time) any {
-	if input.IsZero() {
-		return nil
-	}
-	return input.UTC()
 }

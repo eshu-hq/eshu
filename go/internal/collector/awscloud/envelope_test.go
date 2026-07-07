@@ -4,6 +4,9 @@
 package awscloud
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +99,39 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 		if envelope.SourceRef.SourceSystem != CollectorKind {
 			t.Fatalf("%s SourceRef.SourceSystem = %q, want %q", factKind, envelope.SourceRef.SourceSystem, CollectorKind)
 		}
+	}
+}
+
+func TestAWSCloudEmittersUseFactschemaEncode(t *testing.T) {
+	t.Parallel()
+
+	files := []string{
+		"envelope.go",
+		"dns_envelope.go",
+		"ec2_posture_envelope.go",
+		"iam_permission_envelope.go",
+		"posture_envelope.go",
+		"resource_policy_permission_envelope.go",
+		"s3_external_principal_grant_envelope.go",
+		"s3_posture_envelope.go",
+		"security_group_rule_envelope.go",
+	}
+	for _, name := range files {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			content, err := os.ReadFile(filepath.Clean(name))
+			if err != nil {
+				t.Fatalf("read %s: %v", name, err)
+			}
+			source := string(content)
+			if strings.Contains(source, "payload := map[string]any{") {
+				t.Fatalf("%s still builds a final payload map inline; use factschema direct-map Encode instead", name)
+			}
+			if !strings.Contains(source, "factschema.Encode") {
+				t.Fatalf("%s does not call a factschema Encode function", name)
+			}
+		})
 	}
 }
 
@@ -273,6 +309,13 @@ func TestNewDNSRecordEnvelopePreservesAliasAndZoneEvidence(t *testing.T) {
 	}
 	if got, _ := envelope.Payload["hosted_zone_private"].(bool); !got {
 		t.Fatalf("hosted_zone_private = %v, want true", got)
+	}
+	routingPolicy, ok := envelope.Payload["routing_policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("routing_policy = %#v, want map", envelope.Payload["routing_policy"])
+	}
+	if got, _ := routingPolicy["health_check_id"].(string); got != "hc-123" {
+		t.Fatalf("routing_policy.health_check_id = %q", got)
 	}
 }
 

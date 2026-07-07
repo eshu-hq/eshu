@@ -6,12 +6,24 @@
     "account_id": {
       "type": "string"
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "correlation_anchors": {
       "items": {
         "type": "string"
       },
       "type": [
         "array",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
         "null"
       ]
     },
@@ -27,8 +39,26 @@
     "group_id": {
       "type": "string"
     },
+    "group_owner_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "ip_protocol": {
       "type": "string"
+    },
+    "is_all_ports": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_all_protocols": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "is_internet": {
       "type": [
@@ -38,6 +68,18 @@
     },
     "region": {
       "type": "string"
+    },
+    "rule_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "source_kind": {
       "type": "string"

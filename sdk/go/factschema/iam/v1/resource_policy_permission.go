@@ -24,6 +24,12 @@ type ResourcePolicyPermission struct {
 	// Region is the AWS region the statement was observed in. Required.
 	Region string `json:"region"`
 
+	// ServiceKind is the collector service-kind boundary token. Optional.
+	ServiceKind *string `json:"service_kind,omitempty"`
+
+	// CollectorInstanceID is the collector instance boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// ResourceARN is the ARN of the resource the resource-based policy is
 	// attached to. Required — it is the CAN_PERFORM edge target identity.
 	ResourceARN string `json:"resource_arn"`
@@ -72,4 +78,28 @@ type ResourcePolicyPermission struct {
 	// carries condition keys. Optional pointer; nil or false means
 	// unconditioned.
 	HasConditions *bool `json:"has_conditions,omitempty"`
+
+	// ConditionKeys lists condition key identifiers only, never values.
+	ConditionKeys []string `json:"condition_keys,omitempty"`
+
+	// ConditionOperators lists condition operators only, never values.
+	ConditionOperators []string `json:"condition_operators,omitempty"`
+
+	// ConditionOperatorCount is the number of condition operators observed.
+	ConditionOperatorCount *int `json:"condition_operator_count,omitempty"`
+
+	// PrincipalAccountIDs lists grantee AWS account ids derived from principals.
+	PrincipalAccountIDs []string `json:"principal_account_ids,omitempty"`
+
+	// PrincipalTypes lists derived principal element kinds.
+	PrincipalTypes []string `json:"principal_types,omitempty"`
+
+	// IsWildcardAction reports whether actions contains "*".
+	IsWildcardAction *bool `json:"is_wildcard_action,omitempty"`
+
+	// IsWildcardResource reports whether resources contains "*".
+	IsWildcardResource *bool `json:"is_wildcard_resource,omitempty"`
+
+	// IsCrossAccount reports whether a grantee account differs from owner.
+	IsCrossAccount *bool `json:"is_cross_account,omitempty"`
 }

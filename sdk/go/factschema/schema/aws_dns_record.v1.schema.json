@@ -1,0 +1,220 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/aws/v1/dns_record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "account_id": {
+      "type": "string"
+    },
+    "alias_target": {
+      "additionalProperties": true,
+      "properties": {
+        "dns_name": {
+          "type": "string"
+        },
+        "evaluate_target_health": {
+          "type": "boolean"
+        },
+        "hosted_zone_id": {
+          "type": "string"
+        },
+        "normalized_dns_name": {
+          "type": "string"
+        },
+        "target_identity_family": {
+          "type": "string"
+        },
+        "target_identity_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dns_name",
+        "normalized_dns_name",
+        "hosted_zone_id",
+        "evaluate_target_health",
+        "target_identity_family",
+        "target_identity_version"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "has_alias_target": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "hosted_zone_id": {
+      "type": "string"
+    },
+    "hosted_zone_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hosted_zone_private": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "normalized_record_name": {
+      "type": "string"
+    },
+    "record_name": {
+      "type": "string"
+    },
+    "record_type": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "routing_policy": {
+      "additionalProperties": true,
+      "properties": {
+        "cidr_collection_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cidr_location_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failover": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "geo_location": {
+          "additionalProperties": true,
+          "properties": {
+            "continent_code": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "country_code": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "subdivision_code": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "health_check_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "multi_value_answer": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "region": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "traffic_policy_instance_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "weight": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "service_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "set_identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_hosted_zone_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ttl": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "values": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "account_id",
+    "region",
+    "hosted_zone_id",
+    "record_name",
+    "normalized_record_name",
+    "record_type"
+  ],
+  "title": "Eshu aws_dns_record Payload (schema version 1)",
+  "type": "object"
+}

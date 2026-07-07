@@ -3,6 +3,8 @@
 
 package awscloud
 
+import awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+
 const (
 	// ServiceIAM identifies the global IAM service scan slice.
 	ServiceIAM = "iam"
@@ -10,17 +12,17 @@ const (
 
 const (
 	// ResourceTypeIAMRole identifies an IAM role.
-	ResourceTypeIAMRole = "aws_iam_role"
+	ResourceTypeIAMRole = awsv1.ResourceTypeIAMRole
 	// ResourceTypeIAMUser identifies an IAM user.
-	ResourceTypeIAMUser = "aws_iam_user"
+	ResourceTypeIAMUser = awsv1.ResourceTypeIAMUser
 	// ResourceTypeIAMGroup identifies an IAM group.
-	ResourceTypeIAMGroup = "aws_iam_group"
+	ResourceTypeIAMGroup = awsv1.ResourceTypeIAMGroup
 	// ResourceTypeIAMPolicy identifies an IAM policy.
-	ResourceTypeIAMPolicy = "aws_iam_policy"
+	ResourceTypeIAMPolicy = awsv1.ResourceTypeIAMPolicy
 	// ResourceTypeIAMInstanceProfile identifies an IAM instance profile.
-	ResourceTypeIAMInstanceProfile = "aws_iam_instance_profile"
+	ResourceTypeIAMInstanceProfile = awsv1.ResourceTypeIAMInstanceProfile
 	// ResourceTypeIAMPrincipal identifies a principal from an IAM trust policy.
-	ResourceTypeIAMPrincipal = "aws_iam_principal"
+	ResourceTypeIAMPrincipal = awsv1.ResourceTypeIAMPrincipal
 )
 
 const (

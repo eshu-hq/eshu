@@ -2,9 +2,8 @@
 
 This directory is part of the public
 `github.com/eshu-hq/eshu/sdk/go/factschema` Go module. It holds the
-schema-version-1 typed payload structs for the `aws` fact family: `Resource`,
-`Relationship`, `SecurityGroupRule`, `EC2InstancePosture`, and
-`S3BucketPosture`. It must remain independent from Eshu internals.
+schema-version-1 typed payload structs for the `aws` fact family. It must
+remain independent from Eshu internals.
 
 ## Required Checks
 
@@ -50,11 +49,11 @@ schema-version-1 typed payload structs for the `aws` fact family: `Resource`,
   `resource.go` / `relationship.go`). Forgetting this leaks the new field
   into `Attributes` as well as the named struct field, which is silently
   wrong, not a compile error.
-- `SecurityGroupRule`, `EC2InstancePosture`, and `S3BucketPosture` have no
-  `Attributes` pass-through; every payload key they care about is a named
-  field. Do not add one without discussing scope — it changes this package's
-  polymorphic-vs-fully-typed shape for that kind.
-- This package defines five fact kinds (`aws_resource`, `aws_relationship`,
-  `aws_security_group_rule`, `ec2_instance_posture`, `s3_bucket_posture`).
-  Adding a sixth kind or a `v2` major is follow-on epic work, not a casual
-  edit.
+- Non-polymorphic structs such as `DNSRecord`, `ImageReference`,
+  `SecurityGroupRule`, `Warning`, `EC2InstancePosture`,
+  `RDSInstancePosture`, `S3BucketPosture`, and `S3ExternalPrincipalGrant`
+  have no `Attributes` pass-through; every payload key they care about is a
+  named field. Do not add one without discussing scope — it changes this
+  package's polymorphic-vs-fully-typed shape for that kind.
+- This package defines the AWS fact kinds wired through `decode_aws.go`.
+  Adding a new kind or a `v2` major is follow-on epic work, not a casual edit.

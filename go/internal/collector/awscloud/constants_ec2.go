@@ -3,6 +3,8 @@
 
 package awscloud
 
+import awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+
 const (
 	// ServiceEC2 identifies the regional Amazon Elastic Compute Cloud network
 	// topology scan slice.
@@ -11,22 +13,22 @@ const (
 
 const (
 	// ResourceTypeEC2VPC identifies an EC2 VPC.
-	ResourceTypeEC2VPC = "aws_ec2_vpc"
+	ResourceTypeEC2VPC = awsv1.ResourceTypeEC2VPC
 	// ResourceTypeEC2Subnet identifies an EC2 subnet.
-	ResourceTypeEC2Subnet = "aws_ec2_subnet"
+	ResourceTypeEC2Subnet = awsv1.ResourceTypeEC2Subnet
 	// ResourceTypeEC2SecurityGroup identifies an EC2 security group.
-	ResourceTypeEC2SecurityGroup = "aws_ec2_security_group"
+	ResourceTypeEC2SecurityGroup = awsv1.ResourceTypeEC2SecurityGroup
 	// ResourceTypeEC2SecurityGroupRule identifies an EC2 security group rule.
-	ResourceTypeEC2SecurityGroupRule = "aws_ec2_security_group_rule"
+	ResourceTypeEC2SecurityGroupRule = awsv1.ResourceTypeEC2SecurityGroupRule
 	// ResourceTypeEC2NetworkInterface identifies an EC2 network interface.
-	ResourceTypeEC2NetworkInterface = "aws_ec2_network_interface"
+	ResourceTypeEC2NetworkInterface = awsv1.ResourceTypeEC2NetworkInterface
 	// ResourceTypeEC2Volume identifies an EBS volume observed through the EC2
 	// DescribeVolumes API.
-	ResourceTypeEC2Volume = "aws_ec2_volume"
+	ResourceTypeEC2Volume = awsv1.ResourceTypeEC2Volume
 	// ResourceTypeEC2Instance identifies an EC2 instance. It is the join anchor
 	// for the metadata-only ec2_instance_posture fact; the EC2 scanner does not
 	// emit an aws_resource inventory fact for instances.
-	ResourceTypeEC2Instance = "aws_ec2_instance"
+	ResourceTypeEC2Instance = awsv1.ResourceTypeEC2Instance
 )
 
 const (

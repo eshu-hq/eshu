@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // IAM resource_type tokens the escalation target resolver keys on. They mirror
@@ -18,8 +19,8 @@ import (
 // iam_can_assume_edge_rows.go in this package (same string values); they are
 // shared here rather than redeclared to avoid a duplicate-const build error.
 const (
-	iamResourceTypePolicy = "aws_iam_policy"
-	iamResourceTypeGroup  = "aws_iam_group"
+	iamResourceTypePolicy = awsv1.ResourceTypeIAMPolicy
+	iamResourceTypeGroup  = awsv1.ResourceTypeIAMGroup
 )
 
 // Skip / deferral reason labels for the escalation skipped counter. They are the

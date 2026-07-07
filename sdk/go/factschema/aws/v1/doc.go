@@ -6,16 +6,18 @@
 // docs/internal/design/contract-system-v1.md), decoded through the parent
 // factschema package's kind-keyed seam (decode.go, decode_aws.go).
 //
-// Five fact kinds live here: Resource (aws_resource), Relationship
-// (aws_relationship), SecurityGroupRule (aws_security_group_rule),
-// EC2InstancePosture (ec2_instance_posture), and S3BucketPosture
-// (s3_bucket_posture). Each struct's required fields are non-pointer with no
-// omitempty tag; the decode seam rejects a payload that omits one, or
-// supplies an explicit JSON null for one, with a classified
+// AWS fact kinds live here: Resource (aws_resource), Relationship
+// (aws_relationship), DNSRecord (aws_dns_record), ImageReference
+// (aws_image_reference), SecurityGroupRule (aws_security_group_rule), Warning
+// (aws_warning), EC2InstancePosture (ec2_instance_posture),
+// RDSInstancePosture (rds_instance_posture), S3BucketPosture
+// (s3_bucket_posture), and S3ExternalPrincipalGrant
+// (s3_external_principal_grant). Each struct's required fields are
+// non-pointer with no omitempty tag; the decode seam rejects a payload that
+// omits one, or supplies an explicit JSON null for one, with a classified
 // ClassificationInputInvalid error naming the field, never a zero-value
-// struct. Optional fields are pointers, slices, or maps carrying omitempty,
-// so an absent value decodes to nil and stays distinct from an observed
-// zero.
+// struct. Optional fields are pointers, slices, or maps carrying omitempty, so
+// an absent value decodes to nil and stays distinct from an observed zero.
 //
 // Resource and Relationship are polymorphic generic envelopes: one fact kind
 // carries every AWS resource type or relationship verb, so each struct types
@@ -33,9 +35,8 @@
 // distinct, larger increment (design §7, remaining families); it does not
 // weaken the identity validation this package adds today.
 //
-// SecurityGroupRule, EC2InstancePosture, and S3BucketPosture are each scoped
-// to one fact kind with a known field set and carry no Attributes
-// pass-through.
+// Non-polymorphic structs are each scoped to one fact kind with a known field
+// set and carry no Attributes pass-through.
 //
 // The reducer decodes only the latest struct for each kind. Version shims
 // for an older schema major live in the parent factschema package's decode

@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // NewDNSRecordEnvelope builds the durable aws_dns_record fact for one Route 53
@@ -38,25 +40,28 @@ func NewDNSRecordEnvelope(observation DNSRecordObservation) (facts.Envelope, err
 		"region":                 observation.Boundary.Region,
 		"set_identifier":         setIdentifier,
 	})
-	payload := map[string]any{
-		"account_id":              observation.Boundary.AccountID,
-		"region":                  observation.Boundary.Region,
-		"service_kind":            observation.Boundary.ServiceKind,
-		"collector_instance_id":   observation.Boundary.CollectorInstanceID,
-		"hosted_zone_id":          hostedZoneID,
-		"hosted_zone_name":        strings.TrimSpace(observation.HostedZoneName),
-		"hosted_zone_private":     observation.HostedZonePrivate,
-		"record_name":             recordName,
-		"normalized_record_name":  normalizedRecordName,
-		"record_type":             recordType,
-		"set_identifier":          setIdentifier,
-		"ttl":                     int64OrNil(observation.TTL),
-		"values":                  cloneStringSlice(observation.Values),
-		"alias_target":            aliasTargetMap(observation.AliasTarget),
-		"routing_policy":          routingPolicyMap(observation.RoutingPolicy),
-		"correlation_anchors":     dnsRecordAnchors(recordName, observation.Values, observation.AliasTarget),
-		"has_alias_target":        observation.AliasTarget != nil,
-		"source_hosted_zone_name": strings.TrimSpace(observation.HostedZoneName),
+	payload, err := factschema.EncodeAWSDNSRecord(awsv1.DNSRecord{
+		AccountID:            observation.Boundary.AccountID,
+		Region:               observation.Boundary.Region,
+		ServiceKind:          boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID:  boundaryValue(observation.Boundary.CollectorInstanceID),
+		HostedZoneID:         hostedZoneID,
+		HostedZoneName:       stringValuePtr(strings.TrimSpace(observation.HostedZoneName)),
+		HostedZonePrivate:    boolValuePtr(observation.HostedZonePrivate),
+		RecordName:           recordName,
+		NormalizedRecordName: normalizedRecordName,
+		RecordType:           recordType,
+		SetIdentifier:        stringValuePtr(setIdentifier),
+		TTL:                  observation.TTL,
+		Values:               cloneStringSlice(observation.Values),
+		AliasTarget:          aliasTargetPayload(observation.AliasTarget),
+		RoutingPolicy:        routingPolicyPayload(observation.RoutingPolicy),
+		CorrelationAnchors:   dnsRecordAnchors(recordName, observation.Values, observation.AliasTarget),
+		HasAliasTarget:       boolValuePtr(observation.AliasTarget != nil),
+		SourceHostedZoneName: stringValuePtr(strings.TrimSpace(observation.HostedZoneName)),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode aws_dns_record payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,
@@ -69,74 +74,55 @@ func NewDNSRecordEnvelope(observation DNSRecordObservation) (facts.Envelope, err
 	), nil
 }
 
-func int64OrNil(input *int64) any {
-	if input == nil {
-		return nil
-	}
-	return *input
-}
-
 func normalizedDNSName(input string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(input)), ".")
 }
 
-func aliasTargetMap(input *DNSAliasTarget) map[string]any {
+func aliasTargetPayload(input *DNSAliasTarget) *awsv1.DNSAliasTarget {
 	if input == nil {
 		return nil
 	}
 	dnsName := strings.TrimSpace(input.DNSName)
-	return map[string]any{
-		"dns_name":                dnsName,
-		"normalized_dns_name":     normalizedDNSName(dnsName),
-		"hosted_zone_id":          strings.TrimSpace(input.HostedZoneID),
-		"evaluate_target_health":  input.EvaluateTargetHealth,
-		"target_identity_family":  "dns_name",
-		"target_identity_version": "1.0.0",
+	return &awsv1.DNSAliasTarget{
+		DNSName:               dnsName,
+		NormalizedDNSName:     normalizedDNSName(dnsName),
+		HostedZoneID:          strings.TrimSpace(input.HostedZoneID),
+		EvaluateTargetHealth:  input.EvaluateTargetHealth,
+		TargetIdentityFamily:  "dns_name",
+		TargetIdentityVersion: "1.0.0",
 	}
 }
 
-func routingPolicyMap(input DNSRoutingPolicy) map[string]any {
-	output := map[string]any{
-		"weight":                     int64OrNil(input.Weight),
-		"region":                     strings.TrimSpace(input.Region),
-		"failover":                   strings.TrimSpace(input.Failover),
-		"health_check_id":            strings.TrimSpace(input.HealthCheckID),
-		"multi_value_answer":         boolOrNil(input.MultiValueAnswer),
-		"traffic_policy_instance_id": strings.TrimSpace(input.TrafficPolicyInstanceID),
-		"cidr_collection_id":         strings.TrimSpace(input.CIDRCollectionID),
-		"cidr_location_name":         strings.TrimSpace(input.CIDRLocationName),
+func routingPolicyPayload(input DNSRoutingPolicy) *awsv1.DNSRoutingPolicy {
+	output := awsv1.DNSRoutingPolicy{
+		Weight:                  input.Weight,
+		Region:                  stringValuePtr(strings.TrimSpace(input.Region)),
+		Failover:                stringValuePtr(strings.TrimSpace(input.Failover)),
+		HealthCheckID:           stringValuePtr(strings.TrimSpace(input.HealthCheckID)),
+		MultiValueAnswer:        input.MultiValueAnswer,
+		TrafficPolicyInstanceID: stringValuePtr(strings.TrimSpace(input.TrafficPolicyInstanceID)),
+		CIDRCollectionID:        stringValuePtr(strings.TrimSpace(input.CIDRCollectionID)),
+		CIDRLocationName:        stringValuePtr(strings.TrimSpace(input.CIDRLocationName)),
 	}
-	geo := map[string]any{
-		"continent_code":   strings.TrimSpace(input.GeoLocation.ContinentCode),
-		"country_code":     strings.TrimSpace(input.GeoLocation.CountryCode),
-		"subdivision_code": strings.TrimSpace(input.GeoLocation.SubdivisionCode),
+	geo := awsv1.DNSGeoLocation{
+		ContinentCode:   stringValuePtr(strings.TrimSpace(input.GeoLocation.ContinentCode)),
+		CountryCode:     stringValuePtr(strings.TrimSpace(input.GeoLocation.CountryCode)),
+		SubdivisionCode: stringValuePtr(strings.TrimSpace(input.GeoLocation.SubdivisionCode)),
 	}
-	if hasAnyValue(geo) {
-		output["geo_location"] = geo
+	if hasAnyStringValue(*geo.ContinentCode, *geo.CountryCode, *geo.SubdivisionCode) {
+		output.GeoLocation = &geo
 	}
-	if !hasAnyValue(output) {
+	if input.Weight == nil &&
+		!hasAnyStringValue(*output.Region, *output.Failover, *output.HealthCheckID, *output.TrafficPolicyInstanceID, *output.CIDRCollectionID, *output.CIDRLocationName) &&
+		input.MultiValueAnswer == nil && output.GeoLocation == nil {
 		return nil
 	}
-	return output
+	return &output
 }
 
-func boolOrNil(input *bool) any {
-	if input == nil {
-		return nil
-	}
-	return *input
-}
-
-func hasAnyValue(input map[string]any) bool {
-	for _, value := range input {
-		switch typed := value.(type) {
-		case nil:
-			continue
-		case string:
-			if typed != "" {
-				return true
-			}
-		default:
+func hasAnyStringValue(values ...string) bool {
+	for _, value := range values {
+		if value != "" {
 			return true
 		}
 	}

@@ -35,9 +35,9 @@ follow-up work (Contract System v1 §7).
 
 The rule this package follows: **type a kind in the wave that converts its
 read-side consumer; a kind whose only consumer is a shared cross-provider file
-migrates with that surface, not this per-cloud wave.** This matches what the
-AWS wave (#4568) did — it left `aws_image_reference` and `aws_tag_observation`
-untyped for the same reason.
+migrates with that surface, not this per-cloud wave.** AWS cloud support now
+types image references; tag observations still migrate with their shared
+cross-provider consumer.
 
 ## Ownership boundary
 

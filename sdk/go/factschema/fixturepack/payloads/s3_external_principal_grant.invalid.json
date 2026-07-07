@@ -1,0 +1,10 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "principal_kind": "aws",
+  "principal_value": "arn:aws:iam::210987654321:role/ExternalReader",
+  "is_public": false,
+  "is_cross_account": true,
+  "is_service_principal": false,
+  "is_unsupported": false
+}

@@ -36,9 +36,9 @@ func BenchmarkEmitStrategy(b *testing.B) {
 		b.Run("encode_existing", func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				payload, err := encodeToPayload(record)
+				payload, err := EncodeAWSDNSRecord(record)
 				if err != nil {
-					b.Fatalf("encodeToPayload() error = %v", err)
+					b.Fatalf("EncodeAWSDNSRecord() error = %v", err)
 				}
 				benchmarkPayloadSink = payload
 			}
@@ -109,7 +109,7 @@ func BenchmarkEmitRuntimeDecodeValidation(b *testing.B) {
 	b.Run("small_dns_record", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			if _, err := decodeAndValidate[benchmarkDNSRecordPayload](benchmarkFactKindAWSDNSRecord, dnsPayload); err != nil {
+			if _, err := decodeAndValidate[awsv1.DNSRecord](benchmarkFactKindAWSDNSRecord, dnsPayload); err != nil {
 				b.Fatalf("decodeAndValidate() error = %v", err)
 			}
 		}
@@ -136,87 +136,80 @@ func BenchmarkEmitRuntimeDecodeValidation(b *testing.B) {
 	})
 }
 
-type benchmarkDNSRecordPayload struct {
-	AccountID            string         `json:"account_id"`
-	Region               string         `json:"region"`
-	ServiceKind          string         `json:"service_kind"`
-	CollectorInstanceID  string         `json:"collector_instance_id"`
-	HostedZoneID         string         `json:"hosted_zone_id"`
-	HostedZoneName       string         `json:"hosted_zone_name,omitempty"`
-	HostedZonePrivate    bool           `json:"hosted_zone_private,omitempty"`
-	RecordName           string         `json:"record_name"`
-	NormalizedRecordName string         `json:"normalized_record_name"`
-	RecordType           string         `json:"record_type"`
-	SetIdentifier        string         `json:"set_identifier,omitempty"`
-	TTL                  *int64         `json:"ttl,omitempty"`
-	Values               []string       `json:"values,omitempty"`
-	AliasTarget          map[string]any `json:"alias_target,omitempty"`
-	RoutingPolicy        map[string]any `json:"routing_policy,omitempty"`
-	CorrelationAnchors   []string       `json:"correlation_anchors,omitempty"`
-	HasAliasTarget       bool           `json:"has_alias_target"`
-	SourceHostedZoneName string         `json:"source_hosted_zone_name,omitempty"`
-}
-
-func benchmarkDNSRecord() benchmarkDNSRecordPayload {
+func benchmarkDNSRecord() awsv1.DNSRecord {
 	ttl := int64(300)
-	return benchmarkDNSRecordPayload{
+	return awsv1.DNSRecord{
 		AccountID:            "123456789012",
 		Region:               "us-east-1",
-		ServiceKind:          "route53",
-		CollectorInstanceID:  "collector-1",
+		ServiceKind:          stringPtr("route53"),
+		CollectorInstanceID:  stringPtr("collector-1"),
 		HostedZoneID:         "Z0123456789",
-		HostedZoneName:       "example.com.",
+		HostedZoneName:       stringPtr("example.com."),
+		HostedZonePrivate:    boolPtr(false),
 		RecordName:           "api.example.com.",
 		NormalizedRecordName: "api.example.com",
 		RecordType:           "A",
 		TTL:                  &ttl,
 		Values:               []string{"203.0.113.10"},
 		CorrelationAnchors:   []string{"api.example.com.", "api.example.com", "203.0.113.10"},
-		SourceHostedZoneName: "example.com.",
+		HasAliasTarget:       boolPtr(false),
+		SourceHostedZoneName: stringPtr("example.com."),
 	}
 }
 
-func benchmarkDNSRecordMap(record benchmarkDNSRecordPayload) map[string]any {
-	return map[string]any{
-		"account_id":              record.AccountID,
-		"region":                  record.Region,
-		"service_kind":            record.ServiceKind,
-		"collector_instance_id":   record.CollectorInstanceID,
-		"hosted_zone_id":          record.HostedZoneID,
-		"hosted_zone_name":        record.HostedZoneName,
-		"hosted_zone_private":     record.HostedZonePrivate,
-		"record_name":             record.RecordName,
-		"normalized_record_name":  record.NormalizedRecordName,
-		"record_type":             record.RecordType,
-		"ttl":                     *record.TTL,
-		"values":                  record.Values,
-		"correlation_anchors":     record.CorrelationAnchors,
-		"has_alias_target":        record.HasAliasTarget,
-		"source_hosted_zone_name": record.SourceHostedZoneName,
-	}
-}
-
-func encodeBenchmarkDNSRecordDirect(record benchmarkDNSRecordPayload) map[string]any {
+func benchmarkDNSRecordMap(record awsv1.DNSRecord) map[string]any {
 	payload := map[string]any{
 		"account_id":             record.AccountID,
 		"region":                 record.Region,
-		"service_kind":           record.ServiceKind,
-		"collector_instance_id":  record.CollectorInstanceID,
 		"hosted_zone_id":         record.HostedZoneID,
 		"record_name":            record.RecordName,
 		"normalized_record_name": record.NormalizedRecordName,
 		"record_type":            record.RecordType,
-		"has_alias_target":       record.HasAliasTarget,
 	}
-	addString(payload, "hosted_zone_name", record.HostedZoneName)
-	addBool(payload, "hosted_zone_private", record.HostedZonePrivate)
-	addString(payload, "set_identifier", record.SetIdentifier)
-	addInt64Ptr(payload, "ttl", record.TTL)
-	addStringSlice(payload, "values", record.Values)
-	addMap(payload, "alias_target", record.AliasTarget)
-	addMap(payload, "routing_policy", record.RoutingPolicy)
-	addStringSlice(payload, "correlation_anchors", record.CorrelationAnchors)
-	addString(payload, "source_hosted_zone_name", record.SourceHostedZoneName)
+	addBenchmarkStringPtr(payload, "service_kind", record.ServiceKind)
+	addBenchmarkStringPtr(payload, "collector_instance_id", record.CollectorInstanceID)
+	addBenchmarkStringPtr(payload, "hosted_zone_name", record.HostedZoneName)
+	addBenchmarkBoolPtr(payload, "hosted_zone_private", record.HostedZonePrivate)
+	addBenchmarkStringPtr(payload, "set_identifier", record.SetIdentifier)
+	addBenchmarkInt64Ptr(payload, "ttl", record.TTL)
+	addBenchmarkStringSlice(payload, "values", record.Values)
+	if record.AliasTarget != nil {
+		payload["alias_target"] = encodeDNSAliasTarget(*record.AliasTarget)
+	}
+	if record.RoutingPolicy != nil {
+		payload["routing_policy"] = encodeDNSRoutingPolicy(*record.RoutingPolicy)
+	}
+	addBenchmarkStringSlice(payload, "correlation_anchors", record.CorrelationAnchors)
+	addBenchmarkBoolPtr(payload, "has_alias_target", record.HasAliasTarget)
+	addBenchmarkStringPtr(payload, "source_hosted_zone_name", record.SourceHostedZoneName)
+	return payload
+}
+
+func encodeBenchmarkDNSRecordDirect(record awsv1.DNSRecord) map[string]any {
+	payload := map[string]any{
+		"account_id":             record.AccountID,
+		"region":                 record.Region,
+		"hosted_zone_id":         record.HostedZoneID,
+		"record_name":            record.RecordName,
+		"normalized_record_name": record.NormalizedRecordName,
+		"record_type":            record.RecordType,
+	}
+	addBenchmarkStringPtr(payload, "service_kind", record.ServiceKind)
+	addBenchmarkStringPtr(payload, "collector_instance_id", record.CollectorInstanceID)
+	addBenchmarkStringPtr(payload, "hosted_zone_name", record.HostedZoneName)
+	addBenchmarkBoolPtr(payload, "hosted_zone_private", record.HostedZonePrivate)
+	addBenchmarkStringPtr(payload, "set_identifier", record.SetIdentifier)
+	addBenchmarkInt64Ptr(payload, "ttl", record.TTL)
+	addBenchmarkStringSlice(payload, "values", record.Values)
+	if record.AliasTarget != nil {
+		payload["alias_target"] = encodeDNSAliasTarget(*record.AliasTarget)
+	}
+	if record.RoutingPolicy != nil {
+		payload["routing_policy"] = encodeDNSRoutingPolicy(*record.RoutingPolicy)
+	}
+	addBenchmarkStringSlice(payload, "correlation_anchors", record.CorrelationAnchors)
+	addBenchmarkBoolPtr(payload, "has_alias_target", record.HasAliasTarget)
+	addBenchmarkStringPtr(payload, "source_hosted_zone_name", record.SourceHostedZoneName)
 	return payload
 }
 
@@ -256,11 +249,11 @@ func encodeAWSResourceDirect(resource awsv1.Resource) map[string]any {
 		"region":        resource.Region,
 		"resource_type": resource.ResourceType,
 	}
-	addStringPtr(payload, "arn", resource.ARN)
-	addStringPtr(payload, "name", resource.Name)
-	addStringPtr(payload, "state", resource.State)
-	addStringPtr(payload, "service_kind", resource.ServiceKind)
-	addStringSlice(payload, "correlation_anchors", resource.CorrelationAnchors)
+	addBenchmarkStringPtr(payload, "arn", resource.ARN)
+	addBenchmarkStringPtr(payload, "name", resource.Name)
+	addBenchmarkStringPtr(payload, "state", resource.State)
+	addBenchmarkStringPtr(payload, "service_kind", resource.ServiceKind)
+	addBenchmarkStringSlice(payload, "correlation_anchors", resource.CorrelationAnchors)
 	if resource.Tags != nil {
 		payload["tags"] = *resource.Tags
 	}
@@ -305,12 +298,12 @@ func encodeCodegraphFileDirect(file codegraphv1.File) map[string]any {
 		"relative_path":    file.RelativePath,
 		"parsed_file_data": file.ParsedFileData,
 	}
-	addStringPtr(payload, "graph_id", file.GraphID)
-	addStringPtr(payload, "graph_kind", file.GraphKind)
+	addBenchmarkStringPtr(payload, "graph_id", file.GraphID)
+	addBenchmarkStringPtr(payload, "graph_kind", file.GraphKind)
 	if file.IsDependency != nil {
 		payload["is_dependency"] = *file.IsDependency
 	}
-	addStringPtr(payload, "language", file.Language)
+	addBenchmarkStringPtr(payload, "language", file.Language)
 	return payload
 }
 
@@ -353,37 +346,25 @@ var resourceKnownPayloadKeys = map[string]struct{}{
 	"correlation_anchors": {}, "tags": {},
 }
 
-func addString(payload map[string]any, key string, value string) {
-	if value != "" {
-		payload[key] = value
-	}
-}
-
-func addBool(payload map[string]any, key string, value bool) {
-	if value {
-		payload[key] = value
-	}
-}
-
-func addStringPtr(payload map[string]any, key string, value *string) {
+func addBenchmarkBoolPtr(payload map[string]any, key string, value *bool) {
 	if value != nil {
 		payload[key] = *value
 	}
 }
 
-func addInt64Ptr(payload map[string]any, key string, value *int64) {
+func addBenchmarkStringPtr(payload map[string]any, key string, value *string) {
 	if value != nil {
 		payload[key] = *value
 	}
 }
 
-func addStringSlice(payload map[string]any, key string, value []string) {
-	if len(value) > 0 {
-		payload[key] = value
+func addBenchmarkInt64Ptr(payload map[string]any, key string, value *int64) {
+	if value != nil {
+		payload[key] = *value
 	}
 }
 
-func addMap(payload map[string]any, key string, value map[string]any) {
+func addBenchmarkStringSlice(payload map[string]any, key string, value []string) {
 	if len(value) > 0 {
 		payload[key] = value
 	}

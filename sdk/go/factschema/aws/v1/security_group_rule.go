@@ -24,10 +24,22 @@ type SecurityGroupRule struct {
 	// Region is the AWS region the rule was observed in. Required.
 	Region string `json:"region"`
 
+	// ServiceKind is the collector service-kind boundary token. Optional.
+	ServiceKind *string `json:"service_kind,omitempty"`
+
+	// CollectorInstanceID is the collector instance boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// GroupID is the bare security-group id the rule belongs to. Required — it
 	// anchors the SecurityGroup CloudResource node the reachability edge hangs
 	// off, so a rule with no group id cannot resolve an anchor.
 	GroupID string `json:"group_id"`
+
+	// RuleID is the provider-assigned security-group-rule id. Optional.
+	RuleID *string `json:"rule_id,omitempty"`
+
+	// GroupOwnerID is the AWS account id that owns the security group. Optional.
+	GroupOwnerID *string `json:"group_owner_id,omitempty"`
 
 	// Direction is the normalized rule direction ("ingress" or "egress").
 	// Required — it selects the closed-vocabulary relationship type.
@@ -48,6 +60,9 @@ type SecurityGroupRule struct {
 	// but the empty string is a valid value for the "unknown" source kind.
 	SourceValue string `json:"source_value"`
 
+	// Description is the rule description. Optional.
+	Description *string `json:"description,omitempty"`
+
 	// FromPort is the inclusive lower bound of the rule's port range, or nil
 	// for an all-ports rule that omits the range. Optional pointer so nil stays
 	// distinct from real port 0.
@@ -62,6 +77,12 @@ type SecurityGroupRule struct {
 	// an open-to-the-world CIDR. Optional: it is a convenience property copied
 	// onto the rule node, not an identity input.
 	IsInternet *bool `json:"is_internet,omitempty"`
+
+	// IsAllProtocols reports whether the rule matches all protocols.
+	IsAllProtocols *bool `json:"is_all_protocols,omitempty"`
+
+	// IsAllPorts reports whether the rule matches all ports.
+	IsAllPorts *bool `json:"is_all_ports,omitempty"`
 
 	// CorrelationAnchors are the redaction-safe anchors the collector published
 	// for the rule. Optional and unused by the reachability extractor's identity

@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // NewRDSInstancePostureEnvelope builds the durable rds_instance_posture fact
@@ -44,31 +46,39 @@ func NewRDSInstancePostureEnvelope(observation RDSPostureObservation) (facts.Env
 		"resource_type": resourceType,
 	})
 	anchors := normalizedAnchors(nil, arn, resourceID, identifier)
-	payload := map[string]any{
-		"account_id":                          observation.Boundary.AccountID,
-		"region":                              observation.Boundary.Region,
-		"service_kind":                        observation.Boundary.ServiceKind,
-		"collector_instance_id":               observation.Boundary.CollectorInstanceID,
-		"arn":                                 arn,
-		"resource_id":                         resourceID,
-		"resource_type":                       resourceType,
-		"identifier":                          identifier,
-		"engine":                              strings.TrimSpace(observation.Engine),
-		"publicly_accessible":                 observation.PubliclyAccessible,
-		"storage_encrypted":                   observation.StorageEncrypted,
-		"kms_key_id":                          strings.TrimSpace(observation.KMSKeyID),
-		"iam_database_authentication_enabled": observation.IAMDatabaseAuthenticationEnabled,
-		"multi_az":                            observation.MultiAZ,
-		"deletion_protection":                 observation.DeletionProtection,
-		"backup_retention_period":             observation.BackupRetentionPeriod,
-		"performance_insights_enabled":        observation.PerformanceInsightsEnabled,
-		"performance_insights_retention_days": observation.PerformanceInsightsRetentionDays,
-		"performance_insights_kms_key_id":     strings.TrimSpace(observation.PerformanceInsightsKMSKeyID),
-		"ca_certificate_identifier":           strings.TrimSpace(observation.CACertificateIdentifier),
-		"parameter_groups":                    cloneStringSlice(observation.ParameterGroups),
-		"option_groups":                       cloneStringSlice(observation.OptionGroups),
-		"security_parameters":                 cloneStringMap(observation.SecurityParameters),
-		"correlation_anchors":                 anchors,
+	securityParameters := cloneStringMap(observation.SecurityParameters)
+	var securityParametersPtr *map[string]string
+	if securityParameters != nil {
+		securityParametersPtr = &securityParameters
+	}
+	payload, err := factschema.EncodeRDSInstancePosture(awsv1.RDSInstancePosture{
+		AccountID:                        observation.Boundary.AccountID,
+		Region:                           observation.Boundary.Region,
+		ServiceKind:                      boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID:              boundaryValue(observation.Boundary.CollectorInstanceID),
+		ARN:                              stringValuePtr(arn),
+		ResourceID:                       stringValuePtr(resourceID),
+		ResourceType:                     stringValuePtr(resourceType),
+		Identifier:                       stringValuePtr(identifier),
+		Engine:                           stringValuePtr(strings.TrimSpace(observation.Engine)),
+		PubliclyAccessible:               observation.PubliclyAccessible,
+		StorageEncrypted:                 observation.StorageEncrypted,
+		KMSKeyID:                         stringValuePtr(strings.TrimSpace(observation.KMSKeyID)),
+		IAMDatabaseAuthenticationEnabled: observation.IAMDatabaseAuthenticationEnabled,
+		MultiAZ:                          observation.MultiAZ,
+		DeletionProtection:               observation.DeletionProtection,
+		BackupRetentionPeriod:            observation.BackupRetentionPeriod,
+		PerformanceInsightsEnabled:       observation.PerformanceInsightsEnabled,
+		PerformanceInsightsRetentionDays: observation.PerformanceInsightsRetentionDays,
+		PerformanceInsightsKMSKeyID:      stringValuePtr(strings.TrimSpace(observation.PerformanceInsightsKMSKeyID)),
+		CACertificateIdentifier:          stringValuePtr(strings.TrimSpace(observation.CACertificateIdentifier)),
+		ParameterGroups:                  cloneStringSlice(observation.ParameterGroups),
+		OptionGroups:                     cloneStringSlice(observation.OptionGroups),
+		SecurityParameters:               securityParametersPtr,
+		CorrelationAnchors:               anchors,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode rds_instance_posture payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,

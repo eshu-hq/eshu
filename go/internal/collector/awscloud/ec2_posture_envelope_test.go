@@ -66,6 +66,7 @@ func TestNewEC2InstancePostureEnvelopeCarriesDerivedPosture(t *testing.T) {
 	payload := envelope.Payload
 	wantValues := map[string]any{
 		"resource_type":               ResourceTypeEC2Instance,
+		"collector_instance_id":       "aws-prod",
 		"instance_id":                 "i-1234567890abcdef0",
 		"service_kind":                ServiceEC2,
 		"state":                       "running",

@@ -24,6 +24,11 @@ type EC2InstancePosture struct {
 	// Region is the AWS region the instance was observed in. Required.
 	Region string `json:"region"`
 
+	// CollectorInstanceID is the collector runtime instance that observed the
+	// posture fact. Optional for generic schema decoding, but AWS collectors
+	// must stamp it before emission.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// InstanceID is the bare EC2 instance id (i-...). Optional: the emitter
 	// requires instance_id OR arn, so this may be empty when only the ARN was
 	// observed; the reducer forms the source uid from ARN in that case.
@@ -68,6 +73,10 @@ type EC2InstancePosture struct {
 
 	// PublicIPAssociated reports whether a public IP is associated. Optional.
 	PublicIPAssociated *bool `json:"public_ip_associated,omitempty"`
+
+	// PublicIPAddress is the public IP address string when observed. Optional;
+	// reducers intentionally do not project the raw value to graph properties.
+	PublicIPAddress *string `json:"public_ip_address,omitempty"`
 
 	// InstanceProfileARN is the attached IAM instance-profile ARN. Optional: a
 	// blank value means no profile is attached (the normal no-edge state for

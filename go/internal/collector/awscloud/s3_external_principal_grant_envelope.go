@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 const (
@@ -100,26 +102,29 @@ func NewS3ExternalPrincipalGrantEnvelope(observation S3ExternalPrincipalGrantObs
 		"region":          observation.Boundary.Region,
 	})
 	anchors := normalizedAnchors(nil, bucketARN, bucketName, s3PostureURI(bucketName), principalValue)
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"bucket_arn":            bucketARN,
-		"bucket_name":           bucketName,
-		"principal_kind":        principalKind,
-		"principal_value":       principalValue,
-		"principal_account_id":  strings.TrimSpace(observation.PrincipalAccountID),
-		"principal_partition":   strings.TrimSpace(observation.PrincipalPartition),
-		"principal_service":     strings.TrimSpace(observation.PrincipalService),
-		"grant_outcome":         grantOutcome,
-		"is_public":             observation.Public || principalKind == S3ExternalPrincipalKindPublic || grantOutcome == S3ExternalPrincipalGrantOutcomePublic,
-		"is_cross_account":      observation.CrossAccount || grantOutcome == S3ExternalPrincipalGrantOutcomeCrossAccount,
-		"is_service_principal":  observation.ServicePrincipal || principalKind == S3ExternalPrincipalKindAWSService || grantOutcome == S3ExternalPrincipalGrantOutcomeAWSService,
-		"is_unsupported":        observation.Unsupported || principalKind == S3ExternalPrincipalKindUnsupported || grantOutcome == S3ExternalPrincipalGrantOutcomeUnsupported,
-		"unsupported_key":       strings.TrimSpace(observation.UnsupportedKey),
-		"source_statement_id":   strings.TrimSpace(observation.SourceStatementID),
-		"correlation_anchors":   anchors,
+	payload, err := factschema.EncodeS3ExternalPrincipalGrant(awsv1.S3ExternalPrincipalGrant{
+		AccountID:           observation.Boundary.AccountID,
+		Region:              observation.Boundary.Region,
+		ServiceKind:         boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID: boundaryValue(observation.Boundary.CollectorInstanceID),
+		BucketARN:           stringValuePtr(bucketARN),
+		BucketName:          stringValuePtr(bucketName),
+		PrincipalKind:       principalKind,
+		PrincipalValue:      principalValue,
+		PrincipalAccountID:  stringValuePtr(strings.TrimSpace(observation.PrincipalAccountID)),
+		PrincipalPartition:  stringValuePtr(strings.TrimSpace(observation.PrincipalPartition)),
+		PrincipalService:    stringValuePtr(strings.TrimSpace(observation.PrincipalService)),
+		GrantOutcome:        grantOutcome,
+		IsPublic:            observation.Public || principalKind == S3ExternalPrincipalKindPublic || grantOutcome == S3ExternalPrincipalGrantOutcomePublic,
+		IsCrossAccount:      observation.CrossAccount || grantOutcome == S3ExternalPrincipalGrantOutcomeCrossAccount,
+		IsServicePrincipal:  observation.ServicePrincipal || principalKind == S3ExternalPrincipalKindAWSService || grantOutcome == S3ExternalPrincipalGrantOutcomeAWSService,
+		IsUnsupported:       observation.Unsupported || principalKind == S3ExternalPrincipalKindUnsupported || grantOutcome == S3ExternalPrincipalGrantOutcomeUnsupported,
+		UnsupportedKey:      stringValuePtr(strings.TrimSpace(observation.UnsupportedKey)),
+		SourceStatementID:   stringValuePtr(strings.TrimSpace(observation.SourceStatementID)),
+		CorrelationAnchors:  anchors,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode s3_external_principal_grant payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,

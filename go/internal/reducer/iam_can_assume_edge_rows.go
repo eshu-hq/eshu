@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // IAM permission fact field constants. PR1 (#1134) emits these payload keys on
@@ -24,8 +25,8 @@ const (
 // the duplication is intentional so the reducer does not import the collector
 // package for two string constants.
 const (
-	iamResourceTypeRole = "aws_iam_role"
-	iamResourceTypeUser = "aws_iam_user"
+	iamResourceTypeRole = awsv1.ResourceTypeIAMRole
+	iamResourceTypeUser = awsv1.ResourceTypeIAMUser
 )
 
 // iamCanAssumeRelationshipType is the closed single-member relationship

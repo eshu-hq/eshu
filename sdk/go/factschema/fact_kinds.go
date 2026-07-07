@@ -15,26 +15,8 @@ package factschema
 // to its facts.*FactKind counterpart so a constant can never silently diverge
 // from its wire kind.
 const (
-	// FactKindAWSResource is the "aws_resource" fact kind.
-	FactKindAWSResource = "aws_resource"
-	// FactKindAWSRelationship is the "aws_relationship" fact kind.
-	FactKindAWSRelationship = "aws_relationship"
-	// FactKindAWSSecurityGroupRule is the "aws_security_group_rule" fact kind.
-	FactKindAWSSecurityGroupRule = "aws_security_group_rule"
-	// FactKindEC2InstancePosture is the "ec2_instance_posture" fact kind.
-	FactKindEC2InstancePosture = "ec2_instance_posture"
-	// FactKindS3BucketPosture is the "s3_bucket_posture" fact kind.
-	FactKindS3BucketPosture = "s3_bucket_posture"
-	// FactKindAWSIAMPermission is the "aws_iam_permission" fact kind.
-	FactKindAWSIAMPermission = "aws_iam_permission"
-	// FactKindAWSResourcePolicyPermission is the
-	// "aws_resource_policy_permission" fact kind.
-	FactKindAWSResourcePolicyPermission = "aws_resource_policy_permission"
-	// FactKindAWSIAMPrincipal is the "aws_iam_principal" fact kind.
-	FactKindAWSIAMPrincipal = "aws_iam_principal"
-
 	// The incident family fact-kind strings are DOTTED, unlike the underscore
-	// aws/iam kinds above. The dots are part of the wire kind the collector
+	// aws/iam kinds. The dots are part of the wire kind the collector
 	// already emits (go/internal/facts.IncidentRecordFactKind and siblings); the
 	// values here MATCH those wire strings byte-for-byte and never invent or
 	// rename the namespace. TestFactSchemaKindsMatchWireFactKinds (reducer side)

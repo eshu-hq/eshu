@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // S3BucketPostureObservation describes the derived security posture of one S3
@@ -89,42 +91,37 @@ func NewS3BucketPostureEnvelope(observation S3BucketPostureObservation) (facts.E
 		"region":     observation.Boundary.Region,
 	})
 	anchors := normalizedAnchors(nil, bucketARN, bucketName, s3PostureURI(bucketName))
-	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"bucket_arn":            bucketARN,
-		"bucket_name":           bucketName,
-
-		"block_public_acls":       boolOrNil(observation.BlockPublicACLs),
-		"ignore_public_acls":      boolOrNil(observation.IgnorePublicACLs),
-		"block_public_policy":     boolOrNil(observation.BlockPublicPolicy),
-		"restrict_public_buckets": boolOrNil(observation.RestrictPublicBuckets),
-		"block_public_access_all": boolOrNil(observation.BlockPublicAccessAllEnabled),
-
-		"default_encryption_enabled": observation.DefaultEncryptionEnabled,
-		"encryption_algorithms":      cloneStrings(observation.EncryptionAlgorithms),
-		"sse_kms_key_arn":            strings.TrimSpace(observation.SSEKMSKeyARN),
-		"bucket_key_enabled":         observation.BucketKeyEnabled,
-
-		"versioning_status":  strings.TrimSpace(observation.VersioningStatus),
-		"versioning_enabled": observation.VersioningEnabled,
-		"mfa_delete_enabled": observation.MFADeleteEnabled,
-
-		"object_ownership": cloneStrings(observation.ObjectOwnership),
-		"acl_disabled":     observation.ACLDisabled,
-
-		"logging_enabled":       observation.LoggingEnabled,
-		"logging_target_bucket": strings.TrimSpace(observation.LoggingTargetBucket),
-
-		"replication_enabled": observation.ReplicationEnabled,
-
-		"policy_present":              observation.PolicyPresent,
-		"policy_grants_public":        boolOrNil(observation.PolicyGrantsPublic),
-		"policy_grants_cross_account": boolOrNil(observation.PolicyGrantsCrossAccount),
-
-		"correlation_anchors": anchors,
+	payload, err := factschema.EncodeS3BucketPosture(awsv1.S3BucketPosture{
+		AccountID:                observation.Boundary.AccountID,
+		Region:                   observation.Boundary.Region,
+		ServiceKind:              boundaryValue(observation.Boundary.ServiceKind),
+		CollectorInstanceID:      boundaryValue(observation.Boundary.CollectorInstanceID),
+		BucketARN:                stringValuePtr(bucketARN),
+		BucketName:               stringValuePtr(bucketName),
+		LoggingTargetBucket:      stringValuePtr(strings.TrimSpace(observation.LoggingTargetBucket)),
+		PolicyPresent:            boolValuePtr(observation.PolicyPresent),
+		PolicyGrantsPublic:       observation.PolicyGrantsPublic,
+		BlockPublicAccessAll:     observation.BlockPublicAccessAllEnabled,
+		IgnorePublicACLs:         observation.IgnorePublicACLs,
+		RestrictPublicBuckets:    observation.RestrictPublicBuckets,
+		BlockPublicACLs:          observation.BlockPublicACLs,
+		BlockPublicPolicy:        observation.BlockPublicPolicy,
+		DefaultEncryptionEnabled: boolValuePtr(observation.DefaultEncryptionEnabled),
+		EncryptionAlgorithms:     cloneStrings(observation.EncryptionAlgorithms),
+		SSEKMSKeyARN:             stringValuePtr(strings.TrimSpace(observation.SSEKMSKeyARN)),
+		BucketKeyEnabled:         boolValuePtr(observation.BucketKeyEnabled),
+		VersioningStatus:         stringValuePtr(strings.TrimSpace(observation.VersioningStatus)),
+		VersioningEnabled:        boolValuePtr(observation.VersioningEnabled),
+		MFADeleteEnabled:         boolValuePtr(observation.MFADeleteEnabled),
+		ObjectOwnership:          cloneStrings(observation.ObjectOwnership),
+		ACLDisabled:              boolValuePtr(observation.ACLDisabled),
+		LoggingEnabled:           boolValuePtr(observation.LoggingEnabled),
+		ReplicationEnabled:       boolValuePtr(observation.ReplicationEnabled),
+		PolicyGrantsCrossAccount: observation.PolicyGrantsCrossAccount,
+		CorrelationAnchors:       anchors,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode s3_bucket_posture payload: %w", err)
 	}
 	return newEnvelope(
 		observation.Boundary,

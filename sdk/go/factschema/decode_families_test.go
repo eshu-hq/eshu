@@ -85,6 +85,11 @@ func requiredFieldValue(t *testing.T, typ reflect.Type, jsonName string, nonEmpt
 				return true
 			}
 			return false
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if nonEmpty {
+				return 1
+			}
+			return 0
 		default:
 			if nonEmpty {
 				return "x"
@@ -124,14 +129,29 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindAWSRelationship:
 		_, err := DecodeAWSRelationship(env)
 		return err
+	case FactKindAWSDNSRecord:
+		_, err := DecodeAWSDNSRecord(env)
+		return err
+	case FactKindAWSImageReference:
+		_, err := DecodeAWSImageReference(env)
+		return err
 	case FactKindAWSSecurityGroupRule:
 		_, err := DecodeAWSSecurityGroupRule(env)
+		return err
+	case FactKindAWSWarning:
+		_, err := DecodeAWSWarning(env)
 		return err
 	case FactKindEC2InstancePosture:
 		_, err := DecodeEC2InstancePosture(env)
 		return err
+	case FactKindRDSInstancePosture:
+		_, err := DecodeRDSInstancePosture(env)
+		return err
 	case FactKindS3BucketPosture:
 		_, err := DecodeS3BucketPosture(env)
+		return err
+	case FactKindS3ExternalPrincipalGrant:
+		_, err := DecodeS3ExternalPrincipalGrant(env)
 		return err
 	case FactKindAWSIAMPermission:
 		_, err := DecodeAWSIAMPermission(env)
@@ -520,9 +540,14 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 var allDecodedKinds = []string{
 	FactKindAWSResource,
 	FactKindAWSRelationship,
+	FactKindAWSDNSRecord,
+	FactKindAWSImageReference,
 	FactKindAWSSecurityGroupRule,
+	FactKindAWSWarning,
 	FactKindEC2InstancePosture,
+	FactKindRDSInstancePosture,
 	FactKindS3BucketPosture,
+	FactKindS3ExternalPrincipalGrant,
 	FactKindAWSIAMPermission,
 	FactKindAWSResourcePolicyPermission,
 	FactKindAWSIAMPrincipal,
@@ -749,12 +774,22 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeAWSResource(env)
 			case FactKindAWSRelationship:
 				_, err = DecodeAWSRelationship(env)
+			case FactKindAWSDNSRecord:
+				_, err = DecodeAWSDNSRecord(env)
+			case FactKindAWSImageReference:
+				_, err = DecodeAWSImageReference(env)
 			case FactKindAWSSecurityGroupRule:
 				_, err = DecodeAWSSecurityGroupRule(env)
+			case FactKindAWSWarning:
+				_, err = DecodeAWSWarning(env)
 			case FactKindEC2InstancePosture:
 				_, err = DecodeEC2InstancePosture(env)
+			case FactKindRDSInstancePosture:
+				_, err = DecodeRDSInstancePosture(env)
 			case FactKindS3BucketPosture:
 				_, err = DecodeS3BucketPosture(env)
+			case FactKindS3ExternalPrincipalGrant:
+				_, err = DecodeS3ExternalPrincipalGrant(env)
 			case FactKindAWSIAMPermission:
 				_, err = DecodeAWSIAMPermission(env)
 			case FactKindAWSResourcePolicyPermission:
