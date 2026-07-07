@@ -363,6 +363,12 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindAttestationSLSAProvenance:
 		_, err := DecodeAttestationSLSAProvenance(env)
 		return err
+	case FactKindScannerWorkerAnalysis:
+		_, err := DecodeScannerWorkerAnalysis(env)
+		return err
+	case FactKindScannerWorkerWarning:
+		_, err := DecodeScannerWorkerWarning(env)
+		return err
 	case FactKindVulnerabilityCVE:
 		_, err := DecodeVulnerabilityCVE(env)
 		return err
@@ -687,6 +693,8 @@ var allDecodedKinds = []string{
 	FactKindAttestationStatement,
 	FactKindAttestationSignatureVerification,
 	FactKindAttestationSLSAProvenance,
+	FactKindScannerWorkerAnalysis,
+	FactKindScannerWorkerWarning,
 	FactKindVulnerabilityCVE,
 	FactKindVulnerabilityAffectedPackage,
 	FactKindVulnerabilityAffectedProduct,
@@ -1022,6 +1030,10 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeAttestationSignatureVerification(env)
 			case FactKindAttestationSLSAProvenance:
 				_, err = DecodeAttestationSLSAProvenance(env)
+			case FactKindScannerWorkerAnalysis:
+				_, err = DecodeScannerWorkerAnalysis(env)
+			case FactKindScannerWorkerWarning:
+				_, err = DecodeScannerWorkerWarning(env)
 			case FactKindVulnerabilityCVE:
 				_, err = DecodeVulnerabilityCVE(env)
 			case FactKindVulnerabilityAffectedPackage:

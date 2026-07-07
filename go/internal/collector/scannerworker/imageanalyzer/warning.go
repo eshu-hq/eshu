@@ -11,6 +11,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 )
 
 func newUnsupportedWarning(
@@ -18,7 +20,7 @@ func newUnsupportedWarning(
 	target TargetConfig,
 	snapshot Snapshot,
 	observedAt time.Time,
-) facts.Envelope {
+) (facts.Envelope, error) {
 	stableKey := facts.StableID(facts.ScannerWorkerWarningFactKind, map[string]any{
 		"analyzer":            string(input.Analyzer),
 		"target_kind":         string(input.Target.Kind),
@@ -26,22 +28,25 @@ func newUnsupportedWarning(
 		"generation_id":       input.GenerationID,
 		"reason":              warningReasonUnsupported,
 	})
-	payload := map[string]any{
-		"analyzer":            string(input.Analyzer),
-		"target_kind":         string(input.Target.Kind),
-		"target_locator_hash": input.Target.LocatorHash,
-		"reason":              warningReasonUnsupported,
-		"warning_class":       "scanner_worker_warning",
-		"analysis_status":     analysisStatusNotScanned,
-		"coverage_status":     coverageStatusUnsupported,
-		"image_reference":     strings.TrimSpace(target.ImageReference),
-		"image_digest":        strings.TrimSpace(target.ImageDigest),
-		"evidence_source":     evidenceSourceForWarning(target, snapshot),
-		"extraction_reason":   firstNonBlank(snapshot.ExtractionReason, extractionUnsupported),
+	payload, err := factschema.EncodeScannerWorkerWarning(scannerworkerv1.Warning{
+		Analyzer:          string(input.Analyzer),
+		TargetKind:        string(input.Target.Kind),
+		TargetLocatorHash: input.Target.LocatorHash,
+		Reason:            warningReasonUnsupported,
+		WarningClass:      "scanner_worker_warning",
+		AnalysisStatus:    analysisStatusNotScanned,
+		CoverageStatus:    coverageStatusUnsupported,
+		ImageReference:    stringPtrAlways(strings.TrimSpace(target.ImageReference)),
+		ImageDigest:       stringPtrAlways(strings.TrimSpace(target.ImageDigest)),
+		EvidenceSource:    stringPtrAlways(evidenceSourceForWarning(target, snapshot)),
+		ExtractionReason:  stringPtrAlways(firstNonBlank(snapshot.ExtractionReason, extractionUnsupported)),
+		Distro:            stringPtrIfPresent(string(firstNonBlankDistro(snapshot.Distro, target.Distro))),
+		DistroVersion:     stringPtrIfPresent(firstNonBlank(snapshot.DistroVersion, target.DistroVersion)),
+		PackageManager:    stringPtrIfPresent(string(firstNonBlankPackageManager(snapshot.PackageManager, target.PackageManager))),
+	})
+	if err != nil {
+		return facts.Envelope{}, err
 	}
-	addOptionalPayloadValue(payload, "distro", string(firstNonBlankDistro(snapshot.Distro, target.Distro)))
-	addOptionalPayloadValue(payload, "distro_version", firstNonBlank(snapshot.DistroVersion, target.DistroVersion))
-	addOptionalPayloadValue(payload, "package_manager", string(firstNonBlankPackageManager(snapshot.PackageManager, target.PackageManager)))
 	return facts.Envelope{
 		FactID:           facts.ScannerWorkerWarningFactKind + ":" + stableKey,
 		ScopeID:          input.Target.ScopeID,
@@ -60,7 +65,7 @@ func newUnsupportedWarning(
 			GenerationID: input.GenerationID,
 			FactKey:      stableKey,
 		},
-	}
+	}, nil
 }
 
 func evidenceSourceForWarning(target TargetConfig, snapshot Snapshot) string {
@@ -71,13 +76,6 @@ func evidenceSourceForWarning(target TargetConfig, snapshot Snapshot) string {
 		return string(EvidenceSourceRootFS)
 	}
 	return string(EvidenceSourceLayer)
-}
-
-func addOptionalPayloadValue(payload map[string]any, key string, value string) {
-	if value == "" {
-		return
-	}
-	payload[key] = value
 }
 
 func firstNonBlankPackageManager(

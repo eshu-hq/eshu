@@ -89,18 +89,18 @@ func (a *Analyzer) Analyze(
 	snapshot, usage, err := a.snapshot(ctx, target, input.Limits)
 	if err != nil {
 		if errors.Is(err, errUnsupportedTarget) {
-			return a.unsupportedResult(input, target, snapshot, usage), nil
+			return a.unsupportedResult(input, target, snapshot, usage)
 		}
 		return scannerworker.AnalyzerResult{}, analyzerFailure(err, usage)
 	}
 	if strings.TrimSpace(snapshot.ImageDigest) == "" {
 		snapshot.ExtractionReason = extractionMissingDigest
-		return a.unsupportedResult(input, target, snapshot, usage), nil
+		return a.unsupportedResult(input, target, snapshot, usage)
 	}
 	envelopes, resultCount, err := a.envelopes(input, snapshot)
 	if err != nil {
 		if errors.Is(err, errUnsupportedTarget) {
-			return a.unsupportedResult(input, target, snapshot, usage), nil
+			return a.unsupportedResult(input, target, snapshot, usage)
 		}
 		return scannerworker.AnalyzerResult{}, analyzerFailure(err, usage)
 	}
@@ -111,7 +111,10 @@ func (a *Analyzer) Analyze(
 			errFactLimitExceeded,
 		)
 	}
-	analysis := newAnalysisFact(input, target, snapshot, resultCount, len(envelopes)+1, a.now().UTC())
+	analysis, err := newAnalysisFact(input, target, snapshot, resultCount, len(envelopes)+1, a.now().UTC())
+	if err != nil {
+		return scannerworker.AnalyzerResult{}, analyzerFailure(err, usage)
+	}
 	envelopes = append([]facts.Envelope{analysis}, envelopes...)
 	if len(envelopes) > input.Limits.MaxFacts {
 		return scannerworker.AnalyzerResult{}, scannerworker.NewTerminalAnalyzerFailure(
@@ -242,8 +245,11 @@ func (a *Analyzer) unsupportedResult(
 	target TargetConfig,
 	snapshot Snapshot,
 	usage scannerworker.ResourceUsage,
-) scannerworker.AnalyzerResult {
-	fact := newUnsupportedWarning(input, target, snapshot, a.now().UTC())
+) (scannerworker.AnalyzerResult, error) {
+	fact, err := newUnsupportedWarning(input, target, snapshot, a.now().UTC())
+	if err != nil {
+		return scannerworker.AnalyzerResult{}, analyzerFailure(err, usage)
+	}
 	return scannerworker.AnalyzerResult{
 		Output: scannerworker.FactOutput{
 			TargetCount: 1,
@@ -251,7 +257,7 @@ func (a *Analyzer) unsupportedResult(
 			Facts:       []facts.Envelope{fact},
 		},
 		Usage: usage,
-	}
+	}, nil
 }
 
 func addImageEvidence(payload map[string]any, snapshot Snapshot) {
@@ -259,6 +265,24 @@ func addImageEvidence(payload map[string]any, snapshot Snapshot) {
 	payload["image_digest"] = snapshot.ImageDigest
 	payload["evidence_source"] = string(snapshot.EvidenceSource)
 	payload["extraction_reason"] = snapshot.ExtractionReason
+}
+
+func stringPtrIfPresent(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// stringPtrAlways returns a non-nil pointer to value so an optional contract
+// field is emitted even when value is empty. The image analyzer uses it for the
+// warning's image_reference, image_digest, evidence_source, and extraction_reason
+// so its wire shape stays byte-identical to the pre-contract required-string
+// payload: those keys are always present (image_reference/image_digest may be
+// empty for a validated rootfs/layer-only target that carries no image
+// identity). Only the non-image WarningAnalyzer fallback omits them, via nil.
+func stringPtrAlways(value string) *string {
+	return &value
 }
 
 func analyzerFailure(err error, usage scannerworker.ResourceUsage) error {

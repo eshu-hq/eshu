@@ -1,0 +1,81 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/scannerworker/v1/warning.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "analysis_status": {
+      "type": "string"
+    },
+    "analyzer": {
+      "type": "string"
+    },
+    "coverage_status": {
+      "type": "string"
+    },
+    "distro": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "distro_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "extraction_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_manager": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "target_kind": {
+      "type": "string"
+    },
+    "target_locator_hash": {
+      "type": "string"
+    },
+    "warning_class": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "analyzer",
+    "target_kind",
+    "target_locator_hash",
+    "reason",
+    "warning_class",
+    "analysis_status",
+    "coverage_status"
+  ],
+  "title": "Eshu scanner_worker.warning Payload (schema version 1)",
+  "type": "object"
+}

@@ -1,0 +1,12 @@
+{
+  "analyzer": "image_unpacking",
+  "target_kind": "image",
+  "reason": "image_analyzer_unsupported_target",
+  "warning_class": "scanner_worker_warning",
+  "analysis_status": "not_scanned",
+  "coverage_status": "unsupported",
+  "image_reference": "ghcr.io/eshu-hq/demo:latest",
+  "image_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "evidence_source": "layer",
+  "extraction_reason": "unsupported_image"
+}

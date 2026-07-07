@@ -203,6 +203,16 @@ const (
 	// FactKindAttestationSLSAProvenance is the "attestation.slsa_provenance"
 	// fact kind. Typed but not yet consumed or emitted (sbom/v1/doc.go).
 	FactKindAttestationSLSAProvenance = "attestation.slsa_provenance"
+	// The scanner_worker family fact-kind strings are DOTTED, like the
+	// sbom_attestation and vulnerability families. The dots are part of the
+	// wire kind the scanner-worker image analyzer already emits
+	// (go/internal/facts.ScannerWorker*FactKind); these constants duplicate
+	// those wire strings because this module cannot import go/internal/facts.
+
+	// FactKindScannerWorkerAnalysis is the "scanner_worker.analysis" fact kind.
+	FactKindScannerWorkerAnalysis = "scanner_worker.analysis"
+	// FactKindScannerWorkerWarning is the "scanner_worker.warning" fact kind.
+	FactKindScannerWorkerWarning = "scanner_worker.warning"
 	// The vulnerability family fact-kind strings are DOTTED, like the incident
 	// family. The dots are part of the wire kind the collector already emits
 	// (go/internal/facts.Vulnerability*FactKind); the values here MATCH those

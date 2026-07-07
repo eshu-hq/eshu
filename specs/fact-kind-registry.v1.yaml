@@ -302,6 +302,9 @@ families:
     read_surface: "GET /api/v0/supply-chain/impact/findings"
     truth_profile: fixture_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      scanner_worker.analysis: "sdk/go/factschema/schema/scanner_worker.analysis.v1.schema.json"
+      scanner_worker.warning: "sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json"
     kinds: [scanner_worker.analysis, scanner_worker.warning]
   secrets_iam:
     lifecycle_owner: go/internal/facts

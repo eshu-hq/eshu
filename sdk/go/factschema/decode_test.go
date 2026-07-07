@@ -28,6 +28,7 @@ import (
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
@@ -366,6 +367,8 @@ var payloadContracts = []struct {
 	{FactKindAttestationStatement, "attestation.statement.v1.schema.json", reflect.TypeOf(sbomv1.Statement{})},
 	{FactKindAttestationSignatureVerification, "attestation.signature_verification.v1.schema.json", reflect.TypeOf(sbomv1.SignatureVerification{})},
 	{FactKindAttestationSLSAProvenance, "attestation.slsa_provenance.v1.schema.json", reflect.TypeOf(sbomv1.SLSAProvenance{})},
+	{FactKindScannerWorkerAnalysis, "scanner_worker.analysis.v1.schema.json", reflect.TypeOf(scannerworkerv1.Analysis{})},
+	{FactKindScannerWorkerWarning, "scanner_worker.warning.v1.schema.json", reflect.TypeOf(scannerworkerv1.Warning{})},
 	{FactKindVulnerabilityCVE, "vulnerability.cve.v1.schema.json", reflect.TypeOf(vulnerabilityv1.CVE{})},
 	{FactKindVulnerabilityAffectedPackage, "vulnerability.affected_package.v1.schema.json", reflect.TypeOf(vulnerabilityv1.AffectedPackage{})},
 	{FactKindVulnerabilityAffectedProduct, "vulnerability.affected_product.v1.schema.json", reflect.TypeOf(vulnerabilityv1.AffectedProduct{})},
