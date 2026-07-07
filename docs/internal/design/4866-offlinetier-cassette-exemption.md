@@ -50,7 +50,12 @@ disposition instead of forking either change inline into #4797.
 **Exemption.** `replay/offlinetier`'s cassette-to-materialization mapping
 stays a raw, collector-agnostic payload read. It is not migrated to
 `factschema.Decode*`, and the future W3a raw-`.Payload` ratchet gate
-(#4800) must carry a named allowlist entry for it rather than flag it.
+(#4800) must carry a named allowlist entry for it rather than flag it. The
+allowlist is scoped to the two files that hold the cassette reads,
+`go/internal/replay/offlinetier/materialization.go` and `delta.go`, not to a
+list of function names, because the raw `payload[key]` access is spread
+across the row-builders, the shared helpers they delegate to, and one read
+site in `delta.go` (section 5 enumerates all of them).
 
 This corresponds to option 3 of the three dispositions #4866 posed: document
 that the tier's cassette mapping is deliberately raw and collector-agnostic,
@@ -104,25 +109,41 @@ them has an `sdk/go/factschema` family or a real collector producer.
 | `factKindGitlabJob` | `git.gitlab_job` | `gitlabJobEntityRowFromPayload` -> `projector.EntityRow` |
 
 `delta.go`'s generation-diffing logic (`DeltaMaterializationFromGenerations`)
-builds on the same `MaterializationFromGeneration` seam and does not add any
-further raw payload reads beyond these five kinds.
+builds gen1 and gen2 on the same `materializationFromEnvelopes` seam, so its
+surviving-fact reads go through the same five row-builders. It also has one
+raw read of its own: while collecting tombstoned directories it reads
+`env.Payload["path"].(string)` directly (`delta.go:84`). That read is against
+the same `git.directory` pseudo-kind, but it is a distinct site outside the
+five row-builders, so it is an additional exempt raw read this ADR covers
+(see section 5).
 
 ## 5. W3a ratchet gate requirement
 
 #4800 (W3a) has not landed yet; this ADR does not build that gate. When W3a
 adds the raw-`.Payload` convention ratchet (the CI check that fails on raw
 `env.Payload[...]`/`payload[...]` access outside `factschema_decode*.go`),
-it MUST carry a named allowlist entry for
-`go/internal/replay/offlinetier/*.go` covering the five row-builder
-functions in section 4, rather than requiring this package to route through
-`factschema.Decode*`.
+it MUST carry a named allowlist entry scoped to the two cassette-reading
+files `go/internal/replay/offlinetier/materialization.go` and
+`go/internal/replay/offlinetier/delta.go`, rather than requiring this package
+to route through `factschema.Decode*`. Scoping by file rather than by
+function name matters because the raw reads do not all live in the five
+row-builders. The current raw-read sites the allowlist must cover are:
 
-The allowlist entry MUST be scoped to this package and MUST NOT be a
-wildcard exemption that would also cover a future non-cassette read added to
-`replay/offlinetier`. If a later change to this package reads a real,
-`sdk/go/factschema`-governed fact kind, that read is not covered by this
-exemption and must go through the typed decode seam like any other W2
-consumer.
+- the five row-builders in `materialization.go`
+  (`repositoryRowFromPayload`, `directoryRowFromPayload`, `fileRowFromPayload`,
+  `gitlabPipelineEntityRowFromPayload`, `gitlabJobEntityRowFromPayload`), which
+  branch on the five pseudo-kinds;
+- the shared payload helpers those row-builders delegate the actual
+  `payload[key]` access to, `requireString`, `optionalString`, and
+  `requireInt` in `materialization.go`; and
+- the tombstone read `env.Payload["path"].(string)` in
+  `DeltaMaterializationFromGenerations` (`delta.go:84`).
+
+The allowlist entry MUST stay confined to these two files and MUST NOT be a
+wildcard or package-wide exemption. If a later change adds a read against a
+real, `sdk/go/factschema`-governed fact kind, that read is not covered by
+this exemption and must go through the typed decode seam like any other W2
+consumer, even if it lands in one of these two files.
 
 ## 6. Consequences
 
