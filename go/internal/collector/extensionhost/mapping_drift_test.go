@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -229,8 +230,38 @@ func TestExtensionHostMappingPopulatesEveryEnvelopeField(t *testing.T) {
 		if role := envelopeMappedFields[field.Name]; role == "" {
 			t.Fatalf("envelope field %s has no role in envelopeMappedFields; the name lock and this test disagree", field.Name)
 		}
-		if value.Field(i).IsZero() {
-			t.Fatalf("envelope field %s (%s) is zero after mapping a fully-populated fact; the mapping silently drops it", field.Name, envelopeMappedFields[field.Name])
+	}
+
+	// Assert every mapped scalar landed non-zero, recursing into nested struct
+	// fields (the SourceRef -> facts.Ref submap) so a single dropped subfield —
+	// e.g. SourceRecordID left empty while SourceURI stays set — fails here.
+	// reflect.Value.IsZero on a struct is true only when every subfield is zero,
+	// so a top-level SourceRef check alone would miss a partial drop; the name
+	// lock only checks field names exist, not that each is copied.
+	assertMappedFieldsNonZero(t, value, "")
+}
+
+// assertMappedFieldsNonZero fails if any exported field reachable from v is its
+// zero value, descending one level into nested structs so a dropped subfield in
+// the SourceRef -> facts.Ref submap is caught. time.Time is treated as a leaf: a
+// valid UTC timestamp carries a nil location, so recursing into its unexported
+// fields would spuriously read as partly zero.
+func assertMappedFieldsNonZero(t *testing.T, v reflect.Value, path string) {
+	t.Helper()
+	typ := v.Type()
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		fieldValue := v.Field(i)
+		name := path + field.Name
+		if fieldValue.Kind() == reflect.Struct && fieldValue.Type() != reflect.TypeOf(time.Time{}) {
+			assertMappedFieldsNonZero(t, fieldValue, name+".")
+			continue
+		}
+		if fieldValue.IsZero() {
+			t.Fatalf("mapped field %s is zero after mapping a fully-populated fact; the mapping silently drops it", name)
 		}
 	}
 }
