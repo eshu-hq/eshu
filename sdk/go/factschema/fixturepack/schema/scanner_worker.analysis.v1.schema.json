@@ -1,0 +1,79 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/scannerworker/v1/analysis.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "analysis_status": {
+      "type": "string"
+    },
+    "analyzer": {
+      "type": "string"
+    },
+    "configured_image_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "coverage_status": {
+      "type": "string"
+    },
+    "distro": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "distro_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_source": {
+      "type": "string"
+    },
+    "extraction_reason": {
+      "type": "string"
+    },
+    "fact_count": {
+      "type": "integer"
+    },
+    "image_digest": {
+      "type": "string"
+    },
+    "image_reference": {
+      "type": "string"
+    },
+    "package_manager": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "result_count": {
+      "type": "integer"
+    },
+    "target_kind": {
+      "type": "string"
+    },
+    "target_locator_hash": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "analyzer",
+    "target_kind",
+    "target_locator_hash",
+    "analysis_status",
+    "coverage_status",
+    "result_count",
+    "fact_count",
+    "image_reference",
+    "image_digest",
+    "evidence_source",
+    "extraction_reason"
+  ],
+  "title": "Eshu scanner_worker.analysis Payload (schema version 1)",
+  "type": "object"
+}

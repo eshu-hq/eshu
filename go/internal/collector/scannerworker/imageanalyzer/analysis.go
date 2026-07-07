@@ -10,6 +10,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 )
 
 const (
@@ -26,7 +28,7 @@ func newAnalysisFact(
 	resultCount int,
 	factCount int,
 	observedAt time.Time,
-) facts.Envelope {
+) (facts.Envelope, error) {
 	if observedAt.IsZero() {
 		observedAt = input.ObservedAt.UTC()
 	}
@@ -38,23 +40,26 @@ func newAnalysisFact(
 		"analysis_status":     analysisStatusCompleted,
 		"image_digest":        strings.TrimSpace(snapshot.ImageDigest),
 	})
-	payload := map[string]any{
-		"analyzer":            string(input.Analyzer),
-		"target_kind":         string(input.Target.Kind),
-		"target_locator_hash": input.Target.LocatorHash,
-		"analysis_status":     analysisStatusCompleted,
-		"coverage_status":     coverageStatusScanned,
-		"result_count":        resultCount,
-		"fact_count":          factCount,
-		"image_reference":     strings.TrimSpace(snapshot.ImageReference),
-		"image_digest":        strings.TrimSpace(snapshot.ImageDigest),
-		"evidence_source":     string(snapshot.EvidenceSource),
-		"extraction_reason":   snapshot.ExtractionReason,
+	payload, err := factschema.EncodeScannerWorkerAnalysis(scannerworkerv1.Analysis{
+		Analyzer:                 string(input.Analyzer),
+		TargetKind:               string(input.Target.Kind),
+		TargetLocatorHash:        input.Target.LocatorHash,
+		AnalysisStatus:           analysisStatusCompleted,
+		CoverageStatus:           coverageStatusScanned,
+		ResultCount:              resultCount,
+		FactCount:                factCount,
+		ImageReference:           strings.TrimSpace(snapshot.ImageReference),
+		ImageDigest:              strings.TrimSpace(snapshot.ImageDigest),
+		EvidenceSource:           string(snapshot.EvidenceSource),
+		ExtractionReason:         snapshot.ExtractionReason,
+		Distro:                   stringPtrIfPresent(string(snapshot.Distro)),
+		DistroVersion:            stringPtrIfPresent(snapshot.DistroVersion),
+		PackageManager:           stringPtrIfPresent(string(snapshot.PackageManager)),
+		ConfiguredImageReference: stringPtrIfPresent(strings.TrimSpace(target.ImageReference)),
+	})
+	if err != nil {
+		return facts.Envelope{}, err
 	}
-	addOptionalPayloadValue(payload, "distro", string(snapshot.Distro))
-	addOptionalPayloadValue(payload, "distro_version", snapshot.DistroVersion)
-	addOptionalPayloadValue(payload, "package_manager", string(snapshot.PackageManager))
-	addOptionalPayloadValue(payload, "configured_image_reference", strings.TrimSpace(target.ImageReference))
 	return facts.Envelope{
 		FactID:           facts.ScannerWorkerAnalysisFactKind + ":" + stableKey,
 		ScopeID:          input.Target.ScopeID,
@@ -73,5 +78,5 @@ func newAnalysisFact(
 			GenerationID: input.GenerationID,
 			FactKey:      stableKey,
 		},
-	}
+	}, nil
 }

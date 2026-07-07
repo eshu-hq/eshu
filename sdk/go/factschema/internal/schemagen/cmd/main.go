@@ -134,6 +134,10 @@ func run() error {
 		{name: "attestation.statement.v1.schema.json", generate: schemagen.AttestationStatementSchema},
 		{name: "attestation.signature_verification.v1.schema.json", generate: schemagen.AttestationSignatureVerificationSchema},
 		{name: "attestation.slsa_provenance.v1.schema.json", generate: schemagen.AttestationSLSAProvenanceSchema},
+		// The scanner_worker family fact kinds are DOTTED and emitted by the
+		// image analyzer as supply-chain coverage/warning evidence.
+		{name: "scanner_worker.analysis.v1.schema.json", generate: schemagen.ScannerWorkerAnalysisSchema},
+		{name: "scanner_worker.warning.v1.schema.json", generate: schemagen.ScannerWorkerWarningSchema},
 		// The vulnerability family fact kinds are DOTTED (like the incident
 		// family). The schema filename is the dotted kind plus the version
 		// suffix; a dot in a filename is valid and needs no transform.

@@ -72,6 +72,8 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 		{"attestation.statement", factschema.FactKindAttestationStatement, facts.AttestationStatementFactKind},
 		{"attestation.signature_verification", factschema.FactKindAttestationSignatureVerification, facts.AttestationSignatureVerificationFactKind},
 		{"attestation.slsa_provenance", factschema.FactKindAttestationSLSAProvenance, facts.AttestationSLSAProvenanceFactKind},
+		{"scanner_worker.analysis", factschema.FactKindScannerWorkerAnalysis, facts.ScannerWorkerAnalysisFactKind},
+		{"scanner_worker.warning", factschema.FactKindScannerWorkerWarning, facts.ScannerWorkerWarningFactKind},
 		{"ci.run", factschema.FactKindCICDRun, facts.CICDRunFactKind},
 		{"ci.artifact", factschema.FactKindCICDArtifact, facts.CICDArtifactFactKind},
 		{"ci.environment_observation", factschema.FactKindCICDEnvironmentObservation, facts.CICDEnvironmentObservationFactKind},

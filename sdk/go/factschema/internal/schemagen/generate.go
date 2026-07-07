@@ -23,6 +23,7 @@ import (
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
@@ -873,6 +874,26 @@ const AttestationSLSAProvenanceSchemaID = schemaBaseID + "sbom/v1/slsa_provenanc
 // sbomv1.SLSAProvenance.
 func AttestationSLSAProvenanceSchema() ([]byte, error) {
 	return reflectSchema(AttestationSLSAProvenanceSchemaID, "Eshu attestation.slsa_provenance Payload (schema version 1)", &sbomv1.SLSAProvenance{})
+}
+
+// ScannerWorkerAnalysisSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "scanner_worker.analysis" payload.
+const ScannerWorkerAnalysisSchemaID = schemaBaseID + "scannerworker/v1/analysis.schema.json"
+
+// ScannerWorkerAnalysisSchema returns the JSON Schema bytes for
+// scannerworkerv1.Analysis.
+func ScannerWorkerAnalysisSchema() ([]byte, error) {
+	return reflectSchema(ScannerWorkerAnalysisSchemaID, "Eshu scanner_worker.analysis Payload (schema version 1)", &scannerworkerv1.Analysis{})
+}
+
+// ScannerWorkerWarningSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "scanner_worker.warning" payload.
+const ScannerWorkerWarningSchemaID = schemaBaseID + "scannerworker/v1/warning.schema.json"
+
+// ScannerWorkerWarningSchema returns the JSON Schema bytes for
+// scannerworkerv1.Warning.
+func ScannerWorkerWarningSchema() ([]byte, error) {
+	return reflectSchema(ScannerWorkerWarningSchemaID, "Eshu scanner_worker.warning Payload (schema version 1)", &scannerworkerv1.Warning{})
 }
 
 // VulnerabilityCVESchemaID is the checked-in JSON Schema $id for the

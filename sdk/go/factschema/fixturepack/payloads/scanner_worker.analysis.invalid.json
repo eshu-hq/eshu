@@ -1,0 +1,12 @@
+{
+  "analyzer": "image_unpacking",
+  "target_kind": "image",
+  "target_locator_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "analysis_status": "completed",
+  "coverage_status": "scanned",
+  "fact_count": 3,
+  "image_reference": "ghcr.io/eshu-hq/demo@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "image_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "evidence_source": "rootfs",
+  "extraction_reason": "package_database_found"
+}

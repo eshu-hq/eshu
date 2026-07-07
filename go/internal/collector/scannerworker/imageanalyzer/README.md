@@ -74,12 +74,26 @@ layer evidence, missing package databases, and missing image digests emit
 `scanner_worker.warning` facts with bounded status and `extraction_reason`
 fields instead of silent clean output.
 
-No-Regression Evidence: `go test ./internal/collector/scannerworker/imageanalyzer ./internal/collector/ospackagevulnerability/osruntime ./internal/collector/scannerworker ./cmd/scanner-worker -count=1` covers layer/rootfs extraction, unsupported evidence, resource limits, output validation, and runtime wiring.
+No-Regression Evidence: #4790 keeps the scanner-worker fact cardinality and
+status semantics unchanged while moving `scanner_worker.analysis` and
+`scanner_worker.warning` payload construction from local maps to
+`factschema.EncodeScannerWorker*`. Baseline was the pre-change raw-map builder:
+one analysis fact per supported image target, one warning fact per unsupported
+target, unchanged stable-key inputs, unchanged `fact_count` calculation, and
+no queue/work-item claim changes. After measurement ran the same image-analyzer
+input shape through the typed seam: `go test ./internal/collector/scannerworker/imageanalyzer -count=1`,
+`go test ./... -count=1` from `sdk/go/factschema`, and `make pre-pr` all
+passed locally on July 7, 2026. Backend/version is not applicable because this
+package writes no graph, SQL, or backend query state; terminal source-fact
+counts remain the envelope counts above and are still reported through the
+scanner-worker host.
 
-Observability Evidence: the analyzer uses existing scanner-worker claim,
-retry, dead-letter, facts-emitted, queue-wait, scan-duration, target-count,
-result-count, CPU, memory, and private pprof signals; no new metric dimensions
-or labels are introduced.
+No-Observability-Change: #4790 adds no new scanner-worker metrics, spans, log
+fields, pprof labels, queue status fields, or telemetry dimensions. The
+analyzer still relies on the hosted scanner-worker claim, retry, dead-letter,
+facts-emitted, queue-wait, scan-duration, target-count, result-count, CPU,
+memory, and private pprof signals; the typed encoder only changes the local
+construction seam for the same payload keys.
 
 ## Related docs
 
