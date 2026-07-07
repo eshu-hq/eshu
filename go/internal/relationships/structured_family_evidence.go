@@ -5,6 +5,15 @@ package relationships
 
 import "strings"
 
+// TODO(#4799 W2f / #4750): the discoverStructured*Evidence extractors below read
+// parsed_file_data inner keys (helm_charts, helm_values, argocd_applications,
+// argocd_applicationsets) raw. parsed_file_data is codegraphv1.File.ParsedFileData
+// (an open map[string]any), and these inner keys are not yet typed in
+// sdk/go/factschema/decode_parsed_file_data.go — only the #4750 S1 batch
+// (gomod_state, function_calls_scip, dockerfile_stages, pipeline_calls,
+// dead_code_file_root_kinds) has typed accessors. Route these reads through typed
+// DecodeParsedFileData* accessors once #4750 types these inner keys.
+
 func discoverStructuredHelmEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,

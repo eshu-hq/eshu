@@ -200,6 +200,13 @@ func discoverTerraformEvidence(
 	return evidence
 }
 
+// TODO(#4799 W2f / #4750): discoverStructuredTerraformEvidence reads
+// parsed_file_data inner keys (terraform_modules, terragrunt_dependencies) raw.
+// parsed_file_data is codegraphv1.File.ParsedFileData (an open map[string]any),
+// and these inner keys are not yet typed in
+// sdk/go/factschema/decode_parsed_file_data.go (only the #4750 S1 batch has typed
+// accessors). Route these reads through typed DecodeParsedFileData* accessors once
+// #4750 types these inner keys.
 func discoverStructuredTerraformEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,

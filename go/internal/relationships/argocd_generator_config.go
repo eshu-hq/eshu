@@ -76,6 +76,11 @@ func ResolveArgoCDGeneratorConfigRepos(
 		envelope := envelopes[i]
 		controlRepoID := sourceRepositoryIDFromEnvelope(envelope)
 
+		// TODO(#4799 W2f / #4750): parsed_file_data is codegraphv1.File.ParsedFileData
+		// (an open map[string]any); its argocd_applicationsets inner key
+		// (read by structuredApplicationSetGeneratorRepos) is not yet typed in
+		// sdk/go/factschema/decode_parsed_file_data.go. Route through the typed
+		// DecodeCodegraphFile / DecodeParsedFileData* seam once #4750 types it.
 		if parsedFileData, ok := envelope.Payload["parsed_file_data"].(map[string]any); ok {
 			for _, generatorRepoURL := range structuredApplicationSetGeneratorRepos(parsedFileData) {
 				add(controlRepoID, generatorRepoURL)
