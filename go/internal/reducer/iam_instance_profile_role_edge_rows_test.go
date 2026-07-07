@@ -9,6 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// iamInstanceProfileResourceEnvelope builds an aws_iam_instance_profile
+// aws_resource envelope with the same nested-attributes shape the real
+// awscloud IAM scanner emits (awscloud.NewResourceEnvelope ->
+// awsPayloadAttributes flattens the scanner's service-specific attributes,
+// including role_arns, under one top-level "attributes" key rather than at
+// the payload's top level; see #4633).
 func iamInstanceProfileResourceEnvelope(accountID, profileName string, roleARNs ...string) facts.Envelope {
 	profileARN := "arn:aws:iam::" + accountID + ":instance-profile/" + profileName
 	roles := make([]any, 0, len(roleARNs))
@@ -24,8 +30,11 @@ func iamInstanceProfileResourceEnvelope(accountID, profileName string, roleARNs 
 			"resource_id":         profileARN,
 			"arn":                 profileARN,
 			"name":                profileName,
-			"role_arns":           roles,
 			"correlation_anchors": []any{profileARN, profileName},
+			"attributes": map[string]any{
+				"collector_instance_id": "test-instance",
+				"role_arns":             roles,
+			},
 		},
 	}
 }
