@@ -111,6 +111,17 @@ func evidenceFactIDsForHop(hop string, row SupplyChainImpactExplanationRow) []st
 	return explanationUniqueStrings(factIDs)
 }
 
+// evidenceFactIDsForSemanticHop tests presence of a hop's anchor key on each
+// evidence fact rather than reading a typed field value, so it stays on the
+// raw payload path (#4795 W2b): every anchor key here (repository_id,
+// subject_digest/digest/image_ref/artifact_digest, workload_id,
+// deployment_id, service_id, environment) is chiefly carried by
+// reducer-derived kinds (reducer_container_image_identity,
+// reducer_platform_materialization, reducer_workload_identity,
+// reducer_service_catalog_correlation) with no sdk/go/factschema struct yet
+// (#4784 ADR, docs/internal/design/4784-reducer-derived-fact-governance.md);
+// the "service" case below is already scoped to the exact reducer-derived
+// kind it targets.
 func evidenceFactIDsForSemanticHop(
 	row SupplyChainImpactExplanationRow,
 	hop string,
@@ -140,6 +151,9 @@ func evidenceFactIDsForSemanticHop(
 				factIDs = append(factIDs, fact.FactID)
 			}
 		case "service":
+			// reducer_service_catalog_correlation (serviceCatalogCorrelationFactKind)
+			// is reducer-derived with no factschema struct yet (#4784 ADR);
+			// this stays a raw presence check.
 			if StringVal(fact.Payload, "service_id") != "" ||
 				(fact.FactKind == serviceCatalogCorrelationFactKind &&
 					StringVal(fact.Payload, "entity_ref") != "") {

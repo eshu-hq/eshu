@@ -143,6 +143,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 		var sourceSystem sql.NullString
 		var sourceConfidence sql.NullString
 		var observedAt sql.NullTime
+		var schemaVersion sql.NullString
 		var payloadBytes []byte
 		if err := rows.Scan(
 			&fact.FactID,
@@ -150,6 +151,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 			&sourceSystem,
 			&sourceConfidence,
 			&observedAt,
+			&schemaVersion,
 			&payloadBytes,
 		); err != nil {
 			return nil, fmt.Errorf("explain supply chain impact evidence facts: %w", err)
@@ -159,6 +161,9 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 		}
 		if sourceConfidence.Valid {
 			fact.SourceConfidence = sourceConfidence.String
+		}
+		if schemaVersion.Valid {
+			fact.SchemaVersion = schemaVersion.String
 		}
 		if observedAt.Valid {
 			fact.ObservedAt = observedAt.Time.UTC()
@@ -230,7 +235,7 @@ LIMIT 2
 `
 
 const explainSupplyChainImpactEvidenceFactsQuery = `
-SELECT fact.fact_id, fact.fact_kind, fact.source_system, fact.source_confidence, fact.observed_at, fact.payload
+SELECT fact.fact_id, fact.fact_kind, fact.source_system, fact.source_confidence, fact.observed_at, fact.schema_version, fact.payload
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id

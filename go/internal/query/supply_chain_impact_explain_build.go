@@ -61,17 +61,37 @@ func buildSupplyChainComponentExplanation(
 		ObservedVersion: finding.ObservedVersion,
 	}
 	for _, fact := range row.EvidenceFacts {
+		evidence := decodeSupplyChainComponentEvidence(fact)
 		if out.ManifestRange == "" {
-			out.ManifestRange = firstNonEmptyString(
-				StringVal(fact.Payload, "dependency_range"),
-				StringVal(fact.Payload, "manifest_range"),
-			)
+			switch {
+			case evidence.Matched && evidence.Err == nil:
+				out.ManifestRange = evidence.DependencyRange
+			case !evidence.Matched:
+				// reducer_package_consumption_correlation and other
+				// reducer-derived kinds carry "manifest_range" but have no
+				// sdk/go/factschema struct yet (#4784 ADR); read raw until a
+				// W1 change lands one.
+				out.ManifestRange = firstNonEmptyString(
+					StringVal(fact.Payload, "dependency_range"),
+					StringVal(fact.Payload, "manifest_range"),
+				)
+			}
 		}
 		if out.ObservedVersion == "" {
-			out.ObservedVersion = StringVal(fact.Payload, "version")
+			switch {
+			case evidence.Matched && evidence.Err == nil:
+				out.ObservedVersion = evidence.Version
+			case !evidence.Matched:
+				out.ObservedVersion = StringVal(fact.Payload, "version")
+			}
 		}
 		if out.PURL == "" {
-			out.PURL = StringVal(fact.Payload, "purl")
+			switch {
+			case evidence.Matched && evidence.Err == nil:
+				out.PURL = evidence.PURL
+			case !evidence.Matched:
+				out.PURL = StringVal(fact.Payload, "purl")
+			}
 		}
 	}
 	return out
@@ -153,25 +173,44 @@ func buildSupplyChainExplanationAnchors(
 	}
 	for _, fact := range row.EvidenceFacts {
 		out.EvidenceFactIDs = append(out.EvidenceFactIDs, fact.FactID)
+		evidence := decodeSupplyChainComponentEvidence(fact)
+		// relative_path, manifest_path, digest, image_ref, workload_id,
+		// deployment anchors, service_id, and environment are chiefly carried
+		// by reducer-derived kinds (reducer_container_image_identity,
+		// reducer_platform_materialization, reducer_workload_identity, ...)
+		// with no sdk/go/factschema struct yet (#4784 ADR); they stay on the
+		// raw payload path unconditionally.
 		appendPathAnchors(&out, StringVal(fact.Payload, "relative_path"))
 		appendPathAnchors(&out, StringVal(fact.Payload, "manifest_path"))
-		appendLockfilePathAnchors(&out, StringVal(fact.Payload, "lockfile_path"))
 		appendPathAnchors(&out, StringVal(fact.Payload, "source_path"))
-		appendUniqueString(&out.SBOMDocuments, StringVal(fact.Payload, "document_id"))
 		appendUniqueString(&out.ImageDigests, StringVal(fact.Payload, "digest"))
-		appendUniqueString(&out.ImageDigests, StringVal(fact.Payload, "subject_digest"))
 		appendUniqueString(&out.ImageRefs, StringVal(fact.Payload, "image_ref"))
 		appendUniqueString(&out.Workloads, StringVal(fact.Payload, "workload_id"))
 		appendDeploymentAnchors(&out, fact.Payload)
 		appendUniqueString(&out.Services, StringVal(fact.Payload, "service_id"))
 		appendUniqueString(&out.Environments, StringVal(fact.Payload, "environment"))
-		appendUniqueString(&out.CatalogEntities, StringVal(fact.Payload, "entity_ref"))
-		appendUniqueString(&out.CatalogOwners, StringVal(fact.Payload, "owner_ref"))
+		switch {
+		case evidence.Matched && evidence.Err == nil:
+			appendLockfilePathAnchors(&out, evidence.LockfilePath)
+			appendUniqueString(&out.SBOMDocuments, evidence.DocumentID)
+			appendUniqueString(&out.ImageDigests, evidence.SubjectDigest)
+			appendUniqueString(&out.CatalogEntities, evidence.EntityRef)
+			appendUniqueString(&out.CatalogOwners, evidence.OwnerRef)
+			if out.SubjectDigest == "" {
+				out.SubjectDigest = evidence.SubjectDigest
+			}
+		case !evidence.Matched:
+			appendLockfilePathAnchors(&out, StringVal(fact.Payload, "lockfile_path"))
+			appendUniqueString(&out.SBOMDocuments, StringVal(fact.Payload, "document_id"))
+			appendUniqueString(&out.ImageDigests, StringVal(fact.Payload, "subject_digest"))
+			appendUniqueString(&out.CatalogEntities, StringVal(fact.Payload, "entity_ref"))
+			appendUniqueString(&out.CatalogOwners, StringVal(fact.Payload, "owner_ref"))
+			if out.SubjectDigest == "" {
+				out.SubjectDigest = StringVal(fact.Payload, "subject_digest")
+			}
+		}
 		if out.RepositoryID == "" {
 			out.RepositoryID = StringVal(fact.Payload, "repository_id")
-		}
-		if out.SubjectDigest == "" {
-			out.SubjectDigest = StringVal(fact.Payload, "subject_digest")
 		}
 		if alert := providerAlertAnchor(fact); alert.AlertID != "" || alert.Provider != "" {
 			out.ProviderAlerts = append(out.ProviderAlerts, alert)
