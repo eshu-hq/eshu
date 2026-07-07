@@ -12,16 +12,20 @@ func codeValueFlowStaleCleanupRunnerFor(
 	database postgres.ExecQueryer,
 	taintEvidence reducer.CodeTaintStaleEvidenceRetractor,
 	interprocEvidence reducer.CodeInterprocStaleEvidenceRetractor,
+	interprocWriter reducer.CodeInterprocEvidenceWriter,
 	leaseManager reducer.PartitionLeaseManager,
 	cfg codeValueFlowStaleCleanupConfig,
 ) *reducer.CodeValueFlowStaleCleanupRunner {
 	if !cfg.Enabled {
 		return nil
 	}
+	ledger := postgres.NewCodeInterprocProjectedEdgeStore(database)
 	return &reducer.CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: postgres.NewCodeValueFlowCurrentGenerationStore(database),
 		TaintEvidence:      taintEvidence,
 		InterprocEvidence:  interprocEvidence,
+		InterprocWriter:    interprocWriter,
+		InterprocLedger:    ledger,
 		LeaseManager:       leaseManager,
 		Config:             cfg.Runner,
 	}

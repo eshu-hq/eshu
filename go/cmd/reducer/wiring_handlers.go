@@ -183,6 +183,7 @@ func buildReducerCodeEvidenceHandlers(
 	functionSourceStore := postgres.NewFunctionSourceStore(database)
 	functionGraphIDStore := postgres.NewFunctionGraphIDStore(database)
 	valueFlowFixpointComponentStore := postgres.NewValueFlowFixpointComponentStore(database)
+	codeInterprocLedger := postgres.NewCodeInterprocProjectedEdgeStore(database)
 	valueFlowFixpointProjector := newValueFlowFixpointProjector(
 		functionSummaryStore,
 		functionSourceStore,
@@ -192,17 +193,19 @@ func buildReducerCodeEvidenceHandlers(
 		graphWriters.codeInterprocEvidence,
 		logger,
 	)
+	valueFlowFixpointProjector.Ledger = codeInterprocLedger
 	return reducer.CodeEvidenceHandlers{
-		CodeTaintEvidenceLoader:     factStore,
-		CodeTaintEvidenceWriter:     graphWriters.codeTaintEvidence,
-		CodeInterprocEvidenceLoader: factStore,
-		CodeInterprocEvidenceWriter: graphWriters.codeInterprocEvidence,
-		CodeFunctionSummaryLoader:   factStore,
-		CodeFunctionSummaryWriter:   functionSummaryStore,
-		CodeFunctionSourceLoader:    factStore,
-		CodeFunctionSourceWriter:    functionSourceStore,
-		CodeFunctionGraphIDLoader:   factStore,
-		CodeFunctionGraphIDWriter:   functionGraphIDStore,
-		ValueFlowFixpointProjector:  valueFlowFixpointProjector,
+		CodeTaintEvidenceLoader:          factStore,
+		CodeTaintEvidenceWriter:          graphWriters.codeTaintEvidence,
+		CodeInterprocEvidenceLoader:      factStore,
+		CodeInterprocEvidenceWriter:      graphWriters.codeInterprocEvidence,
+		CodeFunctionSummaryLoader:        factStore,
+		CodeFunctionSummaryWriter:        functionSummaryStore,
+		CodeFunctionSourceLoader:         factStore,
+		CodeFunctionSourceWriter:         functionSourceStore,
+		CodeFunctionGraphIDLoader:        factStore,
+		CodeFunctionGraphIDWriter:        functionGraphIDStore,
+		ValueFlowFixpointProjector:       valueFlowFixpointProjector,
+		CodeInterprocProjectedEdgeLedger: codeInterprocLedger,
 	}
 }

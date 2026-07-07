@@ -39,6 +39,7 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		codeInterproc.Handler = CodeInterprocEvidenceMaterializationHandler{
 			Loader:               handlers.CodeInterprocEvidenceLoader,
 			Writer:               handlers.CodeInterprocEvidenceWriter,
+			Ledger:               handlers.CodeInterprocProjectedEdgeLedger,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
 			Instruments:          handlers.Instruments,
 		}

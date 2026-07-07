@@ -53,6 +53,30 @@ WHERE rel.scope_id = $scope_id
 WITH rel LIMIT $limit
 DELETE rel`
 
+// Anchored-delete variants that enumerate source Function uids from the ledger
+// instead of scanning the entire :Function label. Each DELETE is bounded to the
+// edges reachable from the ledger-enumerated Function.uid anchor.
+
+const retractCodeInterprocEvidenceByUIDsCypher = `UNWIND $source_uids AS suid
+MATCH (s:Function {uid: suid})-[rel:TAINT_FLOWS_TO]->(:Function)
+WHERE rel.scope_id IN $scope_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractCodeInterprocEvidenceSourceByUIDsCypher = `UNWIND $source_uids AS suid
+MATCH (s:Function {uid: suid})-[rel:TAINT_FLOWS_TO]->(:Function)
+WHERE rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractStaleCodeInterprocEvidenceByUIDsCypher = `UNWIND $source_uids AS suid
+MATCH (s:Function {uid: suid})-[rel:TAINT_FLOWS_TO]->(:Function)
+WHERE rel.scope_id = $scope_id
+  AND rel.evidence_source = $evidence_source
+  AND rel.generation_id <> $generation_id
+DELETE rel`
+
+const codeInterprocEvidenceRetractUIDBatchSize = 500
+
 // CodeInterprocEvidenceWriter materializes reducer-owned cross-function taint
 // evidence as TAINT_FLOWS_TO edges between Function nodes.
 type CodeInterprocEvidenceWriter struct {
@@ -211,6 +235,112 @@ func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractCodeInterprocEvidenceByUIDs removes reducer-owned TAINT_FLOWS_TO edges
+// for the given scopes, enumerating source Function uids from the ledger instead
+// of scanning the whole :Function label. Empty uids is a no-op.
+func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code interproc evidence writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractCodeInterprocEvidenceByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"scope_ids":                     scopeIDs,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+				StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+				StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s retract_by_uids scopes=%d uids=%d", codeInterprocEvidenceRelType, len(scopeIDs), len(batch)),
+			},
+		})
+	}
+	return w.dispatch(ctx, stmts)
+}
+
+// RetractCodeInterprocEvidenceSourceByUIDs removes all reducer-owned
+// TAINT_FLOWS_TO edges for one evidence source, enumerating source Function uids
+// from the ledger. It is used by global fixpoint projection. Empty uids is a
+// no-op.
+func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSourceByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code interproc evidence writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractCodeInterprocEvidenceSourceByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+				StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+				StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s retract_source_by_uids source=%s uids=%d", codeInterprocEvidenceRelType, evidenceSource, len(batch)),
+			},
+		})
+	}
+	return w.dispatch(ctx, stmts)
+}
+
+// RetractStaleCodeInterprocEvidenceByUIDs removes stale TAINT_FLOWS_TO edges for
+// one scope/source pair whose generation is not the current generation,
+// enumerating source Function uids from the ledger. Empty uids is a no-op.
+func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidenceByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	scopeID string,
+	generationID string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if err := validateStaleEvidenceRetractInputs(scopeID, generationID, evidenceSource); err != nil {
+		return err
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code interproc evidence writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractStaleCodeInterprocEvidenceByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"scope_id":                      scopeID,
+				"generation_id":                 generationID,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+				StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+				StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s stale_retract_by_uids scope=%s generation=%s uids=%d", codeInterprocEvidenceRelType, scopeID, generationID, len(batch)),
+			},
+		})
+	}
+	return w.dispatch(ctx, stmts)
+}
+
 func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
 	if len(stmts) == 0 {
 		return nil
@@ -227,4 +357,21 @@ func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []Stat
 		}
 	}
 	return nil
+}
+
+// chunkStrings splits a slice of strings into chunks of at most chunkSize
+// elements.
+func chunkStrings(items []string, chunkSize int) [][]string {
+	if len(items) == 0 {
+		return nil
+	}
+	chunks := make([][]string, 0, (len(items)+chunkSize-1)/chunkSize)
+	for i := 0; i < len(items); i += chunkSize {
+		end := i + chunkSize
+		if end > len(items) {
+			end = len(items)
+		}
+		chunks = append(chunks, items[i:end])
+	}
+	return chunks
 }

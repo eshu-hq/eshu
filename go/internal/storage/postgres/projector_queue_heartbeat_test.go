@@ -165,6 +165,7 @@ func (e *retryableTestError) Retryable() bool {
 type recordingExecQueryer struct {
 	beginCalls int
 	execs      []recordedExecCall
+	queries    []recordedExecCall
 	result     sql.Result
 	results    []sql.Result
 }
@@ -190,9 +191,20 @@ func (r *recordingExecQueryer) ExecContext(_ context.Context, query string, args
 	return proofResult{}, nil
 }
 
-func (r *recordingExecQueryer) QueryContext(context.Context, string, ...any) (Rows, error) {
-	return nil, nil
+func (r *recordingExecQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+	r.queries = append(r.queries, recordedExecCall{
+		query: query,
+		args:  append([]any(nil), args...),
+	})
+	return &recordingRows{}, nil
 }
+
+type recordingRows struct{}
+
+func (r *recordingRows) Next() bool        { return false }
+func (r *recordingRows) Scan(...any) error { return nil }
+func (r *recordingRows) Err() error        { return nil }
+func (r *recordingRows) Close() error      { return nil }
 
 func (r *recordingExecQueryer) Begin(context.Context) (Transaction, error) {
 	r.beginCalls++
@@ -214,8 +226,8 @@ func (tx recordingTransaction) ExecContext(ctx context.Context, query string, ar
 	return tx.parent.ExecContext(ctx, query, args...)
 }
 
-func (recordingTransaction) QueryContext(context.Context, string, ...any) (Rows, error) {
-	return nil, nil
+func (tx recordingTransaction) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+	return tx.parent.QueryContext(ctx, query, args...)
 }
 
 func (recordingTransaction) Commit() error { return nil }

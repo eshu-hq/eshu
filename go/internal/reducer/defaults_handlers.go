@@ -274,4 +274,8 @@ type CodeEvidenceHandlers struct {
 	// ValueFlowFixpointProjector projects durable value-flow fixpoint findings
 	// after function summaries, sources, and graph ids are persisted.
 	ValueFlowFixpointProjector ValueFlowFixpointProjector
+
+	// CodeInterprocProjectedEdgeLedger records and enumerates source Function uids
+	// of projected TAINT_FLOWS_TO edges for anchored-delete retraction.
+	CodeInterprocProjectedEdgeLedger CodeInterprocProjectedEdgeLedger
 }

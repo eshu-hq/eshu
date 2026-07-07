@@ -116,6 +116,7 @@ func buildReducerService(
 		database,
 		graphWriters.codeTaintEvidence,
 		graphWriters.codeInterprocEvidence,
+		graphWriters.codeInterprocEvidence,
 		intentStore,
 		codeValueFlowStaleCleanupCfg,
 	)
