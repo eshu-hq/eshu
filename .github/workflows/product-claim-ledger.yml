@@ -11,6 +11,7 @@ on:
       - specs/capability-matrix/**
       - go/internal/capabilitycatalog/**
       - go/cmd/capability-inventory/**
+      - scripts/ci/install-apt-packages.sh
       - .github/workflows/product-claim-ledger.yml
   push:
     branches:
@@ -24,6 +25,7 @@ on:
       - specs/capability-matrix/**
       - go/internal/capabilitycatalog/**
       - go/cmd/capability-inventory/**
+      - scripts/ci/install-apt-packages.sh
       - .github/workflows/product-claim-ledger.yml
   workflow_dispatch:
   schedule:
@@ -51,7 +53,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install workflow test dependencies
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run product claim workflow contract mirror
         run: scripts/test-product-claim-ledger-workflow.sh

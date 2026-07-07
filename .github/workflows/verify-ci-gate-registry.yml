@@ -29,7 +29,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run test mirror
         run: scripts/test-verify-ci-gates-registry.sh
@@ -50,7 +50,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Verify ci-gate registry integrity and hook/workflow drift
         run: scripts/verify-ci-gates-registry.sh --drift

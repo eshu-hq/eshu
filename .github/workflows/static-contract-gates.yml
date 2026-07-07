@@ -169,7 +169,7 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
       - name: Install ripgrep and jq
-        run: sudo apt-get update && sudo apt-get install -y ripgrep jq
+        run: scripts/ci/install-apt-packages.sh ripgrep jq
       - name: Run test mirror (${{ matrix.key }})
         run: ${{ matrix.test }}
       - name: Run gate (${{ matrix.key }})

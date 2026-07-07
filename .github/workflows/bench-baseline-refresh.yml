@@ -35,7 +35,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Recapture benchmark baseline
         run: scripts/refresh-bench-baseline.sh

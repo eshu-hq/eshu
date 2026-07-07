@@ -97,7 +97,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run static mirror
         run: bash scripts/test-cassette-refresh-workflow.sh
@@ -163,7 +163,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Build collector binaries
         working-directory: go

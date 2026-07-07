@@ -235,6 +235,51 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceClassifiesMalformedAnchor(t *t
 	}
 }
 
+func TestFactStoreLoadSecretsIAMTrustChainEvidenceSkipsMalformedNonAnchor(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				secretsIAMTrustChainFactRow(
+					"k8s-sa",
+					"k8s-scope",
+					"k8s-gen",
+					facts.KubernetesServiceAccountFactKind,
+					`{"service_account_join_key":"sha256:service-account"}`,
+				),
+				secretsIAMTrustChainFactRow(
+					"vault-mount",
+					"k8s-scope",
+					"k8s-gen",
+					facts.VaultAuthMountFactKind,
+					`{"provider":"vault"}`,
+				),
+			}},
+			{rows: nil},
+		},
+	}
+	store := NewFactStore(db)
+
+	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+		ScopeID:      "k8s-scope",
+		GenerationID: "k8s-gen",
+		Domain:       reducer.DomainSecretsIAMTrustChain,
+	})
+	if err != nil {
+		t.Fatalf("LoadSecretsIAMTrustChainEvidence() error = %v, want nil", err)
+	}
+	if got, want := stats.LoadedFactCount, 2; got != want {
+		t.Fatalf("LoadedFactCount = %d, want %d", got, want)
+	}
+	if got, want := len(envelopes), 2; got != want {
+		t.Fatalf("len(envelopes) = %d, want %d", got, want)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("QueryContext calls = %d, want %d", got, want)
+	}
+}
+
 func TestFactStoreLoadSecretsIAMTrustChainEvidenceMarksTruncatedAtExpansionLimit(t *testing.T) {
 	t.Parallel()
 

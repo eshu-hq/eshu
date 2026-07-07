@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y jq ripgrep
+        run: scripts/ci/install-apt-packages.sh jq ripgrep
       - name: Validate coverage report contract
         run: bash scripts/test-generate-code-coverage-report.sh
 

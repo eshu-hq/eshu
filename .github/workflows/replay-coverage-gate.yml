@@ -50,6 +50,7 @@ on:
       - 'testdata/cassettes/**'
       - 'scripts/verify-replay-coverage-gate.sh'
       - 'scripts/test-verify-replay-coverage-gate.sh'
+      - 'scripts/ci/install-apt-packages.sh'
       - '.github/workflows/replay-coverage-gate.yml'
 
 concurrency:
@@ -68,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Validate gate contract
         run: bash scripts/test-verify-replay-coverage-gate.sh
 

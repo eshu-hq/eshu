@@ -24,6 +24,7 @@ on:
       - "scripts/run-go-benchmarks.sh"
       - "scripts/verify-bench-regression.sh"
       - "scripts/refresh-bench-baseline.sh"
+      - "scripts/ci/install-apt-packages.sh"
       - "testdata/benchmarks/**"
       - ".github/workflows/bench.yml"
   push:
@@ -53,7 +54,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run bench script contract mirror
         run: scripts/test-run-go-benchmarks.sh
@@ -83,7 +84,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run Go benchmarks (credential-free, no regression gate)
         env:
@@ -118,7 +119,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Install benchstat
         run: go install golang.org/x/perf/cmd/benchstat@latest
@@ -167,7 +168,7 @@ jobs:
           cache-dependency-path: go/go.sum
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Assert reducer handlers within per-handler latency budgets
         env:
