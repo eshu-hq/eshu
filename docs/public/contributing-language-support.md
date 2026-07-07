@@ -305,6 +305,21 @@ no cap; because pre-scan runs across the full repository on every delta
 sync, an over-cap file still pays the same superlinear parse cost there.
 That gap is tracked in [#4808](https://github.com/eshu-hq/eshu/issues/4808).
 
+## Parser Worker Sizing
+
+Parser subsystems that fan work across goroutines size their worker pools from
+`cpubudget.UsableCPUs()`, not `runtime.GOMAXPROCS`/`runtime.NumCPU`, so parser
+concurrency respects the container's effective cgroup CPU limit instead of the
+host core count (#4456, #4759). This prevents oversubscription when the
+ingester runs under a constrained CPU quota. When adding a new concurrent
+parser stage, size its pool from `cpubudget.UsableCPUs()` and honor any
+existing worker-count override (e.g. `ESHU_PARSE_WORKERS`) with the same
+precedence as `go/internal/parser/go_package_interface_prescan.go`. (One
+exception: `go/internal/parser/interproc/solve.go` stays on
+`runtime.GOMAXPROCS(0)` directly — `interproc` is a standard-library-only
+package, and `GOMAXPROCS(0)` is already cgroup-aware under Go 1.25+.) This is a
+concurrency-sizing contract, not a language/support-maturity claim.
+
 ## Workflow
 
 1. Add or update Go parser tests first.

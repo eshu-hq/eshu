@@ -6,16 +6,16 @@ package parser
 import (
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	golangparser "github.com/eshu-hq/eshu/go/internal/parser/golang"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 // defaultPackagePrescanWorkerCap matches the existing snapshot parse-worker
-// default (min(NumCPU, 8)) the collector applies to its file-level parse
+// default (min(UsableCPUs, 8)) the collector applies to its file-level parse
 // pool. Going above this would not help the Go package prescan because the
 // dominant cost after the per-file parse collapse is file I/O, and APFS
 // throughput tops out around this concurrency on M-series and Linux NVMe
@@ -23,14 +23,13 @@ import (
 const defaultPackagePrescanWorkerCap = 8
 
 // effectivePackagePrescanWorkers normalizes the worker count callers request.
-// A non-positive configured value selects the default min(NumCPU, cap); any
-// positive value is clamped to NumCPU*2 so a stale operator override cannot
-// over-subscribe the host.
+// A non-positive configured value selects the default min(UsableCPUs, cap);
+// any positive value is clamped to UsableCPUs*2 so a stale operator override
+// cannot over-subscribe the container. cpubudget.UsableCPUs() is cgroup-aware
+// (GOMAXPROCS(0) floored at 1); runtime.NumCPU() always reports the host
+// count and would over-subscribe under a cgroup CPU quota.
 func effectivePackagePrescanWorkers(configured int) int {
-	cpu := runtime.NumCPU()
-	if cpu < 1 {
-		cpu = 1
-	}
+	cpu := cpubudget.UsableCPUs()
 	if configured <= 0 {
 		if cpu < defaultPackagePrescanWorkerCap {
 			return cpu
@@ -53,7 +52,7 @@ func effectivePackagePrescanWorkers(configured int) int {
 // This entrypoint preserves the original sequential signature for callers
 // that have no opinion on worker count; it delegates to
 // PreScanGoPackageSemanticRootsWithWorkers with a default of
-// min(NumCPU, 8) workers, matching the snapshot parse pool the collector
+// min(UsableCPUs, 8) workers, matching the snapshot parse pool the collector
 // already runs.
 func (e *Engine) PreScanGoPackageSemanticRoots(
 	repoRoot string,
@@ -65,8 +64,8 @@ func (e *Engine) PreScanGoPackageSemanticRoots(
 // PreScanGoPackageSemanticRootsWithWorkers is the worker-count-aware variant
 // of PreScanGoPackageSemanticRoots. The per-file parse passes run on a pool
 // of size effectivePackagePrescanWorkers(workers); zero or negative values
-// select the default min(NumCPU, 8). Aggregation across files stays on the
-// calling goroutine so the result is deterministic regardless of worker
+// select the default min(UsableCPUs, 8). Aggregation across files stays on
+// the calling goroutine so the result is deterministic regardless of worker
 // scheduling.
 //
 // The implementation parses each Go file once, builds the per-file evidence

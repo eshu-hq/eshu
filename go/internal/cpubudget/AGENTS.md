@@ -36,16 +36,16 @@
   assumption is void, and every worker-count default silently reverts to
   reporting the host CPU count in cgroup-limited containers.
 - **`UsableCPUs()` is the sanctioned replacement for `runtime.NumCPU()` in
-  worker-count defaults OUTSIDE `internal/parser`.** Every default worker
-  count in the codebase should call `cpubudget.UsableCPUs()`, not
-  `runtime.NumCPU()` directly, unless the use is genuinely host-CPU-correct
-  (e.g. GC tuning knobs unrelated to worker fan-out) — with one deliberate,
-  temporary exception: `internal/parser`'s two worker-sizing sites
-  (`interproc/solve.go`, `go_package_interface_prescan.go`) are **not**
-  routed and remain on `runtime.NumCPU()` / `runtime.GOMAXPROCS(0)` directly.
-  This is not an import-cycle issue — see "Deferred: internal/parser" in
-  README.md for the actual reason (the parser-relationship-kit gate) and
-  treat it as scoped-out, not forgotten.
+  every worker-count default.** Every default worker count in the codebase
+  should call `cpubudget.UsableCPUs()`, not `runtime.NumCPU()` directly, unless
+  the use is genuinely host-CPU-correct (e.g. GC tuning knobs unrelated to
+  worker fan-out, or `interproc/solve.go` — see below). `internal/parser`'s
+  `go_package_interface_prescan.go` site was routed in #4759 (it was on
+  `runtime.NumCPU()`). `internal/parser/interproc/solve.go` is deliberately NOT
+  routed: `interproc` is standard-library-only (its `AGENTS.md` contract) and is
+  already on `runtime.GOMAXPROCS(0)` (cgroup-aware under Go 1.25+, which is what
+  `UsableCPUs()` wraps), so it needs no `cpubudget` dependency. See "Formerly
+  deferred: internal/parser" in README.md.
 
 ## Common changes and how to scope them
 
@@ -59,9 +59,9 @@
   that motivated this package's existence. If the target site is under
   `go/internal/parser/*.go`, expect the parser-relationship-kit gate to
   require a parser test change and a language-support doc update in
-  lockstep — plan for that gate rather than being surprised by it (see
-  README "Deferred: internal/parser" for the two sites already known to be
-  affected).
+  lockstep — plan for that gate rather than being surprised by it (this is how
+  #4759 routed the `go_package_interface_prescan.go` site; see README "Formerly
+  deferred: internal/parser").
 - **Bumping or downgrading the `go` directive in `go.mod`** — if downgrading
   below 1.25, `TestGoDirectiveSupportsAutomaticGOMAXPROCS` will fail on
   purpose. Do not silence it; either stay at 1.25+, or reintroduce a
@@ -75,12 +75,15 @@
   a worker-count default still calls `runtime.NumCPU()` (or stores
   `runtime.NumCPU` as a function value) directly instead of
   `cpubudget.UsableCPUs()` → fix: grep
-  `rg 'runtime\.NumCPU' go/cmd go/internal -g '*.go' | rg -v _test | rg -v internal/parser`
+  `rg 'runtime\.NumCPU' go/cmd go/internal -g '*.go' | rg -v _test`
   for stragglers (matches with or without parens — some sites store the bare
   function value, e.g. `cmd/eshu/local_host.go`'s `localHostNumCPU` var). This
-  should be empty for everything **outside** `internal/parser` — its two
-  sites are a known, deliberate exception (see "Deferred: internal/parser" in
-  README.md), not a straggler to fix.
+  should be empty across `go/cmd` and `go/internal`; every worker-count default
+  that was on `runtime.NumCPU()` (including `internal/parser`'s
+  `go_package_interface_prescan.go` since #4759) routes through
+  `cpubudget.UsableCPUs()`. `interproc/solve.go` uses `runtime.GOMAXPROCS(0)`
+  directly (stdlib-only package, already cgroup-aware) — expected, not a
+  straggler.
 - Symptom: `TestGoDirectiveSupportsAutomaticGOMAXPROCS` fails → cause: the
   `go` directive in `go/go.mod` was downgraded below 1.25 → fix: do not
   silence the test; either revert the downgrade or reintroduce a

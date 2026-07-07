@@ -24,19 +24,22 @@ worker default through it is the entire fix.
 flowchart LR
   A["Go 1.25+ runtime"] -->|"containermaxprocs GODEBUG\n(default-on)"| B["runtime.GOMAXPROCS(0)"]
   B --> C["cpubudget.UsableCPUs()"]
-  C --> D["Worker-count defaults\n(internal/collector, internal/reducer,\ninternal/storage/postgres, cmd/ingester,\ncmd/projector, cmd/reducer,\ncmd/bootstrap-index, cmd/eshu)"]
+  C --> D["Worker-count defaults\n(internal/collector, internal/reducer,\ninternal/storage/postgres, internal/parser,\ncmd/ingester, cmd/projector, cmd/reducer,\ncmd/bootstrap-index, cmd/eshu)"]
 ```
-
-`internal/parser` is deliberately **not** in this diagram — see "Deferred: internal/parser" below.
 
 ## Ownership boundary
 
-Owns `UsableCPUs`. Every worker-count default in the codebase outside
-`internal/parser` that previously called `runtime.NumCPU()` directly now
-calls `cpubudget.UsableCPUs()` instead, so there is exactly one place that
-decides what "usable CPU" means for those call sites. `internal/parser`'s
-two worker-sizing sites are the sole exception — deferred, not forgotten;
-see "Deferred: internal/parser" below.
+Owns `UsableCPUs`. Every worker-count default in the codebase that
+previously called `runtime.NumCPU()` directly now calls
+`cpubudget.UsableCPUs()` instead, so there is exactly one place that decides
+what "usable CPU" means for those call sites. `internal/parser`'s
+`go_package_interface_prescan.go` worker-sizing site was on `runtime.NumCPU()`
+(a deferred exception) and is routed as of #4759 — see "Formerly deferred:
+internal/parser" below. `interproc/solve.go` intentionally stays on
+`runtime.GOMAXPROCS(0)`: `interproc` is a standard-library-only package (its
+`AGENTS.md` contract), and `GOMAXPROCS(0)` is already cgroup-aware under Go
+1.25+ (which is exactly what `UsableCPUs()` wraps), so routing it would add a
+dependency for no behavior change.
 
 ## Exported surface
 
@@ -67,22 +70,25 @@ which does log, because `ConfigureMemoryLimit` performs an active
 configuration step (`debug.SetMemoryLimit`) that has no Go-runtime-native
 equivalent; `UsableCPUs` has nothing to configure.
 
-## Deferred: internal/parser
+## Formerly deferred: internal/parser
 
-Two `internal/parser` worker-sizing sites (`internal/parser/interproc/solve.go`
-and `internal/parser/go_package_interface_prescan.go`) are **not** routed
-through `cpubudget.UsableCPUs()` in this change and remain on
-`runtime.NumCPU()` / `runtime.GOMAXPROCS(0)` directly. This is not an
-oversight or an import-cycle blocker (`cpubudget` has zero internal
-dependencies, so `internal/parser` could import it safely) — it is a
-deliberate scope cut. Any change under `go/internal/parser/*.go` trips the
-parser-relationship-kit gate, which requires a parser `*_test.go` change AND
-a language-support doc update in lockstep. That gate is designed for
-language/query capability changes, not a mechanical worker-count routing,
-and there is no honest language-support doc to write for "this pool now
-reads GOMAXPROCS instead of NumCPU." Routing those two sites is deferred to
-a separate follow-up PR that satisfies the parser-relationship-kit gate on
-its own terms.
+`internal/parser/go_package_interface_prescan.go` was a deliberate, temporary
+exception (not an import-cycle blocker — `cpubudget` has zero internal
+dependencies, so `internal/parser` could always import it safely). It was on
+`runtime.NumCPU()` (host core count, not cgroup-aware). Any change under
+`go/internal/parser/*.go` trips the parser-relationship-kit gate, which requires
+a parser `*_test.go` change AND a language-support doc update in lockstep; that
+gate is designed for language/query capability changes, and there was no honest
+language-support doc to write for "this pool now reads GOMAXPROCS instead of
+NumCPU." #4759 routes this site and satisfies the gate with a mechanical
+worker-count regression test plus this doc note in lieu of a language-support
+change, since no language/query capability changed.
+
+`internal/parser/interproc/solve.go` is intentionally NOT routed: `interproc`
+is a standard-library-only package (see its `AGENTS.md`), so importing
+`cpubudget` would violate that scoped contract — and it was already on
+`runtime.GOMAXPROCS(0)`, which is cgroup-aware under Go 1.25+ (exactly what
+`UsableCPUs()` returns), so it needs no routing. It stays on the stdlib path.
 
 ## Gotchas / invariants
 
@@ -94,9 +100,8 @@ its own terms.
   `internal/collector`, and `internal/runtime` also imports
   `internal/recovery` → `internal/projector` → `internal/reducer`.
   `cpubudget` has zero internal dependencies, so every package that needs
-  the usable-CPU count can import it safely — `internal/parser` included,
-  though its two sites are deferred for the reason above, not because of a
-  cycle.
+  the usable-CPU count can import it safely — `internal/parser` included
+  (routed as of #4759).
 - **This relies on the Go toolchain, not on this package, to read cgroups.**
   `TestGoDirectiveSupportsAutomaticGOMAXPROCS` in `cpubudget_test.go` asserts
   this module's `go.mod` `go` directive is `>= 1.25`. If that directive is
@@ -120,5 +125,26 @@ its own terms.
   needs its own handwritten cgroup-limit reader and an active configuration
   call; CPU does not.
 - `go/internal/cpubudget/evidence-4456-cgroup-cpu-sizing.md` — no-regression
-  evidence for the cgroup-CPU-sizing change, the full routing table, and the
-  `internal/parser` deferral.
+  evidence for the cgroup-CPU-sizing change and the full routing table.
+
+## #4759 routing of the parser worker-sizing site
+
+No-Regression Evidence: routing `internal/parser`'s `effectivePackagePrescanWorkers`
+(`go_package_interface_prescan.go`) through `cpubudget.UsableCPUs()` — it
+previously used `runtime.NumCPU()` (host core count, not cgroup-aware) — changes
+the default from the host count to `runtime.GOMAXPROCS(0)` floored at 1
+(cgroup-aware under Go 1.25+), preserving the existing `min(default, 8)` /
+`NumCPU*2` override clamps exactly (verified by direct source diff and by
+`TestEffectivePackagePrescanWorkers*`, which pin the worker count against
+`runtime.GOMAXPROCS(0)`). Under an active cgroup CPU quota the count correctly
+drops to the CPU budget instead of the host core count, preventing worker
+over-subscription; it never becomes a fixed low constant, so this is not a
+serialization workaround. No throughput regression on the parse path — worker
+count is aligned to available CPU, not reduced below it. `interproc/solve.go`
+is left on `runtime.GOMAXPROCS(0)` (already cgroup-aware, and `interproc` is
+standard-library-only) — no change there.
+
+No-Observability-Change: no new metric, span, log field, or runtime knob is
+introduced; the parser worker count is not separately instrumented and
+parse-stage timing remains visible through existing collector snapshot
+telemetry.
