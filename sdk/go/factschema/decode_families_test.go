@@ -201,6 +201,12 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindGCPIAMPolicyObservation:
 		_, err := DecodeGCPIAMPolicyObservation(env)
 		return err
+	case FactKindGCPTagObservation:
+		_, err := DecodeGCPTagObservation(env)
+		return err
+	case FactKindGCPImageReference:
+		_, err := DecodeGCPImageReference(env)
+		return err
 	case FactKindAzureCloudResource:
 		_, err := DecodeAzureCloudResource(env)
 		return err
@@ -212,6 +218,18 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 		return err
 	case FactKindAzureCollectionWarning:
 		_, err := DecodeAzureCollectionWarning(env)
+		return err
+	case FactKindAzureTagObservation:
+		_, err := DecodeAzureTagObservation(env)
+		return err
+	case FactKindAzureIdentityObservation:
+		_, err := DecodeAzureIdentityObservation(env)
+		return err
+	case FactKindAzureResourceChange:
+		_, err := DecodeAzureResourceChange(env)
+		return err
+	case FactKindAzureImageReference:
+		_, err := DecodeAzureImageReference(env)
 		return err
 	case FactKindKubernetesLivePodTemplate:
 		_, err := DecodeKubernetesLivePodTemplate(env)
@@ -564,10 +582,16 @@ var allDecodedKinds = []string{
 	FactKindGCPCollectionWarning,
 	FactKindGCPDNSRecord,
 	FactKindGCPIAMPolicyObservation,
+	FactKindGCPTagObservation,
+	FactKindGCPImageReference,
 	FactKindAzureCloudResource,
 	FactKindAzureCloudRelationship,
 	FactKindAzureDNSRecord,
 	FactKindAzureCollectionWarning,
+	FactKindAzureTagObservation,
+	FactKindAzureIdentityObservation,
+	FactKindAzureResourceChange,
+	FactKindAzureImageReference,
 	FactKindKubernetesLivePodTemplate,
 	FactKindKubernetesLiveRelationship,
 	FactKindKubernetesLiveWarning,
@@ -822,6 +846,10 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeGCPDNSRecord(env)
 			case FactKindGCPIAMPolicyObservation:
 				_, err = DecodeGCPIAMPolicyObservation(env)
+			case FactKindGCPTagObservation:
+				_, err = DecodeGCPTagObservation(env)
+			case FactKindGCPImageReference:
+				_, err = DecodeGCPImageReference(env)
 			case FactKindAzureCloudResource:
 				_, err = DecodeAzureCloudResource(env)
 			case FactKindAzureCloudRelationship:
@@ -830,6 +858,14 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeAzureDNSRecord(env)
 			case FactKindAzureCollectionWarning:
 				_, err = DecodeAzureCollectionWarning(env)
+			case FactKindAzureTagObservation:
+				_, err = DecodeAzureTagObservation(env)
+			case FactKindAzureIdentityObservation:
+				_, err = DecodeAzureIdentityObservation(env)
+			case FactKindAzureResourceChange:
+				_, err = DecodeAzureResourceChange(env)
+			case FactKindAzureImageReference:
+				_, err = DecodeAzureImageReference(env)
 			case FactKindKubernetesLivePodTemplate:
 				_, err = DecodeKubernetesLivePodTemplate(env)
 			case FactKindKubernetesLiveRelationship:

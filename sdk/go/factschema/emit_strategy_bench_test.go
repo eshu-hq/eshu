@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
+	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
 
 var benchmarkPayloadSink map[string]any
@@ -157,6 +160,44 @@ func benchmarkDNSRecord() awsv1.DNSRecord {
 	}
 }
 
+func BenchmarkW1bEncodeNoRegression(b *testing.B) {
+	b.Run("azure_cloud_resource", func(b *testing.B) {
+		resource := benchmarkAzureCloudResource()
+		b.ReportAllocs()
+		for b.Loop() {
+			payload, err := EncodeAzureCloudResource(resource)
+			if err != nil {
+				b.Fatalf("EncodeAzureCloudResource() error = %v", err)
+			}
+			benchmarkPayloadSink = payload
+		}
+	})
+
+	b.Run("gcp_cloud_resource", func(b *testing.B) {
+		resource := benchmarkGCPCloudResource()
+		b.ReportAllocs()
+		for b.Loop() {
+			payload, err := EncodeGCPCloudResource(resource)
+			if err != nil {
+				b.Fatalf("EncodeGCPCloudResource() error = %v", err)
+			}
+			benchmarkPayloadSink = payload
+		}
+	})
+
+	b.Run("kubernetes_live_pod_template", func(b *testing.B) {
+		template := benchmarkKubernetesLivePodTemplate()
+		b.ReportAllocs()
+		for b.Loop() {
+			payload, err := EncodeKubernetesLivePodTemplate(template)
+			if err != nil {
+				b.Fatalf("EncodeKubernetesLivePodTemplate() error = %v", err)
+			}
+			benchmarkPayloadSink = payload
+		}
+	})
+}
+
 func benchmarkDNSRecordMap(record awsv1.DNSRecord) map[string]any {
 	payload := map[string]any{
 		"account_id":             record.AccountID,
@@ -233,6 +274,86 @@ func benchmarkAWSResource() awsv1.Resource {
 				"running_count": 2,
 			},
 		},
+	}
+}
+
+func benchmarkAzureCloudResource() azurev1.CloudResource {
+	normalized := "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm-1"
+	name := "vm-1"
+	provider := "microsoft.compute"
+	return azurev1.CloudResource{
+		ARMResourceID:        "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-1",
+		ResourceType:         "microsoft.compute/virtualmachines",
+		SubscriptionID:       "sub-1",
+		Location:             "eastus",
+		NormalizedResourceID: &normalized,
+		ResourceName:         &name,
+		ProviderNamespace:    &provider,
+		Attributes:           benchmarkCloudAttributes(),
+	}
+}
+
+func benchmarkGCPCloudResource() gcpv1.Resource {
+	projectID := "demo-project"
+	location := "us-central1"
+	displayName := "instance-1"
+	state := "RUNNING"
+	assetTypeFamily := "compute"
+	return gcpv1.Resource{
+		FullResourceName:   "//compute.googleapis.com/projects/demo-project/zones/us-central1-a/instances/instance-1",
+		AssetType:          "compute.googleapis.com/Instance",
+		ProjectID:          &projectID,
+		Location:           &location,
+		DisplayName:        &displayName,
+		State:              &state,
+		AssetTypeFamily:    &assetTypeFamily,
+		CorrelationAnchors: []string{"instance-1", "demo-project"},
+		Attributes:         benchmarkCloudAttributes(),
+	}
+}
+
+func benchmarkKubernetesLivePodTemplate() kuberneteslivev1.PodTemplate {
+	clusterID := "cluster-1"
+	namespace := "default"
+	name := "api"
+	uid := "uid-1"
+	gvr := "apps/v1/deployments"
+	serviceAccount := "api"
+	image := "registry.example.com/api@sha256:111"
+	init := false
+	envFromSecret := true
+	containerName := "api"
+	return kuberneteslivev1.PodTemplate{
+		ObjectID:             "cluster-1/default/apps/v1/deployments/api/uid-1",
+		ClusterID:            &clusterID,
+		Namespace:            &namespace,
+		Name:                 &name,
+		WorkloadUID:          &uid,
+		GroupVersionResource: &gvr,
+		ServiceAccount:       &serviceAccount,
+		Containers: []kuberneteslivev1.PodTemplateContainer{
+			{
+				Name:          &containerName,
+				Image:         &image,
+				Init:          &init,
+				Ports:         []int32{8080},
+				EnvKeys:       []string{"DATABASE_URL", "LOG_LEVEL"},
+				EnvFromSecret: &envFromSecret,
+			},
+		},
+		ImageRefs:          []string{image},
+		Selector:           map[string]string{"app": "api"},
+		Labels:             map[string]string{"app": "api", "tier": "backend"},
+		CorrelationAnchors: []string{"cluster-1/default/apps/v1/deployments/api/uid-1", image},
+	}
+}
+
+func benchmarkCloudAttributes() map[string]any {
+	return map[string]any{
+		"collector_instance_id": "collector-1",
+		"source_lane":           "resource_graph",
+		"labels":                map[string]any{"env": "prod", "service": "api"},
+		"extension":             map[string]any{"schema_version": "1.0.0", "has_identity": true},
 	}
 }
 

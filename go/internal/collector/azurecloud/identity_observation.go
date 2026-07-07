@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
 // Azure identity observation types classify what kind of identity or assignment
@@ -106,26 +108,30 @@ func NewIdentityObservationEnvelope(observation IdentityObservation, key redact.
 		"source_lane":   observation.Boundary.SourceLane,
 	})
 
-	payload := map[string]any{
-		"collector_kind":           CollectorKind,
-		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
-		"tenant_id":                observation.Boundary.TenantID,
-		"scope_kind":               observation.Boundary.ScopeKind,
-		"provider_scope_id":        observation.Boundary.ProviderScopeID,
-		"source_lane":              observation.Boundary.SourceLane,
-		"arm_resource_id":          armID,
-		"normalized_resource_id":   identity.Normalized,
-		"resource_type":            identity.ResourceType,
-		"identity_type":            identityType,
-		"role_class":               strings.TrimSpace(observation.RoleClass),
-		"assignment_scope":         strings.TrimSpace(observation.AssignmentScope),
-		"provider_time":            timeOrNil(observation.ProviderTime),
-		"redaction_policy_version": RedactionPolicyVersion,
+	roleClass := strings.TrimSpace(observation.RoleClass)
+	assignmentScope := strings.TrimSpace(observation.AssignmentScope)
+	payload, err := factschema.EncodeAzureIdentityObservation(azurev1.IdentityObservation{
+		ARMResourceID:          armID,
+		NormalizedResourceID:   identity.Normalized,
+		ResourceType:           identity.ResourceType,
+		IdentityType:           identityType,
+		RoleClass:              &roleClass,
+		AssignmentScope:        &assignmentScope,
+		PrincipalFingerprint:   principalFingerprintPtr("azure_identity_principal", "principal_fingerprint", principal, key),
+		ClientFingerprint:      principalFingerprintPtr("azure_identity_client", "client_fingerprint", client, key),
+		ObjectFingerprint:      principalFingerprintPtr("azure_identity_object", "object_fingerprint", object, key),
+		TenantFingerprint:      principalFingerprintPtr("azure_identity_tenant", "tenant_fingerprint", tenant, key),
+		ProviderTime:           timeStringPtr(observation.ProviderTime),
+		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode azure_identity_observation payload: %w", err)
 	}
-	addPrincipalFingerprint(payload, "principal_fingerprint", "azure_identity_principal", principal, key)
-	addPrincipalFingerprint(payload, "client_fingerprint", "azure_identity_client", client, key)
-	addPrincipalFingerprint(payload, "object_fingerprint", "azure_identity_object", object, key)
-	addPrincipalFingerprint(payload, "tenant_fingerprint", "azure_identity_tenant", tenant, key)
+	addAzureBoundaryPayload(payload, observation.Boundary)
+	payload["tenant_id"] = observation.Boundary.TenantID
+	payload["scope_kind"] = observation.Boundary.ScopeKind
+	payload["provider_scope_id"] = observation.Boundary.ProviderScopeID
+	payload["source_lane"] = observation.Boundary.SourceLane
 
 	return newEnvelope(
 		observation.Boundary,
@@ -140,11 +146,12 @@ func NewIdentityObservationEnvelope(observation IdentityObservation, key redact.
 
 // addPrincipalFingerprint fingerprints one principal GUID into the payload under
 // key, skipping blank values so an absent principal produces no field.
-func addPrincipalFingerprint(payload map[string]any, field, reason, raw string, key redact.Key) {
+func principalFingerprintPtr(reason, field, raw string, key redact.Key) *string {
 	if raw == "" {
-		return
+		return nil
 	}
-	payload[field] = redact.String(raw, reason, reason+":"+field, key).Marker
+	fingerprint := redact.String(raw, reason, reason+":"+field, key).Marker
+	return &fingerprint
 }
 
 // normalizeIdentityType validates the identity type against the bounded set so a

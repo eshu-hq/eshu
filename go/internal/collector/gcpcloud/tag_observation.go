@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // redactionReasonTagValue marks a fingerprinted GCP tag/label value.
@@ -76,23 +78,23 @@ func NewTagObservationEnvelope(obs TagObservation, key redact.Key) (facts.Envelo
 		"source_kind":        strings.TrimSpace(obs.SourceKind),
 	})
 
-	payload := map[string]any{
-		"collector_instance_id":    obs.Boundary.CollectorInstanceID,
-		"parent_scope_kind":        string(obs.Boundary.ParentScopeKind),
-		"parent_scope_id":          obs.Boundary.ParentScopeID,
-		"asset_type_family":        obs.Boundary.AssetTypeFamily,
-		"content_family":           obs.Boundary.ContentFamily,
-		"location_bucket":          obs.Boundary.LocationBucket,
-		"full_resource_name":       fullName,
-		"asset_type":               assetType,
-		"project_id":               strings.TrimSpace(ProjectIDFromFullName(fullName)),
-		"tag_keys":                 tagKeys,
-		"tag_value_fingerprints":   fingerprints,
-		"source_kind":              strings.TrimSpace(obs.SourceKind),
-		"read_time":                timeOrNil(obs.Boundary.ReadTime),
-		"update_time":              timeOrNil(obs.UpdateTime.UTC()),
-		"redaction_policy_version": RedactionPolicyVersion,
+	projectID := strings.TrimSpace(ProjectIDFromFullName(fullName))
+	sourceKind := strings.TrimSpace(obs.SourceKind)
+	payload, err := factschema.EncodeGCPTagObservation(gcpv1.TagObservation{
+		FullResourceName:       fullName,
+		AssetType:              assetType,
+		TagValueFingerprints:   fingerprints,
+		ProjectID:              &projectID,
+		TagKeys:                tagKeys,
+		SourceKind:             &sourceKind,
+		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode gcp_tag_observation payload: %w", err)
 	}
+	addGCPBoundaryPayload(payload, obs.Boundary)
+	payload["read_time"] = timeOrNil(obs.Boundary.ReadTime)
+	payload["update_time"] = timeOrNil(obs.UpdateTime.UTC())
 	if inheritance := cleanInheritanceState(obs.InheritanceState, fingerprints); len(inheritance) > 0 {
 		payload["tag_inheritance_state"] = inheritance
 	}

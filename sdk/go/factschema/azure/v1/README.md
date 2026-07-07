@@ -11,7 +11,7 @@ receives one of these structs, validated.
 
 ## Purpose
 
-Four Azure fact kinds decode through this package:
+Eight Azure fact kinds decode through this package:
 
 | Fact kind | Struct | Decode function |
 | --- | --- | --- |
@@ -19,29 +19,20 @@ Four Azure fact kinds decode through this package:
 | `azure_cloud_relationship` | `CloudRelationship` | `factschema.DecodeAzureCloudRelationship` |
 | `azure_dns_record` | `DNSRecord` | `factschema.DecodeAzureDNSRecord` |
 | `azure_collection_warning` | `CollectionWarning` | `factschema.DecodeAzureCollectionWarning` |
+| `azure_tag_observation` | `TagObservation` | `factschema.DecodeAzureTagObservation` |
+| `azure_identity_observation` | `IdentityObservation` | `factschema.DecodeAzureIdentityObservation` |
+| `azure_resource_change` | `ResourceChange` | `factschema.DecodeAzureResourceChange` |
+| `azure_image_reference` | `ImageReference` | `factschema.DecodeAzureImageReference` |
 
-The Azure family has eight fact kinds. This package types only the four above.
-The other four — `azure_tag_observation`, `azure_identity_observation`,
-`azure_resource_change`, `azure_image_reference` — are deliberately left
-untyped this wave because each one's only read-side consumer is either a shared
-cross-provider surface (`cloud_tag_evidence.go`, `container_image_identity*.go`)
-or an Azure-specific storage loader not converted here
-(`cloud_identity_policy_evidence.go`, `cloud_resource_change_evidence.go`).
-Typing a kind whose consumer this wave does not convert would create a
-`Decode*` the real read path never calls — a hollow contract where validation
-silently never happens (a "typed-kind-read-raw" contract-rigor breach). Those
-kinds migrate WITH the surface that reads them, tracked as cross-provider
-follow-up work (Contract System v1 §7).
-
-The rule this package follows: **type a kind in the wave that converts its
-read-side consumer; a kind whose only consumer is a shared cross-provider file
-migrates with that surface, not this per-cloud wave.** AWS cloud support now
-types image references; tag observations still migrate with their shared
-cross-provider consumer.
+The Azure family has eight fact kinds, and this package now types all eight.
+The shared cross-provider consumers for tags and image references still own
+their domain behavior, but the collector emit path and decode seam use these
+structs so missing required fields fail as classified `input_invalid` errors
+instead of slipping through as zero values.
 
 ## Ownership boundary
 
-This package owns the Go type definitions and JSON codec for these four fact
+This package owns the Go type definitions and JSON codec for these eight fact
 kinds' payloads. It does not own decode dispatch, schema-version routing, or
 required-field validation — that lives in the parent `factschema` package
 (`decode.go`, `decode_azure.go`). It does not own graph projection; reducer
@@ -52,9 +43,10 @@ module.
 
 ## Exported surface
 
-`CloudResource`, `CloudRelationship`, `DNSRecord`, `CollectionWarning`. See
-each struct's godoc comment for its full field list; the required/optional
-split below is the contract most callers need first.
+`CloudResource`, `CloudRelationship`, `DNSRecord`, `CollectionWarning`,
+`TagObservation`, `IdentityObservation`, `ResourceChange`, and
+`ImageReference`. See each struct's godoc comment for its full field list; the
+required/optional split below is the contract most callers need first.
 
 ## Dependencies
 
@@ -83,6 +75,10 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 | `CloudRelationship` | `RelationshipType`, `SourceARMResourceID`, `TargetARMResourceID` | The collector emitter (`azurecloud.NewRelationshipEnvelope`) validates all three non-empty before emission. |
 | `DNSRecord` | `ZoneARMResourceID`, `RecordType`, `RecordNameFingerprint` | The emitter validates a non-empty zone, record type, and record name (which it always fingerprints) before emission. |
 | `CollectionWarning` | `WarningKind`, `Outcome` | The emitter rejects a blank warning kind and defaults a blank outcome to `"partial"` before emission, so both are always present once decode succeeds. |
+| `TagObservation` | `ResourceID`, `TagKeyFingerprint` | The emitter only builds a tag observation after deriving the owning resource identity and fingerprinting a tag key. |
+| `IdentityObservation` | `ResourceID`, `IdentityType`, `PrincipalFingerprint` | The emitter requires the resource identity and principal evidence before recording an identity binding. |
+| `ResourceChange` | `ResourceID`, `ChangeType` | The emitter requires a resource identity and bounded change type before recording drift evidence. |
+| `ImageReference` | `ResourceID`, `ImageReference`, `TagDigestConfidence` | The emitter requires an owning resource, an image reference, and the bounded confidence class used by downstream image correlation. |
 
 ## The Attributes pass-through boundary (CloudResource and CloudRelationship only)
 
@@ -104,8 +100,9 @@ key. So a consumer reads a service-specific field at `Attributes["kind"]`
 directly — there is no `payloadAttributes(...)` unwrap helper needed the way
 the aws family requires.
 
-`DNSRecord` and `CollectionWarning` are each scoped to one fact kind with a
-known, closed field set, so neither carries an `Attributes` pass-through: the
+`DNSRecord`, `CollectionWarning`, `TagObservation`, `IdentityObservation`,
+`ResourceChange`, and `ImageReference` are each scoped to one fact kind with a
+known, closed field set, so none carries an `Attributes` pass-through: the
 collector fingerprints or redacts every sensitive field before emission, so
 the full payload shape is already known and stable.
 

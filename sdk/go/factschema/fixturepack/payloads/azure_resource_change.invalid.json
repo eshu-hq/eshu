@@ -1,0 +1,6 @@
+{
+  "target_arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-1",
+  "target_normalized_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm-1",
+  "target_resource_type": "microsoft.compute/virtualmachines",
+  "change_time": "2026-07-01T00:00:00Z"
+}

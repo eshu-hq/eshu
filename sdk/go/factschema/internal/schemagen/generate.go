@@ -434,6 +434,24 @@ func GCPIAMPolicyObservationSchema() ([]byte, error) {
 	return reflectSchema(GCPIAMPolicyObservationSchemaID, "Eshu gcp_iam_policy_observation Payload (schema version 1)", &gcpv1.IAMPolicyObservation{})
 }
 
+// GCPTagObservationSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "gcp_tag_observation" payload.
+const GCPTagObservationSchemaID = schemaBaseID + "gcp/v1/tag_observation.schema.json"
+
+// GCPTagObservationSchema returns the JSON Schema bytes for gcpv1.TagObservation.
+func GCPTagObservationSchema() ([]byte, error) {
+	return reflectSchema(GCPTagObservationSchemaID, "Eshu gcp_tag_observation Payload (schema version 1)", &gcpv1.TagObservation{})
+}
+
+// GCPImageReferenceSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "gcp_image_reference" payload.
+const GCPImageReferenceSchemaID = schemaBaseID + "gcp/v1/image_reference.schema.json"
+
+// GCPImageReferenceSchema returns the JSON Schema bytes for gcpv1.ImageReference.
+func GCPImageReferenceSchema() ([]byte, error) {
+	return reflectSchema(GCPImageReferenceSchemaID, "Eshu gcp_image_reference Payload (schema version 1)", &gcpv1.ImageReference{})
+}
+
 // AzureCloudResourceSchemaID is the checked-in JSON Schema $id for the
 // schema-version-1 "azure_cloud_resource" payload.
 const AzureCloudResourceSchemaID = schemaBaseID + "azure/v1/cloud_resource.schema.json"
@@ -471,6 +489,42 @@ const AzureCollectionWarningSchemaID = schemaBaseID + "azure/v1/collection_warni
 // azurev1.CollectionWarning.
 func AzureCollectionWarningSchema() ([]byte, error) {
 	return reflectSchema(AzureCollectionWarningSchemaID, "Eshu azure_collection_warning Payload (schema version 1)", &azurev1.CollectionWarning{})
+}
+
+// AzureTagObservationSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "azure_tag_observation" payload.
+const AzureTagObservationSchemaID = schemaBaseID + "azure/v1/tag_observation.schema.json"
+
+// AzureTagObservationSchema returns the JSON Schema bytes for azurev1.TagObservation.
+func AzureTagObservationSchema() ([]byte, error) {
+	return reflectSchema(AzureTagObservationSchemaID, "Eshu azure_tag_observation Payload (schema version 1)", &azurev1.TagObservation{})
+}
+
+// AzureIdentityObservationSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "azure_identity_observation" payload.
+const AzureIdentityObservationSchemaID = schemaBaseID + "azure/v1/identity_observation.schema.json"
+
+// AzureIdentityObservationSchema returns the JSON Schema bytes for azurev1.IdentityObservation.
+func AzureIdentityObservationSchema() ([]byte, error) {
+	return reflectSchema(AzureIdentityObservationSchemaID, "Eshu azure_identity_observation Payload (schema version 1)", &azurev1.IdentityObservation{})
+}
+
+// AzureResourceChangeSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "azure_resource_change" payload.
+const AzureResourceChangeSchemaID = schemaBaseID + "azure/v1/resource_change.schema.json"
+
+// AzureResourceChangeSchema returns the JSON Schema bytes for azurev1.ResourceChange.
+func AzureResourceChangeSchema() ([]byte, error) {
+	return reflectSchema(AzureResourceChangeSchemaID, "Eshu azure_resource_change Payload (schema version 1)", &azurev1.ResourceChange{})
+}
+
+// AzureImageReferenceSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "azure_image_reference" payload.
+const AzureImageReferenceSchemaID = schemaBaseID + "azure/v1/image_reference.schema.json"
+
+// AzureImageReferenceSchema returns the JSON Schema bytes for azurev1.ImageReference.
+func AzureImageReferenceSchema() ([]byte, error) {
+	return reflectSchema(AzureImageReferenceSchemaID, "Eshu azure_image_reference Payload (schema version 1)", &azurev1.ImageReference{})
 }
 
 // KubernetesLivePodTemplateSchemaID is the checked-in JSON Schema $id for the

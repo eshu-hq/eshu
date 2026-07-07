@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // maxIAMPolicyMembers bounds the number of member bindings carried on one
@@ -95,26 +97,25 @@ func NewIAMPolicyObservationEnvelope(obs IAMPolicyObservation, key redact.Key) (
 		"content_family":        obs.Boundary.ContentFamily,
 	})
 
-	payload := map[string]any{
-		"collector_instance_id":    obs.Boundary.CollectorInstanceID,
-		"parent_scope_kind":        string(obs.Boundary.ParentScopeKind),
-		"parent_scope_id":          obs.Boundary.ParentScopeID,
-		"asset_type_family":        obs.Boundary.AssetTypeFamily,
-		"content_family":           obs.Boundary.ContentFamily,
-		"location_bucket":          obs.Boundary.LocationBucket,
-		"full_resource_name":       fullName,
-		"asset_type":               assetType,
-		"project_id":               strings.TrimSpace(ProjectIDFromFullName(fullName)),
-		"role":                     role,
-		"members":                  members,
-		"member_count":             len(members),
-		"member_truncated":         memberTruncated,
-		"condition_present":        obs.ConditionPresent,
-		"condition_fingerprint":    conditionFingerprint,
-		"read_time":                timeOrNil(obs.Boundary.ReadTime),
-		"update_time":              timeOrNil(obs.UpdateTime.UTC()),
-		"redaction_policy_version": RedactionPolicyVersion,
+	projectID := strings.TrimSpace(ProjectIDFromFullName(fullName))
+	payload, err := factschema.EncodeGCPIAMPolicyObservation(gcpv1.IAMPolicyObservation{
+		FullResourceName:     fullName,
+		AssetType:            assetType,
+		Role:                 role,
+		ProjectID:            &projectID,
+		Members:              members,
+		ConditionPresent:     &obs.ConditionPresent,
+		ConditionFingerprint: &conditionFingerprint,
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode gcp_iam_policy_observation payload: %w", err)
 	}
+	addGCPBoundaryPayload(payload, obs.Boundary)
+	payload["member_count"] = len(members)
+	payload["member_truncated"] = memberTruncated
+	payload["read_time"] = timeOrNil(obs.Boundary.ReadTime)
+	payload["update_time"] = timeOrNil(obs.UpdateTime.UTC())
+	payload["redaction_policy_version"] = RedactionPolicyVersion
 	if etag := strings.TrimSpace(obs.Etag); etag != "" {
 		payload["etag_fingerprint"] = redact.String(etag, redactionReasonIAMEtag, "gcp_iam_etag", key).Marker
 	}

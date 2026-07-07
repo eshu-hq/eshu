@@ -6,16 +6,16 @@
 // docs/internal/design/contract-system-v1.md), decoded through the parent
 // factschema package's kind-keyed seam (decode.go, decode_gcp.go).
 //
-// Five fact kinds live here: Resource (gcp_cloud_resource), Relationship
+// Seven fact kinds live here: Resource (gcp_cloud_resource), Relationship
 // (gcp_cloud_relationship), CollectionWarning (gcp_collection_warning),
 // DNSRecord (gcp_dns_record), and IAMPolicyObservation
-// (gcp_iam_policy_observation). Each struct's required fields are
+// (gcp_iam_policy_observation), plus TagObservation (gcp_tag_observation) and
+// ImageReference (gcp_image_reference). Each struct's required fields are
 // non-pointer with no omitempty tag; the decode seam rejects a payload that
 // omits one, or supplies an explicit JSON null for one, with a classified
 // ClassificationInputInvalid error naming the field, never a zero-value
 // struct. Optional fields are pointers, slices, or maps carrying omitempty,
-// so an absent value decodes to nil and stays distinct from an observed
-// zero.
+// so an absent value decodes to nil and stays distinct from an observed zero.
 //
 // Resource and Relationship are polymorphic generic envelopes mirroring
 // awsv1.Resource / awsv1.Relationship: one fact kind carries every GCP asset
@@ -28,20 +28,9 @@
 // payloadAttributes(resource.Attributes) helper — never
 // env.Payload["attributes"][key] directly.
 //
-// CollectionWarning, DNSRecord, and IAMPolicyObservation are each scoped to
-// one fact kind with a known field set and carry no Attributes pass-through.
-//
-// gcp_image_reference and gcp_tag_observation are deliberately NOT typed
-// here: each kind's sole read-side reducer/storage consumer is a shared
-// cross-provider surface (container_image_identity for image references,
-// cloud_tag_evidence for tag observations) that reads AWS/Azure/GCP kinds
-// together and still reads them raw. Typing one provider's kind ahead of that
-// shared surface would be a hollow contract — the decode seam would never be
-// called by the real read path — and would asymmetrically type GCP while its
-// AWS/Azure siblings stay raw. These two kinds migrate WITH their
-// cross-provider consumer, not in this per-cloud wave, matching how the
-// AWS cloud support now types image references; tag observations still migrate
-// with their shared cross-provider consumer.
+// CollectionWarning, DNSRecord, IAMPolicyObservation, TagObservation, and
+// ImageReference are each scoped to one fact kind with a known field set and
+// carry no Attributes pass-through.
 //
 // GCPCloudResourceSchemaVersion (go/internal/facts.gcp.go) is pinned at
 // 1.1.0, one minor ahead of the rest of this family's 1.0.0 kinds: 1.1.0

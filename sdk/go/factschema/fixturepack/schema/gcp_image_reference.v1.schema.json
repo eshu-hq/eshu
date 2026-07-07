@@ -1,0 +1,49 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/gcp/v1/image_reference.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "container_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "owning_full_resource_name": {
+      "type": "string"
+    },
+    "owning_project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redaction_policy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tag_digest_confidence": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "owning_full_resource_name",
+    "tag_digest_confidence"
+  ],
+  "title": "Eshu gcp_image_reference Payload (schema version 1)",
+  "type": "object"
+}

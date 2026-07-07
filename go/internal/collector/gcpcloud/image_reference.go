@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
 // Image reference confidence classifies how strongly an image reference is
@@ -84,22 +86,21 @@ func NewImageReferenceEnvelope(obs ImageReferenceObservation, key redact.Key) (f
 		"content_family":            obs.Boundary.ContentFamily,
 	})
 
-	payload := map[string]any{
-		"collector_instance_id":     obs.Boundary.CollectorInstanceID,
-		"parent_scope_kind":         string(obs.Boundary.ParentScopeKind),
-		"parent_scope_id":           obs.Boundary.ParentScopeID,
-		"asset_type_family":         obs.Boundary.AssetTypeFamily,
-		"content_family":            obs.Boundary.ContentFamily,
-		"location_bucket":           obs.Boundary.LocationBucket,
-		"owning_full_resource_name": owningName,
-		"owning_project_id":         strings.TrimSpace(ProjectIDFromFullName(owningName)),
-		"image_reference":           imageReference,
-		"image_digest":              imageDigest,
-		"tag_digest_confidence":     confidence,
-		"read_time":                 timeOrNil(obs.Boundary.ReadTime),
-		"update_time":               timeOrNil(obs.UpdateTime.UTC()),
-		"redaction_policy_version":  RedactionPolicyVersion,
+	projectID := strings.TrimSpace(ProjectIDFromFullName(owningName))
+	payload, err := factschema.EncodeGCPImageReference(gcpv1.ImageReference{
+		OwningFullResourceName: owningName,
+		TagDigestConfidence:    confidence,
+		OwningProjectID:        &projectID,
+		ImageReference:         &imageReference,
+		ImageDigest:            &imageDigest,
+		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode gcp_image_reference payload: %w", err)
 	}
+	addGCPBoundaryPayload(payload, obs.Boundary)
+	payload["read_time"] = timeOrNil(obs.Boundary.ReadTime)
+	payload["update_time"] = timeOrNil(obs.UpdateTime.UTC())
 	if container := strings.TrimSpace(obs.ContainerName); container != "" {
 		payload["container_name_fingerprint"] = redact.String(container, "gcp_image_container", "gcp_image_container", key).Marker
 	}

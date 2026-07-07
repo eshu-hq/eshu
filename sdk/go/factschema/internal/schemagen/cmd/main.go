@@ -68,10 +68,16 @@ func run() error {
 		{name: "gcp_collection_warning.v1.schema.json", generate: schemagen.GCPCollectionWarningSchema},
 		{name: "gcp_dns_record.v1.schema.json", generate: schemagen.GCPDNSRecordSchema},
 		{name: "gcp_iam_policy_observation.v1.schema.json", generate: schemagen.GCPIAMPolicyObservationSchema},
+		{name: "gcp_tag_observation.v1.schema.json", generate: schemagen.GCPTagObservationSchema},
+		{name: "gcp_image_reference.v1.schema.json", generate: schemagen.GCPImageReferenceSchema},
 		{name: "azure_cloud_resource.v1.schema.json", generate: schemagen.AzureCloudResourceSchema},
 		{name: "azure_cloud_relationship.v1.schema.json", generate: schemagen.AzureCloudRelationshipSchema},
 		{name: "azure_dns_record.v1.schema.json", generate: schemagen.AzureDNSRecordSchema},
 		{name: "azure_collection_warning.v1.schema.json", generate: schemagen.AzureCollectionWarningSchema},
+		{name: "azure_tag_observation.v1.schema.json", generate: schemagen.AzureTagObservationSchema},
+		{name: "azure_identity_observation.v1.schema.json", generate: schemagen.AzureIdentityObservationSchema},
+		{name: "azure_resource_change.v1.schema.json", generate: schemagen.AzureResourceChangeSchema},
+		{name: "azure_image_reference.v1.schema.json", generate: schemagen.AzureImageReferenceSchema},
 		// The kubernetes_live family fact kinds are DOTTED, matching the
 		// incident family's convention above.
 		{name: "kubernetes_live.pod_template.v1.schema.json", generate: schemagen.KubernetesLivePodTemplateSchema},
