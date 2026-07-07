@@ -52,9 +52,15 @@ const gcpRelationshipPersistedVersionlessSchemaVersion = "0.0.0"
 // reducer's factschemaEnvelope normalization and the raw read's prior
 // version-agnostic behavior on the corpus.
 //
-// NOTE(#4865): DecodeGCPCloudRelationship rebuilds the discarded Attributes
-// remainder that this named-field-only caller never reads; a named-field-only
-// decode variant is tracked there.
+// This extractor reads only the named identity fields (SourceFullResourceName,
+// TargetFullResourceName, RelationshipType) and the named optional pointers
+// (SourceAssetType, TargetAssetType, SupportState); it never reads
+// Relationship.Attributes. It therefore decodes with
+// factschema.WithoutAttributesRemainder() (issue #4865), which skips rebuilding
+// the discarded Attributes remainder map — every named field decodes
+// identically to a default decode, and the unread Attributes field is left nil.
+// The reducer's own decode site (go/internal/reducer/factschema_decode.go) does
+// consume Attributes and so keeps the default (full-remainder) decode.
 func decodeGCPCloudRelationship(envelope facts.Envelope) (gcpv1.Relationship, bool) {
 	schemaVersion := envelope.SchemaVersion
 	if schemaVersion == "" || schemaVersion == gcpRelationshipPersistedVersionlessSchemaVersion {
@@ -64,7 +70,7 @@ func decodeGCPCloudRelationship(envelope facts.Envelope) (gcpv1.Relationship, bo
 		FactKind:      envelope.FactKind,
 		SchemaVersion: schemaVersion,
 		Payload:       envelope.Payload,
-	})
+	}, factschema.WithoutAttributesRemainder())
 	if err != nil {
 		return gcpv1.Relationship{}, false
 	}
