@@ -41,7 +41,7 @@ const openAPIPathsWorkItemEvidence = `
                           "provider": {"type": "string"},
                           "source_confidence": {"type": "string"},
                           "observed_at": {"type": "string"},
-                          "evidence_state": {"type": "string", "enum": ["exact_provider_fact", "unsupported_link_type", "missing_evidence", "stale_evidence", "permission_hidden", "rejected_unsafe_payload"]},
+                          "evidence_state": {"type": "string", "enum": ["exact_provider_fact", "unsupported_link_type", "missing_evidence", "stale_evidence", "permission_hidden", "rejected_unsafe_payload", "metadata_warning"]},
                           "work_item_key": {"type": "string"},
                           "provider_work_item_id": {"type": "string"},
                           "project_id": {"type": "string"},
@@ -56,7 +56,10 @@ const openAPIPathsWorkItemEvidence = `
                           "title_present": {"type": "boolean"},
                           "summary_present": {"type": "boolean"},
                           "provider_support_state": {"type": "string"},
-                          "redaction_policy_version": {"type": "string"}
+                          "redaction_policy_version": {"type": "string"},
+                          "metadata_type": {"type": "string", "description": "Metadata class a work_item.metadata_warning applies to (for example \"workflow\"). Present only on metadata_warning rows."},
+                          "warning_reason": {"type": "string", "description": "Bounded reason a work_item.metadata_warning was raised (for example \"permission_hidden\", \"archived\", or \"unsupported\"). Present only on metadata_warning rows; the row's evidence_state is metadata_warning regardless of this reason."},
+                          "provider_id_fingerprint": {"type": "string", "description": "One-way sha256 fingerprint of the redacted provider id a metadata_warning was raised against; carries no raw provider id. Omitted when the warning had no provider id."}
                         },
                         "required": ["fact_id", "fact_kind", "evidence_state"]
                       }

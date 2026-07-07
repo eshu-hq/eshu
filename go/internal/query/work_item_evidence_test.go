@@ -252,25 +252,18 @@ func TestPostgresWorkItemEvidenceStoreRejectsUnboundedFilter(t *testing.T) {
 func TestWorkItemEvidenceFactKindsMatchRegistrySet(t *testing.T) {
 	t.Parallel()
 
-	// The evidence read surface bounds its SQL read to the work_item family the
-	// fact-kind registry maps to GET /api/v0/work-items/evidence, MINUS
-	// work_item.metadata_warning (deferred to #4887; WorkItemEvidenceRow has no
-	// metadata_type/reason field, so surfacing it would strip its contract).
+	// The evidence read surface bounds its SQL read to the whole work_item
+	// family the fact-kind registry maps to GET /api/v0/work-items/evidence.
 	// facts.WorkItemFactKinds() is the single source of truth for the family, so
-	// asserting the read set equals it minus that one kind means a future family
-	// addition trips this guard instead of silently drifting.
-	want := make([]string, 0)
-	for _, kind := range facts.WorkItemFactKinds() {
-		if kind == facts.WorkItemMetadataWarningFactKind {
-			continue
-		}
-		want = append(want, kind)
-	}
+	// asserting the read set equals it exactly means a future family addition
+	// trips this guard instead of silently drifting. metadata_warning is now
+	// surfaced with its own contract fields (#4887), so it is part of the set.
+	want := slices.Clone(facts.WorkItemFactKinds())
 	got := slices.Clone(workItemEvidenceFactKinds)
 	slices.Sort(want)
 	slices.Sort(got)
 	if !slices.Equal(got, want) {
-		t.Fatalf("workItemEvidenceFactKinds = %v, want facts.WorkItemFactKinds() minus metadata_warning = %v", got, want)
+		t.Fatalf("workItemEvidenceFactKinds = %v, want facts.WorkItemFactKinds() = %v", got, want)
 	}
 	if slices.Contains(got, "work_item.coverage_warning") {
 		t.Fatal("workItemEvidenceFactKinds still lists the phantom work_item.coverage_warning (no emitter, no registry row)")
@@ -278,12 +271,12 @@ func TestWorkItemEvidenceFactKindsMatchRegistrySet(t *testing.T) {
 	if !slices.Contains(got, "work_item.issue_type_metadata") {
 		t.Fatal("workItemEvidenceFactKinds missing registered read-surface kind \"work_item.issue_type_metadata\"")
 	}
-	if slices.Contains(got, facts.WorkItemMetadataWarningFactKind) {
-		t.Fatal("workItemEvidenceFactKinds must exclude work_item.metadata_warning until #4887 surfaces it with metadata_type/reason")
+	if !slices.Contains(got, facts.WorkItemMetadataWarningFactKind) {
+		t.Fatalf("workItemEvidenceFactKinds missing registered read-surface kind %q (#4887 surfaces it with metadata_type/warning_reason)", facts.WorkItemMetadataWarningFactKind)
 	}
 }
 
-func TestWorkItemEvidenceSurfacesIssueTypeAndExcludesMetadataWarning(t *testing.T) {
+func TestWorkItemEvidenceSurfacesIssueTypeMetadataAndIncludesMetadataWarning(t *testing.T) {
 	t.Parallel()
 
 	// issue_type_metadata is on the read surface and must decode into an
@@ -324,14 +317,71 @@ func TestWorkItemEvidenceSurfacesIssueTypeAndExcludesMetadataWarning(t *testing.
 		t.Fatalf("issue_type_metadata ProjectID = %q, want 10000", issueType.ProjectID)
 	}
 
-	// metadata_warning is deliberately NOT on the read surface: the read set
-	// bounds the SQL query, and WorkItemEvidenceRow has no metadata_type/reason
-	// field, so a warning must not present as an ordinary provider fact. The
-	// SQL therefore never selects it and it never reaches the row builder. This
-	// assertion fails if metadata_warning is added back to the read set before
-	// #4887 gives WorkItemEvidenceRow the warning's contract fields.
-	if slices.Contains(workItemEvidenceFactKinds, facts.WorkItemMetadataWarningFactKind) {
-		t.Fatalf("read set must exclude %s until #4887; including it would surface a warning as an exact_provider_fact with no metadata_type/reason", facts.WorkItemMetadataWarningFactKind)
+	// metadata_warning now surfaces on the read surface with its own contract
+	// fields (see TestWorkItemEvidenceSurfacesMetadataWarningWithWarningState),
+	// so the read set must include it.
+	if !slices.Contains(workItemEvidenceFactKinds, facts.WorkItemMetadataWarningFactKind) {
+		t.Fatalf("read set must include %s (#4887 surfaces it with metadata_type/warning_reason/provider_id_fingerprint)", facts.WorkItemMetadataWarningFactKind)
+	}
+}
+
+// TestWorkItemEvidenceSurfacesMetadataWarningWithWarningState proves the
+// #4887 contract: a work_item.metadata_warning fact surfaces as an evidence
+// row carrying its metadata type, warning reason, and provider-id fingerprint,
+// tagged with the distinct metadata_warning evidence state (a metadata
+// COLLECTION warning, not an ordinary exact_provider_fact and not the
+// record-level permission_hidden state) regardless of the warning reason.
+func TestWorkItemEvidenceSurfacesMetadataWarningWithWarningState(t *testing.T) {
+	t.Parallel()
+
+	// The permission-hidden reason carries failure_class=permission_hidden,
+	// which the generic record-level classifier would otherwise map to
+	// permission_hidden. The metadata_warning kind must override that so the
+	// row reports the collection-warning truth, with the specific reason kept
+	// in the warning_reason field.
+	rows := buildWorkItemEvidenceRows([]workItemEvidenceFactRow{
+		{
+			FactID:           "metadata-warning",
+			FactKind:         "work_item.metadata_warning",
+			ScopeID:          "jira:site:example",
+			GenerationID:     "generation-1",
+			SchemaVersion:    facts.WorkItemSchemaVersionV1,
+			SourceConfidence: "reported",
+			ObservedAt:       "2026-06-01T12:00:00Z",
+			Payload: map[string]any{
+				"provider":                 "jira_cloud",
+				"metadata_type":            "workflow",
+				"reason":                   "permission_hidden",
+				"failure_class":            "permission_hidden",
+				"provider_id":              "",
+				"provider_id_present":      true,
+				"provider_id_fingerprint":  "sha256:deadbeef",
+				"redaction_policy_version": "jira_work_item_v1",
+			},
+		},
+	})
+
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1 (metadata_warning surfaced, not dropped)", len(rows))
+	}
+	warning := rows[0]
+	if warning.FactKind != "work_item.metadata_warning" {
+		t.Fatalf("rows[0].FactKind = %q, want work_item.metadata_warning", warning.FactKind)
+	}
+	if warning.Provider != "jira_cloud" {
+		t.Fatalf("metadata_warning Provider = %q, want jira_cloud", warning.Provider)
+	}
+	if warning.MetadataType != "workflow" {
+		t.Fatalf("metadata_warning MetadataType = %q, want workflow", warning.MetadataType)
+	}
+	if warning.WarningReason != "permission_hidden" {
+		t.Fatalf("metadata_warning WarningReason = %q, want permission_hidden", warning.WarningReason)
+	}
+	if warning.ProviderIDFingerprint != "sha256:deadbeef" {
+		t.Fatalf("metadata_warning ProviderIDFingerprint = %q, want sha256:deadbeef", warning.ProviderIDFingerprint)
+	}
+	if warning.EvidenceState != WorkItemEvidenceStateMetadataWarning {
+		t.Fatalf("metadata_warning EvidenceState = %q, want %q (collection warning, not permission_hidden or exact_provider_fact)", warning.EvidenceState, WorkItemEvidenceStateMetadataWarning)
 	}
 }
 

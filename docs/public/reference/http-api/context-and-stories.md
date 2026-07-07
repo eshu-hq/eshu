@@ -192,9 +192,17 @@ the page is truncated.
 The route is ticket-first evidence, not an incident or deployment verifier.
 External URLs are converted to sanitized fingerprints and raw URLs are not
 returned. Jira facts can show exact provider evidence, unsupported link types,
-stale evidence, permission-hidden evidence, missing evidence, or rejected unsafe
-payloads, but PR, commit, deployment, runtime artifact, image, service, and
-incident truth require provider or reducer evidence outside Jira.
+stale evidence, permission-hidden evidence, missing evidence, rejected unsafe
+payloads, or metadata-collection warnings, but PR, commit, deployment, runtime
+artifact, image, service, and incident truth require provider or reducer
+evidence outside Jira.
+
+A `work_item.metadata_warning` fact reports the `metadata_warning` evidence
+state — metadata collection for a scope was blocked (archived, unsupported, or
+permission-hidden), which is distinct from a hidden issue record. Its row also
+carries `metadata_type`, `warning_reason`, and `provider_id_fingerprint`; the
+evidence state stays `metadata_warning` regardless of the reason, and the
+specific reason is in `warning_reason`.
 
 A confidently typed GitHub pull-request or GitLab merge-request external link
 also returns `linked_repository_id`, the canonical repository id the Jira

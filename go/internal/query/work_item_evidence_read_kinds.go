@@ -5,33 +5,18 @@ package query
 
 import "github.com/eshu-hq/eshu/go/internal/facts"
 
-// workItemEvidenceFactKinds bounds the evidence read to the work_item family
-// the fact-kind registry maps to GET /api/v0/work-items/evidence, MINUS
-// work_item.metadata_warning (see workItemEvidenceReadKinds). Deriving it from
-// facts.WorkItemFactKinds() keeps the SQL kind list, the decode switch in
-// decodeWorkItemEvidenceRow, and the registry in lockstep so a future family
-// addition trips the drift guard instead of silently narrowing the read.
-var workItemEvidenceFactKinds = workItemEvidenceReadKinds()
-
-// workItemEvidenceReadKinds returns the work_item fact kinds the evidence read
-// surface serves: the whole registered family from facts.WorkItemFactKinds()
-// except work_item.metadata_warning. The metadata_warning kind is excluded on
-// purpose: WorkItemEvidenceRow is a public wire shape with no metadata_type or
-// reason field, so surfacing a collection warning through it would strip the
-// warning's own contract fields (metadata_type, reason) and present it as an
-// ordinary provider fact — misleading truth on a public surface. Surfacing it
-// correctly is a wire + semantics change tracked in #4887; until then the kind
-// stays off the read set (it was never surfaced before, so excluding it is
-// regression-free). Its decode branch and wrapper are kept forward-ready for
-// that follow-up.
-func workItemEvidenceReadKinds() []string {
-	all := facts.WorkItemFactKinds()
-	kinds := make([]string, 0, len(all))
-	for _, kind := range all {
-		if kind == facts.WorkItemMetadataWarningFactKind {
-			continue
-		}
-		kinds = append(kinds, kind)
-	}
-	return kinds
-}
+// workItemEvidenceFactKinds bounds the evidence read to the whole work_item
+// family the fact-kind registry maps to GET /api/v0/work-items/evidence. It is
+// exactly facts.WorkItemFactKinds() — the single source of truth for the
+// family — so the SQL kind list, the decode switch in decodeWorkItemEvidenceRow,
+// and the registry stay in lockstep and a future family addition trips the
+// drift guard (TestWorkItemEvidenceFactKindsMatchRegistrySet) instead of
+// silently narrowing the read.
+//
+// work_item.metadata_warning is included: #4887 gave WorkItemEvidenceRow the
+// warning's own contract fields (metadata_type, warning_reason,
+// provider_id_fingerprint) and a distinct metadata_warning evidence state, so a
+// metadata-collection warning now surfaces as itself instead of an ordinary
+// provider fact. WorkItemFactKinds returns a fresh clone, so assigning it here
+// does not share a backing array with the registry.
+var workItemEvidenceFactKinds = facts.WorkItemFactKinds()

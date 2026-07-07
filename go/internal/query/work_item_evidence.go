@@ -10,12 +10,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -38,6 +34,16 @@ const (
 	// WorkItemEvidenceStateRejectedUnsafePayload marks malformed or unsafe
 	// source payloads retained only as bounded warning evidence.
 	WorkItemEvidenceStateRejectedUnsafePayload = "rejected_unsafe_payload"
+	// WorkItemEvidenceStateMetadataWarning marks a work_item.metadata_warning
+	// fact: metadata COLLECTION for a scope was blocked (archived, unsupported,
+	// or permission-hidden) rather than the source reporting an ordinary fact.
+	// It is deliberately distinct from WorkItemEvidenceStatePermissionHidden,
+	// which marks the RECORD itself as hidden: a metadata warning says the
+	// collector could not read a class of metadata, not that a specific issue is
+	// invisible. The specific reason lives in the row's WarningReason field, so
+	// the state stays a stable "this is a collection warning" label independent
+	// of the reason token.
+	WorkItemEvidenceStateMetadataWarning = "metadata_warning"
 )
 
 // WorkItemEvidenceStore reads bounded Jira/work-item source facts.
@@ -109,6 +115,21 @@ type WorkItemEvidenceRow struct {
 	AnchorClass            string `json:"correlation_anchor_class,omitempty"`
 	ProviderSupportState   string `json:"provider_support_state,omitempty"`
 	RedactionPolicyVersion string `json:"redaction_policy_version,omitempty"`
+	// MetadataType names the metadata class a work_item.metadata_warning applies
+	// to (for example "workflow"). It is set only on metadata_warning rows and
+	// carries the warning's required MetadataType field; empty for every other
+	// fact kind.
+	MetadataType string `json:"metadata_type,omitempty"`
+	// WarningReason is the bounded provider-facing reason a metadata_warning was
+	// emitted (for example "permission_hidden", "archived", or "unsupported").
+	// It is the reason token behind the metadata_warning evidence state; empty
+	// for every other fact kind.
+	WarningReason string `json:"warning_reason,omitempty"`
+	// ProviderIDFingerprint is the one-way sha256 fingerprint of the (redacted)
+	// provider id a metadata_warning was raised against. It carries no raw
+	// provider id; empty when the warning had no provider id or for other fact
+	// kinds.
+	ProviderIDFingerprint string `json:"provider_id_fingerprint,omitempty"`
 	// LinkedRepositoryID is the durable canonical repository id the Jira
 	// collector resolves from a confidently typed GitHub PR or GitLab MR link
 	// before redaction (see collector/jira linked_repository.go). It is the same
@@ -322,6 +343,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 			return WorkItemEvidenceRow{}, false
 		}
 		base.Provider = warning.Provider
+		base.MetadataType = warning.MetadataType
+		base.WarningReason = warning.Reason
+		base.ProviderIDFingerprint = workItemDerefString(warning.ProviderIDFingerprint)
 		base.RedactionPolicyVersion = workItemDerefString(warning.RedactionPolicyVersion)
 
 	default:
@@ -361,93 +385,6 @@ func logWorkItemEvidenceDecodeDrop(err error) {
 		attrs = append(attrs, slog.String("missing_field", decodeErr.Field))
 	}
 	slog.Debug("work-item evidence fact dropped from list", attrs...)
-}
-
-func workItemEvidenceState(fact workItemEvidenceFactRow) string {
-	payload := fact.Payload
-	if state := strings.TrimSpace(StringVal(payload, "evidence_state")); knownWorkItemEvidenceState(state) {
-		return state
-	}
-	if BoolVal(payload, "permission_hidden") ||
-		StringVal(payload, "failure_class") == "permission_hidden" ||
-		StringVal(payload, "visibility_state") == "permission_hidden" {
-		return WorkItemEvidenceStatePermissionHidden
-	}
-	if StringVal(payload, "source_freshness") == "stale" ||
-		StringVal(payload, "freshness_state") == "stale" {
-		return WorkItemEvidenceStateStaleEvidence
-	}
-	if fact.FactKind == "work_item.external_link" {
-		state := strings.TrimSpace(StringVal(payload, "provider_support_state"))
-		switch {
-		case strings.Contains(state, "unsupported"):
-			return WorkItemEvidenceStateUnsupportedLinkType
-		case strings.Contains(state, "rejected"):
-			return WorkItemEvidenceStateRejectedUnsafePayload
-		}
-	}
-	if StringVal(payload, "warning_reason") == "rejected_unsafe_payload" {
-		return WorkItemEvidenceStateRejectedUnsafePayload
-	}
-	return WorkItemEvidenceStateExactProviderFact
-}
-
-func knownWorkItemEvidenceState(state string) bool {
-	return slices.Contains([]string{
-		WorkItemEvidenceStateExactProviderFact,
-		WorkItemEvidenceStateUnsupportedLinkType,
-		WorkItemEvidenceStateMissingEvidence,
-		WorkItemEvidenceStateStaleEvidence,
-		WorkItemEvidenceStatePermissionHidden,
-		WorkItemEvidenceStateRejectedUnsafePayload,
-	}, state)
-}
-
-func summarizeWorkItemEvidenceStates(rows []WorkItemEvidenceRow) []string {
-	if len(rows) == 0 {
-		return []string{WorkItemEvidenceStateMissingEvidence}
-	}
-	seen := map[string]struct{}{}
-	for _, row := range rows {
-		state := strings.TrimSpace(row.EvidenceState)
-		if state == "" {
-			state = WorkItemEvidenceStateExactProviderFact
-		}
-		seen[state] = struct{}{}
-	}
-	return setToSortedSlice(seen)
-}
-
-func workItemEvidenceSpanAttributes(rows []WorkItemEvidenceRow, truncated bool) []attribute.KeyValue {
-	counts := map[string]int{
-		WorkItemEvidenceStateStaleEvidence:         0,
-		WorkItemEvidenceStatePermissionHidden:      0,
-		WorkItemEvidenceStateRejectedUnsafePayload: 0,
-		WorkItemEvidenceStateUnsupportedLinkType:   0,
-	}
-	for _, row := range rows {
-		state := strings.TrimSpace(row.EvidenceState)
-		if state == "" {
-			state = WorkItemEvidenceStateExactProviderFact
-		}
-		if _, ok := counts[state]; ok {
-			counts[state]++
-		}
-	}
-	missingCount := 0
-	if len(rows) == 0 {
-		missingCount = 1
-	}
-	return []attribute.KeyValue{
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceQueryCount, 1),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceResultCount, len(rows)),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceStaleCount, counts[WorkItemEvidenceStateStaleEvidence]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidencePermissionHiddenCount, counts[WorkItemEvidenceStatePermissionHidden]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceRejectedUnsafePayloadCount, counts[WorkItemEvidenceStateRejectedUnsafePayload]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceUnsupportedLinkTypeCount, counts[WorkItemEvidenceStateUnsupportedLinkType]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceMissingCount, missingCount),
-		attribute.Bool(telemetry.SpanAttrWorkItemEvidenceTruncated, truncated),
-	}
 }
 
 func workItemURLFingerprint(raw string) string {

@@ -19,6 +19,10 @@ func TestOpenAPIIncludesWorkItemEvidenceRoute(t *testing.T) {
 		`"external_url"`,
 		`"url_fingerprint"`,
 		`"missing_evidence"`,
+		`"metadata_type"`,
+		`"warning_reason"`,
+		`"provider_id_fingerprint"`,
+		`"metadata_warning"`,
 	} {
 		if !strings.Contains(spec, want) {
 			t.Fatalf("OpenAPISpec() missing %q", want)
