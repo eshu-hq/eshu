@@ -192,17 +192,25 @@ func validateIncidentContextTime(w http.ResponseWriter, value string, field stri
 	return true
 }
 
+// trimIncidentContextSnapshot is a defensive size cap on the timeline and
+// related-change lists. It MUST NOT set snapshot.Truncated: that field is the
+// fetched-count truth the store already computed from the raw fetched row count
+// (readIncidentTimeline / readIncidentChangeCandidates), not something derived
+// from the decoded len here. Deriving Truncated from len is the #4733 bug — a
+// visible row dropped by typed decode shrinks len below limit and would hide a
+// genuinely truncated page. The store already bounds each list to the visible
+// window (requested limit), so these caps are normally no-ops; they remain only
+// so the response can never exceed the requested limit if the store contract
+// ever changes.
 func trimIncidentContextSnapshot(
 	snapshot IncidentContextSnapshot,
 	limit int,
 ) IncidentContextSnapshot {
 	if len(snapshot.Timeline) > limit {
 		snapshot.Timeline = snapshot.Timeline[:limit]
-		snapshot.Truncated = true
 	}
 	if len(snapshot.RelatedChanges) > limit {
 		snapshot.RelatedChanges = snapshot.RelatedChanges[:limit]
-		snapshot.Truncated = true
 	}
 	return snapshot
 }
