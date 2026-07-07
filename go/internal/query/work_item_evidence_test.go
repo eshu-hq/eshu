@@ -17,6 +17,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// recordingWorkItemEvidenceStore is a fake WorkItemEvidenceStore that already
+// holds decoded rows (it has no raw-fact/decode-drop concept; see
+// TestBuildWorkItemEvidencePageDerivesTruncationFromFetchedFactsNotDecodedRows
+// for that scenario). It mirrors PostgresWorkItemEvidenceStore's pagination
+// contract for an all-decode-succeeds fetch: filter.Limit is the "+1"
+// lookahead fetch bound, so the visible window is filter.Limit-1 rows.
 type recordingWorkItemEvidenceStore struct {
 	rows       []WorkItemEvidenceRow
 	lastFilter WorkItemEvidenceFilter
@@ -25,9 +31,22 @@ type recordingWorkItemEvidenceStore struct {
 func (s *recordingWorkItemEvidenceStore) ListWorkItemEvidence(
 	_ context.Context,
 	filter WorkItemEvidenceFilter,
-) ([]WorkItemEvidenceRow, error) {
+) (WorkItemEvidencePage, error) {
 	s.lastFilter = filter
-	return append([]WorkItemEvidenceRow(nil), s.rows...), nil
+	rows := append([]WorkItemEvidenceRow(nil), s.rows...)
+	visibleLimit := filter.Limit - 1
+	if visibleLimit < 0 {
+		visibleLimit = 0
+	}
+	truncated := len(rows) > visibleLimit
+	if truncated {
+		rows = rows[:visibleLimit]
+	}
+	page := WorkItemEvidencePage{Rows: rows, Truncated: truncated}
+	if truncated && len(rows) > 0 {
+		page.NextCursorFactID = rows[len(rows)-1].FactID
+	}
+	return page, nil
 }
 
 type unusedWorkItemEvidenceQueryer struct{}

@@ -25,9 +25,9 @@ type failingWorkItemEvidenceStore struct {
 func (s *failingWorkItemEvidenceStore) ListWorkItemEvidence(
 	context.Context,
 	WorkItemEvidenceFilter,
-) ([]WorkItemEvidenceRow, error) {
+) (WorkItemEvidencePage, error) {
 	s.called = true
-	return nil, errors.New("broad work-item evidence read")
+	return WorkItemEvidencePage{}, errors.New("broad work-item evidence read")
 }
 
 func TestAuthMiddlewareWithScopedTokensAllowsWorkItemEvidenceRoute(t *testing.T) {

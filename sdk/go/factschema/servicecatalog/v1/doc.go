@@ -18,8 +18,9 @@
 // Entity (service_catalog.entity) and Ownership (service_catalog.ownership)
 // and RepositoryLink (service_catalog.repository_link), read by the reducer's
 // correlation index (go/internal/reducer/service_catalog_correlation_index.go),
-// plus OperationalLink (service_catalog.operational_link), read only by a
-// raw-SQL JSONB loader in go/internal/query (see operational_link.go doc
+// plus OperationalLink (service_catalog.operational_link), decoded by the
+// query-layer incident-context read model in go/internal/query through the
+// decodeServiceCatalogOperationalLink seam (see operational_link.go doc
 // comment). The remaining five kinds — Dependency (service_catalog.dependency),
 // APILink (service_catalog.api_link), ScorecardDefinition
 // (service_catalog.scorecard_definition), ScorecardResult

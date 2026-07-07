@@ -722,3 +722,81 @@ changes error encoding; the success query shape is unchanged.
 No-Observability-Change: no route, graph write, queue, worker, runtime knob,
 metric instrument, or metric label is added. The error envelope reuses the
 existing `ResponseEnvelope`/`ErrorEnvelope` contract and HTTP route attribution.
+
+## Incident-context typed decode (#4794 W2a) and work-item evidence pagination fix (#4733)
+
+`incident_context_decode.go`, `incident_context_routing_store.go`, and
+`incident_context_runtime_store.go` decoded `incident.record`,
+`incident.lifecycle_event`, `change.record`,
+`incident_routing.applied_pagerduty_resource`,
+`incident_routing.observed_pagerduty_service`,
+`incident_routing.coverage_warning`, and `service_catalog.operational_link`
+fact payloads with raw `StringVal`/`BoolVal` map lookups, silently defaulting
+every field to `""`/`false` on a missing key instead of dead-lettering. They
+now decode through new query-layer seams in `factschema_decode_incident.go`
+(`decodeIncidentRecord`, `decodeIncidentLifecycleEvent`, `decodeChangeRecord`,
+`decodeIncidentRoutingAppliedPagerDutyResource`,
+`decodeIncidentRoutingObservedPagerDutyService`,
+`decodeIncidentRoutingCoverageWarning`,
+`decodeServiceCatalogOperationalLink`), mirroring the `work_item` family's
+`factschema_decode_workitem.go` template: a row whose payload is missing a
+required identity field is dropped (a `*queryDecodeError`, logged via
+`logIncidentContextDecodeDrop`) rather than surfaced with an empty identity.
+`incident.record`, `incident.lifecycle_event`, and `change.record` preserve one
+pre-existing, tested behavior: when the payload omits its required identity key
+entirely (`provider_incident_id` / `provider_event_id` / `provider_change_id`)
+but the fact's durable `source_record_id` is present, the decode retries with
+that id injected as the fallback identity (`incidentIdentityFallback`) instead
+of dead-lettering — see
+`TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceRecordID`.
+`reducer_ci_cd_run_correlation` and `reducer_kubernetes_correlation` (read in
+`incident_context_runtime_store.go`) are reducer-derived facts with no
+`factschema.FactKind*` constant and no Decode seam, so they stay on raw payload
+reads — out of scope for this conversion (see the reducer-derived fact
+governance decision, PR #4809). `go/internal/payloadusage/schema.go`'s
+`factKindSchemaFile` gains `FactKindIncidentLifecycleEvent`,
+`FactKindChangeRecord`, and `FactKindServiceCatalogOperationalLink` because
+these seams are now visible to the merged reducer+query payload-usage manifest
+gate (`go test ./internal/reducer -run TestPayloadUsageManifest`).
+
+Separately, `WorkItemEvidenceStore.ListWorkItemEvidence` (`work_item_evidence.go`,
+`work_item_evidence_store.go`, `work_item_evidence_handler.go`) fixes #4733: the
+handler fetched `limit+1` facts, decoded the WHOLE window, and computed
+`truncated := len(decodedRows) > limit`. A fact dropped mid-window by a failed
+typed decode shrank the decoded count below the fetch count, so a genuinely
+truncated page could report `truncated: false` with no `next_cursor`, hiding
+evidence beyond the malformed fact, and could leak the `+1` lookahead fact into
+the visible page. `ListWorkItemEvidence` now returns a `WorkItemEvidencePage`
+(`Rows`, `Truncated`, `NextCursorFactID`) built by `buildWorkItemEvidencePage`,
+which derives `Truncated`/`NextCursorFactID` from the RAW fetched fact count and
+fact_id sequence — never from `len(Rows)` — and decodes only the visible
+window (`fetchLimit-1` facts), so the lookahead fact can never leak into a page
+whose earlier facts happened to drop.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp ./internal/payloadusage ./internal/reducer ./internal/projector -count=1` pass.
+`TestBuildWorkItemEvidencePageDerivesTruncationFromFetchedFactsNotDecodedRows`
+and `TestWorkItemListEvidenceHandlerAdvancesPastMalformedFactInsideWindow` fail
+against the pre-fix `truncated := len(decodedRows) > limit` logic (proven by
+temporarily reverting `buildWorkItemEvidencePage` to that shape) and pass after.
+`TestDecodeIncidentContextIncidentDropsRowMissingBothIdentityFields`,
+`TestDecodeIncidentContextTimelineEventDropsRowMissingBothIdentityFields`,
+`TestDecodeIncidentContextChangeCandidateDropsRowMissingBothIdentityFields`,
+`TestBuildIncidentAppliedPagerDutyRoutingDropsRowMissingRequiredField`,
+`TestBuildIncidentObservedPagerDutyRoutingDropsRowMissingRequiredField`, and
+`TestBuildIncidentRoutingCoverageWarningDropsRowMissingRequiredField` prove the
+input_invalid drop per converted kind; the paired
+`TestDecodeIncidentContextIncidentFallsBackToSourceRecordID` (and its
+lifecycle-event/change-record siblings) and the `*DecodesValidPayload` tests
+prove well-formed facts decode identically to the pre-conversion raw-map
+output (same field mapping, same response shape) — this conversion is
+output-preserving for valid facts. `TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceRecordID`
+and `TestPostgresIncidentContextStoreReturnsAmbiguousSourceRecordMatches` (both
+pre-existing) continue to pass unchanged, proving the source_record_id fallback
+path survived the conversion.
+
+No-Observability-Change: neither change adds a route, graph write, metric
+label, or runtime knob. The incident-context and work-item-evidence handlers
+keep their existing `query.incident_context` / `work_item_evidence.list` truth
+envelopes and HTTP route attribution; a dropped fact is visible via the
+existing `slog.Debug` decode-drop log (fact_id, fact_kind, classification,
+missing_field), matching the work_item family's established pattern.

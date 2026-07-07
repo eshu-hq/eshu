@@ -119,7 +119,7 @@ type boundedEmptyWorkItemEvidenceStore struct {
 func (s *boundedEmptyWorkItemEvidenceStore) ListWorkItemEvidence(
 	context.Context,
 	query.WorkItemEvidenceFilter,
-) ([]query.WorkItemEvidenceRow, error) {
+) (query.WorkItemEvidencePage, error) {
 	s.called = true
-	return nil, nil
+	return query.WorkItemEvidencePage{}, nil
 }

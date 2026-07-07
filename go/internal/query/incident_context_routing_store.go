@@ -121,7 +121,11 @@ func (s PostgresIncidentContextStore) readIncidentAppliedPagerDutyRouting(
 	}
 	out := make([]incidentAppliedPagerDutyRouting, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, decodeIncidentAppliedPagerDutyRouting(row))
+		decoded, ok := buildIncidentAppliedPagerDutyRouting(row)
+		if !ok {
+			continue
+		}
+		out = append(out, decoded)
 	}
 	return out, nil
 }
@@ -147,7 +151,11 @@ func (s PostgresIncidentContextStore) readIncidentObservedPagerDutyRouting(
 	}
 	out := make([]incidentObservedPagerDutyRouting, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, decodeIncidentObservedPagerDutyRouting(row))
+		decoded, ok := buildIncidentObservedPagerDutyRouting(row)
+		if !ok {
+			continue
+		}
+		out = append(out, decoded)
 	}
 	return out, nil
 }
@@ -171,61 +179,102 @@ func (s PostgresIncidentContextStore) readIncidentRoutingCoverageWarnings(
 	}
 	out := make([]incidentRoutingCoverageWarning, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, decodeIncidentRoutingCoverageWarning(row))
+		decoded, ok := buildIncidentRoutingCoverageWarning(row)
+		if !ok {
+			continue
+		}
+		out = append(out, decoded)
 	}
 	return out, nil
 }
 
-func decodeIncidentAppliedPagerDutyRouting(row incidentContextFactRow) incidentAppliedPagerDutyRouting {
+// buildIncidentAppliedPagerDutyRouting decodes one
+// incident_routing.applied_pagerduty_resource fact row through the typed
+// sdk/go/factschema/incident/v1 seam (decodeIncidentRoutingAppliedPagerDutyResource)
+// and shapes it into the read model's incidentAppliedPagerDutyRouting. ok is
+// false when the fact failed typed decode (a missing required routing field);
+// the caller drops the row rather than emit an empty-identity routing entry.
+func buildIncidentAppliedPagerDutyRouting(row incidentContextFactRow) (incidentAppliedPagerDutyRouting, bool) {
+	resource, err := decodeIncidentRoutingAppliedPagerDutyResource(incidentContextDecodeInput{
+		FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload,
+	})
+	if err != nil {
+		logIncidentContextDecodeDrop(err)
+		return incidentAppliedPagerDutyRouting{}, false
+	}
 	return incidentAppliedPagerDutyRouting{
 		FactID:                    row.FactID,
-		SourceClass:               StringVal(row.Payload, "source_class"),
-		SourceKind:                StringVal(row.Payload, "source_kind"),
-		Outcome:                   StringVal(row.Payload, "outcome"),
-		ResourceClass:             StringVal(row.Payload, "resource_class"),
-		ProviderObjectID:          StringVal(row.Payload, "provider_object_id"),
-		NameFingerprint:           StringVal(row.Payload, "name_fingerprint"),
-		EscalationPolicyReference: StringVal(row.Payload, "escalation_policy_reference"),
-		TerraformStateAddress:     StringVal(row.Payload, "terraform_state_address"),
-		ProviderAddress:           StringVal(row.Payload, "provider_address"),
-		ModuleAddress:             StringVal(row.Payload, "module_address"),
-		StateGenerationID:         StringVal(row.Payload, "state_generation_id"),
-		DeclaredMatchState:        StringVal(row.Payload, "declared_match_state"),
-		RedactionState:            StringVal(row.Payload, "redaction_state"),
+		SourceClass:               resource.SourceClass,
+		SourceKind:                resource.SourceKind,
+		Outcome:                   resource.Outcome,
+		ResourceClass:             resource.ResourceClass,
+		ProviderObjectID:          workItemDerefString(resource.ProviderObjectID),
+		NameFingerprint:           workItemDerefString(resource.NameFingerprint),
+		EscalationPolicyReference: workItemDerefString(resource.EscalationPolicyReference),
+		TerraformStateAddress:     resource.TerraformStateAddress,
+		ProviderAddress:           resource.ProviderAddress,
+		ModuleAddress:             resource.ModuleAddress,
+		StateGenerationID:         resource.StateGenerationID,
+		DeclaredMatchState:        resource.DeclaredMatchState,
+		RedactionState:            resource.RedactionState,
 		ObservedAt:                formatIncidentContextTime(row.ObservedAt),
-	}
+	}, true
 }
 
-func decodeIncidentObservedPagerDutyRouting(row incidentContextFactRow) incidentObservedPagerDutyRouting {
+// buildIncidentObservedPagerDutyRouting decodes one
+// incident_routing.observed_pagerduty_service fact row through the typed seam
+// (decodeIncidentRoutingObservedPagerDutyService) and shapes it into the read
+// model's incidentObservedPagerDutyRouting. ok is false when the fact failed
+// typed decode; the caller drops the row.
+func buildIncidentObservedPagerDutyRouting(row incidentContextFactRow) (incidentObservedPagerDutyRouting, bool) {
+	service, err := decodeIncidentRoutingObservedPagerDutyService(incidentContextDecodeInput{
+		FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload,
+	})
+	if err != nil {
+		logIncidentContextDecodeDrop(err)
+		return incidentObservedPagerDutyRouting{}, false
+	}
 	return incidentObservedPagerDutyRouting{
 		FactID:                    row.FactID,
-		SourceClass:               StringVal(row.Payload, "source_class"),
-		SourceKind:                StringVal(row.Payload, "source_kind"),
-		Outcome:                   StringVal(row.Payload, "outcome"),
-		ServiceID:                 StringVal(row.Payload, "service_id"),
-		ProviderObjectID:          StringVal(row.Payload, "provider_object_id"),
-		NameFingerprint:           StringVal(row.Payload, "name_fingerprint"),
-		Status:                    StringVal(row.Payload, "status"),
-		EscalationPolicyReference: StringVal(row.Payload, "escalation_policy_reference"),
-		DeclaredMatchState:        StringVal(row.Payload, "declared_match_state"),
-		DriftCandidateReason:      StringVal(row.Payload, "drift_candidate_reason"),
-		RedactionState:            StringVal(row.Payload, "redaction_state"),
-		SourceURL:                 StringVal(row.Payload, "source_url"),
-		Disabled:                  BoolVal(row.Payload, "disabled"),
-		Deleted:                   BoolVal(row.Payload, "deleted"),
-		ManuallyCreated:           BoolVal(row.Payload, "manually_created"),
+		SourceClass:               service.SourceClass,
+		SourceKind:                service.SourceKind,
+		Outcome:                   service.Outcome,
+		ServiceID:                 service.ServiceID,
+		ProviderObjectID:          service.ProviderObjectID,
+		NameFingerprint:           workItemDerefString(service.NameFingerprint),
+		Status:                    workItemDerefString(service.Status),
+		EscalationPolicyReference: workItemDerefString(service.EscalationPolicyReference),
+		DeclaredMatchState:        service.DeclaredMatchState,
+		DriftCandidateReason:      workItemDerefString(service.DriftCandidateReason),
+		RedactionState:            service.RedactionState,
+		SourceURL:                 workItemDerefString(service.SourceURL),
+		Disabled:                  workItemDerefBool(service.Disabled),
+		Deleted:                   workItemDerefBool(service.Deleted),
+		ManuallyCreated:           workItemDerefBool(service.ManuallyCreated),
 		ObservedAt:                formatIncidentContextTime(row.ObservedAt),
-	}
+	}, true
 }
 
-func decodeIncidentRoutingCoverageWarning(row incidentContextFactRow) incidentRoutingCoverageWarning {
+// buildIncidentRoutingCoverageWarning decodes one
+// incident_routing.coverage_warning fact row through the typed seam
+// (decodeIncidentRoutingCoverageWarning) and shapes it into the read model's
+// incidentRoutingCoverageWarning. ok is false when the fact failed typed
+// decode; the caller drops the row.
+func buildIncidentRoutingCoverageWarning(row incidentContextFactRow) (incidentRoutingCoverageWarning, bool) {
+	warning, err := decodeIncidentRoutingCoverageWarning(incidentContextDecodeInput{
+		FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload,
+	})
+	if err != nil {
+		logIncidentContextDecodeDrop(err)
+		return incidentRoutingCoverageWarning{}, false
+	}
 	return incidentRoutingCoverageWarning{
 		FactID:           row.FactID,
-		SourceClass:      StringVal(row.Payload, "source_class"),
-		SourceKind:       StringVal(row.Payload, "source_kind"),
-		Reason:           StringVal(row.Payload, "reason"),
-		ResourceClass:    StringVal(row.Payload, "resource_class"),
-		ProviderObjectID: StringVal(row.Payload, "provider_object_id"),
+		SourceClass:      warning.SourceClass,
+		SourceKind:       warning.SourceKind,
+		Reason:           warning.Reason,
+		ResourceClass:    workItemDerefString(warning.ResourceClass),
+		ProviderObjectID: workItemDerefString(warning.ProviderObjectID),
 		ObservedAt:       formatIncidentContextTime(row.ObservedAt),
-	}
+	}, true
 }

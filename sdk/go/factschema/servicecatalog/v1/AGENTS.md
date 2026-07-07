@@ -19,13 +19,15 @@ them would create a `Decode*` no read path calls (a hollow
 functions for those five until the change that converts their read-side
 consumer; they migrate WITH that surface (Contract System v1 §7).
 
-`OperationalLink` is atypical: no reducer decode call reads it. It is read
-only by a raw-SQL JSONB loader in `go/internal/query`
-(`incident_context_runtime_sql.go`,
-`incident_context_runtime_store.go` `decodeIncidentServiceCatalogOperationalLink`).
-It is typed here anyway, mirroring the incident family's SQL-loader-only
-field precedent (the module `AGENTS.md`), and carries NO required field: the
-SQL loader tolerates every key being absent.
+`OperationalLink` is atypical: no reducer decode call reads it. It is decoded
+by the query-layer incident-context read model
+(`go/internal/query/incident_context_runtime_sql.go` fetches the fact,
+`incident_context_runtime_store.go` `decodeIncidentServiceCatalogOperationalLink`
+shapes it, through the `go/internal/query/factschema_decode_incident.go`
+`decodeServiceCatalogOperationalLink` seam, #4794 W2a). That query-layer seam
+is covered by the merged reducer+query payload-usage manifest gate. It carries
+NO required field, so the decode never dead-letters this kind on a missing
+field, only on an unsupported schema major.
 
 ## Required Checks
 
@@ -75,13 +77,13 @@ SQL loader tolerates every key being absent.
   `ServiceCatalogCorrelationRejected` — a correlation OUTCOME, not a decode
   failure. Requiring any of them would turn that intentional business
   decision into an incorrect input_invalid dead-letter.
-- `OperationalLink` carries NO required field. Its SQL read site
+- `OperationalLink` carries NO required field. Its query-layer read site
   (`go/internal/query/incident_context_runtime_store.go`
-  `decodeIncidentServiceCatalogOperationalLink`) reads every key with
-  `StringVal`, which already tolerates an absent key as an empty string.
-  Adding a required field here would not change that loader's behavior but
-  would incorrectly assert a decode-time contract the real read path does not
-  enforce.
+  `decodeIncidentServiceCatalogOperationalLink`, via the
+  `decodeServiceCatalogOperationalLink` seam) derefs every optional pointer
+  field to `""`/nil on absence, so an absent key is a valid empty value.
+  Adding a required field here would make that read path dead-letter a fact
+  the collector legitimately emits without the key.
 - None of the four structs here carry a polymorphic `Attributes
   map[string]any` pass-through — every kind is flat and fully closed. Do not
   add one without discussing scope; it would be a first for this family.

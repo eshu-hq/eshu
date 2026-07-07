@@ -98,7 +98,14 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		}
 	}
 
-	incident := decodeIncidentContextIncident(incidentRows[0])
+	incident, ok := decodeIncidentContextIncident(incidentRows[0])
+	if !ok {
+		// The sole anchor row matched the query but failed typed decode (no
+		// usable provider_incident_id or source_record_id identity, or an
+		// unsupported schema major): there is no well-formed incident to
+		// answer for, so this is indistinguishable from no match at all.
+		return IncidentContextSnapshot{}, ErrIncidentContextNotFound
+	}
 	timeline, err := s.readIncidentTimeline(ctx, filter, incidentRows[0])
 	if err != nil {
 		return IncidentContextSnapshot{}, err
@@ -158,7 +165,11 @@ func (s PostgresIncidentContextStore) readIncidentTimeline(
 	}
 	events := make([]IncidentContextTimelineEvent, 0, len(rows))
 	for _, row := range rows {
-		events = append(events, decodeIncidentContextTimelineEvent(row))
+		event, ok := decodeIncidentContextTimelineEvent(row)
+		if !ok {
+			continue
+		}
+		events = append(events, event)
 	}
 	sort.SliceStable(events, func(i, j int) bool {
 		return events[i].CreatedAt < events[j].CreatedAt
@@ -192,7 +203,10 @@ func (s PostgresIncidentContextStore) readIncidentChangeCandidates(
 	}
 	changes := make([]IncidentContextChangeCandidate, 0, len(rows))
 	for _, row := range rows {
-		change := decodeIncidentContextChangeCandidate(row)
+		change, ok := decodeIncidentContextChangeCandidate(row)
+		if !ok {
+			continue
+		}
 		if incidentChangeInWindow(change, since, until) {
 			changes = append(changes, change)
 		}
