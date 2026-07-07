@@ -45,6 +45,19 @@ func (e *concurrencyProbeExecutor) peakConcurrency() int {
 	return e.peak
 }
 
+// currentConcurrency reports how many callers are inside the inner Execute
+// right now (having incremented the probe, not merely holding an executor
+// permit). Tests wait on this rather than the executor's InFlight() permit
+// count so the peak is measured only once the goroutines have actually entered
+// the probe -- a permit can be acquired a scheduling instant before the
+// goroutine reaches enter(), which otherwise races the release and leaves the
+// observed peak below the ceiling.
+func (e *concurrencyProbeExecutor) currentConcurrency() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.current
+}
+
 func (e *concurrencyProbeExecutor) Execute(ctx context.Context, _ Statement) error {
 	e.enter()
 	defer e.leave()
@@ -93,17 +106,25 @@ func TestBackpressureExecutorBoundsConcurrentWrites(t *testing.T) {
 		}()
 	}
 
-	// Give the goroutines time to pile up against the permit ceiling, then let
-	// them drain.
+	// Wait until maxInFlight callers are actually INSIDE the inner Execute (the
+	// probe has incremented), not merely holding an executor permit, before
+	// releasing. A permit can be acquired a scheduling instant before the
+	// goroutine reaches the probe's enter(); gating the release on the
+	// executor's InFlight() permit count instead raced that window and left the
+	// observed peak at maxInFlight-1. The executor caps permits at maxInFlight,
+	// so currentConcurrency() saturates at exactly maxInFlight and never above.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if exec.InFlight() >= maxInFlight {
+		if probe.currentConcurrency() >= maxInFlight {
 			break
 		}
 		time.Sleep(time.Millisecond)
 	}
 	if got := exec.InFlight(); got > maxInFlight {
 		t.Fatalf("InFlight() = %d while saturating, want <= %d", got, maxInFlight)
+	}
+	if got := probe.currentConcurrency(); got != maxInFlight {
+		t.Fatalf("currentConcurrency() = %d before release, want %d (callers never saturated the permit ceiling)", got, maxInFlight)
 	}
 	close(probe.release)
 	wg.Wait()
