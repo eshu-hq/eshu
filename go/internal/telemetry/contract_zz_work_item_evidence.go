@@ -27,6 +27,12 @@ const (
 	// SpanAttrWorkItemEvidenceUnsupportedLinkTypeCount records rows with
 	// unsupported remote-link evidence.
 	SpanAttrWorkItemEvidenceUnsupportedLinkTypeCount = "eshu.unsupported_link_type_count"
+	// SpanAttrWorkItemEvidenceMetadataWarningCount records rows labeled
+	// metadata-warning evidence: a metadata collection that was blocked
+	// (archived, unsupported, or permission-hidden) rather than an ordinary
+	// provider fact. An operator watching the route span sees warning volume
+	// distinct from the record-level permission-hidden count.
+	SpanAttrWorkItemEvidenceMetadataWarningCount = "eshu.metadata_warning_count"
 	// SpanAttrWorkItemEvidenceMissingCount records one missing-evidence result
 	// when a scoped read returns zero rows.
 	SpanAttrWorkItemEvidenceMissingCount = "eshu.missing_evidence_count"

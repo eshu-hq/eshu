@@ -442,6 +442,7 @@ func TestWorkItemEvidenceSpanAttributesSummarizeBoundedCounts(t *testing.T) {
 		{EvidenceState: WorkItemEvidenceStatePermissionHidden},
 		{EvidenceState: WorkItemEvidenceStateRejectedUnsafePayload},
 		{EvidenceState: WorkItemEvidenceStateUnsupportedLinkType},
+		{EvidenceState: WorkItemEvidenceStateMetadataWarning},
 	}, true)
 	got := map[string]string{}
 	for _, attr := range attrs {
@@ -450,11 +451,12 @@ func TestWorkItemEvidenceSpanAttributesSummarizeBoundedCounts(t *testing.T) {
 
 	for key, want := range map[string]string{
 		telemetry.SpanAttrWorkItemEvidenceQueryCount:                 "1",
-		telemetry.SpanAttrWorkItemEvidenceResultCount:                "4",
+		telemetry.SpanAttrWorkItemEvidenceResultCount:                "5",
 		telemetry.SpanAttrWorkItemEvidenceStaleCount:                 "1",
 		telemetry.SpanAttrWorkItemEvidencePermissionHiddenCount:      "1",
 		telemetry.SpanAttrWorkItemEvidenceRejectedUnsafePayloadCount: "1",
 		telemetry.SpanAttrWorkItemEvidenceUnsupportedLinkTypeCount:   "1",
+		telemetry.SpanAttrWorkItemEvidenceMetadataWarningCount:       "1",
 		telemetry.SpanAttrWorkItemEvidenceMissingCount:               "0",
 		telemetry.SpanAttrWorkItemEvidenceTruncated:                  "true",
 	} {

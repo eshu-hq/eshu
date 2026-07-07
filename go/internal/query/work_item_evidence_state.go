@@ -89,16 +89,17 @@ func summarizeWorkItemEvidenceStates(rows []WorkItemEvidenceRow) []string {
 }
 
 // workItemEvidenceSpanAttributes shapes the bounded per-state counters an
-// operator reads on the evidence-list span. It counts only the concern states
-// (stale, permission-hidden, rejected-unsafe-payload, unsupported-link-type)
-// plus result/missing counts; exact_provider_fact and metadata_warning are not
-// broken out here.
+// operator reads on the evidence-list span. It counts the concern states
+// (stale, permission-hidden, rejected-unsafe-payload, unsupported-link-type,
+// metadata-warning) plus result/missing counts; exact_provider_fact is the
+// baseline and is not broken out.
 func workItemEvidenceSpanAttributes(rows []WorkItemEvidenceRow, truncated bool) []attribute.KeyValue {
 	counts := map[string]int{
 		WorkItemEvidenceStateStaleEvidence:         0,
 		WorkItemEvidenceStatePermissionHidden:      0,
 		WorkItemEvidenceStateRejectedUnsafePayload: 0,
 		WorkItemEvidenceStateUnsupportedLinkType:   0,
+		WorkItemEvidenceStateMetadataWarning:       0,
 	}
 	for _, row := range rows {
 		state := strings.TrimSpace(row.EvidenceState)
@@ -120,6 +121,7 @@ func workItemEvidenceSpanAttributes(rows []WorkItemEvidenceRow, truncated bool) 
 		attribute.Int(telemetry.SpanAttrWorkItemEvidencePermissionHiddenCount, counts[WorkItemEvidenceStatePermissionHidden]),
 		attribute.Int(telemetry.SpanAttrWorkItemEvidenceRejectedUnsafePayloadCount, counts[WorkItemEvidenceStateRejectedUnsafePayload]),
 		attribute.Int(telemetry.SpanAttrWorkItemEvidenceUnsupportedLinkTypeCount, counts[WorkItemEvidenceStateUnsupportedLinkType]),
+		attribute.Int(telemetry.SpanAttrWorkItemEvidenceMetadataWarningCount, counts[WorkItemEvidenceStateMetadataWarning]),
 		attribute.Int(telemetry.SpanAttrWorkItemEvidenceMissingCount, missingCount),
 		attribute.Bool(telemetry.SpanAttrWorkItemEvidenceTruncated, truncated),
 	}
