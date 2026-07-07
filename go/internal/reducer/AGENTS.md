@@ -2050,3 +2050,14 @@ structured log "search vector build sweep made no progress; backing off"
 (`stall_reason=no_durable_output`). The sweep logging/metric emitters moved to
 `search_vector_build_runner_log.go` for the 500-line cap; that stage file is
 covered in `docs/public/observability/telemetry-coverage.md`.
+
+Live-corpus confirmation (drained `e2e3586persist` full-corpus stack, 831 active
+search-document scopes over 2,595,922 facts): the OLD `payload->'document'->>'id'`
+key produced 0 non-NULL document_ids out of 2,595,922 (the nested `id` is always
+NULL because `searchdocs.Document.ID` marshals as `"ID"`), so the pending query
+selected 831/831 scopes — 100% of active scopes, permanently, which is the
+never-draining set that pinned ~2 Postgres cores 24/7. The NEW
+`payload->>'document_id'` key produced 2,595,922 non-NULL document_ids and the
+pending query selected 556 scopes: the 275 fully-built scopes correctly drop out
+and the remaining 556 are genuinely unbuilt work that leaves the set as it
+builds, so the sweep reaches `pending=0` and rests on the 30s poll.
