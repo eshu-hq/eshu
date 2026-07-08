@@ -7,6 +7,7 @@
 #   (b) failing-first: dropping a declared field a real handler still reads
 #       -> fail, naming the handler file, fact kind, and field
 #   (c) manifest generation is idempotent (re-running -> no diff)
+#   (d) CI/workflow triggers watch every payload-usage surface
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -122,6 +123,31 @@ if cmp -s "${gen_dir}/manifest.json" "${gen_dir}/manifest.json.bak"; then
 else
   check "generator is idempotent on a clean re-run" 1
 fi
+
+# --- (d) trigger coverage: every checked source surface wakes the gate ---
+workflow="${repo_root}/.github/workflows/payload-usage-manifest.yml"
+registry="${repo_root}/specs/ci-gates.v1.yaml"
+triggers_ok=0
+for watched_path in \
+  'go/internal/reducer/**' \
+  'go/internal/projector/**' \
+  'go/internal/query/**' \
+  'go/internal/storage/postgres/**' \
+  'go/internal/relationships/**' \
+  'go/internal/replay/**' \
+  'sdk/go/factschema/**' \
+  'go/internal/payloadusage/**' \
+  'go/cmd/payload-usage-manifest/**'; do
+  if ! rg -F -q "\"${watched_path}\"" "$workflow"; then
+    printf 'missing workflow trigger: %s\n' "$watched_path" >&2
+    triggers_ok=1
+  fi
+  if ! rg -F -q "\"${watched_path}\"" "$registry"; then
+    printf 'missing registry trigger: %s\n' "$watched_path" >&2
+    triggers_ok=1
+  fi
+done
+check "workflow and ci-gate registry watch every payload-usage surface" "$triggers_ok"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

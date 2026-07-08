@@ -109,6 +109,31 @@ type Paths struct {
 	// the work_item family is typed at the query layer), mirroring the
 	// projector's non-fail-closed glob.
 	QueryDecodeFiles []string
+	// LoaderDir is go/internal/storage/postgres — the loader/persistence
+	// boundary where typed read-side loaders can decode facts before persisting
+	// derived rows.
+	LoaderDir string
+	// LoaderDecodeFiles is the set of loader decode-seam files to parse. When
+	// empty, Load globs factschema_decode*.go under LoaderDir; an empty match is
+	// valid while loader families migrate incrementally.
+	LoaderDecodeFiles []string
+	// RelationshipsDir is go/internal/relationships — the relationship evidence
+	// boundary where typed evidence extractors can decode facts before producing
+	// edge inputs.
+	RelationshipsDir string
+	// RelationshipsDecodeFiles is the set of relationship decode-seam files to
+	// parse. When empty, Load globs factschema_decode*.go under
+	// RelationshipsDir; an empty match is valid while relationship families
+	// migrate incrementally.
+	RelationshipsDecodeFiles []string
+	// ReplayDir is go/internal/replay/offlinetier — the replay/offline-tier
+	// boundary where replay materializers can decode cassette facts before
+	// deriving outputs.
+	ReplayDir string
+	// ReplayDecodeFiles is the set of replay decode-seam files to parse. When
+	// empty, Load globs factschema_decode*.go under ReplayDir; an empty match is
+	// valid while replay families migrate incrementally.
+	ReplayDecodeFiles []string
 }
 
 // ResolvePaths fills every empty DIRECTORY/RepoRoot field of p with its default
@@ -171,6 +196,15 @@ func ResolvePaths(p Paths) Paths {
 	}
 	if strings.TrimSpace(resolved.QueryDir) == "" {
 		resolved.QueryDir = filepath.Join(resolved.RepoRoot, "go", "internal", "query")
+	}
+	if strings.TrimSpace(resolved.LoaderDir) == "" {
+		resolved.LoaderDir = filepath.Join(resolved.RepoRoot, "go", "internal", "storage", "postgres")
+	}
+	if strings.TrimSpace(resolved.RelationshipsDir) == "" {
+		resolved.RelationshipsDir = filepath.Join(resolved.RepoRoot, "go", "internal", "relationships")
+	}
+	if strings.TrimSpace(resolved.ReplayDir) == "" {
+		resolved.ReplayDir = filepath.Join(resolved.RepoRoot, "go", "internal", "replay", "offlinetier")
 	}
 	// DecodeFile / DecodeFiles are intentionally NOT defaulted here: the glob
 	// path can fail, and ResolvePaths returns no error. resolveDecodeFiles (from

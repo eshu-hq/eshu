@@ -130,7 +130,7 @@ func TestRunHelpDocumentsModes(t *testing.T) {
 		t.Fatal("run([-help]) error = nil, want flag.ErrHelp")
 	}
 	helpOut := stderr.String()
-	for _, want := range []string{"generate", "gate", "Contract System v1"} {
+	for _, want := range []string{"generate", "gate", "Contract System v1", "loader-dir", "relationships-dir", "replay-dir"} {
 		if !strings.Contains(helpOut, want) {
 			t.Errorf("-help output = %q, want it to mention %q", helpOut, want)
 		}

@@ -13,8 +13,8 @@ thin CLI wrapper.
 
 This command owns only the CLI surface: flag parsing, invoking
 `payloadusage.Load`/`payloadusage.Gate`, and writing the result. It does not
-own payload struct definitions (`sdk/go/factschema/{aws,iam}/v1/...`), reducer
-handler business logic, or the forward-direction schema-diff gate (a
+own payload struct definitions (`sdk/go/factschema/{aws,iam}/v1/...`), handler
+business logic, or the forward-direction schema-diff gate (a
 separate, already-landed gate,
 [`go/cmd/factschema-diff`](../factschema-diff), issue #4569).
 
@@ -43,17 +43,25 @@ JSON Schema's declared properties
 a field its fact kind's schema does not declare. Each violation names the
 specific handler file, fact kind, and field.
 
+Gate mode also enforces the raw-payload convention on the loader,
+relationships, and replay surfaces: existing raw reads are explicit exemptions,
+and a new `.Payload["field"]` or `payloadString` / `payloadStrings` read fails
+unless it is intentionally reviewed into that shrinking list.
+
 ## Flags
 
 | Flag | Default | Purpose |
 | --- | --- | --- |
 | `-repo-root` | `.` | Repository root; every other path defaults relative to it |
 | `-reducer-dir` | `<repo-root>/go/internal/reducer` | Reducer handler source directory |
-| `-decode-file-glob` | `<reducer-dir>/factschema_decode*.go` | Glob of per-family decode-seam files `ParseDecodeSeamsGlob` reads |
+| `-decode-file` | `<reducer-dir>/factschema_decode*.go` glob | Optional single reducer decode-seam file override |
 | `-schema-dir` | `<repo-root>/sdk/go/factschema/schema` | Checked-in JSON Schemas (the gate's declared-field source of truth) |
+| `-loader-dir` | `<repo-root>/go/internal/storage/postgres` | Loader/persistence source directory |
+| `-relationships-dir` | `<repo-root>/go/internal/relationships` | Relationship evidence source directory |
+| `-replay-dir` | `<repo-root>/go/internal/replay/offlinetier` | Replay/offline-tier source directory |
 | `-aws-struct-dir` | `<repo-root>/sdk/go/factschema/aws/v1` | Typed AWS struct package |
 | `-iam-struct-dir` | `<repo-root>/sdk/go/factschema/iam/v1` | Typed IAM struct package |
-| `-azure-struct-dir` | `<repo-root>/sdk/go/factschema/azure/v1` | Typed Azure struct package |
+| `-incident-struct-dir` | `<repo-root>/sdk/go/factschema/incident/v1` | Typed incident struct package |
 | `-mode` | `gate` | `generate` or `gate` |
 | `-out` | stdout | `generate` mode's output file path |
 
@@ -67,7 +75,7 @@ specific handler file, fact kind, and field.
 ## Wiring
 
 Registered in `specs/ci-gates.v1.yaml` as the `payload-usage-manifest` gate,
-triggered by changes under `go/internal/reducer/**` or
+triggered by changes under the checked decode/raw-read surfaces and
 `sdk/go/factschema/**`. The gate command exercised in CI and pre-PR is:
 
 ```bash

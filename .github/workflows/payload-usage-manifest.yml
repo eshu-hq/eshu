@@ -1,11 +1,9 @@
 # Contract System v1 §6 enforcement gate 2: the payload-usage manifest
 # (issue #4573, docs/internal/design/contract-system-v1.md#6-enforcement-gates).
-# Derives, from the typed factschema.Decode* calls in
-# go/internal/reducer/factschema_decode.go, which declared payload fields
-# each reducer-decoded fact kind's handlers actually read, and fails when a
-# handler reads a field no checked-in JSON Schema
-# (sdk/go/factschema/schema/*.json) declares — the reverse break the
-# forward-direction factschema-diff gate (issue #4569) cannot catch.
+# Derives typed factschema.Decode* usage across reducer/projector/query/loader/
+# relationships/replay, fails when a handler reads a field no checked-in JSON
+# Schema (sdk/go/factschema/schema/*.json) declares, and ratchets new raw
+# payload reads on loader/relationships/replay behind explicit exemptions.
 name: Payload Usage Manifest
 
 on:
@@ -14,6 +12,9 @@ on:
       - "go/internal/reducer/**"
       - "go/internal/query/**"
       - "go/internal/projector/**"
+      - "go/internal/storage/postgres/**"
+      - "go/internal/relationships/**"
+      - "go/internal/replay/**"
       - "sdk/go/factschema/**"
       - "go/internal/payloadusage/**"
       - "go/cmd/payload-usage-manifest/**"

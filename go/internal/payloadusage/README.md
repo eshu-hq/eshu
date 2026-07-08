@@ -7,9 +7,9 @@ payload-usage manifest
 
 The schema-diff gate ([#4569](https://github.com/eshu-hq/eshu/issues/4569),
 `go/cmd/factschema-diff`) catches a collector breaking the payload shape it
-emits. This package catches the **reverse** break: a reducer handler starting
-to require a payload field that no declared schema promises, so the failure
-surfaces in core CI instead of an external collector's production run.
+emits. This package catches the **reverse** break: a graph/query/loader handler
+starting to require a payload field that no declared schema promises, so the
+failure surfaces in core CI instead of an external collector's production run.
 
 ## Files
 
@@ -17,7 +17,8 @@ surfaces in core CI instead of an external collector's production run.
 | --- | --- |
 | `decodeseam.go` | `ParseDecodeSeams` — finds every `decode<Kind>` function in one `factschema_decode*.go` file and the struct type + fact kind it decodes; `load.go`'s `resolveDecodeFiles` globs every such file so per-family split files are all parsed |
 | `structshape.go` | `ParseStructShapes` — extracts a typed struct's named, JSON-tagged fields and required/optional flag |
-| `usage.go` | `ScanDecodeUsage` — AST-walks reducer handler files and finds which declared fields each handler actually reads, direct or across a helper-function call |
+| `usage.go` | `ScanDecodeUsage` — AST-walks handler files and finds which declared fields each handler actually reads, direct or across a helper-function call |
+| `rawpayload.go` | `CheckRawPayloadConvention` — ratchets direct raw payload reads on W2c/W2d loader, relationship, and replay surfaces behind an explicit shrinking exemption list |
 | `manifest.go` | `BuildManifest`, `CheckManifest`, `Violation` — joins the three derivations and compares used fields against a declared set |
 | `schema.go` | `LoadDeclaredFieldsFromSchemas` — reads `sdk/go/factschema/schema/*.json` as the declared-field source of truth; `MergeRegistryPayloadSchemaFields` — additive hook for issue #4570's registry `payload_schema` refs |
 | `load.go` | `Paths`, `ResolvePaths`, `Load`, `Gate`, `MarshalIndent` — the package's top-level entry points |
@@ -28,13 +29,14 @@ The manifest is derived from the typed `factschema.Decode*` calls that landed
 in [#4640](https://github.com/eshu-hq/eshu/pull/4640) — never from a
 hand-maintained list of field names. Concretely:
 
-1. `ParseDecodeSeams` parses every `go/internal/reducer/factschema_decode*.go`
-   file (globbed by `resolveDecodeFiles` — families split their wrappers across
-   per-family files such as `factschema_decode_incident.go` for the 500-line
-   cap, and the gate must follow the split) with `go/ast` and matches the exact
+1. `ParseDecodeSeams` parses every `factschema_decode*.go` file under the
+   reducer, projector, query, loader (`go/internal/storage/postgres`),
+   relationships, and replay surfaces. The reducer glob is fail-closed because
+   reducer decode seams are always present; the other surfaces may be empty
+   while migrations land. It matches the exact
    `func decode<Kind>(facts.Envelope) (<pkg>.<Struct>, error)` shape, reading
-   the `factschema.FactKind*` selector referenced in the body to attribute
-   each seam to its wire fact kind.
+   the `factschema.FactKind*` selector referenced in the body to attribute each
+   seam to its wire fact kind.
 2. `ParseStructShapes` parses the typed struct packages
    (`sdk/go/factschema/aws/v1`, `sdk/go/factschema/iam/v1`,
    `sdk/go/factschema/incident/v1`) and reads each named field's `json` tag. A
@@ -44,8 +46,9 @@ hand-maintained list of field names. Concretely:
    schema generator use. A field tagged `json:"-"` (the untyped `Attributes`
    pass-through every polymorphic envelope carries) is excluded: it is not a
    declared schema property.
-3. `ScanDecodeUsage` AST-walks every non-test file directly under
-   `go/internal/reducer` and records every `ident.Field` selector where
+3. `ScanDecodeUsage` AST-walks every non-test file directly under the configured
+   reducer, projector, query, loader, relationships, and replay directories and
+   records every `ident.Field` selector where
    `ident` was bound to a decoded value — either directly
    (`resource, err := decodeAWSResource(env)` in the same function), or
    because the decoded struct was passed BY VALUE into a helper function
@@ -60,6 +63,13 @@ hand-maintained list of field names. Concretely:
 each kind's used fields against an externally supplied declared-field set and
 returns one `Violation` per field a handler reads that the set does not
 cover — naming the specific handler file, fact kind, and field.
+
+`Gate` also runs `CheckRawPayloadConvention` against the loader, relationships,
+and replay surfaces. It allows the current documented raw reads through a fixed
+25-entry exemption budget, skips `factschema_decode*.go` seam files, and fails
+on any new `.Payload["field"]` or `payloadString` / `payloadStrings` read. That
+turns the W2c/W2d convention into a ratchet: exemptions can be removed as typed
+seams land, but adding one requires an explicit budget change in review.
 
 ## Limitations / attribution boundary
 
@@ -115,9 +125,10 @@ with no correctness gain.
 `Load(Paths)` runs the full pipeline and returns a `Manifest`. `Gate(Paths)`
 runs `Load` and compares the result against
 `sdk/go/factschema/schema/*.json` via `LoadDeclaredFieldsFromSchemas`,
-returning any `Violation`s. `Paths` fields default relative to `RepoRoot`
-through `ResolvePaths`, so most callers only need to supply the repository
-root.
+returning any `Violation`s after enforcing the raw-payload convention on the
+loader, relationships, and replay surfaces. `Paths` fields default relative to
+`RepoRoot` through `ResolvePaths`, so most callers only need to supply the
+repository root.
 
 ## Registry v2 (issue #4570) is additive, not required
 

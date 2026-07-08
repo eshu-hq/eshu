@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Contract System v1 §6 enforcement gate 2: the payload-usage manifest
-# (issue #4573). Runs the reducer-side drift-lock test, which derives the
-# manifest from the typed factschema.Decode* calls in
-# go/internal/reducer/factschema_decode.go and compares every field a
-# handler reads against the checked-in JSON Schemas under
-# sdk/go/factschema/schema/, failing when a handler reads a field no
-# declared schema covers.
+# (issue #4573). Runs the drift-lock test, which derives the manifest from
+# typed factschema.Decode* seams across reducer/projector/query/loader/
+# relationships/replay, compares every field a handler reads against the
+# checked-in JSON Schemas under sdk/go/factschema/schema/, and ratchets new
+# raw payload reads on loader/relationships/replay behind explicit exemptions.
 set -euo pipefail
 
 repo_root="${ESHU_PAYLOAD_USAGE_MANIFEST_REPO_ROOT:-}"

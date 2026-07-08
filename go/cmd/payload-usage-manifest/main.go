@@ -22,6 +22,9 @@ type options struct {
 	reducerDir        string
 	decodeFile        string
 	schemaDir         string
+	loaderDir         string
+	relationshipsDir  string
+	replayDir         string
 	awsStructDir      string
 	iamStructDir      string
 	incidentStructDir string
@@ -70,6 +73,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		ReducerDir:        opts.reducerDir,
 		DecodeFile:        opts.decodeFile,
 		SchemaDir:         opts.schemaDir,
+		LoaderDir:         opts.loaderDir,
+		RelationshipsDir:  opts.relationshipsDir,
+		ReplayDir:         opts.replayDir,
 		AWSStructDir:      opts.awsStructDir,
 		IAMStructDir:      opts.iamStructDir,
 		IncidentStructDir: opts.incidentStructDir,
@@ -136,6 +142,9 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	flags.StringVar(&opts.reducerDir, "reducer-dir", "", "directory of reducer handler source (default: <repo-root>/go/internal/reducer)")
 	flags.StringVar(&opts.decodeFile, "decode-file", "", "restrict seam parsing to this one file (default: glob <reducer-dir>/factschema_decode*.go across every per-family decode file)")
 	flags.StringVar(&opts.schemaDir, "schema-dir", "", "directory of checked-in JSON Schemas (default: <repo-root>/sdk/go/factschema/schema)")
+	flags.StringVar(&opts.loaderDir, "loader-dir", "", "directory of loader/persistence source (default: <repo-root>/go/internal/storage/postgres)")
+	flags.StringVar(&opts.relationshipsDir, "relationships-dir", "", "directory of relationship evidence source (default: <repo-root>/go/internal/relationships)")
+	flags.StringVar(&opts.replayDir, "replay-dir", "", "directory of replay/offline-tier source (default: <repo-root>/go/internal/replay/offlinetier)")
 	flags.StringVar(&opts.awsStructDir, "aws-struct-dir", "", "directory of aws/v1 typed structs (default: <repo-root>/sdk/go/factschema/aws/v1)")
 	flags.StringVar(&opts.iamStructDir, "iam-struct-dir", "", "directory of iam/v1 typed structs (default: <repo-root>/sdk/go/factschema/iam/v1)")
 	flags.StringVar(&opts.incidentStructDir, "incident-struct-dir", "", "directory of incident/v1 typed structs (default: <repo-root>/sdk/go/factschema/incident/v1)")
