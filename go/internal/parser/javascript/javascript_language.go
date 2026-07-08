@@ -127,6 +127,17 @@ func Parse(
 	newExpressionTypes := rootIndexes.newExpressionTypes
 	fastifyBases := rootIndexes.fastifyBases
 
+	// Gate the gather on framework presence. Non-framework files (the
+	// overwhelming majority of real JS/TS) must not pay the clone+append
+	// cost that only framework files benefit from. The bases are already
+	// computed in buildJavaScriptRootIndexes; each base being non-empty
+	// implies the file imports that framework. NestJS is import-gated
+	// directly since it uses decorators, not registration-base variables.
+	wantFrameworkGather := len(fastifyBases) > 0 ||
+		len(rootIndexes.expressBases) > 0 ||
+		len(rootIndexes.koaBases) > 0 ||
+		javaScriptHasNestJSCommonImport(sourceText)
+
 	// Gather resolution-candidate node pointers during the declaration walk
 	// so the post-walk framework-semantics resolution can iterate them
 	// in-memory instead of re-walking the entire tree per framework.
@@ -146,7 +157,9 @@ func Parse(
 		case "method_definition":
 			nameNode := node.ChildByFieldName("name")
 			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
-			gatheredMethodDefinitions = append(gatheredMethodDefinitions, cloneNode(node))
+			if wantFrameworkGather {
+				gatheredMethodDefinitions = append(gatheredMethodDefinitions, cloneNode(node))
+			}
 		case "class_declaration", "abstract_class_declaration":
 			nameNode := node.ChildByFieldName("name")
 			name := nodeText(nameNode, source)
@@ -290,7 +303,9 @@ func Parse(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
-			gatheredCallExpressions = append(gatheredCallExpressions, cloneNode(node))
+			if wantFrameworkGather {
+				gatheredCallExpressions = append(gatheredCallExpressions, cloneNode(node))
+			}
 			fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(
 				javaScriptCallFullName(functionNode, source),
 				commonJSModuleAliases,
