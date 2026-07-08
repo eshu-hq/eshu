@@ -29,14 +29,23 @@ type rustAxumCallCandidate struct {
 }
 
 // collectRustAxumCallCandidate appends node's text as an axum route
-// candidate unless node sits under a cfg/cfg_attr-gated ancestor, matching
-// the filter rustAxumRoutes applied when it walked the tree directly.
+// candidate unless node sits under a cfg/cfg_attr-gated ancestor (matching
+// the filter rustAxumRoutes applied when it walked the tree directly) or
+// node's text does not contain the ".route(" shape rustAxumRouteCall
+// requires. Most call_expression nodes in a file are not route
+// registrations, so this cheap shape gate keeps only the small candidate
+// subset alive past this call instead of retaining every call's text until
+// the main walk finishes and resolution runs.
 func collectRustAxumCallCandidate(candidates []rustAxumCallCandidate, node *tree_sitter.Node, source []byte) []rustAxumCallCandidate {
 	if rustNodeHasCfgAncestor(node, source) {
 		return candidates
 	}
+	text := shared.NodeText(node, source)
+	if strings.LastIndex(text, ".route(") < 0 {
+		return candidates
+	}
 	return append(candidates, rustAxumCallCandidate{
-		text:    shared.NodeText(node, source),
+		text:    text,
 		endByte: int(node.EndByte()),
 	})
 }
