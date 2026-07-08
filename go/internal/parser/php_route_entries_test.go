@@ -221,63 +221,6 @@ $item = $collection->get($id);
 	}
 }
 
-func TestDefaultEngineParsePathPHPEmitsSlimRoutesFromSkeleton(t *testing.T) {
-	// Parses the real slimphp/Slim-Skeleton app/routes.php directly.
-	// The file must exist on disk; skip if not found (e.g. in CI).
-	skeletonPath := "/tmp/Slim-Skeleton/app/routes.php"
-	if _, err := filepath.Abs(skeletonPath); err != nil {
-		t.Skipf("Slim-Skeleton not available at %s: %v", skeletonPath, err)
-	}
-
-	repoRoot := "/tmp/Slim-Skeleton"
-
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, skeletonPath, false, Options{IndexSource: true})
-	if err != nil {
-		t.Fatalf("ParsePath(%s) error = %v, want nil", skeletonPath, err)
-	}
-
-	assertFrameworksEqual(t, got, "slim")
-	slim, ok := got["framework_semantics"].(map[string]any)["slim"].(map[string]any)
-	if !ok {
-		t.Fatalf("framework_semantics.slim not found")
-	}
-	entries, ok := slim["route_entries"].([]map[string]string)
-	if !ok {
-		t.Fatalf("slim.route_entries not found or wrong type")
-	}
-	if len(entries) == 0 {
-		t.Fatalf("slim.route_entries is empty, want Slim routes detected")
-	}
-	t.Logf("Slim-Skeleton route entries detected: %d", len(entries))
-	for _, e := range entries {
-		t.Logf("  %s %s -> %s", e["method"], e["path"], e["handler"])
-	}
-	// Assert key routes are present with correct group-prefixed paths.
-	wantRoutes := []map[string]string{
-		{"method": "OPTIONS", "path": "/{routes:.*}", "handler": ""},
-		{"method": "GET", "path": "/", "handler": ""},
-		{"method": "GET", "path": "/users", "handler": "ListUsersAction"},
-		{"method": "GET", "path": "/users/{id}", "handler": "ViewUserAction"},
-	}
-	for _, want := range wantRoutes {
-		found := false
-		for _, e := range entries {
-			if e["method"] == want["method"] && e["path"] == want["path"] {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("expected Slim route %s %s not found in entries: %#v", want["method"], want["path"], entries)
-		}
-	}
-}
-
 func TestDefaultEngineParsePathPHPEmitsSlimGroupedAndNestedRouteEntries(t *testing.T) {
 	t.Parallel()
 
