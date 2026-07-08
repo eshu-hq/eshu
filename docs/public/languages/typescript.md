@@ -86,6 +86,16 @@ Not claimed today:
   also covers the repository pre-scan stage (#4766,
   [#4808](https://github.com/eshu-hq/eshu/issues/4808)).
 
+## Parser Performance
+
+The TypeScript parser shares the JavaScript-family parser performance
+characteristics described in [JavaScript Parser Performance](javascript.md#parser-performance),
+including the Fastify registration-base threading optimization (#4905).
+
+No-Observability-Change: same as the JavaScript-family parser — no metric,
+span, structured log, status field, queue, graph-write, worker, lease, batch,
+or runtime knob is added or removed.
+
 ## Related Docs
 
 - [TypeScript JSX Parser](typescriptjsx.md)

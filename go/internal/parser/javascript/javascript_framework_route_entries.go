@@ -22,16 +22,15 @@ func detectKoaSemantics(root *tree_sitter.Node, source []byte) (map[string]any, 
 	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(bases)), true
 }
 
-func detectFastifySemantics(root *tree_sitter.Node, source []byte) (map[string]any, bool) {
-	bases := javaScriptFastifyRegistrationBases(root, source, string(source))
-	if len(bases) == 0 {
+func detectFastifySemantics(root *tree_sitter.Node, source []byte, fastifyBases map[string]struct{}) (map[string]any, bool) {
+	if len(fastifyBases) == 0 {
 		return nil, false
 	}
-	entries := javaScriptFastifyRouteEntries(root, source, bases)
+	entries := javaScriptFastifyRouteEntries(root, source, fastifyBases)
 	if len(entries) == 0 {
 		return nil, false
 	}
-	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(bases)), true
+	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(fastifyBases)), true
 }
 
 func detectNestJSSemantics(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) (map[string]any, bool) {

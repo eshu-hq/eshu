@@ -118,7 +118,7 @@ func Parse(
 	reactAliases := rootIndexes.reactAliases
 	siblingParser := newJavaScriptSiblingParser(parserFactory, parserReturner)
 	defer siblingParser.Close()
-	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents)
+	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents, rootIndexes.fastifyBases)
 	if len(deadCodeRoots.fileRootKinds) > 0 {
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
@@ -391,7 +391,7 @@ func Parse(
 		sortNamedBucket(payload, "type_aliases")
 		sortNamedBucket(payload, "enums")
 	}
-	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, root, source, payload, parents)
+	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, root, source, payload, parents, fastifyBases)
 
 	emitValueFlowBuckets(payload, root, source, outputLanguage, options)
 

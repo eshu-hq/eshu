@@ -175,6 +175,7 @@ func buildJavaScriptFrameworkSemantics(
 	source []byte,
 	payload map[string]any,
 	parents *javaScriptParentLookup,
+	fastifyBases map[string]struct{},
 ) map[string]any {
 	semantics := map[string]any{
 		"frameworks": []string{},
@@ -193,7 +194,7 @@ func buildJavaScriptFrameworkSemantics(
 		frameworks = append(frameworks, "koa")
 		semantics["koa"] = koa
 	}
-	if fastify, ok := detectFastifySemantics(root, source); ok {
+	if fastify, ok := detectFastifySemantics(root, source, fastifyBases); ok {
 		frameworks = append(frameworks, "fastify")
 		semantics["fastify"] = fastify
 	}
