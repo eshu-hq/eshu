@@ -59,6 +59,12 @@ const observabilityCoverageEvidenceSource = "reducer/observability-coverage"
 type ObservabilityCoverageEdgeWriter interface {
 	WriteObservabilityCoverageEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractObservabilityCoverageEdges(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
+	// RetractObservabilityCoverageEdgesByUIDs removes reducer-owned COVERS edges
+	// for the given scopes, enumerating source (observability) CloudResource
+	// uids from the projected-source ledger instead of scanning the whole
+	// :CloudResource label. Implementations MUST treat an empty sourceUIDs as a
+	// no-op.
+	RetractObservabilityCoverageEdgesByUIDs(ctx context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string) error
 }
 
 // ObservabilityCoverageMaterializationHandler reduces one observability coverage
@@ -87,8 +93,14 @@ type ObservabilityCoverageMaterializationHandler struct {
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck PriorGenerationCheck
-	Tracer               trace.Tracer
-	Instruments          *telemetry.Instruments
+	// Ledger records and enumerates source (observability) CloudResource uids
+	// of projected COVERS edges so retraction can enumerate uids from the
+	// ledger and use anchored-delete instead of scanning the whole
+	// :CloudResource label. Nil preserves the pre-ledger whole-scope retract
+	// (RetractObservabilityCoverageEdges).
+	Ledger      ProjectedSourceLedger
+	Tracer      trace.Tracer
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one observability coverage materialization intent.
@@ -168,7 +180,20 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 	var retractDuration time.Duration
 	if !skipRetract {
 		retractStart := time.Now()
-		if err := h.EdgeWriter.RetractObservabilityCoverageEdges(
+		if h.Ledger != nil {
+			uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, observabilityCoverageEvidenceSource, []string{intent.ScopeID})
+			if err != nil {
+				return Result{}, fmt.Errorf("list source uids for observability coverage retract: %w", err)
+			}
+			if err := h.EdgeWriter.RetractObservabilityCoverageEdgesByUIDs(
+				ctx, uids, []string{intent.ScopeID}, observabilityCoverageEvidenceSource,
+			); err != nil {
+				return Result{}, fmt.Errorf("retract canonical observability coverage edges by uids: %w", err)
+			}
+			if err := h.Ledger.PruneForScopes(ctx, observabilityCoverageEvidenceSource, []string{intent.ScopeID}); err != nil {
+				return Result{}, fmt.Errorf("prune observability coverage projected sources: %w", err)
+			}
+		} else if err := h.EdgeWriter.RetractObservabilityCoverageEdges(
 			ctx,
 			[]string{intent.ScopeID},
 			intent.GenerationID,
@@ -181,6 +206,16 @@ func (h ObservabilityCoverageMaterializationHandler) Handle(
 
 	var writeDuration time.Duration
 	if len(rows) > 0 {
+		if h.Ledger != nil {
+			uids := sourceUIDsFromRowsByKey(rows, "observability_uid")
+			if len(uids) > 0 {
+				if err := h.Ledger.RecordProjectedSources(
+					ctx, observabilityCoverageEvidenceSource, intent.ScopeID, intent.GenerationID, uids, time.Now(),
+				); err != nil {
+					return Result{}, fmt.Errorf("record observability coverage projected sources: %w", err)
+				}
+			}
+		}
 		writeStart := time.Now()
 		if err := h.EdgeWriter.WriteObservabilityCoverageEdges(
 			ctx,

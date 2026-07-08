@@ -44,6 +44,29 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+// retractCloudResourceEdgesByUIDsCypher is the ledger-anchored counterpart of
+// retractCloudResourceEdgesCypher: it enumerates source CloudResource uids
+// from $source_uids instead of scanning the whole :CloudResource label. The
+// inline `{uid: suid}` on the MATCH seeds the CloudResource.uid index so the
+// delete walks only the ledger-enumerated source's outgoing adjacency. A bare
+// `[rel]` (no relationship-type literal) is intentional and safe here: AWS
+// relationship edges use an open, per-relationship-type Cypher token
+// (AWS_<relationship_type>) rather than one fixed type, so enumerating types
+// would require an ever-growing allowlist; the `evidence_source` predicate
+// already scopes the delete to only this writer's edges (no other writer
+// stamps rel.evidence_source = "reducer/aws-relationships"), so a bare `[rel]`
+// cannot reach an edge owned by a different writer.
+const retractCloudResourceEdgesByUIDsCypher = `UNWIND $source_uids AS suid
+MATCH (source:CloudResource {uid: suid})-[rel]->(:CloudResource)
+WHERE rel.scope_id IN $scope_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+// cloudResourceEdgeRetractUIDBatchSize bounds the number of source uids
+// UNWOUND per anchored-retract statement, mirroring
+// codeInterprocEvidenceRetractUIDBatchSize.
+const cloudResourceEdgeRetractUIDBatchSize = 500
+
 // CloudResourceEdgeWriter materializes resolved aws_relationship facts into
 // canonical AWS relationship edges between CloudResource nodes. It satisfies
 // the reducer-owned edge-writer consumer interface and writes through the
@@ -181,6 +204,46 @@ func (w *CloudResourceEdgeWriter) RetractCloudResourceEdges(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractCloudResourceEdgesByUIDs removes this reducer's AWS relationship
+// edges for the given scopes, enumerating source CloudResource uids from the
+// projected-source ledger instead of scanning the whole :CloudResource label.
+// It is a no-op for an empty uid set. The delete is scoped to the reducer's
+// evidence_source and never touches CloudResource nodes.
+func (w *CloudResourceEdgeWriter) RetractCloudResourceEdgesByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("cloud resource edge writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, cloudResourceEdgeRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractCloudResourceEdgesByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"scope_ids":                     scopeIDs,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseCloudResourceEdge,
+				StatementMetadataEntityLabelKey: "AWS_RELATIONSHIP",
+				StatementMetadataSummaryKey: fmt.Sprintf(
+					"edge=AWS_RELATIONSHIP retract_by_uids scopes=%d uids=%d",
+					len(scopeIDs),
+					len(batch),
+				),
+			},
+		})
+	}
+	return w.dispatchRetract(ctx, stmts)
+}
+
 // dispatch runs the prepared statements as one atomic group when the executor
 // supports grouping, otherwise sequentially. Transient backend errors are
 // classified retryable so the durable reducer queue can re-run the idempotent
@@ -193,6 +256,25 @@ func (w *CloudResourceEdgeWriter) dispatch(ctx context.Context, stmts []Statemen
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes anchored-retract statements through sequential
+// Execute calls, never ExecuteGroup. This avoids a NornicDB v1.1.9 bolt driver
+// bug where UNWIND … MATCH … -[rel]-> … DELETE rel inside session.ExecuteWrite
+// / tx.Run returns zero rows (the MATCH on the relationship finds nothing),
+// even though the same statement via session.Run (autocommit) produces
+// correct results. See cypher.CodeInterprocEvidenceWriter.dispatchRetract for
+// the same rationale applied to the code-interproc anchored retract.
+func (w *CloudResourceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

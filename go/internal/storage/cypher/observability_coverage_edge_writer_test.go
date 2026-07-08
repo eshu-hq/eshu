@@ -324,5 +324,82 @@ func TestObservabilityCoverageEdgeWriterSatisfiesReducerInterface(t *testing.T) 
 	var _ interface {
 		WriteObservabilityCoverageEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 		RetractObservabilityCoverageEdges(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
+		RetractObservabilityCoverageEdgesByUIDs(ctx context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string) error
 	} = NewObservabilityCoverageEdgeWriter(&recordingExecutor{}, 0)
+}
+
+// TestObservabilityCoverageEdgeWriterRetractByUIDsAnchoredDelete proves the
+// anchored retract enumerates $source_uids and seeds the observability
+// CloudResource.uid index (MATCH (obs:CloudResource {uid: suid})) instead of
+// scanning the whole :CloudResource label.
+func TestObservabilityCoverageEdgeWriterRetractByUIDsAnchoredDelete(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewObservabilityCoverageEdgeWriter(executor, 0)
+	if err := writer.RetractObservabilityCoverageEdgesByUIDs(
+		context.Background(),
+		[]string{"obs-a"},
+		[]string{"scope-1"},
+		"reducer/observability-coverage",
+	); err != nil {
+		t.Fatalf("RetractObservabilityCoverageEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"UNWIND $source_uids AS suid",
+		"MATCH (obs:CloudResource {uid: suid})",
+		"rel.scope_id IN $scope_ids",
+		"rel.evidence_source = $evidence_source",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("retract by uids cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	if strings.Contains(cypher, "MATCH (obs:CloudResource)-[rel]->") {
+		t.Fatalf("retract by uids cypher must not fall back to the whole-label scan:\n%s", cypher)
+	}
+}
+
+// TestObservabilityCoverageEdgeWriterRetractByUIDsEmptyIsNoOp proves empty
+// source uids is a clean no-op.
+func TestObservabilityCoverageEdgeWriterRetractByUIDsEmptyIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewObservabilityCoverageEdgeWriter(executor, 0)
+	if err := writer.RetractObservabilityCoverageEdgesByUIDs(
+		context.Background(), nil, []string{"scope-1"}, "reducer/observability-coverage",
+	); err != nil {
+		t.Fatalf("RetractObservabilityCoverageEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 for empty uids", len(executor.calls))
+	}
+}
+
+// TestObservabilityCoverageEdgeWriterRetractByUIDsBatchesUids proves uids
+// beyond the batch size split into multiple UNWIND statements.
+func TestObservabilityCoverageEdgeWriterRetractByUIDsBatchesUids(t *testing.T) {
+	t.Parallel()
+
+	uids := make([]string, 1200)
+	for i := range uids {
+		uids[i] = "uid-" + string(rune('a'+i%26)) + string(rune('0'+i/26))
+	}
+
+	executor := &recordingExecutor{}
+	writer := NewObservabilityCoverageEdgeWriter(executor, 0)
+	if err := writer.RetractObservabilityCoverageEdgesByUIDs(
+		context.Background(), uids, []string{"scope-1"}, "reducer/observability-coverage",
+	); err != nil {
+		t.Fatalf("RetractObservabilityCoverageEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 3 {
+		t.Fatalf("len(calls) = %d, want 3 batches", len(executor.calls))
+	}
 }

@@ -31,6 +31,24 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+// retractAzureCloudResourceEdgesByUIDsCypher is the ledger-anchored
+// counterpart of retractAzureCloudResourceEdgesCypher: it enumerates source
+// CloudResource uids from $source_uids instead of scanning the whole
+// :CloudResource label. The inline `{uid: suid}` on the MATCH seeds the
+// CloudResource.uid index so the delete walks only the ledger-enumerated
+// source's outgoing adjacency. A bare `[rel]` is safe here because the
+// `evidence_source` predicate already scopes the delete to only this writer's
+// edges.
+const retractAzureCloudResourceEdgesByUIDsCypher = `UNWIND $source_uids AS suid
+MATCH (source:CloudResource {uid: suid})-[rel]->(:CloudResource)
+WHERE rel.scope_id IN $scope_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+// azureCloudResourceEdgeRetractUIDBatchSize bounds the number of source uids
+// UNWOUND per anchored-retract statement.
+const azureCloudResourceEdgeRetractUIDBatchSize = 500
+
 // AzureCloudResourceEdgeWriter materializes resolved azure_cloud_relationship
 // facts into canonical Azure relationship edges between CloudResource nodes.
 type AzureCloudResourceEdgeWriter struct {
@@ -155,6 +173,45 @@ func (w *AzureCloudResourceEdgeWriter) RetractCloudResourceEdges(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractCloudResourceEdgesByUIDs removes Azure relationship edges owned by
+// this reducer for the given scopes, enumerating source CloudResource uids
+// from the projected-source ledger instead of scanning the whole
+// :CloudResource label. It is a no-op for an empty uid set.
+func (w *AzureCloudResourceEdgeWriter) RetractCloudResourceEdgesByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("azure cloud resource edge writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, azureCloudResourceEdgeRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractAzureCloudResourceEdgesByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"scope_ids":                     scopeIDs,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseAzureCloudResourceEdge,
+				StatementMetadataEntityLabelKey: "AZURE_RELATIONSHIP",
+				StatementMetadataSummaryKey: fmt.Sprintf(
+					"edge=AZURE_RELATIONSHIP retract_by_uids scopes=%d uids=%d",
+					len(scopeIDs),
+					len(batch),
+				),
+			},
+		})
+	}
+	return w.dispatchRetract(ctx, stmts)
+}
+
 func (w *AzureCloudResourceEdgeWriter) dispatch(ctx context.Context, stmts []Statement) error {
 	if len(stmts) == 0 {
 		return nil
@@ -163,6 +220,21 @@ func (w *AzureCloudResourceEdgeWriter) dispatch(ctx context.Context, stmts []Sta
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes anchored-retract statements through sequential
+// Execute calls, never ExecuteGroup, for the same NornicDB bolt-driver reason
+// documented on CloudResourceEdgeWriter.dispatchRetract.
+func (w *AzureCloudResourceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

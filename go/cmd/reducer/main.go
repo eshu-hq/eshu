@@ -268,15 +268,22 @@ func buildReducerService(
 		IAMEscalationEdgeWriter:             graphWriters.iamEscalationEdge,
 		IAMCanPerformEdgeWriter:             graphWriters.iamCanPerformEdge,
 		ObservabilityCoverageEdgeWriter:     graphWriters.observabilityCoverageEdge,
-		IAMCanAssumeEdgeWriter:              graphWriters.iamCanAssumeEdge,
-		S3LogsToEdgeWriter:                  graphWriters.s3LogsToEdge,
-		S3ExternalPrincipalGrantWriter:      graphWriters.s3ExternalPrincipalGrant,
-		RDSPostureNodeWriter:                graphWriters.rdsPostureNode,
-		EC2UsesProfileEdgeWriter:            graphWriters.ec2UsesProfileEdge,
-		IAMInstanceProfileRoleEdgeWriter:    graphWriters.iamInstanceProfileRoleEdge,
-		EC2InternetExposureNodeWriter:       graphWriters.ec2InternetExposureNode,
-		EC2BlockDeviceKMSPostureNodeWriter:  graphWriters.ec2BlockDeviceKMSPostureNode,
-		S3InternetExposureNodeWriter:        graphWriters.s3InternetExposureNode,
+		// ProjectedSourceLedger (issue #4858) is shared by the AWS, Azure, GCP
+		// relationship, and observability-coverage handlers above; each handler
+		// keys its own ledger rows by its distinct evidence_source string, so
+		// one store instance is enough. Mirrors the code-interproc ledger
+		// wiring (postgres.NewCodeInterprocProjectedEdgeStore) constructed
+		// earlier in buildReducerCodeEvidenceHandlers.
+		ProjectedSourceLedger:              postgres.NewProjectedSourceEdgeStore(database),
+		IAMCanAssumeEdgeWriter:             graphWriters.iamCanAssumeEdge,
+		S3LogsToEdgeWriter:                 graphWriters.s3LogsToEdge,
+		S3ExternalPrincipalGrantWriter:     graphWriters.s3ExternalPrincipalGrant,
+		RDSPostureNodeWriter:               graphWriters.rdsPostureNode,
+		EC2UsesProfileEdgeWriter:           graphWriters.ec2UsesProfileEdge,
+		IAMInstanceProfileRoleEdgeWriter:   graphWriters.iamInstanceProfileRoleEdge,
+		EC2InternetExposureNodeWriter:      graphWriters.ec2InternetExposureNode,
+		EC2BlockDeviceKMSPostureNodeWriter: graphWriters.ec2BlockDeviceKMSPostureNode,
+		S3InternetExposureNodeWriter:       graphWriters.s3InternetExposureNode,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},

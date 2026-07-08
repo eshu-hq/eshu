@@ -42,6 +42,7 @@ func appendAzureRelationshipMaterializationDomain(
 		EdgeWriter:           handlers.AzureCloudResourceEdgeWriter,
 		ReadinessLookup:      handlers.ReadinessLookup,
 		PriorGenerationCheck: handlers.PriorGenerationCheck,
+		Ledger:               handlers.ProjectedSourceLedger,
 		Tracer:               handlers.Tracer,
 		Instruments:          handlers.Instruments,
 	}

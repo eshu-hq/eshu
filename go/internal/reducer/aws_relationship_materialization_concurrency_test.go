@@ -45,6 +45,15 @@ func (w *concurrentCloudResourceEdgeWriter) RetractCloudResourceEdges(
 	return nil
 }
 
+func (w *concurrentCloudResourceEdgeWriter) RetractCloudResourceEdgesByUIDs(
+	_ context.Context,
+	_ []string,
+	_ []string,
+	_ string,
+) error {
+	return nil
+}
+
 // immutableFactLoader returns the same bounded fact slice to every caller with
 // no shared mutable state, so concurrent reducer workers reading one
 // generation's facts do not race on the loader itself. (The package-shared

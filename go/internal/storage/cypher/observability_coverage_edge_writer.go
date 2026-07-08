@@ -69,6 +69,28 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+// retractObservabilityCoverageEdgesByUIDsCypher is the ledger-anchored
+// counterpart of retractObservabilityCoverageEdgesCypher: it enumerates source
+// (observability) CloudResource uids from $source_uids instead of scanning
+// the whole :CloudResource label. The inline `{uid: suid}` on the MATCH seeds
+// the CloudResource.uid index so the delete walks only the ledger-enumerated
+// observability node's outgoing adjacency. A bare `[rel]` is safe here: COVERS
+// edges use a signal-specific Cypher relationship type
+// (AWS_COVERS_<signal>) drawn from a closed vocabulary, but enumerating every
+// member would still require keeping this Cypher in lockstep with
+// observabilityCoverageSignalVocabulary; the `evidence_source` predicate
+// already scopes the delete to only this writer's edges, so a bare `[rel]`
+// cannot reach an edge owned by a different writer.
+const retractObservabilityCoverageEdgesByUIDsCypher = `UNWIND $source_uids AS suid
+MATCH (obs:CloudResource {uid: suid})-[rel]->(:CloudResource)
+WHERE rel.scope_id IN $scope_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+// observabilityCoverageEdgeRetractUIDBatchSize bounds the number of source
+// uids UNWOUND per anchored-retract statement.
+const observabilityCoverageEdgeRetractUIDBatchSize = 500
+
 // ObservabilityCoverageEdgeWriter materializes resolved observability coverage
 // decisions into canonical COVERS edges between CloudResource nodes. It
 // satisfies the reducer-owned coverage-edge-writer consumer interface and writes
@@ -221,6 +243,46 @@ func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdges(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractObservabilityCoverageEdgesByUIDs removes this reducer's COVERS edges
+// for the given scopes, enumerating source (observability) CloudResource uids
+// from the projected-source ledger instead of scanning the whole
+// :CloudResource label. It is a no-op for an empty uid set.
+func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdgesByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("observability coverage edge writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, observabilityCoverageEdgeRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractObservabilityCoverageEdgesByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"scope_ids":                     scopeIDs,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseObservabilityCoverageEdge,
+				StatementMetadataEntityLabelKey: observabilityCoverageEdgeLabel,
+				StatementMetadataSummaryKey: fmt.Sprintf(
+					"edge=%s retract_by_uids scopes=%d uids=%d",
+					observabilityCoverageEdgeLabel,
+					len(scopeIDs),
+					len(batch),
+				),
+			},
+		})
+	}
+	return w.dispatchRetract(ctx, stmts)
+}
+
 // dispatch runs the prepared statements as one atomic group when the executor
 // supports grouping, otherwise sequentially. Transient backend errors are
 // classified retryable so the durable reducer queue can re-run the idempotent
@@ -233,6 +295,21 @@ func (w *ObservabilityCoverageEdgeWriter) dispatch(ctx context.Context, stmts []
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes anchored-retract statements through sequential
+// Execute calls, never ExecuteGroup, for the same NornicDB bolt-driver reason
+// documented on CloudResourceEdgeWriter.dispatchRetract.
+func (w *ObservabilityCoverageEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

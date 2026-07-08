@@ -47,6 +47,26 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+// retractGCPCloudResourceEdgesByUIDsCypher is the ledger-anchored counterpart
+// of retractGCPCloudResourceEdgesCypher: it enumerates source CloudResource
+// uids from $source_uids instead of scanning the whole :CloudResource label.
+// The inline `{uid: suid}` on the MATCH seeds the CloudResource.uid index so
+// the delete walks only the ledger-enumerated source's outgoing adjacency. A
+// bare `[rel]` is safe and required here: GCP's Cloud Asset Inventory
+// relationship vocabulary is open (canonicalGCPRelationshipCypherType accepts
+// any charset-safe token), so enumerating relationship types would require an
+// ever-growing allowlist; the `evidence_source` predicate already scopes the
+// delete to only this writer's edges.
+const retractGCPCloudResourceEdgesByUIDsCypher = `UNWIND $source_uids AS suid
+MATCH (source:CloudResource {uid: suid})-[rel]->(:CloudResource)
+WHERE rel.scope_id IN $scope_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+// gcpCloudResourceEdgeRetractUIDBatchSize bounds the number of source uids
+// UNWOUND per anchored-retract statement.
+const gcpCloudResourceEdgeRetractUIDBatchSize = 500
+
 // GCPCloudResourceEdgeWriter materializes resolved gcp_cloud_relationship facts
 // into canonical GCP relationship edges between CloudResource nodes. It mirrors
 // the AWS CloudResourceEdgeWriter, satisfies the reducer-owned edge-writer
@@ -191,6 +211,45 @@ func (w *GCPCloudResourceEdgeWriter) RetractCloudResourceEdges(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractCloudResourceEdgesByUIDs removes this reducer's GCP relationship
+// edges for the given scopes, enumerating source CloudResource uids from the
+// projected-source ledger instead of scanning the whole :CloudResource label.
+// It is a no-op for an empty uid set.
+func (w *GCPCloudResourceEdgeWriter) RetractCloudResourceEdgesByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("gcp cloud resource edge writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, gcpCloudResourceEdgeRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractGCPCloudResourceEdgesByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"scope_ids":                     scopeIDs,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseGCPCloudResourceEdge,
+				StatementMetadataEntityLabelKey: "GCP_RELATIONSHIP",
+				StatementMetadataSummaryKey: fmt.Sprintf(
+					"edge=GCP_RELATIONSHIP retract_by_uids scopes=%d uids=%d",
+					len(scopeIDs),
+					len(batch),
+				),
+			},
+		})
+	}
+	return w.dispatchRetract(ctx, stmts)
+}
+
 // dispatch runs the prepared statements as one atomic group when the executor
 // supports grouping, otherwise sequentially. Transient backend errors are
 // classified retryable so the durable reducer queue can re-run the idempotent
@@ -203,6 +262,21 @@ func (w *GCPCloudResourceEdgeWriter) dispatch(ctx context.Context, stmts []State
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes anchored-retract statements through sequential
+// Execute calls, never ExecuteGroup, for the same NornicDB bolt-driver reason
+// documented on CloudResourceEdgeWriter.dispatchRetract.
+func (w *GCPCloudResourceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
