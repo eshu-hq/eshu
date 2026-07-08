@@ -84,14 +84,14 @@ type phpParseState struct {
 	deadCodeFunctions   []phpDeadCodeFunctionFact
 	routeAttributes     []*tree_sitter.Node
 
-	// Phase-2 gather slices: candidate nodes collected during phase 1's
+	// Phase-2 gather slice: candidate nodes collected during phase 1's
 	// WalkNamed and resolved in-memory after phase 1 completes, eliminating
-	// the second full-tree WalkNamed traversal.
-	gatheredVariableNames   []*tree_sitter.Node
-	gatheredMemberCalls     []*tree_sitter.Node
-	gatheredScopedCalls     []*tree_sitter.Node
-	gatheredObjectCreations []*tree_sitter.Node
-	gatheredFunctionCalls   []*tree_sitter.Node
+	// the second full-tree WalkNamed traversal. Nodes are appended in pre-order
+	// visitation order so the single in-memory dispatch loop preserves the
+	// exact interleaved order the original phase-2 WalkNamed had — a variable
+	// assignment that follows a member call in source text is NOT yet
+	// processed when the call resolves, so backward type flow is impossible.
+	gatheredPhase2Nodes []*tree_sitter.Node
 }
 
 // Parse extracts PHP declarations, imports, variables, and calls from the
@@ -144,21 +144,24 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	collectPHPDeclarations(state, root)
 
 	// Phase 2: resolve gathered phase-2 nodes in-memory against the now-complete
-	// type evidence instead of re-walking the full tree.
-	for _, node := range state.gatheredVariableNames {
-		emitPHPVariableName(state, node)
-	}
-	for _, node := range state.gatheredMemberCalls {
-		emitPHPMemberCall(state, node)
-	}
-	for _, node := range state.gatheredScopedCalls {
-		emitPHPScopedCall(state, node)
-	}
-	for _, node := range state.gatheredObjectCreations {
-		emitPHPObjectCreation(state, node)
-	}
-	for _, node := range state.gatheredFunctionCalls {
-		emitPHPFunctionCall(state, node)
+	// type evidence instead of re-walking the full tree. The single ordered slice
+	// preserves pre-order interleaving: the dispatch loop replicates the original
+	// phase-2 WalkNamed switch exactly, so a member call that appears before its
+	// receiver's assignment in source text resolves BEFORE the variable emission
+	// that would seed localVariableTypes — no backward type flow.
+	for _, node := range state.gatheredPhase2Nodes {
+		switch node.Kind() {
+		case "variable_name":
+			emitPHPVariableName(state, node)
+		case "member_call_expression", "nullsafe_member_call_expression":
+			emitPHPMemberCall(state, node)
+		case "scoped_call_expression":
+			emitPHPScopedCall(state, node)
+		case "object_creation_expression":
+			emitPHPObjectCreation(state, node)
+		case "function_call_expression":
+			emitPHPFunctionCall(state, node)
+		}
 	}
 
 	// Route attributes recorded during phase 1 resolve against the now-complete
@@ -232,22 +235,22 @@ func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
 			state.routeAttributes = append(state.routeAttributes, shared.CloneNode(node))
 		case "function_call_expression":
 			observePHPWordPressHookCall(state, node)
-			state.gatheredFunctionCalls = append(state.gatheredFunctionCalls, shared.CloneNode(node))
+			state.gatheredPhase2Nodes = append(state.gatheredPhase2Nodes, shared.CloneNode(node))
 		case "array_creation_expression":
 			collectPHPLiteralRouteTarget(state, node)
 		// Gather phase-2 resolution-candidate nodes during phase 1's
 		// WalkNamed so phase 2 can resolve them in-memory instead of
-		// re-walking the full tree. Cloned with shared.CloneNode because
-		// tree-sitter *tree_sitter.Node values point at stack-allocated
-		// cursors during the recursive walk.
-		case "variable_name":
-			state.gatheredVariableNames = append(state.gatheredVariableNames, shared.CloneNode(node))
-		case "member_call_expression", "nullsafe_member_call_expression":
-			state.gatheredMemberCalls = append(state.gatheredMemberCalls, shared.CloneNode(node))
-		case "scoped_call_expression":
-			state.gatheredScopedCalls = append(state.gatheredScopedCalls, shared.CloneNode(node))
-		case "object_creation_expression":
-			state.gatheredObjectCreations = append(state.gatheredObjectCreations, shared.CloneNode(node))
+		// re-walking the full tree. All six node kinds are appended to
+		// a single pre-order-ordered slice; the phase-2 dispatch loop
+		// switches on node.Kind() in the same order as the original
+		// WalkNamed, so interleaved visitation order is preserved and
+		// backward type flow is impossible. Cloned with shared.CloneNode
+		// because tree-sitter *tree_sitter.Node values point at
+		// stack-allocated cursors during the recursive walk.
+		case "variable_name",
+			"member_call_expression", "nullsafe_member_call_expression",
+			"scoped_call_expression", "object_creation_expression":
+			state.gatheredPhase2Nodes = append(state.gatheredPhase2Nodes, shared.CloneNode(node))
 		}
 	})
 }
