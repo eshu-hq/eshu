@@ -39,6 +39,18 @@ func (w *recordingCodeTaintEvidenceWriter) RetractCodeTaintEvidence(
 	return nil
 }
 
+func (w *recordingCodeTaintEvidenceWriter) RetractCodeTaintEvidenceByUIDs(
+	_ context.Context, _ []string, _ []string, _ string,
+) error {
+	return nil
+}
+
+func (w *recordingCodeTaintEvidenceWriter) RetractStaleCodeTaintEvidenceByUIDs(
+	_ context.Context, _ []string, _, _, _ string,
+) error {
+	return nil
+}
+
 // stubCodeTaintEvidenceLoader returns raw code_taint_evidence envelopes; the
 // handler decodes them through the typed contracts seam. envelopes are built
 // from sample inputs via codeTaintEvidenceEnvelope so the existing table tests

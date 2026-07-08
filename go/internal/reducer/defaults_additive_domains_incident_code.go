@@ -29,6 +29,7 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		codeTaint.Handler = CodeTaintEvidenceMaterializationHandler{
 			Loader:               handlers.CodeTaintEvidenceLoader,
 			Writer:               handlers.CodeTaintEvidenceWriter,
+			Ledger:               handlers.CodeTaintEvidenceProjectedNodeLedger,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
 			Instruments:          handlers.Instruments,
 		}

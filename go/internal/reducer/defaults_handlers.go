@@ -278,4 +278,8 @@ type CodeEvidenceHandlers struct {
 	// CodeInterprocProjectedEdgeLedger records and enumerates source Function uids
 	// of projected TAINT_FLOWS_TO edges for anchored-delete retraction.
 	CodeInterprocProjectedEdgeLedger CodeInterprocProjectedEdgeLedger
+
+	// CodeTaintEvidenceProjectedNodeLedger records and enumerates node uids of
+	// projected CodeTaintEvidence nodes for anchored-delete retraction.
+	CodeTaintEvidenceProjectedNodeLedger CodeTaintEvidenceProjectedNodeLedger
 }

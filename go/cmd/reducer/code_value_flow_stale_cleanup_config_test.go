@@ -60,6 +60,7 @@ func TestCodeValueFlowStaleCleanupRunnerForConfig(t *testing.T) {
 		stubCodeValueFlowStaleCleanupWriter{},
 		stubCodeValueFlowStaleCleanupWriter{},
 		stubCodeValueFlowStaleCleanupWriter{},
+		stubCodeValueFlowStaleCleanupWriter{},
 		stubCodeValueFlowStaleCleanupLeaseManager{},
 		codeValueFlowStaleCleanupConfig{},
 	)
@@ -67,6 +68,7 @@ func TestCodeValueFlowStaleCleanupRunnerForConfig(t *testing.T) {
 
 	enabled := codeValueFlowStaleCleanupRunnerFor(
 		&fakeReducerDB{},
+		stubCodeValueFlowStaleCleanupWriter{},
 		stubCodeValueFlowStaleCleanupWriter{},
 		stubCodeValueFlowStaleCleanupWriter{},
 		stubCodeValueFlowStaleCleanupWriter{},
@@ -124,6 +126,22 @@ func (stubCodeValueFlowStaleCleanupWriter) RetractCodeInterprocEvidenceSourceByU
 }
 
 func (stubCodeValueFlowStaleCleanupWriter) RetractStaleCodeInterprocEvidenceByUIDs(context.Context, []string, string, string, string) error {
+	return nil
+}
+
+func (stubCodeValueFlowStaleCleanupWriter) WriteCodeTaintEvidence(context.Context, []map[string]any, string, string, string) error {
+	return nil
+}
+
+func (stubCodeValueFlowStaleCleanupWriter) RetractCodeTaintEvidence(context.Context, []string, string, string) error {
+	return nil
+}
+
+func (stubCodeValueFlowStaleCleanupWriter) RetractCodeTaintEvidenceByUIDs(context.Context, []string, []string, string) error {
+	return nil
+}
+
+func (stubCodeValueFlowStaleCleanupWriter) RetractStaleCodeTaintEvidenceByUIDs(context.Context, []string, string, string, string) error {
 	return nil
 }
 

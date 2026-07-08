@@ -65,4 +65,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"deferred_backfill_partition_memo",
 	"dead_letter_poison_idx",
 	"code_interproc_projected_edge",
+	"code_taint_evidence_projected_node",
 }

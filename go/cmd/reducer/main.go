@@ -116,6 +116,7 @@ func buildReducerService(
 	codeValueFlowStaleCleanupRunner := codeValueFlowStaleCleanupRunnerFor(
 		database,
 		graphWriters.codeTaintEvidence,
+		graphWriters.codeTaintEvidence,
 		graphWriters.codeInterprocEvidence,
 		graphWriters.codeInterprocEvidence,
 		intentStore,
@@ -139,6 +140,19 @@ func buildReducerService(
 	}
 	if err := backfiller.Run(context.Background()); err != nil {
 		return reducer.Service{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
+	}
+	// Seed the projected-node ledger from existing graph CodeTaintEvidence nodes
+	// so the ledger is a superset of graph nodes at deploy time (one-time,
+	// idempotent backfill). Mirrors the interproc edge backfill above.
+	taintNodeBackfiller := reducer.CodeTaintEvidenceProjectedNodeBackfiller{
+		Reader: reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
+		Ledger: postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
+		EvidenceSources: []string{
+			reducer.CodeTaintEvidenceSource(),
+		},
+	}
+	if err := taintNodeBackfiller.Run(context.Background()); err != nil {
+		return reducer.Service{}, fmt.Errorf("code taint evidence projected node backfill: %w", err)
 	}
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.
