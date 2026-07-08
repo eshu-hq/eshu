@@ -8,11 +8,11 @@
 // caller-provided tree-sitter parser, and emits the parser payload buckets for
 // classes, traits, interfaces, functions, imports, variables, calls, and
 // trait-use adaptations by walking AST nodes. A first pass collects
-// declarations, import aliases, property and return types, and bounded
-// dead-code facts; a second pass emits variable rows and call rows whose
-// inferred_obj_type depends on that file-level evidence. PreScan returns
-// declaration names through a cheaper AST-only name pass whose output is kept
-// aligned with Parse's declaration buckets by parent parser tests.
+// declarations, import aliases, property and return types, bounded dead-code
+// facts, and resolution-candidate node pointers for variables and calls;
+// resolution runs in-memory against the collected type evidence. PreScan
+// returns declaration names through a cheaper AST-only name pass whose output
+// is kept aligned with Parse's declaration buckets by parent parser tests.
 //
 // Receiver and return-type inference resolves $this property chains, typed
 // parameters, new expressions, self/static/parent scopes, static properties,

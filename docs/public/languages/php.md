@@ -44,15 +44,40 @@ Canonical implementation:
   literal route, attribute, and hook registrations.
 - Fully dynamic dispatch and reflection-heavy flows remain outside the
   documented contract.
-- The parser performs three full-tree AST traversals per file (parent-edge
-  index, declaration/import/type-evidence/dead-code/route-attribute
-  collection, then variable/call emission). Symfony route-attribute
-  resolution folded into the declaration pass instead of running its own
-  traversal (#4515); emitted payload shape is unchanged. See
+- The parser performs two full-tree AST traversals per file (parent-edge
+  index plus one phase-1 `shared.WalkNamed` that collects declarations,
+  imports, type evidence, dead-code facts, route-attribute candidates, and
+  phase-2 resolution-candidate node pointers). Phase-2 variable and call
+  resolution runs in-memory over the pre-gathered slices instead of
+  re-walking the full tree (#4923). Symfony route-attribute resolution folded
+  into the declaration pass instead of running its own traversal (#4515).
+  Emitted payload shape is unchanged (0/0 symmetric diff). See
   `go/internal/parser/php/README.md` for the walk-count and byte-identity
   evidence.
 
 ## Parser Performance
+
+Performance Evidence: The phase-2 `shared.WalkNamed` re-walk (six node-kind
+switch over `variable_name`, `member_call_expression`, `nullsafe_member_call_expression`,
+`scoped_call_expression`, `object_creation_expression`, and `function_call_expression`)
+was replaced with in-memory `for` loops over pre-gathered node slices collected
+during phase 1 (issue #4923, epic #4917). The winning Go child (#4921) set the
+pattern; theory-proof microbench over the php_regression fixture padded to
+≥10K LOC returned: OLD (phase-2 WalkNamed) 18,435,530 ns/op, 3,571,107 B/op,
+139,565 allocs/op vs NEW (in-memory loops) 363,492 ns/op, 151,764 B/op,
+7,588 allocs/op (~50.7× speedup on the isolated re-walk step).
+BenchmarkParse/php (the real engine-level benchmark) confirmed the win at
+production scale: sec/op −12.43% (164.3ms → 143.9ms, p=0.000, n=10),
+B/op −7.82% (36.01Mi → 33.19Mi, p=0.000), allocs/op −11.92%
+(1,043.1k → 918.8k, p=0.000). Output equivalence is 0/0 symmetric diff
+over the full fixture corpus via the opt-in PHP_PARSE_DUMP harness
+(equivalence_dump_test.go, a manual differential — not a standing CI gate);
+standing regression protection comes from the PHP parser package tests and
+the B-12 golden snapshot.
+
+No-Observability-Change: this parser package emits no metrics, spans, or logs.
+Operators continue to diagnose parser cost through collector snapshot stage
+logs and `eshu_dp_file_parse_duration_seconds`.
 
 - The dead-code root scan's Laravel-style literal route-target extraction
   (`[Controller::class, 'action']` array literals, `go/internal/parser/php/dead_code_roots.go`)
