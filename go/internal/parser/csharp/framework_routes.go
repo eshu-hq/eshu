@@ -24,13 +24,57 @@ type csharpAttribute struct {
 func buildCSharpFrameworkSemantics(root *tree_sitter.Node, source []byte) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
 	usings := csharpUsingNames(root, source)
-	if _, ok := usings["Microsoft.AspNetCore.Mvc"]; ok {
-		appendCSharpRouteFramework(semantics, "aspnet", csharpASPNetAttributeRoutes(root, source))
+	wantASPNetAttr := csharpHasAnyUsing(usings, "Microsoft.AspNetCore.Mvc")
+	wantMinimalAPI := csharpHasAnyUsing(usings, "Microsoft.AspNetCore.Builder", "Microsoft.AspNetCore.Routing")
+	if !wantASPNetAttr && !wantMinimalAPI {
+		return semantics
 	}
-	if csharpHasAnyUsing(usings, "Microsoft.AspNetCore.Builder", "Microsoft.AspNetCore.Routing") {
-		appendCSharpRouteFramework(semantics, "aspnet_minimal_api", csharpASPNetMinimalAPIRoutes(root, source))
+
+	aspnetRoutes, minimalRoutes := csharpFrameworkRoutes(root, source, wantASPNetAttr, wantMinimalAPI)
+	if wantASPNetAttr {
+		appendCSharpRouteFramework(semantics, "aspnet", aspnetRoutes)
+	}
+	if wantMinimalAPI {
+		appendCSharpRouteFramework(semantics, "aspnet_minimal_api", minimalRoutes)
 	}
 	return semantics
+}
+
+// csharpFrameworkRoutes runs the ASP.NET attribute-route and minimal-API
+// route detectors in a single shared.WalkNamed pass instead of one dedicated
+// walk per framework: the two detectors look at disjoint node kinds
+// ("method_declaration" vs "invocation_expression") and neither result
+// depends on the other, so they can share one traversal. Each gate gets
+// skipped when its using directive is absent, exactly like the two dedicated
+// walks it replaces, and each returned slice preserves the same
+// per-node-kind document-order sequence a dedicated walk would have produced.
+func csharpFrameworkRoutes(root *tree_sitter.Node, source []byte, wantASPNetAttr, wantMinimalAPI bool) (aspnetRoutes, minimalRoutes []csharpRoute) {
+	if root == nil {
+		return nil, nil
+	}
+	if wantASPNetAttr {
+		aspnetRoutes = make([]csharpRoute, 0)
+	}
+	if wantMinimalAPI {
+		minimalRoutes = make([]csharpRoute, 0)
+	}
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "method_declaration":
+			if !wantASPNetAttr {
+				return
+			}
+			if route, ok := csharpASPNetAttributeRouteForNode(node, source); ok {
+				aspnetRoutes = append(aspnetRoutes, route)
+			}
+		case "invocation_expression":
+			if !wantMinimalAPI {
+				return
+			}
+			minimalRoutes = append(minimalRoutes, csharpASPNetMinimalAPIRoutesForNode(node, source)...)
+		}
+	})
+	return aspnetRoutes, minimalRoutes
 }
 
 func appendCSharpRouteFramework(semantics map[string]any, name string, routes []csharpRoute) {
@@ -59,47 +103,40 @@ func appendCSharpRouteFramework(semantics map[string]any, name string, routes []
 	}
 }
 
-func csharpASPNetAttributeRoutes(root *tree_sitter.Node, source []byte) []csharpRoute {
-	if root == nil {
-		return nil
+// csharpASPNetAttributeRouteForNode resolves at most one ASP.NET
+// attribute-route entry for a single "method_declaration" node. Extracted
+// from a former dedicated csharpASPNetAttributeRoutes walk so
+// csharpFrameworkRoutes can call it inline from the merged single-pass walk.
+func csharpASPNetAttributeRouteForNode(node *tree_sitter.Node, source []byte) (csharpRoute, bool) {
+	name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
+	if name == "" {
+		return csharpRoute{}, false
 	}
-
-	routes := make([]csharpRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_declaration" {
-			return
-		}
-		name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		syntax := csharpMethodSyntaxForNode(node, source)
-		if csharpAttributesContainAny(syntax.attributes, "NonAction") {
-			return
-		}
-		methodRoute, ok := csharpASPNetMethodRoute(csharpAttributesFromNode(node, source))
-		if !ok {
-			return
-		}
-		prefix, controllerName, prefixOK := csharpASPNetControllerPrefix(node, source)
-		if !prefixOK {
-			return
-		}
-		routePath := csharpJoinRoutePath(prefix, methodRoute.path)
-		if routePath == "" {
-			return
-		}
-		handler := name
-		if controllerName != "" {
-			handler = controllerName + "." + name
-		}
-		routes = append(routes, csharpRoute{
-			method:  methodRoute.method,
-			path:    routePath,
-			handler: handler,
-		})
-	})
-	return routes
+	syntax := csharpMethodSyntaxForNode(node, source)
+	if csharpAttributesContainAny(syntax.attributes, "NonAction") {
+		return csharpRoute{}, false
+	}
+	methodRoute, ok := csharpASPNetMethodRoute(csharpAttributesFromNode(node, source))
+	if !ok {
+		return csharpRoute{}, false
+	}
+	prefix, controllerName, prefixOK := csharpASPNetControllerPrefix(node, source)
+	if !prefixOK {
+		return csharpRoute{}, false
+	}
+	routePath := csharpJoinRoutePath(prefix, methodRoute.path)
+	if routePath == "" {
+		return csharpRoute{}, false
+	}
+	handler := name
+	if controllerName != "" {
+		handler = controllerName + "." + name
+	}
+	return csharpRoute{
+		method:  methodRoute.method,
+		path:    routePath,
+		handler: handler,
+	}, true
 }
 
 func csharpASPNetMethodRoute(attributes []csharpAttribute) (csharpRoute, bool) {
@@ -156,37 +193,33 @@ func csharpASPNetControllerClass(node *tree_sitter.Node, name string, source []b
 	return false
 }
 
-func csharpASPNetMinimalAPIRoutes(root *tree_sitter.Node, source []byte) []csharpRoute {
-	if root == nil {
+// csharpASPNetMinimalAPIRoutesForNode resolves zero or more minimal-API route
+// entries for a single "invocation_expression" node (a MapMethods call can
+// register more than one HTTP method against the same path/handler).
+// Extracted from a former dedicated csharpASPNetMinimalAPIRoutes walk so
+// csharpFrameworkRoutes can call it inline from the merged single-pass walk.
+func csharpASPNetMinimalAPIRoutesForNode(node *tree_sitter.Node, source []byte) []csharpRoute {
+	methods, pathArgIndex, handlerArgIndex, ok := csharpMinimalAPIMethods(node, source)
+	if !ok {
 		return nil
 	}
-
-	routes := make([]csharpRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "invocation_expression" {
-			return
-		}
-		methods, pathArgIndex, handlerArgIndex, ok := csharpMinimalAPIMethods(node, source)
-		if !ok {
-			return
-		}
-		args := csharpInvocationArguments(shared.NodeText(node, source))
-		if len(args) <= handlerArgIndex || len(args) <= pathArgIndex {
-			return
-		}
-		path, ok := csharpSingleStringLiteral(args[pathArgIndex])
-		if !ok || !csharpRoutePathIsExact(path) {
-			return
-		}
-		handler := csharpIdentifierArgument(args[handlerArgIndex])
-		if handler == "" {
-			return
-		}
-		path = csharpNormalizeRoutePath(path)
-		for _, method := range methods {
-			routes = append(routes, csharpRoute{method: method, path: path, handler: handler})
-		}
-	})
+	args := csharpInvocationArguments(shared.NodeText(node, source))
+	if len(args) <= handlerArgIndex || len(args) <= pathArgIndex {
+		return nil
+	}
+	path, ok := csharpSingleStringLiteral(args[pathArgIndex])
+	if !ok || !csharpRoutePathIsExact(path) {
+		return nil
+	}
+	handler := csharpIdentifierArgument(args[handlerArgIndex])
+	if handler == "" {
+		return nil
+	}
+	path = csharpNormalizeRoutePath(path)
+	routes := make([]csharpRoute, 0, len(methods))
+	for _, method := range methods {
+		routes = append(routes, csharpRoute{method: method, path: path, handler: handler})
+	}
 	return routes
 }
 
