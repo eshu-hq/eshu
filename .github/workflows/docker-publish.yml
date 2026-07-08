@@ -15,10 +15,18 @@ on:
   pull_request:
     branches:
       - main
+    # PR lane intentionally OMITS `go/**`: a pure-Go change's compilation is
+    # already proven by test.yml (`go build ./...` + `go vet ./...`), so the
+    # ~16-22m in-container build plus the ~24m verify-reproducibility
+    # double-build add no code-correctness coverage on a Go-only PR. The image
+    # build's unique coverage is Dockerfile/packaging + reproducibility, which
+    # only regress when the image definition below changes — so those PRs still
+    # get the full build smoke + reproducibility check pre-merge. The push lane
+    # above keeps `go/**` as the backstop: every Go change to main is built,
+    # pushed, signed, and reproducibility-checked there before any release.
     paths:
       - Dockerfile
       - .dockerignore
-      - go/**
       - deploy/helm/**
       - .github/workflows/docker-publish.yml
   workflow_dispatch:
