@@ -108,6 +108,41 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Log("note: \"tags\" is now read by a reducer handler; this is fine (proves the manifest tracks real usage), update this test's assumption if it changed intentionally")
 	}
 
+	// #4668: aws_iam_permission and aws_iam_principal read their fields ONLY
+	// through wrapper structs — iamPermissionStatement.permission
+	// (iam_can_perform_grant.go / iam_escalation_grant.go /
+	// iam_escalation_target.go) and secretsIAMPrincipal.decoded
+	// (secrets_iam_trust_chain_iam_role.go). Before wrapper-mediated
+	// attribution those reads were invisible to the scanner, so
+	// aws_iam_permission undercounted and aws_iam_principal's UsedFields was
+	// empty. Assert the two-level wrapper reads are now attributed on the real
+	// reducer, not just synthetic fixtures.
+	wantWrapperMediated := map[string][]string{
+		"FactKindAWSIAMPermission": {"actions", "not_actions", "resources"},
+		"FactKindAWSIAMPrincipal":  {"account_id", "region"},
+	}
+	for factKind, wantFields := range wantWrapperMediated {
+		var kind *KindManifest
+		for i := range manifest.Kinds {
+			if manifest.Kinds[i].FactKind == factKind {
+				kind = &manifest.Kinds[i]
+			}
+		}
+		if kind == nil {
+			t.Errorf("%s not found in manifest; the IAM decode seam is not being scanned", factKind)
+			continue
+		}
+		used := map[string]struct{}{}
+		for _, u := range kind.UsedFields {
+			used[u.JSONName] = struct{}{}
+		}
+		for _, f := range wantFields {
+			if _, ok := used[f]; !ok {
+				t.Errorf("%s UsedFields is missing %q — a wrapper-mediated read (#4668) was not attributed; got %+v", factKind, f, kind.UsedFields)
+			}
+		}
+	}
+
 	// Every used field must, by construction, be a member of DeclaredFields
 	// — CheckManifest against the manifest's own baked-in declaration must
 	// therefore report zero violations for the real repository state today.

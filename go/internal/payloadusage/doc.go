@@ -29,10 +29,12 @@
 //     generator use.
 //   - ScanDecodeUsage AST-walks every configured handler surface and finds
 //     which of those fields a handler actually reads, following the decoded
-//     value both directly (`resource, err := decodeAWSResource(env)` then
-//     `resource.Field`) and across a function-call boundary when the decoded
+//     value directly (`resource, err := decodeAWSResource(env)` then
+//     `resource.Field`), across a function-call boundary when the decoded
 //     struct is passed by value into a helper parameter typed with the same
-//     qualified struct name.
+//     qualified struct name, and through a single wrapper-struct field typed
+//     as the seam struct (`statement.permission.Actions`, where
+//     iamPermissionStatement.permission is an iamv1.Permission).
 //
 // BuildManifest joins the three into a Manifest. CheckManifest compares each
 // kind's used fields against an externally supplied declared-field set (in
@@ -47,20 +49,23 @@
 //
 // # Attribution boundary
 //
-// The usage scan attributes direct reads and reads inside a helper whose
-// parameter is typed as the seam struct. It does NOT attribute a field read
-// mediated ONLY through a wrapper struct field — the IAM pattern where a
-// decoded iamv1.Permission is stored in an iamPermissionStatement wrapper and
-// the wrapper (not the bare struct) is passed to a helper, so the read is
-// `statement.permission.Actions` rather than `permission.Actions`. As a
-// result the manifest's used-field set is a lower bound for the IAM kinds
-// (aws_iam_permission, aws_resource_policy_permission). The gate stays sound
-// today because every such field is in the declared schema (schemas are
-// generated from the same structs), so no violation is missed; but a field
-// reachable only through a wrapper would not be caught if a schema drifted.
-// Extending attribution to single-field wrapper structs is tracked follow-up
-// issue #4668 (part of epic #4566). See README.md "Limitations / attribution
-// boundary".
+// The usage scan attributes direct reads, reads inside a helper whose
+// parameter is typed as the seam struct, and reads through a single wrapper
+// struct field typed as the seam struct — the IAM pattern where a decoded
+// iamv1.Permission is stored in an iamPermissionStatement wrapper and read as
+// `statement.permission.Actions` after the wrapper slice is ranged, or where a
+// secretsIAMPrincipal.decoded is read as `principal.decoded.AccountID` (#4668).
+//
+// It still does NOT follow general multi-hop dataflow: a value returned from a
+// call and then wrapped, a range over a map-indexed expression, or a wrapper
+// whose seam field is a pointer or slice. Resolving those soundly needs full
+// type information this AST-only scan avoids by design, so for such a shape the
+// used-field set stays a lower bound. That never produces a false violation —
+// BuildManifest joins each recorded read against the attributed struct's
+// declared fields and drops anything that does not match — it only leaves a
+// real read unattributed. The gate stays sound regardless because every such
+// field is in the declared schema (schemas are generated from the same
+// structs).
 //
 // # Entry points
 //

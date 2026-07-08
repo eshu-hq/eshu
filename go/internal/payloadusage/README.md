@@ -17,7 +17,8 @@ failure surfaces in core CI instead of an external collector's production run.
 | --- | --- |
 | `decodeseam.go` | `ParseDecodeSeams` — finds every `decode<Kind>` function in one `factschema_decode*.go` file and the struct type + fact kind it decodes; `load.go`'s `resolveDecodeFiles` globs every such file so per-family split files are all parsed |
 | `structshape.go` | `ParseStructShapes` — extracts a typed struct's named, JSON-tagged fields and required/optional flag |
-| `usage.go` | `ScanDecodeUsage` — AST-walks handler files and finds which declared fields each handler actually reads, direct or across a helper-function call |
+| `usage.go` | `ScanDecodeUsage` — AST-walks handler files and finds which declared fields each handler actually reads: direct, across a helper-function call, or through a wrapper-struct field (see `wrapper.go`) |
+| `wrapper.go` | `wrapperSeamFields`, `wrapperBoundIdentifiers` — detect local wrapper structs whose field is typed as a seam struct and bind their values, so a `wrapper.<seamField>.<StructField>` read is attributed to the right seam |
 | `rawpayload.go` | `CheckRawPayloadConvention` — ratchets direct raw payload reads on W2c/W2d loader, relationship, and replay surfaces behind an explicit shrinking exemption list |
 | `manifest.go` | `BuildManifest`, `CheckManifest`, `Violation` — joins the three derivations and compares used fields against a declared set |
 | `schema.go` | `LoadDeclaredFieldsFromSchemas` — reads `sdk/go/factschema/schema/*.json` as the declared-field source of truth; `MergeRegistryPayloadSchemaFields` — additive hook for issue #4570's registry `payload_schema` refs |
@@ -48,16 +49,19 @@ hand-maintained list of field names. Concretely:
    declared schema property.
 3. `ScanDecodeUsage` AST-walks every non-test file directly under the configured
    reducer, projector, query, loader, relationships, and replay directories and
-   records every `ident.Field` selector where
-   `ident` was bound to a decoded value — either directly
-   (`resource, err := decodeAWSResource(env)` in the same function), or
-   because the decoded struct was passed BY VALUE into a helper function
-   whose parameter is typed with the qualified struct name (for example
-   `func deriveDecision(posture awsv1.S3BucketPosture)` in
-   `s3_internet_exposure_rows.go`). The second case is real: several
-   AWS/IAM/security-group handlers thread the decoded struct through one or
-   two derivation helpers rather than reading every field at the decode call
-   site.
+   records a field read in three shapes. First, a direct `ident.Field` where
+   `ident` was bound to a decoded value in the same function
+   (`resource, err := decodeAWSResource(env)`). Second, a read inside a helper
+   whose parameter is typed with the qualified struct name — the decoded struct
+   passed BY VALUE (for example `func deriveDecision(posture awsv1.S3BucketPosture)`
+   in `s3_internet_exposure_rows.go`); several AWS/IAM/security-group handlers
+   thread the decoded struct through one or two derivation helpers rather than
+   reading every field at the decode call site. Third, a wrapper-mediated read
+   `wrapper.<seamField>.<StructField>`, where a decoded value is stored in a
+   local wrapper struct whose field is typed as the seam struct
+   (`iamPermissionStatement.permission`, `secretsIAMPrincipal.decoded`) and read
+   one hop deeper after the wrapper slice is ranged — see the "Attribution"
+   section below for the shapes covered and the boundary.
 
 `BuildManifest` joins the three into a `Manifest`. `CheckManifest` compares
 each kind's used fields against an externally supplied declared-field set and
@@ -71,15 +75,20 @@ on any new `.Payload["field"]` or `payloadString` / `payloadStrings` read. That
 turns the W2c/W2d convention into a ratchet: exemptions can be removed as typed
 seams land, but adding one requires an explicit budget change in review.
 
-## Limitations / attribution boundary
+## Attribution: what the usage scan follows
 
-The usage scan attributes two shapes: direct reads off a decode-call result,
-and reads inside a helper whose parameter is typed as the seam struct. It does
-**not** attribute a field read mediated only through a **wrapper struct
-field**.
+The usage scan attributes three shapes:
 
-The IAM handlers are the concrete case. `iam_can_perform.go` stores a decoded
-`iamv1.Permission` in a wrapper and collects the wrappers into a slice:
+1. **Direct** — a decode-call result read in the same function:
+   `resource, err := decodeAWSResource(env)` then `resource.Field`.
+2. **Helper parameter** — a helper whose parameter is typed as the seam struct:
+   `func derive(posture awsv1.S3BucketPosture)` then `posture.Field`, however
+   many call frames from the decode.
+3. **Wrapper field** — a decoded value stored in a wrapper struct whose field is
+   typed as the seam struct, read one hop deeper (`#4668`).
+
+The IAM handlers are the concrete wrapper case. `iam_can_perform.go` stores a
+decoded `iamv1.Permission` in a wrapper and collects the wrappers into a slice:
 
 ```go
 byPrincipalARN[permission.PrincipalARN] = append(
@@ -88,37 +97,33 @@ byPrincipalARN[permission.PrincipalARN] = append(
 )
 ```
 
-`buildIAMCanPerformGrant([]iamPermissionStatement)` and the escalation
-builders then read `statement.permission.Actions`, `.NotActions`,
-`.NotResources`, `.HasConditions`, `.Resources`. That is a two-level selector
-(`statement.permission.Actions`), and the scan matches only `ident.Field`
-where `ident` is bound to a seam value, not `ident.wrapperField.SeamField`.
-
-The same shape applies to `aws_iam_principal`: `secretsIAMRoleCloudResourceUID`
+`buildIAMCanPerformGrant([]iamPermissionStatement)` and the escalation builders
+range that slice and read `statement.permission.Actions`, `.NotActions`,
+`.NotResources`, `.HasConditions`, `.Resources` — a two-level selector. The scan
+now recognizes that `iamPermissionStatement.permission` is typed
+`iamv1.Permission`, binds the range value to that wrapper, and attributes the
+seam field. `aws_iam_principal` works the same way:
+`secretsIAMRoleCloudResourceUID`
 (`go/internal/reducer/secrets_iam_trust_chain_iam_role.go`) reads
 `principal.decoded.AccountID` / `.Region` through the `secretsIAMPrincipal`
-wrapper.
+wrapper, so `account_id` and `region` are attributed instead of the kind
+reporting an empty `UsedFields`.
 
-Consequences:
+### Remaining boundary
 
-- The manifest's used-field set is a **lower bound** for `aws_iam_permission`
-  and `aws_resource_policy_permission`. Their `actions`, `not_actions`,
-  `not_resources`, `has_conditions`, and `resources` reads happen only through
-  the wrapper and are currently absent from `UsedFields`.
-- `aws_iam_principal`'s `UsedFields` is **empty** today for the same reason,
-  even though the handler does read `account_id` and `region` — the strongest
-  form of this undercount.
-- The gate stays **sound** today: every one of those fields is present in the
-  declared JSON Schema (the schemas are generated from the same structs), so
-  no violation is missed.
-- The one thing it does not cover: a field reachable **only** through a
-  wrapper would be a false-green if a schema drifted to drop it.
+The wrapper hop is a **single** hop through a bare value field. The scan does
+not follow general multi-hop dataflow: a value returned from a call and then
+wrapped, a range over a map-indexed expression
+(`range g.statementsByAction[key]`), or a wrapper whose seam field is a pointer
+or slice. Those need full type information this AST-only scan avoids by design.
 
-Extending attribution to single-field (or seam-typed-field) wrapper structs is
-tracked as [#4668](https://github.com/eshu-hq/eshu/issues/4668) (follow-up to
-this gate, part of epic #4566). It is deliberately out of scope here because no
-violation exists today; implementing wrapper-following now would add complexity
-with no correctness gain.
+Missing one of those only leaves a real read unattributed — `UsedFields` stays a
+lower bound. It never produces a false violation: `BuildManifest` joins every
+recorded read against the attributed struct's declared fields and drops anything
+that does not match, so an over-eager wrapper match on a non-schema field simply
+disappears. The gate stays sound regardless, because every field these handlers
+read is present in the declared JSON Schema (the schemas are generated from the
+same structs).
 
 ## Entry points
 
