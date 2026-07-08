@@ -52,36 +52,29 @@ type parsedGoFile struct {
 //     case: deriveS3InternetExposureDecision and deriveS3PublicPolicyDecision
 //     both take awsv1.S3BucketPosture as a plain parameter, not a decode call
 //     result).
+//  3. Wrapper-mediated: a handler stores the decoded struct in a WRAPPER
+//     struct field typed as the seam struct (`iamPermissionStatement.permission
+//     iamv1.Permission`, `secretsIAMPrincipal.decoded iamv1.Principal`) and
+//     reads the seam field two selector levels deep —
+//     `statement.permission.Actions`, `principal.decoded.AccountID` — after
+//     ranging the wrapper slice inside a helper or taking the wrapper by value.
+//     The read of the seam field is attributed to the decode func its wrapper
+//     field type came from (see wrapper.go). This is what makes
+//     aws_iam_permission / aws_resource_policy_permission report their
+//     actions/not_actions/resources reads, and aws_iam_principal report its
+//     account_id/region reads, instead of undercounting them (#4668).
 //
-// ATTRIBUTION BOUNDARY (a documented limitation, not a bug): a field read
-// mediated ONLY through a WRAPPER STRUCT FIELD is NOT attributed. When a
-// handler stores the decoded struct in a wrapper
-// (`iamPermissionStatement{permission}` in iam_can_perform.go /
-// iam_escalation_grant.go, or `secretsIAMPrincipal{...}`) and passes the
-// WRAPPER — not the bare seam struct — into a helper
-// (`buildIAMCanPerformGrant([]iamPermissionStatement)`), the field reads
-// appear as `statement.permission.Actions`, a two-level selector this scan
-// does not follow: it matches `ident.Field` where `ident` is bound to a seam
-// value (case 1 or 2), not `ident.wrapperField.SeamField`. So the manifest's
-// UsedFields is INCOMPLETE for the IAM kinds:
-//
-//   - aws_iam_permission / aws_resource_policy_permission read
-//     actions/not_actions/resources/not_resources/has_conditions only through
-//     the iamPermissionStatement wrapper, so those fields are absent from
-//     UsedFields.
-//   - aws_iam_principal reads AccountID/Region only through the
-//     secretsIAMPrincipal wrapper (secretsIAMRoleCloudResourceUID in
-//     secrets_iam_trust_chain_iam_role.go), so its UsedFields is EMPTY even
-//     though the handler does read two fields — the strongest form of this
-//     undercount.
-//
-// This does NOT weaken the gate's soundness today: every such field is present
-// in the declared schema (the schemas are generated from the same structs), so
-// no violation is missed. But UsedFields is a lower bound on real usage for
-// those kinds, and a future field read reachable ONLY through a wrapper would
-// not be caught if a schema drifted. Extending attribution to single-field
-// wrapper structs is tracked as follow-up issue #4668 (part of epic #4566);
-// see README.md "Limitations / attribution boundary".
+// ATTRIBUTION BOUNDARY (a documented limitation, not a bug): the wrapper hop in
+// case 3 is a SINGLE hop through a bare value field. A read reachable only
+// through general multi-hop dataflow or aliasing — a value returned from a
+// call and then wrapped, a range over a map-indexed expression
+// (`range g.statementsByAction[key]`), or a wrapper whose seam field is a
+// pointer/slice — is still not followed, because resolving it soundly needs
+// full type information this AST-only scan deliberately avoids. Missing one of
+// those only leaves a field unattributed (UsedFields stays a lower bound); it
+// never misattributes, because BuildManifest joins each recorded read against
+// the attributed struct's declared fields and drops anything that does not
+// match.
 //
 // This is the usage half of the derivation: DecodeSeam/StructShape describe
 // what a struct *declares*; ScanDecodeUsage finds what a handler actually
@@ -101,6 +94,11 @@ func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldU
 		return nil, err
 	}
 
+	// Wrapper structs (a local struct with a field typed as a seam struct) are
+	// derived once for the whole directory, since a type declared in one file
+	// is used across the package's handler files.
+	wrappers := wrapperSeamFields(parsedFiles, structToFunc)
+
 	usage := map[string][]FieldUsage{}
 	for _, pf := range parsedFiles {
 		for _, decl := range pf.file.Decls {
@@ -109,10 +107,11 @@ func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldU
 				continue
 			}
 			boundTo := boundIdentifiers(fn, decodeFuncs, structToFunc)
-			if len(boundTo) == 0 {
+			wrapperBound := wrapperBoundIdentifiers(fn, wrappers)
+			if len(boundTo) == 0 && len(wrapperBound) == 0 {
 				continue
 			}
-			recordFieldReads(fn.Body, pf.name, boundTo, usage)
+			recordFieldReads(fn.Body, pf.name, boundTo, wrapperBound, wrappers, usage)
 		}
 	}
 
@@ -218,21 +217,47 @@ func qualifiedTypeName(expr ast.Expr) (string, bool) {
 	return pkgIdent.Name + "." + sel.Sel.Name, true
 }
 
-// recordFieldReads walks body and records one FieldUsage per selector
-// expression `ident.Field` where ident is a key of boundTo, attributing the
-// finding to boundTo[ident] under fileName.
-func recordFieldReads(body *ast.BlockStmt, fileName string, boundTo map[string]string, usage map[string][]FieldUsage) {
+// recordFieldReads walks body and records a FieldUsage in two shapes:
+//
+//  1. `ident.Field` where ident is a key of boundTo (a seam-bound value from a
+//     decode call or a seam-typed parameter) — attributed to boundTo[ident].
+//  2. `wrapper.<seamField>.<StructField>` where wrapper is a key of
+//     wrapperBound (a value of a wrapper struct type) and <seamField> is a
+//     field of that wrapper whose type is a seam struct — the read of
+//     <StructField> is attributed to the decode func that seam field came
+//     from. This follows the one wrapper-mediated hop the migrated
+//     IAM/secrets_iam handlers use (statement.permission.Actions,
+//     principal.decoded.AccountID); deeper nesting (`a.b.c.d`) is not followed.
+//
+// A read that matches no declared field of the attributed struct is dropped
+// later by BuildManifest (it joins against the struct's declared fields), so a
+// wrapper read of a non-schema field never becomes a false violation.
+func recordFieldReads(body *ast.BlockStmt, fileName string, boundTo, wrapperBound map[string]string, wrappers map[string]map[string]string, usage map[string][]FieldUsage) {
 	ast.Inspect(body, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
-		ident, isIdent := sel.X.(*ast.Ident)
+		if ident, isIdent := sel.X.(*ast.Ident); isIdent {
+			if funcName, isBound := boundTo[ident.Name]; isBound {
+				usage[funcName] = append(usage[funcName], FieldUsage{File: fileName, GoFieldName: sel.Sel.Name})
+			}
+			return true
+		}
+		inner, isSel := sel.X.(*ast.SelectorExpr)
+		if !isSel {
+			return true
+		}
+		base, isIdent := inner.X.(*ast.Ident)
 		if !isIdent {
 			return true
 		}
-		funcName, isBound := boundTo[ident.Name]
-		if !isBound {
+		wrapperType, isWrapperBound := wrapperBound[base.Name]
+		if !isWrapperBound {
+			return true
+		}
+		funcName, isSeamField := wrappers[wrapperType][inner.Sel.Name]
+		if !isSeamField {
 			return true
 		}
 		usage[funcName] = append(usage[funcName], FieldUsage{File: fileName, GoFieldName: sel.Sel.Name})
