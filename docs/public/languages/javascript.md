@@ -130,3 +130,18 @@ Not claimed today:
   same cap ([#4808](https://github.com/eshu-hq/eshu/issues/4808)): a bounded
   file contributes no pre-scan names and the bound is logged, since pre-scan
   has no payload map to carry a `js_parse_bounded` row.
+
+## Parser Performance
+
+The JavaScript/TypeScript parser folds independent per-file, full-tree
+tree-sitter walks into shared passes: the embedded-shell import-alias and
+enclosing-function scans run in one traversal, and the React-alias,
+CommonJS-export, new-expression-type, and Fastify-base index builders run in
+one shared dispatch walk gated per collector exactly as the originals were.
+This lowers the always-on root-walk count in that path from 7 to 3 while
+keeping parser output byte-identical (a `0/0` symmetric-diff over the fixture
+corpus gates it; epic #4831, #4868). This is distinct from the shipped
+TypeScript public-surface reexport BFS cache (#4765), which it does not touch.
+Contributors adding a new index builder should extend the shared dispatch walk
+rather than add another full-tree walk when the builder has no dependency on
+another builder's completed output.
