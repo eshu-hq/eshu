@@ -110,3 +110,21 @@ Not claimed today:
 - Dead-code does not infer arbitrary string-built reflection, container-driven
   dependency injection, runtime classpath scanning, or framework behavior that
   is not represented in source or checked metadata files.
+
+## Parser Performance
+
+The Java parser collapses independent full-tree tree-sitter walks into shared
+passes: the Spring, JAX-RS, and Micronaut route detectors run in one
+annotation walk, the declared-type-name counts are gathered during the
+method-reference index walk (and classified afterward, once the counts are
+complete), and the dataflow emit and interproc-effects passes share a single
+traversal. This lowers the default-path full-tree walk count from 7 to 4 (and
+the EmitDataflow add-on from 4 to 2) while keeping parser output byte-identical,
+verified by a one-time old-vs-new `0/0` symmetric-diff over the fixture corpus
+via the opt-in `JAVA_PARSE_DUMP` harness (`equivalence_dump_test.go`, a manual
+differential — not a standing CI gate); standing regression protection comes
+from the Java parser package tests and the B-12 golden snapshot (epic #4831,
+#4838).
+Contributors adding a new index builder should extend the relevant shared pass
+rather than add another full-tree walk when the builder has no dependency on
+another builder's completed output.
