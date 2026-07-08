@@ -9,6 +9,30 @@
         "null"
       ]
     },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "extraction_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lockfile_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "occurrence_count": {
       "type": [
         "integer",

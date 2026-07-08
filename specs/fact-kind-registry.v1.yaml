@@ -156,6 +156,10 @@ families:
     read_surface: "GET /api/v0/incidents/{incident_id}/context"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      change.record: "sdk/go/factschema/schema/change.record.v1.schema.json"
+      incident.lifecycle_event: "sdk/go/factschema/schema/incident.lifecycle_event.v1.schema.json"
+      incident.record: "sdk/go/factschema/schema/incident.record.v1.schema.json"
     kinds: [change.record, incident.lifecycle_event, incident.record]
   incident_routing:
     lifecycle_owner: go/internal/facts
@@ -166,6 +170,12 @@ families:
     read_surface: "GET /api/v0/incidents/{incident_id}/context"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      incident_routing.applied_alert_route: "sdk/go/factschema/schema/incident_routing.applied_alert_route.v1.schema.json"
+      incident_routing.applied_pagerduty_resource: "sdk/go/factschema/schema/incident_routing.applied_pagerduty_resource.v1.schema.json"
+      incident_routing.coverage_warning: "sdk/go/factschema/schema/incident_routing.coverage_warning.v1.schema.json"
+      incident_routing.observed_pagerduty_integration: "sdk/go/factschema/schema/incident_routing.observed_pagerduty_integration.v1.schema.json"
+      incident_routing.observed_pagerduty_service: "sdk/go/factschema/schema/incident_routing.observed_pagerduty_service.v1.schema.json"
     kinds: [incident_routing.applied_alert_route, incident_routing.applied_pagerduty_resource, incident_routing.coverage_warning, incident_routing.observed_pagerduty_integration, incident_routing.observed_pagerduty_service]
   kubernetes_live:
     lifecycle_owner: go/internal/facts
@@ -458,4 +468,14 @@ families:
     read_surface: "GET /api/v0/work-items/evidence"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      work_item.external_link: "sdk/go/factschema/schema/work_item.external_link.v1.schema.json"
+      work_item.field_metadata: "sdk/go/factschema/schema/work_item.field_metadata.v1.schema.json"
+      work_item.issue_type_metadata: "sdk/go/factschema/schema/work_item.issue_type_metadata.v1.schema.json"
+      work_item.metadata_warning: "sdk/go/factschema/schema/work_item.metadata_warning.v1.schema.json"
+      work_item.project_metadata: "sdk/go/factschema/schema/work_item.project_metadata.v1.schema.json"
+      work_item.record: "sdk/go/factschema/schema/work_item.record.v1.schema.json"
+      work_item.status_metadata: "sdk/go/factschema/schema/work_item.status_metadata.v1.schema.json"
+      work_item.transition: "sdk/go/factschema/schema/work_item.transition.v1.schema.json"
+      work_item.workflow_metadata: "sdk/go/factschema/schema/work_item.workflow_metadata.v1.schema.json"
     kinds: [work_item.external_link, work_item.field_metadata, work_item.issue_type_metadata, work_item.metadata_warning, work_item.project_metadata, work_item.record, work_item.status_metadata, work_item.transition, work_item.workflow_metadata]

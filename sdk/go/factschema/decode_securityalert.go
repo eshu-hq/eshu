@@ -23,5 +23,5 @@ func DecodeSecurityAlertRepositoryAlert(env Envelope) (securityalertv1.Repositor
 // of DecodeSecurityAlertRepositoryAlert for schema-version-1 payloads, used by
 // collectors emitting this fact kind and by this module's round-trip tests.
 func EncodeSecurityAlertRepositoryAlert(alert securityalertv1.RepositoryAlert) (map[string]any, error) {
-	return encodeToPayload(alert)
+	return encodeDirectPayload(alert)
 }

@@ -22,7 +22,12 @@ func TestAdoptedEncodePathsUseDirectMaps(t *testing.T) {
 		"decode_observability.go",
 		"decode_ociregistry.go",
 		"decode_packageregistry.go",
+		"decode_cicdrun.go",
+		"decode_incident.go",
+		"decode_sbom.go",
+		"decode_securityalert.go",
 		"decode_terraformstate.go",
+		"decode_workitem.go",
 	} {
 		path := path
 		t.Run(path, func(t *testing.T) {

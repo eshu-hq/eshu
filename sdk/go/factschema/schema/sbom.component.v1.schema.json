@@ -3,9 +3,30 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "bom_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "component_id": {
       "type": [
         "string",
+        "null"
+      ]
+    },
+    "copyright": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
         "null"
       ]
     },
@@ -27,10 +48,28 @@
         "null"
       ]
     },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "document_id": {
       "type": "string"
     },
+    "download_location": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_source": {
       "type": [
         "string",
         "null"
@@ -39,6 +78,48 @@
     "extraction_reason": {
       "type": [
         "string",
+        "null"
+      ]
+    },
+    "group": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hashes": {
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "homepage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_duplicate": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "licenses": {
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "type": [
+        "array",
         "null"
       ]
     },
@@ -60,7 +141,49 @@
         "null"
       ]
     },
+    "publisher": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "purl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "spdx_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "supplier_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "supplier_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "supplier_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "type": {
       "type": [
         "string",
         "null"

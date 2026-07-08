@@ -21,7 +21,7 @@ func DecodeSBOMDocument(env Envelope) (sbomv1.Document, error) {
 // for schema-version-1 payloads, used by collectors emitting this fact kind
 // and by this module's round-trip tests.
 func EncodeSBOMDocument(document sbomv1.Document) (map[string]any, error) {
-	return encodeToPayload(document)
+	return encodeDirectPayload(document)
 }
 
 // DecodeSBOMComponent decodes env.Payload into the latest sbomv1.Component
@@ -35,7 +35,7 @@ func DecodeSBOMComponent(env Envelope) (sbomv1.Component, error) {
 // payload shape an Envelope carries. It is the inverse of DecodeSBOMComponent
 // for schema-version-1 payloads.
 func EncodeSBOMComponent(component sbomv1.Component) (map[string]any, error) {
-	return encodeToPayload(component)
+	return encodeDirectPayload(component)
 }
 
 // DecodeSBOMDependencyRelationship decodes env.Payload into the latest
@@ -50,7 +50,7 @@ func DecodeSBOMDependencyRelationship(env Envelope) (sbomv1.DependencyRelationsh
 // into the map[string]any payload shape an Envelope carries. It is the
 // inverse of DecodeSBOMDependencyRelationship for schema-version-1 payloads.
 func EncodeSBOMDependencyRelationship(relationship sbomv1.DependencyRelationship) (map[string]any, error) {
-	return encodeToPayload(relationship)
+	return encodeDirectPayload(relationship)
 }
 
 // DecodeSBOMExternalReference decodes env.Payload into the latest
@@ -65,7 +65,7 @@ func DecodeSBOMExternalReference(env Envelope) (sbomv1.ExternalReference, error)
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeSBOMExternalReference for schema-version-1 payloads.
 func EncodeSBOMExternalReference(reference sbomv1.ExternalReference) (map[string]any, error) {
-	return encodeToPayload(reference)
+	return encodeDirectPayload(reference)
 }
 
 // DecodeSBOMWarning decodes env.Payload into the latest sbomv1.Warning
@@ -81,7 +81,7 @@ func DecodeSBOMWarning(env Envelope) (sbomv1.Warning, error) {
 // payload shape an Envelope carries. It is the inverse of DecodeSBOMWarning
 // for schema-version-1 payloads.
 func EncodeSBOMWarning(warning sbomv1.Warning) (map[string]any, error) {
-	return encodeToPayload(warning)
+	return encodeDirectPayload(warning)
 }
 
 // DecodeAttestationStatement decodes env.Payload into the latest
@@ -95,7 +95,7 @@ func DecodeAttestationStatement(env Envelope) (sbomv1.Statement, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeAttestationStatement for schema-version-1 payloads.
 func EncodeAttestationStatement(statement sbomv1.Statement) (map[string]any, error) {
-	return encodeToPayload(statement)
+	return encodeDirectPayload(statement)
 }
 
 // DecodeAttestationSignatureVerification decodes env.Payload into the latest
@@ -111,7 +111,7 @@ func DecodeAttestationSignatureVerification(env Envelope) (sbomv1.SignatureVerif
 // Envelope carries. It is the inverse of
 // DecodeAttestationSignatureVerification for schema-version-1 payloads.
 func EncodeAttestationSignatureVerification(verification sbomv1.SignatureVerification) (map[string]any, error) {
-	return encodeToPayload(verification)
+	return encodeDirectPayload(verification)
 }
 
 // DecodeAttestationSLSAProvenance decodes env.Payload into the latest
@@ -127,5 +127,5 @@ func DecodeAttestationSLSAProvenance(env Envelope) (sbomv1.SLSAProvenance, error
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeAttestationSLSAProvenance for schema-version-1 payloads.
 func EncodeAttestationSLSAProvenance(provenance sbomv1.SLSAProvenance) (map[string]any, error) {
-	return encodeToPayload(provenance)
+	return encodeDirectPayload(provenance)
 }

@@ -7,10 +7,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // GitHubActionsFixtureEnvelopes normalizes one fixture-shaped GitHub Actions
@@ -214,6 +214,30 @@ func runEnvelope(ctx FixtureContext, run githubRun) (facts.Envelope, error) {
 	payload["updated_at"] = trim(run.UpdatedAt)
 	payload["url"] = stripSensitiveURL(run.HTMLURL)
 	payload["correlation_anchors"] = nonEmptyStrings(repositoryID(run.Repository, ctx), trim(run.HeadSHA), runID)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeCICDRun(cicdrunv1.Run{
+			Provider:            string(ProviderGitHubActions),
+			RunID:               runID,
+			RunAttempt:          stringPtr(payload["run_attempt"].(string)),
+			RunNumber:           stringPtr(runNumber),
+			WorkflowName:        stringPtr(trim(run.Name)),
+			Event:               stringPtr(trim(run.Event)),
+			Status:              stringPtr(trim(run.Status)),
+			Result:              stringPtr(trim(run.Conclusion)),
+			Branch:              stringPtr(trim(run.HeadBranch)),
+			CommitSHA:           stringPtr(trim(run.HeadSHA)),
+			RepositoryID:        stringPtr(repositoryID(run.Repository, ctx)),
+			RepositoryURL:       stringPtr(trim(run.Repository.HTMLURL)),
+			Actor:               stringPtr(trim(run.Actor.Login)),
+			StartedAt:           stringPtr(trim(run.RunStartedAt)),
+			UpdatedAt:           stringPtr(trim(run.UpdatedAt)),
+			URL:                 stringPtr(stripSensitiveURL(run.HTMLURL)),
+			CorrelationAnchors:  nonEmptyStrings(repositoryID(run.Repository, ctx), trim(run.HeadSHA), runID),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := facts.StableID(facts.CICDRunFactKind, map[string]any{
 		"provider":    ProviderGitHubActions,
 		"run_attempt": payload["run_attempt"],
@@ -267,6 +291,24 @@ func stepEnvelope(ctx FixtureContext, run githubRun, job githubJob, step githubS
 	payload["started_at"] = trim(step.StartedAt)
 	payload["completed_at"] = trim(step.CompletedAt)
 	payload["action_ref"] = actionReference(step.Name)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeCICDStep(cicdrunv1.Step{
+			Provider:            string(ProviderGitHubActions),
+			RunID:               payload["run_id"].(string),
+			RunAttempt:          stringPtr(payload["run_attempt"].(string)),
+			JobID:               stringPtr(jobID),
+			StepNumber:          stringPtr(stepNumber),
+			StepName:            stringPtr(trim(step.Name)),
+			Status:              stringPtr(trim(step.Status)),
+			Result:              stringPtr(trim(step.Conclusion)),
+			StartedAt:           stringPtr(trim(step.StartedAt)),
+			CompletedAt:         stringPtr(trim(step.CompletedAt)),
+			ActionRef:           stringPtr(actionReference(step.Name)),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := facts.StableID(facts.CICDStepFactKind, map[string]any{
 		"job_id":      jobID,
 		"run_attempt": payload["run_attempt"],
@@ -295,6 +337,26 @@ func artifactEnvelope(ctx FixtureContext, run githubRun, artifact githubArtifact
 	payload["expires_at"] = trim(artifact.ExpiresAt)
 	payload["download_url"] = stripSensitiveURL(artifact.ArchiveDownloadURL)
 	payload["correlation_anchors"] = nonEmptyStrings(payload["run_id"].(string), trim(artifact.Digest))
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeCICDArtifact(cicdrunv1.Artifact{
+			Provider:            string(ProviderGitHubActions),
+			RunID:               payload["run_id"].(string),
+			RunAttempt:          stringPtr(payload["run_attempt"].(string)),
+			ArtifactID:          stringPtr(artifactID),
+			ArtifactName:        stringPtr(trim(artifact.Name)),
+			ArtifactType:        stringPtr(defaultArtifactType(artifact)),
+			ArtifactDigest:      stringPtr(trim(artifact.Digest)),
+			SizeBytes:           int64Ptr(artifact.SizeBytes),
+			Expired:             boolPtr(artifact.Expired),
+			CreatedAt:           stringPtr(trim(artifact.CreatedAt)),
+			ExpiresAt:           stringPtr(trim(artifact.ExpiresAt)),
+			DownloadURL:         stringPtr(stripSensitiveURL(artifact.ArchiveDownloadURL)),
+			CorrelationAnchors:  nonEmptyStrings(payload["run_id"].(string), trim(artifact.Digest)),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := facts.StableID(facts.CICDArtifactFactKind, map[string]any{
 		"artifact_id": artifactID,
 		"run_attempt": payload["run_attempt"],
@@ -315,6 +377,19 @@ func environmentEnvelope(ctx FixtureContext, run githubRun, job githubJob) (fact
 	payload["job_id"] = jobID
 	payload["environment"] = trim(job.Environment)
 	payload["deployment_status"] = trim(job.DeploymentStatus)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeCICDEnvironmentObservation(cicdrunv1.EnvironmentObservation{
+			Provider:            string(ProviderGitHubActions),
+			RunID:               payload["run_id"].(string),
+			RunAttempt:          stringPtr(payload["run_attempt"].(string)),
+			JobID:               stringPtr(jobID),
+			Environment:         stringPtr(trim(job.Environment)),
+			DeploymentStatus:    stringPtr(trim(job.DeploymentStatus)),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := facts.StableID(facts.CICDEnvironmentObservationFactKind, map[string]any{
 		"environment": trim(job.Environment),
 		"job_id":      jobID,
@@ -336,6 +411,19 @@ func triggerEnvelope(ctx FixtureContext, run githubRun, trigger githubTrigger) (
 	payload["trigger_kind"] = trim(trigger.TriggerKind)
 	payload["source_provider"] = trim(trigger.SourceProvider)
 	payload["source_run_id"] = sourceRunID
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeCICDTriggerEdge(cicdrunv1.TriggerEdge{
+			Provider:            string(ProviderGitHubActions),
+			RunID:               payload["run_id"].(string),
+			RunAttempt:          stringPtr(payload["run_attempt"].(string)),
+			TriggerKind:         stringPtr(trim(trigger.TriggerKind)),
+			SourceProvider:      stringPtr(trim(trigger.SourceProvider)),
+			SourceRunID:         stringPtr(sourceRunID),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := facts.StableID(facts.CICDTriggerEdgeFactKind, map[string]any{
 		"run_attempt":     payload["run_attempt"],
 		"run_id":          payload["run_id"],
@@ -362,77 +450,4 @@ func warningEnvelope(ctx FixtureContext, run githubRun, warningKey, reason, mess
 		"run_id":      payload["run_id"],
 	})
 	return newEnvelope(ctx, facts.CICDWarningFactKind, stableKey, warningKey, payload), nil
-}
-
-func repositoryID(repository githubRepository, ctx FixtureContext) string {
-	fullName := strings.Trim(strings.TrimSpace(repository.FullName), "/")
-	if fullName == "" {
-		return ""
-	}
-	return repositoryHost(repository, ctx) + "/" + fullName
-}
-
-func repositoryHost(repository githubRepository, ctx FixtureContext) string {
-	for _, rawURL := range []string{repository.HTMLURL, ctx.SourceURI, ctx.ScopeID} {
-		parsed, err := url.Parse(rawURL)
-		if err == nil && parsed.Host != "" {
-			return parsed.Host
-		}
-	}
-	return "github.com"
-}
-
-func defaultArtifactType(artifact githubArtifact) string {
-	if trim(artifact.ArtifactType) != "" {
-		return trim(artifact.ArtifactType)
-	}
-	return "generic"
-}
-
-func actionReference(stepName string) string {
-	stepName = strings.TrimPrefix(trim(stepName), "Run ")
-	if strings.Contains(stepName, "@") && !strings.Contains(stepName, " ") {
-		return stepName
-	}
-	return ""
-}
-
-func nonEmptyStrings(values ...string) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := trim(value); trimmed != "" {
-			out = append(out, trimmed)
-		}
-	}
-	return out
-}
-
-func artifactMatchesRun(run githubRun, artifact githubArtifact) bool {
-	if artifact.WorkflowRun.ID != nil {
-		artifactRunID, err := providerID(artifact.WorkflowRun.ID)
-		if err != nil {
-			return false
-		}
-		runID, err := providerID(run.ID)
-		if err != nil || artifactRunID != "" && artifactRunID != runID {
-			return false
-		}
-	}
-	if trim(artifact.WorkflowRun.HeadSHA) != "" && trim(run.HeadSHA) != "" && trim(artifact.WorkflowRun.HeadSHA) != trim(run.HeadSHA) {
-		return false
-	}
-	return true
-}
-
-func deduplicateEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
-	seen := make(map[string]bool, len(envelopes))
-	out := make([]facts.Envelope, 0, len(envelopes))
-	for _, envelope := range envelopes {
-		if seen[envelope.FactID] {
-			continue
-		}
-		seen[envelope.FactID] = true
-		out = append(out, envelope)
-	}
-	return out
 }

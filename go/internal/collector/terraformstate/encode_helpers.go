@@ -44,6 +44,22 @@ func payloadString(payload map[string]any, key string) string {
 	return value
 }
 
+func optionalStringPtrFromPayload(payload map[string]any, key string) *string {
+	value, ok := payload[key].(string)
+	if !ok {
+		return nil
+	}
+	return &value
+}
+
+func optionalBoolPtrFromPayload(payload map[string]any, key string) *bool {
+	value, ok := payload[key].(bool)
+	if !ok {
+		return nil
+	}
+	return &value
+}
+
 func typedCorrelationAnchors(anchors []any) []map[string]any {
 	if len(anchors) == 0 {
 		return nil

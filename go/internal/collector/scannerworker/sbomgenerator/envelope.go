@@ -13,6 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 var subjectDigestPattern = regexp.MustCompile(`^sha256:[0-9a-fA-F]{64}$`)
@@ -48,6 +50,29 @@ func newDocumentFact(input scannerworker.ClaimInput, observedAt time.Time, doc d
 		"warning_count":         doc.warningCount,
 		"correlation_anchors":   documentAnchors(doc.documentID, doc.subjectDigest),
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMDocument(sbomv1.Document{
+			DocumentID:          doc.documentID,
+			DocumentDigest:      stringPtr(""),
+			Format:              stringPtr(Format),
+			SourceFormat:        stringPtr("json"),
+			SpecVersion:         stringPtr(strings.TrimSpace(doc.specVersion)),
+			SerialNumber:        stringPtr(""),
+			DocumentName:        stringPtr(""),
+			SubjectDigest:       stringPtr(strings.TrimSpace(doc.subjectDigest)),
+			SubjectDigests:      subjectDigests(doc.subjectDigest),
+			ParseStatus:         stringPtr(ParseStatusGenerated),
+			VerificationStatus:  stringPtr(""),
+			VerificationPolicy:  stringPtr(""),
+			CreatedAt:           stringPtr(observedAt.Format(time.RFC3339Nano)),
+			CreatedByTool:       stringPtr(strings.TrimSpace(doc.tool)),
+			GeneratedByAnalyzer: stringPtr(string(input.Analyzer)),
+			ComponentCount:      intPtr(doc.componentCount),
+			DependencyCount:     intPtr(0),
+			WarningCount:        intPtr(doc.warningCount),
+			CorrelationAnchors:  documentAnchors(doc.documentID, doc.subjectDigest),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMDocumentFactKind, map[string]any{
 		"document_id":    doc.documentID,
 		"format":         Format,
@@ -114,6 +139,33 @@ func newComponentFact(
 		"is_duplicate":        false,
 		"correlation_anchors": uniqueSorted([]string{purl, bomRef, strings.TrimSpace(comp.Ecosystem), strings.TrimSpace(comp.LockfilePath)}),
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMComponent(sbomv1.Component{
+			DocumentID:         documentID,
+			ComponentID:        stringPtr(componentID),
+			BOMRef:             stringPtr(bomRef),
+			Name:               stringPtr(name),
+			Version:            stringPtr(strings.TrimSpace(comp.Version)),
+			Type:               stringPtr(componentType),
+			PURL:               stringPtr(purl),
+			CPE:                stringPtr(""),
+			Description:        stringPtr(""),
+			Publisher:          stringPtr(""),
+			Scope:              stringPtr(strings.TrimSpace(comp.DependencyScope)),
+			Ecosystem:          stringPtr(strings.TrimSpace(comp.Ecosystem)),
+			EvidenceSource:     stringPtr(strings.TrimSpace(comp.EvidenceSource)),
+			LockfilePath:       stringPtr(strings.TrimSpace(comp.LockfilePath)),
+			DependencyScope:    stringPtr(strings.TrimSpace(comp.DependencyScope)),
+			DependencyType:     stringPtr(strings.TrimSpace(comp.DependencyType)),
+			ExtractionReason:   stringPtr(strings.TrimSpace(comp.ExtractionReason)),
+			Hashes:             []map[string]string{},
+			Licenses:           []map[string]string{},
+			SupplierName:       stringPtr(""),
+			SupplierURL:        stringPtr(""),
+			IsDuplicate:        boolPtr(false),
+			CorrelationAnchors: uniqueSorted([]string{purl, bomRef, strings.TrimSpace(comp.Ecosystem), strings.TrimSpace(comp.LockfilePath)}),
+		})
+	})
 	return newEnvelope(input, observedAt, facts.SBOMComponentFactKind, stableKey, payload), true
 }
 
@@ -129,6 +181,13 @@ func newWarningFact(
 		"reason":      reason,
 		"summary":     summary,
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMWarning(sbomv1.Warning{
+			DocumentID: stringPtr(documentID),
+			Reason:     stringPtr(reason),
+			Summary:    stringPtr(summary),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
 		"document_id":   documentID,
 		"generation_id": input.GenerationID,
@@ -166,6 +225,17 @@ func newWarningFactWithEvidence(
 	if extractionReason := strings.TrimSpace(warning.ExtractionReason); extractionReason != "" {
 		payload["extraction_reason"] = extractionReason
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMWarning(sbomv1.Warning{
+			DocumentID:       stringPtr(documentID),
+			Reason:           stringPtr(reason),
+			Summary:          stringPtr(summary),
+			Ecosystem:        optionalStringPtrFromPayload(payload, "ecosystem"),
+			EvidenceSource:   optionalStringPtrFromPayload(payload, "evidence_source"),
+			LockfilePath:     optionalStringPtrFromPayload(payload, "lockfile_path"),
+			ExtractionReason: optionalStringPtrFromPayload(payload, "extraction_reason"),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
 		"document_id":       documentID,
 		"ecosystem":         payload["ecosystem"],

@@ -3,6 +3,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "custom_id_present": {
       "type": [
         "boolean",

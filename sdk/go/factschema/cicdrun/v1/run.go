@@ -97,6 +97,9 @@ type Run struct {
 	// own join key from Provider/RunID/RunAttempt), but modeled because the
 	// collector always emits it.
 	CorrelationAnchors []string `json:"correlation_anchors,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }
 
 // Artifact is the schema-version-1 typed payload for the "ci.artifact" fact
@@ -166,4 +169,7 @@ type Artifact struct {
 	// collector precomputed for correlation. Optional: not read by the
 	// reducer's typed decode path today.
 	CorrelationAnchors []string `json:"correlation_anchors,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }

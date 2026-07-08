@@ -19,6 +19,9 @@ type WorkItemProjectMetadata struct {
 	// RedactionPolicyVersion is the redaction policy token. Optional.
 	RedactionPolicyVersion *string `json:"redaction_policy_version,omitempty"`
 
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// ProjectID is the provider project id. Optional: the emitter accepts
 	// ProjectKey alone as the identity anchor.
 	ProjectID *string `json:"project_id,omitempty"`
@@ -95,6 +98,9 @@ type WorkItemIssueTypeMetadata struct {
 	// RedactionPolicyVersion is the redaction policy token. Optional.
 	RedactionPolicyVersion *string `json:"redaction_policy_version,omitempty"`
 
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// IssueTypeID is the provider issue-type id. Required — the emitter
 	// rejects a blank issue-type id.
 	IssueTypeID string `json:"issue_type_id"`
@@ -167,6 +173,9 @@ type WorkItemStatusMetadata struct {
 
 	// RedactionPolicyVersion is the redaction policy token. Optional.
 	RedactionPolicyVersion *string `json:"redaction_policy_version,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 
 	// StatusID is the provider status id. Required — the emitter rejects a
 	// blank status id.
@@ -295,6 +304,9 @@ type WorkItemWorkflowMetadata struct {
 	// RedactionPolicyVersion is the redaction policy token. Optional.
 	RedactionPolicyVersion *string `json:"redaction_policy_version,omitempty"`
 
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
+
 	// WorkflowID is the provider workflow id. Required — the emitter rejects
 	// a blank workflow id.
 	WorkflowID string `json:"workflow_id"`
@@ -366,6 +378,9 @@ type WorkItemFieldMetadata struct {
 
 	// RedactionPolicyVersion is the redaction policy token. Optional.
 	RedactionPolicyVersion *string `json:"redaction_policy_version,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 
 	// FieldID is always redacted to the empty string by the collector.
 	// Optional: see FieldIDPresent and FieldIDFingerprint for the identity
@@ -444,6 +459,9 @@ type WorkItemMetadataWarning struct {
 
 	// RedactionPolicyVersion is the redaction policy token. Optional.
 	RedactionPolicyVersion *string `json:"redaction_policy_version,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 
 	// MetadataType names the metadata class the warning applies to (for
 	// example "workflow"). Required — the emitter rejects a blank metadata

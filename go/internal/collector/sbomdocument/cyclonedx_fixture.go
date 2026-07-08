@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 // CycloneDXFixtureEnvelopes normalizes one CycloneDX JSON document into
@@ -103,6 +105,28 @@ func cycloneDXDocumentEnvelope(ctx FixtureContext, input cycloneDXDocumentInput)
 		"warning_count":       input.warningCount,
 		"correlation_anchors": cycloneDXDocumentAnchors(input),
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMDocument(sbomv1.Document{
+			DocumentID:         input.docID,
+			DocumentDigest:     stringPtr(input.docDigest),
+			Format:             stringPtr(string(FormatCycloneDX)),
+			SourceFormat:       stringPtr(string(SourceFormatJSON)),
+			SpecVersion:        stringPtr(strings.TrimSpace(input.specVersion)),
+			SerialNumber:       stringPtr(strings.TrimSpace(input.serialNumber)),
+			DocumentName:       stringPtr(strings.TrimSpace(input.documentName)),
+			SubjectDigest:      stringPtr(strings.TrimSpace(input.subjectDigest)),
+			SubjectDigests:     uniqueSorted(input.subjects),
+			ParseStatus:        stringPtr(string(input.parseStatus)),
+			VerificationStatus: stringPtr(string(VerificationStatusUnset)),
+			VerificationPolicy: stringPtr(""),
+			CreatedAt:          stringPtr(strings.TrimSpace(input.createdAt)),
+			CreatedByTool:      stringPtr(strings.TrimSpace(input.tool)),
+			ComponentCount:     intPtr(input.componentCount),
+			DependencyCount:    intPtr(input.depCount),
+			WarningCount:       intPtr(input.warningCount),
+			CorrelationAnchors: cycloneDXDocumentAnchors(input),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMDocumentFactKind, map[string]any{
 		"document_digest": input.docDigest,
 		"document_id":     input.docID,

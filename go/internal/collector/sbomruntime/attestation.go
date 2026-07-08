@@ -16,6 +16,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 const (
@@ -123,6 +125,22 @@ func attestationStatementEnvelope(
 		"predicate_type":      strings.TrimSpace(input.predicateType),
 		"source_format":       sourceFormatJSON,
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeAttestationStatement(sbomv1.Statement{
+			StatementID:        input.statementID,
+			StatementDigest:    stringPtr(input.statementDigest),
+			PayloadDigest:      stringPtr(input.statementDigest),
+			SubjectDigest:      stringPtr(strings.TrimSpace(input.subjectDigest)),
+			SubjectDigests:     uniqueSorted(input.subjectDigests),
+			ParseStatus:        stringPtr(input.parseStatus),
+			VerificationStatus: stringPtr(""),
+			VerificationPolicy: stringPtr(""),
+			AttestationFormat:  stringPtr("in-toto"),
+			AttestationVersion: stringPtr(strings.TrimSpace(input.statementType)),
+			PredicateType:      stringPtr(strings.TrimSpace(input.predicateType)),
+			SourceFormat:       stringPtr(sourceFormatJSON),
+		})
+	})
 	stableKey := facts.StableID(facts.AttestationStatementFactKind, map[string]any{
 		"statement_digest": input.statementDigest,
 		"statement_id":     input.statementID,
@@ -147,6 +165,16 @@ func attestationVerificationEnvelope(
 		"verification_policy":  strings.TrimSpace(target.VerificationPolicy),
 		"verification_subject": strings.TrimSpace(target.SubjectDigest),
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeAttestationSignatureVerification(sbomv1.SignatureVerification{
+			StatementID:         statementID,
+			StatementDigest:     stringPtr(statementDigest),
+			VerificationResult:  stringPtr(strings.TrimSpace(target.VerificationResult)),
+			VerificationStatus:  stringPtr(strings.TrimSpace(target.VerificationResult)),
+			VerificationPolicy:  stringPtr(strings.TrimSpace(target.VerificationPolicy)),
+			VerificationSubject: stringPtr(strings.TrimSpace(target.SubjectDigest)),
+		})
+	})
 	stableKey := facts.StableID(facts.AttestationSignatureVerificationFactKind, map[string]any{
 		"statement_id":        statementID,
 		"verification_policy": target.VerificationPolicy,
@@ -169,6 +197,13 @@ func attestationWarningEnvelope(
 		"reason":       "malformed_document",
 		"summary":      "in-toto statement could not be parsed: " + parseErr.Error(),
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMWarning(sbomv1.Warning{
+			StatementID: stringPtr(statementID),
+			Reason:      stringPtr("malformed_document"),
+			Summary:     stringPtr("in-toto statement could not be parsed: " + parseErr.Error()),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
 		"reason":       "malformed_document",
 		"statement_id": statementID,

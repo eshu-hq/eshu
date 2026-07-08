@@ -219,6 +219,25 @@ func TestFactKindRegistryClassifiesSemanticFacts(t *testing.T) {
 	}
 }
 
+func TestW1fTypedFamiliesCarryPayloadSchemas(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range append(append([]string{}, WorkItemFactKinds()...), append(IncidentContextFactKinds(), IncidentRoutingFactKinds()...)...) {
+		kind := kind
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+
+			entry, ok := FactKindRegistryEntryFor(kind)
+			if !ok {
+				t.Fatalf("FactKindRegistryEntryFor(%q) ok = false, want true", kind)
+			}
+			if entry.PayloadSchema == "" {
+				t.Fatalf("FactKindRegistryEntryFor(%q).PayloadSchema is blank; W1f typed families must register schema refs", kind)
+			}
+		})
+	}
+}
+
 func testFactKindRegistryByKind(entries []FactKindRegistryEntry) map[string]FactKindRegistryEntry {
 	byKind := make(map[string]FactKindRegistryEntry, len(entries))
 	for _, entry := range entries {

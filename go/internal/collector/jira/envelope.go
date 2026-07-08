@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
 
 const redactionPolicyVersion = "jira_work_item_v1"
@@ -65,6 +67,40 @@ func NewWorkItemRecordEnvelope(ctx EnvelopeContext, issue Issue) (facts.Envelope
 		"source_url":               "",
 		"source_url_fingerprint":   urlFingerprint(sourceURL),
 	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeWorkItemRecord(workitemv1.WorkItemRecord{
+			Provider:               ProviderJiraCloud,
+			ProviderWorkItemID:     issueID,
+			WorkItemKey:            issueKey,
+			RedactionPolicyVersion: stringPtr(redactionPolicyVersion),
+			Summary:                stringPtr(""),
+			SummaryPresent:         boolPtr(strings.TrimSpace(issue.Summary) != ""),
+			IssueTypeID:            stringPtr(strings.TrimSpace(issue.IssueType.ID)),
+			IssueTypeName:          stringPtr(strings.TrimSpace(issue.IssueType.Name)),
+			StatusID:               stringPtr(strings.TrimSpace(issue.Status.ID)),
+			StatusName:             stringPtr(strings.TrimSpace(issue.Status.Name)),
+			ProjectID:              stringPtr(strings.TrimSpace(issue.Project.ID)),
+			ProjectKey:             stringPtr(strings.TrimSpace(issue.Project.Key)),
+			ProjectName:            stringPtr(""),
+			ProjectNamePresent:     boolPtr(strings.TrimSpace(issue.Project.Name) != ""),
+			AssigneeAccountID:      stringPtr(""),
+			AssigneeDisplayName:    stringPtr(""),
+			AssigneePresent:        boolPtr(referencePresent(issue.Assignee)),
+			ReporterAccountID:      stringPtr(""),
+			ReporterDisplayName:    stringPtr(""),
+			ReporterPresent:        boolPtr(referencePresent(issue.Reporter)),
+			CreatedAt:              stringPtr(formatTime(issue.CreatedAt)),
+			UpdatedAt:              stringPtr(formatTime(issue.UpdatedAt)),
+			ResolvedAt:             stringPtr(formatTime(issue.ResolvedAt)),
+			SelfURL:                stringPtr(""),
+			SelfURLFingerprint:     stringPtr(urlFingerprint(selfURL)),
+			SourceURL:              stringPtr(""),
+			SourceURLFingerprint:   stringPtr(urlFingerprint(sourceURL)),
+			CollectorInstanceID:    stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	return workItemEnvelope(ctx, facts.WorkItemRecordFactKind, stableFactKey, payload, issueID, ctx.SourceURI), nil
 }
 
@@ -102,6 +138,27 @@ func NewWorkItemTransitionEnvelope(ctx EnvelopeContext, transition Transition) (
 		"author_present":           referencePresent(transition.Author),
 		"author_redacted":          transition.AuthorRedacted || referencePresent(transition.Author),
 		"created_at":               formatTime(transition.CreatedAt),
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeWorkItemTransition(workitemv1.WorkItemTransition{
+			Provider:               ProviderJiraCloud,
+			ProviderChangelogID:    changelogID,
+			RedactionPolicyVersion: stringPtr(redactionPolicyVersion),
+			ProviderWorkItemID:     stringPtr(strings.TrimSpace(transition.IssueID)),
+			WorkItemKey:            stringPtr(strings.TrimSpace(transition.IssueKey)),
+			Field:                  stringPtr(strings.TrimSpace(transition.Field)),
+			From:                   stringPtr(from),
+			To:                     stringPtr(to),
+			ValueRedacted:          boolPtr(transition.ValueRedacted),
+			AuthorAccountID:        stringPtr(""),
+			AuthorDisplayName:      stringPtr(""),
+			AuthorPresent:          boolPtr(referencePresent(transition.Author)),
+			AuthorRedacted:         boolPtr(transition.AuthorRedacted || referencePresent(transition.Author)),
+			CreatedAt:              stringPtr(formatTime(transition.CreatedAt)),
+			CollectorInstanceID:    stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return workItemEnvelope(ctx, facts.WorkItemTransitionFactKind, stableFactKey, payload, changelogID, ctx.SourceURI), nil
 }
@@ -152,6 +209,33 @@ func NewWorkItemExternalLinkEnvelope(ctx EnvelopeContext, link ExternalLink) (fa
 	// entirely rather than store a guessed id. The raw URL stays redacted.
 	if repoID := linkedRepositoryID(link); repoID != "" {
 		payload["linked_repository_id"] = repoID
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeWorkItemExternalLink(workitemv1.WorkItemExternalLink{
+			Provider:               ProviderJiraCloud,
+			RedactionPolicyVersion: stringPtr(redactionPolicyVersion),
+			ProviderRemoteLinkID:   stringPtr(strings.TrimSpace(link.ID)),
+			ProviderWorkItemID:     stringPtr(strings.TrimSpace(link.IssueID)),
+			WorkItemKey:            stringPtr(strings.TrimSpace(link.IssueKey)),
+			GlobalID:               stringPtr(strings.TrimSpace(link.GlobalID)),
+			ApplicationName:        stringPtr(strings.TrimSpace(link.Application.Name)),
+			ApplicationType:        stringPtr(strings.TrimSpace(link.Application.Type)),
+			Relationship:           stringPtr(strings.TrimSpace(link.Relationship)),
+			URL:                    stringPtr(""),
+			URLPresent:             boolPtr(strings.TrimSpace(link.Object.URL) != ""),
+			URLFingerprint:         stringPtr(fingerprint),
+			URLRedacted:            boolPtr(link.URLRedacted || strings.TrimSpace(link.Object.URL) != ""),
+			Title:                  stringPtr(""),
+			TitlePresent:           boolPtr(strings.TrimSpace(link.Object.Title) != ""),
+			Summary:                stringPtr(""),
+			SummaryPresent:         boolPtr(strings.TrimSpace(link.Object.Summary) != ""),
+			AnchorClass:            stringPtr(externalLinkAnchorClass(link)),
+			ProviderSupportState:   stringPtr(externalLinkSupportState(link)),
+			LinkedRepositoryID:     optionalStringPtrFromPayload(payload, "linked_repository_id"),
+			CollectorInstanceID:    stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return workItemEnvelope(ctx, facts.WorkItemExternalLinkFactKind, stableFactKey, payload, recordID, ctx.SourceURI), nil
 }

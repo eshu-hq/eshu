@@ -9,6 +9,12 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "completed_at": {
       "type": [
         "string",

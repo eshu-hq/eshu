@@ -60,6 +60,44 @@ type Document struct {
 	// SpecVersion is the format's spec version string (for example "1.6").
 	// Optional: always emitted by the collector.
 	SpecVersion *string `json:"spec_version,omitempty"`
+
+	// SourceFormat is the source document encoding ("json" today). Optional.
+	SourceFormat *string `json:"source_format,omitempty"`
+
+	// SerialNumber is the CycloneDX serial number. Optional.
+	SerialNumber *string `json:"serial_number,omitempty"`
+
+	// DocumentNamespace is the SPDX document namespace. Optional.
+	DocumentNamespace *string `json:"document_namespace,omitempty"`
+
+	// DocumentName is the document display name. Optional.
+	DocumentName *string `json:"document_name,omitempty"`
+
+	// CreatedAt is the document creation timestamp as emitted by the source.
+	// Optional.
+	CreatedAt *string `json:"created_at,omitempty"`
+
+	// CreatedByTool identifies the SBOM tool or creator string. Optional.
+	CreatedByTool *string `json:"created_by_tool,omitempty"`
+
+	// GeneratedByAnalyzer identifies the analyzer that generated this SBOM.
+	// Optional: set only by scanner-worker generated SBOMs.
+	GeneratedByAnalyzer *string `json:"generated_by_analyzer,omitempty"`
+
+	// ComponentCount is the number of component facts emitted for the
+	// document. Optional.
+	ComponentCount *int `json:"component_count,omitempty"`
+
+	// DependencyCount is the number of dependency relationship facts emitted
+	// for the document. Optional.
+	DependencyCount *int `json:"dependency_count,omitempty"`
+
+	// WarningCount is the number of warning facts emitted for the document.
+	// Optional.
+	WarningCount *int `json:"warning_count,omitempty"`
+
+	// CorrelationAnchors lists durable non-empty identity anchors. Optional.
+	CorrelationAnchors []string `json:"correlation_anchors,omitempty"`
 }
 
 // Component is the schema-version-1 typed payload for the "sbom.component"
@@ -134,6 +172,61 @@ type Component struct {
 	// ExtractionReason records why the collector extracted this component
 	// when it required a fallback heuristic. Optional.
 	ExtractionReason *string `json:"extraction_reason,omitempty"`
+
+	// BOMRef is the CycloneDX bom-ref identifier. Optional.
+	BOMRef *string `json:"bom_ref,omitempty"`
+
+	// SPDXID is the SPDX package identifier. Optional.
+	SPDXID *string `json:"spdx_id,omitempty"`
+
+	// Group is the CycloneDX component group. Optional.
+	Group *string `json:"group,omitempty"`
+
+	// Type is the source format's component type token. Optional.
+	Type *string `json:"type,omitempty"`
+
+	// Description is the source package/component description. Optional.
+	Description *string `json:"description,omitempty"`
+
+	// Publisher is the source publisher/originator string. Optional.
+	Publisher *string `json:"publisher,omitempty"`
+
+	// Scope is the source format's component scope. Optional.
+	Scope *string `json:"scope,omitempty"`
+
+	// EvidenceSource identifies the scanner evidence source. Optional.
+	EvidenceSource *string `json:"evidence_source,omitempty"`
+
+	// Hashes are sorted hash algorithm/value entries. Optional.
+	Hashes []map[string]string `json:"hashes,omitempty"`
+
+	// Licenses are sorted license entries. Optional.
+	Licenses []map[string]string `json:"licenses,omitempty"`
+
+	// SupplierName is the source supplier name. Optional.
+	SupplierName *string `json:"supplier_name,omitempty"`
+
+	// SupplierURL is the source supplier URL. Optional.
+	SupplierURL *string `json:"supplier_url,omitempty"`
+
+	// SupplierKind is the SPDX supplier kind. Optional.
+	SupplierKind *string `json:"supplier_kind,omitempty"`
+
+	// DownloadLocation is the SPDX package download location. Optional.
+	DownloadLocation *string `json:"download_location,omitempty"`
+
+	// Homepage is the SPDX package homepage. Optional.
+	Homepage *string `json:"homepage,omitempty"`
+
+	// Copyright is the SPDX package copyright text. Optional.
+	Copyright *string `json:"copyright,omitempty"`
+
+	// IsDuplicate reports that this component duplicated an earlier identity.
+	// Optional.
+	IsDuplicate *bool `json:"is_duplicate,omitempty"`
+
+	// CorrelationAnchors lists durable non-empty identity anchors. Optional.
+	CorrelationAnchors []string `json:"correlation_anchors,omitempty"`
 }
 
 // DependencyRelationship is the schema-version-1 typed payload for the
@@ -233,4 +326,17 @@ type Warning struct {
 	// absent value defaults to 1 occurrence on the reducer's read side
 	// (warningOccurrenceCount).
 	OccurrenceCount *int `json:"occurrence_count,omitempty"`
+
+	// Ecosystem is scanner evidence for dependency warnings. Optional.
+	Ecosystem *string `json:"ecosystem,omitempty"`
+
+	// EvidenceSource identifies the scanner evidence source. Optional.
+	EvidenceSource *string `json:"evidence_source,omitempty"`
+
+	// LockfilePath is the manifest/lockfile path evidence. Optional.
+	LockfilePath *string `json:"lockfile_path,omitempty"`
+
+	// ExtractionReason records why scanner extraction emitted the warning.
+	// Optional.
+	ExtractionReason *string `json:"extraction_reason,omitempty"`
 }

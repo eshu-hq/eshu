@@ -27,6 +27,12 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "issue_count": {
       "type": [
         "integer",

@@ -144,6 +144,9 @@ type RepositoryAlert struct {
 	// Summary is the provider advisory summary. Optional.
 	Summary *string `json:"summary,omitempty"`
 
+	// Description is the provider advisory description. Optional.
+	Description *string `json:"description,omitempty"`
+
 	// SourceURL is the provider's alert URL. Optional.
 	SourceURL *string `json:"source_url,omitempty"`
 
@@ -189,4 +192,10 @@ type RepositoryAlert struct {
 	// CollectionIncompleteReasons lists why coverage was incomplete. Optional:
 	// set by the alert-runtime source path.
 	CollectionIncompleteReasons []string `json:"collection_incomplete_reasons,omitempty"`
+
+	// CorrelationAnchors lists durable non-empty identity anchors. Optional.
+	CorrelationAnchors []string `json:"correlation_anchors,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }

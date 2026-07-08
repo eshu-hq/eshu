@@ -24,7 +24,7 @@ func DecodeWorkItemRecord(env Envelope) (workitemv1.WorkItemRecord, error) {
 // DecodeWorkItemRecord for schema-version-1 payloads, used by this module's
 // round-trip tests.
 func EncodeWorkItemRecord(record workitemv1.WorkItemRecord) (map[string]any, error) {
-	return encodeToPayload(record)
+	return encodeDirectPayload(record)
 }
 
 // DecodeWorkItemTransition decodes env.Payload into the latest
@@ -38,7 +38,7 @@ func DecodeWorkItemTransition(env Envelope) (workitemv1.WorkItemTransition, erro
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeWorkItemTransition for schema-version-1 payloads.
 func EncodeWorkItemTransition(transition workitemv1.WorkItemTransition) (map[string]any, error) {
-	return encodeToPayload(transition)
+	return encodeDirectPayload(transition)
 }
 
 // DecodeWorkItemExternalLink decodes env.Payload into the latest
@@ -52,7 +52,7 @@ func DecodeWorkItemExternalLink(env Envelope) (workitemv1.WorkItemExternalLink, 
 // the map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeWorkItemExternalLink for schema-version-1 payloads.
 func EncodeWorkItemExternalLink(link workitemv1.WorkItemExternalLink) (map[string]any, error) {
-	return encodeToPayload(link)
+	return encodeDirectPayload(link)
 }
 
 // DecodeWorkItemProjectMetadata decodes env.Payload into the latest
@@ -67,7 +67,7 @@ func DecodeWorkItemProjectMetadata(env Envelope) (workitemv1.WorkItemProjectMeta
 // into the map[string]any payload shape an Envelope carries. It is the
 // inverse of DecodeWorkItemProjectMetadata for schema-version-1 payloads.
 func EncodeWorkItemProjectMetadata(metadata workitemv1.WorkItemProjectMetadata) (map[string]any, error) {
-	return encodeToPayload(metadata)
+	return encodeDirectPayload(metadata)
 }
 
 // DecodeWorkItemIssueTypeMetadata decodes env.Payload into the latest
@@ -83,7 +83,7 @@ func DecodeWorkItemIssueTypeMetadata(env Envelope) (workitemv1.WorkItemIssueType
 // an Envelope carries. It is the inverse of DecodeWorkItemIssueTypeMetadata
 // for schema-version-1 payloads.
 func EncodeWorkItemIssueTypeMetadata(metadata workitemv1.WorkItemIssueTypeMetadata) (map[string]any, error) {
-	return encodeToPayload(metadata)
+	return encodeDirectPayload(metadata)
 }
 
 // DecodeWorkItemStatusMetadata decodes env.Payload into the latest
@@ -98,7 +98,7 @@ func DecodeWorkItemStatusMetadata(env Envelope) (workitemv1.WorkItemStatusMetada
 // into the map[string]any payload shape an Envelope carries. It is the
 // inverse of DecodeWorkItemStatusMetadata for schema-version-1 payloads.
 func EncodeWorkItemStatusMetadata(metadata workitemv1.WorkItemStatusMetadata) (map[string]any, error) {
-	return encodeToPayload(metadata)
+	return encodeDirectPayload(metadata)
 }
 
 // DecodeWorkItemWorkflowMetadata decodes env.Payload into the latest
@@ -114,7 +114,7 @@ func DecodeWorkItemWorkflowMetadata(env Envelope) (workitemv1.WorkItemWorkflowMe
 // an Envelope carries. It is the inverse of DecodeWorkItemWorkflowMetadata for
 // schema-version-1 payloads.
 func EncodeWorkItemWorkflowMetadata(metadata workitemv1.WorkItemWorkflowMetadata) (map[string]any, error) {
-	return encodeToPayload(metadata)
+	return encodeDirectPayload(metadata)
 }
 
 // DecodeWorkItemFieldMetadata decodes env.Payload into the latest
@@ -128,7 +128,7 @@ func DecodeWorkItemFieldMetadata(env Envelope) (workitemv1.WorkItemFieldMetadata
 // into the map[string]any payload shape an Envelope carries. It is the
 // inverse of DecodeWorkItemFieldMetadata for schema-version-1 payloads.
 func EncodeWorkItemFieldMetadata(metadata workitemv1.WorkItemFieldMetadata) (map[string]any, error) {
-	return encodeToPayload(metadata)
+	return encodeDirectPayload(metadata)
 }
 
 // DecodeWorkItemMetadataWarning decodes env.Payload into the latest
@@ -143,5 +143,5 @@ func DecodeWorkItemMetadataWarning(env Envelope) (workitemv1.WorkItemMetadataWar
 // into the map[string]any payload shape an Envelope carries. It is the
 // inverse of DecodeWorkItemMetadataWarning for schema-version-1 payloads.
 func EncodeWorkItemMetadataWarning(warning workitemv1.WorkItemMetadataWarning) (map[string]any, error) {
-	return encodeToPayload(warning)
+	return encodeDirectPayload(warning)
 }

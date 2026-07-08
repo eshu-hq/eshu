@@ -12,6 +12,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 // NewObservedPagerDutyServiceEnvelope converts one live PagerDuty service into
@@ -47,6 +49,35 @@ func NewObservedPagerDutyServiceEnvelope(ctx EnvelopeContext, service ConfigServ
 	sourceURI := firstNonBlank(service.HTMLURL, ctx.SourceURI)
 	if value := safeSourceURI(sourceURI); value != "" {
 		payload["source_url"] = value
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentRoutingObservedPagerDutyService(incidentv1.ObservedPagerDutyService{
+			Provider:                  ProviderPagerDuty,
+			SourceClass:               ConfigSourceClassObserved,
+			SourceKind:                ConfigSourceKindPagerDutyAPI,
+			Outcome:                   "observed",
+			ResourceClass:             ConfigResourceClassService,
+			ProviderObjectID:          strings.TrimSpace(service.ID),
+			ScopeID:                   ctx.ScopeID,
+			DeclaredMatchState:        payload["declared_match_state"].(string),
+			RedactionState:            payload["redaction_state"].(string),
+			ServiceID:                 strings.TrimSpace(service.ID),
+			Status:                    optionalStringPtrFromPayload(payload, "status"),
+			AlertCreation:             optionalStringPtrFromPayload(payload, "alert_creation"),
+			EscalationPolicyReference: optionalStringPtrFromPayload(payload, "escalation_policy_reference"),
+			TeamReferences:            referenceIDs(service.Teams),
+			NameFingerprint:           optionalStringPtrFromPayload(payload, "name_fingerprint"),
+			CreatedAt:                 optionalStringPtrFromPayload(payload, "created_at"),
+			UpdatedAt:                 optionalStringPtrFromPayload(payload, "updated_at"),
+			Disabled:                  optionalBoolPtrFromPayload(payload, "disabled"),
+			Deleted:                   optionalBoolPtrFromPayload(payload, "deleted"),
+			ManuallyCreated:           optionalBoolPtrFromPayload(payload, "manually_created"),
+			DriftCandidateReason:      optionalStringPtrFromPayload(payload, "drift_candidate_reason"),
+			SourceURL:                 optionalStringPtrFromPayload(payload, "source_url"),
+			CollectorInstanceID:       stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	stableKey := providerStableKey(facts.IncidentRoutingObservedPagerDutyServiceFactKind, ctx.ScopeID, service.ID)
 	return incidentRoutingEnvelope(
@@ -101,6 +132,35 @@ func NewObservedPagerDutyIntegrationEnvelope(
 	if value := safeSourceURI(sourceURI); value != "" {
 		payload["source_url"] = value
 	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentRoutingObservedPagerDutyIntegration(incidentv1.ObservedPagerDutyIntegration{
+			Provider:             ProviderPagerDuty,
+			SourceClass:          ConfigSourceClassObserved,
+			SourceKind:           ConfigSourceKindPagerDutyAPI,
+			Outcome:              "observed",
+			ResourceClass:        ConfigResourceClassServiceIntegration,
+			ProviderObjectID:     strings.TrimSpace(integration.ID),
+			ScopeID:              ctx.ScopeID,
+			DeclaredMatchState:   payload["declared_match_state"].(string),
+			RedactionState:       payload["redaction_state"].(string),
+			IntegrationID:        strings.TrimSpace(integration.ID),
+			ServiceReference:     optionalStringPtrFromPayload(payload, "service_reference"),
+			IntegrationType:      optionalStringPtrFromPayload(payload, "integration_type"),
+			VendorReference:      optionalStringPtrFromPayload(payload, "vendor_reference"),
+			RoutingKeyRedacted:   optionalBoolPtrFromPayload(payload, "routing_key_redacted"),
+			NameFingerprint:      optionalStringPtrFromPayload(payload, "name_fingerprint"),
+			CreatedAt:            optionalStringPtrFromPayload(payload, "created_at"),
+			UpdatedAt:            optionalStringPtrFromPayload(payload, "updated_at"),
+			Disabled:             optionalBoolPtrFromPayload(payload, "disabled"),
+			Deleted:              optionalBoolPtrFromPayload(payload, "deleted"),
+			ManuallyCreated:      optionalBoolPtrFromPayload(payload, "manually_created"),
+			DriftCandidateReason: optionalStringPtrFromPayload(payload, "drift_candidate_reason"),
+			SourceURL:            optionalStringPtrFromPayload(payload, "source_url"),
+			CollectorInstanceID:  stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := providerStableKey(
 		facts.IncidentRoutingObservedPagerDutyIntegrationFactKind,
 		ctx.ScopeID,
@@ -135,6 +195,23 @@ func NewPagerDutyConfigCoverageWarningEnvelope(ctx EnvelopeContext, warning Conf
 	payload["outcome"] = "partial"
 	payload["reason"] = reason
 	payload["redaction_state"] = "none"
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentRoutingCoverageWarning(incidentv1.CoverageWarning{
+			Provider:            stringPtr(ProviderPagerDuty),
+			SourceClass:         ConfigSourceClassObserved,
+			SourceKind:          ConfigSourceKindPagerDutyAPI,
+			Outcome:             "partial",
+			ScopeID:             ctx.ScopeID,
+			Reason:              reason,
+			RedactionState:      "none",
+			DeclaredMatchState:  payload["declared_match_state"].(string),
+			ResourceClass:       stringPtr(resourceClass),
+			ProviderObjectID:    stringPtr(resourceID),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := facts.StableID(facts.IncidentRoutingCoverageWarningFactKind, map[string]any{
 		"provider":       ProviderPagerDuty,
 		"scope_id":       ctx.ScopeID,

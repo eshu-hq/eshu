@@ -23,7 +23,7 @@ func DecodeIncidentRecord(env Envelope) (incidentv1.IncidentRecord, error) {
 // DecodeIncidentRecord for schema-version-1 payloads, used by collectors
 // emitting this fact kind and by this module's round-trip tests.
 func EncodeIncidentRecord(record incidentv1.IncidentRecord) (map[string]any, error) {
-	return encodeToPayload(record)
+	return encodeDirectPayload(record)
 }
 
 // DecodeIncidentLifecycleEvent decodes env.Payload into the latest
@@ -37,7 +37,7 @@ func DecodeIncidentLifecycleEvent(env Envelope) (incidentv1.LifecycleEvent, erro
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeIncidentLifecycleEvent for schema-version-1 payloads.
 func EncodeIncidentLifecycleEvent(event incidentv1.LifecycleEvent) (map[string]any, error) {
-	return encodeToPayload(event)
+	return encodeDirectPayload(event)
 }
 
 // DecodeChangeRecord decodes env.Payload into the latest incidentv1.ChangeRecord
@@ -51,7 +51,7 @@ func DecodeChangeRecord(env Envelope) (incidentv1.ChangeRecord, error) {
 // payload shape an Envelope carries. It is the inverse of DecodeChangeRecord for
 // schema-version-1 payloads.
 func EncodeChangeRecord(record incidentv1.ChangeRecord) (map[string]any, error) {
-	return encodeToPayload(record)
+	return encodeDirectPayload(record)
 }
 
 // DecodeIncidentRoutingAppliedPagerDutyResource decodes env.Payload into the
@@ -70,7 +70,7 @@ func DecodeIncidentRoutingAppliedPagerDutyResource(env Envelope) (incidentv1.App
 // Envelope carries. It is the inverse of
 // DecodeIncidentRoutingAppliedPagerDutyResource for schema-version-1 payloads.
 func EncodeIncidentRoutingAppliedPagerDutyResource(resource incidentv1.AppliedPagerDutyResource) (map[string]any, error) {
-	return encodeToPayload(resource)
+	return encodeDirectPayload(resource)
 }
 
 // DecodeIncidentRoutingAppliedAlertRoute decodes env.Payload into the latest
@@ -85,7 +85,7 @@ func DecodeIncidentRoutingAppliedAlertRoute(env Envelope) (incidentv1.AppliedAle
 // into the map[string]any payload shape an Envelope carries. It is the inverse
 // of DecodeIncidentRoutingAppliedAlertRoute for schema-version-1 payloads.
 func EncodeIncidentRoutingAppliedAlertRoute(route incidentv1.AppliedAlertRoute) (map[string]any, error) {
-	return encodeToPayload(route)
+	return encodeDirectPayload(route)
 }
 
 // DecodeIncidentRoutingObservedPagerDutyService decodes env.Payload into the
@@ -101,7 +101,7 @@ func DecodeIncidentRoutingObservedPagerDutyService(env Envelope) (incidentv1.Obs
 // Envelope carries. It is the inverse of
 // DecodeIncidentRoutingObservedPagerDutyService for schema-version-1 payloads.
 func EncodeIncidentRoutingObservedPagerDutyService(service incidentv1.ObservedPagerDutyService) (map[string]any, error) {
-	return encodeToPayload(service)
+	return encodeDirectPayload(service)
 }
 
 // DecodeIncidentRoutingObservedPagerDutyIntegration decodes env.Payload into the
@@ -118,7 +118,7 @@ func DecodeIncidentRoutingObservedPagerDutyIntegration(env Envelope) (incidentv1
 // DecodeIncidentRoutingObservedPagerDutyIntegration for schema-version-1
 // payloads.
 func EncodeIncidentRoutingObservedPagerDutyIntegration(integration incidentv1.ObservedPagerDutyIntegration) (map[string]any, error) {
-	return encodeToPayload(integration)
+	return encodeDirectPayload(integration)
 }
 
 // DecodeIncidentRoutingCoverageWarning decodes env.Payload into the latest
@@ -133,5 +133,5 @@ func DecodeIncidentRoutingCoverageWarning(env Envelope) (incidentv1.CoverageWarn
 // into the map[string]any payload shape an Envelope carries. It is the inverse
 // of DecodeIncidentRoutingCoverageWarning for schema-version-1 payloads.
 func EncodeIncidentRoutingCoverageWarning(warning incidentv1.CoverageWarning) (map[string]any, error) {
-	return encodeToPayload(warning)
+	return encodeDirectPayload(warning)
 }

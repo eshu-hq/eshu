@@ -15,14 +15,38 @@
     "declared_match_state": {
       "type": "string"
     },
+    "endpoint_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "function_name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "locator_hash": {
       "type": "string"
     },
     "module_address": {
       "type": "string"
     },
+    "name_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "outcome": {
       "type": "string"
+    },
+    "policy_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "provider_address": {
       "type": "string"
@@ -38,6 +62,12 @@
     },
     "route_type": {
       "type": "string"
+    },
+    "rule_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "scope_id": {
       "type": "string"
@@ -60,6 +90,12 @@
         "null"
       ]
     },
+    "target_id_fingerprint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "target_reference_fingerprint": {
       "type": [
         "string",
@@ -74,6 +110,12 @@
     },
     "terraform_state_address": {
       "type": "string"
+    },
+    "value_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
   "required": [

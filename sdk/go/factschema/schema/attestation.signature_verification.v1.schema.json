@@ -9,6 +9,12 @@
         "null"
       ]
     },
+    "statement_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "statement_id": {
       "type": "string"
     },

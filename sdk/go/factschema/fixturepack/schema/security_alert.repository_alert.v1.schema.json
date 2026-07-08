@@ -36,6 +36,21 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
     "created_at": {
       "type": [
         "string",
@@ -76,6 +91,12 @@
       ]
     },
     "dependency_scope": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
       "type": [
         "string",
         "null"

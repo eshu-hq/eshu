@@ -21,7 +21,7 @@ func DecodeCICDRun(env Envelope) (cicdrunv1.Run, error) {
 // schema-version-1 payloads, used by collectors emitting this fact kind and
 // by this module's own round-trip tests.
 func EncodeCICDRun(run cicdrunv1.Run) (map[string]any, error) {
-	return encodeToPayload(run)
+	return encodeDirectPayload(run)
 }
 
 // DecodeCICDArtifact decodes env.Payload into the latest cicdrunv1.Artifact
@@ -35,7 +35,7 @@ func DecodeCICDArtifact(env Envelope) (cicdrunv1.Artifact, error) {
 // payload shape an Envelope carries. It is the inverse of
 // DecodeCICDArtifact for schema-version-1 payloads.
 func EncodeCICDArtifact(artifact cicdrunv1.Artifact) (map[string]any, error) {
-	return encodeToPayload(artifact)
+	return encodeDirectPayload(artifact)
 }
 
 // DecodeCICDEnvironmentObservation decodes env.Payload into the latest
@@ -51,7 +51,7 @@ func DecodeCICDEnvironmentObservation(env Envelope) (cicdrunv1.EnvironmentObserv
 // Envelope carries. It is the inverse of DecodeCICDEnvironmentObservation
 // for schema-version-1 payloads.
 func EncodeCICDEnvironmentObservation(observation cicdrunv1.EnvironmentObservation) (map[string]any, error) {
-	return encodeToPayload(observation)
+	return encodeDirectPayload(observation)
 }
 
 // DecodeCICDTriggerEdge decodes env.Payload into the latest
@@ -65,7 +65,7 @@ func DecodeCICDTriggerEdge(env Envelope) (cicdrunv1.TriggerEdge, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeCICDTriggerEdge for schema-version-1 payloads.
 func EncodeCICDTriggerEdge(edge cicdrunv1.TriggerEdge) (map[string]any, error) {
-	return encodeToPayload(edge)
+	return encodeDirectPayload(edge)
 }
 
 // DecodeCICDStep decodes env.Payload into the latest cicdrunv1.Step struct
@@ -79,7 +79,7 @@ func DecodeCICDStep(env Envelope) (cicdrunv1.Step, error) {
 // shape an Envelope carries. It is the inverse of DecodeCICDStep for
 // schema-version-1 payloads.
 func EncodeCICDStep(step cicdrunv1.Step) (map[string]any, error) {
-	return encodeToPayload(step)
+	return encodeDirectPayload(step)
 }
 
 // DecodeCICDWorkflowImageEvidence decodes env.Payload into the latest
@@ -94,5 +94,5 @@ func DecodeCICDWorkflowImageEvidence(env Envelope) (cicdrunv1.WorkflowImageEvide
 // Envelope carries. It is the inverse of DecodeCICDWorkflowImageEvidence for
 // schema-version-1 payloads.
 func EncodeCICDWorkflowImageEvidence(evidence cicdrunv1.WorkflowImageEvidence) (map[string]any, error) {
-	return encodeToPayload(evidence)
+	return encodeDirectPayload(evidence)
 }

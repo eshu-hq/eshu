@@ -27,6 +27,12 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "created_at": {
       "type": [
         "string",
