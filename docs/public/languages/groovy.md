@@ -45,6 +45,31 @@ Not claimed today:
   dynamic dispatch, closure delegates, and Jenkins runtime loading remain
   outside the exactness boundary.
 
+## Parser Performance
+- `PipelineMetadata` (`go/internal/parser/groovy/metadata.go`) gates the
+  Ansible-hint extraction loop behind a cheap `strings.Contains(command,
+  "ansible-playbook")` precondition before invoking the `groovyAnsiblePattern`
+  regex on each already-extracted shell command. The precondition is a
+  provable superset of the regex: the pattern requires the literal
+  `ansible-playbook` substring to match at all, so any command the
+  precondition skips could never have matched, and parser output stays
+  byte-identical.
+- The gate matters for shared-library Jenkins "vars" files with many discrete
+  short `sh` steps (one call per pipeline step), where
+  `regexp.FindStringSubmatch`'s fixed per-call overhead dominates; it is a
+  no-op for a single large embedded shell script, where the stdlib regex
+  engine's own required-literal prefix search already does the equivalent
+  work internally.
+- Byte-identical output was verified with a one-time `0/0` differential (the
+  opt-in `GROOVY_PARSE_DUMP` harness in
+  `go/internal/parser/groovy/equivalence_dump_test.go` — MANUAL, not a CI
+  gate) against the real fixture corpus and a synthetic worst-case Jenkinsfile
+  with hundreds of non-Ansible shell steps plus one Ansible step. Standing
+  protection for this behavior is the `internal/parser/groovy` package test
+  suite (including a characterization test for an Ansible command found
+  among many non-Ansible commands) plus the B-12 golden snapshot. See epic
+  #4831 and issue #4845.
+
 ## Known Limitations
 - Generic Groovy source is indexed conservatively; the current parser focuses on Jenkins pipeline metadata rather than broad class and method extraction
 - Jenkins metadata is strongest for Jenkinsfile-style entrypoints and may not detect custom shared-library DSLs that hide deployment semantics behind opaque helper calls
