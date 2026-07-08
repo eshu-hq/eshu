@@ -153,6 +153,65 @@ func decodeAWSIAMPermission(env facts.Envelope) (iamv1.Permission, error) {
 }
 `
 
+// fixtureWrapperInferredVar covers the inferred `var` declaration shape a
+// handler can use instead of `:=` — `var statement = iamPermissionStatement{...}`
+// and `var statements = []iamPermissionStatement{...}`, where ValueSpec.Type is
+// nil and the type lives on the composite literal in ValueSpec.Values. Without
+// binding from the composite literal, the later statement.permission.Actions
+// reads would be a false-green for the gate (codex #4954 review, P2).
+const fixtureWrapperInferredVar = `package reducer
+
+type iamPermissionStatement struct {
+	factID     string
+	permission iamv1.Permission
+}
+
+func buildFromInferredVars() {
+	var one = iamPermissionStatement{}
+	_ = one.permission.Actions
+
+	var many = []iamPermissionStatement{}
+	for _, statement := range many {
+		_ = statement.permission.Effect
+	}
+}
+
+func decodeAWSIAMPermission(env facts.Envelope) (iamv1.Permission, error) {
+	return iamv1.Permission{}, nil
+}
+`
+
+func TestScanDecodeUsageWrapperFollowsInferredVarDeclarations(t *testing.T) {
+	t.Parallel()
+
+	dir := writeFixtureDir(t, map[string]string{
+		"inferred.go": fixtureWrapperInferredVar,
+	})
+
+	seams := []DecodeSeam{{
+		FuncName:      "decodeAWSIAMPermission",
+		FactKindConst: "FactKindAWSIAMPermission",
+		StructPackage: "iamv1",
+		StructName:    "Permission",
+	}}
+	usage, err := ScanDecodeUsage(dir, seams)
+	if err != nil {
+		t.Fatalf("ScanDecodeUsage() error = %v", err)
+	}
+
+	fieldNames := map[string]bool{}
+	for _, e := range usage["decodeAWSIAMPermission"] {
+		fieldNames[e.GoFieldName] = true
+	}
+	// Actions via `var one = iamPermissionStatement{}`; Effect via the range
+	// over `var many = []iamPermissionStatement{}`.
+	for _, want := range []string{"Actions", "Effect"} {
+		if !fieldNames[want] {
+			t.Errorf("field %q read through an inferred var wrapper declaration was not attributed; got %+v", want, usage["decodeAWSIAMPermission"])
+		}
+	}
+}
+
 func TestScanDecodeUsageWrapperIgnoresNonSeamWrapperField(t *testing.T) {
 	t.Parallel()
 

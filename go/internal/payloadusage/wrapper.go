@@ -127,10 +127,25 @@ func wrapperBoundIdentifiers(fn *ast.FuncDecl, wrappers map[string]map[string]st
 			}
 			for _, spec := range genDecl.Specs {
 				valueSpec, ok := spec.(*ast.ValueSpec)
-				if !ok || valueSpec.Type == nil {
+				if !ok {
 					continue
 				}
-				bindType(valueSpec.Names, valueSpec.Type)
+				if valueSpec.Type != nil {
+					bindType(valueSpec.Names, valueSpec.Type)
+					continue
+				}
+				// Inferred declaration (`var x = W{...}`, `var xs = []W{...}`):
+				// ValueSpec.Type is nil and the type lives on the composite
+				// literal in Values. Pair each name with its value by index,
+				// same as the `:=` composite-literal path.
+				if len(valueSpec.Names) != len(valueSpec.Values) {
+					continue
+				}
+				for i, name := range valueSpec.Names {
+					if lit, ok := valueSpec.Values[i].(*ast.CompositeLit); ok && lit.Type != nil {
+						bindType([]*ast.Ident{name}, lit.Type)
+					}
+				}
 			}
 		case *ast.AssignStmt:
 			lit, lhs, ok := singleCompositeAssign(node)
