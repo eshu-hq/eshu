@@ -158,12 +158,26 @@ func javaScriptKoaRegistrationBases(root *tree_sitter.Node, source []byte, text 
 	}
 	walkNamed(root, func(node *tree_sitter.Node) {
 		name, value := javaScriptVariableDeclaratorNameValue(node, source)
-		if name == "" || value == nil || value.Kind() != "new_expression" {
+		if name == "" || value == nil {
 			return
 		}
-		constructorName, constructorFullName := javaScriptNewExpressionConstructorName(value, source)
-		if constructorName == "Router" || strings.Contains(strings.ToLower(constructorFullName), "router") {
-			javaScriptAddName(bases, name)
+		// Form 1: const router = new Router()
+		if value.Kind() == "new_expression" {
+			constructorName, constructorFullName := javaScriptNewExpressionConstructorName(value, source)
+			if constructorName == "Router" || strings.Contains(strings.ToLower(constructorFullName), "router") {
+				javaScriptAddName(bases, name)
+			}
+			return
+		}
+		// Form 2: const router = require('@koa/router')()
+		if value.Kind() == "call_expression" {
+			functionNode := value.ChildByFieldName("function")
+			if functionNode != nil && functionNode.Kind() == "call_expression" {
+				moduleSource, ok := javaScriptRequireModuleSource(functionNode, source)
+				if ok && (moduleSource == "@koa/router" || moduleSource == "koa-router") {
+					javaScriptAddName(bases, name)
+				}
+			}
 		}
 	})
 	return bases
@@ -215,18 +229,43 @@ func javaScriptCollectExpressRegistrationBase(node *tree_sitter.Node, source []b
 }
 
 // javaScriptCollectKoaRegistrationBase records dst[name] = struct{}{} for
-// one variable_declarator node that binds a Koa Router instance
-// (`const router = new Router()`). It is a no-op for any other node kind, so
-// callers may invoke it on every visited node in a shared traversal without
-// pre-filtering.
+// one variable_declarator node that binds a Koa Router instance. It
+// recognizes two forms:
+//
+//   - `const router = new Router()` (a new_expression whose constructor
+//     is Router or ends in -router).
+//   - `const router = require('@koa/router')()` (a call_expression whose
+//     function child is itself a call_expression calling require with a
+//     @koa/router / koa-router module argument).
+//
+// It is a no-op for any other node kind, so callers may invoke it on every
+// visited node in a shared traversal without pre-filtering. Callers should
+// still gate the traversal with javaScriptHasKoaRouterImport(text) so
+// files without a @koa/router require never pay for the check.
 func javaScriptCollectKoaRegistrationBase(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
 	name, value := javaScriptVariableDeclaratorNameValue(node, source)
-	if name == "" || value == nil || value.Kind() != "new_expression" {
+	if name == "" || value == nil {
 		return
 	}
-	constructorName, constructorFullName := javaScriptNewExpressionConstructorName(value, source)
-	if constructorName == "Router" || strings.Contains(strings.ToLower(constructorFullName), "router") {
-		javaScriptAddName(dst, name)
+
+	// Form 1: const router = new Router() / new KoaRouter()
+	if value.Kind() == "new_expression" {
+		constructorName, constructorFullName := javaScriptNewExpressionConstructorName(value, source)
+		if constructorName == "Router" || strings.Contains(strings.ToLower(constructorFullName), "router") {
+			javaScriptAddName(dst, name)
+		}
+		return
+	}
+
+	// Form 2: const router = require('@koa/router')() / require('koa-router')()
+	if value.Kind() == "call_expression" {
+		functionNode := value.ChildByFieldName("function")
+		if functionNode != nil && functionNode.Kind() == "call_expression" {
+			moduleSource, ok := javaScriptRequireModuleSource(functionNode, source)
+			if ok && (moduleSource == "@koa/router" || moduleSource == "koa-router") {
+				javaScriptAddName(dst, name)
+			}
+		}
 	}
 }
 
