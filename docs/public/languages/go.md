@@ -104,6 +104,21 @@ not part of this change; the only differing entries were the six files this
 change edited (their own line numbers and declarations changed, as expected)
 plus one new file. See epic #4831 and issue #4839.
 
+Performance Evidence: this change removes 3 of the Go parser's per-file
+full-tree `shared.WalkNamed` passes (constructor-return dedup + a merged
+3-way file-level index walk + a merged receiver-binding sub-walk). The win is
+structural (fewer identical traversals of the same tree); the redundancy is
+provable by inspection.
+
+No-Regression Evidence: parser output is byte-identical old-vs-new (the `0/0`
+differential above), so no accuracy regression is possible; the change only
+removes duplicate traversal work.
+
+No-Observability-Change: this is a pure structural walk consolidation with no
+runtime-behavior change and no new metric/span/log surface. Per-file Go parse
+timing is already covered by the existing parser/pre-scan parse-stage
+telemetry; no new operator signals are warranted.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked
