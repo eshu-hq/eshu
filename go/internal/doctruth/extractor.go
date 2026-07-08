@@ -384,7 +384,7 @@ func (e *Extractor) claimCandidate(
 }
 
 func (e *Extractor) envelope(section SectionInput, kind string, stableKey string, payload any) (facts.Envelope, error) {
-	payloadMap, err := payloadToMap(payload)
+	payloadMap, err := documentationExtractionPayload(kind, payload)
 	if err != nil {
 		return facts.Envelope{}, fmt.Errorf("convert %s payload: %w", kind, err)
 	}
@@ -417,6 +417,17 @@ func (e *Extractor) envelope(section SectionInput, kind string, stableKey string
 			SourceRecordID: section.SectionID,
 		},
 	}, nil
+}
+
+func documentationExtractionPayload(kind string, payload any) (map[string]any, error) {
+	switch value := payload.(type) {
+	case facts.DocumentationEntityMentionPayload:
+		return facts.EncodeDocumentationEntityMention(value)
+	case facts.DocumentationClaimCandidatePayload:
+		return facts.EncodeDocumentationClaimCandidate(value)
+	default:
+		return nil, fmt.Errorf("unsupported documentation extraction payload type %T", payload)
+	}
 }
 
 func validateSection(section SectionInput) error {

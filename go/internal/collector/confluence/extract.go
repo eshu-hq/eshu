@@ -65,31 +65,6 @@ func sectionsForPage(page Page) []facts.DocumentationSectionPayload {
 	}}
 }
 
-func sectionPayloadMap(section facts.DocumentationSectionPayload) map[string]any {
-	out := map[string]any{
-		"document_id":      section.DocumentID,
-		"revision_id":      section.RevisionID,
-		"section_id":       section.SectionID,
-		"section_anchor":   section.SectionAnchor,
-		"heading_text":     section.HeadingText,
-		"ordinal_path":     section.OrdinalPath,
-		"content":          section.Content,
-		"content_format":   section.ContentFormat,
-		"text_hash":        section.TextHash,
-		"excerpt_hash":     section.ExcerptHash,
-		"source_start_ref": section.SourceStartRef,
-		"source_end_ref":   section.SourceEndRef,
-		"source_metadata":  section.SourceMetadata,
-	}
-	if section.ParentSectionID != "" {
-		out["parent_section_id"] = section.ParentSectionID
-	}
-	if section.ContainsWarnings {
-		out["contains_warnings"] = true
-	}
-	return out
-}
-
 func linksForPage(page Page, sections []facts.DocumentationSectionPayload) []facts.DocumentationLinkPayload {
 	if len(sections) == 0 {
 		return nil

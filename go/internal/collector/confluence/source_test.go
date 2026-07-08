@@ -444,12 +444,12 @@ func TestSourceReturnsEmptySpaceGeneration(t *testing.T) {
 	}
 }
 
-func TestPayloadToMapReturnsErrorForUnmarshalablePayload(t *testing.T) {
+func TestDocumentationPayloadMapReturnsErrorForUnsupportedPayload(t *testing.T) {
 	t.Parallel()
 
-	_, err := payloadToMap(func() {})
+	_, err := documentationPayloadMap(func() {})
 	if err == nil {
-		t.Fatal("payloadToMap() error = nil, want marshal error")
+		t.Fatal("documentationPayloadMap() error = nil, want unsupported type error")
 	}
 }
 

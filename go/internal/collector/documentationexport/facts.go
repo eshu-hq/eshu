@@ -4,7 +4,7 @@
 package documentationexport
 
 import (
-	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -187,7 +187,7 @@ func aclSummary(policy string) *facts.DocumentationACLSummary {
 }
 
 func envelope(scopeID string, generationID string, observedAt time.Time, kind string, key string, payload any, sourceSystem string, sourceURI string, sourceRecordID string) (facts.Envelope, error) {
-	payloadMap, err := payloadToMap(payload)
+	payloadMap, err := documentationPayloadMap(payload)
 	if err != nil {
 		return facts.Envelope{}, err
 	}
@@ -218,16 +218,19 @@ func envelope(scopeID string, generationID string, observedAt time.Time, kind st
 	}, nil
 }
 
-func payloadToMap(payload any) (map[string]any, error) {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+func documentationPayloadMap(payload any) (map[string]any, error) {
+	switch value := payload.(type) {
+	case facts.DocumentationSourcePayload:
+		return facts.EncodeDocumentationSource(value)
+	case facts.DocumentationDocumentPayload:
+		return facts.EncodeDocumentationDocument(value)
+	case facts.DocumentationSectionPayload:
+		return facts.EncodeDocumentationSection(value)
+	case facts.DocumentationLinkPayload:
+		return facts.EncodeDocumentationLink(value)
+	default:
+		return nil, fmt.Errorf("unsupported documentation export payload type %T", payload)
 	}
-	var out map[string]any
-	if err := json.Unmarshal(encoded, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func schemaVersion(kind string) string {

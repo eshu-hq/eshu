@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -237,7 +236,7 @@ func persistedContent(text string, maxChars int) (string, []string, bool) {
 }
 
 func envelope(req Request, kind string, key string, payload any) facts.Envelope {
-	payloadMap, err := payloadToMap(payload)
+	payloadMap, err := documentationPayloadMap(payload)
 	if err != nil {
 		payloadMap = map[string]any{"payload_error": err.Error()}
 	}
@@ -278,16 +277,15 @@ func envelope(req Request, kind string, key string, payload any) facts.Envelope 
 	}
 }
 
-func payloadToMap(payload any) (map[string]any, error) {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+func documentationPayloadMap(payload any) (map[string]any, error) {
+	switch value := payload.(type) {
+	case facts.DocumentationDocumentPayload:
+		return facts.EncodeDocumentationDocument(value)
+	case facts.DocumentationSectionPayload:
+		return facts.EncodeDocumentationSection(value)
+	default:
+		return nil, fmt.Errorf("unsupported OCR documentation payload type %T", payload)
 	}
-	var out map[string]any
-	if err := json.Unmarshal(encoded, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func schemaVersion(kind string) string {

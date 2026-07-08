@@ -32,6 +32,15 @@ families:
     read_surface: "GET /api/v0/documentation/facts"
     truth_profile: deterministic
     provider_key_independent: true
+    payload_schema_overrides:
+      documentation_claim_candidate: "sdk/go/factschema/schema/documentation_claim_candidate.v1.schema.json"
+      documentation_document: "sdk/go/factschema/schema/documentation_document.v1.schema.json"
+      documentation_entity_mention: "sdk/go/factschema/schema/documentation_entity_mention.v1.schema.json"
+      documentation_evidence_packet: "sdk/go/factschema/schema/documentation_evidence_packet.v1.schema.json"
+      documentation_finding: "sdk/go/factschema/schema/documentation_finding.v1.schema.json"
+      documentation_link: "sdk/go/factschema/schema/documentation_link.v1.schema.json"
+      documentation_section: "sdk/go/factschema/schema/documentation_section.v1.schema.json"
+      documentation_source: "sdk/go/factschema/schema/documentation_source.v1.schema.json"
     kinds: [documentation_claim_candidate, documentation_document, documentation_entity_mention, documentation_evidence_packet, documentation_finding, documentation_link, documentation_section, documentation_source]
   aws:
     lifecycle_owner: go/internal/facts
@@ -395,6 +404,9 @@ families:
     truth_profile: optional_semantic
     policy_gate: semanticpolicy
     provider_key_independent: false
+    payload_schema_overrides:
+      semantic.code_hint: "sdk/go/factschema/schema/semantic.code_hint.v1.schema.json"
+      semantic.documentation_observation: "sdk/go/factschema/schema/semantic.documentation_observation.v1.schema.json"
     kinds: [semantic.code_hint, semantic.documentation_observation]
   service_catalog:
     lifecycle_owner: go/internal/facts

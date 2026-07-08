@@ -1,0 +1,28 @@
+{
+  "observation_id": "semantic-doc-obs:fp",
+  "observation_type": "service_reference",
+  "observation_hash": "sha256:semantic-doc-observation",
+  "source": {
+    "source_id": "semantic-doc-source:fp",
+    "source_class": "documentation",
+    "document_id": "doc:fp",
+    "section_id": "section:1"
+  },
+  "chunk": {
+    "chunk_id": "semantic-doc-chunk:fp",
+    "chunk_hash": "sha256:chunk",
+    "source_hash": "sha256:source",
+    "prompt_version": "semantic-docs.v1",
+    "redaction_version": "semantic-redaction.v1",
+    "extractor_version": "semantic-docs-mock-emitter.v1",
+    "extraction_mode": "assistant_mediated"
+  },
+  "provider": {
+    "provider_profile_id": "profile:mock",
+    "provider_kind": "mock"
+  },
+  "freshness_state": "fresh",
+  "policy_state": "allowed",
+  "redaction_state": "skipped_no_sensitive_content",
+  "admission_state": "provenance_only"
+}

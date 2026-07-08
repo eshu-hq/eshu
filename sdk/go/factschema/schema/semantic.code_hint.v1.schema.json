@@ -1,0 +1,322 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/semantic/v1/code_hint.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "chunk": {
+      "additionalProperties": true,
+      "properties": {
+        "chunk_hash": {
+          "type": "string"
+        },
+        "chunk_id": {
+          "type": "string"
+        },
+        "extraction_mode": {
+          "type": "string"
+        },
+        "extractor_version": {
+          "type": "string"
+        },
+        "prompt_version": {
+          "type": "string"
+        },
+        "redaction_version": {
+          "type": "string"
+        },
+        "source_hash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "chunk_hash",
+        "source_hash",
+        "prompt_version",
+        "redaction_version",
+        "extractor_version",
+        "extraction_mode"
+      ],
+      "type": "object"
+    },
+    "confidence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence_rationale": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "corroboration_state": {
+      "type": "string"
+    },
+    "freshness_state": {
+      "type": "string"
+    },
+    "hint_hash": {
+      "type": "string"
+    },
+    "hint_id": {
+      "type": "string"
+    },
+    "hint_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hint_type": {
+      "type": "string"
+    },
+    "missing_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "object_refs": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "entity_id": {
+            "type": "string"
+          },
+          "entity_kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "line_end": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "line_start": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "relative_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repository_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "entity_id"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "observed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "policy_state": {
+      "type": "string"
+    },
+    "promotion_policy": {
+      "type": "string"
+    },
+    "provider": {
+      "additionalProperties": true,
+      "properties": {
+        "endpoint_profile_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_kind": {
+          "type": "string"
+        },
+        "provider_profile_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_profile_id",
+        "provider_kind"
+      ],
+      "type": "object"
+    },
+    "redaction_state": {
+      "type": "string"
+    },
+    "relationship_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "additionalProperties": true,
+      "properties": {
+        "document_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "external_anchor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line_end": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line_start": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "page_end": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "page_start": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "relative_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repository_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "section_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_class": {
+          "type": "string"
+        },
+        "source_handle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_class"
+      ],
+      "type": "object"
+    },
+    "subject": {
+      "additionalProperties": true,
+      "properties": {
+        "entity_id": {
+          "type": "string"
+        },
+        "entity_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line_end": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line_start": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "relative_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repository_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "entity_id"
+      ],
+      "type": "object"
+    },
+    "unsupported_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "hint_id",
+    "hint_type",
+    "hint_hash",
+    "source",
+    "chunk",
+    "provider",
+    "subject",
+    "corroboration_state",
+    "promotion_policy",
+    "policy_state",
+    "redaction_state",
+    "freshness_state"
+  ],
+  "title": "Eshu semantic.code_hint Payload (schema version 1)",
+  "type": "object"
+}

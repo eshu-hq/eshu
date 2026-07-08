@@ -5,7 +5,6 @@ package semanticdocs
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -109,7 +108,7 @@ func (e *Emitter) Emit(ctx context.Context, section doctruth.SectionInput, obser
 			return nil, fmt.Errorf("semantic documentation observation payload: %w", err)
 		}
 		stableKey := facts.SemanticDocumentationObservationStableID(payload)
-		payloadMap, err := semanticPayloadMap(payload)
+		payloadMap, err := facts.EncodeSemanticDocumentationObservation(payload)
 		if err != nil {
 			return nil, err
 		}
@@ -356,18 +355,6 @@ func (e *Emitter) observedAt(section doctruth.SectionInput) time.Time {
 		return section.ObservedAt.UTC()
 	}
 	return time.Now().UTC()
-}
-
-func semanticPayloadMap(payload facts.SemanticDocumentationObservationPayload) (map[string]any, error) {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("marshal semantic documentation observation payload: %w", err)
-	}
-	var out map[string]any
-	if err := json.Unmarshal(encoded, &out); err != nil {
-		return nil, fmt.Errorf("unmarshal semantic documentation observation payload: %w", err)
-	}
-	return out, nil
 }
 
 func semanticSourceID(section doctruth.SectionInput) string {

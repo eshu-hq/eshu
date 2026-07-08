@@ -5,6 +5,7 @@ package doctruth
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -248,7 +249,10 @@ func (v *Verifier) Verify(ctx context.Context, documents []DocumentInput) (Verif
 		result.Summary.DocumentsScanned++
 		result.Summary.BytesScanned += len(content)
 		for _, claim := range extractClaims(content) {
-			finding, packet, envelopes := v.verifyClaim(doc, claim)
+			finding, packet, envelopes, err := v.verifyClaim(doc, claim)
+			if err != nil {
+				return VerificationResult{}, err
+			}
 			result.Findings = append(result.Findings, finding)
 			result.EvidencePackets = append(result.EvidencePackets, packet)
 			result.Envelopes = append(result.Envelopes, envelopes...)
@@ -260,7 +264,7 @@ func (v *Verifier) Verify(ctx context.Context, documents []DocumentInput) (Verif
 	return result, nil
 }
 
-func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (VerificationFinding, VerificationEvidencePacket, []facts.Envelope) {
+func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (VerificationFinding, VerificationEvidencePacket, []facts.Envelope, error) {
 	status := VerificationStatusUnsupportedClaimType
 	truthLevel := string(TruthLevelDerived)
 	switch claim.claimType {
@@ -375,6 +379,10 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 		ClaimByteLength:  claim.byteLength,
 	}
 	packetPayload := v.evidencePacketPayload(doc, claim, finding, packetID, canonicalURI)
+	encodedPacketPayload, err := facts.EncodeDocumentationEvidencePacket(packetPayload)
+	if err != nil {
+		return VerificationFinding{}, VerificationEvidencePacket{}, nil, fmt.Errorf("encode documentation evidence packet: %w", err)
+	}
 	packet := VerificationEvidencePacket{
 		PacketID:      packetID,
 		PacketVersion: version,
@@ -382,10 +390,14 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 		Payload:       packetPayload,
 	}
 	findingPayload := findingPayload(finding)
-	return finding, packet, []facts.Envelope{
-		v.envelope(facts.DocumentationFindingFactKind, facts.DocumentationFindingStableID(findingID, version), findingPayload),
-		v.envelope(facts.DocumentationEvidencePacketFactKind, facts.DocumentationEvidencePacketStableID(packetID, version), packetPayload),
+	encodedFindingPayload, err := facts.EncodeDocumentationFinding(findingPayload)
+	if err != nil {
+		return VerificationFinding{}, VerificationEvidencePacket{}, nil, fmt.Errorf("encode documentation finding: %w", err)
 	}
+	return finding, packet, []facts.Envelope{
+		v.envelope(facts.DocumentationFindingFactKind, facts.DocumentationFindingStableID(findingID, version), encodedFindingPayload),
+		v.envelope(facts.DocumentationEvidencePacketFactKind, facts.DocumentationEvidencePacketStableID(packetID, version), encodedPacketPayload),
+	}, nil
 }
 
 func (v *Verifier) commandMatches(normalized string) bool {
