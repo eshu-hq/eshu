@@ -145,8 +145,26 @@ jobs:
         run: go build ./...
 
   go-race:
+    # Sharded authoritative race gate. Each shard runs `go test -race` on a
+    # disjoint slice of `go list ./...`; the union across shards is every
+    # package, so coverage is identical to the old single `go test ./... -race`.
+    #
+    # Why sharding does NOT weaken race coverage: `go test -race` instruments the
+    # ENTIRE dependency closure of each test binary. A race in package A that is
+    # triggered by package B's test is caught when B runs, because A is compiled
+    # with -race as B's dependency. Sharding by TEST package only changes which
+    # runner runs which test binary — every test binary still instruments its
+    # full closure — so no race that was detectable before becomes undetectable.
+    #
+    # N is `strategy.job-total` (the matrix length), so the round-robin partition
+    # `NR % N == matrix.shard % N` self-adjusts when shards are added/removed.
+    # The matrix values MUST stay contiguous 1..N or a package slice is dropped.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -163,9 +181,41 @@ jobs:
       - name: Set up Helm for race tests
         uses: azure/setup-helm@v5.0.0
 
-      - name: Run Go tests with race detector
+      - name: Run Go tests with race detector (shard ${{ matrix.shard }}/${{ strategy.job-total }})
         working-directory: go
-        run: go test ./... -count=1 -race -timeout 300s -p 2
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ strategy.job-total }}
+        run: |
+          set -euo pipefail
+          pkgs="$(go list ./... | awk -v n="${SHARD_TOTAL}" -v k="${SHARD_INDEX}" 'NR % n == (k % n)')"
+          if [ -z "${pkgs}" ]; then
+            echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: no packages selected — nothing to test"
+            exit 0
+          fi
+          count="$(printf '%s\n' "${pkgs}" | wc -l | tr -d ' ')"
+          echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
+          printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 300s -p 2
+
+  go-race-complete:
+    # Umbrella gate: a single stable status name that is green only when EVERY
+    # go-race shard passed. `needs.go-race.result` aggregates the matrix — it is
+    # `success` only if all shards succeeded. Point any future required-status-
+    # check config at THIS job, not the per-shard legs (whose names carry the
+    # shard index and change when N changes).
+    needs: go-race
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert all race shards passed
+        run: |
+          result="${{ needs.go-race.result }}"
+          echo "aggregated go-race result: ${result}"
+          if [ "${result}" != "success" ]; then
+            echo "::error::one or more go-race shards did not succeed (result=${result})"
+            exit 1
+          fi
 
   docs-helm-hygiene:
     runs-on: ubuntu-latest
