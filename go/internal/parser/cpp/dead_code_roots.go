@@ -67,7 +67,11 @@ type cppFunctionKey struct {
 	name  string
 }
 
-func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, source []byte) {
+func annotateCPPDeadCodeRoots(
+	payload map[string]any,
+	source []byte,
+	gatheredResolutionNodes []*tree_sitter.Node,
+) {
 	functionsByName := cppFunctionItemsByName(payload)
 	if len(functionsByName) == 0 {
 		return
@@ -80,7 +84,14 @@ func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, so
 	}
 	annotateCPPNodeAddonInitRoots(functionsByName)
 
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+	// Single in-memory loop over the resolution-candidate nodes gathered
+	// during the main payload walk (parser.go). The slice is in the main
+	// walk's pre-order, which preserves the original walk-2 interleaved
+	// pre-order exactly — a declaration that appears before a call
+	// expression in source is visited first, matching origin/main's
+	// dead_code_root_kinds slice ordering (load-bearing for byte-identical
+	// output; see #4844).
+	for _, node := range gatheredResolutionNodes {
 		switch node.Kind() {
 		case "function_definition":
 			annotateCPPMethodRuntimeRoots(functionsByKey, functionsByName, node, source)
@@ -94,7 +105,7 @@ func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, so
 		case "declaration":
 			annotateCPPFunctionPointerTargetRoot(functionsByName, functionPointerAliases, node, source)
 		}
-	})
+	}
 }
 
 func annotateCPPNodeAddonInitRoots(functionsByName map[string][]map[string]any) {

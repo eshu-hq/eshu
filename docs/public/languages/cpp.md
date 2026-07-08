@@ -71,11 +71,8 @@ a dedicated full-tree tree-sitter walk into Parse's main payload walk. The
 route check reads `call_expression` nodes the main walk already visits (for
 `appendCall`) and depends on nothing besides that node's own text, so
 `cppRouteCollector.collect` now runs from the same case as
-`buildCPPFrameworkSemantics`'s standalone pass did. `annotateCPPDeadCodeRoots`
-stays a separate walk: it reads `payload["functions"]` only after the main
-walk has fully populated it, a genuine dependency this merge does not touch.
-This lowers the framework-detection walk count from 2 to 1 (main walk +
-dead-code-roots walk remain) while keeping parser output byte-identical,
+`buildCPPFrameworkSemantics`'s standalone pass did. This lowers the
+framework-detection walk count while keeping parser output byte-identical,
 verified by a one-time old-vs-new `0/0` symmetric-diff over the fixture
 corpus via the opt-in `CPP_PARSE_DUMP` harness (`equivalence_dump_test.go`, a
 manual differential — not a standing CI gate); standing regression
@@ -84,3 +81,24 @@ snapshot (epic #4831, #4841). Contributors adding a new framework-route
 detector should extend `cppRouteCollector` rather than add another full-tree
 walk when the detector has no dependency on another collector's completed
 output.
+
+The dead-code-roots annotation (`annotateCPPDeadCodeRoots`) no longer runs a
+second full-tree `shared.WalkNamed` traversal. Instead, resolution-candidate
+node pointers (`function_definition`, `call_expression`, `declaration`) are
+gathered via `shared.CloneNode` during Parse's main payload walk and resolved
+in in-memory `for` loops after `payload["functions"]` is fully populated.
+This eliminates one `shared.WalkNamed` call per parse (walk count 15→14 on the
+walk-count fixture), verified by `walk_count_test.go`.
+
+- **Performance Evidence:** `BenchmarkParse/cpp` on the ~10K-LOC
+  `cpp_regression` fixture (Apple M5 Max, `-count=10`): median ns/op went
+  from ~175M (merge-base 8085fd1b8) to ~145M (~17% faster), B/op from ~36.3M
+  to ~32.9M (~9% fewer), allocs/op from ~1.13M to ~993K (~12% fewer). The
+  isolated annotation-step theory microbenchmark (2044-line padded fixture,
+  252 func_defs / 224 call_exprs / 56 decls) confirmed a ~2.06x speedup on
+  the targeted walk. Equivalence: `0/0` symmetric-diff over the C++ fixture
+  corpus via the `CPP_PARSE_DUMP` harness (70 files, diff + comm -3 empty).
+- **No-Observability-Change:** this package emits no telemetry by design;
+  the gather-then-resolve refactor neither adds nor removes spans, metrics, or
+  logs. Operators still diagnose C++ parsing through the existing collector
+  parse-stage logs and `eshu_dp_file_parse_duration_seconds`.
