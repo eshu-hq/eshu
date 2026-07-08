@@ -1056,6 +1056,26 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ifa-contract-layer
+    name: Ifa contract-layer Odù skeleton
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "go/internal/ifa/**"
+      - "go/cmd/ifa/**"
+      - "docs/internal/design/4389-ifa-conformance-platform.md"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
+      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Static contract gates"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: parserfixture-tests
     name: Parser Fixture Replay Tests
     category: exactness
