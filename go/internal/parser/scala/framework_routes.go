@@ -28,10 +28,15 @@ func parseScalaPlayRoutesPayload(path string, source []byte, isDependency bool) 
 	return payload
 }
 
-func buildScalaFrameworkSemantics(root *tree_sitter.Node, source []byte, imports []map[string]any) map[string]any {
+// buildScalaFrameworkSemantics gates the already-collected HTTP4s route
+// evidence on the imports bucket. http4sRoutes is collected during Parse's
+// combined shared.WalkNamed pass regardless of the import gate (the gate
+// only needs the fully-populated imports bucket, not a second traversal), so
+// this function only decides whether to surface the routes it was handed.
+func buildScalaFrameworkSemantics(imports []map[string]any, http4sRoutes []scalaRoute) map[string]any {
 	routes := make(map[string][]scalaRoute)
 	if scalaImportsHTTP4s(imports) {
-		routes["http4s"] = scalaHTTP4sRouteEntries(root, source)
+		routes["http4s"] = http4sRoutes
 	}
 	return scalaFrameworkSemantics(routes)
 }
@@ -87,22 +92,21 @@ func scalaPlayHandler(raw string) (string, bool) {
 	return className + "." + methodName, true
 }
 
-func scalaHTTP4sRouteEntries(root *tree_sitter.Node, source []byte) []scalaRoute {
+// scalaHTTP4sRoutesFromCall returns the HTTP4s route evidence for one
+// call_expression node already confirmed by scalaIsHTTP4sRoutesOfCall to be
+// an "HttpRoutes.of" call. Called from Parse's combined shared.WalkNamed
+// pass instead of running its own full-tree walk.
+func scalaHTTP4sRoutesFromCall(node *tree_sitter.Node, source []byte) []scalaRoute {
 	var routes []scalaRoute
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "call_expression" || !scalaIsHTTP4sRoutesOfCall(node, source) {
-			return
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() != "case_block" {
+			continue
 		}
-		cursor := node.Walk()
-		defer cursor.Close()
-		for _, child := range node.NamedChildren(cursor) {
-			child := child
-			if child.Kind() != "case_block" {
-				continue
-			}
-			routes = append(routes, scalaHTTP4sCaseRoutes(&child, source)...)
-		}
-	})
+		routes = append(routes, scalaHTTP4sCaseRoutes(&child, source)...)
+	}
 	return routes
 }
 

@@ -22,32 +22,25 @@ type kotlinSpringRoute struct {
 	handler string
 }
 
-func kotlinSpringRoutes(root *tree_sitter.Node, source []byte) []kotlinSpringRoute {
-	if root == nil {
-		return nil
+// kotlinSpringRouteFromFunction returns the Spring route evidence for one
+// function_declaration node, or ok=false when the function carries no Spring
+// mapping annotation. Called from the combined kotlinFrameworkSemantics
+// shared.WalkNamed pass instead of running its own full-tree walk.
+func kotlinSpringRouteFromFunction(node *tree_sitter.Node, source []byte) (kotlinSpringRoute, bool) {
+	name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
+	if name == "" {
+		return kotlinSpringRoute{}, false
 	}
-
-	routes := make([]kotlinSpringRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "function_declaration" {
-			return
-		}
-		name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		methodRoute, ok := kotlinSpringMethodRoute(kotlinLeadingAnnotations(shared.NodeText(node, source)))
-		if !ok {
-			return
-		}
-		prefix := kotlinSpringClassPrefix(node, source)
-		routes = append(routes, kotlinSpringRoute{
-			method:  methodRoute.method,
-			path:    kotlinJoinSpringRoutePath(prefix, methodRoute.path),
-			handler: name,
-		})
-	})
-	return routes
+	methodRoute, ok := kotlinSpringMethodRoute(kotlinLeadingAnnotations(shared.NodeText(node, source)))
+	if !ok {
+		return kotlinSpringRoute{}, false
+	}
+	prefix := kotlinSpringClassPrefix(node, source)
+	return kotlinSpringRoute{
+		method:  methodRoute.method,
+		path:    kotlinJoinSpringRoutePath(prefix, methodRoute.path),
+		handler: name,
+	}, true
 }
 
 func kotlinSpringClassPrefix(node *tree_sitter.Node, source []byte) string {

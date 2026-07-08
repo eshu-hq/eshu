@@ -40,6 +40,7 @@ func Parse(
 	payload["macros"] = []map[string]any{}
 	root := tree.RootNode()
 
+	routes := newCPPRouteCollector()
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "preproc_include":
@@ -62,6 +63,7 @@ func Parse(
 			appendCTypedefAliases(payload, node, source, "cpp")
 		case "call_expression":
 			appendCall(payload, cLikeCallNameNode(node.ChildByFieldName("function")), source, "cpp")
+			routes.collect(node, source)
 		}
 	})
 	annotateCPPDeadCodeRoots(payload, root, source)
@@ -77,7 +79,7 @@ func Parse(
 		"function_calls",
 		"macros",
 	)
-	payload["framework_semantics"] = buildCPPFrameworkSemantics(root, source)
+	payload["framework_semantics"] = routes.finalize()
 
 	return payload, nil
 }

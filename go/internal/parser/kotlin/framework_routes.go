@@ -10,12 +10,46 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// kotlinFrameworkSemantics detects Spring, JAX-RS, Micronaut, and Ktor route
+// evidence in one combined shared.WalkNamed pass. Before the walk-collapse fix
+// (issue #4841, epic #4831) each framework ran its own full-tree WalkNamed
+// pass over root; the four passes are independent (no shared mutable state,
+// no pass consuming another's output), so they collapse into a single
+// traversal that dispatches Spring/JAX-RS/Micronaut on "function_declaration"
+// nodes and Ktor on "call_expression" nodes, matching the per-node kind each
+// original pass already filtered on. Route slices are still built in exactly
+// the traversal order shared.WalkNamed visits nodes, so per-framework route
+// order is unchanged.
 func kotlinFrameworkSemantics(root *tree_sitter.Node, source []byte) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
-	appendKotlinRouteFramework(semantics, "spring", kotlinSpringRoutes(root, source))
-	appendKotlinRouteFramework(semantics, "jax_rs", kotlinJAXRSRoutes(root, source))
-	appendKotlinRouteFramework(semantics, "micronaut", kotlinMicronautRoutes(root, source))
-	appendKotlinRouteFramework(semantics, "ktor", kotlinKtorRoutes(root, source))
+	if root == nil {
+		return nil
+	}
+
+	var springRoutes, jaxRSRoutes, micronautRoutes, ktorRoutes []kotlinSpringRoute
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		switch node.Kind() {
+		case "function_declaration":
+			if route, ok := kotlinSpringRouteFromFunction(node, source); ok {
+				springRoutes = append(springRoutes, route)
+			}
+			if route, ok := kotlinJAXRSRouteFromFunction(node, source); ok {
+				jaxRSRoutes = append(jaxRSRoutes, route)
+			}
+			if route, ok := kotlinMicronautRouteFromFunction(node, source); ok {
+				micronautRoutes = append(micronautRoutes, route)
+			}
+		case "call_expression":
+			if route, ok := kotlinKtorRouteFromCall(node, source); ok {
+				ktorRoutes = append(ktorRoutes, route)
+			}
+		}
+	})
+
+	appendKotlinRouteFramework(semantics, "spring", springRoutes)
+	appendKotlinRouteFramework(semantics, "jax_rs", jaxRSRoutes)
+	appendKotlinRouteFramework(semantics, "micronaut", micronautRoutes)
+	appendKotlinRouteFramework(semantics, "ktor", ktorRoutes)
 	if len(semantics["frameworks"].([]string)) == 0 {
 		return nil
 	}
@@ -48,105 +82,86 @@ func appendKotlinRouteFramework(semantics map[string]any, name string, routes []
 	}
 }
 
-func kotlinJAXRSRoutes(root *tree_sitter.Node, source []byte) []kotlinSpringRoute {
-	if root == nil {
-		return nil
+// kotlinJAXRSRouteFromFunction returns the JAX-RS route evidence for one
+// function_declaration node, or ok=false when the function carries no JAX-RS
+// HTTP-method annotation with a resolvable path. Called from the combined
+// kotlinFrameworkSemantics shared.WalkNamed pass instead of running its own
+// full-tree walk.
+func kotlinJAXRSRouteFromFunction(node *tree_sitter.Node, source []byte) (kotlinSpringRoute, bool) {
+	name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
+	if name == "" {
+		return kotlinSpringRoute{}, false
 	}
-
-	routes := make([]kotlinSpringRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "function_declaration" {
-			return
-		}
-		name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		annotations := kotlinLeadingAnnotations(shared.NodeText(node, source))
-		method, ok := kotlinJAXRSHTTPMethod(annotations)
-		if !ok {
-			return
-		}
-		methodPath, methodPathOK := kotlinRequiredPathAnnotation(annotations)
-		if kotlinHasPathAnnotation(annotations) && !methodPathOK {
-			return
-		}
-		prefix, prefixPresent, prefixOK := kotlinJAXRSClassPrefix(node, source)
-		if prefixPresent && !prefixOK {
-			return
-		}
-		if !methodPathOK && !prefixOK {
-			return
-		}
-		routes = append(routes, kotlinSpringRoute{
-			method:  method,
-			path:    kotlinJoinSpringRoutePath(prefix, methodPath),
-			handler: name,
-		})
-	})
-	return routes
+	annotations := kotlinLeadingAnnotations(shared.NodeText(node, source))
+	method, ok := kotlinJAXRSHTTPMethod(annotations)
+	if !ok {
+		return kotlinSpringRoute{}, false
+	}
+	methodPath, methodPathOK := kotlinRequiredPathAnnotation(annotations)
+	if kotlinHasPathAnnotation(annotations) && !methodPathOK {
+		return kotlinSpringRoute{}, false
+	}
+	prefix, prefixPresent, prefixOK := kotlinJAXRSClassPrefix(node, source)
+	if prefixPresent && !prefixOK {
+		return kotlinSpringRoute{}, false
+	}
+	if !methodPathOK && !prefixOK {
+		return kotlinSpringRoute{}, false
+	}
+	return kotlinSpringRoute{
+		method:  method,
+		path:    kotlinJoinSpringRoutePath(prefix, methodPath),
+		handler: name,
+	}, true
 }
 
-func kotlinMicronautRoutes(root *tree_sitter.Node, source []byte) []kotlinSpringRoute {
-	if root == nil {
-		return nil
+// kotlinMicronautRouteFromFunction returns the Micronaut route evidence for
+// one function_declaration node, or ok=false when the function carries no
+// Micronaut HTTP-method annotation. Called from the combined
+// kotlinFrameworkSemantics shared.WalkNamed pass instead of running its own
+// full-tree walk.
+func kotlinMicronautRouteFromFunction(node *tree_sitter.Node, source []byte) (kotlinSpringRoute, bool) {
+	name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
+	if name == "" {
+		return kotlinSpringRoute{}, false
 	}
-
-	routes := make([]kotlinSpringRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "function_declaration" {
-			return
-		}
-		name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		methodRoute, ok := kotlinMicronautMethodRoute(kotlinLeadingAnnotations(shared.NodeText(node, source)))
-		if !ok {
-			return
-		}
-		prefix, prefixOK := kotlinMicronautClassPrefix(node, source)
-		if !prefixOK && methodRoute.path == "" {
-			return
-		}
-		routes = append(routes, kotlinSpringRoute{
-			method:  methodRoute.method,
-			path:    kotlinJoinSpringRoutePath(prefix, methodRoute.path),
-			handler: name,
-		})
-	})
-	return routes
+	methodRoute, ok := kotlinMicronautMethodRoute(kotlinLeadingAnnotations(shared.NodeText(node, source)))
+	if !ok {
+		return kotlinSpringRoute{}, false
+	}
+	prefix, prefixOK := kotlinMicronautClassPrefix(node, source)
+	if !prefixOK && methodRoute.path == "" {
+		return kotlinSpringRoute{}, false
+	}
+	return kotlinSpringRoute{
+		method:  methodRoute.method,
+		path:    kotlinJoinSpringRoutePath(prefix, methodRoute.path),
+		handler: name,
+	}, true
 }
 
-func kotlinKtorRoutes(root *tree_sitter.Node, source []byte) []kotlinSpringRoute {
-	if root == nil {
-		return nil
+// kotlinKtorRouteFromCall returns the Ktor route evidence for one
+// call_expression node, or ok=false when the call is not a recognized Ktor
+// route registration. Called from the combined kotlinFrameworkSemantics
+// shared.WalkNamed pass instead of running its own full-tree walk.
+func kotlinKtorRouteFromCall(node *tree_sitter.Node, source []byte) (kotlinSpringRoute, bool) {
+	method, pathNode, ok := kotlinKtorRouteCall(node, source)
+	if !ok {
+		return kotlinSpringRoute{}, false
 	}
-
-	routes := make([]kotlinSpringRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "call_expression" {
-			return
-		}
-		method, pathNode, ok := kotlinKtorRouteCall(node, source)
-		if !ok {
-			return
-		}
-		path, ok := kotlinKtorRoutePath(pathNode, source)
-		if !ok {
-			return
-		}
-		handler, ok := kotlinKtorLambdaHandler(node, source)
-		if !ok {
-			return
-		}
-		routes = append(routes, kotlinSpringRoute{
-			method:  method,
-			path:    path,
-			handler: handler,
-		})
-	})
-	return routes
+	path, ok := kotlinKtorRoutePath(pathNode, source)
+	if !ok {
+		return kotlinSpringRoute{}, false
+	}
+	handler, ok := kotlinKtorLambdaHandler(node, source)
+	if !ok {
+		return kotlinSpringRoute{}, false
+	}
+	return kotlinSpringRoute{
+		method:  method,
+		path:    path,
+		handler: handler,
+	}, true
 }
 
 func kotlinKtorRouteCall(node *tree_sitter.Node, source []byte) (string, *tree_sitter.Node, bool) {

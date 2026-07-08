@@ -33,6 +33,15 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	scope := options.NormalizedVariableScope()
 	traitMethods, typeTraits := scalaCollectTypeContracts(root, source)
 
+	// http4sRoutes is collected unconditionally alongside the main payload
+	// buckets in this single shared.WalkNamed pass. Before the walk-collapse
+	// fix (issue #4841, epic #4831), HTTP4s route detection ran its own
+	// full-tree walk gated on the imports bucket. That gate only needs the
+	// fully-populated imports bucket (built by this same pass) to decide
+	// whether to surface the routes, not a second traversal to collect them,
+	// so buildScalaFrameworkSemantics below applies the gate to routes this
+	// pass already gathered.
+	var http4sRoutes []scalaRoute
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "class_definition":
@@ -73,13 +82,16 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 			}
 		case "call_expression":
 			appendCall(payload, scalaCallNameNode(node), source, "scala")
+			if scalaIsHTTP4sRoutesOfCall(node, source) {
+				http4sRoutes = append(http4sRoutes, scalaHTTP4sRoutesFromCall(node, source)...)
+			}
 		}
 	})
 
 	for _, bucket := range []string{"functions", "classes", "traits", "variables", "imports", "function_calls"} {
 		shared.SortNamedBucket(payload, bucket)
 	}
-	payload["framework_semantics"] = buildScalaFrameworkSemantics(root, source, payloadMapSlice(payload["imports"]))
+	payload["framework_semantics"] = buildScalaFrameworkSemantics(payloadMapSlice(payload["imports"]), http4sRoutes)
 
 	return payload, nil
 }

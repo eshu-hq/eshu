@@ -69,3 +69,25 @@ Not claimed today:
 - Vapor closure handlers, nonliteral path expressions, nonliteral or computed
   route groups, generated routes, and other Swift web frameworks remain
   unsupported for exact route-to-handler truth.
+
+## Parser Performance
+
+`collectSwiftSemanticFacts` folds three independent full-tree passes — the
+Vapor import check, the Vapor route-receiver scan, and the `use:` handler
+scan over `value_argument` nodes — into the same manual-recursion walk that
+already collects type conformances and protocol methods
+(`collectSwiftFileFacts`). None of those three checks depends on another's
+output while collecting, so they now run as extra cases in the existing
+per-node dispatch instead of three additional `shared.WalkNamed` traversals.
+Only the Vapor-gated route-entries pass (`swiftVaporRouteEntries`) still runs
+as its own traversal afterward, since it genuinely depends on the
+now-complete route-receiver map to resolve nested `.group(...)` prefixes; the
+main `swiftExtractor.walk` payload pass is unaffected. This keeps parser
+output byte-identical, verified by a one-time old-vs-new `0/0` symmetric-diff
+over the fixture corpus via the opt-in `SWIFT_PARSE_DUMP` harness
+(`equivalence_dump_test.go`, a manual differential — not a standing CI gate);
+standing regression protection comes from the Swift parser package tests and
+the B-12 golden snapshot (epic #4831, #4841). Contributors adding new
+same-file semantic evidence should extend `collectSwiftFileFacts` rather than
+add another full-tree walk when the evidence has no dependency on another
+collector's completed output.

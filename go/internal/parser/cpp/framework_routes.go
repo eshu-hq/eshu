@@ -7,51 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-
-type cppRoute struct {
-	method  string
-	path    string
-	handler string
-}
-
-func buildCPPFrameworkSemantics(root *tree_sitter.Node, source []byte) map[string]any {
-	semantics := map[string]any{"frameworks": []string{}}
-	if root == nil {
-		return semantics
-	}
-
-	routesByFramework := map[string][]cppRoute{}
-	seen := map[string]struct{}{}
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "call_expression" {
-			return
-		}
-		text := strings.TrimSpace(shared.NodeText(node, source))
-		for framework, routes := range map[string][]cppRoute{
-			"crow":     cppCrowRoutes(text),
-			"drogon":   cppDrogonRoutes(text),
-			"pistache": cppPistacheRoutes(text),
-		} {
-			for _, route := range routes {
-				key := framework + "\x00" + route.method + "\x00" + route.path + "\x00" + route.handler
-				if _, ok := seen[key]; ok {
-					continue
-				}
-				seen[key] = struct{}{}
-				routesByFramework[framework] = append(routesByFramework[framework], route)
-			}
-		}
-	})
-
-	appendCPPRouteFramework(semantics, "crow", routesByFramework["crow"])
-	appendCPPRouteFramework(semantics, "drogon", routesByFramework["drogon"])
-	appendCPPRouteFramework(semantics, "pistache", routesByFramework["pistache"])
-	return semantics
-}
 
 func appendCPPRouteFramework(semantics map[string]any, name string, routes []cppRoute) {
 	if len(routes) == 0 {
