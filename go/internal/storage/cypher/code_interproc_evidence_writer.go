@@ -266,7 +266,7 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceByUIDs(
 			},
 		})
 	}
-	return w.dispatch(ctx, stmts)
+	return w.dispatchRetract(ctx, stmts)
 }
 
 // RetractCodeInterprocEvidenceSourceByUIDs removes all reducer-owned
@@ -299,7 +299,7 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSourceByUIDs(
 			},
 		})
 	}
-	return w.dispatch(ctx, stmts)
+	return w.dispatchRetract(ctx, stmts)
 }
 
 // RetractStaleCodeInterprocEvidenceByUIDs removes stale TAINT_FLOWS_TO edges for
@@ -338,7 +338,7 @@ func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidenceByUIDs(
 			},
 		})
 	}
-	return w.dispatch(ctx, stmts)
+	return w.dispatchRetract(ctx, stmts)
 }
 
 func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
@@ -349,6 +349,26 @@ func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []Stat
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes retract statements through sequential Execute calls,
+// never ExecuteGroup. This avoids a NornicDB v1.1.9 bolt driver bug where
+// UNWIND … MATCH … -[rel]-> … DELETE rel inside session.ExecuteWrite / tx.Run
+// returns zero rows (the MATCH on the relationship finds nothing), even though
+// the same statement via session.Run (autocommit) produces correct results.
+// Routing retracts through Execute (which the reducer's cypherRunnerStatement-
+// Executor maps to session.Run) keeps the uid-anchored delete path correct on
+// all supported backends.
+func (w *CodeInterprocEvidenceWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

@@ -241,7 +241,7 @@ func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidenceByUIDs(
 			},
 		})
 	}
-	return w.dispatch(ctx, stmts)
+	return w.dispatchRetract(ctx, stmts)
 }
 
 // RetractStaleCodeTaintEvidenceByUIDs removes stale taint evidence nodes for one
@@ -280,7 +280,7 @@ func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidenceByUIDs(
 			},
 		})
 	}
-	return w.dispatch(ctx, stmts)
+	return w.dispatchRetract(ctx, stmts)
 }
 
 func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
@@ -291,6 +291,22 @@ func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statemen
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes retract statements through sequential Execute calls,
+// never ExecuteGroup. See CodeInterprocEvidenceWriter.dispatchRetract for the
+// rationale: NornicDB v1.1.9 bolt driver bug with UNWIND/MATCH/DELETE inside
+// session.ExecuteWrite / tx.Run.
+func (w *CodeTaintEvidenceWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
