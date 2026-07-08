@@ -77,6 +77,15 @@ require "selected gate matrix" \
 require "empty-selection job guard" \
 	"needs.changes.outputs.any == 'true'" \
 	"${static_contract_workflow}"
+require "Ifa workflow filter" \
+	"ifa:" \
+	"${static_contract_workflow}"
+require "Ifa workflow path filter" \
+	"go/internal/ifa/**" \
+	"${static_contract_workflow}"
+require "Ifa workflow matrix entry" \
+	'append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1"' \
+	"${static_contract_workflow}"
 
 # #4263 workflow shape: Build Test must expose separately timed verdict
 # surfaces for static contract verifiers, Go lint/build, race tests, and the

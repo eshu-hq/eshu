@@ -2233,6 +2233,11 @@
     },
     {
       "category": "command",
+      "name": "ifa",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "ingester",
       "readiness": "implemented"
     },
