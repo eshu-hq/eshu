@@ -257,10 +257,12 @@ func TestDefaultEngineParsePathPHPEmitsSlimRoutesFromSkeleton(t *testing.T) {
 	for _, e := range entries {
 		t.Logf("  %s %s -> %s", e["method"], e["path"], e["handler"])
 	}
-	// Assert key routes are present.
+	// Assert key routes are present with correct group-prefixed paths.
 	wantRoutes := []map[string]string{
 		{"method": "OPTIONS", "path": "/{routes:.*}", "handler": ""},
 		{"method": "GET", "path": "/", "handler": ""},
+		{"method": "GET", "path": "/users", "handler": "ListUsersAction"},
+		{"method": "GET", "path": "/users/{id}", "handler": "ViewUserAction"},
 	}
 	for _, want := range wantRoutes {
 		found := false
@@ -273,5 +275,87 @@ func TestDefaultEngineParsePathPHPEmitsSlimRoutesFromSkeleton(t *testing.T) {
 		if !found {
 			t.Errorf("expected Slim route %s %s not found in entries: %#v", want["method"], want["path"], entries)
 		}
+	}
+}
+
+func TestDefaultEngineParsePathPHPEmitsSlimGroupedAndNestedRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "grouped_routes.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Slim\App;
+use Slim\Interfaces\RouteCollectorProxyInterface;
+
+	return function (App $app) {
+    $app->get('/', \App\Action\HomeAction::class);
+    $app->group('/users', function (RouteCollectorProxyInterface $group) {
+        $group->get('', \App\Action\ListUsers::class);
+        $group->get('/{id}', \App\Action\ViewUser::class);
+        $group->group('/{id}/posts', function (RouteCollectorProxyInterface $g) {
+            $g->get('', \App\Action\ListPosts::class);
+        });
+    });
+};
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertFrameworksEqual(t, got, "slim")
+	assertNestedRouteEntriesEqual(t, got, "slim", []map[string]string{
+		{"method": "GET", "path": "/", "handler": "HomeAction"},
+		{"method": "GET", "path": "/users", "handler": "ListUsers"},
+		{"method": "GET", "path": "/users/{id}", "handler": "ViewUser"},
+		{"method": "GET", "path": "/users/{id}/posts", "handler": "ListPosts"},
+	})
+}
+
+func TestDefaultEngineParsePathPHPSkipsSlimRouteWithEmptyPath(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "empty_path.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Slim\Factory\AppFactory;
+
+$app = AppFactory::create();
+$app->get('', 'SomeHandler::class');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	// Empty-path route must not be emitted — an empty path is wrong truth.
+	semantics, ok := got["framework_semantics"].(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok := semantics["slim"]; ok {
+		t.Fatalf("framework_semantics.slim should be absent when the only route has an empty path")
 	}
 }
