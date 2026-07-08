@@ -1,6 +1,6 @@
 module github.com/eshu-hq/eshu/examples/collector-extensions/scorecard
 
-go 1.26.0
+go 1.26.5
 
 require (
 	github.com/eshu-hq/eshu/sdk/go/collector v0.0.0

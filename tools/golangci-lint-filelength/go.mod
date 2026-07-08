@@ -1,6 +1,6 @@
 module github.com/eshu-hq/eshu/tools/golangci-lint-filelength
 
-go 1.26.0
+go 1.26.5
 
 // Pinned to the exact revision golangci-lint v2.12.2 vendors
 // (see go/pkg/mod/github.com/golangci/golangci-lint/v2@v2.12.2/go.mod).
