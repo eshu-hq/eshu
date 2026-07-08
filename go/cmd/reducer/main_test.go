@@ -312,6 +312,9 @@ func TestBuildReducerServiceWiresPostgresWorkloadIdentityWriter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
+	// Startup backfills already wrote MarkComplete rows; reset so the
+	// assertions below count only exec calls from processing the intent.
+	db.execs = nil
 
 	intent := reducer.Intent{
 		IntentID:        "intent-1",
@@ -353,6 +356,9 @@ func TestBuildReducerServiceWiresPostgresCloudAssetResolutionWriter(t *testing.T
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
+	// Startup backfills already wrote MarkComplete rows; reset so the
+	// assertions below count only exec calls from processing the intent.
+	db.execs = nil
 
 	intent := reducer.Intent{
 		IntentID:        "intent-2",
@@ -454,38 +460,13 @@ func (f *fakeReducerDB) QueryContext(_ context.Context, query string, args ...an
 		}
 		return &fakeGenerationRows{value: &scopeGenID, read: false}, nil
 	}
+	// ProjectedSourceEdgeBackfiller has no count guard, so it always checks
+	// backfill-state completion at startup; report "not complete".
+	if strings.Contains(query, "code_value_flow_backfill_state") {
+		return &fakeExistsRows{value: false}, nil
+	}
 	return nil, fmt.Errorf("unexpected query: %s", query)
 }
-
-// fakeGenerationRows returns a single active_generation_id row.
-type fakeGenerationRows struct {
-	value *string
-	read  bool
-}
-
-func (r *fakeGenerationRows) Next() bool {
-	if r.read {
-		return false
-	}
-	r.read = true
-	return true
-}
-
-func (r *fakeGenerationRows) Scan(dest ...any) error {
-	if len(dest) != 1 {
-		return fmt.Errorf("scan: got %d dest, want 1", len(dest))
-	}
-	switch d := dest[0].(type) {
-	case *sql.NullString:
-		*d = sql.NullString{String: *r.value, Valid: true}
-	default:
-		return fmt.Errorf("unsupported scan dest type %T", dest[0])
-	}
-	return nil
-}
-
-func (r *fakeGenerationRows) Err() error   { return nil }
-func (r *fakeGenerationRows) Close() error { return nil }
 
 type fakeReducerResult struct{}
 

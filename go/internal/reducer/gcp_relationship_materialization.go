@@ -48,6 +48,11 @@ func gcpRelationshipMaterializationDomainDefinition() DomainDefinition {
 // writers. It is distinct from awsRelationshipEvidenceSource.
 const gcpRelationshipEvidenceSource = "reducer/gcp-relationships"
 
+// GCPRelationshipEvidenceSource returns the evidence-source string for
+// reducer-owned GCP relationship edges, exported so cmd/reducer can wire the
+// ProjectedSourceEdgeBackfiller against the same value this handler uses.
+func GCPRelationshipEvidenceSource() string { return gcpRelationshipEvidenceSource }
+
 // GCPRelationshipMaterializationHandler reduces one GCP relationship
 // materialization follow-up into canonical GCP relationship edge writes. It
 // gates on the GraphProjectionPhaseCanonicalNodesCommitted readiness phase that

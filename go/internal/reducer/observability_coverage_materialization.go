@@ -50,6 +50,11 @@ func observabilityCoverageMaterializationDomainDefinition() DomainDefinition {
 // coverage edges and never touches edges owned by other writers.
 const observabilityCoverageEvidenceSource = "reducer/observability-coverage"
 
+// ObservabilityCoverageEvidenceSource returns the evidence-source string for
+// reducer-owned observability COVERS edges, exported so cmd/reducer can wire
+// the ProjectedSourceEdgeBackfiller against the same value this handler uses.
+func ObservabilityCoverageEvidenceSource() string { return observabilityCoverageEvidenceSource }
+
 // ObservabilityCoverageEdgeWriter persists and retracts canonical COVERS edges
 // between an observability CloudResource node and the monitored CloudResource it
 // covers. Implementations MUST be idempotent by (observability uid,

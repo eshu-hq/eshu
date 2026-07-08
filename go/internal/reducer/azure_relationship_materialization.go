@@ -38,6 +38,11 @@ const (
 	azureRelationshipEvidenceSource = "reducer/azure-relationships"
 )
 
+// AzureRelationshipEvidenceSource returns the evidence-source string for
+// reducer-owned Azure relationship edges, exported so cmd/reducer can wire the
+// ProjectedSourceEdgeBackfiller against the same value this handler uses.
+func AzureRelationshipEvidenceSource() string { return azureRelationshipEvidenceSource }
+
 // AzureRelationshipMaterializationHandler reduces one Azure relationship
 // materialization intent into canonical CloudResource relationship edges. It
 // gates on Azure CloudResource node readiness and resolves endpoints only

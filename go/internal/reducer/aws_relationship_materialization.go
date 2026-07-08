@@ -51,6 +51,11 @@ func awsRelationshipMaterializationDomainDefinition() DomainDefinition {
 // writers.
 const awsRelationshipEvidenceSource = "reducer/aws-relationships"
 
+// AWSRelationshipEvidenceSource returns the evidence-source string for
+// reducer-owned AWS relationship edges, exported so cmd/reducer can wire the
+// ProjectedSourceEdgeBackfiller against the same value this handler uses.
+func AWSRelationshipEvidenceSource() string { return awsRelationshipEvidenceSource }
+
 // CloudResourceEdgeWriter persists and retracts canonical AWS, Azure, and GCP
 // relationship edges between CloudResource nodes. Implementations MUST be
 // idempotent by (source uid, relationship_type, target uid) so reducer
