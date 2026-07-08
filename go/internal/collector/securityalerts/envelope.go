@@ -13,6 +13,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 )
 
 const githubDependabotProvider = "github_dependabot"
@@ -83,6 +85,40 @@ func NewGitHubDependabotAlertEnvelope(
 		"dismissed_at":          strings.TrimSpace(alert.DismissedAt),
 		"source_url":            sanitizeURL(alert.HTMLURL),
 		"correlation_anchors":   githubDependabotCorrelationAnchors(providerAlertID, identity.PackageID, alert),
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeSecurityAlertRepositoryAlert(securityalertv1.RepositoryAlert{
+			RepositoryID:        repositoryID,
+			Provider:            stringPtr(githubDependabotProvider),
+			ProviderAlertID:     stringPtr(providerAlertID),
+			ProviderAlertNumber: int64Ptr(int64(alert.Number)),
+			ProviderState:       stringPtr(strings.TrimSpace(alert.State)),
+			PackageID:           stringPtr(identity.PackageID),
+			Ecosystem:           stringPtr(string(identity.Ecosystem)),
+			PackageName:         stringPtr(identity.NormalizedName),
+			ManifestPath:        stringPtr(strings.TrimSpace(alert.Dependency.ManifestPath)),
+			DependencyScope:     stringPtr(strings.TrimSpace(alert.Dependency.Scope)),
+			Relationship:        stringPtr(strings.TrimSpace(alert.Dependency.Relationship)),
+			GHSAIDs:             githubDependabotGHSAIDs(alert.SecurityAdvisory),
+			CVEIDs:              githubDependabotCVEIDs(alert.SecurityAdvisory),
+			VulnerableRange:     stringPtr(strings.TrimSpace(alert.SecurityVulnerability.VulnerableVersionRange)),
+			PatchedVersion:      stringPtr(strings.TrimSpace(alert.SecurityVulnerability.FirstPatchedVersion.Identifier)),
+			Severity:            stringPtr(strings.ToLower(strings.TrimSpace(alert.SecurityAdvisory.Severity))),
+			CVSS:                githubDependabotCVSSPayload(alert.SecurityAdvisory.CVSS),
+			EPSS:                githubDependabotEPSSPayload(alert.SecurityAdvisory.EPSS),
+			CWEs:                githubDependabotCWEPayload(alert.SecurityAdvisory.CWEs),
+			Summary:             stringPtr(strings.TrimSpace(alert.SecurityAdvisory.Summary)),
+			Description:         stringPtr(strings.TrimSpace(alert.SecurityAdvisory.Description)),
+			CreatedAt:           stringPtr(strings.TrimSpace(alert.CreatedAt)),
+			UpdatedAt:           stringPtr(strings.TrimSpace(alert.UpdatedAt)),
+			FixedAt:             stringPtr(strings.TrimSpace(alert.FixedAt)),
+			DismissedAt:         stringPtr(strings.TrimSpace(alert.DismissedAt)),
+			SourceURL:           stringPtr(sanitizeURL(alert.HTMLURL)),
+			CorrelationAnchors:  githubDependabotCorrelationAnchors(providerAlertID, identity.PackageID, alert),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return facts.Envelope{
 		FactID:           securityAlertFactID(stableFactKey, ctx.ScopeID, ctx.GenerationID),

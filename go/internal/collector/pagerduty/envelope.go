@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 // NewIncidentRecordEnvelope converts one PagerDuty incident into an
@@ -40,6 +42,29 @@ func NewIncidentRecordEnvelope(ctx EnvelopeContext, incident Incident) (facts.En
 		"updated_at":            timeString(incident.UpdatedAt),
 		"resolved_at":           timeString(incident.ResolvedAt),
 		"source_url":            safeSourceURI(firstNonBlank(incident.HTMLURL, ctx.SourceURI)),
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentRecord(incidentv1.IncidentRecord{
+			Provider:            ProviderPagerDuty,
+			ProviderIncidentID:  strings.TrimSpace(incident.ID),
+			IncidentNumber:      int64Ptr(incident.IncidentNumber),
+			Title:               stringPtr(strings.TrimSpace(incident.Title)),
+			Status:              stringPtr(strings.TrimSpace(incident.Status)),
+			Urgency:             stringPtr(strings.TrimSpace(incident.Urgency)),
+			Priority:            serviceReferencePtr(incident.Priority),
+			ServiceID:           stringPtr(strings.TrimSpace(incident.Service.ID)),
+			Service:             serviceReferencePtr(incident.Service),
+			EscalationPolicy:    serviceReferencePtr(incident.Escalation),
+			Teams:               serviceReferences(incident.Teams),
+			Assignments:         serviceReferences(incident.Assignments),
+			CreatedAt:           stringPtr(timeString(incident.CreatedAt)),
+			UpdatedAt:           stringPtr(timeString(incident.UpdatedAt)),
+			ResolvedAt:          stringPtr(timeString(incident.ResolvedAt)),
+			SourceURL:           stringPtr(safeSourceURI(firstNonBlank(incident.HTMLURL, ctx.SourceURI))),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return envelope(ctx, facts.IncidentRecordFactKind, stableKey, payload, firstNonBlank(incident.HTMLURL, ctx.SourceURI), incident.ID), nil
 }
@@ -74,6 +99,22 @@ func NewLifecycleEventEnvelope(ctx EnvelopeContext, event LifecycleEvent) (facts
 		"created_at":            timeString(event.CreatedAt),
 		"source_url":            safeSourceURI(firstNonBlank(event.HTMLURL, ctx.SourceURI)),
 	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentLifecycleEvent(incidentv1.LifecycleEvent{
+			Provider:            ProviderPagerDuty,
+			ProviderEventID:     strings.TrimSpace(event.ID),
+			ProviderIncidentID:  strings.TrimSpace(event.IncidentID),
+			EventType:           stringPtr(strings.TrimSpace(event.Type)),
+			Actor:               serviceReferencePtr(event.Actor),
+			Channel:             stringPtr(strings.TrimSpace(event.Channel)),
+			Summary:             stringPtr(strings.TrimSpace(event.Summary)),
+			CreatedAt:           stringPtr(timeString(event.CreatedAt)),
+			SourceURL:           stringPtr(safeSourceURI(firstNonBlank(event.HTMLURL, ctx.SourceURI))),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	return envelope(ctx, facts.IncidentLifecycleEventFactKind, stableKey, payload, firstNonBlank(event.HTMLURL, ctx.SourceURI), event.ID), nil
 }
 
@@ -97,6 +138,21 @@ func NewChangeRecordEnvelope(ctx EnvelopeContext, change ChangeEvent) (facts.Env
 		"links":                 linksPayload(change.Links),
 		"timestamp":             timeString(change.Timestamp),
 		"source_url":            safeSourceURI(firstNonBlank(change.HTMLURL, ctx.SourceURI)),
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeChangeRecord(incidentv1.ChangeRecord{
+			Provider:            ProviderPagerDuty,
+			ProviderChangeID:    strings.TrimSpace(change.ID),
+			Summary:             stringPtr(strings.TrimSpace(change.Summary)),
+			Source:              stringPtr(strings.TrimSpace(change.Source)),
+			Services:            serviceReferences(change.Services),
+			Links:               changeLinks(change.Links),
+			Timestamp:           stringPtr(timeString(change.Timestamp)),
+			SourceURL:           stringPtr(safeSourceURI(firstNonBlank(change.HTMLURL, ctx.SourceURI))),
+			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return envelope(ctx, facts.ChangeRecordFactKind, stableKey, payload, firstNonBlank(change.HTMLURL, ctx.SourceURI), change.ID), nil
 }

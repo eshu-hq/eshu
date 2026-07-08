@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
 const (
@@ -111,6 +113,46 @@ func (p *stateParser) emitAppliedPagerDutyResource(
 		"url",
 		"webhook_secret",
 	)
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentRoutingAppliedPagerDutyResource(incidentv1.AppliedPagerDutyResource{
+			SourceClass:               incidentRoutingSourceClassApplied,
+			SourceKind:                incidentRoutingSourceKindTFState,
+			Outcome:                   "applied",
+			ResourceClass:             pagerDutyAppliedResourceClasses[resourceType],
+			TerraformStateAddress:     address,
+			ResourceType:              strings.TrimSpace(resource.Type),
+			ResourceName:              strings.TrimSpace(resource.Name),
+			ModuleAddress:             strings.TrimSpace(resource.Module),
+			ProviderAddress:           strings.TrimSpace(resource.Provider),
+			ScopeID:                   p.options.Scope.ScopeID,
+			StateGenerationID:         p.options.Generation.GenerationID,
+			StateLineage:              p.snapshot.Lineage,
+			StateSerial:               int64Ptr(p.snapshot.Serial),
+			BackendKind:               string(p.options.Source.BackendKind),
+			LocatorHash:               locatorHash(p.options.Source),
+			DeclaredMatchState:        "not_compared",
+			RedactionState:            payload["redaction_state"].(string),
+			ProviderObjectID:          optionalStringPtrFromPayload(payload, "provider_object_id"),
+			NameFingerprint:           optionalStringPtrFromPayload(payload, "name_fingerprint"),
+			EscalationPolicyReference: optionalStringPtrFromPayload(payload, "escalation_policy_reference"),
+			ServiceReference:          optionalStringPtrFromPayload(payload, "service_reference"),
+			IntegrationType:           optionalStringPtrFromPayload(payload, "integration_type"),
+			AlertCreation:             optionalStringPtrFromPayload(payload, "alert_creation"),
+			DeliveryMethod:            optionalStringPtrFromPayload(payload, "delivery_method"),
+			WebhookObjectReference:    optionalStringPtrFromPayload(payload, "webhook_object_reference"),
+			WebhookObjectType:         optionalStringPtrFromPayload(payload, "webhook_object_type"),
+			RedactedAttributes:        optionalStringPtrFromPayload(payload, "redacted_attributes"),
+			ConfigRedacted:            optionalBoolPtrFromPayload(payload, "config_redacted"),
+			EmailRedacted:             optionalBoolPtrFromPayload(payload, "email_redacted"),
+			HTMLURLRedacted:           optionalBoolPtrFromPayload(payload, "html_url_redacted"),
+			IntegrationKeyRedacted:    optionalBoolPtrFromPayload(payload, "integration_key_redacted"),
+			PrivateURLRedacted:        optionalBoolPtrFromPayload(payload, "private_url_redacted"),
+			RoutingKeyRedacted:        optionalBoolPtrFromPayload(payload, "routing_key_redacted"),
+			SecretRedacted:            optionalBoolPtrFromPayload(payload, "secret_redacted"),
+			URLRedacted:               optionalBoolPtrFromPayload(payload, "url_redacted"),
+			WebhookSecretRedacted:     optionalBoolPtrFromPayload(payload, "webhook_secret_redacted"),
+		})
+	})
 
 	stableKey := "applied_pagerduty_resource:" + address
 	return p.emitBodyFact(p.incidentRoutingEnvelope(
@@ -153,6 +195,37 @@ func (p *stateParser) emitAppliedAlertRoute(
 		payload["policy_redacted"] = true
 	}
 	setRoutingRedactionState(payload)
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentRoutingAppliedAlertRoute(incidentv1.AppliedAlertRoute{
+			SourceClass:                incidentRoutingSourceClassApplied,
+			SourceKind:                 incidentRoutingSourceKindTFState,
+			Outcome:                    "applied",
+			TerraformStateAddress:      address,
+			ResourceType:               strings.TrimSpace(resource.Type),
+			ResourceName:               strings.TrimSpace(resource.Name),
+			ModuleAddress:              strings.TrimSpace(resource.Module),
+			ProviderAddress:            strings.TrimSpace(resource.Provider),
+			ScopeID:                    p.options.Scope.ScopeID,
+			StateGenerationID:          p.options.Generation.GenerationID,
+			StateLineage:               p.snapshot.Lineage,
+			StateSerial:                int64Ptr(p.snapshot.Serial),
+			BackendKind:                string(p.options.Source.BackendKind),
+			LocatorHash:                locatorHash(p.options.Source),
+			DeclaredMatchState:         "not_compared",
+			RedactionState:             payload["redaction_state"].(string),
+			RouteType:                  routeType,
+			AWSARN:                     optionalStringPtrFromPayload(payload, "aws_arn"),
+			TargetReferenceKind:        optionalStringPtrFromPayload(payload, "target_reference_kind"),
+			TargetReferenceFingerprint: optionalStringPtrFromPayload(payload, "target_reference_fingerprint"),
+			NameFingerprint:            optionalStringPtrFromPayload(payload, "name_fingerprint"),
+			FunctionNameFingerprint:    optionalStringPtrFromPayload(payload, "function_name_fingerprint"),
+			TargetIDFingerprint:        optionalStringPtrFromPayload(payload, "target_id_fingerprint"),
+			RuleFingerprint:            optionalStringPtrFromPayload(payload, "rule_fingerprint"),
+			EndpointRedacted:           optionalBoolPtrFromPayload(payload, "endpoint_redacted"),
+			ValueRedacted:              optionalBoolPtrFromPayload(payload, "value_redacted"),
+			PolicyRedacted:             optionalBoolPtrFromPayload(payload, "policy_redacted"),
+		})
+	})
 
 	stableKey := "applied_alert_route:" + address
 	return p.emitBodyFact(p.incidentRoutingEnvelope(
@@ -168,6 +241,27 @@ func (p *stateParser) emitIncidentRoutingCoverageWarning(resource resourceContex
 	payload["outcome"] = "unsupported"
 	payload["reason"] = reason
 	payload["redaction_state"] = "none"
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeIncidentRoutingCoverageWarning(incidentv1.CoverageWarning{
+			SourceClass:           incidentRoutingSourceClassApplied,
+			SourceKind:            incidentRoutingSourceKindTFState,
+			Outcome:               "unsupported",
+			ScopeID:               p.options.Scope.ScopeID,
+			Reason:                reason,
+			RedactionState:        "none",
+			DeclaredMatchState:    "not_compared",
+			TerraformStateAddress: stringPtr(address),
+			ResourceType:          stringPtr(strings.TrimSpace(resource.Type)),
+			ResourceName:          stringPtr(strings.TrimSpace(resource.Name)),
+			ModuleAddress:         stringPtr(strings.TrimSpace(resource.Module)),
+			ProviderAddress:       stringPtr(strings.TrimSpace(resource.Provider)),
+			StateGenerationID:     stringPtr(p.options.Generation.GenerationID),
+			StateLineage:          stringPtr(p.snapshot.Lineage),
+			StateSerial:           int64Ptr(p.snapshot.Serial),
+			BackendKind:           stringPtr(string(p.options.Source.BackendKind)),
+			LocatorHash:           stringPtr(locatorHash(p.options.Source)),
+		})
+	})
 	stableKey := "coverage_warning:" + reason + ":" + address
 	return p.emitBodyFact(p.incidentRoutingEnvelope(
 		facts.IncidentRoutingCoverageWarningFactKind,

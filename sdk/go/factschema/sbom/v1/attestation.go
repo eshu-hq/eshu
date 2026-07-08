@@ -68,6 +68,10 @@ type Statement struct {
 	// "https://slsa.dev/provenance/v1"). Optional: empty on a malformed
 	// statement.
 	PredicateType *string `json:"predicate_type,omitempty"`
+
+	// SourceFormat is the source attestation encoding ("json" today).
+	// Optional.
+	SourceFormat *string `json:"source_format,omitempty"`
 }
 
 // SignatureVerification is the schema-version-1 typed payload for the
@@ -91,6 +95,10 @@ type SignatureVerification struct {
 	// the reducer's index falls back to this key when StatementID resolves
 	// to no known statement.
 	DocumentID *string `json:"document_id,omitempty"`
+
+	// StatementDigest is the SHA-256 digest of the verified statement.
+	// Optional: always emitted by the current runtime verifier.
+	StatementDigest *string `json:"statement_digest,omitempty"`
 
 	// VerificationResult is the raw provider-reported verification outcome
 	// (before the reducer's normalizedVerificationStatus mapping). Optional.

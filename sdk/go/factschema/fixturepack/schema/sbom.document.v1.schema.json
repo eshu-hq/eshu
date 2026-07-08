@@ -3,6 +3,39 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "component_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "created_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_by_tool": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
     "document_digest": {
       "type": [
         "string",
@@ -12,13 +45,43 @@
     "document_id": {
       "type": "string"
     },
+    "document_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "document_namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "format": {
       "type": [
         "string",
         "null"
       ]
     },
+    "generated_by_analyzer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "parse_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "serial_number": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_format": {
       "type": [
         "string",
         "null"
@@ -54,6 +117,12 @@
     "verification_status": {
       "type": [
         "string",
+        "null"
+      ]
+    },
+    "warning_count": {
+      "type": [
+        "integer",
         "null"
       ]
     }

@@ -33,6 +33,12 @@
         "null"
       ]
     },
+    "source_format": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "statement_digest": {
       "type": [
         "string",

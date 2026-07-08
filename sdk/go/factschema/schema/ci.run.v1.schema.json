@@ -15,6 +15,12 @@
         "null"
       ]
     },
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "commit_sha": {
       "type": [
         "string",

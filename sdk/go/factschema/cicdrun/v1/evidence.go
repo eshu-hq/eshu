@@ -39,6 +39,9 @@ type EnvironmentObservation struct {
 	// DeploymentStatus is the provider's deployment status for this
 	// environment. Optional.
 	DeploymentStatus *string `json:"deployment_status,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }
 
 // TriggerEdge is the schema-version-1 typed payload for the "ci.trigger_edge"
@@ -75,6 +78,9 @@ type TriggerEdge struct {
 
 	// SourceRunID is the upstream run's provider identifier. Optional.
 	SourceRunID *string `json:"source_run_id,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }
 
 // Step is the schema-version-1 typed payload for the "ci.step" fact kind: one
@@ -141,4 +147,7 @@ type Step struct {
 	// trusting it), so an absent value is the common, non-hinting case, not
 	// malformed input.
 	DeploymentHintSource *string `json:"deployment_hint_source,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }

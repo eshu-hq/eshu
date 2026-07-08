@@ -3,15 +3,51 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "alert_creation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "backend_kind": {
       "type": "string"
+    },
+    "config_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "declared_match_state": {
       "type": "string"
     },
+    "delivery_method": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "email_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "escalation_policy_reference": {
       "type": [
         "string",
+        "null"
+      ]
+    },
+    "html_url_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "integration_key_redacted": {
+      "type": [
+        "boolean",
         "null"
       ]
     },
@@ -36,10 +72,22 @@
     "outcome": {
       "type": "string"
     },
+    "private_url_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "provider_address": {
       "type": "string"
     },
     "provider_object_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "redacted_attributes": {
       "type": [
         "string",
         "null"
@@ -57,8 +105,20 @@
     "resource_type": {
       "type": "string"
     },
+    "routing_key_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "scope_id": {
       "type": "string"
+    },
+    "secret_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "service_reference": {
       "type": [
@@ -86,6 +146,30 @@
     },
     "terraform_state_address": {
       "type": "string"
+    },
+    "url_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "webhook_object_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "webhook_object_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "webhook_secret_redacted": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     }
   },
   "required": [

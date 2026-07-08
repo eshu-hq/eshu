@@ -115,6 +115,82 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			path:  "tfstate_candidate.go",
 			calls: []string{"EncodeTerraformStateCandidate"},
 		},
+		{
+			path: "sbomdocument/cyclonedx_fixture.go",
+			calls: []string{
+				"EncodeSBOMDocument",
+			},
+		},
+		{
+			path: "sbomdocument/envelope.go",
+			calls: []string{
+				"EncodeSBOMDependencyRelationship",
+				"EncodeSBOMExternalReference",
+				"EncodeSBOMWarning",
+			},
+		},
+		{
+			path: "sbomruntime/attestation.go",
+			calls: []string{
+				"EncodeAttestationSignatureVerification",
+				"EncodeAttestationStatement",
+				"EncodeSBOMWarning",
+			},
+		},
+		{
+			path: "scannerworker/sbomgenerator/envelope.go",
+			calls: []string{
+				"EncodeSBOMComponent",
+				"EncodeSBOMDocument",
+				"EncodeSBOMWarning",
+			},
+		},
+		{
+			path: "cicdrun/github_actions_fixture.go",
+			calls: []string{
+				"EncodeCICDArtifact",
+				"EncodeCICDEnvironmentObservation",
+				"EncodeCICDRun",
+				"EncodeCICDStep",
+				"EncodeCICDTriggerEdge",
+			},
+		},
+		{
+			path:  "securityalerts/envelope.go",
+			calls: []string{"EncodeSecurityAlertRepositoryAlert"},
+		},
+		{
+			path: "jira/envelope.go",
+			calls: []string{
+				"EncodeWorkItemExternalLink",
+				"EncodeWorkItemRecord",
+				"EncodeWorkItemTransition",
+			},
+		},
+		{
+			path: "pagerduty/envelope.go",
+			calls: []string{
+				"EncodeChangeRecord",
+				"EncodeIncidentLifecycleEvent",
+				"EncodeIncidentRecord",
+			},
+		},
+		{
+			path: "pagerduty/config_envelope.go",
+			calls: []string{
+				"EncodeIncidentRoutingCoverageWarning",
+				"EncodeIncidentRoutingObservedPagerDutyIntegration",
+				"EncodeIncidentRoutingObservedPagerDutyService",
+			},
+		},
+		{
+			path: "terraformstate/pagerduty_applied.go",
+			calls: []string{
+				"EncodeIncidentRoutingAppliedAlertRoute",
+				"EncodeIncidentRoutingAppliedPagerDutyResource",
+				"EncodeIncidentRoutingCoverageWarning",
+			},
+		},
 	}
 
 	for _, target := range targets {

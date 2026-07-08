@@ -13,6 +13,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 func newEnvelope(ctx FixtureContext, factKind, stableKey, sourceRecordID string, payload map[string]any) facts.Envelope {
@@ -111,6 +113,13 @@ func warningFact(ctx FixtureContext, documentID string, key string, reason Warni
 		"reason":      string(reason),
 		"summary":     summary,
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMWarning(sbomv1.Warning{
+			DocumentID: stringPtr(documentID),
+			Reason:     stringPtr(string(reason)),
+			Summary:    stringPtr(summary),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
 		"document_id": documentID,
 		"key":         key,
@@ -127,6 +136,15 @@ func dependencyFact(ctx FixtureContext, documentID, from, to, relType, relKind s
 		"relationship_type":   relType,
 		"relationship_origin": relKind,
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMDependencyRelationship(sbomv1.DependencyRelationship{
+			DocumentID:         documentID,
+			FromComponentID:    stringPtr(from),
+			ToComponentID:      stringPtr(to),
+			RelationshipType:   stringPtr(relType),
+			RelationshipOrigin: stringPtr(relKind),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMDependencyRelationshipFactKind, map[string]any{
 		"document_id":         documentID,
 		"from_component_id":   from,
@@ -145,6 +163,15 @@ func externalReferenceFact(ctx FixtureContext, documentID, componentID, refType,
 		"reference_url":     refURL,
 		"reference_locator": refLocator,
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeSBOMExternalReference(sbomv1.ExternalReference{
+			DocumentID:       documentID,
+			ComponentID:      stringPtr(componentID),
+			ReferenceType:    stringPtr(refType),
+			ReferenceURL:     stringPtr(refURL),
+			ReferenceLocator: stringPtr(refLocator),
+		})
+	})
 	stableKey := facts.StableID(facts.SBOMExternalReferenceFactKind, map[string]any{
 		"component_id":      componentID,
 		"document_id":       documentID,

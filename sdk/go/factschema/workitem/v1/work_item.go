@@ -185,6 +185,9 @@ type WorkItemTransition struct {
 
 	// CreatedAt is the transition timestamp (RFC 3339). Optional.
 	CreatedAt *string `json:"created_at,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }
 
 // WorkItemExternalLink is the schema-version-1 typed payload for the
@@ -275,4 +278,7 @@ type WorkItemExternalLink struct {
 	// redaction. Optional: empty for non-link facts and for links that did
 	// not canonicalize to a repository.
 	LinkedRepositoryID *string `json:"linked_repository_id,omitempty"`
+
+	// CollectorInstanceID is the collector boundary token. Optional.
+	CollectorInstanceID *string `json:"collector_instance_id,omitempty"`
 }
