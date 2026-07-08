@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//nolint:filelength // Django/DRF framework-route test suite — the positive,
+// negative, and legacy-vs-modern cases share a common set of assertion helpers
+// (assertStringSlice, assertRouteEntries) and splitting them into two files
+// would either duplicate those helpers or introduce a third test-helper file.
+
 package python
 
 import (
@@ -342,6 +347,183 @@ def health(request):
 
 custom_routes = [
     path("health/", health),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if len(frameworks) != 0 {
+		t.Fatalf("frameworks = %#v, want empty outside urlpatterns", frameworks)
+	}
+}
+
+func TestBuildPythonFrameworkSemanticsDjangoLegacyURLPatterns(t *testing.T) {
+	root, source, closer := parsePythonForTest(t, `from django.conf.urls import include, url
+from django.views import View
+
+class UserView(View):
+    def get(self, request):
+        return "user"
+    def post(self, request):
+        return "created"
+
+class ArticleView(View):
+    def get(self, request):
+        return "article"
+    def put(self, request):
+        return "updated"
+
+def health(request):
+    return "ok"
+
+urlpatterns = [
+    url(r'^user/?$', UserView.as_view()),
+    url(r'^users/login/?$', health),
+    url(r'^articles/?$', ArticleView.as_view()),
+    url(r'^nested/', include("nested.urls")),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if !reflect.DeepEqual(frameworks, []string{"django"}) {
+		t.Fatalf("frameworks = %#v, want [django]", frameworks)
+	}
+	django, _ := got["django"].(map[string]any)
+	if django == nil {
+		t.Fatalf("django semantics missing: %#v", got)
+	}
+	assertStringSlice(t, django, "route_methods", []string{"GET", "POST", "ANY", "PUT"})
+	assertStringSlice(t, django, "route_paths", []string{"/user/", "/users/login/", "/articles/"})
+	assertRouteEntries(t, django, []map[string]string{
+		{"method": "GET", "path": "/user/", "handler": "UserView.get"},
+		{"method": "POST", "path": "/user/", "handler": "UserView.post"},
+		{"method": "ANY", "path": "/users/login/", "handler": "health"},
+		{"method": "GET", "path": "/articles/", "handler": "ArticleView.get"},
+		{"method": "PUT", "path": "/articles/", "handler": "ArticleView.put"},
+	})
+}
+
+func TestBuildPythonFrameworkSemanticsDjangoRePath(t *testing.T) {
+	root, source, closer := parsePythonForTest(t, `from django.urls import re_path
+from django.views import View
+
+class UserView(View):
+    def get(self, request):
+        return "user"
+
+urlpatterns = [
+    re_path(r'^user/?$', UserView.as_view()),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if !reflect.DeepEqual(frameworks, []string{"django"}) {
+		t.Fatalf("frameworks = %#v, want [django]", frameworks)
+	}
+	django, _ := got["django"].(map[string]any)
+	if django == nil {
+		t.Fatalf("django semantics missing: %#v", got)
+	}
+	assertStringSlice(t, django, "route_methods", []string{"GET"})
+	assertStringSlice(t, django, "route_paths", []string{"/user/"})
+	assertRouteEntries(t, django, []map[string]string{
+		{"method": "GET", "path": "/user/", "handler": "UserView.get"},
+	})
+}
+
+func TestBuildPythonFrameworkSemanticsDjangoURLAndPathMixed(t *testing.T) {
+	root, source, closer := parsePythonForTest(t, `from django.conf.urls import url
+from django.urls import path
+from django.views import View
+
+class UserView(View):
+    def get(self, request):
+        return "user"
+
+class ReportView(View):
+    def post(self, request):
+        return "created"
+
+urlpatterns = [
+    url(r'^user/?$', UserView.as_view()),
+    path("reports/", ReportView.as_view()),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if !reflect.DeepEqual(frameworks, []string{"django"}) {
+		t.Fatalf("frameworks = %#v, want [django]", frameworks)
+	}
+	django, _ := got["django"].(map[string]any)
+	if django == nil {
+		t.Fatalf("django semantics missing: %#v", got)
+	}
+	assertStringSlice(t, django, "route_paths", []string{"/user/", "/reports/"})
+}
+
+func TestBuildPythonFrameworkSemanticsDjangoURLConfImportOnly(t *testing.T) {
+	// Negative: url() outside urlpatterns should not produce routes.
+	root, source, closer := parsePythonForTest(t, `from django.conf.urls import url
+from django.views import View
+
+class UserView(View):
+    def get(self, request):
+        return "user"
+
+not_urlpatterns = [
+    url(r'^user/?$', UserView.as_view()),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if len(frameworks) != 0 {
+		t.Fatalf("frameworks = %#v, want empty for url() outside urlpatterns", frameworks)
+	}
+}
+
+func TestBuildPythonFrameworkSemanticsNonDjangoModule(t *testing.T) {
+	// Negative: non-Django module with url() calls should not trigger Django detection.
+	root, source, closer := parsePythonForTest(t, `from django.views import View
+
+class UserView(View):
+    def get(self, request):
+        return "user"
+
+def url(path, view):
+    return (path, view)
+
+urlpatterns = [
+    url("/user/", UserView.as_view()),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if len(frameworks) != 0 {
+		t.Fatalf("frameworks = %#v, want empty for non-Django module with shadowed url helper", frameworks)
+	}
+}
+
+func TestBuildPythonFrameworkSemanticsDjangoRequiresURLPatternsContextURL(t *testing.T) {
+	root, source, closer := parsePythonForTest(t, `from django.conf.urls import url
+from django.views import View
+
+class UserView(View):
+    def get(self, request):
+        return "user"
+
+custom_routes = [
+    url(r'^user/?$', UserView.as_view()),
 ]
 `)
 	defer closer()

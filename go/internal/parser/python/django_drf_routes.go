@@ -48,19 +48,23 @@ func pythonDjangoURLPatternEntries(
 	source []byte,
 	classMethods map[string][]string,
 ) []map[string]string {
-	if !pythonHasDjangoPathImport(root, source) {
+	if !pythonHasDjangoURLImport(root, source) {
 		return nil
 	}
 	functionNames := pythonModuleFunctionNames(root, source)
 	entries := make([]map[string]string, 0)
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "call" || pythonCallSimpleName(node.ChildByFieldName("function"), source) != "path" {
+		if node.Kind() != "call" {
+			return
+		}
+		callName := pythonCallSimpleName(node.ChildByFieldName("function"), source)
+		if callName != "path" && callName != "url" && callName != "re_path" {
 			return
 		}
 		if !pythonCallInURLPatterns(node, source) {
 			return
 		}
-		routePath := pythonDjangoRoutePath(pythonPositionalArgument(node, 0), source)
+		routePath := pythonDjangoURLPatternPath(node, callName, source)
 		if routePath == "" {
 			return
 		}
@@ -108,7 +112,11 @@ func pythonDjangoViewEntries(
 		}
 		methods := classMethods[className]
 		if len(methods) == 0 {
-			return nil
+			// Class is not defined in this module (imported from
+			// another file). Emit an ANY-method entry with no handler
+			// so the route is still counted, matching the
+			// imported-class convention.
+			return []map[string]string{routeEntry("ANY", routePath, "")}
 		}
 		entries := make([]map[string]string, 0, len(methods))
 		for _, method := range methods {
@@ -219,6 +227,29 @@ func pythonViewTargetName(node *tree_sitter.Node, source []byte) string {
 	}
 }
 
+// pythonDjangoURLPatternPath extracts a normalized route path from the first
+// positional argument of a path(), url(), or re_path() call. For path() the
+// argument is a literal route string. For url() and re_path() the argument is
+// a regex pattern whose anchors (^, $) and optional trailing-slash quantifier
+// (/? at end) are stripped before normalization. pythonEnsureRoutePath handles
+// the empty-string-to-"/" conversion for all call forms.
+func pythonDjangoURLPatternPath(call *tree_sitter.Node, callName string, source []byte) string {
+	arg := pythonPositionalArgument(call, 0)
+	if arg == nil || arg.Kind() != "string" {
+		return ""
+	}
+	raw := pythonStringLiteralValue(arg, source)
+	if callName == "url" || callName == "re_path" {
+		raw = strings.TrimPrefix(raw, "^")
+		raw = strings.TrimSuffix(raw, "$")
+		// Strip the `?` from an optional trailing slash group (/? → /).
+		if strings.HasSuffix(raw, "/?") {
+			raw = raw[:len(raw)-1]
+		}
+	}
+	return pythonEnsureRoutePath(raw)
+}
+
 func pythonDjangoRoutePath(node *tree_sitter.Node, source []byte) string {
 	if node == nil || node.Kind() != "string" {
 		return ""
@@ -292,14 +323,19 @@ func pythonPositionalArgument(call *tree_sitter.Node, index int) *tree_sitter.No
 	return nil
 }
 
-func pythonHasDjangoPathImport(root *tree_sitter.Node, source []byte) bool {
+// pythonHasDjangoURLImport returns true when the module contains an
+// import-from statement that loads a URL dispatcher from either
+// django.conf.urls (legacy) or django.urls (modern). It does not require
+// a specific imported name (url, path, re_path, include, etc.) because a
+// Django URLconf module may import only the names it needs.
+func pythonHasDjangoURLImport(root *tree_sitter.Node, source []byte) bool {
 	hasImport := false
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if hasImport || node.Kind() != "import_from_statement" {
 			return
 		}
 		text := nodeText(node, source)
-		hasImport = strings.Contains(text, "django.urls") && strings.Contains(text, "path")
+		hasImport = strings.Contains(text, "django.conf.urls") || strings.Contains(text, "django.urls")
 	})
 	return hasImport
 }
@@ -361,18 +397,17 @@ func pythonMethodsByClassGathered(
 	return byClass
 }
 
-// pythonHasDjangoPathImportGathered mirrors pythonHasDjangoPathImport
+// pythonHasDjangoURLImportGathered mirrors pythonHasDjangoURLImport
 // but iterates a pre-gathered import slice. It only considers
-// import_from_statement nodes, matching the original helper's exact
-// predicate (`from django.urls import path`); an `import` statement
-// (`import django.urls as path`) must not match.
-func pythonHasDjangoPathImportGathered(gathered []*tree_sitter.Node, source []byte) bool {
+// import_from_statement nodes, matching the original helper's predicate
+// (an import like `import django.urls as path` must not match).
+func pythonHasDjangoURLImportGathered(gathered []*tree_sitter.Node, source []byte) bool {
 	for _, node := range gathered {
 		if node.Kind() != "import_from_statement" {
 			continue
 		}
 		text := nodeText(node, source)
-		if strings.Contains(text, "django.urls") && strings.Contains(text, "path") {
+		if strings.Contains(text, "django.conf.urls") || strings.Contains(text, "django.urls") {
 			return true
 		}
 	}
@@ -394,19 +429,20 @@ func pythonDjangoURLPatternEntriesGathered(
 	source []byte,
 	classMethods map[string][]string,
 ) []map[string]string {
-	if !pythonHasDjangoPathImportGathered(g.imports, source) {
+	if !pythonHasDjangoURLImportGathered(g.imports, source) {
 		return nil
 	}
 	functionNames := pythonModuleFunctionNamesGathered(g.functions, source)
 	entries := make([]map[string]string, 0)
 	for _, node := range g.calls {
-		if pythonCallSimpleName(node.ChildByFieldName("function"), source) != "path" {
+		callName := pythonCallSimpleName(node.ChildByFieldName("function"), source)
+		if callName != "path" && callName != "url" && callName != "re_path" {
 			continue
 		}
 		if !pythonCallInURLPatterns(node, source) {
 			continue
 		}
-		routePath := pythonDjangoRoutePath(pythonPositionalArgument(node, 0), source)
+		routePath := pythonDjangoURLPatternPath(node, callName, source)
 		if routePath == "" {
 			continue
 		}
