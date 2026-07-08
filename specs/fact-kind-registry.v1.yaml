@@ -1,5 +1,4 @@
 # Generated fact-kind registry contract v1.
-#
 # This is the source input for go/internal/facts/fact_kind_registry.generated.go
 # and go/internal/facts/FACT_KIND_REGISTRIES.md. Keep fact kind, schema version,
 # reducer domain, projection, admission, read surface, owner, and truth-profile
@@ -117,10 +116,8 @@ families:
     # file fact read truth is the file listing, which that route does NOT
     # return; it is served through the MCP file tools. read_surface_overrides
     # points file at list_repository_files so its coverage exercises file rows
-    # (the golden-corpus gate asserts that tool live), not repository rows.
     read_surface: "GET /api/v0/repositories"
-    read_surface_overrides:
-      file: "list_repository_files"
+    read_surface_overrides: {file: "list_repository_files"}
     truth_profile: deterministic
     provider_key_independent: true
     payload_schema_overrides:
@@ -134,7 +131,7 @@ families:
     projection_hook: reducer_derived_read_model
     admission_hook: facts.ValidateSchemaVersion
     read_surface: "GET /api/v0/supply-chain/impact/findings"
-    read_surface_overrides: {reducer_aws_cloud_runtime_drift_finding: "POST /api/v0/aws/runtime-drift/findings", reducer_multi_cloud_runtime_drift_finding: "POST /api/v0/cloud/runtime-drift/findings"}
+    read_surface_overrides: {reducer_aws_cloud_runtime_drift_finding: "POST /api/v0/aws/runtime-drift/findings", reducer_multi_cloud_runtime_drift_finding: "POST /api/v0/cloud/runtime-drift/findings", reducer_package_ownership_correlation: "GET /api/v0/package-registry/correlations", reducer_package_consumption_correlation: "GET /api/v0/package-registry/correlations", reducer_package_publication_correlation: "GET /api/v0/package-registry/correlations"}
     truth_profile: provider_gated
     provider_key_independent: false
     payload_schema_overrides: {reducer_supply_chain_impact_finding: "sdk/go/factschema/schema/reducer_supply_chain_impact_finding.v1.schema.json", reducer_aws_cloud_runtime_drift_finding: "sdk/go/factschema/schema/reducer_aws_cloud_runtime_drift_finding.v1.schema.json", reducer_multi_cloud_runtime_drift_finding: "sdk/go/factschema/schema/reducer_multi_cloud_runtime_drift_finding.v1.schema.json", reducer_package_ownership_correlation: "sdk/go/factschema/schema/reducer_package_ownership_correlation.v1.schema.json", reducer_package_consumption_correlation: "sdk/go/factschema/schema/reducer_package_consumption_correlation.v1.schema.json", reducer_package_publication_correlation: "sdk/go/factschema/schema/reducer_package_publication_correlation.v1.schema.json"}
@@ -334,9 +331,7 @@ families:
     read_surface: "GET /api/v0/supply-chain/impact/findings"
     truth_profile: fixture_gated
     provider_key_independent: false
-    payload_schema_overrides:
-      scanner_worker.analysis: "sdk/go/factschema/schema/scanner_worker.analysis.v1.schema.json"
-      scanner_worker.warning: "sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json"
+    payload_schema_overrides: {scanner_worker.analysis: "sdk/go/factschema/schema/scanner_worker.analysis.v1.schema.json", scanner_worker.warning: "sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json"}
     kinds: [scanner_worker.analysis, scanner_worker.warning]
   secrets_iam:
     lifecycle_owner: go/internal/facts
@@ -389,8 +384,7 @@ families:
     read_surface: "GET /api/v0/supply-chain/security-alerts/reconciliations"
     truth_profile: provider_gated
     provider_key_independent: false
-    payload_schema_overrides:
-      security_alert.repository_alert: "sdk/go/factschema/schema/security_alert.repository_alert.v1.schema.json"
+    payload_schema_overrides: {security_alert.repository_alert: "sdk/go/factschema/schema/security_alert.repository_alert.v1.schema.json"}
     kinds: [security_alert.repository_alert]
   semantic:
     lifecycle_owner: go/internal/facts
@@ -399,8 +393,7 @@ families:
     projection_hook: semantic_evidence
     admission_hook: facts.ValidateSchemaVersion
     read_surface: "GET /api/v0/semantic/documentation-observations"
-    read_surface_overrides:
-      semantic.code_hint: "GET /api/v0/semantic/code-hints"
+    read_surface_overrides: {semantic.code_hint: "GET /api/v0/semantic/code-hints"}
     truth_profile: optional_semantic
     policy_gate: semanticpolicy
     provider_key_independent: false

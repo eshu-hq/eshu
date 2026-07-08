@@ -4480,6 +4480,18 @@
         ],
         "minimum_results": 1
       },
+      "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50": {
+        "description": "Package registry correlations for the demo package; confirms reducer package correlations are queryable through the HTTP route.",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "required_json_paths": [
+          "correlations[].outcome",
+          "correlations[].relationship_kind"
+        ],
+        "minimum_results": 1
+      },
       "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo": {
         "description": "Secrets/IAM posture summary (governed projection, default-off per ADR #1314); confirms the read surface is mounted and returns a valid summary object.",
         "required_response_fields": [

@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 224/399 surfaces satisfied (56.14%)** — mode: blocking.
+**Overall: 225/400 surfaces satisfied (56.25%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -13,7 +13,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
 | Capability claims | 131 | 131 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 21 | 21 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 22 | 22 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 0 | 27 | 0.00% | 27 | 0 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 2 | 52 | 3.85% | 50 | 0 |
 | Retractable node types (delta) | 1 | 87 | 1.15% | 86 | 0 |
 | Collectors | 22 | 34 | 64.71% | 12 | 8 |
-| **Total** | **224** | **399** | **56.14%** | **175** | **9** |
+| **Total** | **225** | **400** | **56.25%** | **175** | **9** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 211 | 211 | 100.00% | 0 | 5 |
+| baseline | 212 | 212 | 100.00% | 0 | 5 |
 | cost | 1 | 26 | 3.85% | 25 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 4 | 140 | 2.86% | 136 | 0 |
@@ -252,7 +252,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 - `collector:terraform_state` (fault)
 - `collector:vulnerability_intelligence` (fault)
 
-## Covered surfaces (224)
+## Covered surfaces (225)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -426,6 +426,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 | `read_surface:GET /api/v0/images` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
 | `read_surface:GET /api/v0/incidents/{incident_id}/context` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/incidents/PSCD1/context` |
 | `read_surface:GET /api/v0/observability/coverage/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
+| `read_surface:GET /api/v0/package-registry/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50` |
 | `read_surface:GET /api/v0/package-registry/packages` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |
 | `read_surface:GET /api/v0/repositories` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/repositories` |
 | `read_surface:GET /api/v0/secrets-iam/posture-summary` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |

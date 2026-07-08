@@ -3639,7 +3639,7 @@ runtime knob changes.
 | Malformed persisted package correlation facts | Missing `package_id` could be skipped by consumers without a typed quarantine path | Missing `package_id` is rejected by the decode wrapper and counted as input-invalid while valid sibling facts continue |
 | Payload-usage manifest coverage | 103 governed struct-backed fact kinds | 106 governed struct-backed fact kinds |
 | Fact-kind registry coverage | 3 reducer_derived schema-version rows | 6 reducer_derived schema-version rows, adding ownership, consumption, and publication package correlations |
-| Code coverage report | 4,190 files, 200,453 / 267,133 statements covered | 4,192 files, 200,494 / 267,190 statements covered |
+| Code coverage report | 4,190 files, 200,453 / 267,133 statements covered | 4,195 files, 200,707 / 267,639 statements covered |
 
 Benchmark Evidence: `go test ./internal/reducer -run '^$' -bench
 BenchmarkBuildSupplyChainImpactIndexWithQuarantine -benchmem -count=1` covered
