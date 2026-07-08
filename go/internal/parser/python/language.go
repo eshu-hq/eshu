@@ -246,8 +246,9 @@ func Parse(
 	sortNamedBucket(payload, "imports")
 	sortNamedBucket(payload, "function_calls")
 	sortNamedBucket(payload, "type_annotations")
-	payload["framework_semantics"] = buildPythonFrameworkSemantics(root, source)
-	payload["orm_table_mappings"] = buildPythonORMTableMappings(root, source)
+	fwGathered := gatherPythonFrameworkNodes(root)
+	payload["framework_semantics"] = buildPythonFrameworkSemanticsGathered(fwGathered, root, source)
+	payload["orm_table_mappings"] = buildPythonORMTableMappingsGathered(fwGathered.classes, source)
 
 	emitValueFlowBuckets(payload, root, source, options)
 

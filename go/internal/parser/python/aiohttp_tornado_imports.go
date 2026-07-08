@@ -115,3 +115,15 @@ func pythonNodeTextInSet(node *tree_sitter.Node, source []byte, values map[strin
 	_, ok := values[strings.TrimSpace(nodeText(node, source))]
 	return ok
 }
+
+// pythonWalkImportStatementsGathered mirrors pythonWalkImportStatements
+// but iterates a pre-gathered slice of import_statement / import_from_statement
+// nodes instead of walking the full tree.
+func pythonWalkImportStatementsGathered(gathered []*tree_sitter.Node, source []byte, visit func(statement string)) {
+	for _, node := range gathered {
+		statement := strings.Join(strings.Fields(nodeText(node, source)), " ")
+		if statement != "" {
+			visit(statement)
+		}
+	}
+}
