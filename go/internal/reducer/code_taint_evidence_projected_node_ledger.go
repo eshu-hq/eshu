@@ -54,13 +54,15 @@ type CodeTaintEvidenceProjectedNodeLedger interface {
 		scopeIDs []string,
 	) error
 
-	// PruneStale removes ledger rows for the given evidence source and scope
-	// whose generation is not the current generation.
-	PruneStale(
+	// PruneStaleForUIDs removes ledger rows for the given evidence source,
+	// scope, and stale generation whose node_uid is in the provided list.
+	// Only the uids that were actually retracted from the graph are pruned.
+	PruneStaleForUIDs(
 		ctx context.Context,
 		evidenceSource string,
 		scopeID string,
 		currentGenerationID string,
+		uids []string,
 	) error
 
 	// LedgerHasRowsForSource returns true when at least one row exists for the

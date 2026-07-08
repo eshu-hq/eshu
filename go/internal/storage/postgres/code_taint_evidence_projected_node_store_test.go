@@ -182,31 +182,47 @@ func TestCodeTaintEvidenceProjectedNodeStorePruneForScopes(t *testing.T) {
 	}
 }
 
-// TestCodeTaintEvidenceProjectedNodeStorePruneStale proves the stale prune
-// deletes rows with generation_id <> current.
-func TestCodeTaintEvidenceProjectedNodeStorePruneStale(t *testing.T) {
+// TestCodeTaintEvidenceProjectedNodeStorePruneStaleForUIDs proves
+// PruneStaleForUIDs deletes only the given uids' stale rows — the query
+// filters by generation_id <> current AND node_uid = ANY($4).
+func TestCodeTaintEvidenceProjectedNodeStorePruneStaleForUIDs(t *testing.T) {
 	t.Parallel()
 
 	db := &recordingExecQueryer{}
 	store := NewCodeTaintEvidenceProjectedNodeStore(db)
 
-	if err := store.PruneStale(
+	if err := store.PruneStaleForUIDs(
 		context.Background(),
 		"reducer/code-taint",
 		"scope-1",
 		"gen-current",
+		[]string{"uid-x", "uid-y"},
 	); err != nil {
-		t.Fatalf("PruneStale error: %v", err)
+		t.Fatalf("PruneStaleForUIDs error: %v", err)
 	}
 	if len(db.execs) != 1 {
 		t.Fatalf("exec calls = %d, want 1", len(db.execs))
 	}
 	query := db.execs[0].query
 	if !strings.Contains(query, "DELETE FROM code_taint_evidence_projected_node") {
-		t.Fatalf("PruneStale query missing DELETE:\n%s", query)
+		t.Fatalf("PruneStaleForUIDs query missing DELETE:\n%s", query)
 	}
 	if !strings.Contains(query, "generation_id <> $3") {
-		t.Fatalf("PruneStale query missing generation_id <>:\n%s", query)
+		t.Fatalf("PruneStaleForUIDs query missing generation_id <>:\n%s", query)
+	}
+	if !strings.Contains(query, "node_uid = ANY($4)") {
+		t.Fatalf("PruneStaleForUIDs query missing node_uid = ANY($4):\n%s", query)
+	}
+	args := db.execs[0].args
+	if len(args) != 4 || args[0] != "reducer/code-taint" || args[1] != "scope-1" || args[2] != "gen-current" {
+		t.Fatalf("args wrong: %+v", args)
+	}
+	uids, ok := args[3].([]string)
+	if !ok {
+		t.Fatalf("args[3] is not []string: %T", args[3])
+	}
+	if len(uids) != 2 || uids[0] != "uid-x" || uids[1] != "uid-y" {
+		t.Fatalf("uids = %v, want [uid-x uid-y]", uids)
 	}
 }
 

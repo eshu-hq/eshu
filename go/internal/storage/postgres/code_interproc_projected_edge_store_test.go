@@ -183,31 +183,48 @@ func TestCodeInterprocProjectedEdgeStorePruneForScopes(t *testing.T) {
 	}
 }
 
-// TestCodeInterprocProjectedEdgeStorePruneStale proves the stale prune
-// deletes rows with generation_id <> current.
-func TestCodeInterprocProjectedEdgeStorePruneStale(t *testing.T) {
+// TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs proves
+// PruneStaleForUIDs deletes only the given uids' stale rows — the query
+// filters by generation_id <> current AND source_function_uid = ANY($4).
+func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 	t.Parallel()
 
 	db := &recordingExecQueryer{}
 	store := NewCodeInterprocProjectedEdgeStore(db)
 
-	if err := store.PruneStale(
+	if err := store.PruneStaleForUIDs(
 		context.Background(),
 		"reducer/code-interproc",
 		"scope-1",
 		"gen-current",
+		[]string{"uid-a", "uid-b"},
 	); err != nil {
-		t.Fatalf("PruneStale error: %v", err)
+		t.Fatalf("PruneStaleForUIDs error: %v", err)
 	}
 	if len(db.execs) != 1 {
 		t.Fatalf("exec calls = %d, want 1", len(db.execs))
 	}
 	query := db.execs[0].query
 	if !strings.Contains(query, "DELETE FROM code_interproc_projected_edge") {
-		t.Fatalf("PruneStale query missing DELETE:\n%s", query)
+		t.Fatalf("PruneStaleForUIDs query missing DELETE:\n%s", query)
 	}
 	if !strings.Contains(query, "generation_id <> $3") {
-		t.Fatalf("PruneStale query missing generation_id <>:\n%s", query)
+		t.Fatalf("PruneStaleForUIDs query missing generation_id <>:\n%s", query)
+	}
+	if !strings.Contains(query, "source_function_uid = ANY($4)") {
+		t.Fatalf("PruneStaleForUIDs query missing source_function_uid = ANY($4):\n%s", query)
+	}
+	args := db.execs[0].args
+	if len(args) != 4 || args[0] != "reducer/code-interproc" || args[1] != "scope-1" || args[2] != "gen-current" {
+		t.Fatalf("args wrong: %+v", args)
+	}
+	// args[3] should be []string{"uid-a", "uid-b"}.
+	uids, ok := args[3].([]string)
+	if !ok {
+		t.Fatalf("args[3] is not []string: %T", args[3])
+	}
+	if len(uids) != 2 || uids[0] != "uid-a" || uids[1] != "uid-b" {
+		t.Fatalf("uids = %v, want [uid-a uid-b]", uids)
 	}
 }
 

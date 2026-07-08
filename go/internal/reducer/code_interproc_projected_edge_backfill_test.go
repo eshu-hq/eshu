@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"testing"
 	"time"
@@ -147,7 +148,7 @@ func (l *fakeBackfillLedger) PruneForScopes(_ context.Context, _ string, _ []str
 
 func (l *fakeBackfillLedger) PruneForSource(_ context.Context, _ string) error { return nil }
 
-func (l *fakeBackfillLedger) PruneStale(_ context.Context, _ string, _ string, _ string) error {
+func (l *fakeBackfillLedger) PruneStaleForUIDs(_ context.Context, _ string, _ string, _ string, _ []string) error {
 	return nil
 }
 
@@ -323,6 +324,148 @@ func TestCodeInterprocProjectedEdgeBackfillerNilLedgerNoOp(t *testing.T) {
 
 	if err := b.Run(context.Background()); err != nil {
 		t.Fatalf("Run error with nil Ledger: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Fake backfill state marker
+// ---------------------------------------------------------------------------
+type fakeBackfillStateMarker struct {
+	complete     map[string]bool
+	markComplete map[string]time.Time
+}
+
+func newFakeBackfillStateMarker() *fakeBackfillStateMarker {
+	return &fakeBackfillStateMarker{
+		complete:     make(map[string]bool),
+		markComplete: make(map[string]time.Time),
+	}
+}
+
+func (m *fakeBackfillStateMarker) IsComplete(_ context.Context, key string) (bool, error) {
+	return m.complete[key], nil
+}
+
+func (m *fakeBackfillStateMarker) MarkComplete(_ context.Context, key string, at time.Time) error {
+	m.markComplete[key] = at
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// StateMarker-driven backfill tests
+// ---------------------------------------------------------------------------
+
+// TestCodeInterprocProjectedEdgeBackfillerStateMarkerNotCompleteBackfills proves
+// that when count > 0 and the marker says the source is NOT complete, the
+// backfiller enumerates, records, and calls MarkComplete.
+func TestCodeInterprocProjectedEdgeBackfillerStateMarkerNotCompleteBackfills(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeBackfillReader{
+		count: 5,
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
+			return []ProjectedTaintEdgeRow{
+				{EvidenceSource: codeInterprocEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceFunctionUID: "uid-a"},
+			}, nil
+		},
+	}
+	ledger := newFakeBackfillLedger()
+	marker := newFakeBackfillStateMarker()
+
+	b := CodeInterprocProjectedEdgeBackfiller{
+		Reader:          reader,
+		Ledger:          ledger,
+		StateMarker:     marker,
+		EvidenceSources: []string{codeInterprocEvidenceSource},
+		Now:             time.Now,
+	}
+
+	if err := b.Run(context.Background()); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+
+	if len(ledger.recordedCalls()) != 1 {
+		t.Fatalf("RecordProjectedEdges calls = %d, want 1", len(ledger.recordedCalls()))
+	}
+
+	key := codeInterprocBackfillKey(codeInterprocEvidenceSource)
+	if _, ok := marker.markComplete[key]; !ok {
+		t.Fatalf("MarkComplete was NOT called for key %q", key)
+	}
+}
+
+// TestCodeInterprocProjectedEdgeBackfillerStateMarkerCompleteSkips proves that
+// when count > 0 but the marker says the source IS complete, the backfiller
+// skips enumeration entirely.
+func TestCodeInterprocProjectedEdgeBackfillerStateMarkerCompleteSkips(t *testing.T) {
+	t.Parallel()
+
+	enumerateCalled := false
+	reader := fakeBackfillReader{
+		count: 5,
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
+			enumerateCalled = true
+			return nil, nil
+		},
+	}
+	ledger := newFakeBackfillLedger()
+	marker := newFakeBackfillStateMarker()
+	marker.complete[codeInterprocBackfillKey(codeInterprocEvidenceSource)] = true
+
+	b := CodeInterprocProjectedEdgeBackfiller{
+		Reader:          reader,
+		Ledger:          ledger,
+		StateMarker:     marker,
+		EvidenceSources: []string{codeInterprocEvidenceSource},
+		Now:             time.Now,
+	}
+
+	if err := b.Run(context.Background()); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+
+	if enumerateCalled {
+		t.Fatalf("EnumerateProjectedTaintEdges was called but source is already marked complete")
+	}
+	if len(ledger.recordedCalls()) != 0 {
+		t.Fatalf("RecordProjectedEdges calls = %d, want 0", len(ledger.recordedCalls()))
+	}
+}
+
+// TestCodeInterprocProjectedEdgeBackfillerRecordErrorSkipsMarkComplete proves
+// that when RecordProjectedEdges fails, the error is returned and MarkComplete
+// is NOT called (so the next startup re-runs the backfill).
+func TestCodeInterprocProjectedEdgeBackfillerRecordErrorSkipsMarkComplete(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeBackfillReader{
+		count: 5,
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
+			return []ProjectedTaintEdgeRow{
+				{EvidenceSource: codeInterprocEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceFunctionUID: "uid-a"},
+			}, nil
+		},
+	}
+	ledger := newFakeBackfillLedger()
+	ledger.recordErr = errors.New("record failed")
+	marker := newFakeBackfillStateMarker()
+
+	b := CodeInterprocProjectedEdgeBackfiller{
+		Reader:          reader,
+		Ledger:          ledger,
+		StateMarker:     marker,
+		EvidenceSources: []string{codeInterprocEvidenceSource},
+		Now:             time.Now,
+	}
+
+	err := b.Run(context.Background())
+	if err == nil {
+		t.Fatal("Run error = nil, want record-failed error")
+	}
+
+	key := codeInterprocBackfillKey(codeInterprocEvidenceSource)
+	if _, ok := marker.markComplete[key]; ok {
+		t.Fatalf("MarkComplete WAS called for key %q, want skipped after record error", key)
 	}
 }
 

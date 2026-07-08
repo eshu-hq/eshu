@@ -71,11 +71,12 @@ WHERE evidence_source = $1
   AND scope_id = ANY($2)
 `
 
-const pruneStaleCodeTaintEvidenceSQL = `
+const pruneStaleCodeTaintEvidenceForUIDsSQL = `
 DELETE FROM code_taint_evidence_projected_node
 WHERE evidence_source = $1
   AND scope_id = $2
   AND generation_id <> $3
+  AND node_uid = ANY($4)
 `
 
 const codeTaintEvidenceHasRowsForSourceSQL = `
@@ -269,22 +270,28 @@ func (s CodeTaintEvidenceProjectedNodeStore) PruneForScopes(
 	return nil
 }
 
-// PruneStale removes ledger rows for the given evidence source and scope whose
-// generation is not the current generation.
-func (s CodeTaintEvidenceProjectedNodeStore) PruneStale(
+// PruneStaleForUIDs removes ledger rows for the given evidence source, scope,
+// and stale generation whose node_uid is in the provided list. Only the uids
+// that were actually retracted from the graph are pruned so a deleteLimit-bounded
+// enumeration never orphans graph nodes from ledger rows beyond the batch.
+func (s CodeTaintEvidenceProjectedNodeStore) PruneStaleForUIDs(
 	ctx context.Context,
 	evidenceSource string,
 	scopeID string,
 	currentGenerationID string,
+	uids []string,
 ) error {
 	if s.db == nil {
 		return fmt.Errorf("code taint evidence projected node store database is required")
 	}
+	if len(uids) == 0 {
+		return nil
+	}
 	if _, err := s.db.ExecContext(
-		ctx, pruneStaleCodeTaintEvidenceSQL,
-		evidenceSource, scopeID, currentGenerationID,
+		ctx, pruneStaleCodeTaintEvidenceForUIDsSQL,
+		evidenceSource, scopeID, currentGenerationID, uids,
 	); err != nil {
-		return fmt.Errorf("prune stale code taint evidence projected nodes: %w", err)
+		return fmt.Errorf("prune stale code taint evidence projected nodes for uids: %w", err)
 	}
 	return nil
 }

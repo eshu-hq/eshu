@@ -245,10 +245,12 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 			); err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence by uids: %w", err)
 			}
-			if err := r.TaintLedger.PruneStale(
-				ctx, codeTaintEvidenceSource, scopeID, generationID,
-			); err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale taint projected nodes: %w", err)
+			if len(uids) > 0 {
+				if err := r.TaintLedger.PruneStaleForUIDs(
+					ctx, codeTaintEvidenceSource, scopeID, generationID, uids,
+				); err != nil {
+					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale taint projected nodes for uids: %w", err)
+				}
 			}
 		} else {
 			if err := r.TaintEvidence.RetractStaleCodeTaintEvidence(
@@ -274,10 +276,12 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 			); err != nil {
 				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence by uids: %w", err)
 			}
-			if err := r.InterprocLedger.PruneStale(
-				ctx, codeInterprocEvidenceSource, scopeID, generationID,
-			); err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale interproc projected edges: %w", err)
+			if len(uids) > 0 {
+				if err := r.InterprocLedger.PruneStaleForUIDs(
+					ctx, codeInterprocEvidenceSource, scopeID, generationID, uids,
+				); err != nil {
+					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale interproc projected edges for uids: %w", err)
+				}
 			}
 		} else {
 			if err := r.InterprocEvidence.RetractStaleCodeInterprocEvidence(

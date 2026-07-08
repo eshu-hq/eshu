@@ -31,6 +31,10 @@ type codeTaintNodeBackfillQuerier interface {
 // nodes so the ledger is a superset of graph nodes at deploy time. Nodes
 // projected BEFORE this deploy have no ledger rows; the backfiller enumerates
 // them once, idempotent per evidence source.
+//
+// Completion is tracked via a durable CodeValueFlowBackfillStateMarker so a
+// partial backfill that records some groups then errors does not skip the
+// source on the next startup.
 type CodeTaintEvidenceProjectedNodeBackfiller struct {
 	// Reader is the backfill graph-read surface (CountCodeTaintEvidenceNodes +
 	// EnumerateProjectedTaintNodes). Production wiring passes a
@@ -39,6 +43,11 @@ type CodeTaintEvidenceProjectedNodeBackfiller struct {
 
 	// Ledger is the durable projected-node store. When nil, Run is a no-op.
 	Ledger CodeTaintEvidenceProjectedNodeLedger
+
+	// StateMarker is the durable completion-marker store. When nil, Run falls
+	// back to checking ledger rows (existing behavior) so the no-migration path
+	// stays backward-compatible.
+	StateMarker CodeValueFlowBackfillStateMarker
 
 	// EvidenceSources is the set of evidence_source values to backfill.
 	EvidenceSources []string
@@ -135,11 +144,11 @@ func (b CodeTaintEvidenceProjectedNodeBackfiller) Run(ctx context.Context) error
 	// Determine which sources still need backfill.
 	var toBackfill []string
 	for _, src := range b.EvidenceSources {
-		has, err := b.Ledger.LedgerHasRowsForSource(ctx, src)
+		done, err := b.isSourceComplete(ctx, src)
 		if err != nil {
-			return fmt.Errorf("backfill taint node check ledger for source %q: %w", src, err)
+			return fmt.Errorf("backfill taint node check completion for source %q: %w", src, err)
 		}
-		if !has {
+		if !done {
 			toBackfill = append(toBackfill, src)
 		}
 	}
@@ -188,6 +197,16 @@ func (b CodeTaintEvidenceProjectedNodeBackfiller) Run(ctx context.Context) error
 	}
 	sourcesBackfilled = len(sourceSet)
 
+	// Mark each source complete so the next startup skips it.
+	if b.StateMarker != nil {
+		for _, src := range toBackfill {
+			key := codeTaintNodeBackfillKey(src)
+			if err := b.StateMarker.MarkComplete(ctx, key, now); err != nil {
+				return fmt.Errorf("backfill mark complete for source %q: %w", src, err)
+			}
+		}
+	}
+
 	slog.InfoContext(
 		ctx, "code taint evidence projected node backfill complete",
 		"nodes_seen", nodesSeen,
@@ -196,4 +215,20 @@ func (b CodeTaintEvidenceProjectedNodeBackfiller) Run(ctx context.Context) error
 	)
 
 	return nil
+}
+
+// codeTaintNodeBackfillKey returns the stable backfill-state marker key for the
+// taint node ledger backfiller.
+func codeTaintNodeBackfillKey(evidenceSource string) string {
+	return "code_taint_evidence_projected_node:" + evidenceSource
+}
+
+// isSourceComplete returns true when the source's backfill has been marked
+// complete. When the StateMarker is nil, it falls back to checking whether the
+// ledger has any rows for the source.
+func (b CodeTaintEvidenceProjectedNodeBackfiller) isSourceComplete(ctx context.Context, evidenceSource string) (bool, error) {
+	if b.StateMarker != nil {
+		return b.StateMarker.IsComplete(ctx, codeTaintNodeBackfillKey(evidenceSource))
+	}
+	return b.Ledger.LedgerHasRowsForSource(ctx, evidenceSource)
 }

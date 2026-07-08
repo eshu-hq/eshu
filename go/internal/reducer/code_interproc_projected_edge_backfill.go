@@ -32,14 +32,23 @@ type codeInterprocBackfillQuerier interface {
 // from existing graph TAINT_FLOWS_TO edges so the ledger is a superset of graph
 // edges at deploy time. Edges projected BEFORE this deploy have no ledger rows;
 // the backfiller enumerates them once, idempotent per evidence source.
+//
+// Completion is tracked via a durable CodeValueFlowBackfillStateMarker so a
+// partial backfill that records some groups then errors does not skip the
+// source on the next startup.
 type CodeInterprocProjectedEdgeBackfiller struct {
-	// Reader is the backfill graph-read surface (CountTaintFlowsToEdges +
+	// Leader is the backfill graph-read surface (CountTaintFlowsToEdges +
 	// EnumerateProjectedTaintEdges). Production wiring passes a
 	// CodeInterprocProjectedEdgeBackfillReader backed by GraphQueryRunner.
 	Reader codeInterprocBackfillQuerier
 
 	// Ledger is the durable projected-edge store. When nil, Run is a no-op.
 	Ledger CodeInterprocProjectedEdgeLedger
+
+	// StateMarker is the durable completion-marker store. When nil, Run falls
+	// back to checking ledger rows (existing behavior) so the no-migration path
+	// stays backward-compatible.
+	StateMarker CodeValueFlowBackfillStateMarker
 
 	// EvidenceSources is the set of evidence_source values to backfill.
 	EvidenceSources []string
@@ -139,11 +148,11 @@ func (b CodeInterprocProjectedEdgeBackfiller) Run(ctx context.Context) error {
 	// Determine which sources still need backfill.
 	var toBackfill []string
 	for _, src := range b.EvidenceSources {
-		has, err := b.Ledger.LedgerHasRowsForSource(ctx, src)
+		done, err := b.isSourceComplete(ctx, src)
 		if err != nil {
-			return fmt.Errorf("backfill check ledger for source %q: %w", src, err)
+			return fmt.Errorf("backfill check completion for source %q: %w", src, err)
 		}
-		if !has {
+		if !done {
 			toBackfill = append(toBackfill, src)
 		}
 	}
@@ -192,6 +201,20 @@ func (b CodeInterprocProjectedEdgeBackfiller) Run(ctx context.Context) error {
 	}
 	sourcesBackfilled = len(sourceSet)
 
+	// Mark every enumerated source complete so the next startup skips it. A
+	// source with zero graph edges (enumerated but absent from sourceSet) has
+	// nothing to backfill and is complete too; marking it here avoids
+	// re-enumerating the whole graph on every startup while a sibling source
+	// keeps the bare-type count guard non-zero.
+	if b.StateMarker != nil {
+		for _, src := range toBackfill {
+			key := codeInterprocBackfillKey(src)
+			if err := b.StateMarker.MarkComplete(ctx, key, now); err != nil {
+				return fmt.Errorf("backfill mark complete for source %q: %w", src, err)
+			}
+		}
+	}
+
 	slog.InfoContext(
 		ctx, "code interproc projected edge backfill complete",
 		"edges_seen", edgesSeen,
@@ -213,4 +236,21 @@ func anyToInt64(v any) int64 {
 		return int64(n)
 	}
 	return 0
+}
+
+// codeInterprocBackfillKey returns the stable backfill-state marker key for the
+// interproc ledger backfiller.
+func codeInterprocBackfillKey(evidenceSource string) string {
+	return "code_interproc_projected_edge:" + evidenceSource
+}
+
+// isSourceComplete returns true when the source's backfill has been marked
+// complete. When the StateMarker is nil, it falls back to checking whether the
+// ledger has any rows for the source (backward-compatible with deployments
+// before the completion-marker migration).
+func (b CodeInterprocProjectedEdgeBackfiller) isSourceComplete(ctx context.Context, evidenceSource string) (bool, error) {
+	if b.StateMarker != nil {
+		return b.StateMarker.IsComplete(ctx, codeInterprocBackfillKey(evidenceSource))
+	}
+	return b.Ledger.LedgerHasRowsForSource(ctx, evidenceSource)
 }

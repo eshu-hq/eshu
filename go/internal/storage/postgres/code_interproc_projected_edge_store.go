@@ -83,11 +83,12 @@ DELETE FROM code_interproc_projected_edge
 WHERE evidence_source = $1
 `
 
-const pruneStaleCodeInterprocSQL = `
+const pruneStaleCodeInterprocForUIDsSQL = `
 DELETE FROM code_interproc_projected_edge
 WHERE evidence_source = $1
   AND scope_id = $2
   AND generation_id <> $3
+  AND source_function_uid = ANY($4)
 `
 
 const codeInterprocHasRowsForSourceSQL = `
@@ -322,22 +323,29 @@ func (s CodeInterprocProjectedEdgeStore) PruneForSource(
 	return nil
 }
 
-// PruneStale removes ledger rows for the given evidence source and scope whose
-// generation is not the current generation.
-func (s CodeInterprocProjectedEdgeStore) PruneStale(
+// PruneStaleForUIDs removes ledger rows for the given evidence source, scope,
+// and stale generation whose source_function_uid is in the provided list. Only
+// the uids that were actually retracted from the graph are pruned so a
+// deleteLimit-bounded enumeration never orphans graph edges from ledger rows
+// beyond the batch.
+func (s CodeInterprocProjectedEdgeStore) PruneStaleForUIDs(
 	ctx context.Context,
 	evidenceSource string,
 	scopeID string,
 	currentGenerationID string,
+	uids []string,
 ) error {
 	if s.db == nil {
 		return fmt.Errorf("code interproc projected edge store database is required")
 	}
+	if len(uids) == 0 {
+		return nil
+	}
 	if _, err := s.db.ExecContext(
-		ctx, pruneStaleCodeInterprocSQL,
-		evidenceSource, scopeID, currentGenerationID,
+		ctx, pruneStaleCodeInterprocForUIDsSQL,
+		evidenceSource, scopeID, currentGenerationID, uids,
 	); err != nil {
-		return fmt.Errorf("prune stale code interproc projected edges: %w", err)
+		return fmt.Errorf("prune stale code interproc projected edges for uids: %w", err)
 	}
 	return nil
 }

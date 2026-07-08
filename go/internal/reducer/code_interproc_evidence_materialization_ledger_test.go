@@ -84,11 +84,11 @@ func (f *fakeCodeInterprocProjectedEdgeLedger) PruneForSource(
 	return nil
 }
 
-func (f *fakeCodeInterprocProjectedEdgeLedger) PruneStale(
-	_ context.Context, evidenceSource, scopeID, currentGenerationID string,
+func (f *fakeCodeInterprocProjectedEdgeLedger) PruneStaleForUIDs(
+	_ context.Context, evidenceSource, scopeID, currentGenerationID string, uids []string,
 ) error {
 	f.pruneStaleCalls++
-	f.callOrder = append(f.callOrder, "prune_stale")
+	f.callOrder = append(f.callOrder, "prune_stale_for_uids")
 	return nil
 }
 

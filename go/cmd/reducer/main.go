@@ -130,9 +130,11 @@ func buildReducerService(
 	// idempotent backfill). Must run before stale-cleanup or fixpoint projection
 	// start retracting. graphReader is the query.GraphQuery read port; the
 	// ledger uses the same postgres-backed store wired for the runtime.
+	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
 	backfiller := reducer.CodeInterprocProjectedEdgeBackfiller{
-		Reader: reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
-		Ledger: postgres.NewCodeInterprocProjectedEdgeStore(database),
+		Reader:      reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
+		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
 			reducer.CodeInterprocEvidenceSource(),
 			reducer.CodeInterprocFixpointEvidenceSource(),
@@ -145,8 +147,9 @@ func buildReducerService(
 	// so the ledger is a superset of graph nodes at deploy time (one-time,
 	// idempotent backfill). Mirrors the interproc edge backfill above.
 	taintNodeBackfiller := reducer.CodeTaintEvidenceProjectedNodeBackfiller{
-		Reader: reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
-		Ledger: postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
+		Reader:      reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
+		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
 			reducer.CodeTaintEvidenceSource(),
 		},
