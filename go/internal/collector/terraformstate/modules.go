@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 func (p *stateParser) emitModuleObservation(moduleAddress string, resourceAddress string) error {
@@ -17,6 +19,14 @@ func (p *stateParser) emitModuleObservation(moduleAddress string, resourceAddres
 	payload := map[string]any{
 		"module_address": moduleAddress,
 		"resource_count": int64(1),
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateModule(tfstatev1.Module{
+			ModuleAddress: moduleAddress,
+			ResourceCount: int64Ptr(1),
+		})
+	}); err != nil {
+		return err
 	}
 	stableKey := "module:" + moduleAddress + ":resource:" + resourceAddress
 	sourceRecordID := moduleAddress + ":resource:" + resourceAddress

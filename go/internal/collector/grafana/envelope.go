@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 )
 
 // NewSourceInstanceEnvelope converts one live Grafana target snapshot into a
@@ -24,6 +26,18 @@ func NewSourceInstanceEnvelope(ctx EnvelopeContext, stats CollectionStats) (fact
 	payload["pages_fetched"] = stats.PagesFetched
 	payload["partial"] = stats.Partial
 	setRedactionState(payload)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeObservabilitySourceInstance(observabilityv1.SourceInstance{
+			SourceInstanceID: ctx.SourceInstanceID,
+			Provider:         stringPtr(ProviderGrafana),
+			SourceKind:       stringPtr(SourceKindGrafana),
+			SourceClass:      stringPtr(SourceClassObserved),
+			Outcome:          stringPtr(OutcomeObserved),
+			FreshnessState:   stringPtr(FreshnessCurrent),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := stableFactKey(facts.ObservabilitySourceInstanceFactKind, ctx.GenerationID, map[string]any{
 		"source_instance_id": ctx.SourceInstanceID,
 		"scope_id":           ctx.ScopeID,
@@ -70,6 +84,23 @@ func NewObservedResourceEnvelope(ctx EnvelopeContext, resource Resource) (facts.
 		payload["drift_candidate_reason"] = value
 	}
 	setRedactionState(payload)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeObservabilityObservedDashboard(observabilityv1.ObservedDashboard{
+			SourceInstanceID:     ctx.SourceInstanceID,
+			ProviderObjectUID:    uid,
+			FolderUID:            optionalStringPtr(resource.FolderUID),
+			Provider:             stringPtr(ProviderGrafana),
+			SourceKind:           stringPtr(SourceKindGrafana),
+			SourceClass:          stringPtr(SourceClassObserved),
+			ResourceClass:        stringPtr(resourceClass),
+			Outcome:              stringPtr(normalizedOutcome(resource.Outcome)),
+			FreshnessState:       stringPtr(normalizedFreshness(resource.FreshnessState)),
+			DriftCandidateReason: optionalStringPtr(resource.DriftReason),
+			DeclaredMatchState:   stringPtr(firstNonBlank(resource.DeclaredMatchState, MatchStateNotCompared)),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := stableFactKey(facts.ObservabilityObservedDashboardFactKind, ctx.GenerationID, map[string]any{
 		"source_instance_id": ctx.SourceInstanceID,
 		"scope_id":           ctx.ScopeID,
@@ -89,23 +120,24 @@ func NewObservedRuleEnvelope(ctx EnvelopeContext, rule AlertRule) (facts.Envelop
 	if uid == "" {
 		return facts.Envelope{}, fmt.Errorf("grafana alert rule uid must not be blank")
 	}
-	payload := basePayload(ctx, normalizedOutcome(rule.Outcome), normalizedFreshness(rule.FreshnessState))
-	payload["resource_class"] = ResourceClassAlertRule
-	payload["alert_rule_uid"] = uid
-	if value := strings.TrimSpace(rule.RuleGroup); value != "" {
-		payload["rule_group"] = value
+	payload, err := factschema.EncodeObservabilityObservedRule(observabilityv1.ObservedRule{
+		SourceInstanceID:   ctx.SourceInstanceID,
+		AlertRuleUID:       stringPtr(uid),
+		FolderUID:          optionalStringPtr(rule.FolderUID),
+		DatasourceUID:      optionalStringPtr(rule.DatasourceUID),
+		RuleGroup:          optionalStringPtr(rule.RuleGroup),
+		Provider:           stringPtr(ProviderGrafana),
+		SourceKind:         stringPtr(SourceKindGrafana),
+		SourceClass:        stringPtr(SourceClassObserved),
+		ResourceClass:      stringPtr(ResourceClassAlertRule),
+		Outcome:            stringPtr(normalizedOutcome(rule.Outcome)),
+		FreshnessState:     stringPtr(normalizedFreshness(rule.FreshnessState)),
+		DeclaredMatchState: stringPtr(firstNonBlank(rule.DeclaredMatchState, MatchStateNotCompared)),
+	})
+	if err != nil {
+		return facts.Envelope{}, err
 	}
-	if value := strings.TrimSpace(rule.FolderUID); value != "" {
-		payload["folder_uid"] = value
-	}
-	if value := strings.TrimSpace(rule.DatasourceUID); value != "" {
-		payload["datasource_uid"] = value
-	}
-	if value := strings.TrimSpace(rule.DeclaredMatchState); value != "" {
-		payload["declared_match_state"] = value
-	} else {
-		payload["declared_match_state"] = MatchStateNotCompared
-	}
+	addEnvelopeContextPayload(payload, ctx)
 	setFingerprint(payload, "title", rule.Title)
 	setTimePayload(payload, "updated_at", rule.UpdatedAt)
 	if len(rule.Model) > 0 || rule.QueryModelRedacted {
@@ -148,6 +180,21 @@ func NewCoverageWarningEnvelope(ctx EnvelopeContext, warning Warning) (facts.Env
 		payload["provider_object_uid"] = resourceID
 	}
 	setRedactionState(payload)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeObservabilityCoverageWarning(observabilityv1.CoverageWarning{
+			SourceInstanceID:  ctx.SourceInstanceID,
+			ProviderObjectUID: optionalStringPtr(resourceID),
+			Provider:          stringPtr(ProviderGrafana),
+			SourceKind:        stringPtr(SourceKindGrafana),
+			SourceClass:       stringPtr(SourceClassObserved),
+			ResourceClass:     stringPtr(resourceClass),
+			Outcome:           stringPtr(warningOutcome(reason)),
+			FreshnessState:    stringPtr(warningFreshness(reason)),
+			WarningKind:       stringPtr(reason),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := stableFactKey(facts.ObservabilityCoverageWarningFactKind, ctx.GenerationID, map[string]any{
 		"source_instance_id": ctx.SourceInstanceID,
 		"scope_id":           ctx.ScopeID,
@@ -184,6 +231,42 @@ func basePayload(ctx EnvelopeContext, outcome string, freshness string) map[stri
 		"scope_id":           ctx.ScopeID,
 	}
 	return payload
+}
+
+func addEnvelopeContextPayload(payload map[string]any, ctx EnvelopeContext) {
+	payload["collector_instance_id"] = ctx.CollectorInstanceID
+	payload["scope_id"] = ctx.ScopeID
+	payload["generation_id"] = ctx.GenerationID
+	payload["observed_at"] = normalizedObservedAt(ctx.ObservedAt).Format(time.RFC3339Nano)
+	payload["redaction_version"] = RedactionVersion
+	payload["provenance"] = map[string]any{
+		"provider":           ProviderGrafana,
+		"source_instance_id": ctx.SourceInstanceID,
+		"scope_id":           ctx.ScopeID,
+	}
+}
+
+func mergeContractPayload(payload map[string]any, encode func() (map[string]any, error)) error {
+	encoded, err := encode()
+	if err != nil {
+		return err
+	}
+	for key, value := range encoded {
+		payload[key] = value
+	}
+	return nil
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func optionalStringPtr(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func observabilityEnvelope(

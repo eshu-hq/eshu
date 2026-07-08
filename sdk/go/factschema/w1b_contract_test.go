@@ -9,17 +9,20 @@ import (
 	"testing"
 )
 
-// TestW1bEncodePathsUseDirectMaps locks issue #4788 to the #4785 emit-path
-// decision: every Encode function in the adopted Azure, GCP, and Kubernetes
-// live families must build the payload map directly instead of taking the
-// slower JSON round trip through encodeToPayload.
-func TestW1bEncodePathsUseDirectMaps(t *testing.T) {
+// TestAdoptedEncodePathsUseDirectMaps locks the #4785 emit-path decision:
+// every Encode function in an adopted producer family must build payloads
+// directly instead of taking the slower JSON round trip through encodeToPayload.
+func TestAdoptedEncodePathsUseDirectMaps(t *testing.T) {
 	t.Parallel()
 
 	for _, path := range []string{
 		"decode_azure.go",
 		"decode_gcp.go",
 		"decode_kuberneteslive.go",
+		"decode_observability.go",
+		"decode_ociregistry.go",
+		"decode_packageregistry.go",
+		"decode_terraformstate.go",
 	} {
 		path := path
 		t.Run(path, func(t *testing.T) {
@@ -30,7 +33,7 @@ func TestW1bEncodePathsUseDirectMaps(t *testing.T) {
 				t.Fatalf("read %s: %v", path, err)
 			}
 			if strings.Contains(string(raw), "encodeToPayload(") {
-				t.Fatalf("%s still calls encodeToPayload; rewrite #4788 Encode functions to direct-map form", path)
+				t.Fatalf("%s still calls encodeToPayload; rewrite adopted Encode functions to direct-map form", path)
 			}
 		})
 	}

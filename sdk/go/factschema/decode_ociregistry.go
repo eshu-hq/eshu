@@ -21,7 +21,7 @@ func DecodeOCIRegistryRepository(env Envelope) (ociregistryv1.Repository, error)
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeOCIRegistryRepository for schema-version-1 payloads.
 func EncodeOCIRegistryRepository(repository ociregistryv1.Repository) (map[string]any, error) {
-	return encodeToPayload(repository)
+	return encodeDirectPayload(repository)
 }
 
 // DecodeOCIImageManifest decodes env.Payload into the latest
@@ -36,7 +36,25 @@ func DecodeOCIImageManifest(env Envelope) (ociregistryv1.ImageManifest, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeOCIImageManifest for schema-version-1 payloads.
 func EncodeOCIImageManifest(manifest ociregistryv1.ImageManifest) (map[string]any, error) {
-	return encodeToPayload(manifest)
+	payload := map[string]any{
+		"repository_id": manifest.RepositoryID,
+		"digest":        manifest.Digest,
+	}
+	addStringPtr(payload, "descriptor_id", manifest.DescriptorID)
+	addStringPtr(payload, "media_type", manifest.MediaType)
+	addInt64Ptr(payload, "size_bytes", manifest.SizeBytes)
+	addStringPtr(payload, "artifact_type", manifest.ArtifactType)
+	addStringPtr(payload, "source_tag", manifest.SourceTag)
+	if manifest.Config != nil {
+		payload["config"] = encodeOCIDescriptor(*manifest.Config)
+	}
+	addStringMap(payload, "config_labels", manifest.ConfigLabels)
+	if len(manifest.Layers) > 0 {
+		payload["layers"] = encodeOCIDescriptors(manifest.Layers)
+	}
+	addStringSlice(payload, "correlation_anchors", manifest.CorrelationAnchors)
+	addStringPtr(payload, "collector_instance_id", manifest.CollectorInstanceID)
+	return payload, nil
 }
 
 // DecodeOCIImageIndex decodes env.Payload into the latest
@@ -50,7 +68,7 @@ func DecodeOCIImageIndex(env Envelope) (ociregistryv1.ImageIndex, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeOCIImageIndex for schema-version-1 payloads.
 func EncodeOCIImageIndex(index ociregistryv1.ImageIndex) (map[string]any, error) {
-	return encodeToPayload(index)
+	return encodeDirectPayload(index)
 }
 
 // DecodeOCIImageDescriptor decodes env.Payload into the latest
@@ -65,7 +83,7 @@ func DecodeOCIImageDescriptor(env Envelope) (ociregistryv1.ImageDescriptor, erro
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeOCIImageDescriptor for schema-version-1 payloads.
 func EncodeOCIImageDescriptor(descriptor ociregistryv1.ImageDescriptor) (map[string]any, error) {
-	return encodeToPayload(descriptor)
+	return encodeDirectPayload(descriptor)
 }
 
 // DecodeOCIImageTagObservation decodes env.Payload into the latest
@@ -80,7 +98,7 @@ func DecodeOCIImageTagObservation(env Envelope) (ociregistryv1.TagObservation, e
 // the map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeOCIImageTagObservation for schema-version-1 payloads.
 func EncodeOCIImageTagObservation(observation ociregistryv1.TagObservation) (map[string]any, error) {
-	return encodeToPayload(observation)
+	return encodeDirectPayload(observation)
 }
 
 // DecodeOCIImageReferrer decodes env.Payload into the latest
@@ -95,7 +113,7 @@ func DecodeOCIImageReferrer(env Envelope) (ociregistryv1.ImageReferrer, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeOCIImageReferrer for schema-version-1 payloads.
 func EncodeOCIImageReferrer(referrer ociregistryv1.ImageReferrer) (map[string]any, error) {
-	return encodeToPayload(referrer)
+	return encodeDirectPayload(referrer)
 }
 
 // DecodeOCIRegistryWarning decodes env.Payload into the latest
@@ -115,5 +133,24 @@ func DecodeOCIRegistryWarning(env Envelope) (ociregistryv1.Warning, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeOCIRegistryWarning for schema-version-1 payloads.
 func EncodeOCIRegistryWarning(warning ociregistryv1.Warning) (map[string]any, error) {
-	return encodeToPayload(warning)
+	return encodeDirectPayload(warning)
+}
+
+func encodeOCIDescriptors(descriptors []ociregistryv1.Descriptor) []map[string]any {
+	out := make([]map[string]any, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		out = append(out, encodeOCIDescriptor(descriptor))
+	}
+	return out
+}
+
+func encodeOCIDescriptor(descriptor ociregistryv1.Descriptor) map[string]any {
+	payload := make(map[string]any)
+	addStringPtr(payload, "digest", descriptor.Digest)
+	addStringPtr(payload, "media_type", descriptor.MediaType)
+	addInt64Ptr(payload, "size_bytes", descriptor.SizeBytes)
+	addStringPtr(payload, "artifact_type", descriptor.ArtifactType)
+	addStringMap(payload, "annotations", descriptor.Annotations)
+	addStringMap(payload, "platform", descriptor.Platform)
+	return payload
 }

@@ -21,7 +21,7 @@ func DecodeObservabilityDeclaredFolder(env Envelope) (observabilityv1.DeclaredFo
 // DecodeObservabilityDeclaredFolder for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredFolder(value observabilityv1.DeclaredFolder) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredDashboard decodes env.Payload into the latest
@@ -38,7 +38,7 @@ func DecodeObservabilityDeclaredDashboard(env Envelope) (observabilityv1.Declare
 // DecodeObservabilityDeclaredDashboard for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredDashboard(value observabilityv1.DeclaredDashboard) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredDatasource decodes env.Payload into the latest
@@ -55,7 +55,7 @@ func DecodeObservabilityDeclaredDatasource(env Envelope) (observabilityv1.Declar
 // DecodeObservabilityDeclaredDatasource for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredDatasource(value observabilityv1.DeclaredDatasource) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredAlertRule decodes env.Payload into the latest
@@ -72,7 +72,7 @@ func DecodeObservabilityDeclaredAlertRule(env Envelope) (observabilityv1.Declare
 // DecodeObservabilityDeclaredAlertRule for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredAlertRule(value observabilityv1.DeclaredAlertRule) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredScrapeConfig decodes env.Payload into the latest
@@ -89,7 +89,7 @@ func DecodeObservabilityDeclaredScrapeConfig(env Envelope) (observabilityv1.Decl
 // DecodeObservabilityDeclaredScrapeConfig for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredScrapeConfig(value observabilityv1.DeclaredScrapeConfig) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredMetricRule decodes env.Payload into the latest
@@ -106,7 +106,7 @@ func DecodeObservabilityDeclaredMetricRule(env Envelope) (observabilityv1.Declar
 // DecodeObservabilityDeclaredMetricRule for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredMetricRule(value observabilityv1.DeclaredMetricRule) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredMetricRoute decodes env.Payload into the latest
@@ -123,7 +123,7 @@ func DecodeObservabilityDeclaredMetricRoute(env Envelope) (observabilityv1.Decla
 // DecodeObservabilityDeclaredMetricRoute for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredMetricRoute(value observabilityv1.DeclaredMetricRoute) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredLogRoute decodes env.Payload into the latest
@@ -140,7 +140,7 @@ func DecodeObservabilityDeclaredLogRoute(env Envelope) (observabilityv1.Declared
 // DecodeObservabilityDeclaredLogRoute for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredLogRoute(value observabilityv1.DeclaredLogRoute) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityDeclaredTraceRoute decodes env.Payload into the latest
@@ -157,7 +157,7 @@ func DecodeObservabilityDeclaredTraceRoute(env Envelope) (observabilityv1.Declar
 // DecodeObservabilityDeclaredTraceRoute for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityDeclaredTraceRoute(value observabilityv1.DeclaredTraceRoute) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityAppliedResource decodes env.Payload into the latest
@@ -174,7 +174,7 @@ func DecodeObservabilityAppliedResource(env Envelope) (observabilityv1.AppliedRe
 // DecodeObservabilityAppliedResource for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityAppliedResource(value observabilityv1.AppliedResource) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityAppliedSyncState decodes env.Payload into the latest
@@ -191,7 +191,7 @@ func DecodeObservabilityAppliedSyncState(env Envelope) (observabilityv1.AppliedS
 // DecodeObservabilityAppliedSyncState for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityAppliedSyncState(value observabilityv1.AppliedSyncState) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityObservedDashboard decodes env.Payload into the latest
@@ -208,7 +208,7 @@ func DecodeObservabilityObservedDashboard(env Envelope) (observabilityv1.Observe
 // DecodeObservabilityObservedDashboard for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityObservedDashboard(value observabilityv1.ObservedDashboard) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityObservedTarget decodes env.Payload into the latest
@@ -225,7 +225,7 @@ func DecodeObservabilityObservedTarget(env Envelope) (observabilityv1.ObservedTa
 // DecodeObservabilityObservedTarget for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityObservedTarget(value observabilityv1.ObservedTarget) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityObservedRule decodes env.Payload into the latest
@@ -242,7 +242,7 @@ func DecodeObservabilityObservedRule(env Envelope) (observabilityv1.ObservedRule
 // DecodeObservabilityObservedRule for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityObservedRule(value observabilityv1.ObservedRule) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityObservedLogSignal decodes env.Payload into the latest
@@ -259,7 +259,7 @@ func DecodeObservabilityObservedLogSignal(env Envelope) (observabilityv1.Observe
 // DecodeObservabilityObservedLogSignal for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityObservedLogSignal(value observabilityv1.ObservedLogSignal) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityObservedTraceSignal decodes env.Payload into the latest
@@ -276,7 +276,7 @@ func DecodeObservabilityObservedTraceSignal(env Envelope) (observabilityv1.Obser
 // DecodeObservabilityObservedTraceSignal for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityObservedTraceSignal(value observabilityv1.ObservedTraceSignal) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilityCoverageWarning decodes env.Payload into the latest
@@ -293,7 +293,7 @@ func DecodeObservabilityCoverageWarning(env Envelope) (observabilityv1.CoverageW
 // DecodeObservabilityCoverageWarning for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilityCoverageWarning(value observabilityv1.CoverageWarning) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }
 
 // DecodeObservabilitySourceInstance decodes env.Payload into the latest
@@ -310,5 +310,5 @@ func DecodeObservabilitySourceInstance(env Envelope) (observabilityv1.SourceInst
 // DecodeObservabilitySourceInstance for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeObservabilitySourceInstance(value observabilityv1.SourceInstance) (map[string]any, error) {
-	return encodeToPayload(value)
+	return encodeDirectPayload(value)
 }

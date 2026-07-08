@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 type resourceContext struct {
@@ -187,6 +189,20 @@ func (p *stateParser) emitResourceInstance(resource resourceContext, instance in
 	}
 	if len(anchors) > 0 {
 		payload["correlation_anchors"] = anchors
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateResource(tfstatev1.Resource{
+			Address:            address,
+			Mode:               stringPtr(strings.TrimSpace(resource.Mode)),
+			ResourceType:       stringPtr(strings.TrimSpace(resource.Type)),
+			Name:               stringPtr(strings.TrimSpace(resource.Name)),
+			Module:             stringPtr(strings.TrimSpace(resource.Module)),
+			Provider:           stringPtr(strings.TrimSpace(resource.Provider)),
+			CorrelationAnchors: typedCorrelationAnchors(anchors),
+			Attributes:         attributes,
+		})
+	}); err != nil {
+		return err
 	}
 	if err := p.emitModuleObservation(resource.Module, address); err != nil {
 		return err

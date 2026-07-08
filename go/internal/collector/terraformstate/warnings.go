@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 const (
@@ -81,6 +83,17 @@ func (p *stateParser) emitWarning(warning warningPayload) error {
 		default:
 			payload[key] = value
 		}
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateWarning(tfstatev1.Warning{
+			WarningKind:   warning.WarningKind,
+			Reason:        warning.Reason,
+			Source:        warning.Source,
+			Severity:      optionalStringPtr(payloadString(payload, "severity")),
+			Actionability: optionalStringPtr(payloadString(payload, "actionability")),
+		})
+	}); err != nil {
+		return err
 	}
 	key := "warning:" + warning.WarningKind + ":" + warning.Source + ":" + warning.Reason
 	if err := p.emitBodyFact(p.envelope(facts.TerraformStateWarningFactKind, key, payload, warning.Source)); err != nil {

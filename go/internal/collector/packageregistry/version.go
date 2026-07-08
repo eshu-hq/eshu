@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
 // NewPackageVersionEnvelope builds the durable package version fact for one
@@ -39,26 +41,31 @@ func NewPackageVersionEnvelope(observation PackageVersionObservation) (facts.Env
 	stableFactKey := facts.StableID(facts.PackageRegistryPackageVersionFactKind, map[string]any{
 		"version_id": versionID,
 	})
-	payload := map[string]any{
-		"collector_instance_id": observation.CollectorInstanceID,
-		"ecosystem":             string(normalized.Ecosystem),
-		"registry":              normalized.Registry,
-		"package_id":            normalized.PackageID,
-		"version_id":            versionID,
-		"version":               version,
-		"purl":                  normalized.PURL,
-		"bom_ref":               normalized.BOMRef,
-		"package_manager":       normalized.PackageManager,
-		"is_yanked":             observation.Yanked,
-		"is_unlisted":           observation.Unlisted,
-		"is_deprecated":         observation.Deprecated,
-		"is_retracted":          observation.Retracted,
-		"artifact_urls":         cloneStrings(observation.ArtifactURLs),
-		"checksums":             cloneStringMap(observation.Checksums),
-		"correlation_anchors":   correlationAnchors(normalized.PackageID, versionID, normalized.PURL, normalized.BOMRef),
-	}
+	publishedAt := ""
 	if !observation.PublishedAt.IsZero() {
-		payload["published_at"] = observation.PublishedAt.UTC().Format(time.RFC3339)
+		publishedAt = observation.PublishedAt.UTC().Format(time.RFC3339)
+	}
+	payload, err := factschema.EncodePackageRegistryPackageVersion(packageregistryv1.PackageVersion{
+		PackageID:           normalized.PackageID,
+		VersionID:           versionID,
+		Version:             version,
+		Ecosystem:           stringPtr(string(normalized.Ecosystem)),
+		Registry:            stringPtr(normalized.Registry),
+		PURL:                stringPtr(normalized.PURL),
+		BOMRef:              stringPtr(normalized.BOMRef),
+		PackageManager:      stringPtr(normalized.PackageManager),
+		PublishedAt:         optionalStringPtr(publishedAt),
+		IsYanked:            boolPtr(observation.Yanked),
+		IsUnlisted:          boolPtr(observation.Unlisted),
+		IsDeprecated:        boolPtr(observation.Deprecated),
+		IsRetracted:         boolPtr(observation.Retracted),
+		ArtifactURLs:        cloneStrings(observation.ArtifactURLs),
+		Checksums:           cloneStringMap(observation.Checksums),
+		CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+		CorrelationAnchors:  correlationAnchors(normalized.PackageID, versionID, normalized.PURL, normalized.BOMRef),
+	})
+	if err != nil {
+		return facts.Envelope{}, fmt.Errorf("encode package version payload: %w", err)
 	}
 
 	return facts.Envelope{

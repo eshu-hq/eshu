@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 // NewWarningEnvelope builds the durable warning fact for one non-fatal OCI
@@ -69,6 +71,24 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		"digest":                digest,
 		"referrers_state":       referrersState,
 		"correlation_anchors":   []string{repository.RepositoryID, digest},
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeOCIRegistryWarning(ociregistryv1.Warning{
+			WarningCode:         warningCode,
+			WarningKey:          stringPtr(warningKey),
+			Severity:            stringPtr(severity),
+			Message:             stringPtr(sanitizeText(observation.Message)),
+			Digest:              stringPtr(digest),
+			ReferrersState:      stringPtr(referrersState),
+			RepositoryID:        stringPtr(repository.RepositoryID),
+			Provider:            stringPtr(string(repository.Provider)),
+			Registry:            stringPtr(repository.Registry),
+			Repository:          stringPtr(repository.Repository),
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+			CorrelationAnchors:  []string{repository.RepositoryID, digest},
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return newEnvelope(repository, facts.OCIRegistryWarningFactKind, facts.OCIRegistryWarningSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, warningKey, payload), nil
 }

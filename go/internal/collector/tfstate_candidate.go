@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 const (
@@ -86,6 +88,17 @@ func terraformStateCandidateFactEnvelope(
 		"file_size":        candidate.FileSize,
 		"warning_flags":    []string{terraformStateCandidateWarning},
 	}
+	mergeTerraformStateCandidatePayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateCandidate(tfstatev1.Candidate{
+			CandidateSource: terraformStateCandidateSource,
+			BackendKind:     terraformStateCandidateBackend,
+			RepoID:          repoID,
+			RelativePath:    candidate.RelativePath,
+			PathHash:        candidate.PathHash,
+			FileSize:        terraformStateInt64Ptr(candidate.FileSize),
+			WarningFlags:    []string{terraformStateCandidateWarning},
+		})
+	})
 	factKey := "terraform_state_candidate:" + repoID + ":" + candidate.PathHash
 	sourceURI := "git://" + repoID + "/" + candidate.RelativePath
 
@@ -117,6 +130,22 @@ func terraformStateCandidateFactEnvelope(
 			SourceRecordID: factKey,
 		},
 	}
+}
+
+func mergeTerraformStateCandidatePayload(payload map[string]any, encode func() (map[string]any, error)) {
+	encoded, err := encode()
+	if err != nil {
+		return
+	}
+	for key, value := range encoded {
+		if _, exists := payload[key]; !exists {
+			payload[key] = value
+		}
+	}
+}
+
+func terraformStateInt64Ptr(value int64) *int64 {
+	return &value
 }
 
 func logTerraformStateCandidateDiscovery(
