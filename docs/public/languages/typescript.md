@@ -90,7 +90,9 @@ Not claimed today:
 
 The TypeScript parser shares the JavaScript-family parser performance
 characteristics described in [JavaScript Parser Performance](javascript.md#parser-performance),
-including the Fastify registration-base threading optimization (#4905).
+including the Fastify registration-base threading optimization (#4905) and the
+framework semantics gather-resolve optimization (#4925) that eliminates
+per-framework full-tree re-walks in `buildJavaScriptFrameworkSemantics`.
 
 No-Observability-Change: same as the JavaScript-family parser — no metric,
 span, structured log, status field, queue, graph-write, worker, lease, batch,

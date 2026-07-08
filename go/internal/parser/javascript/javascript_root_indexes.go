@@ -7,30 +7,31 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// javaScriptRootIndexes bundles the four independent per-file lookup
-// structures Parse's main dispatch walk needs: react wrapper aliases,
-// CommonJS module.exports variable aliases, inferred variable/parameter/field
-// receiver types, and Fastify app-instance variable names. Each builder reads
-// only root, source (and, for Fastify, the raw source text), and none
+// javaScriptRootIndexes bundles the six independent per-file lookup
+// structures Parse's main dispatch walk and post-walk framework resolution
+// need: react wrapper aliases, CommonJS module.exports variable aliases,
+// inferred variable/parameter/field receiver types, and the registration-base
+// variable-name sets for Fastify, Express, and Koa. Each builder reads only
+// root, source (and, for Fastify/Express/Koa, the raw source text), and none
 // consumes another's completed output, so buildJavaScriptRootIndexes computes
-// all four in one shared traversal instead of the four independent full-tree
-// walks javaScriptReactAliases, javaScriptCommonJSModuleExportAliases,
-// javaScriptNewExpressionVariableTypes, and javaScriptFastifyRegistrationBases
-// would otherwise perform.
+// all six in one shared traversal instead of performing six independent
+// full-tree walks.
 type javaScriptRootIndexes struct {
 	reactAliases          map[string]string
 	commonJSModuleAliases map[string]struct{}
 	newExpressionTypes    map[string]string
 	fastifyBases          map[string]struct{}
+	expressBases          map[string]struct{}
+	koaBases              map[string]struct{}
 }
 
 // buildJavaScriptRootIndexes computes javaScriptRootIndexes for one parsed
 // file. outputLanguage gates react alias collection to tsx (matching
-// javaScriptReactAliases); sourceText gates Fastify base collection to files
-// with a Fastify import (matching javaScriptFastifyRegistrationBases), so
-// files without either signal skip that collector's per-node work inside the
-// shared walk exactly as the original standalone functions skipped their own
-// walk entirely.
+// javaScriptReactAliases); sourceText gates Fastify, Express, and Koa base
+// collection to files with the corresponding import (matching the standalone
+// functions), so files without those signals skip that collector's per-node
+// work inside the shared walk exactly as the original standalone functions
+// skipped their own walk entirely.
 //
 // javaScriptFunctionReturnTypes still runs as its own preliminary full-tree
 // walk: javaScriptCollectNewExpressionVariableType requires it fully computed
@@ -44,12 +45,16 @@ func buildJavaScriptRootIndexes(
 ) javaScriptRootIndexes {
 	wantReactAliases := outputLanguage == "tsx"
 	wantFastifyBases := javaScriptHasFastifyImport(sourceText)
+	wantExpressBases := javaScriptHasExpressImport(sourceText)
+	wantKoaBases := javaScriptHasKoaRouterImport(sourceText)
 
 	reactAliases := map[string]string{}
 	commonJSModuleAliases := make(map[string]struct{})
 	returnTypesByFunction := javaScriptFunctionReturnTypes(root, source)
 	newExpressionTypes := make(map[string]string)
 	fastifyBases := make(map[string]struct{})
+	expressBases := make(map[string]struct{})
+	koaBases := make(map[string]struct{})
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if wantReactAliases {
@@ -59,6 +64,12 @@ func buildJavaScriptRootIndexes(
 		javaScriptCollectNewExpressionVariableType(node, source, returnTypesByFunction, newExpressionTypes)
 		if wantFastifyBases {
 			javaScriptCollectFastifyRegistrationBase(node, source, fastifyBases)
+		}
+		if wantExpressBases {
+			javaScriptCollectExpressRegistrationBase(node, source, expressBases)
+		}
+		if wantKoaBases {
+			javaScriptCollectKoaRegistrationBase(node, source, koaBases)
 		}
 	})
 
@@ -70,5 +81,7 @@ func buildJavaScriptRootIndexes(
 		commonJSModuleAliases: commonJSModuleAliases,
 		newExpressionTypes:    newExpressionTypes,
 		fastifyBases:          fastifyBases,
+		expressBases:          expressBases,
+		koaBases:              koaBases,
 	}
 }

@@ -174,3 +174,41 @@ metric, span, structured log, status field, queue, graph-write, worker, lease,
 batch, or runtime knob is added or removed. Operators still diagnose parser
 behavior through the existing collector `telemetry.FileParseDuration` instrument
 and parse-stage logs.
+
+The per-framework route-entry resolution (Express, Koa, Fastify, NestJS) that
+`buildJavaScriptFrameworkSemantics` performs after the main declaration walk was
+previously implemented as five independent full-tree re-walks. Those re-walks
+are now eliminated: the main declaration walk gathers every `call_expression`
+and `method_definition` node (cloned via `shared.CloneNode`), and the
+framework-semantics detectors resolve route entries in plain in-memory loops
+against the pre-built registration-base indexes (Express, Koa, and Fastify
+bases, all computed in the shared `buildJavaScriptRootIndexes` walk together
+with React aliases, CommonJS module aliases, and new-expression types). NestJS
+route entries are resolved from the gathered `method_definition` nodes.
+
+Performance Evidence: microbenchmark against a synthetic framework-heavy fixture
+(Express + Koa + Fastify + NestJS routes, 3 sizes × 1/5/10 repetitions) on an
+Apple M5 Max, `go test -bench BenchmarkThrowawayTheory -benchmem -benchtime=500ms`:
+
+- OLD (5 per-framework full-tree re-walks): 577 µs/op – 5.01 ms/op
+- NEW (gather + in-memory loops): 256 µs/op – 2.43 ms/op
+- Delta: −51 % to −56 % ns/op across all sizes; B/op and allocs/op show the
+  same ~2× reduction
+
+`BenchmarkParse/javascript`, `BenchmarkParse/tsx`, and `BenchmarkParse/typescript`
+on the standard 10K-LOC regression fixtures (no framework imports) show no
+regression (±1–3 % within noise).
+
+Output is byte-identical on the fixture corpus (JSTS_PARSE_DUMP manual
+differential `0/0` at merge-base 8085fd1b8 vs branch), the B-12 golden snapshot
+is unchanged, and the JS/TS parser package tests stay green. The Framework
+registration-base construction no longer duplicates the Express and Koa base
+walks inside `javaScriptFrameworkRegisteredDeadCodeRootKinds`; they are
+collected once in the shared `buildJavaScriptRootIndexes` walk and threaded
+through the dead-code and semantics call chains.
+
+No-Observability-Change: the elimination of re-walks removes internal
+recomputation; no metric, span, structured log, status field, queue,
+graph-write, worker, lease, batch, or runtime knob is added or removed.
+Operators still diagnose parser behavior through the existing collector
+`telemetry.FileParseDuration` instrument and parse-stage logs.

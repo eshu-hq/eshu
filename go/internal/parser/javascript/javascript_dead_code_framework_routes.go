@@ -36,15 +36,14 @@ func javaScriptFrameworkRegisteredDeadCodeRootKinds(
 	root *tree_sitter.Node,
 	source []byte,
 	fastifyBases map[string]struct{},
+	expressBases map[string]struct{},
+	koaBases map[string]struct{},
 ) map[string][]string {
 	registered := make(map[string][]string)
 	if root == nil {
 		return registered
 	}
 
-	text := string(source)
-	expressBases := javaScriptExpressRegistrationBases(root, source, text)
-	koaBases := javaScriptKoaRegistrationBases(root, source, text)
 	if len(expressBases) == 0 && len(koaBases) == 0 && len(fastifyBases) == 0 {
 		return registered
 	}
@@ -183,6 +182,38 @@ func javaScriptCollectFastifyRegistrationBase(node *tree_sitter.Node, source []b
 	}
 	callName := strings.ToLower(javaScriptCallFullName(value.ChildByFieldName("function"), source))
 	if callName == "fastify" {
+		javaScriptAddName(dst, name)
+	}
+}
+
+// javaScriptCollectExpressRegistrationBase records dst[name] = struct{}{} for
+// one variable_declarator node that binds an Express app or router instance
+// (`const app = express(); const router = express.Router()`). It is a no-op
+// for any other node kind, so callers may invoke it on every visited node in
+// a shared traversal without pre-filtering.
+func javaScriptCollectExpressRegistrationBase(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
+	name, value := javaScriptVariableDeclaratorNameValue(node, source)
+	if name == "" || value == nil {
+		return
+	}
+	callName := strings.ToLower(javaScriptCallFullName(value.ChildByFieldName("function"), source))
+	if callName == "express" || callName == "express.router" {
+		javaScriptAddName(dst, name)
+	}
+}
+
+// javaScriptCollectKoaRegistrationBase records dst[name] = struct{}{} for
+// one variable_declarator node that binds a Koa Router instance
+// (`const router = new Router()`). It is a no-op for any other node kind, so
+// callers may invoke it on every visited node in a shared traversal without
+// pre-filtering.
+func javaScriptCollectKoaRegistrationBase(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
+	name, value := javaScriptVariableDeclaratorNameValue(node, source)
+	if name == "" || value == nil || value.Kind() != "new_expression" {
+		return
+	}
+	constructorName, constructorFullName := javaScriptNewExpressionConstructorName(value, source)
+	if constructorName == "Router" || strings.Contains(strings.ToLower(constructorFullName), "router") {
 		javaScriptAddName(dst, name)
 	}
 }

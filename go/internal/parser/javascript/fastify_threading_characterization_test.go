@@ -91,8 +91,8 @@ function healthHandler(req, reply) { reply.send("ok"); }
 
 	// Verify that the standalone and threaded paths produce identical
 	// framework-registered dead-code root kinds.
-	deadCodeFromStandalone := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, standalone)
-	deadCodeFromThreaded := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases)
+	deadCodeFromStandalone := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, standalone, ri.expressBases, ri.koaBases)
+	deadCodeFromThreaded := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases, ri.expressBases, ri.koaBases)
 
 	if got, want := len(deadCodeFromThreaded), len(deadCodeFromStandalone); got != want {
 		t.Errorf("deadCodeRootKinds count mismatch: threaded=%d standalone=%d", got, want)
@@ -114,7 +114,7 @@ function healthHandler(req, reply) { reply.send("ok"); }
 	}
 
 	// NEGATIVE: passing wrong bases (nil) must change the output.
-	wrongDeadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, nil)
+	wrongDeadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, nil, nil, nil)
 	if len(wrongDeadCode) == len(deadCodeFromStandalone) && len(wrongDeadCode) > 0 {
 		t.Errorf("NEGATIVE: passing nil fastifyBases should NOT match standalone (got %d entries)", len(wrongDeadCode))
 	}
@@ -152,7 +152,7 @@ function handler(req, reply) { reply.send("ok"); }
 
 	// Route route_route on "server" should not be detected as a fastify route
 	// since "server" is not a base.
-	deadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases)
+	deadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases, ri.expressBases, ri.koaBases)
 	if kinds := deadCode["handler"]; len(kinds) > 0 {
 		t.Errorf("handler should not have route registration kinds via aliased server (got %v)", kinds)
 	}
@@ -176,7 +176,7 @@ function handler(req, reply) { reply.send("ok"); }
 	}
 
 	// Both consumers should produce empty output.
-	deadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases)
+	deadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases, ri.expressBases, ri.koaBases)
 	if len(deadCode) != 0 {
 		t.Errorf("expected empty deadCodeRootKinds, got %d entries", len(deadCode))
 	}
@@ -212,7 +212,7 @@ function adminHandler(req, reply) { reply.send("ok"); }
 	}
 
 	// Dead code root kinds should have entries for both handlers.
-	deadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases)
+	deadCode := javaScriptFrameworkRegisteredDeadCodeRootKinds(root, sourceBytes, ri.fastifyBases, ri.expressBases, ri.koaBases)
 	if kinds, ok := deadCode["healthhandler"]; !ok || len(kinds) == 0 {
 		t.Errorf("expected healthhandler in deadCodeRootKinds, got %v", kinds)
 	}
