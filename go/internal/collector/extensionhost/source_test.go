@@ -9,15 +9,12 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/component"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/workflow"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 func TestSourceRunsExtensionWithBoundedClaimConfigAndDeadline(t *testing.T) {
@@ -205,6 +202,79 @@ func TestSourceRejectsSDKValidationFailuresAsTerminalBeforeCommit(t *testing.T) 
 	assertFailure(t, err, FailureClassInvalidResult, true)
 }
 
+func TestSourceRejectsPayloadSchemaInvalidFactBeforeCommit(t *testing.T) {
+	t.Parallel()
+
+	item := testWorkItem()
+	fact := testSDKFact(item)
+	invalidPayload, ok := fixturepack.InvalidPayload("aws_resource")
+	if !ok {
+		t.Fatal("fixturepack.InvalidPayload(aws_resource) ok = false, want true")
+	}
+	fact.Payload = invalidPayload
+	result := completeResult(item, fact)
+	source := mustNewSourceWithManifest(t, testManifestWithPayloadSchemaRef("aws_resource"), &recordingRunner{result: result}, nil)
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want terminal payload schema validation error")
+	}
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want false")
+	}
+	if got := len(collectFacts(t, collected)); got != 0 {
+		t.Fatalf("facts after payload schema validation failure = %d, want 0", got)
+	}
+	assertFailure(t, err, FailureClassInvalidResult, true)
+	if !strings.Contains(err.Error(), "payload_schema_invalid") || !strings.Contains(err.Error(), "region") {
+		t.Fatalf("NextClaimed() error = %v, want payload_schema_invalid naming region", err)
+	}
+}
+
+func TestSourceAcceptsPayloadSchemaValidFact(t *testing.T) {
+	t.Parallel()
+
+	item := testWorkItem()
+	fact := testSDKFact(item)
+	validPayload, ok := fixturepack.ValidPayload("aws_resource")
+	if !ok {
+		t.Fatal("fixturepack.ValidPayload(aws_resource) ok = false, want true")
+	}
+	fact.Payload = validPayload
+	result := completeResult(item, fact)
+	source := mustNewSourceWithManifest(t, testManifestWithPayloadSchemaRef("aws_resource"), &recordingRunner{result: result}, nil)
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	if got := len(collectFacts(t, collected)); got != 1 {
+		t.Fatalf("facts after payload schema validation = %d, want 1", got)
+	}
+}
+
+func BenchmarkSourcePayloadSchemaValidation(b *testing.B) {
+	item := testWorkItem()
+	fact := testSDKFact(item)
+	validPayload, ok := fixturepack.ValidPayload("aws_resource")
+	if !ok {
+		b.Fatal("fixturepack.ValidPayload(aws_resource) ok = false, want true")
+	}
+	fact.Payload = validPayload
+	result := completeResult(item, fact)
+	source := mustNewSourceWithManifest(b, testManifestWithPayloadSchemaRef("aws_resource"), &recordingRunner{result: result}, nil)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := source.validatePayloadSchemas(result); err != nil {
+			b.Fatalf("validatePayloadSchemas() error = %v", err)
+		}
+	}
+}
+
 func TestSourceRejectsReturnedClaimIdentityMismatchAsTerminal(t *testing.T) {
 	t.Parallel()
 
@@ -281,214 +351,5 @@ func TestSourceRoutesRetryableAndTerminalResultsThroughClaimFailures(t *testing.
 				}
 			}
 		})
-	}
-}
-
-type recordingRunner struct {
-	result   sdkcollector.Result
-	err      error
-	requests []Request
-}
-
-func (r *recordingRunner) RunCollector(_ context.Context, request Request) (sdkcollector.Result, error) {
-	r.requests = append(r.requests, request)
-	return r.result, r.err
-}
-
-type recordingStatusRecorder struct {
-	statuses []StatusRecord
-}
-
-func (r *recordingStatusRecorder) RecordExtensionStatus(_ context.Context, status StatusRecord) error {
-	r.statuses = append(r.statuses, status)
-	return nil
-}
-
-func mustNewSource(t *testing.T, runner Runner, recorder StatusRecorder) *Source {
-	t.Helper()
-
-	source, err := NewSource(Config{
-		Manifest:            testManifest(),
-		CollectorInstanceID: "community-scorecard",
-		ScopeKind:           scope.KindRepository,
-		ConfigHandle:        "config://components/community-scorecard",
-		Config: map[string]any{
-			"fixture": "scorecard",
-			"limit":   float64(25),
-		},
-		Runner:         runner,
-		StatusRecorder: recorder,
-		Clock: func() time.Time {
-			return testObservedAt()
-		},
-	})
-	if err != nil {
-		t.Fatalf("NewSource() error = %v, want nil", err)
-	}
-	return source
-}
-
-func testManifest() component.Manifest {
-	return component.Manifest{
-		APIVersion: "eshu.dev/v1alpha1",
-		Kind:       "ComponentPackage",
-		Metadata: component.Metadata{
-			ID:        "dev.eshu.examples.scorecard",
-			Name:      "Scorecard example collector",
-			Publisher: "eshu-hq",
-			Version:   "0.1.0",
-		},
-		Spec: component.Spec{
-			CompatibleCore: ">=0.0.5 <0.1.0",
-			ComponentType:  component.ComponentTypeCollector,
-			CollectorKinds: []string{"git"},
-			Runtime: component.RuntimeContract{
-				SDKProtocol: component.CollectorSDKProtocolV1Alpha1,
-				Adapter:     component.RuntimeAdapterProcess,
-			},
-			Artifacts: []component.Artifact{{
-				Platform: "linux/amd64",
-				Image:    "ghcr.io/eshu-hq/examples/scorecard@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			}},
-			EmittedFacts: []component.FactFamily{{
-				Kind:             "dev.eshu.examples.scorecard.check",
-				SchemaVersions:   []string{"1.0.0"},
-				SourceConfidence: []string{facts.SourceConfidenceReported, facts.SourceConfidenceInferred},
-			}},
-		},
-	}
-}
-
-func testWorkItem() workflow.WorkItem {
-	now := testObservedAt()
-	return workflow.WorkItem{
-		WorkItemID:          "work-scorecard-1",
-		RunID:               "run-scorecard-1",
-		CollectorKind:       scope.CollectorGit,
-		CollectorInstanceID: "community-scorecard",
-		SourceSystem:        "github",
-		ScopeID:             "repo:eshu-hq/eshu",
-		AcceptanceUnitID:    "repo:eshu-hq/eshu",
-		SourceRunID:         "generation-scorecard-1",
-		GenerationID:        "generation-scorecard-1",
-		FairnessKey:         "github",
-		Status:              workflow.WorkItemStatusClaimed,
-		AttemptCount:        2,
-		CurrentClaimID:      "claim-scorecard-1",
-		CurrentFencingToken: 7,
-		CurrentOwnerID:      "collector-host-1",
-		LeaseExpiresAt:      now.Add(30 * time.Second),
-		VisibleAt:           now.Add(-time.Minute),
-		LastClaimedAt:       now.Add(-time.Second),
-		CreatedAt:           now.Add(-time.Hour),
-		UpdatedAt:           now,
-	}
-}
-
-func testSDKFact(item workflow.WorkItem) sdkcollector.Fact {
-	observedAt := testObservedAt()
-	return sdkcollector.Fact{
-		Kind:             "dev.eshu.examples.scorecard.check",
-		SchemaVersion:    "1.0.0",
-		StableKey:        "scorecard-check:binary-artifacts",
-		SourceConfidence: sdkcollector.SourceConfidenceReported,
-		ObservedAt:       observedAt,
-		SourceRef: sdkcollector.SourceRef{
-			SourceSystem: item.SourceSystem,
-			ScopeID:      item.ScopeID,
-			GenerationID: item.GenerationID,
-			FactKey:      "scorecard-check:binary-artifacts",
-			URI:          "https://example.invalid/scorecard/results.json",
-			RecordID:     "binary-artifacts",
-		},
-		Payload: map[string]any{
-			"name":  "Binary-Artifacts",
-			"score": float64(10),
-		},
-	}
-}
-
-func completeResult(item workflow.WorkItem, facts ...sdkcollector.Fact) sdkcollector.Result {
-	result := baseResult(item, sdkcollector.ResultComplete)
-	result.Facts = facts
-	result.Statuses = []sdkcollector.Status{{
-		Class:           sdkcollector.StatusComplete,
-		FactCount:       len(facts),
-		SourceLatencyMS: 12,
-	}}
-	return result
-}
-
-func baseResult(item workflow.WorkItem, state sdkcollector.ResultState) sdkcollector.Result {
-	return sdkcollector.Result{
-		ProtocolVersion: sdkcollector.ProtocolVersionV1Alpha1,
-		State:           state,
-		Claim:           testSDKClaim(item),
-		Generation: sdkcollector.Generation{
-			ID:            item.GenerationID,
-			ObservedAt:    testObservedAt(),
-			FreshnessHint: "scorecard-fixture-v1",
-		},
-	}
-}
-
-func testSDKClaim(item workflow.WorkItem) sdkcollector.Claim {
-	return sdkcollector.Claim{
-		ComponentID:   "dev.eshu.examples.scorecard",
-		InstanceID:    item.CollectorInstanceID,
-		CollectorKind: string(item.CollectorKind),
-		SourceSystem:  item.SourceSystem,
-		Scope: sdkcollector.Scope{
-			ID:   item.ScopeID,
-			Kind: string(scope.KindRepository),
-		},
-		SourceRunID:  item.SourceRunID,
-		GenerationID: item.GenerationID,
-		WorkItemID:   item.WorkItemID,
-		FencingToken: strconv.FormatInt(item.CurrentFencingToken, 10),
-		Attempt:      item.AttemptCount,
-		Deadline:     item.LeaseExpiresAt,
-		ConfigHandle: "config://components/community-scorecard",
-	}
-}
-
-func testObservedAt() time.Time {
-	return time.Date(2026, 6, 9, 16, 30, 0, 0, time.UTC)
-}
-
-func collectFacts(t *testing.T, collected collector.CollectedGeneration) []facts.Envelope {
-	t.Helper()
-
-	if collected.Facts == nil {
-		return nil
-	}
-	var envelopes []facts.Envelope
-	for envelope := range collected.Facts {
-		envelopes = append(envelopes, envelope)
-	}
-	if collected.FactStreamErr != nil {
-		if err := collected.FactStreamErr(); err != nil {
-			t.Fatalf("FactStreamErr() error = %v, want nil", err)
-		}
-	}
-	return envelopes
-}
-
-func assertFailure(t *testing.T, err error, wantClass string, wantTerminal bool) {
-	t.Helper()
-
-	var classified interface{ FailureClass() string }
-	if !errors.As(err, &classified) {
-		t.Fatalf("error %v does not expose FailureClass()", err)
-	}
-	if got := classified.FailureClass(); got != wantClass {
-		t.Fatalf("FailureClass() = %q, want %q", got, wantClass)
-	}
-	var terminal interface{ TerminalFailure() bool }
-	if !errors.As(err, &terminal) {
-		t.Fatalf("error %v does not expose TerminalFailure()", err)
-	}
-	if got := terminal.TerminalFailure(); got != wantTerminal {
-		t.Fatalf("TerminalFailure() = %v, want %v", got, wantTerminal)
 	}
 }

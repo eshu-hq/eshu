@@ -36,7 +36,9 @@ host-local finding code, because file I/O is the host's responsibility.
 - `sdk/go/collector` decodes and validates collector SDK result fixtures.
 
 The package intentionally avoids storage, graph, API, MCP, and workflow
-dependencies so fixture-mode checks stay cheap and deterministic.
+dependencies so fixture-mode checks stay cheap and deterministic. It reads
+payload schemas only from the versioned factschema fixture pack when a manifest
+declares `payloadSchemaRef`.
 
 ## Telemetry
 
@@ -53,6 +55,9 @@ No-Regression Evidence: fixture-mode conformance behavior is covered by
 - Fixture validation is fail-closed. Missing fixtures, invalid JSON, undeclared
   fact kinds, unsafe payload keys, and unsupported reducer consumers block both
   publication and hosted activation.
+- A manifest `payloadSchemaRef` maps the component's namespaced fact kind to a
+  fixture-pack schema shape. Schema-invalid fixtures block both publication and
+  hosted activation with `payload_schema_invalid`.
 - `ModeCompose` currently preserves the requested mode in reports but still
   requires explicit fixture inputs. Compose-backed runtime proof will extend
   this package rather than treating fixture-only validation as remote proof.

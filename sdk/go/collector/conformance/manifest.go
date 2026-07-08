@@ -92,6 +92,7 @@ type Artifact struct {
 // confidence values.
 type FactFamily struct {
 	Kind             string   `yaml:"kind" json:"kind"`
+	PayloadSchemaRef string   `yaml:"payloadSchemaRef,omitempty" json:"payloadSchemaRef,omitempty"`
 	SchemaVersions   []string `yaml:"schemaVersions" json:"schemaVersions"`
 	SourceConfidence []string `yaml:"sourceConfidence" json:"sourceConfidence"`
 	TombstoneAllowed bool     `yaml:"tombstoneAllowed,omitempty" json:"tombstoneAllowed,omitempty"`
@@ -235,6 +236,9 @@ func (f FactFamily) validate() error {
 	if !strings.Contains(strings.TrimSpace(f.Kind), ".") {
 		return fmt.Errorf("fact kind %q must be namespaced with a collision-resistant prefix", f.Kind)
 	}
+	if err := validateOptionalPayloadSchemaRef(f.PayloadSchemaRef); err != nil {
+		return fmt.Errorf("fact kind %q payloadSchemaRef: %w", f.Kind, err)
+	}
 	if len(f.SchemaVersions) == 0 {
 		return fmt.Errorf("fact kind %q must declare at least one schema version", f.Kind)
 	}
@@ -252,6 +256,17 @@ func (f FactFamily) validate() error {
 		}
 	}
 	return nil
+}
+
+func validateOptionalPayloadSchemaRef(ref string) error {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return nil
+	}
+	if ref != trimmed {
+		return fmt.Errorf("%q must be canonical without surrounding whitespace", ref)
+	}
+	return validateIdentifier("payloadSchemaRef", trimmed)
 }
 
 // validateCompatibleCoreRange rejects a missing or malformed compatibleCore

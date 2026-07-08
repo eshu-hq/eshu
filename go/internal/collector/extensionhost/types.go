@@ -5,6 +5,7 @@ package extensionhost
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
@@ -71,6 +72,7 @@ type Source struct {
 	config              map[string]any
 	contract            sdkcollector.Contract
 	validator           sdkcollector.Validator
+	payloadSchemas      map[string]json.RawMessage
 	runner              Runner
 	statusRecorder      StatusRecorder
 	clock               func() time.Time

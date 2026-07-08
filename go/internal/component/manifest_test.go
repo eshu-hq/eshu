@@ -231,6 +231,32 @@ func TestManifestValidateRejectsUnknownFactSourceConfidence(t *testing.T) {
 	}
 }
 
+func TestManifestValidateAcceptsPayloadSchemaRef(t *testing.T) {
+	t.Parallel()
+
+	manifest := validManifest()
+	manifest.Spec.EmittedFacts[0].PayloadSchemaRef = "aws_resource"
+
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil for known payloadSchemaRef", err)
+	}
+}
+
+func TestManifestValidateRejectsUnknownPayloadSchemaRef(t *testing.T) {
+	t.Parallel()
+
+	manifest := validManifest()
+	manifest.Spec.EmittedFacts[0].PayloadSchemaRef = "dev.example.no_schema"
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want unknown payloadSchemaRef error")
+	}
+	if !strings.Contains(err.Error(), "payloadSchemaRef") {
+		t.Fatalf("Validate() error = %v, want payloadSchemaRef error", err)
+	}
+}
+
 func writeManifest(t *testing.T, body string) string {
 	t.Helper()
 

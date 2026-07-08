@@ -31,7 +31,12 @@ collector-sdk/v1alpha1 result fixtures:
   out-of-tree collector reads them from the pinned
   `sdk/go/factschema/fixturepack` — so this package stays dependency-free and
   performs no I/O. `CompileSchema` lets a caller pre-check that a schema is
-  within the supported subset.
+  within the supported subset, and `ValidatePayloadSchemas` runs only this
+  payload-shape check for runtime hosts that have already applied the SDK result
+  contract.
+  For host-driven conformance, a manifest can declare `payloadSchemaRef` on an
+  `emittedFacts[]` entry so the in-tree host maps the namespaced component kind
+  to that fixture-pack schema shape before calling this harness.
 - **Redaction** — fixtures are rejected for credential-bearing payload keys or
   source URIs (delegated to the SDK validator).
 - **Claim lifecycle** — fixtures carry a complete claim, generation, and source

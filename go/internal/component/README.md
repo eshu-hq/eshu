@@ -51,7 +51,8 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   manifest contract. `RuntimeContract` declares the supported collector SDK
   protocol and adapter before a host can consider an activation claim-capable.
   Each `FactFamily` declares a namespaced, non-core fact kind, supported schema
-  versions, and the non-unknown source-confidence values the component emits.
+  versions, the non-unknown source-confidence values the component emits, and
+  optionally the core fixture-pack payload schema shape that validates it.
 - `LoadManifest(path)` loads and validates a manifest from disk.
 - `Policy`, `ProvenancePolicy`, `ProvenanceVerifier`, and
   `VerificationResult` implement local trust checks and expose stable failure
@@ -96,6 +97,9 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 - Component manifests must declare source-confidence values per emitted fact
   family. `unknown` remains a storage compatibility fallback, not component
   output.
+- `payloadSchemaRef`, when present, must name a schema shipped by the
+  factschema fixture pack. A namespaced component fact with no schema ref stays
+  provenance-only and is not payload-shape validated.
 - Unknown or unsupported package behavior must remain inert at install time.
 - Optional components cannot claim core-owned fact kinds. Installed component
   fact-kind ownership must stay unique unless the same component ID installs a

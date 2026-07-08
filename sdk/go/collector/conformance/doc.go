@@ -22,6 +22,9 @@
 // reads files nor depends on a schema library — the in-tree host reads the
 // canonical schemas from disk and an out-of-tree collector reads them from the
 // pinned github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack.
+// ValidatePayloadSchemas exposes just that payload-shape pass for runtime hosts
+// that have already validated the SDK result contract and must not also apply
+// publication-only conformance checks.
 //
 // The in-tree extension host re-exports this report contract so the same
 // verdict is produced inside and outside the Eshu monorepo.

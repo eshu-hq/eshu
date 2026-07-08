@@ -14,7 +14,7 @@ states which combinations are supported together.
 
 | SDK module version | Core release | Wire protocol | Fixture-pack version | Support window |
 | --- | --- | --- | --- | --- |
-| `sdk/go/collector` v0.1.x (unreleased; see `sdk/go/collector/CHANGELOG.md`) | `v0.0.3-pre-release-*` train (current; stable `v0.0.3` not yet cut, see [Release Log](../releases/index.md)) | `collector-sdk/v1alpha1` | `sdk/go/factschema` v0.1.x (unreleased; see `sdk/go/factschema/CHANGELOG.md`) | Initial supported combination. No prior line exists. |
+| `sdk/go/collector` v0.1.x (unreleased; see `sdk/go/collector/CHANGELOG.md`) | `v0.0.3-pre-release-*` train (current; stable `v0.0.3` not yet cut, see [Release Log](../releases/index.md)) | `collector-sdk/v1alpha1` | `sdk/go/factschema` v0.1.x (unreleased; see `sdk/go/factschema/CHANGELOG.md`) | Initial supported combination. Manifests may set `payloadSchemaRef` to validate a namespaced component fact against a fixture-pack payload shape. |
 
 This table grows one row per tagged SDK release once tags exist. Do not
 remove a row when a newer one is added — a consumer pinned to an older tag
@@ -66,9 +66,10 @@ An external collector should:
 
 1. Pin `sdk/go/collector` at the tag in the row matching its target core
    release.
-2. Pin `sdk/go/factschema` at the same row's fixture-pack version, and run
-   `conformance.Run` with `Request.PayloadSchemas` sourced from that pinned
-   module's `fixturepack` package (see
+2. Pin `sdk/go/factschema` at the same row's fixture-pack version, declare
+   `payloadSchemaRef` for every emitted fact that reuses a core payload shape,
+   and run `conformance.Run` with `Request.PayloadSchemas` sourced from that
+   pinned module's `fixturepack` package (see
    [Validate payload shape against a pinned fixture pack](community-extension-authoring.md#validate-payload-shape-against-a-pinned-fixture-pack)).
 3. Declare `spec.compatibleCore` in its manifest using the core range from the
    same row.

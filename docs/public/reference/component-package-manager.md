@@ -429,7 +429,7 @@ Required manifest fields:
 | `spec.runtime.sdkProtocol` | Collector SDK wire protocol. The first supported value is `collector-sdk/v1alpha1`. |
 | `spec.runtime.adapter` | Host adapter shape. The first supported values are `oci` and `process`. |
 | `spec.artifacts[].image` | Digest-pinned image with a full SHA256 digest. |
-| `spec.emittedFacts[]` | Fact kind, schema versions, and source-confidence values emitted by the component. |
+| `spec.emittedFacts[]` | Fact kind, optional payload schema shape, schema versions, and source-confidence values emitted by the component. |
 | `spec.consumerContracts.reducer.phases` | Reducer phase contracts the emitted fact kinds need. |
 | `spec.telemetry.metricsPrefix` | Component-owned metric prefix, when the component emits metrics. |
 
@@ -465,6 +465,13 @@ the declared schema-version major set is compatible; otherwise the registry
 returns `fact_kind_collision` with the candidate owner, existing owner, fact
 kind, and the operator action needed to proceed. Uninstalling an inactive
 component version releases its local fact-kind ownership claim.
+
+An `emittedFacts[].payloadSchemaRef` value is optional. When present, it must
+name a fact kind shipped by the factschema fixture pack, such as
+`aws_resource`. The component still emits its own namespaced kind, but the host
+uses the referenced core payload shape to validate SDK results before
+publication or hosted activation. Leave it unset only for provenance-only
+component facts that have no core payload shape yet.
 
 ## Current Limits
 

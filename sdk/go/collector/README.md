@@ -48,6 +48,12 @@ DDL, or import Eshu internals.
 - payload keys that look like credentials and were not redacted before emission;
 - conflicting duplicates for the same fact kind and stable key.
 
+When a component manifest declares `payloadSchemaRef`, the in-tree host and
+`eshu component conform` additionally validate that fact's payload against the
+referenced `sdk/go/factschema/fixturepack` schema before publication or hosted
+activation. Namespaced component facts without a schema ref remain
+provenance-only and are not payload-shape validated.
+
 Exact duplicate facts are accepted as idempotent and reported in
 `ValidationReport.DuplicateCount`. Conflicting duplicates fail before host
 commit.

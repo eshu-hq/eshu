@@ -40,6 +40,9 @@ entry — until a maintainer actually cuts the tag, per the convention below.
 - `schema/cassette-format.v1.schema.json` — a generated mirror of the host's
   replay cassette envelope contract, so credential-free replay fixtures can be
   validated offline against the same schema the host enforces.
+- `payloadSchemaRef` on conformance manifest fact families, letting a
+  namespaced component fact declare the fixture-pack payload schema shape the
+  host and CI should validate before publication or activation.
 
 ## Convention for future entries
 

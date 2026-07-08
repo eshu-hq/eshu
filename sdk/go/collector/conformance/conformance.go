@@ -315,6 +315,19 @@ func validateFixturePayloads(schemas map[string]payloadSchema, fixture collector
 	return nil
 }
 
+// ValidatePayloadSchemas validates one SDK result's fact payloads against raw
+// JSON Schemas keyed by the exact emitted fact kind. It runs only the payload
+// schema check, so runtime hosts can fail closed on payload shape without also
+// applying publication-only conformance checks such as reducer consumer
+// availability.
+func ValidatePayloadSchemas(rawSchemas map[string]json.RawMessage, result collector.Result) error {
+	schemas, err := compileSchemas(rawSchemas)
+	if err != nil {
+		return err
+	}
+	return validateFixturePayloads(schemas, result)
+}
+
 func addBlockingFinding(report *Report, code FindingCode, message string, fixtureIndex int) {
 	finding := Finding{
 		Code:                   code,
