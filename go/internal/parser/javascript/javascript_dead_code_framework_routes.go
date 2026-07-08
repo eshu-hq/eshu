@@ -30,6 +30,18 @@ var (
 		"options": {},
 		"route":   {},
 	}
+	// javaScriptFastifyTypeLeafNames is the set of Fastify type leaf names
+	// whose presence on a parameter or a variable declarator signals the
+	// parameter/function-param name is a Fastify instance base. The import
+	// gate is deliberately NOT applied: these types are often imported from
+	// @fastify/type-provider-typebox or similar packages that do not match
+	// javaScriptHasFastifyImport.
+	javaScriptFastifyTypeLeafNames = map[string]struct{}{
+		"FastifyInstance":           {},
+		"FastifyPluginAsync":        {},
+		"FastifyPluginCallback":     {},
+		"FastifyPluginAsyncTypebox": {},
+	}
 )
 
 func javaScriptFrameworkRegisteredDeadCodeRootKinds(

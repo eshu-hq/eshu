@@ -40,6 +40,127 @@ router.delete("/inline", async (ctx) => { ctx.body = "deleted"; });
 	})
 }
 
+func TestDefaultEngineParsePathTypeScriptFastifyTypedParameterRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "plugin.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import { FastifyInstance } from 'fastify'
+export default async function plugin(fastify: FastifyInstance) {
+  fastify.get("/health", getHealth);
+  fastify.post("/orders", createOrder);
+}
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+
+	assertFrameworksEqual(t, got, "fastify")
+	assertNestedRouteEntriesEqual(t, got, "fastify", []map[string]string{
+		{"method": "GET", "path": "/health", "handler": "getHealth"},
+		{"method": "POST", "path": "/orders", "handler": "createOrder"},
+	})
+}
+
+func TestDefaultEngineParsePathTypeScriptFastifyAutoloadPluginRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "routes.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
+const plugin: FastifyPluginAsyncTypebox = async (fastify) => {
+  fastify.get("/health", getHealth);
+  fastify.post("/orders", createOrder);
+}
+export default plugin
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+
+	assertFrameworksEqual(t, got, "fastify")
+	assertNestedRouteEntriesEqual(t, got, "fastify", []map[string]string{
+		{"method": "GET", "path": "/health", "handler": "getHealth"},
+		{"method": "POST", "path": "/orders", "handler": "createOrder"},
+	})
+}
+
+func TestDefaultEngineParsePathTypeScriptFastifyPluginOptionsParamNotRouteBase(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "routes.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
+const plugin: FastifyPluginAsyncTypebox = async (fastify, opts) => {
+  fastify.get("/health", getHealth);
+  opts.get("/should-not-be-a-route", nope);
+}
+export default plugin
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+
+	assertFrameworksEqual(t, got, "fastify")
+	// Only the first parameter (fastify) is the instance/base. The plugin
+	// options parameter (opts) is not a Fastify instance, so opts.get(...)
+	// must NOT be parsed as a route (#4940 review).
+	assertNestedRouteEntriesEqual(t, got, "fastify", []map[string]string{
+		{"method": "GET", "path": "/health", "handler": "getHealth"},
+	})
+}
+
+func TestDefaultEngineParsePathTypeScriptFastifyTypedParamWrongTypeNoRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "plugin.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import { MyThing } from './my-module'
+export default async function plugin(fastify: MyThing) {
+  fastify.get("/health", getHealth);
+  fastify.post("/orders", createOrder);
+}
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+
+	// framework_semantics should either have no "fastify" key or empty route_entries
+	assertNoFrameworkOrNoRoutes(t, got, "fastify")
+}
+
+func TestDefaultEngineParsePathTypeScriptNonFastifyGetNoRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "not-fastify.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import { MyThing } from './my-module'
+export default async function plugin(fastify: MyThing) {
+  fastify.get("/health", getHealth);
+}
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+
+	assertNoFrameworkOrNoRoutes(t, got, "fastify")
+}
+
 func TestDefaultEngineParsePathTypeScriptFastifyRouteEntriesExactHandlers(t *testing.T) {
 	t.Parallel()
 

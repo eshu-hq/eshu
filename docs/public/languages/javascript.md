@@ -36,7 +36,7 @@ Detailed parser mechanics live in `go/internal/parser/README.md` and
 | Framework/package roots | `framework-package-roots` | supported | `dead_code_root_kinds`, package metadata, framework metadata | source-proven root kind and location | `find_dead_code` | `go/internal/query/code_dead_code_javascript_roots_test.go` | Compose-backed fixture verification | Derived root evidence protects live framework/package surfaces without claiming cleanup-safe exactness. |
 | Express/Hapi route truth | `express-hapi-route-truth` | supported | `framework_semantics.route_entries` | `method, path`; `handler` only for exact named handlers | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/engine_javascript_route_handler_test.go`, `go/internal/parser/engine_javascript_handler_test.go`, `go/internal/parser/engine_javascript_ast_conversion_test.go::TestDefaultEngineParsePathExpressESMRoutesFromAST`, `go/internal/parser/engine_javascript_ast_conversion_test.go::TestDefaultEngineParsePathHapiRoutesNestedConfigFromAST`, `go/internal/reducer/handles_route_intents_test.go` | Shared reducer route projection proof | Express/Hapi are the JavaScript route frameworks with exact `route_entries` and exact-only handler binding today. |
 | Next.js route-handler truth | `nextjs-route-handler-truth` | supported | `framework_semantics.nextjs.route_entries` | `method, path, handler` for app-router exported HTTP method handlers; `ANY, path, handler` for named `pages/api` default exports | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/engine_javascript_nextjs_route_entries_test.go`, `go/internal/reducer/handles_route_intents_test.go` | Shared reducer route projection proof | Exact Next.js route handlers emit route entries; page/layout roots, anonymous defaults, rewrites, middleware matchers, generated manifests, and plugin conventions do not fabricate handler edges. |
-| Koa/Fastify/NestJS route truth | `koa-fastify-nestjs-route-truth` | supported | `framework_semantics.{koa,fastify,nestjs}.route_entries` | `method, path`; `handler` only for exact named handlers or methods | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/engine_javascript_koa_fastify_nestjs_route_entries_test.go`, `go/internal/reducer/handles_route_javascript_frameworks_test.go`, `go/internal/query/content_reader_framework_routes_test.go` | Parser-to-reducer-to-query route-entry proof | Literal Koa router calls, Fastify verb/route-object registrations, and NestJS literal controller/method decorators emit exact route entries. Middleware chains, plugin loading, computed paths/methods, generated routes, and DI/container-only behavior stay unclaimed. |
+| Koa/Fastify/NestJS route truth | `koa-fastify-nestjs-route-truth` | supported | `framework_semantics.{koa,fastify,nestjs}.route_entries` | `method, path`; `handler` only for exact named handlers or methods | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/engine_javascript_koa_fastify_nestjs_route_entries_test.go`, `go/internal/reducer/handles_route_javascript_frameworks_test.go`, `go/internal/query/content_reader_framework_routes_test.go` | Parser-to-reducer-to-query route-entry proof | Literal Koa router calls, Fastify verb/route-object registrations (including typed-parameter and autoload/plugin patterns such as `const plugin: FastifyPluginAsyncTypebox = async (fastify) => { fastify.get(...) }`), and NestJS literal controller/method decorators emit exact route entries. Middleware chains, plugin loading, computed paths/methods, generated routes, and DI/container-only behavior stay unclaimed. |
 | Outbound contracts | `outbound-contracts` | partial | - | - | - | `go/internal/parser/engine_javascript_semantics_test.go` | Explicit unsupported-contract wording on this page | SDK/client evidence does not create deterministic cross-repo outbound contract edges today. |
 | Generated clients | `generated-clients` | partial | - | - | - | Support-maturity guardrails | Explicit generated-client wording on this page | Generated clients and runtime route/client manifests are not parser-owned route or contract truth. |
 | Runtime dynamic routes | `runtime-dynamic-routes` | partial | - | - | - | Support-maturity guardrails | Explicit dynamic-route wording on this page | Dynamic imports, plugin loading, computed dispatch, and runtime route registration remain outside exact truth. |
@@ -82,7 +82,7 @@ Focused coverage lives in
 | --- | --- |
 | Grammar routing | `supported` |
 | Normalization | `supported` |
-| Framework and root evidence | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify, NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence |
+| Framework and root evidence | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify (including typed-parameter autoload/plugin patterns), NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence |
 | Query surfacing | `supported` |
 | Real-repo validation | `supported` |
 | End-to-end indexing | `supported` |
@@ -100,8 +100,10 @@ Supported today:
   `ANY` route entry only when a named default handler is exact. Pages, layouts,
   anonymous defaults, rewrites, middleware matchers, generated route manifests,
   and plugin conventions remain root or unsupported evidence only.
-- Koa router calls, Fastify verb calls and route-object registrations, and
-  NestJS literal controller/method decorators emit exact `route_entries`.
+- Koa router calls, Fastify verb calls and route-object registrations (including
+  typed-parameter and autoload/plugin patterns such as
+  `const plugin: FastifyPluginAsyncTypebox = async (fastify) => { fastify.get(...) }`),
+  and NestJS literal controller/method decorators emit exact `route_entries`.
   `handler` is recorded only for exact named handlers or methods. Middleware
   chains, plugin loading, computed paths/methods, generated route maps, and
   DI/container-only behavior remain root or unsupported evidence only.

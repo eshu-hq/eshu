@@ -27,11 +27,17 @@ type javaScriptRootIndexes struct {
 
 // buildJavaScriptRootIndexes computes javaScriptRootIndexes for one parsed
 // file. outputLanguage gates react alias collection to tsx (matching
-// javaScriptReactAliases); sourceText gates Fastify, Express, and Koa base
-// collection to files with the corresponding import (matching the standalone
-// functions), so files without those signals skip that collector's per-node
-// work inside the shared walk exactly as the original standalone functions
-// skipped their own walk entirely.
+// javaScriptReactAliases); sourceText gates Fastify (classic import),
+// Express, and Koa base collection to files with the corresponding import
+// (matching the standalone functions), so files without those signals skip
+// that collector's per-node work inside the shared walk exactly as the
+// original standalone functions skipped their own walk entirely.
+//
+// Fastify typed-parameter collection (javaScriptCollectFastifyTypedParameterBase)
+// runs unconditionally: it keys off parameter/variable-declarator type names
+// (e.g. FastifyPluginAsyncTypebox from @fastify/type-provider-typebox), not
+// a fastify import. The per-node cost is cheap (a type-leaf-name lookup) and
+// the import gate must not block the autoload/plugin pattern.
 //
 // javaScriptFunctionReturnTypes still runs as its own preliminary full-tree
 // walk: javaScriptCollectNewExpressionVariableType requires it fully computed
@@ -62,6 +68,9 @@ func buildJavaScriptRootIndexes(
 		}
 		javaScriptCollectCommonJSModuleExportAlias(node, source, commonJSModuleAliases)
 		javaScriptCollectNewExpressionVariableType(node, source, returnTypesByFunction, newExpressionTypes)
+		// Typed-parameter Fastify bases: no import gate — types come from
+		// @fastify/type-provider-typebox, not from the "fastify" package.
+		javaScriptCollectFastifyTypedParameterBase(node, source, fastifyBases)
 		if wantFastifyBases {
 			javaScriptCollectFastifyRegistrationBase(node, source, fastifyBases)
 		}
