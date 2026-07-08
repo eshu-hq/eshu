@@ -114,17 +114,18 @@ func Parse(
 	parents := buildJavaScriptParentLookup(root)
 	sourceText := string(source)
 	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source, outputLanguage)
-	reactAliases := javaScriptReactAliases(root, source, outputLanguage)
+	rootIndexes := buildJavaScriptRootIndexes(root, source, sourceText, outputLanguage)
+	reactAliases := rootIndexes.reactAliases
 	siblingParser := newJavaScriptSiblingParser(parserFactory, parserReturner)
 	defer siblingParser.Close()
 	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents)
 	if len(deadCodeRoots.fileRootKinds) > 0 {
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
-	commonJSModuleAliases := javaScriptCommonJSModuleExportAliases(root, source)
+	commonJSModuleAliases := rootIndexes.commonJSModuleAliases
 	tsConfigImports := NewTSConfigImportResolver(repoRoot, path)
-	newExpressionTypes := javaScriptNewExpressionVariableTypes(root, source)
-	fastifyBases := javaScriptFastifyRegistrationBases(root, source, sourceText)
+	newExpressionTypes := rootIndexes.newExpressionTypes
+	fastifyBases := rootIndexes.fastifyBases
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {

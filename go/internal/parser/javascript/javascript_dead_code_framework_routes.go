@@ -164,16 +164,27 @@ func javaScriptFastifyRegistrationBases(root *tree_sitter.Node, source []byte, t
 		return bases
 	}
 	walkNamed(root, func(node *tree_sitter.Node) {
-		name, value := javaScriptVariableDeclaratorNameValue(node, source)
-		if name == "" || value == nil || value.Kind() != "call_expression" {
-			return
-		}
-		callName := strings.ToLower(javaScriptCallFullName(value.ChildByFieldName("function"), source))
-		if callName == "fastify" {
-			javaScriptAddName(bases, name)
-		}
+		javaScriptCollectFastifyRegistrationBase(node, source, bases)
 	})
 	return bases
+}
+
+// javaScriptCollectFastifyRegistrationBase records dst[name] = struct{}{} for
+// one variable_declarator node that binds a Fastify app instance
+// (`const app = fastify()`). It is a no-op for any other node kind, so
+// callers may invoke it on every visited node in a shared traversal without
+// pre-filtering. Callers should still gate the traversal with
+// javaScriptHasFastifyImport(text) so files without a Fastify import never
+// pay for the check.
+func javaScriptCollectFastifyRegistrationBase(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
+	name, value := javaScriptVariableDeclaratorNameValue(node, source)
+	if name == "" || value == nil || value.Kind() != "call_expression" {
+		return
+	}
+	callName := strings.ToLower(javaScriptCallFullName(value.ChildByFieldName("function"), source))
+	if callName == "fastify" {
+		javaScriptAddName(dst, name)
+	}
 }
 
 func javaScriptVariableDeclaratorNameValue(node *tree_sitter.Node, source []byte) (string, *tree_sitter.Node) {
