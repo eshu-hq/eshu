@@ -29,10 +29,12 @@ var pythonFastAPIServerConstructors = map[string]struct{}{
 }
 
 // pythonFlaskServerConstructors names the call targets that create a Flask
-// application server symbol via a module-level assignment.
+// application server symbol or a Blueprint route-base symbol via a
+// module-level assignment.
 var pythonFlaskServerConstructors = map[string]struct{}{
 	"Flask":      {},
 	"create_app": {},
+	"Blueprint":  {},
 }
 
 // buildPythonFrameworkSemantics derives FastAPI and Flask route semantics from
