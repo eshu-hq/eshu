@@ -19,6 +19,37 @@ type rustRoute struct {
 	order     int
 }
 
+// rustAxumCallCandidate is a call_expression node's text and end byte,
+// captured during the single main payload walk in Parse so axum route
+// detection does not require a dedicated tree walk. endByte preserves the
+// same order-by-end-byte behavior rustAxumRoutes has always applied.
+type rustAxumCallCandidate struct {
+	text    string
+	endByte int
+}
+
+// collectRustAxumCallCandidate appends node's text as an axum route
+// candidate unless node sits under a cfg/cfg_attr-gated ancestor (matching
+// the filter rustAxumRoutes applied when it walked the tree directly) or
+// node's text does not contain the ".route(" shape rustAxumRouteCall
+// requires. Most call_expression nodes in a file are not route
+// registrations, so this cheap shape gate keeps only the small candidate
+// subset alive past this call instead of retaining every call's text until
+// the main walk finishes and resolution runs.
+func collectRustAxumCallCandidate(candidates []rustAxumCallCandidate, node *tree_sitter.Node, source []byte) []rustAxumCallCandidate {
+	if rustNodeHasCfgAncestor(node, source) {
+		return candidates
+	}
+	text := shared.NodeText(node, source)
+	if strings.LastIndex(text, ".route(") < 0 {
+		return candidates
+	}
+	return append(candidates, rustAxumCallCandidate{
+		text:    text,
+		endByte: int(node.EndByte()),
+	})
+}
+
 type rustImportedRouteAttribute struct {
 	framework string
 	method    string
@@ -30,7 +61,7 @@ type rustRouteImports struct {
 	axumRouterNames map[string]struct{}
 }
 
-func buildRustFrameworkSemantics(root *tree_sitter.Node, source []byte, payload map[string]any) map[string]any {
+func buildRustFrameworkSemantics(payload map[string]any, axumCandidates []rustAxumCallCandidate) map[string]any {
 	imports := rustRouteImportNames(payload)
 	routesByFramework := map[string][]rustRoute{
 		"actix_web": {},
@@ -41,7 +72,7 @@ func buildRustFrameworkSemantics(root *tree_sitter.Node, source []byte, payload 
 	for _, route := range rustAttributeRoutes(payload, imports) {
 		routesByFramework[route.framework] = append(routesByFramework[route.framework], route)
 	}
-	for _, route := range rustAxumRoutes(root, source, imports) {
+	for _, route := range rustAxumRoutes(axumCandidates, imports) {
 		routesByFramework[route.framework] = append(routesByFramework[route.framework], route)
 	}
 
@@ -212,23 +243,20 @@ func rustRouteAttributePath(attribute string) (string, bool) {
 	return "", false
 }
 
-func rustAxumRoutes(root *tree_sitter.Node, source []byte, imports rustRouteImports) []rustRoute {
-	if root == nil {
-		return nil
-	}
-
+// rustAxumRoutes resolves axum routes from candidates gathered during the
+// main payload walk in Parse (see rustAxumCallCandidate), rather than
+// re-walking the tree. Resolution is deferred to here because it needs the
+// full import table, which is only complete once the main walk finishes.
+func rustAxumRoutes(candidates []rustAxumCallCandidate, imports rustRouteImports) []rustRoute {
 	routes := make([]rustRoute, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "call_expression" || rustNodeHasCfgAncestor(node, source) {
-			return
-		}
-		route, ok := rustAxumRouteCall(shared.NodeText(node, source), imports)
+	for _, candidate := range candidates {
+		route, ok := rustAxumRouteCall(candidate.text, imports)
 		if !ok {
-			return
+			continue
 		}
-		route.order = int(node.EndByte())
+		route.order = candidate.endByte
 		routes = append(routes, route)
-	})
+	}
 	sort.SliceStable(routes, func(i, j int) bool {
 		return routes[i].order < routes[j].order
 	})
