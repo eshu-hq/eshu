@@ -429,3 +429,86 @@ No-Observability-Change: the fix only changes the dispatch route (Execute vs
 ExecuteGroup) for retract statements; same Cypher, same parameters, same
 `Statement` metadata, same retry wrapping (`WrapRetryableNeo4jError`). No metric,
 label, worker, queue domain, lease, runtime knob, or graph-write route added.
+
+## #4900 — Count-gated orphan sweep write skip
+
+The reducer's orphan sweep (`GraphOrphanSweepRunner` → `OrphanSweepStore.SweepOrphanNodes`)
+now gates every write statement (clear/mark/sweep) on a cheap count query whose
+predicate mirrors that write's own `MATCH...WHERE` exactly, so a write is issued
+only when it will mutate at least one row:
+
+- `mark` is gated on `BuildCountUnmarkedOrphanNodesQuery` (evidence-bearing,
+  unmarked, zero-relationship nodes) — NOT the total orphan count — so an
+  already-marked orphan set does not reissue a zero-row mark write.
+- `clear` is gated on `BuildCountMarkedRelinkedNodesQuery` (marked AND relinked)
+  — NOT marker presence alone — so a freshly marked, still-disconnected orphan
+  does not reissue a zero-row clear write until it ages out (codex #4955).
+- `sweep` is gated on the existing `buildCountAgedOrphanNodesQuery` (aged marked
+  orphans).
+
+`BuildCountMarkedOrphanNodesQuery` (marker presence) is a cheap short-circuit:
+when zero nodes carry the marker, clear and sweep cannot match, so both are
+skipped without issuing their count reads. The steady no-orphan state therefore
+runs exactly two cheap reads (marker-presence + total orphans) and issues zero
+write transactions. The mark/sweep/clear Cypher write shapes are byte-identical.
+A new `Skipped map[string]int64` field on `OrphanSweepResult` reports the number
+of write statements skipped per label (0..3).
+
+No-Regression Evidence: the failing-then-green tests prove output-preserving
+correctness and every zero-row skip path:
+- `TestOrphanSweepStoreSkipsAllWritesWhenNothingToDo` — all-zero counts → 0 executor calls
+- `TestOrphanSweepStoreRunsMarkWhenOrphansPresentButSkipsClearSweepWhenNoMarkers` — mark only
+- `TestOrphanSweepStoreRunsClearAndSweepWhenMarkersPresent` — clear+sweep only
+- `TestOrphanSweepStoreSkipsClearWhenMarkedButNotRelinked` — codex #4955: marked-but-idle → 0 calls
+- `TestOrphanSweepStoreSkipsMarkWhenOrphansAlreadyMarked` — already-marked orphans → mark skipped
+- `TestBuildCountMarkedOrphanNodesQueryIsLabelScopedAndBounded`,
+  `TestBuildCountUnmarkedAndMarkedRelinkedQueriesMirrorWritePredicates` — builder contracts
+- `TestOrphanSweepStoreUsesInjectedClockAndBoundsMutations` — existing test still passes
+All existing `OrphanSweep` tests green (including the bounded-batch convergence test).
+`go test ./internal/storage/cypher ./internal/reducer ./cmd/reducer -count=1` green.
+`golangci-lint run ./internal/storage/cypher/... ./internal/reducer/...` clean.
+
+Performance Evidence: prove-theory-first + wall-clock, measured on the live
+drained `e2e3586persist` full-corpus stack (NornicDB v1.1.10 `d97f02c1`, ~980k
+nodes / 1.6M edges; queue `succeeded|13034`, nothing in flight, so no
+concurrent-write contention). Cardinality on the live graph: File 137,402,
+Directory 42,493, EvidenceArtifact 3,157, Repository 896, Module 316,
+Platform 24. Measured over Bolt with the same `neo4j-go-driver/v5` the reducer
+uses. The cost is a ~14s FIXED per-write-transaction overhead independent of
+label size — a real `mark`/`sweep`/`clear` write on Module (316 nodes) and
+Platform (24 nodes) each cost ~14–18s, the same as File (137k) — because a
+label `MATCH` inside a NornicDB write/temporal transaction routes
+`executeSet → executeMatch → loadNodesWithTemporalViewport →
+GetNodesByLabelVisibleAt → iterateNodesVisibleAtInTxn` (`badger_mvcc.go:1429`),
+a full-store MVCC visible-at iteration (live CPU pprof during a zero-row write:
+47% cum in `GetNodesByLabelVisibleAt`/`iterateNodesVisibleAtInTxn`, 34% cum in
+`gcBgMarkWorker`/`gcDrain`+`tryDeferToSpanScan` decoding each node). The count
+queries run on the cheaper read path (File count ~2.2s). BEFORE: the live
+reducer logged 8 consecutive orphan-sweep cycles at `duration_seconds` ~270s
+each, all finding 0 orphans and issuing 18 write transactions (6 labels ×
+clear+mark+sweep) × ~14s ≈ 252s. AFTER: the count-gated sequence (measured
+end-to-end over Bolt on the same live graph, all labels markedCount=0 /
+orphanCount=0) issues 0 write transactions and completes in 5.82s
+(File reads 4.47s, Directory 1.21s, rest sub-0.1s) — ~46x faster.
+Output-preserving: with 0 orphans and 0 marked nodes the OLD writes matched 0
+rows (no-ops), so the graph is byte-identical (verified 0 nodes carry the
+`eshu_orphan_observed_at_unix` marker before and after); when orphans exist the
+writes run exactly as before. Result class: Wall-clock win. A full built-binary
+hot-swap re-drain was not performed to avoid disrupting the live production
+reducer; the Bolt-sequence measurement exercises the same backend, graph, and
+driver and captures the entire NornicDB-side cost driver (the reducer's Go
+orchestration around these statements is negligible relative to the ~270s).
+
+Skipping a 0-row write is a provable no-op preserving graph truth: a clear with
+no marked nodes changes nothing, a mark with no orphans changes nothing, and a
+sweep with no aged marked nodes changes nothing. The existing count queries
+(`BuildCountOrphanNodesQuery`, `buildCountAgedOrphanNodesQuery`) plus the new
+`BuildCountMarkedOrphanNodesQuery` are all cheap read-path queries that avoid
+the ~14s NornicDB write-path fixed cost.
+
+Observability Evidence: the `Skipped` field is exposed in the existing
+"graph orphan sweep cycle completed" log line via `slog.Int64("writes_skipped_total", ...)`
+and `slog.Any("skipped_by_label", ...)`. These reuses the existing reducer run
+spans and `eshu_dp_graph_orphan_nodes` metric; no new metric instrument, metric
+label, span, route, graph query shape, queue table, worker, lease, or runtime
+knob is added.

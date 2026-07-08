@@ -42,7 +42,10 @@ type GraphOrphanSweepResult struct {
 	Counts        map[string]int64
 	Marked        map[string]int64
 	Deleted       map[string]int64
-	Duration      time.Duration
+	// Skipped counts write statements that were not executed because
+	// a preceding cheap count query returned zero.
+	Skipped  map[string]int64
+	Duration time.Duration
 }
 
 // GraphOrphanSweeper runs one bounded orphan-node cleanup cycle.
@@ -197,6 +200,8 @@ func (r *GraphOrphanSweepRunner) recordResult(ctx context.Context, result GraphO
 		slog.Any("counts_by_label", result.Counts),
 		slog.Any("marked_by_label", result.Marked),
 		slog.Any("deleted_by_label", result.Deleted),
+		slog.Int64("writes_skipped_total", graphOrphanSweepTotal(result.Skipped)),
+		slog.Any("skipped_by_label", result.Skipped),
 		slog.Float64("duration_seconds", result.Duration.Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

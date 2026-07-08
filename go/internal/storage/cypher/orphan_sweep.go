@@ -63,9 +63,13 @@ type OrphanSweepPolicy struct {
 
 // OrphanSweepResult summarizes one graph orphan sweep cycle.
 type OrphanSweepResult struct {
-	Counts   map[string]int64
-	Marked   map[string]int64
-	Deleted  map[string]int64
+	Counts  map[string]int64
+	Marked  map[string]int64
+	Deleted map[string]int64
+	// Skipped counts write statements that were not executed because a
+	// preceding cheap count query returned zero. Values are 0..3 per label
+	// (clear, mark, sweep).
+	Skipped  map[string]int64
 	Duration time.Duration
 }
 
@@ -113,35 +117,97 @@ func (s *OrphanSweepStore) SweepOrphanNodes(ctx context.Context, policy OrphanSw
 		Counts:  make(map[string]int64, len(labels)),
 		Marked:  make(map[string]int64, len(labels)),
 		Deleted: make(map[string]int64, len(labels)),
+		Skipped: make(map[string]int64, len(labels)),
 	}
 
 	for _, label := range labels {
-		clearStmt, _ := BuildClearOrphanMarkerStatement(label, policy.BatchLimit)
-		if err := s.Executor.Execute(ctx, clearStmt); err != nil {
-			return OrphanSweepResult{}, fmt.Errorf("clear orphan marker for %s: %w", label, err)
+		labelKey := string(label)
+		var skipped int64
+
+		// Each write is gated on a count query whose predicate mirrors that
+		// write's own MATCH...WHERE exactly, so a statement is issued only when
+		// it will mutate at least one row. This avoids the ~14s fixed-cost
+		// NornicDB write transaction (a label MATCH inside a write transaction
+		// runs a full-store MVCC visible-at iteration) for the common cases
+		// where clear/mark/sweep would otherwise match zero rows. markedCount
+		// (a cheap marker-presence read) short-circuits clear and sweep, which
+		// can only match when marked nodes exist, so the steady no-orphan state
+		// runs two cheap reads and issues zero write transactions.
+		markedCount, err := s.countMarkedOrphans(ctx, label, policy.CountLimit)
+		if err != nil {
+			return OrphanSweepResult{}, err
 		}
 
 		count, err := s.countOrphans(ctx, label, policy.CountLimit)
 		if err != nil {
 			return OrphanSweepResult{}, err
 		}
-		result.Counts[string(label)] = count
+		result.Counts[labelKey] = count
 
-		markStmt, _ := BuildMarkOrphanNodesStatement(label, nowUnix, policy.BatchLimit)
-		if err := s.Executor.Execute(ctx, markStmt); err != nil {
-			return OrphanSweepResult{}, fmt.Errorf("mark orphan nodes for %s: %w", label, err)
+		// clear matches marked nodes that regained a relationship; it can only
+		// match when markers exist. Preserve the clear-before-mark ordering.
+		if markedCount > 0 {
+			relinkedCount, err := s.countMarkedRelinked(ctx, label, policy.CountLimit)
+			if err != nil {
+				return OrphanSweepResult{}, err
+			}
+			if relinkedCount > 0 {
+				clearStmt, _ := BuildClearOrphanMarkerStatement(label, policy.BatchLimit)
+				if err := s.Executor.Execute(ctx, clearStmt); err != nil {
+					return OrphanSweepResult{}, fmt.Errorf("clear orphan marker for %s: %w", label, err)
+				}
+			} else {
+				skipped++
+			}
+		} else {
+			// No markers: clear cannot match, skipped without a count read.
+			skipped++
 		}
-		result.Marked[string(label)] = boundedMutationEstimate(count, policy.BatchLimit)
 
-		agedCount, err := s.countAgedOrphans(ctx, label, cutoffUnix, policy.CountLimit)
-		if err != nil {
-			return OrphanSweepResult{}, err
+		// mark matches unmarked orphans only. When no markers exist every
+		// orphan is unmarked, so the total orphan count is exact and no extra
+		// read is needed; otherwise count the unmarked orphans precisely.
+		markCount := count
+		if markedCount > 0 {
+			markCount, err = s.countUnmarkedOrphans(ctx, label, policy.CountLimit)
+			if err != nil {
+				return OrphanSweepResult{}, err
+			}
 		}
-		sweepStmt, _ := BuildSweepOrphanNodesStatement(label, cutoffUnix, policy.BatchLimit)
-		if err := s.Executor.Execute(ctx, sweepStmt); err != nil {
-			return OrphanSweepResult{}, fmt.Errorf("sweep orphan nodes for %s: %w", label, err)
+		if markCount > 0 {
+			markStmt, _ := BuildMarkOrphanNodesStatement(label, nowUnix, policy.BatchLimit)
+			if err := s.Executor.Execute(ctx, markStmt); err != nil {
+				return OrphanSweepResult{}, fmt.Errorf("mark orphan nodes for %s: %w", label, err)
+			}
+			result.Marked[labelKey] = boundedMutationEstimate(markCount, policy.BatchLimit)
+		} else {
+			result.Marked[labelKey] = 0
+			skipped++
 		}
-		result.Deleted[string(label)] = boundedMutationEstimate(agedCount, policy.BatchLimit)
+
+		// sweep matches aged marked orphans; it can only match when markers exist.
+		if markedCount > 0 {
+			agedCount, err := s.countAgedOrphans(ctx, label, cutoffUnix, policy.CountLimit)
+			if err != nil {
+				return OrphanSweepResult{}, err
+			}
+			if agedCount > 0 {
+				sweepStmt, _ := BuildSweepOrphanNodesStatement(label, cutoffUnix, policy.BatchLimit)
+				if err := s.Executor.Execute(ctx, sweepStmt); err != nil {
+					return OrphanSweepResult{}, fmt.Errorf("sweep orphan nodes for %s: %w", label, err)
+				}
+				result.Deleted[labelKey] = boundedMutationEstimate(agedCount, policy.BatchLimit)
+			} else {
+				result.Deleted[labelKey] = 0
+				skipped++
+			}
+		} else {
+			// No markers: sweep cannot match, skipped without a count read.
+			result.Deleted[labelKey] = 0
+			skipped++
+		}
+
+		result.Skipped[labelKey] = skipped
 	}
 	result.Duration = time.Since(start)
 	return result, nil
@@ -169,42 +235,6 @@ func (s *OrphanSweepStore) GraphOrphanNodeCounts(ctx context.Context) (map[strin
 		counts[string(label)] = count
 	}
 	return counts, nil
-}
-
-func (s *OrphanSweepStore) countOrphans(ctx context.Context, label OrphanSweepLabel, limit int) (int64, error) {
-	stmt, ok := BuildCountOrphanNodesQuery(label, limit)
-	if !ok {
-		return 0, fmt.Errorf("unsupported orphan sweep label %q", label)
-	}
-	return s.countWithStatement(ctx, stmt, label)
-}
-
-func (s *OrphanSweepStore) countAgedOrphans(
-	ctx context.Context,
-	label OrphanSweepLabel,
-	cutoffUnix int64,
-	limit int,
-) (int64, error) {
-	stmt, ok := buildCountAgedOrphanNodesQuery(label, cutoffUnix, limit)
-	if !ok {
-		return 0, fmt.Errorf("unsupported orphan sweep label %q", label)
-	}
-	return s.countWithStatement(ctx, stmt, label)
-}
-
-func (s *OrphanSweepStore) countWithStatement(ctx context.Context, stmt Statement, label OrphanSweepLabel) (int64, error) {
-	rows, err := s.Reader.Run(ctx, stmt.Cypher, stmt.Parameters)
-	if err != nil {
-		return 0, fmt.Errorf("count orphan nodes for %s: %w", label, err)
-	}
-	if len(rows) == 0 {
-		return 0, nil
-	}
-	count, ok := int64Count(rows[0]["orphan_count"])
-	if !ok {
-		return 0, fmt.Errorf("count orphan nodes for %s: unexpected count type %T", label, rows[0]["orphan_count"])
-	}
-	return count, nil
 }
 
 // BuildMarkOrphanNodesStatement builds a static-label statement that marks
@@ -247,25 +277,6 @@ DELETE n`, match, orphanSweepEvidencePredicate(label)),
 		Parameters: map[string]any{
 			"cutoff_unix": cutoffUnix,
 			"limit":       normalizePositiveInt(limit, defaultOrphanSweepBatchLimit),
-		},
-	}, true
-}
-
-// BuildCountOrphanNodesQuery builds a bounded static-label count query.
-func BuildCountOrphanNodesQuery(label OrphanSweepLabel, limit int) (Statement, bool) {
-	match, ok := orphanLabelMatch(label)
-	if !ok {
-		return Statement{}, false
-	}
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher: fmt.Sprintf(`MATCH (n:%s)
-WHERE %s
-  AND NOT (n)--()
-WITH n LIMIT $limit
-RETURN count(n) AS orphan_count`, match, orphanSweepEvidencePredicate(label)),
-		Parameters: map[string]any{
-			"limit": normalizePositiveInt(limit, defaultOrphanSweepCountLimit),
 		},
 	}, true
 }
