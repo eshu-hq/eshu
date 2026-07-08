@@ -39,9 +39,7 @@ func Parse(
 	// ancestors does so in amortized O(1) per step instead of paying
 	// tree-sitter's O(depth) Node.Parent() cost on each call (#161).
 	lookup := goBuildParentLookup(root)
-	importAliases := goImportAliasIndex(root, source)
-	constructorReturns := goConstructorReturnTypes(root, source)
-	localNameBindings := goLocalNameBindings(root, source, lookup)
+	importAliases, constructorReturns, localNameBindings := goCollectFileLevelIndexes(root, source, lookup)
 	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns, lookup)
 	awsSDKServiceBindings := goAWSSDKReceiverBindings(root, source, goAWSSDKServiceAliases(importAliases), lookup)
 	deadCodeEvidence := goDeadCodeEvidence(
@@ -52,6 +50,7 @@ func Parse(
 		options.GoDirectMethodCallRoots,
 		options.GoPackageImportPath,
 		localNameBindings,
+		constructorReturns,
 		lookup,
 	)
 	if frameworkSemantics, ok := goHTTPFrameworkSemantics(root, source, importAliases); ok {

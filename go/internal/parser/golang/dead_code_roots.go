@@ -25,6 +25,7 @@ func goDeadCodeEvidence(
 	directMethodCallRoots GoDirectMethodCallRoots,
 	packageImportPath string,
 	localNameBindings []goLocalNameBinding,
+	constructorReturns map[string]string,
 	lookup *goParentLookup,
 ) goDeadCodeEvidenceSet {
 	evidence := goDeadCodeEvidenceSet{
@@ -39,6 +40,7 @@ func goDeadCodeEvidence(
 		importAliases,
 		importedParamMethods,
 		localNameBindings,
+		constructorReturns,
 		evidence.functionRootKinds,
 		evidence.interfaceRootKinds,
 		evidence.structRootKinds,
@@ -85,23 +87,31 @@ func goImportAliasIndex(root *tree_sitter.Node, source []byte) map[string][]stri
 		if node.Kind() != "import_spec" {
 			return
 		}
-
-		pathNode := node.ChildByFieldName("path")
-		if pathNode == nil {
-			return
-		}
-		importPath := strings.TrimSpace(strings.Trim(nodeText(pathNode, source), `"`))
-		if importPath == "" {
-			return
-		}
-
-		alias := goImportAlias(node, source, importPath)
-		if alias == "" || alias == "." || alias == "_" {
-			return
-		}
-		index[importPath] = appendUniqueImportAlias(index[importPath], alias)
+		goCollectImportAlias(node, source, index)
 	})
 	return index
+}
+
+// goCollectImportAlias records the import alias for one import_spec node into
+// index, if any. It is the single-node visitor shared by goImportAliasIndex
+// (a standalone full-tree walk used by package-prescan callers) and
+// goCollectFileLevelIndexes (the per-file merged walk in Parse), so both
+// paths apply identical import-alias extraction logic.
+func goCollectImportAlias(node *tree_sitter.Node, source []byte, index map[string][]string) {
+	pathNode := node.ChildByFieldName("path")
+	if pathNode == nil {
+		return
+	}
+	importPath := strings.TrimSpace(strings.Trim(nodeText(pathNode, source), `"`))
+	if importPath == "" {
+		return
+	}
+
+	alias := goImportAlias(node, source, importPath)
+	if alias == "" || alias == "." || alias == "_" {
+		return
+	}
+	index[importPath] = appendUniqueImportAlias(index[importPath], alias)
 }
 
 func goImportAlias(node *tree_sitter.Node, source []byte, importPath string) string {

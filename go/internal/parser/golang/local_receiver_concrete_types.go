@@ -6,26 +6,26 @@ package golang
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func goLocalInterfaceNames(root *tree_sitter.Node, source []byte) map[string]struct{} {
-	names := make(map[string]struct{})
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "type_spec" {
-			return
-		}
-		typeNode := node.ChildByFieldName("type")
-		if typeNode == nil || typeNode.Kind() != "interface_type" {
-			return
-		}
-		name := goNormalizeTypeName(nodeText(node.ChildByFieldName("name"), source))
-		if name != "" {
-			names[strings.ToLower(name)] = struct{}{}
-		}
-	})
-	return names
+// goCollectLocalInterfaceName records the lower-cased local interface name
+// for one type_spec node into names, if any. It is the single-node visitor
+// shared by goCollectLocalMapValueTypesAndInterfaceNames (the merged walk
+// used by goLocalReceiverBindings; see #4839), which replaced the former
+// standalone goLocalInterfaceNames full-tree walk.
+func goCollectLocalInterfaceName(node *tree_sitter.Node, source []byte, names map[string]struct{}) {
+	if node.Kind() != "type_spec" {
+		return
+	}
+	typeNode := node.ChildByFieldName("type")
+	if typeNode == nil || typeNode.Kind() != "interface_type" {
+		return
+	}
+	name := goNormalizeTypeName(nodeText(node.ChildByFieldName("name"), source))
+	if name != "" {
+		names[strings.ToLower(name)] = struct{}{}
+	}
 }
 
 func goTypeNameIsLocalInterface(typeName string, localInterfaces map[string]struct{}) bool {

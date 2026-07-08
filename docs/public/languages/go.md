@@ -58,6 +58,67 @@ Not claimed today:
 - HTTP, gRPC, topic, and generated-client outbound contract extraction is not
   emitted as deterministic cross-repo contract truth today.
 
+## Parser Performance
+
+`Parse` (`go/internal/parser/golang/language.go`) used to build several of its
+per-file indexes with independent full-tree walks over the same syntax tree.
+Epic #4831 tracks collapsing the Go parser's full-tree walk count; #4839
+consolidated three of those redundant walks without changing any observable
+output:
+
+- **Constructor-return dedup**: `constructorReturns` was computed once in
+  `Parse` and then recomputed from scratch inside
+  `goCollectSemanticDeadCodeRoots` (used only by dead-code evidence
+  collection). The already-computed map is now threaded through
+  `goDeadCodeEvidence` into `goCollectSemanticDeadCodeRoots`, removing the
+  second full-tree walk entirely.
+- **Merged file-level index walk**: `goImportAliasIndex`, the former
+  `goConstructorReturnTypes`, and the former `goLocalNameBindings` each walked
+  the whole file separately to build three independent, non-overlapping
+  indexes. `goCollectFileLevelIndexes`
+  (`go/internal/parser/golang/file_level_indexes.go`) now builds all three in
+  one `shared.WalkNamed` pass with a per-node-kind dispatch, preserving each
+  original visitor's exact logic and append order.
+- **Merged receiver-binding sub-walks**: `goLocalReceiverBindings`'s two
+  pre-passes, the former `goLocalMapValueTypes` and `goLocalInterfaceNames`,
+  walked the file separately before its own main walk. They are now built
+  together by `goCollectLocalMapValueTypesAndInterfaceNames`
+  (`go/internal/parser/golang/map_receiver_types.go`) in one pass, since the
+  two node-kind sets are disjoint; `goLocalReceiverBindings`'s own main walk is
+  unchanged.
+
+`goImportAliasIndex` remains a standalone full-tree-walk function because
+package pre-scan passes (`package_prescan_evidence.go`,
+`package_interface_prescan.go`) call it on other files' roots, not `Parse`'s
+own root; only the three walks that were redundant against `Parse`'s single
+root were merged.
+
+Accuracy proof: a differential-equivalence harness
+(`go/internal/parser/golang/equivalence_dump_test.go`, guarded by
+`GO_PARSE_DUMP`) parses every `*.go` file under `go/internal/parser` with four
+`shared.Options` variants (default, `IndexSource`, `EmitDataflow`,
+module-scope variables) and hashes each payload. Comparing the pre- and
+post-merge dumps showed the parser's output was byte-for-byte identical
+(symmetric set difference `0/0`) for every corpus file whose own source was
+not part of this change; the only differing entries were the six files this
+change edited (their own line numbers and declarations changed, as expected)
+plus one new file. See epic #4831 and issue #4839.
+
+Performance Evidence: this change removes 3 of the Go parser's per-file
+full-tree `shared.WalkNamed` passes (constructor-return dedup + a merged
+3-way file-level index walk + a merged receiver-binding sub-walk). The win is
+structural (fewer identical traversals of the same tree); the redundancy is
+provable by inspection.
+
+No-Regression Evidence: parser output is byte-identical old-vs-new (the `0/0`
+differential above), so no accuracy regression is possible; the change only
+removes duplicate traversal work.
+
+No-Observability-Change: this is a pure structural walk consolidation with no
+runtime-behavior change and no new metric/span/log surface. Per-file Go parse
+timing is already covered by the existing parser/pre-scan parse-stage
+telemetry; no new operator signals are warranted.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked
