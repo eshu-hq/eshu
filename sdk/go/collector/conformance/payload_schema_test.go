@@ -56,6 +56,7 @@ func awsManifest() conformance.Manifest {
 	manifest := validManifest()
 	manifest.Spec.EmittedFacts = []conformance.FactFamily{{
 		Kind:             awsResourceKind,
+		PayloadSchemaRef: "aws_resource",
 		SchemaVersions:   []string{"1.0.0"},
 		SourceConfidence: []string{"observed"},
 	}}
@@ -157,6 +158,28 @@ func TestRunAcceptsSchemaValidPayload(t *testing.T) {
 
 	if !report.OK() {
 		t.Fatalf("findings = %#v, want passed for schema-valid aws_resource payload", report.Findings)
+	}
+}
+
+// TestRunRequiresSchemaForDeclaredPayloadSchemaRef proves the public harness
+// does not false-green a manifest that claims a fixture-pack payload shape but
+// whose caller forgot to supply the corresponding schema bytes.
+func TestRunRequiresSchemaForDeclaredPayloadSchemaRef(t *testing.T) {
+	t.Parallel()
+
+	report := conformance.Run(conformance.Request{
+		Manifest: awsManifest(),
+		Fixtures: []collector.Result{
+			awsResourceResult(validAWSResourcePayload()),
+		},
+		Mode: conformance.ModeFixture,
+	})
+
+	if report.OK() {
+		t.Fatal("report OK = true, want failed for declared payloadSchemaRef without supplied schema")
+	}
+	if !findingMentions(report, conformance.FindingPayloadSchemaInvalid, "payloadSchemaRef") {
+		t.Fatalf("findings = %#v, want a payload-schema finding naming payloadSchemaRef", report.Findings)
 	}
 }
 

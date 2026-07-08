@@ -25,7 +25,10 @@ collector-sdk/v1alpha1 result fixtures:
   Schema, every fixture fact of that kind is validated against it and fails
   closed (`payload_schema_invalid`) on a missing required field, a wrong-typed
   field, or a schema construct the validator cannot interpret (it never passes a
-  payload it could not actually validate). A kind with no supplied schema is not
+  payload it could not actually validate). A manifest fact that declares
+  `payloadSchemaRef` must have a `PayloadSchemas` entry keyed by that emitted
+  kind, so callers cannot claim payload-shape proof without supplying the schema
+  bytes. A kind with no supplied schema and no declared `payloadSchemaRef` is not
   payload-validated, so provenance-only kinds are unaffected. The caller supplies
   the schema bytes — the in-tree host reads `sdk/go/factschema/schema/*.json`, an
   out-of-tree collector reads them from the pinned

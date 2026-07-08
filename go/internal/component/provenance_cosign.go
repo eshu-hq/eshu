@@ -142,6 +142,7 @@ func cosignManifestAnnotations(manifest Manifest) []string {
 		"eshu.component.collector-kinds=" + sortedJoin(manifest.Spec.CollectorKinds),
 		"eshu.component.fact-kinds=" + sortedFactKinds(manifest.Spec.EmittedFacts),
 		"eshu.component.fact-schema-versions=" + sortedFactDetails(manifest.Spec.EmittedFacts, factSchemaVersions),
+		"eshu.component.fact-payload-schema-refs=" + sortedFactDetails(manifest.Spec.EmittedFacts, factPayloadSchemaRef),
 		"eshu.component.fact-source-confidence=" + sortedFactDetails(manifest.Spec.EmittedFacts, factSourceConfidence),
 		"eshu.component.reducer-phases=" + sortedJoin(manifest.Spec.ConsumerContracts.Reducer.Phases),
 		"eshu.component.metrics-prefix=" + manifest.Spec.Telemetry.MetricsPrefix,
@@ -166,6 +167,10 @@ func sortedFactDetails(facts []FactFamily, valuesFor func(FactFamily) []string) 
 
 func factSchemaVersions(fact FactFamily) []string {
 	return fact.SchemaVersions
+}
+
+func factPayloadSchemaRef(fact FactFamily) []string {
+	return []string{fact.PayloadSchemaRef}
 }
 
 func factSourceConfidence(fact FactFamily) []string {
