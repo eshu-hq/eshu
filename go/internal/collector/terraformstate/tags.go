@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 const (
@@ -135,6 +137,15 @@ func (p *stateParser) emitTagObservation(resourceAddress string, tagSource strin
 	}
 	p.addTagKey(payload, tag.Key, classificationSource+".key", safeSource+".key")
 	p.addTagValue(payload, tag.Value, classificationSource+".value", safeSource+".value")
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateTagObservation(tfstatev1.TagObservation{
+			ResourceAddress: resourceAddress,
+			TagKeyHash:      tagHash,
+			TagSource:       stringPtr(tagSource),
+		})
+	}); err != nil {
+		return err
+	}
 
 	stableKey := "tag_observation:" + resourceAddress + ":" + tagSource + ":" + tagHash
 	return p.emitBodyFact(p.envelope(facts.TerraformStateTagObservationFactKind, stableKey, payload, stableKey))

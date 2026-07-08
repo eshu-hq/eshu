@@ -8,6 +8,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 type outputPayload struct {
@@ -115,6 +117,15 @@ func (p *stateParser) emitOutput(name string, output outputPayload) error {
 		if err := p.addNonSensitiveOutputValue(payload, source, output); err != nil {
 			return err
 		}
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateOutput(tfstatev1.Output{
+			Name:       name,
+			Sensitive:  boolPtr(output.Sensitive),
+			ValueShape: optionalStringPtr(payloadString(payload, "value_shape")),
+		})
+	}); err != nil {
+		return err
 	}
 	if err := p.emitBodyFact(p.envelope(facts.TerraformStateOutputFactKind, "output:"+name, payload, name)); err != nil {
 		return err

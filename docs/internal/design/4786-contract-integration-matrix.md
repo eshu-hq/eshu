@@ -162,3 +162,39 @@ W2f/#4797/#4798 as listed below.
 | W2d #4797 relationships/replay | `go/internal/relationships/gcp_evidence.go:25`; `go/internal/relationships/evidence.go:73`; `go/internal/relationships/structured_family_evidence.go:22`; `go/internal/relationships/terraform_evidence.go:217`; `go/internal/replay/offlinetier/materialization.go:73`; `go/internal/replay/offlinetier/delta.go:84` | Replay cassette/parserfixture producers remain optional/out of scope, folded into this issue if touched |
 | W2e #4798 projector | `go/internal/projector/runtime.go:302`; `go/internal/projector/canonical_builder.go:96`; `go/internal/projector/semantic_entity_intents.go:30`; `go/internal/projector/container_image_identity_intents.go:51`; `go/internal/projector/observability_coverage_materialization_intents.go:70`; `go/internal/projector/factschema_decode_ociregistry.go:28` | Include typed seams already present so migration does not regress |
 | W2f #4799 reducer residual domains | `go/internal/reducer/candidate_loader.go:42`; `go/internal/reducer/infrastructure_platform_extractor.go:44`; `go/internal/reducer/code_import_repo_edge_identity.go:56`; `go/internal/reducer/supply_chain_impact_match.go:26`; `go/internal/reducer/package_correlation_writer.go:137`; `go/internal/reducer/sbom_attestation_attachment_index.go:297`; `go/internal/reducer/semantic_entity_materialization_helpers.go:14` | #4750 did not eliminate residual `parsed_file_data`; keep query/index raw reads like `go/internal/storage/postgres/schema_fact_records.go:61` visible |
+
+## W1e #4791 Emit-Path Evidence
+
+Benchmark Evidence: on go1.26.4 darwin/arm64, the representative W1e
+constructor benchmarks compared `origin/main` baseline emitters against this
+branch's typed `factschema.Encode*` emitters on the same inputs: Grafana
+observed rule baseline 4484/4767/4600 ns/op versus branch 4814/4474/4340
+ns/op; OCI manifest baseline 4289/4294/4516 ns/op versus branch
+4739/4549/4142/4081/4041 ns/op after the direct descriptor map; package
+registry version baseline 3517/3404/3356 ns/op versus branch 3453/3278/3237
+ns/op. The input shapes are one representative observed alert rule, one OCI
+manifest with config plus one layer, and one Maven package version with artifact
+URLs/checksums. These emitters do no database or graph writes; terminal queue
+and row counts are unchanged at 0 for the benchmarked constructors.
+
+No-Regression Evidence: `make pre-pr` passed gofumpt, golangci-lint, build,
+vet, changed-package tests, 500-line cap, package-docs, exactness/telemetry
+gates, and scoped race for the changed collector packages. Focused reruns passed
+`GOCACHE=/tmp/eshu-codex-gocache-4791 go test ./internal/collector
+./internal/collector/grafana ./internal/collector/loki ./internal/collector/tempo
+./internal/collector/prometheusmimir ./internal/collector/ociregistry
+./internal/collector/packageregistry ./internal/collector/terraformstate
+-count=1` from `go/`, and `GOCACHE=/tmp/eshu-codex-gocache-4791 go test ./...
+-count=1` from `sdk/go/factschema`. The branch also keeps the ratchet
+`TestContractEncodeAdoptionRatchet` green so adopted W1e emitters keep calling
+the canonical factschema encoders.
+
+No-Observability-Change: W1e #4791 changes only in-process payload construction
+before the existing fact envelope commit path. Collector request, fact-volume,
+duration, redaction, warning, freshness, and scan-status signals remain covered
+by the existing family rows in `docs/public/observability/telemetry-coverage.md`
+for Grafana, Prometheus/Mimir, Loki, Tempo, OCI registry, package registry, and
+Terraform state. The new helper files are documented with
+`No-Observability-Change:` rows in that telemetry coverage contract, and no new
+metric, span, log key, queue stage, row table, worker, lease, or retry boundary
+is introduced.

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 var sensitiveURLPattern = regexp.MustCompile(`https?://\S+`)
@@ -43,6 +45,20 @@ func NewRepositoryEnvelope(observation RepositoryObservation) (facts.Envelope, e
 		"visibility":            string(visibility),
 		"auth_mode":             string(authMode),
 		"correlation_anchors":   []string{repository.RepositoryID},
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeOCIRegistryRepository(ociregistryv1.Repository{
+			RepositoryID:        repository.RepositoryID,
+			Provider:            stringPtr(string(repository.Provider)),
+			Registry:            stringPtr(repository.Registry),
+			Repository:          stringPtr(repository.Repository),
+			Visibility:          stringPtr(string(visibility)),
+			AuthMode:            stringPtr(string(authMode)),
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+			CorrelationAnchors:  []string{repository.RepositoryID},
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return newEnvelope(repository, facts.OCIRegistryRepositoryFactKind, facts.OCIRegistryRepositorySchemaVersion, repository.RepositoryID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, repository.RepositoryID, payload), nil
 }
@@ -85,6 +101,24 @@ func NewTagObservationEnvelope(observation TagObservation) (facts.Envelope, erro
 		"identity_strength":     IdentityStrengthWeakTag,
 		"correlation_anchors":   []string{repository.RepositoryID, digest},
 	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeOCIImageTagObservation(ociregistryv1.TagObservation{
+			RepositoryID:        repository.RepositoryID,
+			Tag:                 tag,
+			ResolvedDigest:      digest,
+			MediaType:           stringPtr(strings.TrimSpace(observation.MediaType)),
+			PreviousDigest:      stringPtr(previousDigest),
+			Mutated:             boolPtr(observation.Mutated),
+			IdentityStrength:    stringPtr(IdentityStrengthWeakTag),
+			Provider:            stringPtr(string(repository.Provider)),
+			Registry:            stringPtr(repository.Registry),
+			Repository:          stringPtr(repository.Repository),
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+			CorrelationAnchors:  []string{repository.RepositoryID, digest},
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := facts.StableID(facts.OCIImageTagObservationFactKind, map[string]any{
 		"digest":        digest,
 		"repository_id": repository.RepositoryID,
@@ -102,15 +136,29 @@ func NewManifestEnvelope(observation ManifestObservation) (facts.Envelope, error
 	if err := validateBoundary(observation.GenerationID, observation.CollectorInstanceID, "oci manifest observation"); err != nil {
 		return facts.Envelope{}, err
 	}
-	payload := descriptorPayload(repository, descriptor, observation.Descriptor)
-	payload["collector_instance_id"] = observation.CollectorInstanceID
-	payload["source_tag"] = strings.TrimSpace(observation.SourceTag)
-	payload["config"] = descriptorMap(observation.Config)
-	if configLabels := redactedAnnotations(observation.ConfigLabels); len(configLabels) > 0 {
-		payload["config_labels"] = configLabels
+	payload, err := factschema.EncodeOCIImageManifest(ociregistryv1.ImageManifest{
+		RepositoryID:        repository.RepositoryID,
+		Digest:              descriptor.Digest,
+		DescriptorID:        stringPtr(descriptor.DescriptorID),
+		MediaType:           stringPtr(descriptor.MediaType),
+		SizeBytes:           int64Ptr(observation.Descriptor.SizeBytes),
+		ArtifactType:        stringPtr(strings.TrimSpace(observation.Descriptor.ArtifactType)),
+		SourceTag:           stringPtr(strings.TrimSpace(observation.SourceTag)),
+		Config:              typedDescriptorPtr(observation.Config),
+		ConfigLabels:        redactedAnnotations(observation.ConfigLabels),
+		Layers:              typedDescriptors(observation.Layers),
+		CorrelationAnchors:  []string{repository.RepositoryID, descriptor.Digest},
+		CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+	})
+	if err != nil {
+		return facts.Envelope{}, err
 	}
-	payload["layers"] = descriptorMaps(observation.Layers)
-	payload["correlation_anchors"] = []string{repository.RepositoryID, descriptor.Digest}
+	payload["provider"] = string(repository.Provider)
+	payload["registry"] = repository.Registry
+	payload["repository"] = repository.Repository
+	if annotations := redactedAnnotations(observation.Descriptor.Annotations); len(annotations) > 0 {
+		payload["annotations"] = annotations
+	}
 	return newEnvelope(repository, facts.OCIImageManifestFactKind, facts.OCIImageManifestSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
 }
 
@@ -127,6 +175,21 @@ func NewImageIndexEnvelope(observation IndexObservation) (facts.Envelope, error)
 	payload["collector_instance_id"] = observation.CollectorInstanceID
 	payload["manifests"] = descriptorMaps(observation.Manifests)
 	payload["correlation_anchors"] = []string{repository.RepositoryID, descriptor.Digest}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeOCIImageIndex(ociregistryv1.ImageIndex{
+			RepositoryID:        repository.RepositoryID,
+			Digest:              descriptor.Digest,
+			DescriptorID:        stringPtr(descriptor.DescriptorID),
+			MediaType:           stringPtr(descriptor.MediaType),
+			SizeBytes:           int64Ptr(observation.Descriptor.SizeBytes),
+			ArtifactType:        stringPtr(strings.TrimSpace(observation.Descriptor.ArtifactType)),
+			Manifests:           typedDescriptors(observation.Manifests),
+			CorrelationAnchors:  []string{repository.RepositoryID, descriptor.Digest},
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(repository, facts.OCIImageIndexFactKind, facts.OCIImageIndexSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
 }
 
@@ -142,6 +205,19 @@ func NewDescriptorEnvelope(observation DescriptorObservation) (facts.Envelope, e
 	payload := descriptorPayload(repository, descriptor, observation.Descriptor)
 	payload["collector_instance_id"] = observation.CollectorInstanceID
 	payload["correlation_anchors"] = []string{repository.RepositoryID, descriptor.Digest}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeOCIImageDescriptor(ociregistryv1.ImageDescriptor{
+			RepositoryID:        repository.RepositoryID,
+			Digest:              descriptor.Digest,
+			DescriptorID:        stringPtr(descriptor.DescriptorID),
+			MediaType:           stringPtr(descriptor.MediaType),
+			SizeBytes:           int64Ptr(observation.Descriptor.SizeBytes),
+			ArtifactType:        stringPtr(strings.TrimSpace(observation.Descriptor.ArtifactType)),
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	return newEnvelope(repository, facts.OCIImageDescriptorFactKind, facts.OCIImageDescriptorSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
 }
 
@@ -179,6 +255,26 @@ func NewReferrerEnvelope(observation ReferrerObservation) (facts.Envelope, error
 		"source_api_path":       strings.TrimSpace(observation.SourceAPIPath),
 		"annotations":           redactedAnnotations(observation.Referrer.Annotations),
 		"correlation_anchors":   []string{repository.RepositoryID, subjectDigest, referrer.Digest},
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeOCIImageReferrer(ociregistryv1.ImageReferrer{
+			RepositoryID:        repository.RepositoryID,
+			SubjectDigest:       subjectDigest,
+			ReferrerDigest:      referrer.Digest,
+			SubjectMediaType:    stringPtr(strings.TrimSpace(observation.Subject.MediaType)),
+			ReferrerMediaType:   stringPtr(referrer.MediaType),
+			ArtifactType:        stringPtr(strings.TrimSpace(observation.Referrer.ArtifactType)),
+			SizeBytes:           int64Ptr(observation.Referrer.SizeBytes),
+			SourceAPIPath:       stringPtr(strings.TrimSpace(observation.SourceAPIPath)),
+			Provider:            stringPtr(string(repository.Provider)),
+			Registry:            stringPtr(repository.Registry),
+			Repository:          stringPtr(repository.Repository),
+			Annotations:         redactedAnnotations(observation.Referrer.Annotations),
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+			CorrelationAnchors:  []string{repository.RepositoryID, subjectDigest, referrer.Digest},
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	return newEnvelope(repository, facts.OCIImageReferrerFactKind, facts.OCIImageReferrerSchemaVersion, stableKey, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, subjectDigest+"->"+referrer.Digest, payload), nil
 }

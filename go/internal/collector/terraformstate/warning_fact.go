@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 // WarningFactOptions describes one non-fatal Terraform state warning fact.
@@ -71,6 +73,17 @@ func NewWarningFact(options WarningFactOptions) (facts.Envelope, error) {
 		default:
 			payload[key] = value
 		}
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateWarning(tfstatev1.Warning{
+			WarningKind:   warningKind,
+			Reason:        reason,
+			Source:        warningSource,
+			Severity:      optionalStringPtr(payloadString(payload, "severity")),
+			Actionability: optionalStringPtr(payloadString(payload, "actionability")),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 	key := "terraform_state_warning:warning:" + warningKind + ":" + warningSource + ":" + reason
 	version, _ := facts.TerraformStateSchemaVersion(facts.TerraformStateWarningFactKind)

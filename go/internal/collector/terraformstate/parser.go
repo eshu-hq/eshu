@@ -12,6 +12,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 type snapshotMetadata struct {
@@ -233,6 +235,18 @@ func (p *stateParser) snapshotFact() facts.Envelope {
 	if strings.TrimSpace(p.options.Metadata.ETag) != "" {
 		payload["etag"] = p.options.Metadata.ETag
 	}
+	mergeContractPayloadNoError(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateSnapshot(tfstatev1.Snapshot{
+			Lineage:          stringPtr(p.snapshot.Lineage),
+			Serial:           int64Ptr(p.snapshot.Serial),
+			BackendKind:      stringPtr(string(p.options.Source.BackendKind)),
+			LocatorHash:      stringPtr(locatorHash(p.options.Source)),
+			FormatVersion:    stringPtr(p.snapshot.FormatVersion),
+			TerraformVersion: stringPtr(p.snapshot.TerraformVersion),
+			SourceSizeBytes:  int64Ptr(p.options.Metadata.Size),
+			ETag:             optionalStringPtr(p.options.Metadata.ETag),
+		})
+	})
 	return p.envelope(facts.TerraformStateSnapshotFactKind, "snapshot", payload, locatorHash(p.options.Source))
 }
 

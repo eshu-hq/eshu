@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
 // NewPackageEnvelope builds the durable package identity fact for one package
@@ -50,6 +52,27 @@ func NewPackageEnvelope(observation PackageObservation) (facts.Envelope, error) 
 		"source_specific_id":    normalized.SourceSpecificID,
 		"visibility":            string(visibility),
 		"correlation_anchors":   correlationAnchors(normalized.PackageID, normalized.PURL, normalized.BOMRef),
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodePackageRegistryPackage(packageregistryv1.Package{
+			PackageID:           normalized.PackageID,
+			Ecosystem:           stringPtr(string(normalized.Ecosystem)),
+			Registry:            stringPtr(normalized.Registry),
+			RawName:             stringPtr(normalized.RawName),
+			NormalizedName:      stringPtr(normalized.NormalizedName),
+			Namespace:           stringPtr(normalized.Namespace),
+			Classifier:          stringPtr(normalized.Classifier),
+			PURL:                stringPtr(normalized.PURL),
+			BOMRef:              stringPtr(normalized.BOMRef),
+			PackageManager:      stringPtr(normalized.PackageManager),
+			SourcePath:          stringPtr(normalized.SourcePath),
+			SourceSpecificID:    stringPtr(normalized.SourceSpecificID),
+			Visibility:          stringPtr(string(visibility)),
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+			CorrelationAnchors:  correlationAnchors(normalized.PackageID, normalized.PURL, normalized.BOMRef),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 
 	return facts.Envelope{

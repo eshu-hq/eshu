@@ -80,6 +80,45 @@ func correlationAnchors(values ...string) []string {
 	return anchors
 }
 
+func mergeContractPayload(payload map[string]any, encode func() (map[string]any, error)) error {
+	encoded, err := encode()
+	if err != nil {
+		return err
+	}
+	for key, value := range encoded {
+		if _, exists := payload[key]; !exists {
+			payload[key] = value
+		}
+	}
+	return nil
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func optionalStringPtr(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func boolPtr(value bool) *bool {
+	return &value
+}
+
+func payloadString(payload map[string]any, key string) string {
+	value, _ := payload[key].(string)
+	return value
+}
+
+func payloadStringSlice(payload map[string]any, key string) []string {
+	value, _ := payload[key].([]string)
+	return value
+}
+
 func validateObservationBoundary(scopeID, generationID, collectorInstanceID, noun string) error {
 	if scopeID == "" {
 		return fmt.Errorf("%s scope_id must not be blank", noun)

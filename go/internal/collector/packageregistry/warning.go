@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
 // NewWarningEnvelope builds the durable warning fact for one non-fatal
@@ -64,6 +66,23 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		payload["correlation_anchors"] = correlationAnchors(observation.ScopeID, normalized.PackageID, versionID)
 		stableIdentity["package_id"] = normalized.PackageID
 		stableIdentity["version"] = version
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodePackageRegistryWarning(packageregistryv1.Warning{
+			WarningKey:          warningKey,
+			WarningCode:         warningCode,
+			Severity:            optionalStringPtr(observation.Severity),
+			Message:             optionalStringPtr(sanitizeText(observation.Message)),
+			Ecosystem:           optionalStringPtr(payloadString(payload, "ecosystem")),
+			Registry:            optionalStringPtr(payloadString(payload, "registry")),
+			PackageID:           optionalStringPtr(payloadString(payload, "package_id")),
+			Version:             optionalStringPtr(payloadString(payload, "version")),
+			VersionID:           optionalStringPtr(payloadString(payload, "version_id")),
+			CollectorInstanceID: stringPtr(observation.CollectorInstanceID),
+			CorrelationAnchors:  payloadStringSlice(payload, "correlation_anchors"),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
 	}
 
 	stableFactKey := facts.StableID(facts.PackageRegistryWarningFactKind, stableIdentity)

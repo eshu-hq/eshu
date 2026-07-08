@@ -22,7 +22,7 @@ func DecodePackageRegistryPackage(env Envelope) (packageregistryv1.Package, erro
 // DecodePackageRegistryPackage for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodePackageRegistryPackage(pkg packageregistryv1.Package) (map[string]any, error) {
-	return encodeToPayload(pkg)
+	return encodeDirectPayload(pkg)
 }
 
 // DecodePackageRegistryPackageVersion decodes env.Payload into the latest
@@ -39,7 +39,7 @@ func DecodePackageRegistryPackageVersion(env Envelope) (packageregistryv1.Packag
 // packageregistryv1.PackageVersion into the map[string]any payload shape an
 // Envelope carries.
 func EncodePackageRegistryPackageVersion(version packageregistryv1.PackageVersion) (map[string]any, error) {
-	return encodeToPayload(version)
+	return encodeDirectPayload(version)
 }
 
 // DecodePackageRegistryPackageDependency decodes env.Payload into the latest
@@ -57,7 +57,7 @@ func DecodePackageRegistryPackageDependency(env Envelope) (packageregistryv1.Pac
 // packageregistryv1.PackageDependency into the map[string]any payload shape an
 // Envelope carries.
 func EncodePackageRegistryPackageDependency(dependency packageregistryv1.PackageDependency) (map[string]any, error) {
-	return encodeToPayload(dependency)
+	return encodeDirectPayload(dependency)
 }
 
 // DecodePackageRegistrySourceHint decodes env.Payload into the latest
@@ -75,7 +75,7 @@ func DecodePackageRegistrySourceHint(env Envelope) (packageregistryv1.SourceHint
 // EncodePackageRegistrySourceHint marshals a packageregistryv1.SourceHint into
 // the map[string]any payload shape an Envelope carries.
 func EncodePackageRegistrySourceHint(hint packageregistryv1.SourceHint) (map[string]any, error) {
-	return encodeToPayload(hint)
+	return encodeDirectPayload(hint)
 }
 
 // DecodePackageRegistryPackageArtifact decodes env.Payload into the latest
@@ -91,7 +91,7 @@ func DecodePackageRegistryPackageArtifact(env Envelope) (packageregistryv1.Packa
 // packageregistryv1.PackageArtifact into the map[string]any payload shape an
 // Envelope carries.
 func EncodePackageRegistryPackageArtifact(artifact packageregistryv1.PackageArtifact) (map[string]any, error) {
-	return encodeToPayload(artifact)
+	return encodeDirectPayload(artifact)
 }
 
 // DecodePackageRegistryVulnerabilityHint decodes env.Payload into the latest
@@ -108,7 +108,7 @@ func DecodePackageRegistryVulnerabilityHint(env Envelope) (packageregistryv1.Vul
 // packageregistryv1.VulnerabilityHint into the map[string]any payload shape an
 // Envelope carries.
 func EncodePackageRegistryVulnerabilityHint(hint packageregistryv1.VulnerabilityHint) (map[string]any, error) {
-	return encodeToPayload(hint)
+	return encodeDirectPayload(hint)
 }
 
 // DecodePackageRegistryRegistryEvent decodes env.Payload into the latest
@@ -124,7 +124,7 @@ func DecodePackageRegistryRegistryEvent(env Envelope) (packageregistryv1.Registr
 // packageregistryv1.RegistryEvent into the map[string]any payload shape an
 // Envelope carries.
 func EncodePackageRegistryRegistryEvent(event packageregistryv1.RegistryEvent) (map[string]any, error) {
-	return encodeToPayload(event)
+	return encodeDirectPayload(event)
 }
 
 // DecodePackageRegistryRepositoryHosting decodes env.Payload into the latest
@@ -140,7 +140,7 @@ func DecodePackageRegistryRepositoryHosting(env Envelope) (packageregistryv1.Rep
 // packageregistryv1.RepositoryHosting into the map[string]any payload shape an
 // Envelope carries.
 func EncodePackageRegistryRepositoryHosting(hosting packageregistryv1.RepositoryHosting) (map[string]any, error) {
-	return encodeToPayload(hosting)
+	return encodeDirectPayload(hosting)
 }
 
 // DecodePackageRegistryWarning decodes env.Payload into the latest
@@ -156,5 +156,5 @@ func DecodePackageRegistryWarning(env Envelope) (packageregistryv1.Warning, erro
 // EncodePackageRegistryWarning marshals a packageregistryv1.Warning into the
 // map[string]any payload shape an Envelope carries.
 func EncodePackageRegistryWarning(warning packageregistryv1.Warning) (map[string]any, error) {
-	return encodeToPayload(warning)
+	return encodeDirectPayload(warning)
 }

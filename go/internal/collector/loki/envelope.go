@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 )
 
 // NewSourceInstanceEnvelope converts one live Loki target snapshot into a
@@ -32,6 +34,18 @@ func NewSourceInstanceEnvelope(ctx EnvelopeContext, source SourceInstance, stats
 		}
 	}
 	setRedactionState(payload)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeObservabilitySourceInstance(observabilityv1.SourceInstance{
+			SourceInstanceID: ctx.SourceInstanceID,
+			Provider:         stringPtr(SourceKindLoki),
+			SourceKind:       stringPtr(SourceKindLoki),
+			SourceClass:      stringPtr(SourceClassObserved),
+			Outcome:          stringPtr(OutcomeObserved),
+			FreshnessState:   stringPtr(FreshnessCurrent),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := stableFactKey(facts.ObservabilitySourceInstanceFactKind, ctx.GenerationID, map[string]any{
 		"source_instance_id": ctx.SourceInstanceID,
 		"scope_id":           ctx.ScopeID,
@@ -71,6 +85,23 @@ func NewObservedLogSignalEnvelope(ctx EnvelopeContext, signal LogSignal) (facts.
 		payload["drift_candidate_reason"] = WarningManualProviderResource
 	}
 	setRedactionState(payload)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeObservabilityObservedLogSignal(observabilityv1.ObservedLogSignal{
+			SourceInstanceID:     ctx.SourceInstanceID,
+			ProviderObjectUID:    recordID,
+			SeriesFingerprint:    optionalStringPtr(signal.SeriesFingerprint),
+			Provider:             stringPtr(SourceKindLoki),
+			SourceKind:           stringPtr(SourceKindLoki),
+			SourceClass:          stringPtr(SourceClassObserved),
+			ResourceClass:        stringPtr(ResourceClassLogSignal),
+			Outcome:              stringPtr(normalizedOutcome(signal.Outcome)),
+			FreshnessState:       stringPtr(normalizedFreshness(signal.FreshnessState)),
+			DriftCandidateReason: optionalStringPtr(payloadString(payload, "drift_candidate_reason")),
+			DeclaredMatchState:   stringPtr(firstNonBlank(signal.DeclaredMatchState, MatchStateNotCompared)),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := stableFactKey(facts.ObservabilityObservedLogSignalFactKind, ctx.GenerationID, map[string]any{
 		"source_instance_id": ctx.SourceInstanceID,
 		"scope_id":           ctx.ScopeID,
@@ -120,6 +151,24 @@ func NewObservedRuleEnvelope(ctx EnvelopeContext, rule Rule) (facts.Envelope, er
 		payload["drift_candidate_reason"] = WarningManualProviderResource
 	}
 	setRedactionState(payload)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeObservabilityObservedRule(observabilityv1.ObservedRule{
+			SourceInstanceID:     ctx.SourceInstanceID,
+			ProviderObjectUID:    stringPtr(recordID),
+			RuleGroup:            optionalStringPtr(rule.GroupName),
+			RuleName:             optionalStringPtr(rule.RuleName),
+			Provider:             stringPtr(SourceKindLoki),
+			SourceKind:           stringPtr(SourceKindLoki),
+			SourceClass:          stringPtr(SourceClassObserved),
+			ResourceClass:        stringPtr(ResourceClassRule),
+			Outcome:              stringPtr(normalizedOutcome(rule.Outcome)),
+			FreshnessState:       stringPtr(normalizedFreshness(rule.FreshnessState)),
+			DriftCandidateReason: optionalStringPtr(payloadString(payload, "drift_candidate_reason")),
+			DeclaredMatchState:   stringPtr(firstNonBlank(rule.DeclaredMatchState, MatchStateNotCompared)),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := stableFactKey(facts.ObservabilityObservedRuleFactKind, ctx.GenerationID, map[string]any{
 		"source_instance_id": ctx.SourceInstanceID,
 		"scope_id":           ctx.ScopeID,
@@ -150,6 +199,21 @@ func NewCoverageWarningEnvelope(ctx EnvelopeContext, warning Warning) (facts.Env
 		payload["provider_object_uid"] = resourceID
 	}
 	setRedactionState(payload)
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeObservabilityCoverageWarning(observabilityv1.CoverageWarning{
+			SourceInstanceID:  ctx.SourceInstanceID,
+			ProviderObjectUID: optionalStringPtr(resourceID),
+			Provider:          stringPtr(SourceKindLoki),
+			SourceKind:        stringPtr(SourceKindLoki),
+			SourceClass:       stringPtr(SourceClassObserved),
+			ResourceClass:     stringPtr(resourceClass),
+			Outcome:           stringPtr(warningOutcome(reason)),
+			FreshnessState:    stringPtr(warningFreshness(reason)),
+			WarningKind:       stringPtr(reason),
+		})
+	}); err != nil {
+		return facts.Envelope{}, err
+	}
 	stableKey := stableFactKey(facts.ObservabilityCoverageWarningFactKind, ctx.GenerationID, map[string]any{
 		"source_instance_id": ctx.SourceInstanceID,
 		"scope_id":           ctx.ScopeID,
@@ -180,6 +244,34 @@ func basePayload(ctx EnvelopeContext, outcome string, freshness string) map[stri
 		"scope_id":           ctx.ScopeID,
 	}
 	return payload
+}
+
+func mergeContractPayload(payload map[string]any, encode func() (map[string]any, error)) error {
+	encoded, err := encode()
+	if err != nil {
+		return err
+	}
+	for key, value := range encoded {
+		payload[key] = value
+	}
+	return nil
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func optionalStringPtr(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func payloadString(payload map[string]any, key string) string {
+	value, _ := payload[key].(string)
+	return value
 }
 
 func observabilityEnvelope(

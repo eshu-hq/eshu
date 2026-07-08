@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 )
 
 type providerBinding struct {
@@ -45,6 +47,19 @@ func (p *stateParser) emitProviderBinding(resourceAddress string, providerAddres
 	}
 	if binding.ProviderAlias != "" {
 		payload["provider_alias"] = binding.ProviderAlias
+	}
+	if err := mergeContractPayload(payload, func() (map[string]any, error) {
+		return factschema.EncodeTerraformStateProviderBinding(tfstatev1.ProviderBinding{
+			ResourceAddress:       binding.ResourceAddress,
+			ProviderAddress:       binding.ProviderAddress,
+			ProviderSourceAddress: optionalStringPtr(binding.ProviderSourceAddress),
+			ProviderHostname:      optionalStringPtr(binding.ProviderHostname),
+			ProviderNamespace:     optionalStringPtr(binding.ProviderNamespace),
+			ProviderType:          optionalStringPtr(binding.ProviderType),
+			ProviderAlias:         optionalStringPtr(binding.ProviderAlias),
+		})
+	}); err != nil {
+		return err
 	}
 	stableKey := "provider_binding:" + binding.ResourceAddress + ":" + providerHash
 	sourceRecordID := binding.ResourceAddress + ":provider:" + providerHash

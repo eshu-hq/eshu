@@ -24,7 +24,7 @@ func DecodeTerraformStateSnapshot(env Envelope) (tfstatev1.Snapshot, error) {
 // DecodeTerraformStateSnapshot for schema-version-1 payloads, used by this
 // module's round-trip tests.
 func EncodeTerraformStateSnapshot(snapshot tfstatev1.Snapshot) (map[string]any, error) {
-	return encodeToPayload(snapshot)
+	return encodeDirectPayload(snapshot)
 }
 
 // DecodeTerraformStateResource decodes env.Payload into the latest
@@ -40,7 +40,7 @@ func DecodeTerraformStateResource(env Envelope) (tfstatev1.Resource, error) {
 // EncodeTerraformStateResource marshals a tfstatev1.Resource into the
 // map[string]any payload shape an Envelope carries.
 func EncodeTerraformStateResource(resource tfstatev1.Resource) (map[string]any, error) {
-	return encodeToPayload(resource)
+	return encodeDirectPayload(resource)
 }
 
 // DecodeTerraformStateModule decodes env.Payload into the latest
@@ -54,7 +54,7 @@ func DecodeTerraformStateModule(env Envelope) (tfstatev1.Module, error) {
 // EncodeTerraformStateModule marshals a tfstatev1.Module into the
 // map[string]any payload shape an Envelope carries.
 func EncodeTerraformStateModule(module tfstatev1.Module) (map[string]any, error) {
-	return encodeToPayload(module)
+	return encodeDirectPayload(module)
 }
 
 // DecodeTerraformStateOutput decodes env.Payload into the latest
@@ -68,7 +68,7 @@ func DecodeTerraformStateOutput(env Envelope) (tfstatev1.Output, error) {
 // EncodeTerraformStateOutput marshals a tfstatev1.Output into the
 // map[string]any payload shape an Envelope carries.
 func EncodeTerraformStateOutput(output tfstatev1.Output) (map[string]any, error) {
-	return encodeToPayload(output)
+	return encodeDirectPayload(output)
 }
 
 // DecodeTerraformStateTagObservation decodes env.Payload into the latest
@@ -84,7 +84,7 @@ func DecodeTerraformStateTagObservation(env Envelope) (tfstatev1.TagObservation,
 // EncodeTerraformStateTagObservation marshals a tfstatev1.TagObservation into
 // the map[string]any payload shape an Envelope carries.
 func EncodeTerraformStateTagObservation(observation tfstatev1.TagObservation) (map[string]any, error) {
-	return encodeToPayload(observation)
+	return encodeDirectPayload(observation)
 }
 
 // DecodeTerraformStateCandidate decodes env.Payload into the latest
@@ -100,7 +100,7 @@ func DecodeTerraformStateCandidate(env Envelope) (tfstatev1.Candidate, error) {
 // EncodeTerraformStateCandidate marshals a tfstatev1.Candidate into the
 // map[string]any payload shape an Envelope carries.
 func EncodeTerraformStateCandidate(candidate tfstatev1.Candidate) (map[string]any, error) {
-	return encodeToPayload(candidate)
+	return encodeDirectPayload(candidate)
 }
 
 // DecodeTerraformStateProviderBinding decodes env.Payload into the latest
@@ -114,7 +114,7 @@ func DecodeTerraformStateProviderBinding(env Envelope) (tfstatev1.ProviderBindin
 // EncodeTerraformStateProviderBinding marshals a tfstatev1.ProviderBinding into
 // the map[string]any payload shape an Envelope carries.
 func EncodeTerraformStateProviderBinding(binding tfstatev1.ProviderBinding) (map[string]any, error) {
-	return encodeToPayload(binding)
+	return encodeDirectPayload(binding)
 }
 
 // DecodeTerraformStateWarning decodes env.Payload into the latest
@@ -128,5 +128,5 @@ func DecodeTerraformStateWarning(env Envelope) (tfstatev1.Warning, error) {
 // EncodeTerraformStateWarning marshals a tfstatev1.Warning into the
 // map[string]any payload shape an Envelope carries.
 func EncodeTerraformStateWarning(warning tfstatev1.Warning) (map[string]any, error) {
-	return encodeToPayload(warning)
+	return encodeDirectPayload(warning)
 }
