@@ -30,6 +30,7 @@ Canonical implementation:
 | Nullsafe and anonymous-class receivers | `nullsafe-and-anonymous-class-receivers` | supported | `go/internal/parser/php_language_test.go::TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata`, `go/internal/reducer/code_call_materialization_family_test.go::TestExtractCodeCallRowsResolvesPHPNullsafeReceiverChainsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_php_long_tail_test.go::TestHandleRelationshipsReturnsGraphBackedPHPAnonymousClassReceiverCalls` | Nullsafe receiver chains and anonymous-class receiver calls both survive the full parser/reducer/query path. |
 | Symfony attribute route truth | `symfony-attribute-route-truth` | supported | `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsSymfonyRouteEntries`, `go/internal/reducer/handles_route_php_test.go::TestBuildHandlesRouteIntentRowsEmitsPHPSymfonyRouteMatches`, `go/internal/query/content_reader_framework_routes_php_test.go::TestParseFrameworkSemanticsExtractsPHPSymfonyRoutes` | Method-level attributes resolved to Symfony `Route` emit exact `framework_semantics.symfony.route_entries` when the source proves literal path, literal HTTP method list, and declaring handler method. `HANDLES_ROUTE` is projected only when the reducer resolves that class-qualified handler exactly. |
 | Slim web-route detection | `slim-web-route-detection` | supported | `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsSlimRouteEntries`, `go/internal/reducer/handles_route_php_test.go::TestBuildHandlesRouteIntentRowsEmitsPHPSlimRouteMatches`, `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsSlimGroupedAndNestedRouteEntries`, `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPSkipsNonSlimReceiverGetCalls` | Slim `$app->get()`, `$app->post()`, `$app->map()` and related route-registration calls emit `framework_semantics.slim.route_entries` when the receiver is a proven Slim app/group (a variable assigned from `AppFactory::create()`/`new \Slim\App(...)`, or a closure parameter typed `App`/`RouteCollectorProxy`/`RouteCollectorProxyInterface`/`RouteCollectorInterface`) and the first argument is a literal path string. A Slim import alone is not sufficient, so non-route calls like `$container->get('settings')` are not emitted. Phase-1 `member_call_expression` gathering + post-walk receiver-gated resolution; no dedicated route walk. Group-prefix concatenation is implemented: inner routes under `$app->group('/users', function ($group) { ... })` (including nested groups) emit the full prefixed path (`/users`, `/users/{id}`). |
+| Laravel Route:: facade route truth | `laravel-route-facade-truth` | supported | `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsLaravelRouteEntries`, `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPSkipsNonLaravelScopedGetCall`, `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsLaravelNestedGroupRouteEntries`, `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsLaravelGlobalBackslashRouteInNamespace` | Laravel `Route::get()`, `Route::post()`, `Route::put()`, `Route::patch()`, `Route::delete()`, `Route::options()`, `Route::any()`, `Route::match()` scoped call expressions emit `framework_semantics.laravel.route_entries` when the scope resolves to the `Illuminate\Support\Facades\Route` facade — either through a `use` import, the fully-qualified `\Illuminate\Support\Facades\Route::`, the global alias `\Route::`, or bare `Route::` in a namespace-less file with no conflicting import. `match()` resolves HTTP methods from the first-arg array; `any()` emits an ANY entry. Phase-1 `scoped_call_expression` gathering gated on Laravel route verbs + post-walk facade-provenance resolution. `Route::group()` prefix concatenation is implemented for literal `'prefix'` array keys (nested groups supported). `Route::resource()` expansion and non-literal group prefixes are deferred. |
 | Dead-code root hints | `dead-code-root-hints` | derived | `go/internal/parser/php_dead_code_roots_test.go::TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_php_roots_test.go::TestHandleDeadCodeExcludesPHPRootKindsFromMetadata`, `tests/fixtures/deadcode/php/app.php` | Parser metadata suppresses PHP script entrypoints, constructors, known PHP magic methods, same-file interface methods and implementations, trait methods, route-backed controller actions, literal route handlers, Symfony route attributes, and WordPress hook callbacks from cleanup candidates. |
 
 ## Current Truth
@@ -118,17 +119,24 @@ Supported today:
   calls emit `framework_semantics.slim.route_entries` when the file imports a
   Slim namespace. Detection is phase-1 `member_call_expression` candidate
   gathering gated on a Slim `use` import, with no dedicated second tree walk.
+- Laravel `Route::get()`, `Route::post()`, `Route::match()`, and related scoped
+  call expressions emit `framework_semantics.laravel.route_entries` when the
+  scope resolves to the `Illuminate\Support\Facades\Route` facade. Detection is
+  phase-1 `scoped_call_expression` candidate gathering gated on Laravel route
+  verbs and post-walk facade-provenance resolution. `Route::group(['prefix'
+  => ...])` prefix concatenation is implemented for literal prefix values
+  (nested groups supported).
 - Constructors, magic methods, same-file interface methods and implementations,
   and trait methods are also modeled as live root evidence.
 
 Not claimed today:
 
-- Composer/autoload public surfaces, Laravel router conventions (separate
-  follow-up), Symfony dynamic attributes, broader framework route resolution,
+- Symfony dynamic attributes, broader framework route resolution,
   include/require resolution, reflection-heavy flows, and arbitrary dynamic
   dispatch remain outside the exactness boundary.
-- Exact route-to-handler truth for Laravel, WordPress, broader Symfony, and
-  other PHP frameworks is tracked by
+- Composer/autoload public surfaces remain outside the exactness boundary.
+- Laravel `Route::resource()` expansion and non-literal group prefixes are
+  deferred. Laravel route-to-handler truth is tracked by
   [#4162](https://github.com/eshu-hq/eshu/issues/4162).
 
 ## Known Limitations
