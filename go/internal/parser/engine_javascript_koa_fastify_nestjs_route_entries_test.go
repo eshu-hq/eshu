@@ -91,6 +91,34 @@ export default plugin
 	})
 }
 
+func TestDefaultEngineParsePathTypeScriptFastifyPluginOptionsParamNotRouteBase(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "routes.ts")
+	writeTestFile(
+		t,
+		filePath,
+		`import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
+const plugin: FastifyPluginAsyncTypebox = async (fastify, opts) => {
+  fastify.get("/health", getHealth);
+  opts.get("/should-not-be-a-route", nope);
+}
+export default plugin
+`,
+	)
+
+	got := mustParsePath(t, repoRoot, filePath)
+
+	assertFrameworksEqual(t, got, "fastify")
+	// Only the first parameter (fastify) is the instance/base. The plugin
+	// options parameter (opts) is not a Fastify instance, so opts.get(...)
+	// must NOT be parsed as a route (#4940 review).
+	assertNestedRouteEntriesEqual(t, got, "fastify", []map[string]string{
+		{"method": "GET", "path": "/health", "handler": "getHealth"},
+	})
+}
+
 func TestDefaultEngineParsePathTypeScriptFastifyTypedParamWrongTypeNoRouteEntries(t *testing.T) {
 	t.Parallel()
 

@@ -82,9 +82,14 @@ func javaScriptCollectFunctionParameterNames(node *tree_sitter.Node, source []by
 	}
 }
 
-// javaScriptCollectFormalParameterNames adds the name of each
-// required_parameter or optional_parameter to dst. Uses name extraction
-// that works for both typed parameters (fastify: FastifyInstance) and
+// javaScriptCollectFormalParameterNames adds ONLY the first
+// required_parameter or optional_parameter name to dst. In a Fastify plugin
+// signature the Fastify instance is always the first parameter
+// (`async (fastify, opts) => ...`); the remaining parameters (e.g. the
+// plugin `opts`) are NOT Fastify instances, so treating them as registration
+// bases would falsely parse `opts.get("/x", handler)` as a route and emit
+// bogus route_entries / HANDLES_ROUTE truth (#4940 review). Name extraction
+// works for both typed parameters (fastify: FastifyInstance) and
 // untyped/inferred parameters (fastify) by trying ChildByFieldName("pattern")
 // first, then falling back to javaScriptTypedBindingName.
 func javaScriptCollectFormalParameterNames(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
@@ -99,6 +104,8 @@ func javaScriptCollectFormalParameterNames(node *tree_sitter.Node, source []byte
 			if name != "" {
 				javaScriptAddName(dst, name)
 			}
+			// Only the first parameter is the Fastify instance; stop after it.
+			return
 		}
 	}
 }
