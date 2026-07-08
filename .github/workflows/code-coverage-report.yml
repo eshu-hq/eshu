@@ -33,6 +33,14 @@ jobs:
 
   coverage-report:
     name: Generate Go code coverage report
+    # Advisory report only — it does not gate correctness (see the header). The
+    # ~15-18m full-coverage run is intentionally OFF the PR path: it caught no
+    # code defects there, it only refreshed the badge/baseline. That refresh
+    # happens post-merge on the push-to-main lane below (every merge updates the
+    # committed docs report + README shield) and on manual dispatch. The cheap
+    # static-mirror contract check above still runs on every PR, so a change to
+    # the generator script is still validated pre-merge.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: static-mirror
     timeout-minutes: 45
