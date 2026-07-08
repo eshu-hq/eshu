@@ -163,7 +163,7 @@ Community components must be explicit enough for automated review.
 | Compatibility | `spec.compatibleCore` names the supported Eshu core range. Release builds enforce it; local `dev` builds still parse it. |
 | Artifacts | Every artifact image is digest-pinned with a full SHA256 digest. Mutable tags are not acceptable. |
 | Runtime protocol | `spec.runtime.sdkProtocol` declares the collector SDK protocol, currently `collector-sdk/v1alpha1`, and `spec.runtime.adapter` declares the host adapter. The first hosted worker runs `process`; `oci` is reserved for the digest-pinned adapter path. |
-| Fact schemas | `spec.emittedFacts[]` declares fact kinds, schema versions, and source-confidence values. |
+| Fact schemas | `spec.emittedFacts[]` declares fact kinds, optional payload schema refs, schema versions, and source-confidence values. |
 | Namespacing | Optional components use collision-resistant fact kinds. Core Eshu fact kinds remain core-owned. |
 | Source confidence | New output uses `observed`, `reported`, `inferred`, or `derived`. `unknown` is compatibility debt, not normal component output. |
 | Consumer contract | `spec.consumerContracts.reducer.phases` or equivalent structured metadata declares which reducer or query consumer can interpret the fact. |
@@ -249,6 +249,22 @@ checked against a schema construct the harness cannot interpret fails closed wit
 a `payload_schema_invalid` finding that names the offending field. A kind with no
 supplied schema is not payload-validated, so provenance-only kinds are
 unaffected.
+
+For hosted or CLI conformance, declare the same mapping in the component
+manifest with `payloadSchemaRef`:
+
+```yaml
+emittedFacts:
+  - kind: dev.acme.collector.aws_resource
+    payloadSchemaRef: aws_resource
+    schemaVersions:
+      - 1.0.0
+    sourceConfidence:
+      - reported
+```
+
+The manifest kind remains namespaced and component-owned. The schema ref names
+the core fixture-pack shape the host should use for payload validation.
 
 The schemas ship as a versioned, importable **fixture pack** inside the contracts
 module, `github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack`. Pin the

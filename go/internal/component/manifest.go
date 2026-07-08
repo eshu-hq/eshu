@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 const (
@@ -85,6 +86,7 @@ type Artifact struct {
 // confidence values.
 type FactFamily struct {
 	Kind             string   `yaml:"kind" json:"kind"`
+	PayloadSchemaRef string   `yaml:"payloadSchemaRef,omitempty" json:"payloadSchemaRef,omitempty"`
 	SchemaVersions   []string `yaml:"schemaVersions" json:"schemaVersions"`
 	SourceConfidence []string `yaml:"sourceConfidence" json:"sourceConfidence"`
 }
@@ -215,6 +217,9 @@ func (f FactFamily) Validate() error {
 	if err := validateComponentFactKind(f.Kind); err != nil {
 		return err
 	}
+	if err := validatePayloadSchemaRef(f.PayloadSchemaRef); err != nil {
+		return fmt.Errorf("fact kind %q payloadSchemaRef: %w", f.Kind, err)
+	}
 	if len(f.SchemaVersions) == 0 {
 		return fmt.Errorf("fact kind %q must declare at least one schema version", f.Kind)
 	}
@@ -240,6 +245,23 @@ func (f FactFamily) Validate() error {
 		if confidence == facts.SourceConfidenceUnknown {
 			return fmt.Errorf("fact kind %q sourceConfidence must not declare unknown for new component output", f.Kind)
 		}
+	}
+	return nil
+}
+
+func validatePayloadSchemaRef(ref string) error {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return nil
+	}
+	if ref != trimmed {
+		return fmt.Errorf("%q must be canonical without surrounding whitespace", ref)
+	}
+	if err := validateIdentifier("payloadSchemaRef", trimmed); err != nil {
+		return err
+	}
+	if _, ok := fixturepack.SchemaFor(trimmed); !ok {
+		return fmt.Errorf("%q does not match a shipped factschema fixture-pack schema", trimmed)
 	}
 	return nil
 }

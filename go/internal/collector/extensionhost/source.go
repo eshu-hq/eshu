@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	sdkconformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 )
 
 // NewSource validates component host configuration and builds a claimed source.
@@ -56,6 +57,7 @@ func NewSource(config Config) (*Source, error) {
 		config:              cloneConfig(config.Config),
 		contract:            contract,
 		validator:           sdkcollector.NewValidator(contract),
+		payloadSchemas:      payloadSchemasForManifest(config.Manifest),
 		runner:              config.Runner,
 		statusRecorder:      config.StatusRecorder,
 		clock:               clock,
@@ -168,6 +170,23 @@ func (s *Source) validateResult(request Request, result sdkcollector.Result) err
 			terminal: true,
 			cause:    err,
 		}
+	}
+	if err := s.validatePayloadSchemas(result); err != nil {
+		return extensionFailure{
+			class:    FailureClassInvalidResult,
+			terminal: true,
+			cause:    err,
+		}
+	}
+	return nil
+}
+
+func (s *Source) validatePayloadSchemas(result sdkcollector.Result) error {
+	if len(s.payloadSchemas) == 0 {
+		return nil
+	}
+	if err := sdkconformance.ValidatePayloadSchemas(s.payloadSchemas, result); err != nil {
+		return fmt.Errorf("%s: %w", sdkconformance.FindingPayloadSchemaInvalid, err)
 	}
 	return nil
 }

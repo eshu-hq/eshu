@@ -40,6 +40,7 @@ func TestCosignProvenanceVerifierVerifiesSignatureAndAttestation(t *testing.T) {
 		"-a eshu.component.version=0.1.0",
 		"-a eshu.component.fact-kinds=dev.eshu.aws.cloud_resource",
 		"-a eshu.component.fact-schema-versions=dev.eshu.aws.cloud_resource:1.0.0",
+		"-a eshu.component.fact-payload-schema-refs=dev.eshu.aws.cloud_resource:",
 		"-a eshu.component.fact-source-confidence=dev.eshu.aws.cloud_resource:reported",
 		"-a eshu.component.reducer-phases=cloud_resource_uid:canonical_nodes_committed",
 		"-a eshu.component.metrics-prefix=eshu_dp_aws_",
@@ -48,6 +49,36 @@ func TestCosignProvenanceVerifierVerifiesSignatureAndAttestation(t *testing.T) {
 		if !strings.Contains(log, want) {
 			t.Fatalf("cosign args missing %q:\n%s", want, log)
 		}
+	}
+}
+
+func TestCosignProvenanceVerifierSignsPayloadSchemaRefs(t *testing.T) {
+	cosignPath, logPath := writeFakeCosign(t)
+	manifest := validManifest()
+	manifest.Spec.EmittedFacts = append(manifest.Spec.EmittedFacts, FactFamily{
+		Kind:             "dev.eshu.aws.warning",
+		PayloadSchemaRef: "aws_warning",
+		SchemaVersions:   []string{"1.0.0"},
+		SourceConfidence: []string{"reported"},
+	})
+	manifest.Spec.EmittedFacts[0].PayloadSchemaRef = "aws_resource"
+	verifier := CosignProvenanceVerifier{Command: cosignPath}
+	requirement := ProvenanceRequirement{
+		CertificateIdentity: "https://github.com/eshu-hq/eshu/.github/workflows/release.yml@refs/tags/v0.1.0",
+		OIDCIssuer:          "https://token.actions.githubusercontent.com",
+	}
+
+	if err := verifier.VerifyProvenance(context.Background(), manifest, requirement); err != nil {
+		t.Fatalf("VerifyProvenance() error = %v, want nil", err)
+	}
+
+	logBytes, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile() error = %v, want nil", err)
+	}
+	want := "-a eshu.component.fact-payload-schema-refs=dev.eshu.aws.cloud_resource:aws_resource,dev.eshu.aws.warning:aws_warning"
+	if !strings.Contains(string(logBytes), want) {
+		t.Fatalf("cosign args missing %q:\n%s", want, logBytes)
 	}
 }
 

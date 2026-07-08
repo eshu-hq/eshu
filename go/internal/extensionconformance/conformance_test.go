@@ -65,6 +65,50 @@ func TestRunFixtureModeRejectsUnsafeFixture(t *testing.T) {
 	}
 }
 
+func TestRunFixtureModeValidatesPayloadSchemaRef(t *testing.T) {
+	t.Parallel()
+
+	result := validConformanceResult()
+	result.Facts[0].Payload = map[string]any{
+		"account_id":    "123456789012",
+		"resource_id":   "vpc-abc123",
+		"resource_type": "aws_vpc",
+	}
+
+	report, err := Run(context.Background(), Request{
+		ManifestPath: writeConformanceManifestWithPayloadSchemaRef(
+			t,
+			"source_evidence_only:no_graph_truth",
+			"aws_resource",
+		),
+		FixturePaths: []string{writeConformanceFixture(t, result)},
+		Mode:         ModeFixture,
+	})
+	if err == nil {
+		t.Fatal("Run() error = nil, want payload schema validation error")
+	}
+	assertFinding(t, report, FindingPayloadSchemaInvalid, true, true)
+	if !strings.Contains(report.Findings[0].Message, "region") {
+		t.Fatalf("payload schema finding = %#v, want message naming missing region", report.Findings[0])
+	}
+}
+
+func TestRunFixtureModeAllowsNamespacedKindWithoutPayloadSchemaRef(t *testing.T) {
+	t.Parallel()
+
+	report, err := Run(context.Background(), Request{
+		ManifestPath: writeConformanceManifest(t, "source_evidence_only:no_graph_truth"),
+		FixturePaths: []string{writeConformanceFixture(t, validConformanceResult())},
+		Mode:         ModeFixture,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil for namespaced provenance-only fact", err)
+	}
+	if got, want := report.Status, StatusPassed; got != want {
+		t.Fatalf("Status = %q, want %q; findings=%#v", got, want, report.Findings)
+	}
+}
+
 func TestRunFixtureModeBlocksUnsupportedReducerConsumer(t *testing.T) {
 	t.Parallel()
 
@@ -116,7 +160,17 @@ func assertFinding(t *testing.T, report Report, code FindingCode, blocksPublicat
 func writeConformanceManifest(t *testing.T, reducerPhase string) string {
 	t.Helper()
 
+	return writeConformanceManifestWithPayloadSchemaRef(t, reducerPhase, "")
+}
+
+func writeConformanceManifestWithPayloadSchemaRef(t *testing.T, reducerPhase, payloadSchemaRef string) string {
+	t.Helper()
+
 	path := filepath.Join(t.TempDir(), "manifest.yaml")
+	payloadSchemaLine := ""
+	if payloadSchemaRef != "" {
+		payloadSchemaLine = "      payloadSchemaRef: " + payloadSchemaRef + "\n"
+	}
 	body := `apiVersion: eshu.dev/v1alpha1
 kind: ComponentPackage
 metadata:
@@ -137,6 +191,7 @@ spec:
       image: ghcr.io/example/scorecard@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   emittedFacts:
     - kind: dev.example.scorecard.snapshot
+` + payloadSchemaLine + `
       schemaVersions:
         - 1.0.0
       sourceConfidence:

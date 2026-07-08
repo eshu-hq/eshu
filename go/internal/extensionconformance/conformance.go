@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 // The host wrapper re-exports the public collector conformance report contract
@@ -55,6 +56,8 @@ const (
 	FindingFixtureContractFailed = conformance.FindingFixtureContractFailed
 	// FindingMissingReducerConsumer means a declared reducer phase is unavailable.
 	FindingMissingReducerConsumer = conformance.FindingMissingReducerConsumer
+	// FindingPayloadSchemaInvalid means a fixture payload violated its schema.
+	FindingPayloadSchemaInvalid = conformance.FindingPayloadSchemaInvalid
 	// FindingUnsupportedMode means the request named an unsupported mode.
 	FindingUnsupportedMode = conformance.FindingUnsupportedMode
 
@@ -117,19 +120,12 @@ func Run(ctx context.Context, req Request) (Report, error) {
 		fixtures = append(fixtures, result)
 	}
 
-	// PayloadSchemas is intentionally not supplied here. The pack keys schemas by
-	// bare core fact kind, but this host passes ReservedFactKinds=CoreFactKinds()
-	// and the manifest validator requires every declared kind to be namespaced,
-	// so a component can never declare a core kind and a core-keyed schema map
-	// would never match a fixture fact. Wiring it would validate nothing while
-	// reading as if the CLI checks payload shape. CLI payload validation needs a
-	// manifest field mapping a component's namespaced kind to a core payload
-	// shape; see the follow-up issue referenced in doc.go.
 	report := conformance.Run(conformance.Request{
 		Manifest:          manifestToPublic(manifest),
 		Fixtures:          fixtures,
 		Mode:              req.Mode,
 		ReservedFactKinds: facts.CoreFactKinds(),
+		PayloadSchemas:    payloadSchemasForManifest(manifest),
 	})
 	if len(readFindings) > 0 {
 		report.Findings = append(readFindings, report.Findings...)
@@ -168,6 +164,7 @@ func manifestToPublic(manifest component.Manifest) conformance.Manifest {
 	for _, fact := range manifest.Spec.EmittedFacts {
 		facts = append(facts, conformance.FactFamily{
 			Kind:             fact.Kind,
+			PayloadSchemaRef: fact.PayloadSchemaRef,
 			SchemaVersions:   append([]string(nil), fact.SchemaVersions...),
 			SourceConfidence: append([]string(nil), fact.SourceConfidence...),
 		})
@@ -206,6 +203,24 @@ func manifestToPublic(manifest component.Manifest) conformance.Manifest {
 			Telemetry: conformance.Telemetry{MetricsPrefix: manifest.Spec.Telemetry.MetricsPrefix},
 		},
 	}
+}
+
+func payloadSchemasForManifest(manifest component.Manifest) map[string]json.RawMessage {
+	var schemas map[string]json.RawMessage
+	for _, fact := range manifest.Spec.EmittedFacts {
+		if strings.TrimSpace(fact.PayloadSchemaRef) == "" {
+			continue
+		}
+		raw, ok := fixturepack.SchemaFor(fact.PayloadSchemaRef)
+		if !ok {
+			continue
+		}
+		if schemas == nil {
+			schemas = make(map[string]json.RawMessage)
+		}
+		schemas[fact.Kind] = append(json.RawMessage(nil), raw...)
+	}
+	return schemas
 }
 
 func conformanceError(report Report) error {

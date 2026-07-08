@@ -97,10 +97,11 @@ type Request struct {
 	// the pinned sdk/go/factschema/fixturepack. A fixture fact whose kind has an
 	// entry here is validated against it and fails closed on a missing required
 	// field, a wrong-typed field, or a schema construct the harness cannot
-	// validate. A fixture fact whose kind has no entry is not payload-validated
-	// (provenance-only kinds carry no registered schema), and leaving the map nil
-	// disables payload validation entirely, preserving the pre-payload-validation
-	// behavior.
+	// validate. A manifest fact that declares payloadSchemaRef must have a schema
+	// entry keyed by that fact kind, so callers cannot claim payload-shape proof
+	// without supplying the schema bytes. A fixture fact whose kind has no entry
+	// and whose manifest declaration has no payloadSchemaRef is not
+	// payload-validated, preserving provenance-only kinds.
 	PayloadSchemas map[string]json.RawMessage
 }
 
@@ -178,6 +179,11 @@ func Run(req Request) Report {
 		return report
 	}
 
+	if err := requireDeclaredPayloadSchemas(req.Manifest, req.PayloadSchemas); err != nil {
+		addBlockingFinding(&report, FindingPayloadSchemaInvalid, err.Error(), -1)
+		return report
+	}
+
 	schemas, schemaErr := compileSchemas(req.PayloadSchemas)
 	if schemaErr != nil {
 		// A schema that cannot be compiled fails closed: the harness refuses to
@@ -224,6 +230,23 @@ func compileSchemas(raw map[string]json.RawMessage) (map[string]payloadSchema, e
 		compiled[kind] = schema
 	}
 	return compiled, nil
+}
+
+func requireDeclaredPayloadSchemas(manifest Manifest, raw map[string]json.RawMessage) error {
+	for _, fact := range manifest.Spec.EmittedFacts {
+		if strings.TrimSpace(fact.PayloadSchemaRef) == "" {
+			continue
+		}
+		kind := strings.TrimSpace(fact.Kind)
+		if _, ok := raw[kind]; !ok {
+			return fmt.Errorf(
+				"fact kind %q declares payloadSchemaRef %q but no PayloadSchemas entry was supplied",
+				kind,
+				fact.PayloadSchemaRef,
+			)
+		}
+	}
+	return nil
 }
 
 func normalizeMode(mode Mode) Mode {
@@ -313,6 +336,19 @@ func validateFixturePayloads(schemas map[string]payloadSchema, fixture collector
 		}
 	}
 	return nil
+}
+
+// ValidatePayloadSchemas validates one SDK result's fact payloads against raw
+// JSON Schemas keyed by the exact emitted fact kind. It runs only the payload
+// schema check, so runtime hosts can fail closed on payload shape without also
+// applying publication-only conformance checks such as reducer consumer
+// availability.
+func ValidatePayloadSchemas(rawSchemas map[string]json.RawMessage, result collector.Result) error {
+	schemas, err := compileSchemas(rawSchemas)
+	if err != nil {
+		return err
+	}
+	return validateFixturePayloads(schemas, result)
 }
 
 func addBlockingFinding(report *Report, code FindingCode, message string, fixtureIndex int) {

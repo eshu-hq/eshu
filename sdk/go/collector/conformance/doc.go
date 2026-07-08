@@ -14,14 +14,20 @@
 // When the caller supplies Request.PayloadSchemas (a fact kind mapped to its
 // JSON Schema bytes), the harness also validates each fixture fact payload
 // against its schema and fails closed on a missing required field, a wrong-typed
-// field, or a schema construct outside the supported subset. The subset is a
-// deliberately small slice of JSON Schema (typed and nullable properties,
-// string-array and nested-object items, string-valued maps) sufficient for the
-// checked-in factschema payload schemas; CompileSchema reports whether a schema
-// stays inside it. The schema bytes are caller-supplied so this package neither
-// reads files nor depends on a schema library — the in-tree host reads the
-// canonical schemas from disk and an out-of-tree collector reads them from the
-// pinned github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack.
+// field, or a schema construct outside the supported subset. A manifest fact
+// that declares payloadSchemaRef requires a PayloadSchemas entry keyed by that
+// emitted fact kind; fact kinds without a declared ref remain provenance-only
+// unless the caller supplies a schema for them. The subset is a deliberately
+// small slice of JSON Schema (typed and nullable properties, string-array and
+// nested-object items, string-valued maps) sufficient for the checked-in
+// factschema payload schemas; CompileSchema reports whether a schema stays
+// inside it. The schema bytes are caller-supplied so this package neither reads
+// files nor depends on a schema library — the in-tree host reads the canonical
+// schemas from disk and an out-of-tree collector reads them from the pinned
+// github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack.
+// ValidatePayloadSchemas exposes just that payload-shape pass for runtime hosts
+// that have already validated the SDK result contract and must not also apply
+// publication-only conformance checks.
 //
 // The in-tree extension host re-exports this report contract so the same
 // verdict is produced inside and outside the Eshu monorepo.

@@ -4,10 +4,13 @@
 package extensionhost
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 func sdkContract(manifest component.Manifest) (sdkcollector.Contract, error) {
@@ -33,4 +36,22 @@ func sdkContract(manifest component.Manifest) (sdkcollector.Contract, error) {
 		return sdkcollector.Contract{}, errors.New("component must declare at least one emitted fact family")
 	}
 	return contract, nil
+}
+
+func payloadSchemasForManifest(manifest component.Manifest) map[string]json.RawMessage {
+	var schemas map[string]json.RawMessage
+	for _, fact := range manifest.Spec.EmittedFacts {
+		if strings.TrimSpace(fact.PayloadSchemaRef) == "" {
+			continue
+		}
+		raw, ok := fixturepack.SchemaFor(fact.PayloadSchemaRef)
+		if !ok {
+			continue
+		}
+		if schemas == nil {
+			schemas = make(map[string]json.RawMessage)
+		}
+		schemas[fact.Kind] = append(json.RawMessage(nil), raw...)
+	}
+	return schemas
 }
