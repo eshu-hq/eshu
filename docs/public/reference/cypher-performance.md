@@ -976,6 +976,75 @@ budget accounting is returned in-band in `error.details`. The `internal/mcp`
 package declares no metric instruments by design, consistent with its existing
 dispatch observability surface.
 
+### CloudResource / Security-Group Retract Source-Anchoring (#4836/#4858/#4881)
+
+The reducer-owned CloudResource (AWS/Azure/GCP/observability) and security-group
+reachability edge retracts previously matched by relationship property alone
+(`MATCH (source:CloudResource)-[rel]->(:CloudResource) WHERE rel.scope_id IN
+$scope_ids AND rel.evidence_source = $evidence_source DELETE rel`), which
+NornicDB executes as an O(total CloudResource store) label-anchored scan — the
+15-47s/repo warm-reingest cost epic #4836 reported. The change anchors the
+retract on the prior-generation source uids recorded in the `projected_source_edge`
+ledger: `MATCH (source:CloudResource)-[rel]->() WHERE source.uid IN $source_uids
+AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE
+rel` (security-group anchors two families on `sg.uid` / `rule.uid`). This is
+O(scope source count), not O(total store).
+
+Performance Evidence: the speedup depends on NornicDB's IN-list start-node index
+seed (orneryd/NornicDB#258/#259), so all numbers below are measured on the
+fix-branch backend, not on the Compose default. On the built fix-branch binary,
+`BenchmarkInListAnchoredRelMatch` (50k-node label, 100-uid sublist) goes
+109,930,838 -> 301,410 ns/op (~365x), 83MB -> 228KB, 1.39M -> 2.8k allocs.
+Real query path (HTTP, fix-branch binary, 20k-CloudResource store,
+`NORNICDB_ASYNC_WRITES_ENABLED=false`): the node-only `WHERE source.uid IN $u`
+seed is flat ~0.10s at N=100/500/5000; the full anchored retract is 0.26s (N=100)
+and 0.70s (N=500) versus the OLD label scan at ~7s and growing with the whole
+store.
+
+Backend / version: the win needs NornicDB `fix/rel-source-uid-in-index-seed`
+(orneryd/NornicDB#259, which also fixes the multi-MATCH relationship-binding
+correctness bug #257). The Compose default is NOT that branch — it stays on the
+published stock image (`docker-compose.yaml` still defaults `NORNICDB_IMAGE` to
+`timothyswt/nornicdb-cpu-bge`), where the anchored shape is correct but not yet
+index-seeded, so it is no worse than the old label scan but does not yet get the
+O(scope) speedup. To measure or run the speedup before #259 merges and ships a
+tagged image, override `NORNICDB_IMAGE` to a build of that branch (noted in
+`docker-compose.yaml`). This note documents the shape and the fix-branch
+measurement; it does not claim the stock default is fast.
+
+Input shape: warm re-ingest of a scope that already has a prior generation (cold
+ingest still skips the retract on first projection). Leak-safe by construction:
+the ledger is recorded before the graph write (a superset of graph edges), so
+`ListSourceUIDsForScopes` returns the prior generation's full source set even for
+a source removed this generation; the one-time startup backfiller seeds the
+ledger from existing edges so the first post-deploy retract is not a no-op.
+
+No-Regression Evidence: row-set equivalence holds — the anchored retract deletes
+the identical edge set as the whole-scope retract, because every edge carrying a
+writer's `evidence_source` is reachable from one of that writer's recorded source
+uids by construction; the leak-safety regression tests assert it (gen N records
+{A,B}; gen N+1 drops B; the retract still anchors on {A,B}).
+
+Real warm-reingest gate (built binary, real AWS account, patched NornicDB
+`nornicdb-relseed`, `NORNICDB_ASYNC_WRITES_ENABLED=false`): a live EC2 scan
+emitted 974 `aws_relationship` facts; a second scan of the same scope produced
+the warm re-ingest. On the second generation the retract fires
+(`skip_retract=false`): `aws_relationship_materialization` retracts in 0.676s and
+`security_group_reachability_materialization` in 0.250s. Row-set equivalence
+holds in the graph — after gen 2, the aws-relationship edges are 956 for the new
+generation and 0 for the prior generation (fully retracted, no leak, no
+over-delete); security-group edges are 382 (191 rule + 191 endpoint) for the new
+generation and 0 prior. The `projected_source_edge` ledger prunes the prior
+generation and records only the new one, and all reducer/projector work items
+finish terminal-clean (0 failed / 0 pending / 0 dead-letter).
+
+No-Observability-Change: the retract keeps its existing statement metadata
+(phase/entity/summary) and the reducer materialization spans/metrics
+(`eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, and
+`eshu_dp_postgres_query_duration_seconds` for the ledger reads/writes); no metric
+or span is added or removed. The ledger and backfill stage files are covered in
+`docs/public/observability/telemetry-coverage.md`.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

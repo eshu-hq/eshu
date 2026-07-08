@@ -31,6 +31,30 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+// retractAzureCloudResourceEdgesByUIDsCypher is the ledger-anchored
+// counterpart of retractAzureCloudResourceEdgesCypher: it enumerates source
+// CloudResource uids via a `WHERE source.uid IN $source_uids` predicate
+// instead of scanning the whole :CloudResource label. `source.uid IN
+// $source_uids` (a single-clause MATCH with the IN-list predicate on the
+// source node, not a separate UNWIND + property-map MATCH) seeds the
+// CloudResource.uid index so the engine expands adjacency for only the
+// ledger-enumerated sources instead of the whole label; this depends on the
+// NornicDB IN-list start-node index seed fix (orneryd/NornicDB#258) and
+// measured ~300s/timeout on the prior UNWIND-based shape. The single-clause
+// form also binds the relationship correctly, unlike a two-clause
+// `MATCH (source) MATCH ()-[rel]->()` split (orneryd/NornicDB#257). A bare
+// `[rel]` is safe here because the `evidence_source` predicate already scopes
+// the delete to only this writer's edges.
+const retractAzureCloudResourceEdgesByUIDsCypher = `MATCH (source:CloudResource)-[rel]->()
+WHERE source.uid IN $source_uids
+  AND rel.scope_id IN $scope_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+// azureCloudResourceEdgeRetractUIDBatchSize bounds the number of source uids
+// passed in the $source_uids IN-list per anchored-retract statement.
+const azureCloudResourceEdgeRetractUIDBatchSize = 500
+
 // AzureCloudResourceEdgeWriter materializes resolved azure_cloud_relationship
 // facts into canonical Azure relationship edges between CloudResource nodes.
 type AzureCloudResourceEdgeWriter struct {
@@ -155,6 +179,45 @@ func (w *AzureCloudResourceEdgeWriter) RetractCloudResourceEdges(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractCloudResourceEdgesByUIDs removes Azure relationship edges owned by
+// this reducer for the given scopes, enumerating source CloudResource uids
+// from the projected-source ledger instead of scanning the whole
+// :CloudResource label. It is a no-op for an empty uid set.
+func (w *AzureCloudResourceEdgeWriter) RetractCloudResourceEdgesByUIDs(
+	ctx context.Context,
+	sourceUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	if len(sourceUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("azure cloud resource edge writer executor is required")
+	}
+	batches := chunkStrings(sourceUIDs, azureCloudResourceEdgeRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractAzureCloudResourceEdgesByUIDsCypher,
+			Parameters: map[string]any{
+				"source_uids":                   batch,
+				"scope_ids":                     scopeIDs,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseAzureCloudResourceEdge,
+				StatementMetadataEntityLabelKey: "AZURE_RELATIONSHIP",
+				StatementMetadataSummaryKey: fmt.Sprintf(
+					"edge=AZURE_RELATIONSHIP retract_by_uids scopes=%d uids=%d",
+					len(scopeIDs),
+					len(batch),
+				),
+			},
+		})
+	}
+	return w.dispatchRetract(ctx, stmts)
+}
+
 func (w *AzureCloudResourceEdgeWriter) dispatch(ctx context.Context, stmts []Statement) error {
 	if len(stmts) == 0 {
 		return nil
@@ -163,6 +226,21 @@ func (w *AzureCloudResourceEdgeWriter) dispatch(ctx context.Context, stmts []Sta
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes anchored-retract statements through sequential
+// Execute calls, never ExecuteGroup, for the same NornicDB bolt-driver reason
+// documented on CloudResourceEdgeWriter.dispatchRetract.
+func (w *AzureCloudResourceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

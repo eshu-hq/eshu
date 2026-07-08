@@ -51,14 +51,24 @@ func awsRelationshipMaterializationDomainDefinition() DomainDefinition {
 // writers.
 const awsRelationshipEvidenceSource = "reducer/aws-relationships"
 
-// CloudResourceEdgeWriter persists and retracts canonical AWS relationship
-// edges between CloudResource nodes. Implementations MUST be idempotent by
-// (source uid, relationship_type, target uid) so reducer retries and duplicate
-// facts converge on one edge, and MUST NOT fabricate endpoint nodes: a row
-// whose source or target node is absent is a no-op.
+// AWSRelationshipEvidenceSource returns the evidence-source string for
+// reducer-owned AWS relationship edges, exported so cmd/reducer can wire the
+// ProjectedSourceEdgeBackfiller against the same value this handler uses.
+func AWSRelationshipEvidenceSource() string { return awsRelationshipEvidenceSource }
+
+// CloudResourceEdgeWriter persists and retracts canonical AWS, Azure, and GCP
+// relationship edges between CloudResource nodes. Implementations MUST be
+// idempotent by (source uid, relationship_type, target uid) so reducer
+// retries and duplicate facts converge on one edge, and MUST NOT fabricate
+// endpoint nodes: a row whose source or target node is absent is a no-op.
 type CloudResourceEdgeWriter interface {
 	WriteCloudResourceEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractCloudResourceEdges(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
+	// RetractCloudResourceEdgesByUIDs removes reducer-owned CloudResource edges
+	// for the given scopes, enumerating source CloudResource uids from the
+	// projected-source ledger instead of scanning the whole :CloudResource
+	// label. Implementations MUST treat an empty sourceUIDs as a no-op.
+	RetractCloudResourceEdgesByUIDs(ctx context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string) error
 }
 
 // AWSRelationshipMaterializationHandler reduces one AWS relationship
@@ -83,8 +93,13 @@ type AWSRelationshipMaterializationHandler struct {
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck PriorGenerationCheck
-	Tracer               trace.Tracer
-	Instruments          *telemetry.Instruments
+	// Ledger records and enumerates source CloudResource uids of projected AWS
+	// relationship edges so retraction can enumerate uids from the ledger and
+	// use anchored-delete instead of scanning the whole :CloudResource label.
+	// Nil preserves the pre-ledger whole-scope retract (RetractCloudResourceEdges).
+	Ledger      ProjectedSourceLedger
+	Tracer      trace.Tracer
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one AWS relationship materialization intent.
@@ -167,7 +182,20 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	var retractDuration time.Duration
 	if !skipRetract {
 		retractStart := time.Now()
-		if err := h.EdgeWriter.RetractCloudResourceEdges(
+		if h.Ledger != nil {
+			uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, awsRelationshipEvidenceSource, []string{intent.ScopeID})
+			if err != nil {
+				return Result{}, fmt.Errorf("list source uids for aws relationship retract: %w", err)
+			}
+			if err := h.EdgeWriter.RetractCloudResourceEdgesByUIDs(
+				ctx, uids, []string{intent.ScopeID}, awsRelationshipEvidenceSource,
+			); err != nil {
+				return Result{}, fmt.Errorf("retract canonical aws relationship edges by uids: %w", err)
+			}
+			if err := h.Ledger.PruneForScopes(ctx, awsRelationshipEvidenceSource, []string{intent.ScopeID}); err != nil {
+				return Result{}, fmt.Errorf("prune aws relationship projected sources: %w", err)
+			}
+		} else if err := h.EdgeWriter.RetractCloudResourceEdges(
 			ctx,
 			[]string{intent.ScopeID},
 			intent.GenerationID,
@@ -180,6 +208,16 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 
 	var writeDuration time.Duration
 	if len(rows) > 0 {
+		if h.Ledger != nil {
+			uids := sourceUIDsFromRowsByKey(rows, "source_uid")
+			if len(uids) > 0 {
+				if err := h.Ledger.RecordProjectedSources(
+					ctx, awsRelationshipEvidenceSource, intent.ScopeID, intent.GenerationID, uids, time.Now(),
+				); err != nil {
+					return Result{}, fmt.Errorf("record aws relationship projected sources: %w", err)
+				}
+			}
+		}
 		writeStart := time.Now()
 		if err := h.EdgeWriter.WriteCloudResourceEdges(ctx, rows, intent.ScopeID, intent.GenerationID, awsRelationshipEvidenceSource); err != nil {
 			return Result{}, fmt.Errorf("write canonical aws relationship edges: %w", err)

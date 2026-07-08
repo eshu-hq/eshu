@@ -29,6 +29,13 @@ type recordingCloudResourceEdgeWriter struct {
 	retractEvidence   string
 	writeErr          error
 	retractErr        error
+
+	// anchored-delete method
+	retractByUIDsCalls    int
+	retractByUIDsUids     []string
+	retractByUIDsScopes   []string
+	retractByUIDsEvidence string
+	retractByUIDsErr      error
 }
 
 func (w *recordingCloudResourceEdgeWriter) WriteCloudResourceEdges(
@@ -56,6 +63,19 @@ func (w *recordingCloudResourceEdgeWriter) RetractCloudResourceEdges(
 	w.retractScopeIDs = append(w.retractScopeIDs, scopeIDs...)
 	w.retractEvidence = evidenceSource
 	return w.retractErr
+}
+
+func (w *recordingCloudResourceEdgeWriter) RetractCloudResourceEdgesByUIDs(
+	_ context.Context,
+	sourceUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	w.retractByUIDsCalls++
+	w.retractByUIDsUids = append(w.retractByUIDsUids, sourceUIDs...)
+	w.retractByUIDsScopes = append(w.retractByUIDsScopes, scopeIDs...)
+	w.retractByUIDsEvidence = evidenceSource
+	return w.retractByUIDsErr
 }
 
 func readyLookup(ready, found bool) GraphProjectionReadinessLookup {

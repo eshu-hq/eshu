@@ -49,8 +49,13 @@ func appendSecurityGroupReachabilityDomains(definitions []DomainDefinition, hand
 			Writer:               handlers.SecurityGroupReachabilityWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
-			Tracer:               handlers.Tracer,
-			Instruments:          handlers.Instruments,
+			// ProjectedSourceLedger (issue #4858, #4881) is shared with the AWS,
+			// Azure, GCP relationship, and observability-coverage handlers; this
+			// handler keys its own ledger rows by its distinct evidence_source
+			// string, so sharing the one store instance is safe.
+			Ledger:      handlers.ProjectedSourceLedger,
+			Tracer:      handlers.Tracer,
+			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, edges)
 	}

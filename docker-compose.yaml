@@ -4,6 +4,12 @@ services:
     # NORNICDB_PLATFORM unset so Docker selects linux/arm64 on Apple Silicon
     # and linux/amd64 on x86 hosts. Set NORNICDB_IMAGE and NORNICDB_PLATFORM
     # together only when testing a specific local NornicDB build.
+    #
+    # The reducer CloudResource / security-group retract source-anchoring
+    # (issues #4836/#4858/#4881) is correct on any NornicDB, but its O(scope)
+    # speedup needs the IN-list start-node index seed from
+    # orneryd/NornicDB#259. Until that merges and ships a tagged image, point
+    # NORNICDB_IMAGE at a build of that branch to measure the retract win.
     image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd}
     platform: ${NORNICDB_PLATFORM:-}
     ports:

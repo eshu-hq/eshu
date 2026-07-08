@@ -240,5 +240,83 @@ func TestGCPCloudResourceEdgeWriterSatisfiesReducerInterface(t *testing.T) {
 	var _ interface {
 		WriteCloudResourceEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 		RetractCloudResourceEdges(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
+		RetractCloudResourceEdgesByUIDs(ctx context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string) error
 	} = NewGCPCloudResourceEdgeWriter(&recordingExecutor{}, 0)
+}
+
+// TestGCPCloudResourceEdgeWriterRetractByUIDsAnchoredDelete proves the
+// anchored retract enumerates $source_uids via a single-clause
+// `WHERE source.uid IN $source_uids` predicate that seeds the
+// CloudResource.uid index, instead of scanning the whole :CloudResource label
+// or splitting into a two-clause MATCH/MATCH.
+func TestGCPCloudResourceEdgeWriterRetractByUIDsAnchoredDelete(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewGCPCloudResourceEdgeWriter(executor, 0)
+	if err := writer.RetractCloudResourceEdgesByUIDs(
+		context.Background(),
+		[]string{"src-a"},
+		[]string{"scope-1"},
+		"reducer/gcp-relationships",
+	); err != nil {
+		t.Fatalf("RetractCloudResourceEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"MATCH (source:CloudResource)-[rel]->()",
+		"WHERE source.uid IN $source_uids",
+		"rel.scope_id IN $scope_ids",
+		"rel.evidence_source = $evidence_source",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("retract by uids cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	if strings.Contains(cypher, "UNWIND $source_uids AS suid") || strings.Contains(cypher, "{uid: suid}") {
+		t.Fatalf("retract by uids cypher must not use the slow UNWIND + property-map MATCH shape:\n%s", cypher)
+	}
+}
+
+// TestGCPCloudResourceEdgeWriterRetractByUIDsEmptyIsNoOp proves empty source
+// uids is a clean no-op.
+func TestGCPCloudResourceEdgeWriterRetractByUIDsEmptyIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewGCPCloudResourceEdgeWriter(executor, 0)
+	if err := writer.RetractCloudResourceEdgesByUIDs(
+		context.Background(), nil, []string{"scope-1"}, "reducer/gcp-relationships",
+	); err != nil {
+		t.Fatalf("RetractCloudResourceEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 for empty uids", len(executor.calls))
+	}
+}
+
+// TestGCPCloudResourceEdgeWriterRetractByUIDsBatchesUids proves uids beyond
+// the batch size split into multiple statements.
+func TestGCPCloudResourceEdgeWriterRetractByUIDsBatchesUids(t *testing.T) {
+	t.Parallel()
+
+	uids := make([]string, 1200)
+	for i := range uids {
+		uids[i] = "uid-" + string(rune('a'+i%26)) + string(rune('0'+i/26))
+	}
+
+	executor := &recordingExecutor{}
+	writer := NewGCPCloudResourceEdgeWriter(executor, 0)
+	if err := writer.RetractCloudResourceEdgesByUIDs(
+		context.Background(), uids, []string{"scope-1"}, "reducer/gcp-relationships",
+	); err != nil {
+		t.Fatalf("RetractCloudResourceEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 3 {
+		t.Fatalf("len(calls) = %d, want 3 batches", len(executor.calls))
+	}
 }

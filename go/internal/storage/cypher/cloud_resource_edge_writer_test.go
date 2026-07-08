@@ -320,5 +320,94 @@ func TestCloudResourceEdgeWriterSatisfiesReducerInterface(t *testing.T) {
 	var _ interface {
 		WriteCloudResourceEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 		RetractCloudResourceEdges(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
+		RetractCloudResourceEdgesByUIDs(ctx context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string) error
 	} = NewCloudResourceEdgeWriter(&recordingExecutor{}, 0)
+}
+
+// TestCloudResourceEdgeWriterRetractByUIDsAnchoredDelete proves the anchored
+// retract enumerates $source_uids via a single-clause
+// `WHERE source.uid IN $source_uids` predicate that seeds the
+// CloudResource.uid index, instead of scanning the whole :CloudResource label
+// or splitting into a two-clause MATCH/MATCH, while still filtering by scope
+// and evidence source.
+func TestCloudResourceEdgeWriterRetractByUIDsAnchoredDelete(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCloudResourceEdgeWriter(executor, 0)
+	if err := writer.RetractCloudResourceEdgesByUIDs(
+		context.Background(),
+		[]string{"src-a", "src-b"},
+		[]string{"scope-1"},
+		"reducer/aws-relationships",
+	); err != nil {
+		t.Fatalf("RetractCloudResourceEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"MATCH (source:CloudResource)-[rel]->()",
+		"WHERE source.uid IN $source_uids",
+		"rel.scope_id IN $scope_ids",
+		"rel.evidence_source = $evidence_source",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("retract by uids cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	if strings.Contains(cypher, "UNWIND $source_uids AS suid") || strings.Contains(cypher, "{uid: suid}") {
+		t.Fatalf("retract by uids cypher must not use the slow UNWIND + property-map MATCH shape:\n%s", cypher)
+	}
+	if got := executor.calls[0].Parameters["source_uids"]; got == nil {
+		t.Fatalf("source_uids param missing")
+	}
+	if got := executor.calls[0].Parameters["scope_ids"]; got == nil {
+		t.Fatalf("scope_ids param missing")
+	}
+	if got := executor.calls[0].Parameters["evidence_source"]; got != "reducer/aws-relationships" {
+		t.Fatalf("evidence_source param = %v, want reducer/aws-relationships", got)
+	}
+}
+
+// TestCloudResourceEdgeWriterRetractByUIDsEmptyIsNoOp proves empty source uids
+// is a clean no-op (no executor call at all).
+func TestCloudResourceEdgeWriterRetractByUIDsEmptyIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCloudResourceEdgeWriter(executor, 0)
+	if err := writer.RetractCloudResourceEdgesByUIDs(
+		context.Background(), nil, []string{"scope-1"}, "reducer/aws-relationships",
+	); err != nil {
+		t.Fatalf("RetractCloudResourceEdgesByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 for empty uids", len(executor.calls))
+	}
+}
+
+// TestCloudResourceEdgeWriterRetractByUIDsBatchesUids proves uids beyond the
+// batch size split into multiple statements.
+func TestCloudResourceEdgeWriterRetractByUIDsBatchesUids(t *testing.T) {
+	t.Parallel()
+
+	uids := make([]string, 1200)
+	for i := range uids {
+		uids[i] = "uid-" + string(rune('a'+i%26)) + string(rune('0'+i/26))
+	}
+
+	executor := &recordingExecutor{}
+	writer := NewCloudResourceEdgeWriter(executor, 0)
+	if err := writer.RetractCloudResourceEdgesByUIDs(
+		context.Background(), uids, []string{"scope-1"}, "reducer/aws-relationships",
+	); err != nil {
+		t.Fatalf("RetractCloudResourceEdgesByUIDs returned error: %v", err)
+	}
+	// 1200 uids at 500 batch = ceil(1200/500) = 3 batches.
+	if len(executor.calls) != 3 {
+		t.Fatalf("len(calls) = %d, want 3 batches", len(executor.calls))
+	}
 }

@@ -30,6 +30,13 @@ type recordingSecurityGroupReachabilityWriter struct {
 	retractEvidence string
 	nodeErr         error
 	edgeErr         error
+
+	// anchored-delete method (issue #4881)
+	retractByUIDsCalls    int
+	retractByUIDsUids     []string
+	retractByUIDsScopes   []string
+	retractByUIDsEvidence string
+	retractByUIDsErr      error
 }
 
 func (w *recordingSecurityGroupReachabilityWriter) WriteSecurityGroupRuleNodes(
@@ -63,6 +70,16 @@ func (w *recordingSecurityGroupReachabilityWriter) RetractSecurityGroupReachabil
 	w.retractScopeIDs = append(w.retractScopeIDs, scopeIDs...)
 	w.retractEvidence = evidenceSource
 	return nil
+}
+
+func (w *recordingSecurityGroupReachabilityWriter) RetractSecurityGroupReachabilityByUIDs(
+	_ context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string,
+) error {
+	w.retractByUIDsCalls++
+	w.retractByUIDsUids = append(w.retractByUIDsUids, sourceUIDs...)
+	w.retractByUIDsScopes = append(w.retractByUIDsScopes, scopeIDs...)
+	w.retractByUIDsEvidence = evidenceSource
+	return w.retractByUIDsErr
 }
 
 // allKeyspacesReady is a readiness lookup that reports the requested phase ready

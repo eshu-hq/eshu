@@ -48,6 +48,7 @@ func appendGCPRelationshipMaterializationDomain(
 		EdgeWriter:           handlers.GCPCloudResourceEdgeWriter,
 		ReadinessLookup:      handlers.ReadinessLookup,
 		PriorGenerationCheck: handlers.PriorGenerationCheck,
+		Ledger:               handlers.ProjectedSourceLedger,
 		Tracer:               handlers.Tracer,
 		Instruments:          handlers.Instruments,
 	}

@@ -38,6 +38,11 @@ const (
 	azureRelationshipEvidenceSource = "reducer/azure-relationships"
 )
 
+// AzureRelationshipEvidenceSource returns the evidence-source string for
+// reducer-owned Azure relationship edges, exported so cmd/reducer can wire the
+// ProjectedSourceEdgeBackfiller against the same value this handler uses.
+func AzureRelationshipEvidenceSource() string { return azureRelationshipEvidenceSource }
+
 // AzureRelationshipMaterializationHandler reduces one Azure relationship
 // materialization intent into canonical CloudResource relationship edges. It
 // gates on Azure CloudResource node readiness and resolves endpoints only
@@ -47,7 +52,13 @@ type AzureRelationshipMaterializationHandler struct {
 	EdgeWriter           CloudResourceEdgeWriter
 	ReadinessLookup      GraphProjectionReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
-	Tracer               trace.Tracer
+	// Ledger records and enumerates source CloudResource uids of projected
+	// Azure relationship edges so retraction can enumerate uids from the
+	// ledger and use anchored-delete instead of scanning the whole
+	// :CloudResource label. Nil preserves the pre-ledger whole-scope retract
+	// (RetractCloudResourceEdges).
+	Ledger ProjectedSourceLedger
+	Tracer trace.Tracer
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// for a per-fact quarantined azure_cloud_resource/azure_cloud_relationship
 	// decode failure. A nil Instruments only skips the counter increment; the
@@ -122,7 +133,20 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	var retractDuration time.Duration
 	if !skipRetract {
 		retractStart := time.Now()
-		if err := h.EdgeWriter.RetractCloudResourceEdges(ctx, []string{intent.ScopeID}, intent.GenerationID, azureRelationshipEvidenceSource); err != nil {
+		if h.Ledger != nil {
+			uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, azureRelationshipEvidenceSource, []string{intent.ScopeID})
+			if err != nil {
+				return Result{}, fmt.Errorf("list source uids for azure relationship retract: %w", err)
+			}
+			if err := h.EdgeWriter.RetractCloudResourceEdgesByUIDs(
+				ctx, uids, []string{intent.ScopeID}, azureRelationshipEvidenceSource,
+			); err != nil {
+				return Result{}, fmt.Errorf("retract canonical azure relationship edges by uids: %w", err)
+			}
+			if err := h.Ledger.PruneForScopes(ctx, azureRelationshipEvidenceSource, []string{intent.ScopeID}); err != nil {
+				return Result{}, fmt.Errorf("prune azure relationship projected sources: %w", err)
+			}
+		} else if err := h.EdgeWriter.RetractCloudResourceEdges(ctx, []string{intent.ScopeID}, intent.GenerationID, azureRelationshipEvidenceSource); err != nil {
 			return Result{}, fmt.Errorf("retract canonical azure relationship edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
@@ -130,6 +154,16 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 
 	var writeDuration time.Duration
 	if len(rows) > 0 {
+		if h.Ledger != nil {
+			uids := sourceUIDsFromRowsByKey(rows, "source_uid")
+			if len(uids) > 0 {
+				if err := h.Ledger.RecordProjectedSources(
+					ctx, azureRelationshipEvidenceSource, intent.ScopeID, intent.GenerationID, uids, time.Now(),
+				); err != nil {
+					return Result{}, fmt.Errorf("record azure relationship projected sources: %w", err)
+				}
+			}
+		}
 		writeStart := time.Now()
 		if err := h.EdgeWriter.WriteCloudResourceEdges(ctx, rows, intent.ScopeID, intent.GenerationID, azureRelationshipEvidenceSource); err != nil {
 			return Result{}, fmt.Errorf("write canonical azure relationship edges: %w", err)

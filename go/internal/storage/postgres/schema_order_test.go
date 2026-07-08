@@ -67,4 +67,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"code_interproc_projected_edge",
 	"code_taint_evidence_projected_node",
 	"code_value_flow_backfill_state",
+	"projected_source_edge",
 }

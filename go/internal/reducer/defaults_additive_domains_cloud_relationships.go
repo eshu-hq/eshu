@@ -20,6 +20,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			EdgeWriter:           handlers.CloudResourceEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Ledger:               handlers.ProjectedSourceLedger,
 			Tracer:               handlers.Tracer,
 			Instruments:          handlers.Instruments,
 		}
@@ -43,6 +44,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			EdgeWriter:           handlers.ObservabilityCoverageEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Ledger:               handlers.ProjectedSourceLedger,
 			Tracer:               handlers.Tracer,
 			Instruments:          handlers.Instruments,
 		}

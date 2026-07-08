@@ -157,6 +157,32 @@ func buildReducerService(
 	if err := taintNodeBackfiller.Run(context.Background()); err != nil {
 		return reducer.Service{}, fmt.Errorf("code taint evidence projected node backfill: %w", err)
 	}
+	// Seed the projected-source-edge ledger from existing graph source edges
+	// (AWS/Azure/GCP relationship edges, observability coverage edges, and
+	// security-group reachability edges) so the ledger is a superset of graph
+	// edges at deploy time (one-time, idempotent backfill). Must run before any
+	// ledger-anchored RetractXxxByUIDs call in the AWS/Azure/GCP/observability/
+	// security-group-reachability materialization handlers wired below, so the
+	// first post-deploy retract is not a no-op that orphans pre-ledger edges.
+	// projectedSourceEdgeStore is constructed once here and reused as
+	// DefaultHandlers.ProjectedSourceLedger below so both the backfill and the
+	// runtime handlers share one store.
+	projectedSourceEdgeStore := postgres.NewProjectedSourceEdgeStore(database)
+	projectedSourceEdgeBackfiller := reducer.ProjectedSourceEdgeBackfiller{
+		Reader:      reducer.ProjectedSourceEdgeBackfillReader{Graph: graphReader},
+		Ledger:      projectedSourceEdgeStore,
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.AWSRelationshipEvidenceSource(),
+			reducer.AzureRelationshipEvidenceSource(),
+			reducer.GCPRelationshipEvidenceSource(),
+			reducer.ObservabilityCoverageEvidenceSource(),
+			reducer.SecurityGroupReachabilityEvidenceSource(),
+		},
+	}
+	if err := projectedSourceEdgeBackfiller.Run(context.Background()); err != nil {
+		return reducer.Service{}, fmt.Errorf("projected source edge backfill: %w", err)
+	}
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.
 	semanticEntityExecutor := graphWriteGate.boundSemanticEntityExecutor(
@@ -268,15 +294,24 @@ func buildReducerService(
 		IAMEscalationEdgeWriter:             graphWriters.iamEscalationEdge,
 		IAMCanPerformEdgeWriter:             graphWriters.iamCanPerformEdge,
 		ObservabilityCoverageEdgeWriter:     graphWriters.observabilityCoverageEdge,
-		IAMCanAssumeEdgeWriter:              graphWriters.iamCanAssumeEdge,
-		S3LogsToEdgeWriter:                  graphWriters.s3LogsToEdge,
-		S3ExternalPrincipalGrantWriter:      graphWriters.s3ExternalPrincipalGrant,
-		RDSPostureNodeWriter:                graphWriters.rdsPostureNode,
-		EC2UsesProfileEdgeWriter:            graphWriters.ec2UsesProfileEdge,
-		IAMInstanceProfileRoleEdgeWriter:    graphWriters.iamInstanceProfileRoleEdge,
-		EC2InternetExposureNodeWriter:       graphWriters.ec2InternetExposureNode,
-		EC2BlockDeviceKMSPostureNodeWriter:  graphWriters.ec2BlockDeviceKMSPostureNode,
-		S3InternetExposureNodeWriter:        graphWriters.s3InternetExposureNode,
+		// ProjectedSourceLedger (issue #4858, #4881) is shared by the AWS,
+		// Azure, GCP relationship, observability-coverage, and
+		// security-group-reachability handlers above; each handler keys its
+		// own ledger rows by its distinct evidence_source string, so one store
+		// instance is enough. This is the same projectedSourceEdgeStore
+		// instance the ProjectedSourceEdgeBackfiller above seeded at startup,
+		// mirroring the code-interproc ledger wiring
+		// (postgres.NewCodeInterprocProjectedEdgeStore) constructed earlier.
+		ProjectedSourceLedger:              projectedSourceEdgeStore,
+		IAMCanAssumeEdgeWriter:             graphWriters.iamCanAssumeEdge,
+		S3LogsToEdgeWriter:                 graphWriters.s3LogsToEdge,
+		S3ExternalPrincipalGrantWriter:     graphWriters.s3ExternalPrincipalGrant,
+		RDSPostureNodeWriter:               graphWriters.rdsPostureNode,
+		EC2UsesProfileEdgeWriter:           graphWriters.ec2UsesProfileEdge,
+		IAMInstanceProfileRoleEdgeWriter:   graphWriters.iamInstanceProfileRoleEdge,
+		EC2InternetExposureNodeWriter:      graphWriters.ec2InternetExposureNode,
+		EC2BlockDeviceKMSPostureNodeWriter: graphWriters.ec2BlockDeviceKMSPostureNode,
+		S3InternetExposureNodeWriter:       graphWriters.s3InternetExposureNode,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},
